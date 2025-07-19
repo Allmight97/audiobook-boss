@@ -63,3 +63,10 @@ npm run preview
 3. Frontend-backend communication through Tauri's invoke API
 4. No complex state management - direct DOM manipulation
 5. Comprehensive CSS theming system using custom properties
+
+## Documentation
+
+- [Development Specifications](docs/specs/development.md)
+- [Requirements Stories](docs/specs/requirements_stories.md)
+- [Implementation Plan](docs/specs/imp_plan.md)
+- [Coding Guidelines](docs/specs/coding_guidelines.md) - CRITICAL - DO NOT IGNORE THIS FILE
