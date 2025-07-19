@@ -1,4 +1,5 @@
 # Audiobook Boss: Coding Guidelines for Claude Code
+Ai Agents: use this doc to maintain the codebase.
 
 ## Project Context
 - First Rust project for JStar (junior dev)
