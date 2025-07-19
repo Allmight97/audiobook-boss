@@ -1,7 +1,7 @@
 # Audiobook Boss: Atomized Implementation Plan
 
 ## Testing Reality Check
-Skip formal testing for now. You're learning Rust, not writing production code for NASA. Manual testing is fine for an MVP. Add tests later when you understand what you're building.
+Skip formal testing for now - manual testing is fine for an Minimum viable prototype. 
 
 ## Implementation Order
 
