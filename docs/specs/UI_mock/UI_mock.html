@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audiobook Boss - Mockup v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'], // Using Inter as requested
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Basic body styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Use full viewport height */
+            margin: 0;
+        }
+        /* Main container styling */
+        .main-container {
+            display: flex;
+            flex-grow: 1; /* Allow main content to grow */
+            gap: 1rem; /* Gap between panels */
+            padding: 1rem;
+            overflow: hidden; /* Prevent layout issues */
+        }
+        /* Panel styling */
+        .panel {
+            border: 1px solid #e5e7eb; /* Gray border */
+            border-radius: 0.5rem; /* Rounded corners */
+            background-color: #ffffff; /* White background */
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* Subtle shadow */
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        /* Input panel specific width */
+        .input-panel {
+            width: 33.3333%; /* Approx 1/3 width */
+        }
+        /* Metadata/Output panel specific width */
+        .metadata-output-panel {
+            flex-grow: 1; /* Takes remaining space */
+            overflow-y: auto; /* Allow scrolling if content overflows */
+        }
+        /* Status panel specific height */
+        .status-panel {
+            /* height: auto; */ /* Let content define height */
+             margin: 0 1rem 1rem 1rem; /* Add margin to match main container padding */
+        }
+        /* Drag and drop area */
+        .drag-drop-area {
+            border: 2px dashed #d1d5db; /* Dashed border */
+            border-radius: 0.375rem; /* Rounded corners */
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            background-color: #fafafa; /* Slightly off-white background */
+        }
+        .drag-drop-area:hover {
+            background-color: #f0f0f0; /* Slightly darker on hover */
+        }
+        /* File list placeholder */
+        .file-list-placeholder {
+            min-height: 8rem; /* Min height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af; /* Gray text */
+            font-style: italic;
+            border: 1px solid #e5e7eb; /* Solid border */
+            border-radius: 0.375rem; /* Rounded corners */
+            padding: 1rem;
+            flex-grow: 1; /* Allow list to take available space */
+            overflow-y: auto; /* Add scroll if many files */
+        }
+         /* Buttons */
+        button, select, input[type="text"], textarea {
+           margin-top: 0.25rem; /* Add small space above form elements */
+        }
+        button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            white-space: nowrap;
+        }
+        .button-primary { background-color: #3b82f6; color: white; }
+        .button-primary:hover { background-color: #2563eb; }
+        .button-secondary { background-color: #6b7280; color: white; }
+        .button-secondary:hover { background-color: #4b5563; }
+
+        /* Input fields and labels */
+        label {
+             display: block;
+             font-size: 0.875rem; /* text-sm */
+             font-weight: 500; /* font-medium */
+             color: #374151; /* text-gray-700 */
+             margin-bottom: 0.25rem; /* Small space below label */
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            border-radius: 0.375rem;
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            padding: 0.5rem;
+            box-shadow: inset 0 1px 2px 0 rgba(0,0,0,0.05);
+        }
+        input[readonly] {
+             background-color: #f3f4f6; /* bg-gray-100 */
+             cursor: default;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: 2px solid transparent;
+            outline-offset: 2px;
+            border-color: #6366f1; /* focus:border-indigo-500 */
+            box-shadow: 0 0 0 2px #a5b4fc; /* focus:ring-indigo-500 */
+        }
+        /* Property labels/values */
+        .property-label { font-weight: 500; color: #4b5563; }
+        .property-value { color: #1f2937; font-family: monospace; margin-left: 0.25rem; }
+
+         /* Cover Art Placeholder */
+        .cover-art-area {
+            width: 100%;
+            padding-top: 100%; /* Creates a square aspect ratio */
+            position: relative;
+            background-color: #e5e7eb; /* Gray background */
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            overflow: hidden; /* Ensure image stays within bounds */
+        }
+        .cover-art-area img {
+             position: absolute;
+             top: 0;
+             left: 0;
+             width: 100%;
+             height: 100%;
+             object-fit: cover; /* Cover the area, cropping if needed */
+        }
+         .cover-art-area .placeholder-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #9ca3af;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+
+        /* Checkbox styling */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+         .checkbox-label input[type="checkbox"] {
+            width: auto; /* Override default width */
+            margin-right: 0.5rem;
+        }
+
+         /* Ensure gap for grid layouts */
+         .grid { gap: 1rem; }
+         .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+         .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+         .col-span-1 { grid-column: span 1 / span 1; }
+         .col-span-2 { grid-column: span 2 / span 2; }
+
+         /* Flex layout for output dir */
+         .output-dir-flex { display: flex; }
+         .output-dir-flex input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+         .output-dir-flex button { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-top: 0; /* Align button */ }
+
+         /* Radio buttons container */
+        .radio-group label {
+            display: inline-flex; /* Align radio buttons horizontally */
+            align-items: center;
+            margin-right: 1rem; /* Space between options */
+            font-weight: normal; /* Normal weight for radio labels */
+        }
+        .radio-group input[type="radio"] {
+            width: auto; /* Override default width */
+            margin-right: 0.3rem;
+        }
+
+        /* Status Bar alignment */
+        .status-panel-content {
+             display: flex;
+             align-items: center;
+             gap: 1rem;
+        }
+        .progress-details {
+             flex-grow: 1; /* Allow progress bar area to take space */
+        }
+        .progress-bar-bg {
+            background-color: #e5e7eb; /* bg-gray-200 */
+            border-radius: 9999px; /* rounded-full */
+            height: 0.625rem; /* h-2.5 */
+            overflow: hidden; /* Ensure inner bar stays rounded */
+        }
+        .progress-bar-fg {
+            background-color: #3b82f6; /* bg-blue-600 */
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.3s ease-linear; /* Smooth transition */
+        }
+    </style>
+</head>
+<body class="p-0"> <!-- Remove body padding, handle via containers -->
+
+    <h1 class="text-2xl font-bold p-4 text-center text-gray-800 bg-white border-b border-gray-200">Audiobook Boss</h1>
+
+    <div class="main-container">
+
+        <!-- Input Panel -->
+        <div class="panel input-panel">
+            <h2 class="text-lg font-semibold mb-3 text-gray-700">Input Audio Files</h2>
+            <div class="drag-drop-area mb-4">
+                <p class="text-gray-500 text-sm">Drag & Drop files here or Click to Select</p>
+                <p class="text-xs text-gray-400 mt-1">Supports: mp3, m4a, m4b, aac</p>
+            </div>
+            <h3 class="text-md font-medium mb-1 text-gray-600">File Order:</h3>
+            <div class="file-list-placeholder mb-4">
+                <!-- File list will be populated here dynamically -->
+                 File List Area (Drag to Reorder)
+                <!-- Example (static for mockup):
+                <ul class="w-full text-left text-sm text-gray-700 list-none p-0 m-0">
+                    <li class="p-2 border-b border-gray-200 cursor-grab">01 - Chapter One.mp3</li>
+                    <li class="p-2 border-b border-gray-200 cursor-grab">02 - Chapter Two.mp3</li>
+                    <li class="p-2 border-b border-gray-200 cursor-grab">03 - Chapter Three.mp3</li>
+                </ul>
+                 -->
+            </div>
+
+            <div class="pt-4 border-t border-gray-200 mt-auto"> <!-- Push properties to bottom -->
+                <h3 class="text-md font-medium mb-2 text-gray-600">Selected File Properties</h3>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-2">
+                    <span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">--- kbps</span>
+                    <span class="property-label">Sample Rate:</span><span class="property-value" id="prop-samplerate">--- Hz</span>
+                    <span class="property-label">Channels:</span><span class="property-value" id="prop-channels">---</span>
+                    <span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">--- MB</span>
+                    <span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize">--- MB</span>
+                </div>
+                <p class="text-xs text-gray-500 italic">(Properties shown for single selected file. Combined size shows total.)</p>
+            </div>
+
+            <!-- Folder Monitoring Placeholder -->
+            <div class="mt-4 pt-4 border-t border-gray-200 opacity-50"> <!-- Dimmed for future state -->
+                 <h3 class="text-md font-medium mb-1 text-gray-600">Folder Monitoring (Future)</h3>
+                 <div class="text-sm text-gray-500 mb-2">Monitored Folder: N/A</div>
+                 <button class="button-secondary text-sm w-full" disabled>Change Watched Folder</button>
+            </div>
+        </div>
+
+        <!-- Metadata & Output Panel -->
+        <div class="panel metadata-output-panel">
+            <h2 class="text-lg font-semibold mb-3 text-gray-700">Metadata & Output</h2>
+            <div class="grid grid-cols-3 gap-x-4 mb-4">
+                <!-- Cover Art Column -->
+                <div class="col-span-1 flex flex-col">
+                     <label for="load-cover-art" class="block text-sm font-medium text-gray-700 mb-1">Cover Art</label>
+                     <div class="cover-art-area mb-2">
+                         <!-- Placeholder Text -->
+                         <div class="placeholder-text">Drag Image Here</div>
+                         <!-- Image will be placed here -->
+                         <img src="" alt="Book Cover Art" id="cover-art-img" class="hidden"> <!-- Hidden initially -->
+                     </div>
+                     <button id="load-cover-art" class="button-secondary text-sm w-full">Load Cover Art</button>
+                </div>
+                 <!-- Metadata Fields Column -->
+                <div class="col-span-2">
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <div>
+                            <label for="meta-title">Title</label>
+                            <input type="text" id="meta-title" placeholder="Book Title">
+                        </div>
+                         <div>
+                            <label for="meta-author">Author (ALBUMARTIST)</label>
+                            <input type="text" id="meta-author" placeholder="Author Name">
+                        </div>
+                        <div>
+                            <label for="meta-album">Album (ALBUM)</label>
+                            <input type="text" id="meta-album" placeholder="Usually Same as Title">
+                        </div>
+                         <div>
+                            <label for="meta-narrator">Narrator (STYLE)</label>
+                            <input type="text" id="meta-narrator" placeholder="Narrator Name">
+                        </div>
+                        <div>
+                            <label for="meta-year">Year (YYYY)</label>
+                            <input type="text" id="meta-year" placeholder="Year">
+                        </div>
+                        <div>
+                            <label for="meta-genre">Genre(s) (semicolon sep.)</label>
+                            <input type="text" id="meta-genre" placeholder="Fiction; Thriller">
+                        </div>
+                        <div>
+                            <label for="meta-series">Series (MOOD)</label>
+                            <input type="text" id="meta-series" placeholder="Series Name">
+                        </div>
+                         <div>
+                            <label for="meta-series-pos">Series Pos. (TRACK)</label>
+                            <input type="text" id="meta-series-pos" placeholder="e.g., 1 or 01">
+                        </div>
+                        <div class="col-span-2">
+                             <label for="meta-series-sort">Series Sort (ALBUMSORT)</label>
+                             <input type="text" id="meta-series-sort" placeholder="e.g., Series Name 01">
+                        </div>
+
+                    </div>
+                     <div class="mt-3">
+                        <label for="meta-description">Description (COMMENT)</label>
+                        <textarea id="meta-description" rows="4" placeholder="Enter book description..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Settings Section -->
+            <h3 class="text-md font-medium mb-2 text-gray-600 pt-4 border-t border-gray-200">Output Settings</h3>
+            <div class="grid grid-cols-3 gap-x-4 mb-4">
+                 <div>
+                    <label for="output-bitrate">Bitrate (kbps)</label>
+                    <select id="output-bitrate">
+                        <option value="32">32</option>
+                        <option value="48">48</option>
+                        <option value="56">56</option>
+                        <option value="64" selected>64 (Default)</option>
+                        <option value="96">96</option>
+                        <option value="128">128</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1 italic">Re-encodes only if source > 64k, unless explicitly selected.</p>
+                 </div>
+                 <div>
+                    <label for="output-samplerate">Sample Rate (Hz)</label>
+                     <select id="output-samplerate">
+                        <option value="auto" selected>Auto (Pass-through)</option>
+                        <option value="22050">22050</option>
+                        <option value="32000">32000</option>
+                        <option value="44100">44100</option>
+                        <option value="48000">48000</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1 italic">Resamples only if specific value selected.</p>
+                 </div>
+                 <div>
+                    <label for="output-channels">Channels</label>
+                     <select id="output-channels">
+                        <option value="mono" selected>Mono (Default)</option>
+                        <option value="stereo">Stereo</option>
+                    </select>
+                 </div>
+            </div>
+             <div class="mb-4">
+                <label for="output-dir-text">Output Directory</label>
+                <div class="output-dir-flex">
+                    <input type="text" id="output-dir-text" placeholder="/path/to/calculated/output/location" readonly>
+                    <button id="output-dir-browse" class="button-secondary">Browse...</button>
+                </div>
+                 <label for="output-subdir-pattern" class="checkbox-label">
+                     <input type="checkbox" id="output-subdir-pattern" checked>
+                     Use Default Subdirectory Pattern ([Author]/[Series]/[Year-Title]/)
+                 </label>
+            </div>
+
+            <div class="mb-4">
+                 <label class="block text-sm font-medium text-gray-700 mb-1">Output Filename Pattern</label>
+                 <div class="radio-group">
+                     <label>
+                         <input type="radio" name="filename_pattern" value="title_year" checked>
+                         Book Title (Year).m4b
+                     </label>
+                     <label>
+                         <input type="radio" name="filename_pattern" value="author_title">
+                         Author - Book Title.m4b
+                     </label>
+                 </div>
+             </div>
+
+
+            <div class="pt-4 border-t border-gray-200 text-sm mb-4">
+                 <span class="property-label">Estimated Output Size: </span>
+                 <span class="property-value" id="output-estimated-size">~ --- MB</span>
+            </div>
+
+            <div class="mt-auto pt-4 border-t border-gray-200 flex justify-end"> <!-- Push preview button to bottom -->
+                 <button id="preview-button" class="button-secondary">Preview (30s)</button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Status Panel -->
+    <div class="panel status-panel">
+        <div class="status-panel-content">
+            <div class="flex-shrink-0">
+                <!-- Thumbnail placeholder -->
+                <div class="h-10 w-10 rounded object-cover border border-gray-300 bg-gray-200 flex items-center justify-center">
+                     <span class="text-gray-400 text-xs">Art</span>
+                </div>
+                <!-- Actual Image (hidden until cover art loaded)
+                <img src="" alt="Processing Cover Art" class="h-10 w-10 rounded object-cover border border-gray-300 hidden">
+                -->
+            </div>
+            <div class="progress-details">
+                 <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">
+                        Progress:
+                        <span id="hours-processed" class="property-value">--.-- / --.-- hours</span>
+                        (<span id="percentage-processed" class="property-value">--%</span>)
+                    </span>
+                    <span id="status-text" class="text-sm font-medium text-gray-700 font-semibold">Idle</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+                </div>
+                <div id="step-text" class="text-xs text-gray-500 mt-1">Current Step: Waiting for files...</div>
+            </div>
+            <div class="flex-shrink-0">
+                <button id="process-button" class="button-primary">Process Audiobook</button>
+                <!-- Button state will change dynamically, e.g., to "Cancel Processing" -->
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
