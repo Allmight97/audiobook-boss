@@ -1,163 +1,301 @@
+/* CSS Custom Properties for Theme Support */
+:root {
+	/* Light theme colors (default) */
+	--bg-main: #f3f4f6;
+	--bg-panel: #ffffff;
+	--bg-input: #ffffff;
+	--bg-input-disabled: #f3f4f6;
+	--bg-hover: #f9fafb;
+	--bg-drag-area: #fafafa;
+	
+	--text-primary: #1f2937;
+	--text-secondary: #4b5563;
+	--text-muted: #6b7280;
+	--text-placeholder: #9ca3af;
+	--text-inverse: #ffffff;
+	
+	--border-primary: #e5e7eb;
+	--border-secondary: #d1d5db;
+	--border-focus: #6366f1;
+	
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+	--shadow-focus: 0 0 0 2px #a5b4fc;
+	
+	--accent-primary: #3b82f6;
+	--accent-primary-hover: #2563eb;
+	--accent-secondary: #6b7280;
+	--accent-secondary-hover: #4b5563;
+	
+	--progress-bg: #e5e7eb;
+	--progress-fg: #3b82f6;
+}
+
+/* Dark theme colors */
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg-main: #111827;
+		--bg-panel: #1f2937;
+		--bg-input: #374151;
+		--bg-input-disabled: #1f2937;
+		--bg-hover: #4b5563;
+		--bg-drag-area: #374151;
+		
+		--text-primary: #f9fafb;
+		--text-secondary: #e5e7eb;
+		--text-muted: #9ca3af;
+		--text-placeholder: #6b7280;
+		--text-inverse: #1f2937;
+		
+		--border-primary: #374151;
+		--border-secondary: #4b5563;
+		--border-focus: #6366f1;
+		
+		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+		--shadow-focus: 0 0 0 2px #4338ca;
+		
+		--accent-primary: #3b82f6;
+		--accent-primary-hover: #60a5fa;
+		--accent-secondary: #6b7280;
+		--accent-secondary-hover: #9ca3af;
+		
+		--progress-bg: #374151;
+		--progress-fg: #3b82f6;
+	}
+}
+
 /* Basic body styling */
 body {
 	font-family: "Inter", sans-serif;
-	background-color: #f3f4f6; /* Light gray background */
+	background-color: var(--bg-main);
+	color: var(--text-primary);
 	display: flex;
 	flex-direction: column;
-	height: 100vh; /* Use full viewport height */
+	height: 100vh;
 	margin: 0;
+	transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
+/* Header styling */
+h1 {
+	background-color: var(--bg-panel);
+	color: var(--text-primary);
+	border-bottom-color: var(--border-primary);
+}
+
 /* Main container styling */
 .main-container {
 	display: flex;
-	flex-grow: 1; /* Allow main content to grow */
-	gap: 1rem; /* Gap between panels */
+	flex-grow: 1;
+	gap: 1rem;
 	padding: 1rem;
-	overflow: hidden; /* Prevent layout issues */
+	overflow: hidden;
 }
-/* Panel styling */
+
+/* Panel styling with proper shadows */
 .panel {
-	border: 1px solid #e5e7eb; /* Gray border */
-	border-radius: 0.5rem; /* Rounded corners */
-	background-color: #ffffff; /* White background */
-	box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* Subtle shadow */
+	border: 1px solid var(--border-primary);
+	border-radius: 0.5rem;
+	background-color: var(--bg-panel);
+	box-shadow: var(--shadow-md);
 	display: flex;
 	flex-direction: column;
 	padding: 1rem;
+	transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
-/* Input panel specific width */
+
+/* Input panel specific width - exactly 1/3 */
 .input-panel {
-	width: 33.3333%; /* Approx 1/3 width */
+	width: 33.3333%;
+	flex-shrink: 0;
 }
 /* Metadata/Output panel specific width */
 .metadata-output-panel {
-	flex-grow: 1; /* Takes remaining space */
-	overflow-y: auto; /* Allow scrolling if content overflows */
+	flex-grow: 1;
+	overflow-y: auto;
 }
-/* Status panel specific height */
+
+/* Status panel specific styling */
 .status-panel {
-	margin: 0 1rem 1rem 1rem; /* Add margin to match main container padding */
+	margin: 0 1rem 1rem 1rem;
 }
-/* Drag and drop area */
+
+/* Drag and drop area with enhanced styling */
 .drag-drop-area {
-	border: 2px dashed #d1d5db; /* Dashed border */
-	border-radius: 0.375rem; /* Rounded corners */
-	padding: 1rem;
+	border: 2px dashed var(--border-secondary);
+	border-radius: 0.375rem;
+	padding: 2rem 1rem;
 	text-align: center;
 	cursor: pointer;
-	background-color: #fafafa; /* Slightly off-white background */
+	background-color: var(--bg-drag-area);
+	transition: all 0.2s ease-in-out;
 }
+
 .drag-drop-area:hover {
-	background-color: #f0f0f0; /* Slightly darker on hover */
+	background-color: var(--bg-hover);
+	border-color: var(--accent-primary);
+}
+
+.drag-drop-area.drag-over {
+	background-color: var(--bg-hover);
+	border-color: var(--accent-primary);
+	transform: scale(1.02);
 }
 /* File list placeholder */
 .file-list-placeholder {
-	min-height: 8rem; /* Min height */
+	min-height: 8rem;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: #9ca3af; /* Gray text */
+	color: var(--text-placeholder);
 	font-style: italic;
-	border: 1px solid #e5e7eb; /* Solid border */
-	border-radius: 0.375rem; /* Rounded corners */
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
 	padding: 1rem;
-	flex-grow: 1; /* Allow list to take available space */
-	overflow-y: auto; /* Add scroll if many files */
+	flex-grow: 1;
+	overflow-y: auto;
+	background-color: var(--bg-input);
 }
-/* Buttons */
+
+/* Typography for headings */
+h2, h3 {
+	color: var(--text-secondary);
+}
+
+/* Buttons with theme support */
 button,
 select,
 input[type="text"],
 textarea {
-	margin-top: 0.25rem; /* Add small space above form elements */
+	margin-top: 0.25rem;
 }
+
 button {
 	padding: 0.5rem 1rem;
 	border-radius: 0.375rem;
 	font-weight: 500;
 	cursor: pointer;
-	transition: background-color 0.2s ease-in-out;
+	transition: all 0.2s ease-in-out;
 	white-space: nowrap;
+	border: none;
 }
 .button-primary {
-	background-color: #3b82f6;
-	color: white;
-}
-.button-primary:hover {
-	background-color: #2563eb;
-}
-.button-secondary {
-	background-color: #6b7280;
-	color: white;
-}
-.button-secondary:hover {
-	background-color: #4b5563;
+	background-color: var(--accent-primary);
+	color: var(--text-inverse);
 }
 
-/* Input fields and labels */
+.button-primary:hover {
+	background-color: var(--accent-primary-hover);
+	transform: translateY(-1px);
+	box-shadow: var(--shadow-md);
+}
+
+.button-secondary {
+	background-color: var(--accent-secondary);
+	color: var(--text-inverse);
+}
+
+.button-secondary:hover {
+	background-color: var(--accent-secondary-hover);
+}
+
+.button-secondary:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Input fields and labels with theme support */
 label {
 	display: block;
-	font-size: 0.875rem; /* text-sm */
-	font-weight: 500; /* font-medium */
-	color: #374151; /* text-gray-700 */
-	margin-bottom: 0.25rem; /* Small space below label */
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--text-secondary);
+	margin-bottom: 0.25rem;
 }
 input[type="text"],
 select,
 textarea {
 	width: 100%;
 	border-radius: 0.375rem;
-	border: 1px solid #d1d5db; /* border-gray-300 */
+	border: 2px dashed var(--border-secondary);
 	padding: 0.5rem;
-	box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	box-shadow: var(--shadow-sm);
+	background-color: var(--bg-input);
+	color: var(--text-primary);
+	transition: all 0.2s ease-in-out;
 }
+
 input[readonly] {
-	background-color: #f3f4f6; /* bg-gray-100 */
+	background-color: var(--bg-input-disabled);
 	cursor: default;
+	border-style: solid;
+	border-width: 1px;
+	opacity: 0.8;
 }
+
+input[readonly]:hover {
+	border-color: var(--border-secondary);
+	background-color: var(--bg-input-disabled);
+}
+
 input:focus,
 select:focus,
 textarea:focus {
 	outline: 2px solid transparent;
 	outline-offset: 2px;
-	border-color: #6366f1; /* focus:border-indigo-500 */
-	box-shadow: 0 0 0 2px #a5b4fc; /* focus:ring-indigo-500 */
+	border-color: var(--border-focus);
+	border-style: solid;
+	box-shadow: var(--shadow-focus);
 }
+
+input:hover:not(:focus),
+select:hover:not(:focus),
+textarea:hover:not(:focus) {
+	border-color: var(--accent-primary);
+	background-color: var(--bg-hover);
+}
+
 /* Property labels/values */
 .property-label {
 	font-weight: 500;
-	color: #4b5563;
+	color: var(--text-secondary);
 }
 .property-value {
-	color: #1f2937;
+	color: var(--text-primary);
 	font-family: monospace;
 	margin-left: 0.25rem;
 }
 
-/* Cover Art Placeholder */
+/* Cover Art Placeholder with theme support */
 .cover-art-area {
 	width: 100%;
-	padding-top: 100%; /* Creates a square aspect ratio */
+	padding-top: 100%;
 	position: relative;
-	background-color: #e5e7eb; /* Gray background */
-	border: 1px solid #d1d5db;
+	background-color: var(--bg-drag-area);
+	border: 2px dashed var(--border-secondary);
 	border-radius: 0.375rem;
-	overflow: hidden; /* Ensure image stays within bounds */
+	overflow: hidden;
+	transition: all 0.2s ease-in-out;
 }
+
+.cover-art-area:hover {
+	border-color: var(--accent-primary);
+}
+
 .cover-art-area img {
 	position: absolute;
 	top: 0;
 	left: 0;
 	width: 100%;
 	height: 100%;
-	object-fit: cover; /* Cover the area, cropping if needed */
+	object-fit: cover;
 }
 .cover-art-area .placeholder-text {
 	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	color: #9ca3af;
+	color: var(--text-placeholder);
 	font-size: 0.875rem;
 	text-align: center;
 }
@@ -168,10 +306,13 @@ textarea:focus {
 	align-items: center;
 	margin-top: 0.5rem;
 	font-size: 0.875rem;
+	color: var(--text-primary);
 }
+
 .checkbox-label input[type="checkbox"] {
-	width: auto; /* Override default width */
+	width: auto;
 	margin-right: 0.5rem;
+	accent-color: var(--accent-primary);
 }
 
 /* Ensure gap for grid layouts */
@@ -181,12 +322,15 @@ textarea:focus {
 .grid-cols-2 {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
 .grid-cols-3 {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+
 .col-span-1 {
 	grid-column: span 1 / span 1;
 }
+
 .col-span-2 {
 	grid-column: span 2 / span 2;
 }
@@ -195,46 +339,130 @@ textarea:focus {
 .output-dir-flex {
 	display: flex;
 }
+
 .output-dir-flex input {
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
+	border-right: none;
 }
+
 .output-dir-flex button {
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
-	margin-top: 0; /* Align button */
+	margin-top: 0;
+	border: 2px solid var(--accent-secondary);
+	border-left: none;
 }
-
 /* Radio buttons container */
 .radio-group label {
-	display: inline-flex; /* Align radio buttons horizontally */
+	display: inline-flex;
 	align-items: center;
-	margin-right: 1rem; /* Space between options */
-	font-weight: normal; /* Normal weight for radio labels */
-}
-.radio-group input[type="radio"] {
-	width: auto; /* Override default width */
-	margin-right: 0.3rem;
+	margin-right: 1rem;
+	font-weight: normal;
+	color: var(--text-primary);
 }
 
-/* Status Bar alignment */
+.radio-group input[type="radio"] {
+	width: auto;
+	margin-right: 0.3rem;
+	accent-color: var(--accent-primary);
+}
+
+/* Status Bar alignment with visual progress */
 .status-panel-content {
 	display: flex;
 	align-items: center;
 	gap: 1rem;
 }
+
+/* Art thumbnail in status bar */
+.status-panel-content .art-thumbnail {
+	height: 3rem;
+	width: 3rem;
+	border-radius: 0.25rem;
+	object-fit: cover;
+	border: 1px solid var(--border-secondary);
+	background-color: var(--bg-drag-area);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+.art-thumbnail span {
+	color: var(--text-placeholder);
+	font-size: 0.75rem;
+}
+
 .progress-details {
-	flex-grow: 1; /* Allow progress bar area to take space */
+	flex-grow: 1;
 }
+
+/* Enhanced progress bar with visual appeal */
 .progress-bar-bg {
-	background-color: #e5e7eb; /* bg-gray-200 */
-	border-radius: 9999px; /* rounded-full */
-	height: 0.625rem; /* h-2.5 */
-	overflow: hidden; /* Ensure inner bar stays rounded */
+	background-color: var(--progress-bg);
+	border-radius: 9999px;
+	height: 0.75rem;
+	overflow: hidden;
+	position: relative;
+	box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
+
 .progress-bar-fg {
-	background-color: #3b82f6; /* bg-blue-600 */
+	background-color: var(--progress-fg);
 	height: 100%;
 	border-radius: 9999px;
-	transition: width 0.3s ease-linear; /* Smooth transition */
+	transition: width 0.3s ease-out;
+	position: relative;
+	overflow: hidden;
+}
+
+/* Add subtle animation to progress bar */
+.progress-bar-fg::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(
+		45deg,
+		rgba(255, 255, 255, 0.1) 25%,
+		transparent 25%,
+		transparent 50%,
+		rgba(255, 255, 255, 0.1) 50%,
+		rgba(255, 255, 255, 0.1) 75%,
+		transparent 75%,
+		transparent
+	);
+	background-size: 1rem 1rem;
+	animation: progress-stripes 1s linear infinite;
+}
+
+@keyframes progress-stripes {
+	from {
+		background-position: 1rem 0;
+	}
+	to {
+		background-position: 0 0;
+	}
+}
+
+/* Additional text styling */
+.text-xs {
+	font-size: 0.75rem;
+}
+
+.text-sm {
+	font-size: 0.875rem;
+}
+
+.italic {
+	font-style: italic;
+}
+
+.text-gray-500,
+.text-gray-400,
+.text-gray-700,
+.text-gray-600 {
+	color: var(--text-muted);
 }
