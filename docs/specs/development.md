@@ -4,14 +4,34 @@
 - **Backend**: A pure Rust application using the Tauri framework.
 
 ### Key Libraries & Crates
-- **Tauri**: The core framework for building the desktop application.
-  - `@tauri-apps/api`: The JavaScript API for interacting with the Tauri backend.
-- **Symphonia**: A pure Rust audio decoding library for file validation and processing.
-- **Lofty**: A pure Rust library for reading and writing audio metadata.
-- **mp4**: A pure Rust library for writing the M4B (MP4) container.
-- **Serde**: For serializing and deserializing data between the frontend and backend.
-- **ThisError**: For creating clear, structured error types in the Rust backend.
-- **Cucumber**: The BDD framework for behavior-driven testing.
+**Core Framework**
+- `tauri`: The desktop app framework - handles window creation, native OS integration, and bridges Rust backend to JS frontend
+- `tauri-build`: Generates platform-specific code during compilation
+
+**FFmpeg Integration**
+- `tauri` with `process` feature: Executes FFmpeg binary as subprocess
+- `tokio`: Async runtime for non-blocking FFmpeg operations (prevents UI freeze during long conversions)
+
+**Data Handling**
+- `serde` + `serde_json`: Converts Rust structs ↔ JSON for frontend communication
+- All Tauri commands use this for passing data between UI and backend
+
+**Audio Metadata**
+- `lofty`: Reads/writes tags (title, author, cover art) from audio files
+- Works independently from FFmpeg's audio processing
+
+**Utilities**
+- `tauri-plugin-opener`: Opens preview files in user's default audio player
+- `thiserror`: Creates proper error types for clean error handling across the app
+- `tauri` with `dialog` feature: Native file picker for input/output selection
+- `tauri` with `fs` feature: File system access for reading audio files
+
+**Workflow**: 
+1. UI sends file paths via Tauri commands (serde)
+2. Backend reads metadata (lofty)
+3. Spawns FFmpeg process (tokio + process)
+4. Writes final metadata (lofty)
+5. Opens preview (opener)
 
 ## Key Files & Directories
 - `/index.html`: The main entry point for the application's UI. It contains the HTML structure and includes the necessary CSS and JavaScript files.

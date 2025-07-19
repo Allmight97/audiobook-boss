@@ -128,5 +128,10 @@ Scenario: Validate before processing
   - No filename conflicts  
 - And shows clear error messages for any issues
 
-## **Technical Architecture**
-PENDING - work in progress - final tech stack undecided. Leaning towards [docs/specs/MVP Design.md](../specs/MVP%20Design.md)
+## Technical Architecture
+The application's architecture is based on the tech stack defined in the [development specifications](development.md). The key components are:
+
+- **Core Framework**: A Tauri-based desktop application with a Rust backend and a webview frontend.
+- **Backend**: Pure Rust handles the application logic. FFmpeg is used via sub-processes for all audio processing, managed by the Tokio async runtime. The `lofty` crate handles audio metadata.
+- **Frontend**: The UI is built with vanilla HTML, TypeScript, and styled with Tailwind CSS. Vite serves as the build tool.
+- **Communication**: The frontend and backend communicate using Tauri commands, with data serialized to JSON using `serde`.
