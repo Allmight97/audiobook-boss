@@ -109,7 +109,7 @@ Scenario: Cancel processing
 
 - Given processing is in progress  
 - When I click "Cancel Processing"  
-- Then FFmpeg stops cleanly  
+- Then processing stops cleanly  
 - And partial files are removed  
 - And the UI returns to ready state
 
