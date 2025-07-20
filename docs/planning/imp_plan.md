@@ -1,11 +1,9 @@
 # Audiobook Boss: Atomized Implementation Plan
-
-## Testing Reality Check
-Skip formal testing for now - manual testing is fine for an Minimum viable prototype. 
+**[Results Tracker](docs/specs/results_tracker.md) - Progress tracker and notes for each completed phase**
 
 ## Implementation Order
 
-### Phase 1: Basic Tauri Commands
+### Phase 1: Basic Tauri Commands and Backend-Frontend Connection ✅
 Create minimal backend commands to prove the frontend-backend connection works.
 
 1. **Create basic command structure** (`src-tauri/src/commands/mod.rs`)

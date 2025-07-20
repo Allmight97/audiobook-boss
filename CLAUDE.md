@@ -113,15 +113,23 @@ async function mergeAudiobook(files: string[], config: AudiobookConfig): Promise
 - No modules over 300 lines
 
 ### Code Review Checklist (Run Before Completion)
-- [ ] Functions under 30 lines
-- [ ] Clear error handling with Result
-- [ ] No unwrap() calls  
-- [ ] File paths use PathBuf not String
-- [ ] Types match between Rust and TypeScript
+- Functions under 30 lines
+- Clear error handling with Result
+- No unwrap() calls  
+- File paths use PathBuf not String
+- Types match between Rust and TypeScript
+- Feature is accessible from frontend (not just implemented)
+
+## Keep It Connected
+When adding backend commands, make them testable by adding ONE line to main.ts:
+```typescript
+// Example: After adding 'new_command' to Rust
+(window as any).testNewCommand = () => invoke('new_command', { /* params */ });
 
 ## Documentation
 
 - [Development Specifications](docs/specs/development.md)
 - [Requirements Stories](docs/specs/requirements_stories.md)
 - [Implementation Plan](docs/specs/imp_plan.md)
+- [Results Tracker](docs/specs/results_tracker.md) - Progress tracker and notes for each completed phase
 - [Coding Guidelines](docs/specs/coding_guidelines.md) - Full detailed guidelines
