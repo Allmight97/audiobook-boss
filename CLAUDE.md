@@ -133,3 +133,5 @@ When adding backend commands, make them testable by adding ONE line to main.ts:
 - [Implementation Plan](docs/specs/imp_plan.md)
 - [Results Tracker](docs/specs/results_tracker.md) - Progress tracker and notes for each completed phase
 - [Coding Guidelines](docs/specs/coding_guidelines.md) - Full detailed guidelines
+
+**CRITICAL**: Maintain a project-wide holistic perspective that considers front and backend together. No task nor phase is complete until you and the user have validated the work and ensured front and backend are connected.

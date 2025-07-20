@@ -13,7 +13,7 @@ Dev will add notes to this doc each phase in docs/planning/imp_plan.md is comple
     - Claude Code implemented Phase 1 correctly but failed to holistically consider updating index.html - API calls, parameter passing, and error handling were fine.
     - Consider concise updates to claude.md to encourage CC to think about the full user journey from UI to backend as each phase is implemented.
     TODO
-        - [ ] Consider console helpers or UI buttons for testingan
+        - [ ] Consider console helpers or UI buttons for testing.
         - [ ] What is best way to include google formatted code comments in this project?
 
 # Phase 2: FFmpeg Integration
