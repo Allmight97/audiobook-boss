@@ -1,6 +1,44 @@
 # Audiobook Boss: Atomized Implementation Plan
 **[Results Tracker](docs/specs/results_tracker.md) - Progress tracker and notes for each completed phase**
 
+# Technical Architecture
+
+## Frontend (/src/)
+- Vanilla TypeScript with Vite build system
+- Tailwind CSS via CDN + comprehensive custom CSS theming
+- Three-panel UI: Input files (left), Metadata/Output (center), Status (bottom)
+- Direct DOM manipulation, no complex state management
+
+## Backend (/src-tauri/)
+- Rust with Tauri v2 framework
+- Audio processing via FFmpeg (subprocess execution)
+- Metadata handling via Lofty crate
+- Progress reporting through Tokio async runtime
+
+## Key Libraries
+- Audio: FFmpeg (external binary), Lofty (metadata)
+- Framework: Tauri v2, Tokio (async)
+- Data: Serde (JSON serialization)
+- Utilities: tauri-plugin-opener, thiserror
+
+## Implementation Plan (7 Phases)
+1. ✅ Phase 1: Basic Tauri Commands - COMPLETE
+2. 🎯 Phase 2: FFmpeg Integration - NEXT UP
+3. Phase 3: Metadata Handling
+4. Phase 4: Core Audio Processing
+5. Phase 5: File System Operations
+6. Phase 6: Preview Feature
+7. Phase 7: Polish & Package
+
+## Core Requirements (7 User Stories)
+1. File Import: Drag/drop multiple audio files with reordering
+2. Property Inspection: Display bitrate, sample rate, channels, size
+3. Metadata Editing: Title, Author, Album, Narrator, Year, Genre, Series, Description, Cover Art
+4. Output Configuration: Bitrate (32-128 kbps), Channels (Mono/Stereo), Sample rate, Output directory patterns
+5. Preview Generation: 30-second sample with configured settings
+6. Full Processing: Complete M4B generation with progress tracking and cancellation
+7. Input Validation: Comprehensive error checking and user-friendly messages
+
 ## Implementation Order
 
 ### Phase 1: Basic Tauri Commands and Backend-Frontend Connection ✅
