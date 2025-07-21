@@ -1,53 +1,17 @@
-# Audiobook Boss: Coding Guidelines for Claude Code
-Ai Agents: use this doc to maintain the codebase.
+# Audiobook Boss: Advanced Coding Guidelines
+Deep reference for complex patterns and learning. For quick AI rules, see [CLAUDE.md](../../CLAUDE.md).
 
 ## Project Context
 - First Rust project for JStar (junior dev)
-- Using FFmpeg for audio processing, Lofty for metadata
+- Using FFmpeg for audio processing, Lofty for metadata  
 - Tauri 2.0 desktop app targeting macOS first
-- No formal testing framework (manual testing only)
+- Testing via Cargo with unit tests - Reference: [Cargo Testing Guide](../cargo-testing-guide.md)
 
-## Rust Backend Guidelines
+## Advanced Rust Patterns
 
-### Module Structure
+### Error Handling with thiserror
 ```rust
-// Each module gets ONE responsibility
-// ❌ BAD: src/audio.rs with 500 lines doing everything
-// ✅ GOOD: 
-//    src/audio/validation.rs
-//    src/audio/merger.rs
-//    src/audio/progress.rs
-```
-
-### Function Design
-- **Maximum 30 lines per function** (excluding comments)
-- **Maximum 3 parameters** - use structs for more
-- **Single responsibility** - function does ONE thing
-- **Return Result<T, Error>** for any operation that can fail
-
-```rust
-// ❌ BAD: Everything in one function
-fn process_audiobook(files: Vec<String>, title: String, author: String, 
-                    bitrate: u32, mono: bool, output: String) { /* 200 lines */ }
-
-// ✅ GOOD: Structured and focused
-struct AudiobookConfig {
-    metadata: Metadata,
-    settings: AudioSettings,
-    output_path: PathBuf,
-}
-
-fn process_audiobook(input_files: Vec<PathBuf>, config: AudiobookConfig) -> Result<PathBuf, AudioError> {
-    let validated = validate_input_files(&input_files)?;
-    let output = merge_files(validated, &config.settings)?;
-    apply_metadata(&output, &config.metadata)?;
-    Ok(output)
-}
-```
-
-### Error Handling
-```rust
-// Define clear error types using thiserror
+// Define domain-specific error types for better debugging
 #[derive(thiserror::Error, Debug)]
 pub enum AudioError {
     #[error("Invalid audio file: {path}")]
@@ -58,24 +22,16 @@ pub enum AudioError {
     
     #[error("Metadata error: {0}")]
     MetadataError(#[from] lofty::Error),
+    
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
-// Always use ? operator, never unwrap() in production code
-```
-
-### Tauri Commands
-```rust
-// Keep commands thin - they're just adapters
-#[tauri::command]
-async fn merge_audiobook(
-    files: Vec<String>, 
-    config: AudiobookConfig
-) -> Result<String, String> {
-    // Convert types and call business logic
-    let paths = parse_paths(files)?;
-    let result = audio::process_audiobook(paths, config)
-        .map_err(|e| e.to_string())?;
-    Ok(result.to_string_lossy().to_string())
+// Custom error context for debugging
+impl AudioError {
+    pub fn invalid_file(path: impl Into<String>) -> Self {
+        Self::InvalidFile { path: path.into() }
+    }
 }
 ```
 
@@ -112,107 +68,84 @@ pub struct ProgressUpdate {
 }
 ```
 
-## Frontend Guidelines
+## Advanced TypeScript Patterns
 
-### File Organization
-```
-src/
-├── lib/
-│   ├── audio.ts      // Audio-related API calls
-│   ├── metadata.ts   // Metadata handling
-│   └── types.ts      // TypeScript interfaces
-├── components/
-│   ├── FileList.ts   // One component per file
-│   └── ProgressBar.ts
-└── main.ts          // Entry point, minimal logic
-```
-
-### TypeScript Patterns
+### Complex State Management
 ```typescript
-// Define clear interfaces matching Rust structs
-interface AudiobookConfig {
-    metadata: Metadata;
-    settings: AudioSettings;
-    outputPath: string;
+// Observer pattern for complex UI updates
+interface StateObserver {
+    update(state: AudiobookState): void;
 }
 
-// Type all Tauri commands
-import { invoke } from '@tauri-apps/api/tauri';
-
-async function mergeAudiobook(
-    files: string[], 
-    config: AudiobookConfig
-): Promise<string> {
-    return await invoke<string>('merge_audiobook', { files, config });
-}
-
-// Handle errors explicitly
-try {
-    const result = await mergeAudiobook(files, config);
-} catch (error) {
-    console.error('Merge failed:', error);
-    showUserError(error);
-}
-```
-
-### State Management
-```typescript
-// Use simple class for state, no complex frameworks
 class AudiobookState {
-    private files: File[] = [];
-    private metadata: Metadata = createDefaultMetadata();
+    private observers: StateObserver[] = [];
+    private processingState: ProcessingState = 'idle';
     
-    addFile(file: File): void {
-        this.files.push(file);
-        this.notifyListeners();
+    subscribe(observer: StateObserver): void {
+        this.observers.push(observer);
     }
     
-    // Clear getters, no magic
-    getFiles(): File[] {
-        return [...this.files];
+    private notifyObservers(): void {
+        this.observers.forEach(obs => obs.update(this));
+    }
+    
+    setProcessingState(state: ProcessingState): void {
+        this.processingState = state;
+        this.notifyObservers();
+    }
+}
+
+// Type-safe event handling
+type AppEvent = 
+    | { type: 'file_added'; file: File }
+    | { type: 'processing_started'; config: AudiobookConfig }
+    | { type: 'progress_update'; percent: number };
+
+class EventHandler {
+    handle(event: AppEvent): void {
+        switch (event.type) {
+            case 'file_added':
+                this.handleFileAdded(event.file);
+                break;
+            case 'processing_started':
+                this.handleProcessingStarted(event.config);
+                break;
+            case 'progress_update':
+                this.handleProgressUpdate(event.percent);
+                break;
+        }
     }
 }
 ```
 
-## General Principles
-
-### Naming Conventions
-- **Functions**: `snake_case` in Rust, `camelCase` in TypeScript
-- **Types/Structs**: `PascalCase` in both
-- **Constants**: `SCREAMING_SNAKE_CASE`
-- **Modules**: `snake_case`
-
-### Comments & Documentation
-```rust
-/// Public function needs doc comment
-/// Explains what it does, not how
-pub fn validate_audio_file(path: &Path) -> Result<AudioInfo, Error> {
-    // Implementation comments only for complex logic
-    // Assume reader knows Rust
-}
-```
-
-### Module Size Limits
-- **300 lines maximum** per file
-- Split larger modules into submodules
-- Each module should have clear, single purpose
-
-### Async/Await Guidelines
-- Use `async` for any I/O operations
-- Keep async boundaries clear
-- Don't block the UI thread
+## Cross-Platform Considerations
 
 ### File Path Handling
 ```rust
 use std::path::PathBuf;
 
-// Always use PathBuf, not String for paths
-// Handle cross-platform differences
-let output = if cfg!(windows) {
-    PathBuf::from(r"C:\Users\JStar\Audiobooks")
-} else {
-    PathBuf::from("/Users/jstar/Audiobooks")
-};
+// Handle cross-platform differences properly
+fn get_default_output_dir() -> PathBuf {
+    if cfg!(target_os = "macos") {
+        dirs::home_dir().unwrap_or_default().join("Music/Audiobooks")
+    } else if cfg!(target_os = "windows") {
+        dirs::document_dir().unwrap_or_default().join("Audiobooks")
+    } else {
+        dirs::home_dir().unwrap_or_default().join("audiobooks")
+    }
+}
+
+// Sanitize filenames for cross-platform compatibility
+fn sanitize_filename(name: &str) -> String {
+    name.chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '|' | '?' | '*' => '_',
+            '/' | '\\' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect()
+}
 ```
 
 ## Memory Safety Guidelines
@@ -371,23 +304,47 @@ Command::new("ffmpeg")
 6. **Check bounds on collections** - Use `get()` not `[]`
 7. **No global mutable state** - Use channels or Arc<Mutex<T>> for shared state
 
-## What NOT to Do
-- No premature optimization
-- No clever one-liners that sacrifice readability
-- No deeply nested code (max 3 levels)
-- No global mutable state
-- No panic!() in production code
-- No complex abstractions for simple problems
+## Testing Advanced Features
 
-## Code Review Checklist
-Before submitting code, verify:
-- [ ] Functions under 30 lines
-- [ ] Clear error handling with Result
-- [ ] No unwrap() calls
-- [ ] Module under 300 lines
-- [ ] Types match between Rust and TypeScript
-- [ ] Progress visible to user for long operations
-- [ ] File paths use PathBuf not String
+### Testing Async Operations
+```rust
+#[tokio::test]
+async fn test_ffmpeg_progress_reporting() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+    
+    let progress_reporter = ProgressReporter::new(tx);
+    let result = process_audio_with_progress(
+        vec![test_file_path()], 
+        progress_reporter
+    ).await;
+    
+    assert!(result.is_ok());
+    
+    // Verify we received progress updates
+    let mut progress_count = 0;
+    while let Ok(update) = rx.try_recv() {
+        assert!(update.percent >= 0.0 && update.percent <= 100.0);
+        progress_count += 1;
+    }
+    assert!(progress_count > 0);
+}
+```
+
+### Testing Error Conditions
+```rust
+#[test]
+fn test_invalid_audio_file() {
+    let result = validate_audio_file(Path::new("nonexistent.mp3"));
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        AudioError::InvalidFile { path } => {
+            assert!(path.contains("nonexistent.mp3"));
+        }
+        _ => panic!("Expected InvalidFile error"),
+    }
+}
+```
 
 ## Remember
-This is JStar's first Rust project. Write code that teaches good patterns. Every piece should be clear enough that JStar can understand what it does and why it's structured that way.
+This is JStar's first Rust project. Focus on teachable patterns and clear examples that demonstrate both what to do and why it works. For basic rules, see [CLAUDE.md](../../CLAUDE.md).

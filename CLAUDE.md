@@ -58,67 +58,58 @@ npm run preview
 
 ## Development Workflow
 
-1. Use `npm run dev` for frontend-only development
-2. Use `npm run tauri dev` for full application testing
-3. Frontend-backend communication through Tauri's invoke API
-4. No complex state management - direct DOM manipulation
-5. Comprehensive CSS theming system using custom properties
+1. Use `npm run tauri dev` for full app testing
+2. Frontend-backend communication via Tauri's invoke API
+3. No complex state management - direct DOM manipulation
 
 ## Critical Coding Standards
 
-**Project Context**: This is JStar's first Rust project. Write code that teaches good patterns and is clear enough for a junior developer to understand.
+**Project Context**: JStar's first Rust project. Write clear, teachable code.
 
 ### Rust Backend Rules (ALWAYS FOLLOW)
-- **Functions**: Maximum 30 lines, maximum 3 parameters (use structs for more)
+- **Functions**: Max 30 lines, max 3 parameters (use structs for more)
 - **Error Handling**: Always use `Result<T, Error>`, never `unwrap()` in production
-- **Modules**: Maximum 300 lines per file, single responsibility
+- **Modules**: Max 300 lines per file, single responsibility
 - **Paths**: Always use `PathBuf`, not `String` for file paths
-- **Memory**: Prefer borrowing (`&str`) over cloning (`String`), use bounds checking
+- **Memory**: Prefer borrowing (`&str`) over cloning (`String`)
 
 ```rust
-// ✅ GOOD: Structured function with proper error handling
-fn process_audiobook(input_files: Vec<PathBuf>, config: AudiobookConfig) -> Result<PathBuf, AudioError> {
-    let validated = validate_input_files(&input_files)?;
-    let output = merge_files(validated, &config.settings)?;
-    apply_metadata(&output, &config.metadata)?;
+// ✅ GOOD: Proper error handling
+fn process_files(files: Vec<PathBuf>, config: Config) -> Result<PathBuf, Error> {
+    let validated = validate_files(&files)?;
+    let output = merge_files(validated, &config)?;
     Ok(output)
 }
 
 // ✅ GOOD: Tauri commands are thin adapters
 #[tauri::command]
-async fn merge_audiobook(files: Vec<String>, config: AudiobookConfig) -> Result<String, String> {
+async fn merge_audiobook(files: Vec<String>) -> Result<String, String> {
     let paths = parse_paths(files)?;
-    let result = audio::process_audiobook(paths, config).map_err(|e| e.to_string())?;
-    Ok(result.to_string_lossy().to_string())
+    audio::process(paths).map_err(|e| e.to_string())
 }
 ```
 
 ### TypeScript Frontend Rules
 - **State**: Simple classes, no complex frameworks
 - **Types**: Define interfaces matching Rust structs exactly
-- **Errors**: Handle explicitly with try/catch, show user-friendly messages
-
-```typescript
-// ✅ GOOD: Type all Tauri commands
-async function mergeAudiobook(files: string[], config: AudiobookConfig): Promise<string> {
-    return await invoke<string>('merge_audiobook', { files, config });
-}
-```
+- **Errors**: Handle with try/catch, show user-friendly messages
 
 ### NEVER Do
 - No `panic!()` or `unwrap()` calls
 - No deeply nested code (max 3 levels)
-- No global mutable state
 - No functions over 30 lines
-- No modules over 300 lines
 
-### Code Review Checklist (Run Before Completion)
-- Functions under 30 lines
-- Clear error handling with Result
-- No unwrap() calls  
-- File paths use PathBuf not String
-- Types match between Rust and TypeScript
-- Feature is accessible from frontend (not just implemented)
+## Testing Requirements
+- **Write tests for ALL new functions** - Reference: [Cargo Testing Guide](docs/cargo-testing-guide.md)
+- **Run `cargo test` before completing any task**
+- **Test both success and error cases**
+- **Use todo_write tool as scratch pad for multi-step tasks**
+
+## Definition of Done
+- ✅ Code compiles without warnings
+- ✅ All tests pass (`cargo test`)
+- ✅ Frontend command accessible via `window.testX`
+- ✅ Phase requirements met per [imp_plan.md](docs/planning/imp_plan.md)
 
 ## Keep It Connected
 When adding backend commands, make them testable by adding ONE line to main.ts:
@@ -128,10 +119,8 @@ When adding backend commands, make them testable by adding ONE line to main.ts:
 
 ## Documentation
 
-- [Development Specifications](docs/specs/development.md)
-- [Requirements Stories](docs/specs/requirements_stories.md)
-- [Implementation Plan](docs/specs/imp_plan.md)
-- [Results Tracker](docs/specs/results_tracker.md) - Progress tracker and notes for each completed phase
-- [Coding Guidelines](docs/specs/coding_guidelines.md) - Full detailed guidelines
+- [Implementation Plan](docs/planning/imp_plan.md) - Current phase and tasks
+- [Cargo Testing Guide](docs/cargo-testing-guide.md) - Testing workflow
+- [Advanced Coding Guidelines](docs/specs/coding_guidelines.md) - Complex patterns and deep reference
 
 **CRITICAL**: Maintain a project-wide holistic perspective that considers front and backend together. No task nor phase is complete until you and the user have validated the work and ensured front and backend are connected.
