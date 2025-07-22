@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { AudiobookMetadata } from "./types/metadata";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -6,7 +7,14 @@ import { invoke } from "@tauri-apps/api/core";
   echo: (input: string) => invoke('echo', { input }),
   validateFiles: (paths: string[]) => invoke('validate_files', { file_paths: paths }),
   getFFmpegVersion: () => invoke('get_ffmpeg_version'),
-  mergeAudioFiles: (file1: string, file2: string) => invoke('merge_audio_files', { file1, file2 })
+  mergeAudioFiles: (file1: string, file2: string) => invoke('merge_audio_files', { file1, file2 }),
+  
+  // Metadata commands
+  readMetadata: (filePath: string) => invoke<AudiobookMetadata>('read_audio_metadata', { filePath }),
+  writeMetadata: (filePath: string, metadata: AudiobookMetadata) => 
+    invoke('write_audio_metadata', { filePath, metadata }),
+  writeCoverArt: (filePath: string, coverData: number[]) => 
+    invoke('write_cover_art', { filePath, coverData })
 };
 
 // Log when ready
@@ -16,3 +24,6 @@ console.log('  window.testCommands.echo(input)');
 console.log('  window.testCommands.validateFiles(paths)');
 console.log('  window.testCommands.getFFmpegVersion()');
 console.log('  window.testCommands.mergeAudioFiles(file1, file2)');
+console.log('  window.testCommands.readMetadata(filePath)');
+console.log('  window.testCommands.writeMetadata(filePath, metadata)');
+console.log('  window.testCommands.writeCoverArt(filePath, coverData)');

@@ -4,7 +4,8 @@
       "mcp__playwright__browser_navigate",
       "Bash(mkdir:*)",
       "Bash(diff:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(cargo test)"
     ],
     "deny": []
   }

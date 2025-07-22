@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use crate::ffmpeg;
 use crate::errors::{AppError, Result};
+use crate::metadata::{AudiobookMetadata, read_metadata, write_metadata};
 
 /// Simple ping command that returns "pong"
 /// Used for testing basic Tauri command functionality
@@ -148,5 +149,74 @@ mod tests {
         );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("file not found"));
+    }
+}
+
+/// Reads metadata from an audio file
+/// Returns metadata as JSON-serializable struct
+#[tauri::command]
+pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
+    read_metadata(&file_path)
+}
+
+/// Writes metadata to an existing M4B file
+/// Accepts file path and metadata object
+#[tauri::command]
+pub fn write_audio_metadata(
+    file_path: String,
+    metadata: AudiobookMetadata
+) -> Result<()> {
+    write_metadata(&file_path, &metadata)
+}
+
+/// Writes cover art to an M4B file
+/// Accepts file path and base64-encoded image data
+#[tauri::command]
+pub fn write_cover_art(
+    file_path: String,
+    cover_data: Vec<u8>
+) -> Result<()> {
+    use crate::metadata::writer::write_cover_art as write_cover;
+    write_cover(&file_path, &cover_data)
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    #[test]
+    fn test_read_metadata_nonexistent() {
+        let result = read_audio_metadata("nonexistent.m4b".to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn test_write_metadata_nonexistent() {
+        let metadata = AudiobookMetadata::new();
+        let result = write_audio_metadata("nonexistent.m4b".to_string(), metadata);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn test_write_cover_art_nonexistent() {
+        let cover_data = vec![0u8; 100];
+        let result = write_cover_art("nonexistent.m4b".to_string(), cover_data);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn test_read_metadata_invalid_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("invalid.txt");
+        fs::write(&file_path, b"not audio").unwrap();
+        
+        let result = read_audio_metadata(file_path.to_string_lossy().to_string());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("metadata error"));
     }
 }

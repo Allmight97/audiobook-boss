@@ -89,4 +89,63 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 - CC and amp agreed it was because of length and claude's interpretation of claude.md.
 - agent and claude.md now match and /docs/coding_guidelines.md is now single source of project standards.
 
-# Phase 3: Metadata Handling
+# Phase 3: Metadata Handling - DONE
+
+**IMPLEMENTED:**
+- Complete metadata module with reader/writer separation (`src-tauri/src/metadata/`)
+- AudiobookMetadata struct with all required fields (title, author, album, narrator, year, genre, description, cover art)
+- Lofty crate integration for M4B/MP4 metadata operations
+- Cover art extraction and embedding support
+- All requirements from imp_plan.md ✅
+
+**API COMMANDS:**
+- `read_audio_metadata(file_path)` - extracts metadata from audio files
+- `write_audio_metadata(file_path, metadata)` - writes metadata to M4B files  
+- `write_cover_art(file_path, cover_data)` - embeds cover images
+
+**FRONTEND INTEGRATION:**
+- TypeScript interfaces in `src/types/metadata.ts`
+- Console test commands: `window.testCommands.readMetadata()`, `writeMetadata()`, `writeCoverArt()`
+- Proper error handling and type safety
+
+**TEST RESULTS:**
+- ✅ 22 tests passing (added 9 new metadata tests)
+- ✅ Zero clippy warnings with strict lints  
+- ✅ Full build successful with DMG creation
+- ✅ All functions ≤30 lines, ≤3 parameters per CLAUDE.md
+
+```bash
+running 22 tests
+test commands::tests::test_echo ... ok
+test commands::metadata_tests::test_write_cover_art_nonexistent ... ok
+test commands::metadata_tests::test_read_metadata_nonexistent ... ok
+test commands::metadata_tests::test_write_metadata_nonexistent ... ok
+test commands::tests::test_ping ... ok
+test commands::tests::test_validate_files_empty ... ok
+test commands::tests::test_merge_audio_files_nonexistent ... ok
+test errors::tests::test_error_conversion ... ok
+test errors::tests::test_ffmpeg_error_conversion ... ok
+test commands::tests::test_validate_files_nonexistent ... ok
+test ffmpeg::command::tests::test_ffmpeg_command_builder ... ok
+test ffmpeg::command::tests::test_ffmpeg_command_new ... ok
+test ffmpeg::command::tests::test_parse_version ... ok
+test ffmpeg::command::tests::test_parse_version_invalid ... ok
+test ffmpeg::tests::test_locate_ffmpeg ... ok
+test metadata::reader::tests::test_read_nonexistent_file ... ok
+test metadata::writer::tests::test_write_cover_to_nonexistent_file ... ok
+test metadata::writer::tests::test_write_to_nonexistent_file ... ok
+test commands::metadata_tests::test_read_metadata_invalid_file ... ok
+test metadata::reader::tests::test_read_metadata_empty_file ... ok
+test metadata::writer::tests::test_write_metadata_invalid_file ... ok
+test commands::tests::test_get_ffmpeg_version ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+```
+
+**NOTES:**
+- Fixed Lofty crate API compatibility issues (imports, method signatures)
+- Added comprehensive error handling for invalid files and missing metadata
+- Foundation ready for Phase 4 core audio processing pipeline
+- All CLAUDE.md compliance maintained throughout implementation
+
+## Phase 4: Core Audio Processing

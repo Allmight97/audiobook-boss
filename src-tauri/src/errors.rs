@@ -16,6 +16,9 @@ pub enum AppError {
     #[error("IO operation failed: {0}")]
     Io(#[from] std::io::Error),
     
+    #[error("Audio metadata error: {0}")]
+    Metadata(#[from] lofty::error::LoftyError),
+    
     #[error("Operation failed: {0}")]
     General(String),
 }
