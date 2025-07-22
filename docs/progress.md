@@ -87,5 +87,6 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 **Learnings**
 - Claude's implementation was poor compared to the Amp agent.
 - CC and amp agreed it was because of length and claude's interpretation of claude.md.
+- agent and claude.md now match and /docs/coding_guidelines.md is now single source of project standards.
 
 # Phase 3: Metadata Handling
