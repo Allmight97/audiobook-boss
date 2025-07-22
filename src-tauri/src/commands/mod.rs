@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::ffmpeg;
 use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, read_metadata, write_metadata};
+use crate::audio::{AudioSettings, file_list::FileListInfo};
 
 /// Simple ping command that returns "pong"
 /// Used for testing basic Tauri command functionality
@@ -218,5 +219,83 @@ mod metadata_tests {
         let result = read_audio_metadata(file_path.to_string_lossy().to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("metadata error"));
+    }
+}
+
+/// Validates and analyzes a list of audio files
+/// Returns comprehensive file information including duration and size
+#[tauri::command]
+pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
+    let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
+    crate::audio::get_file_list_info(&paths)
+}
+
+/// Validates audio processing settings
+/// Checks bitrate, sample rate, and output path validity
+#[tauri::command]
+pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
+    crate::audio::validate_audio_settings(&settings)?;
+    Ok("Settings are valid".to_string())
+}
+
+/// Processes multiple audio files into a single M4B audiobook
+/// Merges files with specified settings and optional metadata
+#[tauri::command]
+pub async fn process_audiobook_files(
+    file_paths: Vec<String>,
+    settings: AudioSettings,
+    metadata: Option<AudiobookMetadata>
+) -> Result<String> {
+    // Validate and get file information
+    let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
+    let file_info = crate::audio::get_file_list_info(&paths)?;
+    
+    // Process the audiobook
+    crate::audio::process_audiobook(
+        file_info.files,
+        settings,
+        metadata
+    ).await
+}
+
+#[cfg(test)]
+mod audio_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_analyze_audio_files_empty() {
+        let result = analyze_audio_files(vec![]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No files provided"));
+    }
+
+    #[test]
+    fn test_analyze_audio_files_nonexistent() {
+        let files = vec!["nonexistent.mp3".to_string()];
+        let result = analyze_audio_files(files).unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert!(!result.files[0].is_valid);
+        assert_eq!(result.valid_count, 0);
+        assert_eq!(result.invalid_count, 1);
+    }
+
+    #[test]
+    fn test_validate_audio_settings_valid() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut settings = AudioSettings::audiobook_preset();
+        settings.output_path = temp_dir.path().join("test.m4b");
+        let result = validate_audio_settings(settings);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Settings are valid");
+    }
+
+    #[test]
+    fn test_validate_audio_settings_invalid_bitrate() {
+        let mut settings = AudioSettings::audiobook_preset();
+        settings.bitrate = 256; // Invalid - too high
+        let result = validate_audio_settings(settings);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Bitrate must be"));
     }
 }

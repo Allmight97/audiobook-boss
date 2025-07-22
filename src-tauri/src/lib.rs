@@ -7,6 +7,7 @@ mod commands;
 mod errors;
 mod ffmpeg;
 mod metadata;
+mod audio;
 
 // Remove demo greet command - keep only production code
 
@@ -22,7 +23,10 @@ pub fn run() {
             commands::merge_audio_files,
             commands::read_audio_metadata,
             commands::write_audio_metadata,
-            commands::write_cover_art
+            commands::write_cover_art,
+            commands::analyze_audio_files,
+            commands::validate_audio_settings,
+            commands::process_audiobook_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

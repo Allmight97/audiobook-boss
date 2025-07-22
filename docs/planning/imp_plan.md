@@ -21,12 +21,12 @@
 - Data: Serde (JSON serialization)
 - Utilities: tauri-plugin-opener, thiserror
 
-## Implementation Plan (7 Phases)
+## Implementation Plan (6 Phases)
 1. ✅ Phase 1: Basic Tauri Commands - COMPLETE
 2. ✅ Phase 2: FFmpeg Integration - COMPLETE
-3. Phase 3: Metadata Handling
-4. Phase 4: Core Audio Processing
-5. Phase 5: File System Operations
+3. ✅ Phase 3: Metadata Handling - COMPLETE
+4. ✅ Phase 4: Core Audio Processing - COMPLETE (Backend Only)
+5. Phase 5: Complete UI Integration & File Management
 6. Phase 6: Preview Feature
 7. Phase 7: Polish & Package
 
@@ -89,8 +89,8 @@ Add Lofty for metadata without complicating audio processing.
    - Write to existing M4B file
    - Test with cover art
 
-### Phase 4: Core Audio Processing
-Build the real audio pipeline.
+### Phase 4: Core Audio Processing ✅
+Build the real audio pipeline (Backend only).
 
 8. **File list management**
    - Accept multiple input files
@@ -114,28 +114,61 @@ Build the real audio pipeline.
     - Progress reporting
     - Error handling
 
-### Phase 5: File System Operations
-Handle output paths and organization.
+### Phase 5: Complete UI Integration & File Management
+Connect the HTML UI to backend commands and implement complete user workflow.
 
-12. **Output path calculation**
+12. **File Import System** (`src/ui/fileImport.ts`)
+    - Drag & drop event handlers for audio files
+    - File selection dialog (click to select)
+    - File validation and error display
+    - Accept only MP3/M4A/M4B/AAC formats
+
+13. **File List Management** (`src/ui/fileList.ts`)
+    - Display imported files in order
+    - Drag-to-reorder functionality
+    - File removal and selection
+    - Combined size/duration calculations
+
+14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`)
+    - Show selected file properties (bitrate, sample rate, channels, size)
+    - Update properties display within 1 second
+    - Handle multiple file selection states
+
+15. **Metadata Editing Interface** (`src/ui/metadataPanel.ts`)
+    - Auto-populate from first file metadata
+    - All metadata fields (title, author, album, narrator, year, genre, description)
+    - Cover art drag/drop and file selection
+    - Real-time metadata validation
+
+16. **Output Settings Interface** (`src/ui/outputPanel.ts`)
+    - Audio settings controls (bitrate, channels, sample rate)
+    - Output directory selection and path calculation
     - Implement [Author]/[Series]/[Year-Title] pattern
-    - Handle missing metadata fields
-    - Ensure no overwrites
+    - Estimated output size calculations
+    - Settings validation and feedback
 
-13. **Temp file handling**
-    - Create temp files during processing
-    - Clean up on error/cancel
-    - Move to final location on success
+17. **Progress & Status Interface** (`src/ui/statusPanel.ts`)
+    - Real-time progress bar and percentage
+    - Processing stage indicators
+    - Cancel button functionality
+    - Status message display
+
+18. **Complete Processing Integration** (`src/ui/processingController.ts`)
+    - Connect all UI panels to backend processing
+    - Temp file handling (create, cleanup, move to final location)
+    - Handle missing metadata fields in output paths
+    - Ensure no file overwrites
+    - End-to-end processing workflow
 
 ### Phase 6: Preview Feature
 Add preview after core features work.
 
-14. **Preview generation**
+19. **Preview generation**
     - Extract 30-second sample
     - Apply same settings as full version
     - Save to temp location
 
-15. **Preview playback**
+20. **Preview playback**
     - Use tauri-plugin-opener
     - Open in default audio player
     - Clean up temp file later
@@ -143,17 +176,17 @@ Add preview after core features work.
 ### Phase 7: Polish & Package
 Make it feel like a real app.
 
-16. **Cancel operation**
+21. **Cancel operation**
     - Kill FFmpeg process
     - Clean up temp files
     - Reset UI state
 
-17. **Better error messages**
+22. **Better error messages**
     - User-friendly error descriptions
     - Suggestions for fixes
     - Log technical details
 
-18. **Package for macOS**
+23. **Package for macOS**
     - Configure Tauri bundler
     - Include FFmpeg binary
     - Test on your Mac

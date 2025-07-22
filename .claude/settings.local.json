@@ -5,7 +5,8 @@
       "Bash(mkdir:*)",
       "Bash(diff:*)",
       "Bash(ls:*)",
-      "Bash(cargo test)"
+      "Bash(cargo test)",
+      "Bash(cargo check:*)"
     ],
     "deny": []
   }

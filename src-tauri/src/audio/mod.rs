@@ -1,0 +1,118 @@
+//! Audio processing module for audiobook creation
+//! 
+//! This module handles file list management, audio settings,
+//! progress reporting, and the full merge pipeline.
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+pub mod file_list;
+pub mod settings;
+pub mod progress;
+pub mod processor;
+
+/// Represents an audio file with metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioFile {
+    /// File path
+    pub path: PathBuf,
+    /// File size in bytes
+    pub size: u64,
+    /// Duration in seconds
+    pub duration: f64,
+    /// Audio format (mp3, m4a, etc.)
+    pub format: String,
+    /// Validation status
+    pub is_valid: bool,
+    /// Error message if validation failed
+    pub error: Option<String>,
+}
+
+impl AudioFile {
+    /// Creates a new AudioFile instance
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            size: 0,
+            duration: 0.0,
+            format: String::new(),
+            is_valid: false,
+            error: None,
+        }
+    }
+}
+
+/// Audio processing settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioSettings {
+    /// Output bitrate in kbps (32-128)
+    pub bitrate: u32,
+    /// Channel configuration
+    pub channels: ChannelConfig,
+    /// Sample rate in Hz
+    pub sample_rate: u32,
+    /// Output file path
+    pub output_path: PathBuf,
+}
+
+/// Channel configuration options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ChannelConfig {
+    /// Mono (1 channel)
+    Mono,
+    /// Stereo (2 channels)
+    Stereo,
+}
+
+impl AudioSettings {
+    /// Creates default audio settings
+    #[allow(dead_code)]
+    pub fn default() -> Self {
+        Self {
+            bitrate: 64,
+            channels: ChannelConfig::Mono,
+            sample_rate: 22050,
+            output_path: PathBuf::from("output.m4b"),
+        }
+    }
+}
+
+/// Progress information for audio processing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessingProgress {
+    /// Current stage of processing
+    pub stage: ProcessingStage,
+    /// Overall progress percentage (0-100)
+    pub progress: f32,
+    /// Current file being processed
+    pub current_file: Option<String>,
+    /// Files completed
+    pub files_completed: usize,
+    /// Total files to process
+    pub total_files: usize,
+    /// Estimated time remaining in seconds
+    pub eta_seconds: Option<f64>,
+}
+
+/// Processing stage enumeration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProcessingStage {
+    /// Analyzing input files
+    Analyzing,
+    /// Converting audio files
+    Converting,
+    /// Merging files together
+    Merging,
+    /// Writing metadata
+    WritingMetadata,
+    /// Process completed
+    Completed,
+    /// Process failed
+    Failed(String),
+}
+
+// Re-export main functions for convenience
+pub use file_list::get_file_list_info;
+pub use settings::validate_audio_settings;
+pub use progress::ProgressReporter;
+pub use processor::process_audiobook;
