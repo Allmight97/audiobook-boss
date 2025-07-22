@@ -175,3 +175,67 @@ Make it feel like a real app.
 - [ ] Runs as packaged Mac app
 
 That's your MVP. Everything else is gravy.
+
+---
+
+## Bonus: Ergonomic Improvements (Post-MVP)
+Once core functionality is validated, these refinements enhance user experience and code maintainability.
+
+### Bonus Phase A: Enhanced Error Handling
+Improve error types and user feedback.
+
+19. **Concrete FFmpeg Error Types** (`src-tauri/src/ffmpeg.rs`)
+    - Replace generic String errors with typed enums
+    - Add context for binary not found, version incompatible, unsupported format
+    - Include helpful error messages with suggestions
+
+20. **User-Friendly Error Translation** (`src-tauri/src/errors.rs`)
+    - Map technical errors to user-friendly messages
+    - Add error codes for frontend error handling
+    - Include suggested actions ("Install FFmpeg", "Check file format")
+
+### Bonus Phase B: FFmpeg Binary Management
+Robust binary location and validation.
+
+21. **Smart Binary Location** (`src-tauri/src/ffmpeg.rs`)
+    - Check bundled binary first
+    - Fall back to system PATH
+    - Check common install locations (/usr/local/bin, /opt/homebrew/bin)
+    - Cache successful location
+
+22. **FFmpeg Version Validation**
+    - Parse version output to ensure compatibility (>= 4.0)
+    - Warn about missing codecs or features
+    - Provide download links for incompatible versions
+
+### Bonus Phase C: Enhanced Progress Reporting
+Rich progress feedback with time estimates.
+
+23. **Structured Progress Events** (`src-tauri/src/progress.rs`)
+    - Replace basic progress with structured events
+    - Include stage info ("analyzing", "converting", "finalizing")
+    - Add ETA calculations and current file context
+
+24. **Progress Event Streaming**
+    - Use Tauri channels for real-time progress updates
+    - Add cancellation support with progress cleanup
+    - Buffer events to prevent UI flooding
+
+### Bonus Phase D: Developer Experience
+Better testing and debugging capabilities.
+
+25. **Integration Test Suite**
+    - Add test audio files to `test-assets/`
+    - Test FFmpeg wrapper with known good files
+    - Test error conditions (missing files, corrupted audio)
+
+26. **Debug Logging**
+    - Add structured logging with log levels
+    - Log FFmpeg commands and output for debugging
+    - Add performance metrics (processing time, file sizes)
+
+### Bonus Implementation Notes
+- Each bonus feature should be implemented as separate commits
+- Test with existing functionality to ensure no regressions
+- Consider feature flags for experimental improvements
+- Document new error codes and progress event structures
