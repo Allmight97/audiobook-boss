@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "mcp__playwright__browser_navigate",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(diff:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

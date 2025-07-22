@@ -235,6 +235,9 @@ Better testing and debugging capabilities.
     - Log FFmpeg commands and output for debugging
     - Add performance metrics (processing time, file sizes)
 
+### Bonus Phase E: Performance Optimization
+- Place holder for ideas as they arise
+
 ### Bonus Implementation Notes
 - Each bonus feature should be implemented as separate commits
 - Test with existing functionality to ensure no regressions

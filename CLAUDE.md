@@ -62,9 +62,10 @@ For each new backend command, add to `src/main.ts`:
 - Always test error cases, not just happy paths
 
 ## Reference Documentation
-- **Implementation Examples**: [coding_guidelines.md](docs/specs/coding_guidelines.md)
+- **Implementation Examples & Standards**: [coding_guidelines.md](docs/specs/coding_guidelines.md)
 - **Project Context**: [development.md](docs/specs/development.md)
 - **Current Phase**: [imp_plan.md](docs/planning/imp_plan.md)
+- **Progress Tracker**: [progress.md](docs/planning/progress.md)
 
 **PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
 
