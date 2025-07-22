@@ -1,126 +1,71 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Pre-Implementation Checklist (MANDATORY - DO BEFORE ANY CODE)
+- [ ] Add clippy lints to `src-tauri/src/lib.rs` FIRST:
+  ```rust
+  #![deny(clippy::unwrap_used)]
+  #![warn(clippy::too_many_lines)]
+  ```
+- [ ] Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
+- [ ] Design module structure and public APIs before implementation
+- [ ] Write test signatures before implementing functions
 
-## Project Overview
-
-Desktop audiobook processing application built with Tauri v2 (Rust backend + vanilla TypeScript frontend). Converts multiple audio files into M4B format with metadata management and chapter support.
-
-## Tech Stack
-
-- **Frontend**: Vanilla TypeScript with Vite build system, Tailwind CSS via CDN + custom CSS
-- **Backend**: Rust with Tauri v2 beta framework
-- **Audio Processing**: Symphonia (decoding), Lofty (metadata), mp4 (M4B containers)
-
-## Key Development Commands
-
-```bash
-# Frontend development (hot reload at localhost:1420)
-npm run dev
-
-# Full application development (Tauri + frontend)
-npm run tauri dev
-
-# Build frontend for production
-npm run build
-
-# Build complete Tauri application
-npm run tauri build
-
-# Preview production build
-npm run preview
-```
-
-## Architecture
-
-### Frontend (`/src/`)
-- `main.ts` - Core frontend logic and Tauri API integration via `invoke()`
-- `styles.css` - Custom CSS with comprehensive theming (CSS variables for light/dark)
-- Three-panel UI: Input files (left), Metadata/Output (center), Status (bottom)
-
-### Backend (`/src-tauri/`)
-- `src/lib.rs` - Main Tauri application setup with command definitions
-- `src/main.rs` - Entry point that calls lib.rs
-- `tauri.conf.json` - Tauri configuration
-- Communication via Tauri's `invoke` system from frontend to Rust commands
-
-### Project Structure
-- `/docs/specs/` - Technical specifications and UI mockups
-- `/docs/specs/development.md` - Detailed development workflow and tech stack
-- Root `index.html` - Main application UI structure
-
-## Current Implementation Status
-
-- UI is fully implemented with theming support
-- Basic Tauri setup with example "greet" command
-- Audio processing backend not yet implemented
-- Core libraries already included in Cargo.toml
-
-## Development Workflow
-
-1. Use `npm run tauri dev` for full app testing
-2. Frontend-backend communication via Tauri's invoke API
-3. No complex state management - direct DOM manipulation
-
-## Critical Coding Standards
-
-**Project Context**: JStar's first Rust project. Write clear, teachable code.
-
-### Rust Backend Rules (ALWAYS FOLLOW)
+## Critical Rules (NON-NEGOTIABLE)
 - **Functions**: Max 30 lines, max 3 parameters (use structs for more)
-- **Error Handling**: Always use `Result<T, Error>`, never `unwrap()` in production
-- **Modules**: Max 300 lines per file, single responsibility
-- **Paths**: Always use `PathBuf`, not `String` for file paths
+- **Error Handling**: Always `Result<T, AppError>`, never `unwrap()` in production
+- **Paths**: Use `PathBuf` not `String` for file paths in Rust
 - **Memory**: Prefer borrowing (`&str`) over cloning (`String`)
+- **Testing**: Write 2+ tests per function (success + error cases)
+- **Refactoring**: When function hits 20 lines, STOP and refactor
 
-```rust
-// ✅ GOOD: Proper error handling
-fn process_files(files: Vec<PathBuf>, config: Config) -> Result<PathBuf, Error> {
-    let validated = validate_files(&files)?;
-    let output = merge_files(validated, &config)?;
-    Ok(output)
-}
+## Build Commands (RUN FREQUENTLY)
+- **Dev**: `npm run tauri dev` (full app with hot reload)
+- **Test**: `cargo test` (run after each function)
+- **Lint**: `cargo clippy -- -D warnings` (must be zero warnings)
+- **Build**: `npm run tauri build` (full app package)
 
-// ✅ GOOD: Tauri commands are thin adapters
-#[tauri::command]
-async fn merge_audiobook(files: Vec<String>) -> Result<String, String> {
-    let paths = parse_paths(files)?;
-    audio::process(paths).map_err(|e| e.to_string())
-}
-```
-
-### TypeScript Frontend Rules
-- **State**: Simple classes, no complex frameworks
-- **Types**: Define interfaces matching Rust structs exactly
-- **Errors**: Handle with try/catch, show user-friendly messages
-
-### NEVER Do
-- No `panic!()` or `unwrap()` calls
-- No deeply nested code (max 3 levels)
-- No functions over 30 lines
-
-## Testing Requirements
-- **Write tests for ALL new functions** - Reference: [Cargo Testing Guide](docs/cargo-testing-guide.md)
-- **Run `cargo test` before completing any task**
-- **Test both success and error cases**
-- **Use todo_write tool as scratch pad for multi-step tasks**
-
-## Definition of Done
+## Definition of Done (ALL MUST PASS)
 - ✅ Code compiles without warnings
-- ✅ All tests pass (`cargo test`)
-- ✅ Frontend command accessible via `window.testX`
+- ✅ `cargo test` - all tests pass
+- ✅ `cargo clippy -- -D warnings` - zero warnings
+- ✅ Every function ≤ 30 lines (verified by clippy)
+- ✅ Every function ≤ 3 parameters
+- ✅ Zero `unwrap()` or `expect()` calls (except in tests)
+- ✅ Error handling uses `AppError` type, not `String`
+- ✅ Frontend command accessible via `window.testX` in browser console
+- ✅ Minimum 2 tests per function (success + error case)
 - ✅ Phase requirements met per [imp_plan.md](docs/planning/imp_plan.md)
 
-## Keep It Connected
-When adding backend commands, make them testable by adding ONE line to main.ts:
+## Architecture
+- **Tauri v2**: Rust backend (`src-tauri/`) + TypeScript frontend (`src/`)
+- **Frontend**: Vanilla TS with Vite, direct DOM manipulation
+- **Backend**: Modular Rust with commands in `src-tauri/src/commands/`
+- **Communication**: Tauri's `invoke()` API between frontend/backend
+- **Audio**: FFmpeg (subprocess), Lofty (metadata)
+
+## Error Handling Template
+```rust
+// See coding_guidelines.md for full AppError implementation
+pub type Result<T> = std::result::Result<T, AppError>;
+```
+
+## Frontend Integration (ALWAYS ADD)
+For each new backend command, add to `src/main.ts`:
 ```typescript
-// Example: After adding 'new_command' to Rust
-(window as any).testNewCommand = () => invoke('new_command', { /* params */ });
+(window as any).testCommandName = () => invoke('command_name', { params });
+```
 
-## Documentation
+## Quality Enforcement
+- Run `cargo clippy -- -D warnings` after every few functions
+- If any function grows beyond 20 lines, immediately refactor
+- Never commit code with `unwrap()` calls outside of tests
+- Always test error cases, not just happy paths
 
-- [Implementation Plan](docs/planning/imp_plan.md) - Current phase and tasks
-- [Cargo Testing Guide](docs/cargo-testing-guide.md) - Testing workflow
-- [Advanced Coding Guidelines](docs/specs/coding_guidelines.md) - Complex patterns and deep reference
+## Reference Documentation
+- **Implementation Examples**: [coding_guidelines.md](docs/specs/coding_guidelines.md)
+- **Project Context**: [development.md](docs/specs/development.md)
+- **Current Phase**: [imp_plan.md](docs/planning/imp_plan.md)
 
-**CRITICAL**: Maintain a project-wide holistic perspective that considers front and backend together. No task nor phase is complete until you and the user have validated the work and ensured front and backend are connected.
+**PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
+
+**CRITICAL**: No task is complete until frontend and backend are connected and tested.

@@ -1,11 +1,55 @@
-# Audiobook Boss: Advanced Coding Guidelines
-Deep reference for complex patterns and learning. For quick AI rules, see [CLAUDE.md](../../CLAUDE.md).
+# Audiobook Boss: Coding Guidelines
+**Single source of truth for all coding standards and implementation patterns.**
+
+**For enforcement rules, see:** [AGENT.md](../../AGENT.md) or [CLAUDE.md](../../CLAUDE.md)
 
 ## Project Context
 - First Rust project for JStar (junior dev)
 - Using FFmpeg for audio processing, Lofty for metadata  
 - Tauri 2.0 desktop app targeting macOS first
 - Testing via Cargo with unit tests - Reference: [Cargo Testing Guide](../cargo-testing-guide.md)
+
+## Required Error Handling Pattern (COPY THIS)
+
+### Standard AppError Template
+```rust
+use thiserror::Error;
+use crate::ffmpeg::FFmpegError; // or other domain errors
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("FFmpeg operation failed: {0}")]
+    FFmpeg(#[from] FFmpegError),
+    
+    #[error("File validation failed: {0}")]
+    FileValidation(String),
+    
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    
+    #[error("IO operation failed: {0}")]
+    Io(#[from] std::io::Error),
+    
+    #[error("Operation failed: {0}")]
+    General(String),
+}
+
+pub type Result<T> = std::result::Result<T, AppError>;
+
+/// Convert AppError to string for Tauri command results
+impl From<AppError> for String {
+    fn from(error: AppError) -> Self {
+        error.to_string()
+    }
+}
+
+/// Convert AppError to Tauri InvokeError for command integration
+impl From<AppError> for tauri::ipc::InvokeError {
+    fn from(error: AppError) -> Self {
+        tauri::ipc::InvokeError::from_anyhow(anyhow::anyhow!(error))
+    }
+}
+```
 
 ## Advanced Rust Patterns
 

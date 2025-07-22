@@ -1,33 +1,71 @@
 # AGENT.md
 
-## Build/Test Commands
-- **Dev**: `npm run tauri dev` (full app with hot reload)
-- **Build**: `npm run build` (frontend) / `npm run tauri build` (full app)
-- **Test**: `cargo test` (Rust backend tests)
-- **Single Test**: `cargo test test_name` (run specific test)
-- **Typecheck**: `tsc --noEmit` (TypeScript validation)
+## Pre-Implementation Checklist (MANDATORY - DO BEFORE ANY CODE)
+- [ ] Add clippy lints to `src-tauri/src/lib.rs` FIRST:
+  ```rust
+  #![deny(clippy::unwrap_used)]
+  #![warn(clippy::too_many_lines)]
+  ```
+- [ ] Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
+- [ ] Design module structure and public APIs before implementation
+- [ ] Write test signatures before implementing functions
 
-## Architecture
-- **Tauri v2 app**: Rust backend (`src-tauri/`) + TypeScript frontend (`src/`)
-- **Frontend**: Vanilla TS with Vite, no frameworks, direct DOM manipulation
-- **Backend**: Modular Rust with commands in `src-tauri/src/commands/`
-- **Communication**: Tauri's `invoke()` API between frontend/backend
-- **Audio Processing**: Lofty (metadata), custom M4B generation
-
-## Code Style Guidelines
-- **Rust**: Max 30 lines/function, max 3 params (use structs), always `Result<T, Error>`, never `unwrap()`
-- **TypeScript**: Simple classes, interfaces matching Rust structs, try/catch error handling
+## Critical Rules (NON-NEGOTIABLE)
+- **Functions**: Max 30 lines, max 3 parameters (use structs for more)
+- **Error Handling**: Always `Result<T, AppError>`, never `unwrap()` in production
 - **Paths**: Use `PathBuf` not `String` for file paths in Rust
 - **Memory**: Prefer borrowing (`&str`) over cloning (`String`)
-- **Testing**: Write tests for ALL new functions, test success AND error cases
-- **Tauri Commands**: Keep thin, delegate to business logic modules
+- **Testing**: Write 2+ tests per function (success + error cases)
+- **Refactoring**: When function hits 20 lines, STOP and refactor
 
-## Critical Rules
-- NO `panic!()` or `unwrap()` calls in production code
-- ALL new backend commands must be testable via `window.testX` in main.ts
-- Run `cargo test` before completing any task
-- Max 3 levels of nesting, single responsibility per module
+## Build Commands (RUN FREQUENTLY)
+- **Dev**: `npm run tauri dev` (full app with hot reload)
+- **Test**: `cargo test` (run after each function)
+- **Lint**: `cargo clippy -- -D warnings` (must be zero warnings)
+- **Build**: `npm run tauri build` (full app package)
 
-## Reference
-- See CLAUDE.md for detailed coding examples and comprehensive guidelines
-- This is JStar's first Rust project - write clear, teachable code
+## Definition of Done (ALL MUST PASS)
+- ✅ Code compiles without warnings
+- ✅ `cargo test` - all tests pass
+- ✅ `cargo clippy -- -D warnings` - zero warnings
+- ✅ Every function ≤ 30 lines (verified by clippy)
+- ✅ Every function ≤ 3 parameters
+- ✅ Zero `unwrap()` or `expect()` calls (except in tests)
+- ✅ Error handling uses `AppError` type, not `String`
+- ✅ Frontend command accessible via `window.testX` in browser console
+- ✅ Minimum 2 tests per function (success + error case)
+- ✅ Phase requirements met per [imp_plan.md](docs/planning/imp_plan.md)
+
+## Architecture
+- **Tauri v2**: Rust backend (`src-tauri/`) + TypeScript frontend (`src/`)
+- **Frontend**: Vanilla TS with Vite, direct DOM manipulation
+- **Backend**: Modular Rust with commands in `src-tauri/src/commands/`
+- **Communication**: Tauri's `invoke()` API between frontend/backend
+- **Audio**: FFmpeg (subprocess), Lofty (metadata)
+
+## Error Handling Template
+```rust
+// See coding_guidelines.md for full AppError implementation
+pub type Result<T> = std::result::Result<T, AppError>;
+```
+
+## Frontend Integration (ALWAYS ADD)
+For each new backend command, add to `src/main.ts`:
+```typescript
+(window as any).testCommandName = () => invoke('command_name', { params });
+```
+
+## Quality Enforcement
+- Run `cargo clippy -- -D warnings` after every few functions
+- If any function grows beyond 20 lines, immediately refactor
+- Never commit code with `unwrap()` calls outside of tests
+- Always test error cases, not just happy paths
+
+## Reference Documentation
+- **Implementation Examples**: [coding_guidelines.md](docs/specs/coding_guidelines.md)
+- **Project Context**: [development.md](docs/specs/development.md)
+- **Current Phase**: [imp_plan.md](docs/planning/imp_plan.md)
+
+**PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
+
+**CRITICAL**: No task is complete until frontend and backend are connected and tested.

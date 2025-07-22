@@ -38,6 +38,7 @@
 5. Preview Generation: 30-second sample with configured settings
 6. Full Processing: Complete M4B generation with progress tracking and cancellation
 7. Input Validation: Comprehensive error checking and user-friendly messages
+8. Packaged and run as a completed MacOS app for alpha testing with friends of the developer
 
 ## Implementation Order
 
@@ -55,7 +56,7 @@ Create minimal backend commands to prove the frontend-backend connection works.
    - Return success/error
    - No audio processing yet
 
-### Phase 2: FFmpeg Integration
+### Phase 2: FFmpeg Integration ✅
 Get FFmpeg working before touching any audio code.
 
 3. **FFmpeg binary setup**
