@@ -16,4 +16,32 @@ Dev will add notes to this doc each phase in docs/planning/imp_plan.md is comple
         - [ ] Consider console helpers or UI buttons for testing.
         - [ ] What is best way to include google formatted code comments in this project?
 
-# Phase 2: FFmpeg Integration
+# Phase 2: FFmpeg Integration - DONE
+**VALIDATION:** Phase 2 was already complete but needed cleanup for AGENT.md compliance.
+
+**IMPLEMENTED:**
+- FFmpeg binary location logic (bundled → system PATH → common locations)
+- FFmpeg command builder with version detection 
+- Basic merge command for two files
+- All requirements from imp_plan.md ✅
+
+**CLEANUP COMPLETED:** 
+- Created structured `AppError` type with Tauri integration
+- Fixed command signatures: `Result<String,String>` → `Result<String>`  
+- Refactored 80-line functions into ≤30 line helpers
+- Removed all `unwrap()` calls with proper error handling
+- Enabled `clippy::unwrap_used` enforcement
+
+**TEST RESULTS:**
+- ✅ 13 tests passing (added 3 new tests)
+- ✅ Zero clippy warnings with strict lints
+- ✅ FFmpeg version detection works
+- ✅ File validation works
+- ✅ Manual testing: Tauri dev launches successfully, UI functional
+
+**NOTES:**
+- Codebase now AGENT.md compliant and ready for Phase 3
+- App designed for macOS .app packaging with bundled dependencies
+- Foundation is solid for metadata handling and full audio processing
+
+# Phase 3: Metadata Handling
