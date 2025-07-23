@@ -13,15 +13,16 @@ pub mod processor;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioFile {
     /// File path
     pub path: PathBuf,
-    /// File size in bytes
-    pub size: f64,
-    /// Duration in seconds
-    pub duration: f64,
-    /// Audio format (mp3, m4a, etc.)
-    pub format: String,
+    /// File size in bytes (None if unavailable)
+    pub size: Option<f64>,
+    /// Duration in seconds (None if unavailable)
+    pub duration: Option<f64>,
+    /// Audio format (None if unavailable)
+    pub format: Option<String>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
@@ -33,9 +34,9 @@ impl AudioFile {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            size: 0.0,
-            duration: 0.0,
-            format: String::new(),
+            size: None,
+            duration: None,
+            format: None,
             is_valid: false,
             error: None,
         }
