@@ -15,7 +15,7 @@ pub struct FileListInfo {
     /// Total duration in seconds
     pub total_duration: f64,
     /// Total size in bytes
-    pub total_size: u64,
+    pub total_size: f64,
     /// Number of valid files
     pub valid_count: usize,
     /// Number of invalid files
@@ -54,7 +54,7 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
     
     // Get file size
     match fs::metadata(path) {
-        Ok(metadata) => audio_file.size = metadata.len(),
+        Ok(metadata) => audio_file.size = metadata.len() as f64,
         Err(e) => {
             audio_file.error = Some(format!("Cannot read file metadata: {e}"));
             return Ok(audio_file);
@@ -108,7 +108,7 @@ pub fn get_file_list_info<P: AsRef<Path>>(
     let files = validate_audio_files(file_paths)?;
     
     let mut total_duration = 0.0;
-    let mut total_size = 0u64;
+    let mut total_size = 0.0;
     let mut valid_count = 0;
     let mut invalid_count = 0;
     

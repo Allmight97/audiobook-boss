@@ -17,7 +17,7 @@ pub struct AudioFile {
     /// File path
     pub path: PathBuf,
     /// File size in bytes
-    pub size: u64,
+    pub size: f64,
     /// Duration in seconds
     pub duration: f64,
     /// Audio format (mp3, m4a, etc.)
@@ -33,7 +33,7 @@ impl AudioFile {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            size: 0,
+            size: 0.0,
             duration: 0.0,
             format: String::new(),
             is_valid: false,

@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo, AudioSettings } from "./types/audio";
+import { initFileImport } from "./ui/fileImport";
+import { displayFileList, currentFileList } from "./ui/fileList";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -21,7 +23,11 @@ import type { FileListInfo, AudioSettings } from "./types/audio";
   analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { filePaths }),
   validateAudioSettings: (settings: AudioSettings) => invoke('validate_audio_settings', { settings }),
   processAudiobook: (filePaths: string[], settings: AudioSettings, metadata?: AudiobookMetadata) => 
-    invoke('process_audiobook_files', { filePaths, settings, metadata })
+    invoke('process_audiobook_files', { filePaths, settings, metadata }),
+
+  // UI test functions
+  testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
+  getCurrentFileList: () => currentFileList
 };
 
 // Log when ready
@@ -37,3 +43,11 @@ console.log('  window.testCommands.writeCoverArt(filePath, coverData)');
 console.log('  window.testCommands.analyzeAudioFiles(filePaths)');
 console.log('  window.testCommands.validateAudioSettings(settings)');
 console.log('  window.testCommands.processAudiobook(filePaths, settings, metadata?)');
+console.log('  window.testCommands.testDisplayList(fileListInfo)');
+console.log('  window.testCommands.getCurrentFileList()');
+
+// Initialize UI components when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initFileImport();
+  console.log('File import system initialized');
+});

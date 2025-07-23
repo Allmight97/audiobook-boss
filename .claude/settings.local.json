@@ -6,7 +6,12 @@
       "Bash(diff:*)",
       "Bash(ls:*)",
       "Bash(cargo test)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(npm run tauri:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "mcp__playwright__browser_console_messages",
+      "Bash(cargo test:*)"
     ],
     "deny": []
   }

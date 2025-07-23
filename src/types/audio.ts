@@ -2,9 +2,9 @@
 
 export interface AudioFile {
   path: string;
-  size: number;
-  duration: number;
-  format: string;
+  size?: number;
+  duration?: number;
+  format?: string;
   isValid: boolean;
   error?: string;
 }

@@ -157,6 +157,128 @@ h1 {
 	background-color: var(--bg-input);
 }
 
+/* File list container */
+.file-list-container {
+	min-height: 8rem;
+	max-height: 20rem;
+	overflow-y: auto;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	flex-grow: 1;
+}
+
+/* File list items */
+.file-list-item {
+	padding: 0.75rem;
+	border-bottom: 1px solid var(--border-primary);
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	user-select: none;
+}
+
+.file-list-item:last-child {
+	border-bottom: none;
+}
+
+.file-list-item:hover {
+	background-color: var(--bg-hover);
+}
+
+.file-list-item.selected {
+	background-color: var(--accent-primary);
+	color: var(--text-inverse);
+}
+
+.file-list-item.dragging {
+	opacity: 0.5;
+}
+
+.file-list-item.drag-over {
+	border-top: 2px solid var(--accent-primary);
+}
+
+.file-item-content {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.file-status {
+	font-weight: bold;
+	font-size: 1rem;
+	min-width: 1rem;
+}
+
+.file-info {
+	flex: 1;
+}
+
+.file-name {
+	font-weight: 500;
+	font-size: 0.875rem;
+	margin-bottom: 0.25rem;
+}
+
+.file-details {
+	font-size: 0.75rem;
+	color: var(--text-muted);
+}
+
+.file-list-item.selected .file-details {
+	color: var(--text-inverse);
+	opacity: 0.9;
+}
+
+.remove-file-btn {
+	background: none;
+	border: none;
+	font-size: 1.25rem;
+	font-weight: bold;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0.25rem;
+	border-radius: 0.25rem;
+	min-width: 1.5rem;
+	height: 1.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.remove-file-btn:hover {
+	background-color: rgba(239, 68, 68, 0.1);
+	color: #ef4444;
+}
+
+.file-list-item.selected .remove-file-btn {
+	color: var(--text-inverse);
+	opacity: 0.8;
+}
+
+.file-list-item.selected .remove-file-btn:hover {
+	background-color: rgba(255, 255, 255, 0.2);
+	color: var(--text-inverse);
+	opacity: 1;
+}
+
+/* Error message styling */
+.error-message {
+	background-color: #fef2f2;
+	border: 1px solid #fecaca;
+	color: #dc2626;
+	padding: 0.75rem;
+	border-radius: 0.375rem;
+	font-size: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+	.error-message {
+		background-color: #7f1d1d;
+		border-color: #991b1b;
+		color: #fca5a5;
+	}
+}
+
 /* Typography for headings */
 h2, h3 {
 	color: var(--text-secondary);

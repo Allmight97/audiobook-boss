@@ -26,7 +26,7 @@
 2. ✅ Phase 2: FFmpeg Integration - COMPLETE
 3. ✅ Phase 3: Metadata Handling - COMPLETE
 4. ✅ Phase 4: Core Audio Processing - COMPLETE (Backend Only)
-5. Phase 5: Complete UI Integration & File Management
+5. Phase 5: Complete UI Integration & File Management - In-Progress: critical blocker found - see /docs/planning/progress.md
 6. Phase 6: Preview Feature
 7. Phase 7: Polish & Package
 
