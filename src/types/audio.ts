@@ -68,7 +68,11 @@ export const AudioPresets = {
 };
 
 // Utility functions
-export const formatDuration = (seconds: number): string => {
+export const formatDuration = (seconds: number | undefined): string => {
+  if (seconds == null || isNaN(seconds)) {
+    return '---';
+  }
+  
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
@@ -79,7 +83,11 @@ export const formatDuration = (seconds: number): string => {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
-export const formatFileSize = (bytes: number): string => {
+export const formatFileSize = (bytes: number | undefined): string => {
+  if (bytes == null || isNaN(bytes)) {
+    return '---';
+  }
+  
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = bytes;
   let unitIndex = 0;

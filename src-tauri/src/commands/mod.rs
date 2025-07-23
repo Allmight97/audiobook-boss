@@ -230,6 +230,7 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
     crate::audio::get_file_list_info(&paths)
 }
 
+
 /// Validates audio processing settings
 /// Checks bitrate, sample rate, and output path validity
 #[tauri::command]
@@ -298,4 +299,5 @@ mod audio_tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Bitrate must be"));
     }
+
 }

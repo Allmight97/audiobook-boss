@@ -287,3 +287,51 @@ We're missing something fundamental about the data flow between frontend and bac
 - Need systematic debugging approach vs iterative quick fixes
 - Missing something fundamental about Tauri frontend/backend data flow
 - Requires deeper investigation of actual data structures and serialization
+
+## RECENT DEBUGGING SESSION (Branch: fix/audiofile-optional-fields)
+
+**JULY 23, 2025 - SYSTEMATIC ROOT CAUSE ANALYSIS:**
+
+### Issue Evolution
+1. **Original TypeError Crash**: `TypeError: undefined is not an object (evaluating 'size.toFixed')`
+   - **Root Cause Found**: Rust backend sending `size: 0.0` for invalid files
+   - **Frontend Expected**: `size: undefined` for proper null checking
+   - **Solution Applied**: Changed AudioFile struct fields to `Option<T>` types
+
+2. **Post-Fix Issue**: Files showing as "Error: Invalid file" despite no crash
+   - **Root Cause Found**: Field naming mismatch between Rust (snake_case) and TypeScript (camelCase)
+   - **Specific Problem**: Backend sending `is_valid: true`, frontend expecting `isValid`
+   - **Solution Applied**: Added `#[serde(rename_all = "camelCase")]` to structs
+
+3. **Current Issue**: New Tauri command parameter error
+   - **Error**: `invalid args 'filePaths' for command 'analyze_audio_files': command analyze_audio_files missing required key filePaths`
+   - **Status**: Backend validation working correctly (51 tests pass)
+   - **Hypothesis**: Frontend-backend parameter name mismatch in Tauri invoke calls
+
+### Technical Changes Made (All on Branch: fix/audiofile-optional-fields)
+
+**Files Modified:**
+- `src-tauri/src/audio/mod.rs:19` - Added camelCase serialization to AudioFile struct
+- `src-tauri/src/audio/file_list.rs:18` - Added camelCase serialization to FileListInfo struct  
+- `src-tauri/src/audio/file_list.rs:55,64,65` - Updated validation logic for Option<T> fields
+- `src/types/audio.ts:71,86` - Updated formatters to handle undefined values
+
+**Verification Completed:**
+- ✅ All 51 backend tests passing
+- ✅ Zero clippy warnings  
+- ✅ JSON serialization now properly camelCase
+- ✅ Option<T> fields correctly handle invalid files
+
+### Current Status
+- **Original crash**: RESOLVED ✅
+- **Field naming mismatch**: RESOLVED ✅  
+- **New parameter issue**: ACTIVE INVESTIGATION ❌
+- **Overall Phase 5**: Still BLOCKED pending parameter fix
+
+### Next Debugging Steps
+1. Investigate Tauri invoke parameter naming conventions
+2. Check frontend `analyzeAudioFiles` call vs backend `analyze_audio_files` expectation
+3. Verify if camelCase conversion affects command parameters
+4. Test with corrected parameter names
+
+**IMPACT**: Progress made on core serialization issues, but still blocked on basic file import functionality.

@@ -11,7 +11,9 @@
       "Bash(cargo clippy:*)",
       "Bash(cargo test:*)",
       "mcp__playwright__browser_console_messages",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(find:*)",
+      "mcp__context-7__resolve-library-id"
     ],
     "deny": []
   }

@@ -80,13 +80,11 @@ function filterSupportedFiles(paths: string[]): string[] {
 async function processFilePaths(filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
 
-    console.log('Processing file paths:', filePaths);
 
     try {
         const fileListInfo: FileListInfo = await invoke('analyze_audio_files', { 
-            filePaths 
+            file_paths: filePaths 
         });
-        
         displayFileList(fileListInfo);
         clearError();
     } catch (error) {

@@ -20,9 +20,11 @@
 
 ## Build Commands (RUN FREQUENTLY)
 - **Dev**: `npm run tauri dev` (full app with hot reload)
-- **Test**: `cargo test` (run after each function)
-- **Lint**: `cargo clippy -- -D warnings` (must be zero warnings)
+- **Test**: `cargo test` (run from src-tauri/ directory)
+- **Lint**: `cargo clippy -- -D warnings` (run from src-tauri/ directory - must be zero warnings)
 - **Build**: `npm run tauri build` (full app package)
+
+**IMPORTANT**: Always run `cargo` commands from the `src-tauri/` directory, not the project root.
 
 ## Definition of Done (ALL MUST PASS)
 - ✅ Code compiles without warnings

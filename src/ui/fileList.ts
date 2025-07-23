@@ -128,7 +128,7 @@ function updateFileProperties(file: AudioFile): void {
 
 async function loadFileMetadata(filePath: string): Promise<void> {
     try {
-        const metadata = await invoke('read_audio_metadata', { filePath });
+        const metadata = await invoke('read_audio_metadata', { file_path: filePath });
         populateMetadataForm(metadata);
     } catch (error) {
         console.warn('Failed to load metadata:', error);

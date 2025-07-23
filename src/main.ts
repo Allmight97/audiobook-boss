@@ -13,17 +13,17 @@ import { displayFileList, currentFileList } from "./ui/fileList";
   mergeAudioFiles: (file1: string, file2: string) => invoke('merge_audio_files', { file1, file2 }),
   
   // Metadata commands
-  readMetadata: (filePath: string) => invoke<AudiobookMetadata>('read_audio_metadata', { filePath }),
+  readMetadata: (filePath: string) => invoke<AudiobookMetadata>('read_audio_metadata', { file_path: filePath }),
   writeMetadata: (filePath: string, metadata: AudiobookMetadata) => 
-    invoke('write_audio_metadata', { filePath, metadata }),
+    invoke('write_audio_metadata', { file_path: filePath, metadata }),
   writeCoverArt: (filePath: string, coverData: number[]) => 
-    invoke('write_cover_art', { filePath, coverData }),
+    invoke('write_cover_art', { file_path: filePath, cover_data: coverData }),
   
   // Audio processing commands
-  analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { filePaths }),
+  analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { file_paths: filePaths }),
   validateAudioSettings: (settings: AudioSettings) => invoke('validate_audio_settings', { settings }),
   processAudiobook: (filePaths: string[], settings: AudioSettings, metadata?: AudiobookMetadata) => 
-    invoke('process_audiobook_files', { filePaths, settings, metadata }),
+    invoke('process_audiobook_files', { file_paths: filePaths, settings, metadata }),
 
   // UI test functions
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
