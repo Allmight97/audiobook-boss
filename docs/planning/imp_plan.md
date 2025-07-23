@@ -129,6 +129,9 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - File removal and selection
     - Combined size/duration calculations
 
+13a. **User Validation**
+- As a user, I can drag a folder of MP3 files onto the application window. The files should appear in the 'Input Files' list. I can then test that I can drag a file from the bottom of the list to the top to re-order it, and click the 'X' button to remove a file from the list."
+  
 14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`)
     - Show selected file properties (bitrate, sample rate, channels, size)
     - Update properties display within 1 second
@@ -139,6 +142,9 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - All metadata fields (title, author, album, narrator, year, genre, description)
     - Cover art drag/drop and file selection
     - Real-time metadata validation
+
+15a. **User Validation**
+- "With my files loaded from the previous step, I will click on a single file in the list. I expect to see its technical details (bitrate, size) appear in the Properties panel. I also expect the main 'Metadata' form to be filled with that file's metadata (Title, Author). I can then type in the form to change the author's name, and drag a JPG file onto the 'Cover Art' area to set the cover."
 
 16. **Output Settings Interface** (`src/ui/outputPanel.ts`)
     - Audio settings controls (bitrate, channels, sample rate)
@@ -159,6 +165,9 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - Handle missing metadata fields in output paths
     - Ensure no file overwrites
     - End-to-end processing workflow
+
+18a. **User Validation**
+- "With my files loaded and metadata edited, I will select my desired output settings (e.g., 64 kbps bitrate, Mono). I will then click the 'Process Audiobook' button. I expect to see a progress bar appear and start to fill up, with status messages updating below it. Once it completes, I will navigate to the output folder and find the final M4B file. I will open it in an audio player and verify that it plays correctly and that the metadata (title, author, cover art) is correct."
 
 ### Phase 6: Preview Feature
 Add preview after core features work.
