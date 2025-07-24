@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo, AudioSettings } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import { displayFileList, currentFileList } from "./ui/fileList";
+import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -27,7 +27,8 @@ import { displayFileList, currentFileList } from "./ui/fileList";
 
   // UI test functions
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
-  getCurrentFileList: () => currentFileList
+  getCurrentFileList: () => currentFileList,
+  clearFiles: () => clearAllFiles()
 };
 
 // Log when ready
@@ -45,6 +46,7 @@ console.log('  window.testCommands.validateAudioSettings(settings)');
 console.log('  window.testCommands.processAudiobook(filePaths, settings, metadata?)');
 console.log('  window.testCommands.testDisplayList(fileListInfo)');
 console.log('  window.testCommands.getCurrentFileList()');
+console.log('  window.testCommands.clearFiles()');
 
 // Initialize UI components when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

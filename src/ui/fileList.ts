@@ -24,7 +24,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     });
 
     updateTotalStats();
-    initDragReorder();
+    initFileListEvents();
 }
 
 function createFileListItem(file: AudioFile, index: number): HTMLElement {
@@ -53,19 +53,7 @@ function createFileListItem(file: AudioFile, index: number): HTMLElement {
         </div>
     `;
 
-    item.addEventListener('click', () => selectFile(index));
-    
-    // Add remove button handler with more robust event handling
-    const removeBtn = item.querySelector('.remove-file-btn');
-    if (removeBtn) {
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            console.log('Remove button clicked for index:', index);
-            removeFile(index);
-        });
-    }
-
+    // Note: Event handlers are now attached via event delegation in initFileListEvents()
     return item;
 }
 
@@ -92,7 +80,7 @@ function removeFile(index: number): void {
     currentFileList.invalidCount = currentFileList.files.length - currentFileList.validCount;
     
     recalculateTotals();
-    displayFileList(currentFileList);
+    updateFileListDOM();
     
     if (selectedFileIndex === index) {
         selectedFileIndex = -1;
@@ -174,14 +162,46 @@ function clearFileProperties(): void {
     if (fileSizeEl) fileSizeEl.textContent = '---';
 }
 
-function initDragReorder(): void {
+function initFileListEvents(): void {
     const container = document.querySelector('.file-list-container');
     if (!container) return;
 
+    // Remove any existing event listeners to prevent duplicates
+    container.removeEventListener('click', handleFileListClick);
+    container.removeEventListener('dragstart', handleDragStart as EventListener);
+    container.removeEventListener('dragover', handleDragOver as EventListener);
+    container.removeEventListener('drop', handleDrop as EventListener);
+    container.removeEventListener('dragend', handleDragEnd as EventListener);
+
+    // Add event delegation handlers
+    container.addEventListener('click', handleFileListClick);
     container.addEventListener('dragstart', handleDragStart as EventListener);
     container.addEventListener('dragover', handleDragOver as EventListener);
     container.addEventListener('drop', handleDrop as EventListener);
     container.addEventListener('dragend', handleDragEnd as EventListener);
+}
+
+function handleFileListClick(e: Event): void {
+    const target = e.target as HTMLElement;
+    
+    // Handle remove button clicks
+    if (target.classList.contains('remove-file-btn')) {
+        e.stopPropagation();
+        e.preventDefault();
+        const index = parseInt(target.dataset.index || '-1');
+        if (index >= 0) {
+            console.log('Remove button clicked for index:', index);
+            removeFile(index);
+        }
+        return;
+    }
+    
+    // Handle file item selection
+    const fileItem = target.closest('.file-list-item') as HTMLElement;
+    if (fileItem) {
+        const index = parseInt(fileItem.dataset.index || '-1');
+        if (index >= 0) selectFile(index);
+    }
 }
 
 function handleDragStart(event: Event): void {
@@ -223,7 +243,7 @@ function handleDrop(event: Event): void {
     currentFileList.files.splice(draggedIndex, 1);
     currentFileList.files.splice(targetIndex, 0, draggedFile);
 
-    displayFileList(currentFileList);
+    updateFileListDOM();
 }
 
 function handleDragEnd(): void {
@@ -231,6 +251,89 @@ function handleDragEnd(): void {
     document.querySelectorAll('.file-list-item').forEach(item => {
         item.classList.remove('dragging', 'drag-over');
     });
+}
+
+function updateFileListDOM(): void {
+    if (!currentFileList) return;
+    
+    const container = document.querySelector('.file-list-container');
+    if (!container) return;
+
+    // If no files, show placeholder
+    if (currentFileList.files.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">No files loaded</p>';
+        container.className = 'file-list-placeholder';
+        return;
+    }
+
+    // Ensure container has correct class
+    container.className = 'file-list-container';
+    
+    // Remove excess items
+    const existingItems = container.querySelectorAll('.file-list-item');
+    for (let i = currentFileList.files.length; i < existingItems.length; i++) {
+        existingItems[i].remove();
+    }
+    
+    // Update or create items
+    currentFileList.files.forEach((file, index) => {
+        const existingItem = existingItems[index] as HTMLElement;
+        if (existingItem) {
+            updateFileListItem(existingItem, file, index);
+        } else {
+            const newItem = createFileListItem(file, index);
+            container.appendChild(newItem);
+        }
+    });
+    
+    updateTotalStats();
+    updateSelection();
+    initFileListEvents();
+}
+
+function updateFileListItem(item: HTMLElement, file: AudioFile, index: number): void {
+    item.className = `file-list-item ${file.isValid ? 'valid' : 'invalid'}`;
+    item.dataset.index = index.toString();
+    
+    const fileName = file.path.split('/').pop() || file.path;
+    const statusIcon = file.isValid ? '✓' : '✗';
+    const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
+    
+    item.innerHTML = `
+        <div class="file-item-content">
+            <div class="file-status ${statusClass}">${statusIcon}</div>
+            <div class="file-info">
+                <div class="file-name">${fileName}</div>
+                <div class="file-details">
+                    ${file.isValid && file.duration && file.size ? 
+                        `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}` :
+                        `Error: ${file.error || 'Invalid file'}`
+                    }
+                </div>
+            </div>
+            <button class="remove-file-btn" data-index="${index}">×</button>
+        </div>
+    `;
+}
+
+export function clearAllFiles(): void {
+    if (!currentFileList) return;
+    
+    currentFileList.files = [];
+    currentFileList.validCount = 0;
+    currentFileList.invalidCount = 0;
+    currentFileList.totalDuration = 0;
+    currentFileList.totalSize = 0;
+    
+    const container = document.querySelector('.file-list-container');
+    if (container) {
+        container.innerHTML = '<p class="text-gray-500">No files loaded</p>';
+        container.className = 'file-list-placeholder';
+    }
+    
+    selectedFileIndex = -1;
+    clearFileProperties();
+    updateTotalStats();
 }
 
 export { currentFileList, selectedFileIndex };
