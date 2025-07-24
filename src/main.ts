@@ -3,6 +3,7 @@ import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo, AudioSettings } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
+import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -28,7 +29,12 @@ import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
   // UI test functions
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
   getCurrentFileList: () => currentFileList,
-  clearFiles: () => clearAllFiles()
+  clearFiles: () => clearAllFiles(),
+  
+  // Output panel test functions
+  getCurrentAudioSettings: () => getCurrentAudioSettings(),
+  triggerFileListChange: () => onFileListChange(),
+  triggerMetadataChange: () => onMetadataChange()
 };
 
 // Log when ready
@@ -47,9 +53,14 @@ console.log('  window.testCommands.processAudiobook(filePaths, settings, metadat
 console.log('  window.testCommands.testDisplayList(fileListInfo)');
 console.log('  window.testCommands.getCurrentFileList()');
 console.log('  window.testCommands.clearFiles()');
+console.log('  window.testCommands.getCurrentAudioSettings()');
+console.log('  window.testCommands.triggerFileListChange()');
+console.log('  window.testCommands.triggerMetadataChange()');
 
 // Initialize UI components when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   initFileImport();
+  initOutputPanel();
   console.log('File import system initialized');
+  console.log('Output panel initialized');
 });

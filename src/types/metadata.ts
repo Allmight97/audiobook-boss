@@ -18,6 +18,8 @@ export interface AudiobookMetadata {
   year?: number;
   /** Genre of the book */
   genre?: string;
+  /** Series name */
+  series?: string;
   /** Description or synopsis */
   description?: string;
   /** Cover art as base64 encoded string (optional in responses) */

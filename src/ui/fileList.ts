@@ -1,5 +1,6 @@
 import { AudioFile, FileListInfo, formatDuration, formatFileSize } from '../types/audio';
 import { invoke } from '@tauri-apps/api/core';
+import { onFileListChange } from './outputPanel';
 
 let currentFileList: FileListInfo | null = null;
 let selectedFileIndex: number = -1;
@@ -25,6 +26,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
     updateTotalStats();
     initFileListEvents();
+    onFileListChange();
 }
 
 function createFileListItem(file: AudioFile, index: number): HTMLElement {
@@ -88,6 +90,8 @@ function removeFile(index: number): void {
     } else if (selectedFileIndex > index) {
         selectedFileIndex--;
     }
+    
+    onFileListChange();
 }
 
 function recalculateTotals(): void {
@@ -244,6 +248,7 @@ function handleDrop(event: Event): void {
     currentFileList.files.splice(targetIndex, 0, draggedFile);
 
     updateFileListDOM();
+    onFileListChange();
 }
 
 function handleDragEnd(): void {
@@ -334,6 +339,7 @@ export function clearAllFiles(): void {
     selectedFileIndex = -1;
     clearFileProperties();
     updateTotalStats();
+    onFileListChange();
 }
 
 export { currentFileList, selectedFileIndex };

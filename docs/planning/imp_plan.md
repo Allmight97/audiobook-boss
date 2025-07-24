@@ -146,11 +146,11 @@ Connect the HTML UI to backend commands and implement complete user workflow.
 15a. **User Validation**
 - "With my files loaded from the previous step, I will click on a single file in the list. I expect to see its technical details (bitrate, size) appear in the Properties panel. I also expect the main 'Metadata' form to be filled with that file's metadata (Title, Author). I can then type in the form to change the author's name, and drag a JPG file onto the 'Cover Art' area to set the cover."
 
-16. **Output Settings Interface** (`src/ui/outputPanel.ts`)
+16. **Output Settings Interface** (`src/ui/outputPanel.ts`) - DONE ✅
     - Audio settings controls (bitrate, channels, sample rate)
     - Output directory selection and path calculation
     - Implement [Author]/[Series]/[Year-Title] pattern
-    - Estimated output size calculations
+    - Estimated output size calculations based on bitrate, channels, sample rate user selections
     - Settings validation and feedback
 
 17. **Progress & Status Interface** (`src/ui/statusPanel.ts`)
