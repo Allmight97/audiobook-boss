@@ -65,18 +65,18 @@ Development notes for each phase in docs/planning/imp_plan.md as completed.
 2. **Clear Files (Bug #3)**: `window.testCommands.clearFiles()` wipes all files
 3. **Event Persistence**: File selection works after removal/reordering operations
 
-#### ❌ REMAINING ISSUES
+#### ❌ REMAINING BUGS
 
-**🚨 CRITICAL BLOCKER**
+**🚨 BLOCKERS**
 - **File Reordering (Bug #1)**: Drag/drop within file list completely non-functional
   - **Impact**: Core user workflow broken
   - **Cause**: Event delegation needs refinement for drag operations
   - **Status**: Must fix in next session
 
-**📋 NON-CRITICAL BUGS (Deferred)**
-- **Drag/Drop Import (Bug #4)**: Only click-to-select works, drag/drop area non-functional
+**BUG**
+- **Drag/Drop Import**: Only click-to-select works, drag/drop area non-functional
   - **Status**: Not critical, click-to-select sufficient for now
-- **Property Accuracy**: Bitrate values inaccurate on some files vs MediaInfo
+- **Property Accuracy**: Bitrate values inaccurate on some files vs MediaInfo - see /docs/planning/imp_plan.md
   - **Status**: Minor display issue, not blocking functionality
 
 ### 🎯 USER VALIDATION RESULTS (July 23, 2025)

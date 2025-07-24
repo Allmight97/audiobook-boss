@@ -1,14 +1,14 @@
 # CLAUDE.md
 
 ## Pre-Implementation Checklist (MANDATORY - DO BEFORE ANY CODE)
-- [ ] Add clippy lints to `src-tauri/src/lib.rs` FIRST:
+- Add clippy lints to `src-tauri/src/lib.rs` FIRST:
   ```rust
   #![deny(clippy::unwrap_used)]
   #![warn(clippy::too_many_lines)]
   ```
-- [ ] Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
-- [ ] Design module structure and public APIs before implementation
-- [ ] Write test signatures before implementing functions
+- Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
+- Design module structure and public APIs before implementation
+- Write test signatures before implementing functions
 
 ## Critical Rules (NON-NEGOTIABLE)
 - **Functions**: Max 30 lines, max 3 parameters (use structs for more)

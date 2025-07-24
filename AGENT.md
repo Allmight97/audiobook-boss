@@ -1,14 +1,14 @@
 # CLAUDE.md
 
 ## Pre-Implementation Checklist (MANDATORY - DO BEFORE ANY CODE)
-- [ ] Add clippy lints to `src-tauri/src/lib.rs` FIRST:
+- Add clippy lints to `src-tauri/src/lib.rs` FIRST:
   ```rust
   #![deny(clippy::unwrap_used)]
   #![warn(clippy::too_many_lines)]
   ```
-- [ ] Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
-- [ ] Design module structure and public APIs before implementation
-- [ ] Write test signatures before implementing functions
+- Create `src-tauri/src/errors.rs` with `AppError` enum before any commands
+- Design module structure and public APIs before implementation
+- Write test signatures before implementing functions
 
 ## Critical Rules (NON-NEGOTIABLE)
 - **Functions**: Max 30 lines, max 3 parameters (use structs for more)
@@ -20,9 +20,11 @@
 
 ## Build Commands (RUN FREQUENTLY)
 - **Dev**: `npm run tauri dev` (full app with hot reload)
-- **Test**: `cargo test` (run after each function)
-- **Lint**: `cargo clippy -- -D warnings` (must be zero warnings)
+- **Test**: `cargo test` (run from src-tauri/ directory)
+- **Lint**: `cargo clippy -- -D warnings` (run from src-tauri/ directory - must be zero warnings)
 - **Build**: `npm run tauri build` (full app package)
+
+**IMPORTANT**: Always run `cargo` commands from the `src-tauri/` directory, not the project root.
 
 ## Definition of Done (ALL MUST PASS)
 - ✅ Code compiles without warnings

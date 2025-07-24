@@ -114,25 +114,25 @@ Build the real audio pipeline (Backend only).
     - Progress reporting
     - Error handling
 
-### Phase 5: Complete UI Integration & File Management
+### Phase 5: Complete UI Integration & File Management - In-Progress: critical blocker found - see /docs/planning/progress.md
 Connect the HTML UI to backend commands and implement complete user workflow.
 
-12. **File Import System** (`src/ui/fileImport.ts`)
+12. **File Import System** (`src/ui/fileImport.ts`) - DONE
     - Drag & drop event handlers for audio files
     - File selection dialog (click to select)
     - File validation and error display
     - Accept only MP3/M4A/M4B/AAC formats
 
-13. **File List Management** (`src/ui/fileList.ts`)
+13. **File List Management** (`src/ui/fileList.ts`) - DONE
     - Display imported files in order
     - Drag-to-reorder functionality
     - File removal and selection
     - Combined size/duration calculations
 
-13a. **User Validation**
+13a. **User Validation** - DONE
 - As a user, I can drag a folder of MP3 files onto the application window. The files should appear in the 'Input Files' list. I can then test that I can drag a file from the bottom of the list to the top to re-order it, and click the 'X' button to remove a file from the list."
   
-14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`)
+14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`) BUG: Clicking some files shows inaccurate bitrate.
     - Show selected file properties (bitrate, sample rate, channels, size)
     - Update properties display within 1 second
     - Handle multiple file selection states
@@ -208,18 +208,14 @@ Make it feel like a real app.
 - Don't optimize until it works
 - Commit after each working feature
 
-## First Working Version Checklist
-- [ ] Can drop files onto app
-- [ ] Shows file metadata
-- [ ] Merges files with FFmpeg
-- [ ] Writes metadata to output
-- [ ] Shows progress during conversion
-- [ ] Produces playable M4B file
-- [ ] Runs as packaged Mac app
-
-That's your MVP. Everything else is gravy.
-
----
+## First Working Version Checklist ✅
+- Can drop files onto app
+- Shows file metadata
+- Merges files with FFmpeg
+- Writes metadata to output
+- Shows progress during conversion
+- Produces playable M4B file
+- Runs as packaged Mac app
 
 ## Bonus: Ergonomic Improvements (Post-MVP)
 Once core functionality is validated, these refinements enhance user experience and code maintainability.
