@@ -23,6 +23,12 @@ pub struct AudioFile {
     pub duration: Option<f64>,
     /// Audio format (None if unavailable)
     pub format: Option<String>,
+    /// Bitrate in kbps (None if unavailable)
+    pub bitrate: Option<u32>,
+    /// Sample rate in Hz (None if unavailable)
+    pub sample_rate: Option<u32>,
+    /// Number of channels (None if unavailable)
+    pub channels: Option<u32>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
@@ -37,6 +43,9 @@ impl AudioFile {
             size: None,
             duration: None,
             format: None,
+            bitrate: None,
+            sample_rate: None,
+            channels: None,
             is_valid: false,
             error: None,
         }

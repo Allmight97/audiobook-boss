@@ -5,6 +5,9 @@ export interface AudioFile {
   size?: number;
   duration?: number;
   format?: string;
+  bitrate?: number;
+  sampleRate?: number;
+  channels?: number;
   isValid: boolean;
   error?: string;
 }

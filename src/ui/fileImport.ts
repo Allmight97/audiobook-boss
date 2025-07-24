@@ -83,7 +83,7 @@ async function processFilePaths(filePaths: string[]): Promise<void> {
 
     try {
         const fileListInfo: FileListInfo = await invoke('analyze_audio_files', { 
-            file_paths: filePaths 
+            filePaths: filePaths 
         });
         displayFileList(fileListInfo);
         clearError();

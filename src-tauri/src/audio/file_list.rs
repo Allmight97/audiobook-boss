@@ -62,11 +62,14 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
         }
     }
     
-    // Validate audio format and get duration
+    // Validate audio format and get comprehensive metadata
     match validate_audio_format(path) {
-        Ok((format, duration)) => {
+        Ok((format, duration, bitrate, sample_rate, channels)) => {
             audio_file.format = Some(format);
             audio_file.duration = Some(duration);
+            audio_file.bitrate = bitrate;
+            audio_file.sample_rate = sample_rate;
+            audio_file.channels = channels;
             audio_file.is_valid = true;
         }
         Err(e) => {
@@ -77,8 +80,8 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
     Ok(audio_file)
 }
 
-/// Validates audio format using Lofty and returns format and duration
-fn validate_audio_format(path: &Path) -> Result<(String, f64)> {
+/// Validates audio format using Lofty and returns comprehensive metadata
+fn validate_audio_format(path: &Path) -> Result<(String, f64, Option<u32>, Option<u32>, Option<u32>)> {
     // First check if we support the file extension
     let format = match path.extension().and_then(|s| s.to_str()) {
         Some("mp3") => "MP3",
@@ -113,7 +116,12 @@ fn validate_audio_format(path: &Path) -> Result<(String, f64)> {
         ));
     }
     
-    Ok((format.to_string(), duration))
+    // Extract technical metadata
+    let bitrate = properties.overall_bitrate().map(|br| br as u32);
+    let sample_rate = properties.sample_rate();
+    let channels = properties.channels().map(|ch| ch as u32);
+    
+    Ok((format.to_string(), duration, bitrate, sample_rate, channels))
 }
 
 /// Gets comprehensive information about a file list

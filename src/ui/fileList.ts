@@ -54,10 +54,17 @@ function createFileListItem(file: AudioFile, index: number): HTMLElement {
     `;
 
     item.addEventListener('click', () => selectFile(index));
-    item.querySelector('.remove-file-btn')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        removeFile(index);
-    });
+    
+    // Add remove button handler with more robust event handling
+    const removeBtn = item.querySelector('.remove-file-btn');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log('Remove button clicked for index:', index);
+            removeFile(index);
+        });
+    }
 
     return item;
 }
@@ -116,19 +123,27 @@ function updateFileProperties(file: AudioFile): void {
     const channelsEl = document.getElementById('prop-channels');
     const fileSizeEl = document.getElementById('prop-filesize');
 
-    if (bitrateEl) bitrateEl.textContent = file.isValid ? 'N/A' : '---';
-    if (sampleRateEl) sampleRateEl.textContent = file.isValid ? 'N/A' : '---';
-    if (channelsEl) channelsEl.textContent = file.isValid ? 'N/A' : '---';
-    if (fileSizeEl) fileSizeEl.textContent = file.isValid && file.size ? formatFileSize(file.size) : '---';
-
     if (file.isValid) {
+        // Display technical audio properties
+        if (bitrateEl) bitrateEl.textContent = file.bitrate ? `${file.bitrate} kbps` : 'N/A';
+        if (sampleRateEl) sampleRateEl.textContent = file.sampleRate ? `${file.sampleRate} Hz` : 'N/A';
+        if (channelsEl) channelsEl.textContent = file.channels ? `${file.channels} ch` : 'N/A';
+        if (fileSizeEl) fileSizeEl.textContent = file.size ? formatFileSize(file.size) : 'N/A';
+        
+        // Still load metadata for the metadata form
         loadFileMetadata(file.path);
+    } else {
+        // File is invalid, show dashes
+        if (bitrateEl) bitrateEl.textContent = '---';
+        if (sampleRateEl) sampleRateEl.textContent = '---';
+        if (channelsEl) channelsEl.textContent = '---';
+        if (fileSizeEl) fileSizeEl.textContent = '---';
     }
 }
 
 async function loadFileMetadata(filePath: string): Promise<void> {
     try {
-        const metadata = await invoke('read_audio_metadata', { file_path: filePath });
+        const metadata = await invoke('read_audio_metadata', { filePath: filePath });
         populateMetadataForm(metadata);
     } catch (error) {
         console.warn('Failed to load metadata:', error);
@@ -189,6 +204,8 @@ function handleDragOver(event: Event): void {
     const targetIndex = parseInt(item.dataset.index || '-1');
     if (targetIndex === draggedIndex) return;
 
+    // Clear previous drag-over classes
+    document.querySelectorAll('.file-list-item').forEach(el => el.classList.remove('drag-over'));
     item.classList.add('drag-over');
 }
 
