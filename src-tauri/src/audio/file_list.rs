@@ -81,7 +81,9 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
 }
 
 /// Validates audio format using Lofty and returns comprehensive metadata
-fn validate_audio_format(path: &Path) -> Result<(String, f64, Option<u32>, Option<u32>, Option<u32>)> {
+type AudioProperties = (String, f64, Option<u32>, Option<u32>, Option<u32>);
+
+fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     // First check if we support the file extension
     let format = match path.extension().and_then(|s| s.to_str()) {
         Some("mp3") => "MP3",
@@ -117,7 +119,7 @@ fn validate_audio_format(path: &Path) -> Result<(String, f64, Option<u32>, Optio
     }
     
     // Extract technical metadata
-    let bitrate = properties.overall_bitrate().map(|br| br as u32);
+    let bitrate = properties.overall_bitrate();
     let sample_rate = properties.sample_rate();
     let channels = properties.channels().map(|ch| ch as u32);
     
@@ -291,8 +293,9 @@ mod tests {
         
         // Test our format validation specifically
         match validate_audio_format(std::path::Path::new(test_mp3)) {
-            Ok((format, duration)) => {
-                println!("  validate_audio_format SUCCESS: format={}, duration={}", format, duration);
+            Ok((format, duration, bitrate, sample_rate, channels)) => {
+                println!("  validate_audio_format SUCCESS: format={}, duration={}, bitrate={:?}, sample_rate={:?}, channels={:?}", 
+                         format, duration, bitrate, sample_rate, channels);
             }
             Err(e) => {
                 println!("  validate_audio_format ERROR: {}", e);

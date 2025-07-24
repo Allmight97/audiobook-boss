@@ -153,7 +153,7 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - Estimated output size calculations based on bitrate, channels, sample rate user selections
     - Settings validation and feedback
 
-17. **Progress & Status Interface** (`src/ui/statusPanel.ts`)
+17. **Progress & Status Interface** (`src/ui/statusPanel.ts`) - Implemented but process audio button not working - see docs/planning/process_button_error.png [FIXME]
     - Real-time progress bar and percentage
     - Processing stage indicators
     - Cancel button functionality

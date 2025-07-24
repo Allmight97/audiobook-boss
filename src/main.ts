@@ -4,6 +4,7 @@ import type { FileListInfo, AudioSettings } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
+import { initStatusPanel } from "./ui/statusPanel";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -34,7 +35,10 @@ import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataC
   // Output panel test functions
   getCurrentAudioSettings: () => getCurrentAudioSettings(),
   triggerFileListChange: () => onFileListChange(),
-  triggerMetadataChange: () => onMetadataChange()
+  triggerMetadataChange: () => onMetadataChange(),
+  
+  // Status panel test functions
+  cancelProcessing: () => invoke('cancel_processing')
 };
 
 // Log when ready
@@ -61,6 +65,8 @@ console.log('  window.testCommands.triggerMetadataChange()');
 document.addEventListener('DOMContentLoaded', () => {
   initFileImport();
   initOutputPanel();
+  initStatusPanel();
   console.log('File import system initialized');
   console.log('Output panel initialized');
+  console.log('Status panel initialized');
 });

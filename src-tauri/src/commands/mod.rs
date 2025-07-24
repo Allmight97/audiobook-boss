@@ -243,20 +243,54 @@ pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
 /// Merges files with specified settings and optional metadata
 #[tauri::command]
 pub async fn process_audiobook_files(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::ProcessingState>,
     file_paths: Vec<String>,
     settings: AudioSettings,
     metadata: Option<AudiobookMetadata>
 ) -> Result<String> {
+    // Set processing state
+    {
+        let mut is_processing = state.is_processing.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
+        *is_processing = true;
+        
+        let mut is_cancelled = state.is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire cancellation lock".to_string()))?;
+        *is_cancelled = false;
+    }
+    
     // Validate and get file information
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
     let file_info = crate::audio::get_file_list_info(&paths)?;
     
-    // Process the audiobook
-    crate::audio::process_audiobook(
+    // Process the audiobook with progress events
+    let result = crate::audio::process_audiobook_with_events(
+        window,
+        state.clone(),
         file_info.files,
         settings,
         metadata
-    ).await
+    ).await;
+    
+    // Reset processing state
+    {
+        let mut is_processing = state.is_processing.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
+        *is_processing = false;
+    }
+    
+    result
+}
+
+/// Cancels the current audio processing operation
+/// Sets the cancellation flag in the shared processing state
+#[tauri::command]
+pub fn cancel_processing(state: tauri::State<crate::ProcessingState>) -> Result<String> {
+    let mut is_cancelled = state.is_cancelled.lock()
+        .map_err(|_| AppError::InvalidInput("Failed to acquire cancellation lock".to_string()))?;
+    *is_cancelled = true;
+    Ok("Processing cancellation requested".to_string())
 }
 
 #[cfg(test)]

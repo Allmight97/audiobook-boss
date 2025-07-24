@@ -54,6 +54,7 @@ impl AudioFile {
 
 /// Audio processing settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioSettings {
     /// Output bitrate in kbps (32-128)
     pub bitrate: u32,
@@ -125,4 +126,4 @@ pub enum ProcessingStage {
 pub use file_list::get_file_list_info;
 pub use settings::validate_audio_settings;
 pub use progress::ProgressReporter;
-pub use processor::process_audiobook;
+pub use processor::process_audiobook_with_events;

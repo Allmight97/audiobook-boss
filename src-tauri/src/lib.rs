@@ -9,13 +9,25 @@ mod ffmpeg;
 mod metadata;
 mod audio;
 
-// Remove demo greet command - keep only production code
+use std::sync::{Arc, Mutex};
+use audio::ProcessingProgress;
+
+/// Shared state for tracking processing status and cancellation
+#[derive(Default)]
+pub struct ProcessingState {
+    pub is_processing: Arc<Mutex<bool>>,
+    pub is_cancelled: Arc<Mutex<bool>>,
+    pub progress: Arc<Mutex<Option<ProcessingProgress>>>,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let processing_state = ProcessingState::default();
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(processing_state)
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::echo,
@@ -27,7 +39,8 @@ pub fn run() {
             commands::write_cover_art,
             commands::analyze_audio_files,
             commands::validate_audio_settings,
-            commands::process_audiobook_files
+            commands::process_audiobook_files,
+            commands::cancel_processing
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
