@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "setup-ffmpeg": "chmod +x src-tauri/binaries/setup-ffmpeg-macos.sh && src-tauri/binaries/setup-ffmpeg-macos.sh",
+    "build-macos": "npm run setup-ffmpeg && npm run tauri build",
+    "package-macos": "npm run build-macos && echo '✅ DMG created in src-tauri/target/release/bundle/dmg/'"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

@@ -285,5 +285,8 @@ The code is production-ready with the critical function refactoring addressed. T
 - BUG: Clicking some files shows inaccurate bitrate (low priority)
 - BUG: commas in output file name are replaced with slashes / - Why when commas are in source file names?
 - BUG: Terminal output stops at 90% but the file appears to be 100% complete and saved to target output directory. Is this a bug at all?
-- BUG: Output sample rate didn't passthrough from input file. E.G. input file is 44100, output file is 22050 - output file should have matched input or whatever user selected.
+- BUG: "Auto (pass-through)" sample rate in output settings doesn't show input sample rate and as noted above defaults to 22050.
+  - E.G. input file is 44100, output file shows 22050 - output file should have matched input or whatever user selected.
 - BUG: File re-ordering doesn't work (can't drag files around to re-order them) - fix drag feature or implement re-ordering differently
+- BUG: Title/cover art not passed through to output file nor is it visible in the 'metadata & output' panel.
+- BUG: "load cover art" button doesn't work.

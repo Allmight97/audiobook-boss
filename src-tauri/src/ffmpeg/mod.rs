@@ -20,11 +20,29 @@ pub type Result<T> = std::result::Result<T, FFmpegError>;
 
 /// Locate the FFmpeg binary
 /// Checks in order:
-/// 1. Bundled binary in binaries directory
-/// 2. System PATH
-/// 3. Common macOS locations
+/// 1. Bundled binary in app bundle (macOS distribution)
+/// 2. Bundled binary in binaries directory (development)
+/// 3. System PATH
+/// 4. Common macOS locations
 pub fn locate_ffmpeg() -> Result<PathBuf> {
-    // Check bundled binary first
+    // Check bundled binary in app bundle first (for distributed apps)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(app_dir) = exe_path.parent() {
+            // Check for the external binary bundled by Tauri
+            let bundled_external = app_dir.join("ffmpeg-universal");
+            if bundled_external.exists() {
+                return Ok(bundled_external);
+            }
+            
+            // Check legacy location (binaries/ffmpeg)
+            let bundled_legacy = app_dir.join("binaries").join("ffmpeg");
+            if bundled_legacy.exists() {
+                return Ok(bundled_legacy);
+            }
+        }
+    }
+    
+    // Check development location (binaries directory relative to project root)
     let bundled = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
