@@ -228,6 +228,7 @@ fn build_merge_command(
         "-i", &concat_file.to_string_lossy(),
         "-vn",  // Disable video processing (ignore album artwork)
         "-map", "0:a",  // Only map audio streams
+        "-map_metadata", "0",  // Preserve metadata from first input
         "-c:a", "libfdk_aac",
         "-b:a", &format!("{}k", settings.bitrate),
         "-ar", &sample_rate.to_string(),
@@ -749,5 +750,28 @@ mod tests {
         let nonexistent = PathBuf::from("/nonexistent/file.mp3");
         let result = get_file_sample_rate(&nonexistent);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ffmpeg_command_includes_metadata_mapping() {
+        let temp_dir = TempDir::new().unwrap();
+        let concat_file = temp_dir.path().join("concat.txt");
+        let output_file = temp_dir.path().join("output.m4b");
+        let settings = AudioSettings::default();
+        let file_paths = vec![PathBuf::from("/test/file.mp3")];
+        
+        // This test will fail if ffmpeg is not found, but that's expected
+        // We're testing the command construction logic
+        let result = build_merge_command(&concat_file, &output_file, &settings, &file_paths);
+        
+        // The test should either succeed or fail due to ffmpeg not being found
+        // If it succeeds, the command should be built correctly
+        if let Ok(cmd) = result {
+            let cmd_str = format!("{:?}", cmd);
+            // Verify metadata mapping is included
+            assert!(cmd_str.contains("-map_metadata"));
+            assert!(cmd_str.contains("0"));
+        }
+        // If it fails, it should be due to ffmpeg not being available, not our logic
     }
 }

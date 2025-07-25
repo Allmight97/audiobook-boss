@@ -2,6 +2,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { currentFileList } from './fileList';
 import { getCurrentAudioSettings } from './outputPanel';
+import { AudiobookMetadata } from '../types/metadata';
 
 interface ProgressEvent {
     stage: string;
@@ -25,6 +26,7 @@ export class StatusPanel {
     private statusText!: HTMLElement;
     private stepText!: HTMLElement;
     private processButton!: HTMLButtonElement;
+    private artThumbnail!: HTMLElement;
     private cancelUnlisten?: () => void;
     private isProcessing: boolean = false;
     private currentStatus: ProcessingStatus;
@@ -47,15 +49,19 @@ export class StatusPanel {
         this.statusText = document.getElementById('status-text') as HTMLElement;
         this.stepText = document.getElementById('step-text') as HTMLElement;
         this.processButton = document.getElementById('process-button') as HTMLButtonElement;
+        this.artThumbnail = document.querySelector('.art-thumbnail') as HTMLElement;
 
         if (!this.progressBar || !this.percentageElement || !this.statusText || 
-            !this.stepText || !this.processButton) {
+            !this.stepText || !this.processButton || !this.artThumbnail) {
             console.error('StatusPanel: Required DOM elements not found');
             return;
         }
 
         // Set initial state
         this.updateUI();
+        
+        // Initialize art thumbnail to placeholder
+        this.resetArtThumbnail();
     }
 
     private setupEventHandlers(): void {
@@ -112,6 +118,9 @@ export class StatusPanel {
                 percentage: 0,
                 message: 'Starting processing...'
             });
+
+            // Update art thumbnail with current file's cover art
+            await this.updateArtThumbnail();
 
             // Start listening for progress events
             await this.startProgressListener();
@@ -270,6 +279,84 @@ export class StatusPanel {
             percentage: 0,
             message: 'Ready to process audiobook'
         });
+
+        // Reset art thumbnail to placeholder
+        this.resetArtThumbnail();
+    }
+
+    private convertBytesToDataUrl(bytes: number[]): string {
+        // Convert number array to Uint8Array
+        const uint8Array = new Uint8Array(bytes);
+        
+        // Detect image format from magic bytes
+        let mimeType = 'image/jpeg'; // default fallback
+        if (uint8Array.length >= 4) {
+            // PNG: 89 50 4E 47
+            if (uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47) {
+                mimeType = 'image/png';
+            }
+            // JPEG: FF D8 FF
+            else if (uint8Array[0] === 0xFF && uint8Array[1] === 0xD8 && uint8Array[2] === 0xFF) {
+                mimeType = 'image/jpeg';
+            }
+            // WebP: 52 49 46 46 ... 57 45 42 50
+            else if (uint8Array[0] === 0x52 && uint8Array[1] === 0x49 && uint8Array[2] === 0x46 && uint8Array[3] === 0x46) {
+                mimeType = 'image/webp';
+            }
+        }
+        
+        // Convert to base64
+        let binary = '';
+        uint8Array.forEach(byte => {
+            binary += String.fromCharCode(byte);
+        });
+        const base64 = btoa(binary);
+        
+        return `data:${mimeType};base64,${base64}`;
+    }
+
+    private async updateArtThumbnail(): Promise<void> {
+        if (!currentFileList || !currentFileList.files.length) {
+            this.resetArtThumbnail();
+            return;
+        }
+
+        // Get the first valid file for cover art
+        const firstValidFile = currentFileList.files.find(f => f.isValid);
+        if (!firstValidFile) {
+            this.resetArtThumbnail();
+            return;
+        }
+
+        try {
+            // Load metadata with cover art
+            const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { 
+                filePath: firstValidFile.path 
+            });
+            
+            // Check for cover art data (backend returns as cover_art field with number array)
+            if (metadata.cover_art && metadata.cover_art.length > 0) {
+                const dataUrl = this.convertBytesToDataUrl(metadata.cover_art);
+                this.displayCoverArt(dataUrl);
+            } else {
+                this.resetArtThumbnail();
+            }
+        } catch (error) {
+            console.warn('Failed to load cover art for thumbnail:', error);
+            this.resetArtThumbnail();
+        }
+    }
+
+    private displayCoverArt(dataUrl: string): void {
+        if (!this.artThumbnail) return;
+        
+        this.artThumbnail.innerHTML = `<img src="${dataUrl}" alt="Cover Art" style="width: 100%; height: 100%; object-fit: cover; border-radius: 0.25rem;">`;
+    }
+
+    private resetArtThumbnail(): void {
+        if (!this.artThumbnail) return;
+        
+        this.artThumbnail.innerHTML = '<span>Art</span>';
     }
 
     private getCurrentMetadata(): any {

@@ -4,6 +4,7 @@ import type { AudioSettings, ChannelConfig, SampleRateConfig } from "../types/au
 import type { AudiobookMetadata } from "../types/metadata";
 import { currentFileList } from "./fileList";
 import { formatFileSize } from "../types/audio";
+import { getCurrentCoverArt } from "./coverArt";
 
 interface OutputPanelState {
   bitrate: number;
@@ -253,6 +254,8 @@ function getCurrentMetadata(): AudiobookMetadata {
     return element?.value || '';
   };
 
+  const coverArt = getCurrentCoverArt();
+  
   return {
     title: getElementValue('meta-title'),
     author: getElementValue('meta-author'),
@@ -261,7 +264,8 @@ function getCurrentMetadata(): AudiobookMetadata {
     year: parseInt(getElementValue('meta-year')) || undefined,
     genre: getElementValue('meta-genre'),
     description: getElementValue('meta-description'),
-    series: getElementValue('meta-series')
+    series: getElementValue('meta-series'),
+    cover_art: coverArt
   };
 }
 

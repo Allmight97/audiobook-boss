@@ -37,6 +37,7 @@ pub fn run() {
             commands::read_audio_metadata,
             commands::write_audio_metadata,
             commands::write_cover_art,
+            commands::load_cover_art_file,
             commands::analyze_audio_files,
             commands::validate_audio_settings,
             commands::process_audiobook_files,

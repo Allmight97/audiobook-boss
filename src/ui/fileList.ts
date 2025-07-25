@@ -1,6 +1,7 @@
 import { AudioFile, FileListInfo, formatDuration, formatFileSize } from '../types/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from './outputPanel';
+import { setCoverArt } from './coverArt';
 
 let currentFileList: FileListInfo | null = null;
 let selectedFileIndex: number = -1;
@@ -147,12 +148,22 @@ function populateMetadataForm(metadata: any): void {
     const authorEl = document.getElementById('meta-author') as HTMLInputElement;
     const albumEl = document.getElementById('meta-album') as HTMLInputElement;
     const narratorEl = document.getElementById('meta-narrator') as HTMLInputElement;
+    const yearEl = document.getElementById('meta-year') as HTMLInputElement;
+    const genreEl = document.getElementById('meta-genre') as HTMLInputElement;
+    const descriptionEl = document.getElementById('meta-description') as HTMLTextAreaElement;
 
     if (titleEl && metadata.title) titleEl.value = metadata.title;
     if (authorEl && metadata.author) authorEl.value = metadata.author;
     if (albumEl && metadata.album) albumEl.value = metadata.album;
     if (narratorEl && metadata.narrator) narratorEl.value = metadata.narrator;
+    if (yearEl && metadata.year) yearEl.value = metadata.year.toString();
+    if (genreEl && metadata.genre) genreEl.value = metadata.genre;
+    if (descriptionEl && metadata.description) descriptionEl.value = metadata.description;
+
+    // Handle cover art display - use the new cover art module
+    setCoverArt(metadata.cover_art || null);
 }
+
 
 function clearFileProperties(): void {
     const bitrateEl = document.getElementById('prop-bitrate');
@@ -164,6 +175,26 @@ function clearFileProperties(): void {
     if (sampleRateEl) sampleRateEl.textContent = '---';
     if (channelsEl) channelsEl.textContent = '---';
     if (fileSizeEl) fileSizeEl.textContent = '---';
+
+    // Clear metadata form
+    const titleEl = document.getElementById('meta-title') as HTMLInputElement;
+    const authorEl = document.getElementById('meta-author') as HTMLInputElement;
+    const albumEl = document.getElementById('meta-album') as HTMLInputElement;
+    const narratorEl = document.getElementById('meta-narrator') as HTMLInputElement;
+    const yearEl = document.getElementById('meta-year') as HTMLInputElement;
+    const genreEl = document.getElementById('meta-genre') as HTMLInputElement;
+    const descriptionEl = document.getElementById('meta-description') as HTMLTextAreaElement;
+
+    if (titleEl) titleEl.value = '';
+    if (authorEl) authorEl.value = '';
+    if (albumEl) albumEl.value = '';
+    if (narratorEl) narratorEl.value = '';
+    if (yearEl) yearEl.value = '';
+    if (genreEl) genreEl.value = '';
+    if (descriptionEl) descriptionEl.value = '';
+
+    // Clear cover art display
+    setCoverArt(null);
 }
 
 function initFileListEvents(): void {

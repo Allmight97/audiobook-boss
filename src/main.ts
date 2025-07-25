@@ -4,7 +4,8 @@ import type { FileListInfo, AudioSettings } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
-import { initStatusPanel } from "./ui/statusPanel";
+import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
+import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./ui/coverArt";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -20,6 +21,7 @@ import { initStatusPanel } from "./ui/statusPanel";
     invoke('write_audio_metadata', { filePath: filePath, metadata }),
   writeCoverArt: (filePath: string, coverData: number[]) => 
     invoke('write_cover_art', { filePath: filePath, coverData: coverData }),
+  loadCoverArtFile: (filePath: string) => invoke('load_cover_art_file', { filePath }),
   
   // Audio processing commands
   analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { filePaths: filePaths }),
@@ -31,6 +33,16 @@ import { initStatusPanel } from "./ui/statusPanel";
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
   getCurrentFileList: () => currentFileList,
   clearFiles: () => clearAllFiles(),
+  // Test art thumbnail functionality
+  testArtThumbnail: async () => {
+    const statusPanel = getStatusPanel();
+    if (statusPanel) {
+      console.log('Testing art thumbnail update...');
+      await (statusPanel as any).updateArtThumbnail();
+      return 'Art thumbnail test completed - check the progress panel';
+    }
+    return 'StatusPanel not initialized';
+  },
   
   // Output panel test functions
   getCurrentAudioSettings: () => getCurrentAudioSettings(),
@@ -38,7 +50,12 @@ import { initStatusPanel } from "./ui/statusPanel";
   triggerMetadataChange: () => onMetadataChange(),
   
   // Status panel test functions
-  cancelProcessing: () => invoke('cancel_processing')
+  cancelProcessing: () => invoke('cancel_processing'),
+  
+  // Cover art test functions
+  getCurrentCoverArt: () => getCurrentCoverArt(),
+  setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
+  clearCoverArt: () => clearCoverArt()
 };
 
 // Log when ready
@@ -60,13 +77,20 @@ console.log('  window.testCommands.clearFiles()');
 console.log('  window.testCommands.getCurrentAudioSettings()');
 console.log('  window.testCommands.triggerFileListChange()');
 console.log('  window.testCommands.triggerMetadataChange()');
+console.log('  window.testCommands.testArtThumbnail()');
+console.log('  window.testCommands.loadCoverArtFile(filePath)');
+console.log('  window.testCommands.getCurrentCoverArt()');
+console.log('  window.testCommands.setCoverArt(coverArtBytes)');
+console.log('  window.testCommands.clearCoverArt()');
 
 // Initialize UI components when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   initFileImport();
   initOutputPanel();
   initStatusPanel();
+  initCoverArt();
   console.log('File import system initialized');
   console.log('Output panel initialized');
   console.log('Status panel initialized');
+  console.log('Cover art system initialized');
 });

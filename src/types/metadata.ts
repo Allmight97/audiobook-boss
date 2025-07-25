@@ -24,6 +24,8 @@ export interface AudiobookMetadata {
   description?: string;
   /** Cover art as base64 encoded string (optional in responses) */
   coverArt?: string;
+  /** Cover art as raw bytes from backend (snake_case field name) */
+  cover_art?: number[];
 }
 
 /**
