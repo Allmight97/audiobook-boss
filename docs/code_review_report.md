@@ -71,20 +71,20 @@ if *is_cancelled {
 
 ## High Priority Issues
 
-### 1. Inconsistent Error Handling in FFmpeg Progress Parsing
+### [ ] ❌ 1. Inconsistent Error Handling in FFmpeg Progress Parsing
 **File**: `src-tauri/src/audio/processor.rs`, lines 401-402
 ```rust
 let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
 ```
 **Issue**: Generic error message loses original error context
 
-### 2. Hardcoded Magic Numbers
+### [ ] ❌ 2. Hardcoded Magic Numbers
 **File**: `src-tauri/src/audio/processor.rs`
 - Line 438: `20.0 + (file_progress * 70.0)` - Progress calculation magic numbers
 - Line 443: `20.0 + ((progress_count as f64).min(50.0) * 1.4)` - More magic numbers
 - Lines 388-396: Hardcoded retry logic and timeouts
 
-### 3. Debug Code in Production
+### [ ] ❌ 3. Debug Code in Production
 **File**: `src-tauri/src/audio/processor.rs`, lines 298-301
 ```rust
 eprintln!("Starting FFmpeg merge with concat file: {}", concat_file.display());
@@ -96,22 +96,22 @@ eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}",
 
 ## Medium Priority Suggestions
 
-### 1. Code Duplication in Progress Reporting
+### [ ]⚠️ 1. Code Duplication in Progress Reporting
 **Files**: `processor.rs` and `progress.rs`
 - Progress calculation logic is duplicated
 - Event creation patterns repeated
 
-### 2. Incomplete Error Recovery
+### [ ]⚠️ 2. Incomplete Error Recovery
 **File**: `src-tauri/src/audio/processor.rs`
 - Temp directory cleanup may fail if process is cancelled mid-operation
 - No retry logic for transient FFmpeg failures
 
-### 3. Memory Efficiency Concerns
+### [ ]⚠️ 3. Memory Efficiency Concerns
 **File**: `src-tauri/src/audio/file_list.rs`
 - Cover art loaded into memory (`Vec<u8>`) without size limits
 - Large file lists could consume significant memory
 
-### 4. Frontend Type Safety
+### [ ]⚠️ 4. Frontend Type Safety
 **File**: `src/main.ts`
 - Test commands exposed globally without proper typing
 - Dynamic metadata object construction (lines 282-306 in statusPanel.ts)
@@ -232,7 +232,7 @@ eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}",
 
 ### Immediate Actions Required
 
-1. **Refactor Large Functions** (Critical)
+1.[ ]🛑 **Refactor Large Functions** (Critical)
    ```rust
    // Break process_audiobook_with_events into:
    - validate_and_prepare_processing()
@@ -241,7 +241,7 @@ eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}",
    - cleanup_and_finalize()
    ```
 
-2. **Fix Process Termination** (High)
+2.[ ]🛑 **Fix Process Termination** (High)
    ```rust
    // Improve cancellation handling:
    - Handle child.kill() errors properly
@@ -249,7 +249,7 @@ eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}",
    - Add force-kill fallback
    ```
 
-3. **Add Parameter Structs** (Medium)
+3.[ ]🛑 **Add Parameter Structs** (Medium)
    ```rust
    struct ProcessingContext {
        window: tauri::Window,
