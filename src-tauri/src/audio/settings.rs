@@ -1,13 +1,13 @@
 //! Audio processing settings validation and management
 
-use super::{AudioSettings, ChannelConfig};
+use super::{AudioSettings, ChannelConfig, SampleRateConfig};
 use crate::errors::{AppError, Result};
 use std::path::Path;
 
 /// Validates audio processing settings
 pub fn validate_audio_settings(settings: &AudioSettings) -> Result<()> {
     validate_bitrate(settings.bitrate)?;
-    validate_sample_rate(settings.sample_rate)?;
+    validate_sample_rate_config(&settings.sample_rate)?;
     validate_output_path(&settings.output_path)?;
     Ok(())
 }
@@ -22,9 +22,17 @@ fn validate_bitrate(bitrate: u32) -> Result<()> {
     Ok(())
 }
 
-/// Validates sample rate is supported
-fn validate_sample_rate(sample_rate: u32) -> Result<()> {
-    let valid_rates = [8000, 11025, 16000, 22050, 44100, 48000];
+/// Validates sample rate configuration
+fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
+    match config {
+        SampleRateConfig::Auto => Ok(()), // Auto is always valid
+        SampleRateConfig::Explicit(rate) => validate_explicit_sample_rate(*rate),
+    }
+}
+
+/// Validates explicit sample rate is supported
+fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
+    let valid_rates = [22050, 32000, 44100, 48000];
     if !valid_rates.contains(&sample_rate) {
         return Err(AppError::InvalidInput(
             format!("Unsupported sample rate: {sample_rate}. Valid rates: {valid_rates:?}")
@@ -65,7 +73,7 @@ impl AudioSettings {
         Self {
             bitrate: 64,  // Good quality for speech
             channels: ChannelConfig::Mono,  // Most audiobooks are mono
-            sample_rate: 22050,  // Sufficient for speech
+            sample_rate: SampleRateConfig::Auto,  // Auto-detect from input
             output_path: "audiobook.m4b".into(),
         }
     }
@@ -76,7 +84,7 @@ impl AudioSettings {
         Self {
             bitrate: 128,
             channels: ChannelConfig::Stereo,
-            sample_rate: 44100,
+            sample_rate: SampleRateConfig::Explicit(44100),
             output_path: "audiobook_hq.m4b".into(),
         }
     }
@@ -87,7 +95,7 @@ impl AudioSettings {
         Self {
             bitrate: 32,
             channels: ChannelConfig::Mono,
-            sample_rate: 16000,
+            sample_rate: SampleRateConfig::Explicit(22050),
             output_path: "audiobook_low.m4b".into(),
         }
     }
@@ -131,14 +139,23 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sample_rate_valid() {
-        assert!(validate_sample_rate(22050).is_ok());
-        assert!(validate_sample_rate(44100).is_ok());
+    fn test_validate_sample_rate_config_auto() {
+        assert!(validate_sample_rate_config(&SampleRateConfig::Auto).is_ok());
     }
 
     #[test]
-    fn test_validate_sample_rate_invalid() {
-        assert!(validate_sample_rate(12345).is_err());
+    fn test_validate_sample_rate_config_explicit_valid() {
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(22050)).is_ok());
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(32000)).is_ok());
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(44100)).is_ok());
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(48000)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sample_rate_config_explicit_invalid() {
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(12345)).is_err());
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(16000)).is_err());
+        assert!(validate_sample_rate_config(&SampleRateConfig::Explicit(8000)).is_err());
     }
 
     #[test]
@@ -170,7 +187,7 @@ mod tests {
         let settings = AudioSettings::audiobook_preset();
         assert_eq!(settings.bitrate, 64);
         assert!(matches!(settings.channels, ChannelConfig::Mono));
-        assert_eq!(settings.sample_rate, 22050);
+        assert!(matches!(settings.sample_rate, SampleRateConfig::Auto));
     }
 
     #[test]

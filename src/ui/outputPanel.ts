@@ -1,13 +1,13 @@
 // import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AudioSettings, ChannelConfig } from "../types/audio";
+import type { AudioSettings, ChannelConfig, SampleRateConfig } from "../types/audio";
 import type { AudiobookMetadata } from "../types/metadata";
 import { currentFileList } from "./fileList";
 import { formatFileSize } from "../types/audio";
 
 interface OutputPanelState {
   bitrate: number;
-  sampleRate: number;
+  sampleRate: SampleRateConfig;
   channels: ChannelConfig;
   outputDirectory: string;
   useSubdirPattern: boolean;
@@ -16,7 +16,7 @@ interface OutputPanelState {
 
 let currentState: OutputPanelState = {
   bitrate: 64,
-  sampleRate: 22050,
+  sampleRate: { explicit: 22050 },
   channels: 'Mono',
   outputDirectory: '',
   useSubdirPattern: true,
@@ -104,7 +104,7 @@ function handleBitrateChange(event: Event): void {
 function handleSampleRateChange(event: Event): void {
   const target = event.target as HTMLSelectElement;
   const value = target.value;
-  currentState.sampleRate = value === 'auto' ? 22050 : parseInt(value);
+  currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value) };
   updateEstimatedSize();
 }
 
@@ -170,7 +170,7 @@ function loadInitialState(): void {
 
   if (sampleRateSelect) {
     const value = sampleRateSelect.value;
-    currentState.sampleRate = value === 'auto' ? 22050 : parseInt(value);
+    currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value) };
   }
 
   if (channelsSelect) {

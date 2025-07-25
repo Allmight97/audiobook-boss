@@ -1,9 +1,12 @@
 //! Core audio processing and merge implementation
 
-use super::{AudioFile, AudioSettings, ProgressReporter, ProcessingStage};
+use super::{AudioFile, AudioSettings, ProgressReporter, ProcessingStage, SampleRateConfig};
 use crate::errors::{AppError, Result};
 use crate::ffmpeg::FFmpegError;
 use crate::metadata::{AudiobookMetadata, write_metadata};
+use lofty::probe::Probe;
+use lofty::file::AudioFile as LoftyAudioFile;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
@@ -18,6 +21,65 @@ struct ProgressEvent {
     message: String,
     current_file: Option<String>,
     eta_seconds: Option<f64>,
+}
+
+/// Detects the most common sample rate from input files
+pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
+    if file_paths.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Cannot detect sample rate: no input files provided".to_string()
+        ));
+    }
+    
+    let mut sample_rates = HashMap::new();
+    let mut first_rate = None;
+    
+    for path in file_paths {
+        match get_file_sample_rate(path) {
+            Ok(rate) => {
+                if first_rate.is_none() {
+                    first_rate = Some(rate);
+                }
+                *sample_rates.entry(rate).or_insert(0) += 1;
+            }
+            Err(e) => {
+                // Log the error but continue with other files
+                eprintln!("Warning: Could not read sample rate from {}: {}", path.display(), e);
+            }
+        }
+    }
+    
+    if sample_rates.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Cannot detect sample rate: no valid audio files found".to_string()
+        ));
+    }
+    
+    // Return the most common sample rate
+    let most_common = sample_rates.iter()
+        .max_by_key(|(_, &count)| count)
+        .map(|(&rate, _)| rate);
+    
+    match most_common {
+        Some(rate) => Ok(rate),
+        None => first_rate.ok_or_else(|| AppError::InvalidInput(
+            "Cannot determine sample rate from input files".to_string()
+        )),
+    }
+}
+
+/// Gets sample rate from a single audio file
+fn get_file_sample_rate(path: &Path) -> Result<u32> {
+    let tagged_file = Probe::open(path)
+        .map_err(AppError::Metadata)?
+        .read()
+        .map_err(AppError::Metadata)?;
+    
+    let properties = tagged_file.properties();
+    properties.sample_rate()
+        .ok_or_else(|| AppError::InvalidInput(
+            format!("File {} has no sample rate information", path.display())
+        ))
 }
 
 /// Main function to process audiobook from multiple files
@@ -42,7 +104,8 @@ pub async fn process_audiobook(
     let merged_output = merge_audio_files_with_progress(
         &concat_file,
         &settings,
-        &mut reporter
+        &mut reporter,
+        &files
     ).await?;
     
     // Stage 3: Write metadata if provided
@@ -125,13 +188,17 @@ async fn merge_audio_files_with_progress(
     concat_file: &Path,
     settings: &AudioSettings,
     reporter: &mut ProgressReporter,
+    files: &[AudioFile],
 ) -> Result<PathBuf> {
     let temp_output = concat_file.parent()
         .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
         .join("merged.m4b");
     
+    // Extract file paths for sample rate detection
+    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    
     // Build FFmpeg command
-    let cmd = build_merge_command(concat_file, &temp_output, settings)?;
+    let cmd = build_merge_command(concat_file, &temp_output, settings, &file_paths)?;
     
     // Execute with progress tracking
     execute_with_progress(cmd, reporter).await?;
@@ -144,8 +211,15 @@ fn build_merge_command(
     concat_file: &Path,
     output: &Path,
     settings: &AudioSettings,
+    file_paths: &[PathBuf],
 ) -> Result<Command> {
     let ffmpeg_path = crate::ffmpeg::locate_ffmpeg()?;
+    
+    // Resolve sample rate (auto-detect if needed)
+    let sample_rate = match &settings.sample_rate {
+        SampleRateConfig::Explicit(rate) => *rate,
+        SampleRateConfig::Auto => detect_input_sample_rate(file_paths)?,
+    };
     
     let mut cmd = Command::new(ffmpeg_path);
     cmd.args([
@@ -156,7 +230,7 @@ fn build_merge_command(
         "-map", "0:a",  // Only map audio streams
         "-c:a", "libfdk_aac",
         "-b:a", &format!("{}k", settings.bitrate),
-        "-ar", &settings.sample_rate.to_string(),
+        "-ar", &sample_rate.to_string(),
         "-ac", &settings.channels.channel_count().to_string(),
         "-progress", "pipe:2",  // Enable progress output to stderr
         "-nostats",  // Disable normal stats output to avoid interference
@@ -297,7 +371,7 @@ pub async fn process_audiobook_with_events(
     // Log for debugging
     eprintln!("Starting FFmpeg merge with concat file: {}", concat_file.display());
     eprintln!("Total duration: {total_duration:.2} seconds");
-    eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}", 
+    eprintln!("Output settings: bitrate={}, sample_rate={:?}, channels={:?}", 
               settings.bitrate, settings.sample_rate, settings.channels);
     
     let merged_output = merge_audio_files_with_events(
@@ -306,7 +380,8 @@ pub async fn process_audiobook_with_events(
         &mut reporter,
         &window,
         &state,
-        total_duration
+        total_duration,
+        &files
     ).await?;
     check_cancelled()?;
     
@@ -341,13 +416,17 @@ async fn merge_audio_files_with_events(
     window: &tauri::Window,
     state: &tauri::State<'_, crate::ProcessingState>,
     total_duration: f64,
+    files: &[AudioFile],
 ) -> Result<PathBuf> {
     let temp_output = concat_file.parent()
         .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
         .join("merged.m4b");
     
+    // Extract file paths for sample rate detection
+    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    
     // Build FFmpeg command
-    let cmd = build_merge_command(concat_file, &temp_output, settings)?;
+    let cmd = build_merge_command(concat_file, &temp_output, settings, &file_paths)?;
     
     // Execute with progress tracking and events
     execute_with_progress_events(cmd, reporter, window, state, total_duration).await?;
@@ -555,5 +634,30 @@ mod tests {
         let content = fs::read_to_string(&concat_file).unwrap();
         assert!(content.contains("file '/path/to/file1.mp3'"));
         assert!(content.contains("file '/path/to/file2.mp3'"));
+    }
+    
+    #[test]
+    fn test_detect_input_sample_rate_empty() {
+        let result = detect_input_sample_rate(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("no input files provided"));
+    }
+    
+    #[test]
+    fn test_detect_input_sample_rate_no_valid_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_file = temp_dir.path().join("invalid.mp3");
+        fs::write(&invalid_file, b"not audio data").unwrap();
+        
+        let result = detect_input_sample_rate(&[invalid_file]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("no valid audio files found"));
+    }
+    
+    #[test] 
+    fn test_get_file_sample_rate_nonexistent() {
+        let nonexistent = PathBuf::from("/nonexistent/file.mp3");
+        let result = get_file_sample_rate(&nonexistent);
+        assert!(result.is_err());
     }
 }

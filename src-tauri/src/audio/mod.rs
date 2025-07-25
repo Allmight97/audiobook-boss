@@ -52,6 +52,16 @@ impl AudioFile {
     }
 }
 
+/// Sample rate configuration options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SampleRateConfig {
+    /// Automatically detect from input files
+    Auto,
+    /// Explicit sample rate in Hz
+    Explicit(u32),
+}
+
 /// Audio processing settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,8 +70,8 @@ pub struct AudioSettings {
     pub bitrate: u32,
     /// Channel configuration
     pub channels: ChannelConfig,
-    /// Sample rate in Hz
-    pub sample_rate: u32,
+    /// Sample rate configuration
+    pub sample_rate: SampleRateConfig,
     /// Output file path
     pub output_path: PathBuf,
 }
@@ -82,7 +92,7 @@ impl AudioSettings {
         Self {
             bitrate: 64,
             channels: ChannelConfig::Mono,
-            sample_rate: 22050,
+            sample_rate: SampleRateConfig::Explicit(22050),
             output_path: PathBuf::from("output.m4b"),
         }
     }

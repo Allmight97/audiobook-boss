@@ -23,9 +23,11 @@ export interface FileListInfo {
 export interface AudioSettings {
   bitrate: number;
   channels: ChannelConfig;
-  sampleRate: number;
+  sampleRate: SampleRateConfig;
   outputPath: string;
 }
+
+export type SampleRateConfig = 'auto' | { explicit: number };
 
 export type ChannelConfig = 'Mono' | 'Stereo';
 
@@ -51,21 +53,21 @@ export const AudioPresets = {
   audiobook: (): AudioSettings => ({
     bitrate: 64,
     channels: 'Mono',
-    sampleRate: 22050,
+    sampleRate: { explicit: 22050 },
     outputPath: 'audiobook.m4b'
   }),
   
   highQuality: (): AudioSettings => ({
     bitrate: 128,
     channels: 'Stereo', 
-    sampleRate: 44100,
+    sampleRate: { explicit: 44100 },
     outputPath: 'audiobook_hq.m4b'
   }),
   
   lowBandwidth: (): AudioSettings => ({
     bitrate: 32,
     channels: 'Mono',
-    sampleRate: 16000,
+    sampleRate: { explicit: 16000 },
     outputPath: 'audiobook_low.m4b'
   })
 };
