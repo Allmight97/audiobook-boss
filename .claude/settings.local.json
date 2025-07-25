@@ -13,7 +13,9 @@
       "mcp__playwright__browser_console_messages",
       "Bash(cargo test:*)",
       "Bash(find:*)",
-      "mcp__context-7__resolve-library-id"
+      "mcp__context-7__resolve-library-id",
+      "Bash(ffmpeg:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

@@ -118,24 +118,56 @@ impl ProgressReporter {
     }
 }
 
+/// Holds state for FFmpeg progress parsing
+#[derive(Default)]
+#[allow(dead_code)]
+pub struct FFmpegProgressState {
+    pub out_time_us: Option<i64>,
+    pub total_size: Option<i64>,
+    pub bitrate: Option<f64>,
+    pub speed: Option<f64>,
+}
+
 /// Parses FFmpeg progress output to extract percentage
 pub fn parse_ffmpeg_progress(line: &str) -> Option<f32> {
-    // FFmpeg outputs progress in format: "time=00:01:30.45"
-    if line.starts_with("time=") {
-        if let Some(time_str) = line.strip_prefix("time=") {
-            if let Ok(duration) = parse_ffmpeg_time(time_str) {
-                // This is just the current time, need total duration to calculate %
-                // For now, return a basic progress indicator
-                return Some(duration as f32);
+    // Parse FFmpeg progress output
+    
+    // FFmpeg with -progress outputs key=value pairs
+    if line.contains("=") {
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            let key = parts[0].trim();
+            let value = parts[1].trim();
+            
+            match key {
+                "out_time_us" => {
+                    // Time in microseconds - we can use this for rough progress
+                    if let Ok(time_us) = value.parse::<i64>() {
+                        // Convert to seconds
+                        let time_seconds = time_us as f64 / 1_000_000.0;
+                        // Return time in seconds as a rough progress indicator
+                        // The actual percentage will be calculated in the processor
+                        return Some(time_seconds as f32);
+                    }
+                }
+                "progress" => {
+                    if value == "end" {
+                        return Some(100.0);
+                    } else if value == "continue" {
+                        // Processing is continuing, not a progress value
+                        return None;
+                    }
+                }
+                _ => {}
             }
         }
     }
     
-    // Look for progress= in FFmpeg output
-    if line.contains("progress=") {
-        if let Some(progress_str) = line.split("progress=").nth(1) {
-            if progress_str.trim() == "end" {
-                return Some(100.0);
+    // Fallback: parse old-style time= format
+    if line.starts_with("time=") {
+        if let Some(time_str) = line.strip_prefix("time=") {
+            if let Ok(duration) = parse_ffmpeg_time(time_str) {
+                return Some(duration as f32);
             }
         }
     }
@@ -201,8 +233,17 @@ mod tests {
 
     #[test]
     fn test_parse_ffmpeg_progress() {
+        // Test old format
         assert_eq!(parse_ffmpeg_progress("time=00:01:30.45").unwrap(), 90.45);
+        
+        // Test new -progress format
+        assert_eq!(parse_ffmpeg_progress("out_time_us=90450000").unwrap(), 90.45);
         assert_eq!(parse_ffmpeg_progress("progress=end").unwrap(), 100.0);
+        assert!(parse_ffmpeg_progress("progress=continue").is_none());
         assert!(parse_ffmpeg_progress("other output").is_none());
+        
+        // Test various progress outputs
+        assert_eq!(parse_ffmpeg_progress("out_time_us=1000000").unwrap(), 1.0);
+        assert_eq!(parse_ffmpeg_progress("out_time_us=60000000").unwrap(), 60.0);
     }
 }

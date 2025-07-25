@@ -152,10 +152,14 @@ fn build_merge_command(
         "-f", "concat",
         "-safe", "0",
         "-i", &concat_file.to_string_lossy(),
-        "-c:a", "aac",
+        "-vn",  // Disable video processing (ignore album artwork)
+        "-map", "0:a",  // Only map audio streams
+        "-c:a", "libfdk_aac",
         "-b:a", &format!("{}k", settings.bitrate),
         "-ar", &settings.sample_rate.to_string(),
         "-ac", &settings.channels.channel_count().to_string(),
+        "-progress", "pipe:2",  // Enable progress output to stderr
+        "-nostats",  // Disable normal stats output to avoid interference
         "-y",  // Overwrite output file
         &output.to_string_lossy(),
     ]);
@@ -283,12 +287,26 @@ pub async fn process_audiobook_with_events(
     // Stage 2: Convert and merge files
     reporter.set_stage(ProcessingStage::Converting);
     emit_progress(&ProcessingStage::Converting, 20.0, "Starting audio conversion...");
+    
+    // Calculate total duration for progress tracking
+    let total_duration: f64 = files.iter()
+        .filter(|f| f.is_valid)
+        .map(|f| f.duration.unwrap_or(0.0))
+        .sum();
+    
+    // Log for debugging
+    eprintln!("Starting FFmpeg merge with concat file: {}", concat_file.display());
+    eprintln!("Total duration: {total_duration:.2} seconds");
+    eprintln!("Output settings: bitrate={}, sample_rate={}, channels={:?}", 
+              settings.bitrate, settings.sample_rate, settings.channels);
+    
     let merged_output = merge_audio_files_with_events(
         &concat_file,
         &settings,
         &mut reporter,
         &window,
-        &state
+        &state,
+        total_duration
     ).await?;
     check_cancelled()?;
     
@@ -322,6 +340,7 @@ async fn merge_audio_files_with_events(
     reporter: &mut ProgressReporter,
     window: &tauri::Window,
     state: &tauri::State<'_, crate::ProcessingState>,
+    total_duration: f64,
 ) -> Result<PathBuf> {
     let temp_output = concat_file.parent()
         .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
@@ -331,7 +350,7 @@ async fn merge_audio_files_with_events(
     let cmd = build_merge_command(concat_file, &temp_output, settings)?;
     
     // Execute with progress tracking and events
-    execute_with_progress_events(cmd, reporter, window, state).await?;
+    execute_with_progress_events(cmd, reporter, window, state, total_duration).await?;
     
     Ok(temp_output)
 }
@@ -342,9 +361,15 @@ async fn execute_with_progress_events(
     _reporter: &mut ProgressReporter,
     window: &tauri::Window,
     state: &tauri::State<'_, crate::ProcessingState>,
+    total_duration: f64,
 ) -> Result<()> {
     let mut child = cmd.spawn()
         .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Failed to start FFmpeg".to_string())))?;
+    
+    // Track progress state
+    let mut last_progress_time = 0.0;
+    let mut estimated_total_time = 0.0;
+    let mut progress_count = 0;
     
     // Read stderr for progress
     if let Some(stderr) = child.stderr.take() {
@@ -355,33 +380,104 @@ async fn execute_with_progress_events(
                 .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
             
             if *is_cancelled {
+                // Kill the process immediately and forcefully
+                eprintln!("Cancellation detected, killing FFmpeg process...");
                 let _ = child.kill();
+                
+                // Wait for process to actually terminate
+                for i in 0..20 {  // Try for 2 seconds max
+                    if let Ok(Some(_)) = child.try_wait() {
+                        eprintln!("FFmpeg process terminated successfully");
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    if i == 19 {
+                        eprintln!("Warning: FFmpeg process may not have terminated cleanly");
+                    }
+                }
                 return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
             }
             
             let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
             
-            // Parse progress from FFmpeg output and emit events
-            if let Some(progress) = crate::audio::progress::parse_ffmpeg_progress(&line) {
-                let progress_percentage = 20.0 + (progress / 100.0 * 70.0); // Map to 20-90% range
-                let event = ProgressEvent {
-                    stage: "converting".to_string(),
-                    percentage: progress_percentage,
-                    message: "Converting and merging audio files...".to_string(),
-                    current_file: None,
-                    eta_seconds: None,
-                };
-                let _ = window.emit("processing-progress", &event);
+            // Log only essential progress updates
+            if line.contains("out_time_us=") {
+                eprintln!("FFmpeg progress: {line}");
             }
             
-            // Check for errors
-            if line.contains("Error") || line.contains("error") {
-                return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed("FFmpeg reported an error".to_string())));
+            // Parse progress from FFmpeg output and emit events
+            if let Some(progress_time) = crate::audio::progress::parse_ffmpeg_progress(&line) {
+                // Handle special case for completion
+                if progress_time == 100.0 {
+                    let event = ProgressEvent {
+                        stage: "converting".to_string(),
+                        percentage: 90.0,
+                        message: "Finalizing audio conversion...".to_string(),
+                        current_file: None,
+                        eta_seconds: None,
+                    };
+                    let _ = window.emit("processing-progress", &event);
+                } else if progress_time > last_progress_time {
+                    // Update progress tracking
+                    last_progress_time = progress_time;
+                    progress_count += 1;
+                    
+                    // Use known total duration if available
+                    if estimated_total_time == 0.0 && total_duration > 0.0 {
+                        estimated_total_time = total_duration;
+                        eprintln!("Using known total duration: {estimated_total_time:.2} seconds");
+                    } else if progress_count > 5 && estimated_total_time == 0.0 {
+                        // Fallback: rough estimate based on progress
+                        estimated_total_time = progress_time as f64 * 10.0; // Conservative estimate
+                        eprintln!("Estimated total duration: {estimated_total_time:.2} seconds");
+                    }
+                    
+                    // Calculate percentage
+                    let progress_percentage = if estimated_total_time > 0.0 {
+                        let file_progress = (progress_time as f64 / estimated_total_time).min(1.0);
+                        let percentage = 20.0 + (file_progress * 70.0); // Map to 20-90% range
+                        eprintln!("Progress: {progress_time:.1}s / {estimated_total_time:.1}s = {percentage:.1}%");
+                        percentage
+                    } else {
+                        // If no estimate yet, show incremental progress
+                        let percentage = 20.0 + ((progress_count as f64).min(50.0) * 1.4);
+                        eprintln!("Incremental progress: {percentage:.1}%");
+                        percentage
+                    };
+                    
+                    let event = ProgressEvent {
+                        stage: "converting".to_string(),
+                        percentage: progress_percentage.min(89.0) as f32, // Cap at 89% until done
+                        message: "Converting and merging audio files...".to_string(),
+                        current_file: None,
+                        eta_seconds: None,
+                    };
+                    let _ = window.emit("processing-progress", &event);
+                }
+            }
+            
+            // Check for errors (but ignore case-insensitive matches in file paths)
+            if (line.contains("Error") || line.contains("error")) && 
+               !line.contains("Output") && !line.contains("Input") {
+                // Log the error for debugging
+                eprintln!("FFmpeg error line: {line}");
+                if line.contains("No such file") || line.contains("Invalid data") {
+                    return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(format!("FFmpeg error: {line}"))));
+                }
             }
         }
     }
     
-    // Wait for completion
+    // Check if process was cancelled before waiting
+    let is_cancelled = state.is_cancelled.lock()
+        .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
+    
+    if *is_cancelled {
+        // Process was killed, don't wait for it
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    
+    // Wait for completion only if not cancelled
     let status = child.wait()
         .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("FFmpeg execution failed".to_string())))?;
     
