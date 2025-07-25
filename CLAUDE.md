@@ -74,3 +74,5 @@ For each new backend command, add to `src/main.ts`:
 **PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
 
 **CRITICAL**: No task is complete until frontend and backend are connected and tested.
+
+**When user signals session end**: Concisely Update [progress.md](docs/planning/progress.md) with what was fixed, why, and include (only if applicable) a notes/learnings/warnings for next session.

@@ -17,6 +17,8 @@
 - **Memory**: Prefer borrowing (`&str`) over cloning (`String`)
 - **Testing**: Write 2+ tests per function (success + error cases)
 - **Refactoring**: When function hits 20 lines, STOP and refactor
+- **Bug Fixes**: Minimal changes only (max 10 lines unless justified)
+- **AI Constraints**: Specific test commands after changes (`cargo test specific_test_name`)
 
 ## Build Commands (RUN FREQUENTLY)
 - **Dev**: `npm run tauri dev` (full app with hot reload)
@@ -72,3 +74,5 @@ For each new backend command, add to `src/main.ts`:
 **PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
 
 **CRITICAL**: No task is complete until frontend and backend are connected and tested.
+
+**When user signals session end**: Concisely Update [progress.md](docs/planning/progress.md) with what was fixed, why, and include (only if applicable) a notes/learnings/warnings for next session.
