@@ -117,7 +117,7 @@ Build the real audio pipeline (Backend only).
 ### Phase 5: Complete UI Integration & File Management - In-Progress: critical blocker found - see /docs/planning/progress.md
 Connect the HTML UI to backend commands and implement complete user workflow.
 
-12. **File Import System** (`src/ui/fileImport.ts`) - DONE
+12. **File Import System** (`src/ui/fileImport.ts`) - DONE ✅
     - Drag & drop event handlers for audio files
     - File selection dialog (click to select)
     - File validation and error display
@@ -129,15 +129,16 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - File removal and selection
     - Combined size/duration calculations
 
-13a. **User Validation** - DONE
+13a. **User Validation** - DONE ✅
 - As a user, I can drag a folder of MP3 files onto the application window. The files should appear in the 'Input Files' list. I can then test that I can drag a file from the bottom of the list to the top to re-order it, and click the 'X' button to remove a file from the list."
   
-14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`) BUG: Clicking some files shows inaccurate bitrate.
+14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`)
+ BUG: Clicking some files shows inaccurate bitrate.
     - Show selected file properties (bitrate, sample rate, channels, size)
     - Update properties display within 1 second
     - Handle multiple file selection states
 
-15. **Metadata Editing Interface** (`src/ui/metadataPanel.ts`)
+16. **Metadata Editing Interface** (`src/ui/metadataPanel.ts`)
     - Auto-populate from first file metadata
     - All metadata fields (title, author, album, narrator, year, genre, description)
     - Cover art drag/drop and file selection
@@ -153,13 +154,13 @@ Connect the HTML UI to backend commands and implement complete user workflow.
     - Estimated output size calculations based on bitrate, channels, sample rate user selections
     - Settings validation and feedback
 
-17. **Progress & Status Interface** (`src/ui/statusPanel.ts`) - Implemented but process audio button not working - see docs/planning/process_button_error.png [FIXME]
+17. **Progress & Status Interface** (`src/ui/statusPanel.ts`) - Implemented but process audio button not working - see docs/planning/process_button_error.png - DONE ✅
     - Real-time progress bar and percentage
     - Processing stage indicators
     - Cancel button functionality
     - Status message display
 
-18. **Complete Processing Integration** (`src/ui/processingController.ts`)
+18. **Complete Processing Integration** (`src/ui/processingController.ts`) - DONE ✅
     - Connect all UI panels to backend processing
     - Temp file handling (create, cleanup, move to final location)
     - Handle missing metadata fields in output paths
