@@ -281,7 +281,7 @@ The code is production-ready with the critical function refactoring addressed. T
 **Tools Used**: cargo test, cargo clippy, manual code review  
 **Files Reviewed**: 15+ Rust source files, TypeScript frontend, configuration files
 
-# Bugs
+# Bugs (as reported by dev)
 - BUG: Clicking some files shows inaccurate bitrate (low priority)
 - BUG: commas in output file name are replaced with slashes / - Why when commas are in source file names?
 - BUG: Terminal output stops at 90% but the file appears to be 100% complete and saved to target output directory. Is this a bug at all?
