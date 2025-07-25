@@ -16,12 +16,19 @@ This revised plan addresses bugs first with minimal changes, then proceeds with 
    - Fix defaulting to 22050 instead of matching input
    - Location: `src-tauri/src/audio/processor.rs`
    - Minimal fix: Correct the sample rate logic
+   - **Status**: Fixed, and fixed back and front logic to match correct sample rate choices in the UI.
 
 2. ✅ **Progress Stops at 90%** (HIGH)
     **User Report**: Terminal progress output stops at 90% instead of 100% for completed job. Output file appears to be 100% complete and saved to target output directory.
    - Fix progress calculation in final stage
    - Location: `execute_with_progress_events`
    - Minimal fix: Adjust final progress emit
+   - **Status**: Fixed - plus fixed terminal FFMPEG output to be more human readable and stay on a single line with done message.
+    - Changes Made (8 lines total):
+        - processor.rs:363: 20.0 → 10.0 (conversion start)
+        - processor.rs:517: Progress mapping 20-90% → 10-80%
+        - processor.rs:522: Fallback progress 20.0 → 10.0
+        - processor.rs:529: Progress cap 89% → 79%
 
 3. ✅ **Metadata Not Passing Through** (MEDIUM)
     **User Report**: Title/cover art not passed through to output file nor is it visible in the 'metadata & output' panel.
