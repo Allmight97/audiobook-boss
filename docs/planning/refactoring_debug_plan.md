@@ -1,4 +1,4 @@
-# Revised Refactoring Plan V2: Audio Processing Module
+# Revised Refactoring & Debug Plan V2: Audio Processing Module
 
 ## Executive Summary
 
