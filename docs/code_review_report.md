@@ -286,6 +286,3 @@ The code is production-ready with the critical function refactoring addressed. T
 - BUG: commas in output file name are replaced with slashes / - Why when commas are in source file names?
 - BUG: Terminal output stops at 90% but the file appears to be 100% complete and saved to target output directory. Is this a bug at all?
 - BUG: Output sample rate didn't passthrough from input file. E.G. input file is 44100, output file is 22050 - output file should have matched input or whatever user selected.
-
-# Features to add Immediately
-  - 
