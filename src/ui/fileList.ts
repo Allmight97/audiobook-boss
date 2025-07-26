@@ -140,7 +140,7 @@ function updateFileProperties(file: AudioFile): void {
 
     if (file.isValid) {
         // Display technical audio properties
-        if (bitrateEl) bitrateEl.textContent = file.bitrate ? `${file.bitrate} kbps` : 'N/A';
+        if (bitrateEl) bitrateEl.textContent = file.bitrate ? `${file.bitrate} kb/s` : 'N/A';
         if (sampleRateEl) sampleRateEl.textContent = file.sampleRate ? `${file.sampleRate} Hz` : 'N/A';
         if (channelsEl) channelsEl.textContent = file.channels ? `${file.channels} ch` : 'N/A';
         if (fileSizeEl) fileSizeEl.textContent = file.size ? formatFileSize(file.size) : 'N/A';

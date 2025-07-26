@@ -15,7 +15,8 @@
       "Bash(find:*)",
       "mcp__context-7__resolve-library-id",
       "Bash(ffmpeg:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(cargo run:*)"
     ],
     "deny": []
   }

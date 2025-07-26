@@ -63,11 +63,12 @@ This revised plan addresses bugs first with minimal changes, then proceeds with 
    - Location: Output filename generation
    - Minimal fix: Proper escaping
 
-7. ✅ **Bitrate Display** (LOW)
+7. ✅ **Bitrate Display** (LOW) ✅
     **User Report**: Clicking through files in "file order" panel reveals some files displaying inaccurate bitrate (e.g. Loaded 4 192kb/s files, some displayed as 193kb/s, others as 220kb/s - file properties confirmed with media-info viewer)
    - Fix inaccurate display for some files
    - Location: File info parsing
    - Minimal fix: Correct calculation
+   - **Status**: DONE - 3-line fix to correct lofty.
 
 ### Bug Fix Validation:
 - Run existing tests after each fix

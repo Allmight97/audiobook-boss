@@ -119,7 +119,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     }
     
     // Extract technical metadata
-    let bitrate = properties.overall_bitrate();
+    let bitrate = properties.audio_bitrate();
     let sample_rate = properties.sample_rate();
     let channels = properties.channels().map(|ch| ch as u32);
     
@@ -242,7 +242,7 @@ mod tests {
         use lofty::file::TaggedFileExt;
         
         // Test the actual file that's failing
-        let test_mp3 = "/Users/jstar/Downloads/Claude Code_ Best Practices for Agentic Coding.mp3";
+        let test_mp3 = "/Users/jstar/Projects/audiobook-boss/media/01 - Introduction.mp3";
         
         if !std::path::Path::new(test_mp3).exists() {
             println!("Test MP3 file not found, skipping test");
