@@ -10,8 +10,37 @@ let currentCoverArt: number[] | null = null;
  */
 export function initCoverArt(): void {
     const loadButton = document.getElementById('load-cover-art') as HTMLButtonElement;
+    const clearButton = document.getElementById('clear-cover-art') as HTMLButtonElement;
+    
     if (loadButton) {
         loadButton.addEventListener('click', handleLoadCoverArt);
+    }
+    
+    if (clearButton) {
+        clearButton.addEventListener('click', handleClearCoverArt);
+    }
+    
+    // Update button visibility based on initial state
+    updateClearButtonVisibility();
+}
+
+/**
+ * Handles the Clear Cover Art button click
+ * Clears the current cover art and updates UI
+ */
+function handleClearCoverArt(): void {
+    clearCoverArt();
+    updateClearButtonVisibility();
+    console.log('Cover art cleared');
+}
+
+/**
+ * Updates the visibility of the Clear button based on cover art state
+ */
+function updateClearButtonVisibility(): void {
+    const clearButton = document.getElementById('clear-cover-art') as HTMLButtonElement;
+    if (clearButton) {
+        clearButton.style.display = currentCoverArt ? 'block' : 'none';
     }
 }
 
@@ -49,6 +78,9 @@ async function handleLoadCoverArt(): Promise<void> {
 
         // Update metadata form if needed
         updateMetadataWithCoverArt(imageData);
+        
+        // Update Clear button visibility
+        updateClearButtonVisibility();
 
         console.log('Cover art loaded successfully:', selectedFile);
 

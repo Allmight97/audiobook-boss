@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo, AudioSettings } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import { displayFileList, currentFileList, clearAllFiles } from "./ui/fileList";
+import { displayFileList, currentFileList, clearAllFiles, toggleFileSort } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
 import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./ui/coverArt";
@@ -33,6 +33,7 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
   getCurrentFileList: () => currentFileList,
   clearFiles: () => clearAllFiles(),
+  toggleSort: () => toggleFileSort(),
   // Test art thumbnail functionality
   testArtThumbnail: async () => {
     const statusPanel = getStatusPanel();
@@ -55,7 +56,20 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   // Cover art test functions
   getCurrentCoverArt: () => getCurrentCoverArt(),
   setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
-  clearCoverArt: () => clearCoverArt()
+  clearCoverArt: () => clearCoverArt(),
+  
+  // File movement test functions
+  // TODO: Connect these once moveFile and sortFiles are implemented in fileList module
+  testMoveFile: (index: number, direction: 'up' | 'down') => {
+    console.log(`Moving file at index ${index} ${direction}`);
+    // Will be connected to: moveFile(index, direction)
+    console.warn('moveFile function not yet implemented in fileList module');
+  },
+  testSortFiles: () => {
+    console.log('Toggling file sort order');
+    // Will be connected to: sortFiles() or toggleSortOrder()
+    console.warn('sortFiles function not yet implemented in fileList module');
+  }
 };
 
 // Log when ready
@@ -82,6 +96,8 @@ console.log('  window.testCommands.loadCoverArtFile(filePath)');
 console.log('  window.testCommands.getCurrentCoverArt()');
 console.log('  window.testCommands.setCoverArt(coverArtBytes)');
 console.log('  window.testCommands.clearCoverArt()');
+console.log('  window.testCommands.testMoveFile(index, direction)');
+console.log('  window.testCommands.testSortFiles()');
 
 // Initialize UI components when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

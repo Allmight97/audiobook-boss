@@ -261,6 +261,79 @@ h1 {
 	opacity: 1;
 }
 
+/* Move up/down button styling */
+.move-up-btn,
+.move-down-btn {
+	background: none;
+	border: none;
+	font-size: 1.25rem;
+	font-weight: bold;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0.25rem;
+	border-radius: 0.25rem;
+	min-width: 1.5rem;
+	height: 1.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease-in-out;
+}
+
+.move-up-btn:hover,
+.move-down-btn:hover {
+	background-color: var(--bg-hover);
+	color: var(--accent-primary);
+	transform: translateY(-1px);
+}
+
+.move-up-btn:focus-visible,
+.move-down-btn:focus-visible {
+	outline: 2px solid var(--border-focus);
+	outline-offset: 2px;
+}
+
+/* Disabled state for move buttons */
+.move-up-btn:disabled,
+.move-down-btn:disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+	color: var(--text-muted);
+}
+
+.move-up-btn:disabled:hover,
+.move-down-btn:disabled:hover {
+	background-color: transparent;
+	transform: none;
+	color: var(--text-muted);
+}
+
+/* Selected state styling */
+.file-list-item.selected .move-up-btn,
+.file-list-item.selected .move-down-btn {
+	color: var(--text-inverse);
+	opacity: 0.8;
+}
+
+.file-list-item.selected .move-up-btn:hover,
+.file-list-item.selected .move-down-btn:hover {
+	background-color: rgba(255, 255, 255, 0.2);
+	color: var(--text-inverse);
+	opacity: 1;
+}
+
+.file-list-item.selected .move-up-btn:disabled,
+.file-list-item.selected .move-down-btn:disabled {
+	opacity: 0.3;
+	color: var(--text-inverse);
+}
+
+.file-list-item.selected .move-up-btn:disabled:hover,
+.file-list-item.selected .move-down-btn:disabled:hover {
+	background-color: transparent;
+	color: var(--text-inverse);
+}
+
 /* Error message styling */
 .error-message {
 	background-color: #fef2f2;

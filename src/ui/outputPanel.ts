@@ -265,7 +265,7 @@ function getCurrentMetadata(): AudiobookMetadata {
     genre: getElementValue('meta-genre'),
     description: getElementValue('meta-description'),
     series: getElementValue('meta-series'),
-    cover_art: coverArt
+    cover_art: coverArt ?? undefined  // Convert null to undefined
   };
 }
 

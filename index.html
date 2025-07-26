@@ -40,7 +40,12 @@
 					</p>
 				</div>
 				<div id="file-import-error" class="error-message mb-4" style="display: none;"></div>
-				<h3 class="text-md font-medium mb-1 text-gray-600">File Order:</h3>
+				<div class="flex items-center justify-between mb-1">
+					<h3 class="text-md font-medium text-gray-600">File Order:</h3>
+					<button id="sort-toggle-btn" class="button-secondary text-xs px-2 py-1">
+						Sort: A-Z
+					</button>
+				</div>
 				<div class="file-list-placeholder mb-4">
 					File List Area (Drag to Reorder)
 				</div>
@@ -100,6 +105,9 @@
 							</div>
 						<button id="load-cover-art" class="button-secondary text-sm w-full">
 							Load Cover Art
+						</button>
+						<button id="clear-cover-art" class="button-secondary text-sm w-full mt-2" style="display: none;">
+							Clear Cover Art
 						</button>
 					</div>
 					<div class="col-span-2">
