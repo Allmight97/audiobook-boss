@@ -9,6 +9,9 @@ mod ffmpeg;
 mod metadata;
 mod audio;
 
+#[cfg(test)]
+mod tests_integration;
+
 use std::sync::{Arc, Mutex};
 use audio::ProcessingProgress;
 

@@ -80,7 +80,8 @@ This revised plan addresses bugs first with minimal changes, then proceeds with 
 - Manual testing on your MacBook
 - Document what was changed for each bug
 
-## Phase 0: Test Infrastructure (Week 1)
+## Phase 0: Test Infrastructure (Week 1) - DONE - see report below
+REPORT: [phase0_baseline_metrics.md](docs/planning/phase0_baseline_metrics.md)
 
 **Goal**: Create safety net before refactoring
 

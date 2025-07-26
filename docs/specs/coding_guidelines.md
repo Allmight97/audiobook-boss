@@ -1,7 +1,42 @@
 # Audiobook Boss: Coding Guidelines
-**Single source of truth for all coding standards and implementation patterns.**
+**THE SINGLE SOURCE OF TRUTH for all coding standards and implementation patterns.**
 
-**For enforcement rules, see:** [AGENT.md](../../AGENT.md) or [CLAUDE.md](../../CLAUDE.md)
+**Referenced by:** CLAUDE.md and all sub-agents (auditor, coder, debugger, refactorer)
+
+## Core Coding Standards (NON-NEGOTIABLE)
+
+### Function Requirements
+- **Max 30 lines** per function (enforced by clippy `too_many_lines`)
+- **Max 3 parameters** per function (use structs for complex signatures)
+- **Refactor at 20 lines** - don't wait until you hit the limit
+- Extract single-responsibility functions with clear, descriptive names
+
+### Error Handling Requirements
+- **Always use `Result<T, AppError>`** for error handling
+- **Never use `unwrap()` or `expect()`** in production code (except tests)
+- Use `PathBuf` for file paths, prefer borrowing (`&str`) over cloning (`String`)
+
+### Testing Requirements
+- **Minimum 2 tests** per function (success case + error case)
+- Write test signatures before implementing functions
+- Test edge cases and error conditions
+- Use descriptive test names that explain what is being tested
+
+### Build Commands (Run Frequently)
+- **Test**: `cargo test` (run from `src-tauri/` directory)
+- **Lint**: `cargo clippy -- -D warnings` (must be zero warnings)
+- **Dev**: `npm run tauri dev` (full app with hot reload)
+- **Build**: `npm run tauri build` (full app package)
+
+### Definition of Done (ALL MUST PASS)
+- ✅ Code compiles without warnings
+- ✅ `cargo test` - all tests pass
+- ✅ `cargo clippy -- -D warnings` - zero warnings
+- ✅ Every function ≤ 30 lines and ≤ 3 parameters
+- ✅ No `unwrap()` or `expect()` calls (except in tests)
+- ✅ Error handling uses `AppError` type, not `String`
+- ✅ Frontend command accessible via `window.testX` in browser console
+- ✅ Minimum 2 tests per function (success + error case)
 
 ## Project Context
 - First Rust project for JStar (junior dev)

@@ -61,6 +61,22 @@ Key debugging principles:
 - Examine error handling and exception paths
 - Consider the broader system context
 
+**Project-Specific Debugging Standards:**
+- **Error Types**: Look for proper `Result<T, AppError>` usage
+- **No Panics**: Check for `unwrap()` or `expect()` calls that could panic
+- **Function Size**: If debugging large functions (>30 lines), recommend refactoring
+- **Test Coverage**: Ensure bug fixes include tests to prevent regression
+
+**Build Validation After Fixes:**
+- **Test**: `cargo test` (run from src-tauri/ directory)
+- **Lint**: `cargo clippy -- -D warnings` (run from src-tauri/ directory)
+- **IMPORTANT**: Always run `cargo` commands from the `src-tauri/` directory, not project root
+
+**Project Context:**
+- **Architecture**: Tauri v2 (Rust backend + TypeScript frontend)  
+- **Audio Processing**: FFmpeg (subprocess), Lofty (metadata)
+- **Teaching Focus**: JStar's first Rust project - explain issues clearly
+
 When examining code, pay special attention to:
 - Variable initialization and lifecycle
 - Function preconditions and postconditions  
@@ -68,6 +84,6 @@ When examining code, pay special attention to:
 - Concurrency and synchronization issues
 - Type mismatches and conversion errors
 - Configuration and environment dependencies
-- Front and Backend dependencies and disconnections
+- Frontend and Backend dependencies and disconnections
 
 Think deeply with a wholistic multi-dimensional perspective using the 5-whys to perform root cause analysis. Your goal is not to fix the immediate issue but to help prevent similar problems and improve overall code quality. When done, report to the orchestrating agent and user with specifics and proposed fixes.
