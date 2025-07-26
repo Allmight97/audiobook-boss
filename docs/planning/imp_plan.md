@@ -133,12 +133,11 @@ Connect the HTML UI to backend commands and implement complete user workflow.
 - As a user, I can drag a folder of MP3 files onto the application window. The files should appear in the 'Input Files' list. I can then test that I can drag a file from the bottom of the list to the top to re-order it, and click the 'X' button to remove a file from the list."
   
 14. **Property Inspection Panel** (`src/ui/propertyPanel.ts`)
- BUG: Clicking some files shows inaccurate bitrate.
     - Show selected file properties (bitrate, sample rate, channels, size)
     - Update properties display within 1 second
     - Handle multiple file selection states
 
-16. **Metadata Editing Interface** (`src/ui/metadataPanel.ts`)
+15. **Metadata Editing Interface** (`src/ui/metadataPanel.ts`)
     - Auto-populate from first file metadata
     - All metadata fields (title, author, album, narrator, year, genre, description)
     - Cover art drag/drop and file selection

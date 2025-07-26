@@ -214,10 +214,10 @@ function calculateOutputPath(metadata: AudiobookMetadata): string {
  * Builds subdirectory path using metadata pattern
  */
 function buildSubdirectoryPath(basePath: string, metadata: AudiobookMetadata): string {
-  const author = metadata.author || 'Unknown Author';
-  const series = metadata.series || '';
+  const author = sanitizeFilename(metadata.author || 'Unknown Author');
+  const series = sanitizeFilename(metadata.series || '');
   const year = metadata.year || new Date().getFullYear();
-  const title = metadata.title || 'Untitled';
+  const title = sanitizeFilename(metadata.title || 'Untitled');
 
   let subdirPath = `${basePath}/${author}`;
 
@@ -230,11 +230,21 @@ function buildSubdirectoryPath(basePath: string, metadata: AudiobookMetadata): s
 }
 
 /**
+ * Sanitizes a string for use in filenames by replacing problematic characters
+ */
+function sanitizeFilename(input: string): string {
+  return input
+    .replace(/[,]/g, '_')
+    .replace(/[/\\:*?"<>|]/g, '_')
+    .trim();
+}
+
+/**
  * Builds output filename based on pattern selection
  */
 function buildFilename(metadata: AudiobookMetadata): string {
-  const title = metadata.title || 'Untitled';
-  const author = metadata.author || 'Unknown Author';
+  const title = sanitizeFilename(metadata.title || 'Untitled');
+  const author = sanitizeFilename(metadata.author || 'Unknown Author');
   const year = metadata.year || new Date().getFullYear();
 
   if (currentState.filenamePattern === 'author_title') {

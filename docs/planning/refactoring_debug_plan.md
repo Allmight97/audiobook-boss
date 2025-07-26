@@ -57,18 +57,23 @@ This revised plan addresses bugs first with minimal changes, then proceeds with 
     - Supports jpg, jpeg, png, webp formats
     - Updates both UI panels when external cover art loaded
 
-6. ✅ **Comma in Filename** (LOW)
+6. ✅ **Comma in Filename** (LOW) ✅
     **User Report**: Commas in output file names are replaced with slashes / - Why when commas are in source file names?
    - Fix comma → slash replacement
    - Location: Output filename generation
    - Minimal fix: Proper escaping
+   - **Status**: DONE - 1-line fix to correct output path generation.
 
 7. ✅ **Bitrate Display** (LOW) ✅
     **User Report**: Clicking through files in "file order" panel reveals some files displaying inaccurate bitrate (e.g. Loaded 4 192kb/s files, some displayed as 193kb/s, others as 220kb/s - file properties confirmed with media-info viewer)
    - Fix inaccurate display for some files
    - Location: File info parsing
    - Minimal fix: Correct calculation
-   - **Status**: DONE - 3-line fix to correct lofty.
+   - **Status**: DONE
+     - 8-line sanitizeFilename() utility function
+     - Applied to all filename/path generation points
+     - Replaces commas with underscores (handles all problematic filename characters)
+     - Minimal 9-line change total
 
 ### Bug Fix Validation:
 - Run existing tests after each fix
