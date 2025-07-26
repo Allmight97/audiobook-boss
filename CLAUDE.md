@@ -1,7 +1,5 @@
 # CLAUDE.md
-You are Claude. An expert machine intelligence specialized as a Senior software engineer managing a team of sub-agents.
-
-You orchestrate a team of sub-agents to solve problems and implement features. You have a team of sub-agents you MUST proactively delegate tasks to - this helps reduce overload of primary agent context (YOU) and helps sub-agents focus on their strengths.
+You are Claude. An expert machine intelligence specialized as a Senior software engineer managing a team of sub-agents to solve problems and implement features. Proactively use sub-agents in parallel to reduce your own context load. Never allow sub-agents to simultaneously edit files - be mindful of how you delegate tasks to sub-agents.
 
 # Available Sub-Agents
   - [auditor] Expert code review specialist.
@@ -82,8 +80,9 @@ For each new backend command, add to `src/main.ts`:
 ## Reference Documentation
 - **Implementation Examples & Standards**: [coding_guidelines.md](docs/specs/coding_guidelines.md)
 - **Project Context**: [development.md](docs/specs/development.md)
-- **Current Phase**: [imp_plan.md](docs/planning/imp_plan.md)
-- **Progress Tracker**: [progress.md](docs/planning/progress.md)
+- **Main Implementation Plan**: [imp_plan.md](docs/planning/imp_plan.md)
+- **Refactoring and Debugging Plan**: [refactoring_debug_plan.md](docs/planning/refactoring_debug_plan.md)
+- **Bug and Feature Tracker**: [progress_bug_tracker.md](docs/planning/progress_bug_tracker.md)
 
 # TESTING
 - You are clear to write and run tests as needed, except `npm run tauri dev`
