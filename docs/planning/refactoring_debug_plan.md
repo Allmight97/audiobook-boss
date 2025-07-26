@@ -39,11 +39,12 @@ This revised plan addresses bugs first with minimal changes, then proceeds with 
     - Metadata Panel: Cover art now displays in the main Metadata & Output panel when files are selected (fileList.ts)
     - Progress Panel: Small thumbnail on far left now shows cover art during processing (statusPanel.ts)
 
-4. ✅ **File Reordering Broken** (MEDIUM)
+4. ✅ **File Reordering Broken** (MEDIUM) ✅
     **User Report**: File re-ordering doesn't work (can't drag files around to re-order them) - fix drag feature or implement re-ordering differently.
    - Fix drag-and-drop or brainstorm alternative as needed
    - Location: Frontend file list component
    - Minimal fix: Add move up/down buttons
+   - **Status**: DONE - replaced drag-and-drop with move up/down buttons and ascending/descending sorting by name. Added new "clear cover art" button.
 
 5. ✅ **Load Cover Art Button** (LOW) ✅
     **User Report**: Load cover art button is non-functional - does nothing when clicked.
