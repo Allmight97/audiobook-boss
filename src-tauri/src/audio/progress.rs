@@ -271,11 +271,11 @@ impl ProgressReporter {
         let file_progress = self.files_completed as f32 / self.total_files as f32;
         
         match self.current_stage {
-            ProcessingStage::Analyzing => 10.0 * file_progress,
-            ProcessingStage::Converting => 10.0 + (70.0 * file_progress),
-            ProcessingStage::Merging => 80.0 + (15.0 * file_progress),
-            ProcessingStage::WritingMetadata => 95.0 + (5.0 * file_progress),
-            ProcessingStage::Completed => 100.0,
+            ProcessingStage::Analyzing => PROGRESS_ANALYZING_END * file_progress,
+            ProcessingStage::Converting => PROGRESS_CONVERTING_START + (PROGRESS_CONVERTING_RANGE * file_progress),
+            ProcessingStage::Merging => PROGRESS_MERGING_START + (PROGRESS_MERGING_WEIGHT * file_progress),
+            ProcessingStage::WritingMetadata => PROGRESS_FINALIZING + (PROGRESS_METADATA_WEIGHT * file_progress),
+            ProcessingStage::Completed => PROGRESS_COMPLETE,
             ProcessingStage::Failed(_) => 0.0,
         }
     }

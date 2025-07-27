@@ -6,6 +6,7 @@ use crate::ffmpeg;
 use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, read_metadata, write_metadata};
 use crate::audio::{AudioSettings, file_list::FileListInfo};
+use crate::audio::constants::*;
 
 /// Simple ping command that returns "pong"
 /// Used for testing basic Tauri command functionality
@@ -228,29 +229,27 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 
 /// Validates image format by checking file headers
 fn validate_image_format(data: &[u8], extension: &str) -> Result<()> {
-    if data.len() < 4 {
+    if data.len() < MIN_IMAGE_SIZE {
         return Err(AppError::InvalidInput("Image file too small to validate".to_string()));
     }
     
     match extension {
         "jpg" | "jpeg" => {
-            if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
+            if data.len() >= JPEG_HEADER.len() && data[..JPEG_HEADER.len()] == JPEG_HEADER {
                 Ok(())
             } else {
                 Err(AppError::InvalidInput("Invalid JPEG file format".to_string()))
             }
         },
         "png" => {
-            if data.len() >= 8 && 
-               data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
-               data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A {
+            if data.len() >= MIN_PNG_SIZE && data[..PNG_HEADER.len()] == PNG_HEADER {
                 Ok(())
             } else {
                 Err(AppError::InvalidInput("Invalid PNG file format".to_string()))
             }
         },
         "webp" => {
-            if data.len() >= 12 && 
+            if data.len() >= MIN_WEBP_SIZE && 
                &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
                 Ok(())
             } else {

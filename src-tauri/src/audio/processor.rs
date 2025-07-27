@@ -300,6 +300,155 @@ fn move_to_final_location(
     Ok(final_path.to_path_buf())
 }
 
+/// Session data for audiobook processing workflow
+struct ProcessingWorkflow {
+    temp_dir: PathBuf,
+    concat_file: PathBuf,
+    total_duration: f64,
+}
+
+/// Validates inputs and emits progress
+fn validate_inputs_with_progress(
+    context: &ProcessingContext,
+    files: &[AudioFile],
+) -> Result<()> {
+    let emitter = ProgressEmitter::new(context.window.clone());
+    
+    emitter.emit_analyzing_start("Validating input files...");
+    validate_processing_inputs(files, &context.settings)?;
+    
+    if context.is_cancelled() {
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    
+    Ok(())
+}
+
+/// Creates workspace and calculates total duration
+fn prepare_workspace(
+    context: &ProcessingContext,
+    files: &[AudioFile],
+) -> Result<ProcessingWorkflow> {
+    let emitter = ProgressEmitter::new(context.window.clone());
+    
+    emitter.emit_analyzing_end("Creating temporary workspace...");
+    let temp_dir = create_temp_directory()?;
+    let concat_file = create_concat_file(files, &temp_dir)?;
+    
+    let total_duration: f64 = files.iter()
+        .filter(|f| f.is_valid)
+        .map(|f| f.duration.unwrap_or(0.0))
+        .sum();
+    
+    if context.is_cancelled() {
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    
+    Ok(ProcessingWorkflow {
+        temp_dir,
+        concat_file,
+        total_duration,
+    })
+}
+
+/// Validates inputs and prepares processing session
+fn validate_and_prepare(
+    context: &ProcessingContext,
+    files: &[AudioFile],
+) -> Result<ProcessingWorkflow> {
+    validate_inputs_with_progress(context, files)?;
+    prepare_workspace(context, files)
+}
+
+/// Executes core audio processing operations
+async fn execute_processing(
+    context: &ProcessingContext,
+    workflow: &ProcessingWorkflow,
+    files: &[AudioFile],
+    reporter: &mut ProgressReporter,
+) -> Result<PathBuf> {
+    let emitter = ProgressEmitter::new(context.window.clone());
+    
+    // Stage 2: Convert and merge files
+    reporter.set_stage(ProcessingStage::Converting);
+    emitter.emit_converting_start("Starting audio conversion...");
+    
+    // Log basic info for debugging
+    eprintln!("Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k", 
+              workflow.total_duration, context.settings.bitrate);
+    
+    let merged_output = merge_audio_files_with_context(
+        &workflow.concat_file,
+        context,
+        reporter,
+        workflow.total_duration,
+        files
+    ).await?;
+    
+    if context.is_cancelled() {
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    
+    Ok(merged_output)
+}
+
+/// Writes metadata if provided
+fn write_metadata_stage(
+    context: &ProcessingContext,
+    merged_output: &PathBuf,
+    metadata: Option<AudiobookMetadata>,
+    reporter: &mut ProgressReporter,
+) -> Result<()> {
+    if let Some(metadata) = metadata {
+        let emitter = ProgressEmitter::new(context.window.clone());
+        reporter.set_stage(ProcessingStage::WritingMetadata);
+        emitter.emit_metadata_start("Writing metadata...");
+        write_metadata(merged_output, &metadata)?;
+        
+        if context.is_cancelled() {
+            return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// Completes processing with file movement and cleanup
+fn complete_processing(
+    context: &ProcessingContext,
+    workflow: ProcessingWorkflow,
+    merged_output: PathBuf,
+    reporter: &mut ProgressReporter,
+) -> Result<String> {
+    let emitter = ProgressEmitter::new(context.window.clone());
+    
+    emitter.emit_finalizing("Moving to final location...");
+    let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
+    
+    if context.is_cancelled() {
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    
+    emitter.emit_cleanup("Cleaning up temporary files...");
+    cleanup_temp_directory(workflow.temp_dir)?;
+    
+    reporter.complete();
+    emitter.emit_complete("Processing completed successfully!");
+    
+    Ok(format!("Successfully created audiobook: {}", final_output.display()))
+}
+
+/// Finalizes processing with metadata and cleanup
+async fn finalize_processing(
+    context: &ProcessingContext,
+    workflow: ProcessingWorkflow,
+    merged_output: PathBuf,
+    metadata: Option<AudiobookMetadata>,
+    reporter: &mut ProgressReporter,
+) -> Result<String> {
+    write_metadata_stage(context, &merged_output, metadata, reporter)?;
+    complete_processing(context, workflow, merged_output, reporter)
+}
+
 /// Main function to process audiobook with context-based architecture
 /// 
 /// This is the new structured approach using ProcessingContext
@@ -310,89 +459,22 @@ pub async fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
-    let emitter = ProgressEmitter::new(context.window.clone());
     
-    // Helper function to check for cancellation
-    let check_cancelled = || -> Result<()> {
-        if context.is_cancelled() {
-            return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
-        }
-        Ok(())
-    };
-    
-    // Validate inputs
-    emitter.emit_analyzing_start("Validating input files...");
-    validate_processing_inputs(&files, &context.settings)?;
-    check_cancelled()?;
-    
-    // Stage 1: Analyze files
+    // Stage 1: Validate and prepare
     reporter.set_stage(ProcessingStage::Analyzing);
-    emitter.emit_analyzing_end("Creating temporary workspace...");
-    let temp_dir = create_temp_directory()?;
-    let concat_file = create_concat_file(&files, &temp_dir)?;
-    check_cancelled()?;
+    let workflow = validate_and_prepare(&context, &files)?;
     
-    // Stage 2: Convert and merge files
-    reporter.set_stage(ProcessingStage::Converting);
-    emitter.emit_converting_start("Starting audio conversion...");
+    // Stage 2: Execute processing
+    let merged_output = execute_processing(&context, &workflow, &files, &mut reporter).await?;
     
-    // Calculate total duration for progress tracking
-    let total_duration: f64 = files.iter()
-        .filter(|f| f.is_valid)
-        .map(|f| f.duration.unwrap_or(0.0))
-        .sum();
-    
-    // Log basic info for debugging
-    eprintln!("Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k", 
-              total_duration, context.settings.bitrate);
-    
-    let merged_output = merge_audio_files_with_context(
-        &concat_file,
-        &context,
-        &mut reporter,
-        total_duration,
-        &files
-    ).await?;
-    check_cancelled()?;
-    
-    // Stage 3: Write metadata if provided
-    if let Some(metadata) = metadata {
-        reporter.set_stage(ProcessingStage::WritingMetadata);
-        emitter.emit_metadata_start("Writing metadata...");
-        write_metadata(&merged_output, &metadata)?;
-        check_cancelled()?;
-    }
-    
-    // Stage 4: Move to final location
-    emitter.emit_finalizing("Moving to final location...");
-    let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
-    check_cancelled()?;
-    
-    // Cleanup
-    emitter.emit_cleanup("Cleaning up temporary files...");
-    cleanup_temp_directory(temp_dir)?;
-    
-    reporter.complete();
-    emitter.emit_complete("Processing completed successfully!");
-    
-    Ok(format!("Successfully created audiobook: {}", final_output.display()))
+    // Stage 3: Finalize with metadata and cleanup
+    finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await
 }
 
-/// Main function to process audiobook with event emission for progress tracking
-/// 
-/// ADAPTER FUNCTION: This maintains backward compatibility by converting
-/// the old parameter-based approach to use the new ProcessingContext internally.
-/// 
-/// All existing code calling this function will continue to work unchanged.
-#[deprecated = "Use process_audiobook_with_context for new code - this adapter maintains compatibility"]
-pub async fn process_audiobook_with_events(
-    window: tauri::Window,
-    state: tauri::State<'_, crate::ProcessingState>,
-    files: Vec<AudioFile>,
-    settings: AudioSettings,
-    metadata: Option<AudiobookMetadata>,
-) -> Result<String> {
-    // Create ProcessingContext from legacy parameters
+/// Creates processing session from legacy state
+fn create_session_from_legacy_state(
+    state: &tauri::State<'_, crate::ProcessingState>,
+) -> Result<std::sync::Arc<ProcessingSession>> {
     use std::sync::Arc;
     let session = Arc::new(ProcessingSession::new());
     
@@ -412,6 +494,24 @@ pub async fn process_audiobook_with_events(
         *new_is_cancelled = *old_is_cancelled;
     }
     
+    Ok(session)
+}
+
+/// Main function to process audiobook with event emission for progress tracking
+/// 
+/// ADAPTER FUNCTION: This maintains backward compatibility by converting
+/// the old parameter-based approach to use the new ProcessingContext internally.
+/// 
+/// All existing code calling this function will continue to work unchanged.
+#[deprecated = "Use process_audiobook_with_context for new code - this adapter maintains compatibility"]
+pub async fn process_audiobook_with_events(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::ProcessingState>,
+    files: Vec<AudioFile>,
+    settings: AudioSettings,
+    metadata: Option<AudiobookMetadata>,
+) -> Result<String> {
+    let session = create_session_from_legacy_state(&state)?;
     let context = ProcessingContext::new(window, session, settings);
     
     // Delegate to the new context-based function
@@ -549,6 +649,33 @@ fn parse_speed_multiplier(line: &str) -> Option<f64> {
     None
 }
 
+/// Updates time estimation based on current progress
+fn update_time_estimation(
+    estimated_total_time: &mut f64,
+    progress_count: i32,
+    total_duration: f64,
+    progress_time: f32,
+) {
+    // Use known total duration if available
+    if *estimated_total_time == 0.0 && total_duration > 0.0 {
+        *estimated_total_time = total_duration;
+    } else if progress_count > PROGRESS_ESTIMATION_MIN_COUNT && *estimated_total_time == 0.0 {
+        *estimated_total_time = progress_time as f64 * INITIAL_TIME_ESTIMATE_MULTIPLIER; // Conservative estimate
+    }
+}
+
+
+/// Handles completion state when progress reaches 100%
+fn handle_progress_completion(emitter: &ProgressEmitter) {
+    eprint!("\rConverting: Done!                                          \n");
+    emitter.emit_converting_progress(
+        PROGRESS_METADATA_START,
+        "Finalizing audio conversion...",
+        None,
+        None,
+    );
+}
+
 /// Processes progress update and emits events (context-based)
 fn process_progress_update_context(
     progress_time: f32,
@@ -560,23 +687,12 @@ fn process_progress_update_context(
     emitter: &ProgressEmitter,
 ) -> Result<()> {
     if progress_time == PROGRESS_COMPLETE {
-        eprint!("\rConverting: Done!                                          \n");
-        emitter.emit_converting_progress(
-            PROGRESS_METADATA_START,
-            "Finalizing audio conversion...",
-            None,
-            None,
-        );
+        handle_progress_completion(emitter);
     } else if progress_time > *last_progress_time {
         *last_progress_time = progress_time;
         *progress_count += 1;
         
-        // Use known total duration if available
-        if *estimated_total_time == 0.0 && total_duration > 0.0 {
-            *estimated_total_time = total_duration;
-        } else if *progress_count > PROGRESS_ESTIMATION_MIN_COUNT && *estimated_total_time == 0.0 {
-            *estimated_total_time = progress_time as f64 * INITIAL_TIME_ESTIMATE_MULTIPLIER; // Conservative estimate
-        }
+        update_time_estimation(estimated_total_time, *progress_count, total_duration, progress_time);
         
         let progress_percentage = calculate_and_display_progress(
             progress_time,
@@ -629,6 +745,34 @@ fn process_progress_update(
     )
 }
 
+
+/// Displays progress with known duration
+fn display_progress_with_duration(
+    file_progress: f64,
+    progress_time: f32,
+    estimated_total_time: f64,
+    speed_text: &str,
+    eta_text: &str,
+) -> f64 {
+    let percentage = PROGRESS_CONVERTING_START as f64 + (file_progress * PROGRESS_RANGE_MULTIPLIER);
+    
+    eprint!("\rConverting: {:.1}% ({:.1}s / {:.1}s){}{}", 
+        file_progress * 100.0, 
+        progress_time, 
+        estimated_total_time,
+        speed_text,
+        eta_text);
+    
+    percentage
+}
+
+/// Displays progress during analysis phase
+fn display_analysis_progress(progress_count: i32) -> f64 {
+    let percentage = PROGRESS_CONVERTING_START as f64 + ((progress_count as f64).min(MAX_INITIAL_PROGRESS_COUNT) * ANALYSIS_PROGRESS_MULTIPLIER);
+    eprint!("\rConverting: {percentage:.1}% (analyzing...)");
+    percentage
+}
+
 /// Calculates and displays progress information
 fn calculate_and_display_progress(
     progress_time: f32,
@@ -638,12 +782,9 @@ fn calculate_and_display_progress(
 ) -> f64 {
     if estimated_total_time > 0.0 {
         let file_progress = (progress_time as f64 / estimated_total_time).min(1.0);
-        let percentage = PROGRESS_CONVERTING_START as f64 + (file_progress * PROGRESS_RANGE_MULTIPLIER); // Map to 10-80% range
-        
         let speed_text = speed_multiplier
             .map(|s| format!(" [Speed: {s:.1}x]"))
             .unwrap_or_default();
-        
         let eta_text = if let Some(speed) = speed_multiplier {
             let remaining_time = (estimated_total_time - progress_time as f64) / speed;
             if remaining_time > 0.0 {
@@ -657,79 +798,105 @@ fn calculate_and_display_progress(
             String::new()
         };
         
-        eprint!("\rConverting: {:.1}% ({:.1}s / {:.1}s){}{}", 
-            file_progress * 100.0, 
-            progress_time, 
-            estimated_total_time,
-            speed_text,
-            eta_text);
-        
-        percentage
+        display_progress_with_duration(file_progress, progress_time, estimated_total_time, &speed_text, &eta_text)
     } else {
-        let percentage = PROGRESS_CONVERTING_START as f64 + ((progress_count as f64).min(MAX_INITIAL_PROGRESS_COUNT) * ANALYSIS_PROGRESS_MULTIPLIER);
-        eprint!("\rConverting: {percentage:.1}% (analyzing...)");
-        percentage
+        display_analysis_progress(progress_count)
     }
 }
 
-/// Executes command with context-based progress tracking
-async fn execute_with_progress_context(
+/// Process execution state for tracking progress
+struct ProcessExecution {
+    child: std::process::Child,
+    emitter: ProgressEmitter,
+    last_progress_time: f32,
+    estimated_total_time: f64,
+    progress_count: i32,
+}
+
+/// Sets up FFmpeg process and initial state
+fn setup_process_execution(
     mut cmd: Command,
-    _reporter: &mut ProgressReporter,
     context: &ProcessingContext,
-    total_duration: f64,
-) -> Result<()> {
-    let mut child = cmd.spawn()
+) -> Result<ProcessExecution> {
+    let child = cmd.spawn()
         .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Failed to start FFmpeg".to_string())))?;
     
     let emitter = ProgressEmitter::new(context.window.clone());
     
-    // Track progress state
-    let mut last_progress_time = 0.0;
-    let mut estimated_total_time = 0.0;
-    let mut progress_count = 0;
-    
-    // Read stderr for progress
-    if let Some(stderr) = child.stderr.take() {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            check_cancellation_and_kill_context(context, &mut child)?;
-            
-            let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
-            
-            let speed_multiplier = parse_speed_multiplier(&line);
+    Ok(ProcessExecution {
+        child,
+        emitter,
+        last_progress_time: 0.0,
+        estimated_total_time: 0.0,
+        progress_count: 0,
+    })
+}
 
-            // Parse progress from FFmpeg output and emit events
-            if let Some(progress_time) = crate::audio::progress::parse_ffmpeg_progress(&line) {
-                process_progress_update_context(
-                    progress_time,
-                    &mut last_progress_time,
-                    &mut progress_count,
-                    &mut estimated_total_time,
-                    total_duration,
-                    speed_multiplier,
-                    &emitter,
-                )?;
-            }
-            
-            // Check for errors (but ignore case-insensitive matches in file paths)
-            if (line.contains("Error") || line.contains("error")) && 
-               !line.contains("Output") && !line.contains("Input") {
-                eprintln!("FFmpeg error line: {line}");
-                if line.contains("No such file") || line.contains("Invalid data") {
-                    return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(format!("FFmpeg error: {line}"))));
-                }
-            }
+/// Handles a single line of FFmpeg output for progress and error checking
+fn handle_progress_line(
+    line: &str,
+    execution: &mut ProcessExecution,
+    _context: &ProcessingContext,
+    total_duration: f64,
+) -> Result<()> {
+    let speed_multiplier = parse_speed_multiplier(line);
+
+    // Parse progress from FFmpeg output and emit events
+    if let Some(progress_time) = crate::audio::progress::parse_ffmpeg_progress(line) {
+        process_progress_update_context(
+            progress_time,
+            &mut execution.last_progress_time,
+            &mut execution.progress_count,
+            &mut execution.estimated_total_time,
+            total_duration,
+            speed_multiplier,
+            &execution.emitter,
+        )?;
+    }
+    
+    // Check for errors (but ignore case-insensitive matches in file paths)
+    if (line.contains("Error") || line.contains("error")) && 
+       !line.contains("Output") && !line.contains("Input") {
+        eprintln!("FFmpeg error line: {line}");
+        if line.contains("No such file") || line.contains("Invalid data") {
+            return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(format!("FFmpeg error: {line}"))));
         }
     }
     
+    Ok(())
+}
+
+/// Monitors FFmpeg process output and handles progress updates
+fn monitor_process_with_progress(
+    execution: &mut ProcessExecution,
+    context: &ProcessingContext,
+    total_duration: f64,
+) -> Result<()> {
+    if let Some(stderr) = execution.child.stderr.take() {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            check_cancellation_and_kill_context(context, &mut execution.child)?;
+            
+            let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
+            
+            handle_progress_line(&line, execution, context, total_duration)?;
+        }
+    }
+    Ok(())
+}
+
+/// Waits for process completion and checks exit status
+fn finalize_process_execution(
+    mut execution: ProcessExecution,
+    context: &ProcessingContext,
+) -> Result<()> {
     // Check if process was cancelled before waiting
     if context.is_cancelled() {
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
     }
     
     // Wait for completion only if not cancelled
-    let status = child.wait()
+    let status = execution.child.wait()
         .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("FFmpeg execution failed".to_string())))?;
     
     if !status.success() {
@@ -737,6 +904,18 @@ async fn execute_with_progress_context(
     }
     
     Ok(())
+}
+
+/// Executes command with context-based progress tracking
+async fn execute_with_progress_context(
+    cmd: Command,
+    _reporter: &mut ProgressReporter,
+    context: &ProcessingContext,
+    total_duration: f64,
+) -> Result<()> {
+    let mut execution = setup_process_execution(cmd, context)?;
+    monitor_process_with_progress(&mut execution, context, total_duration)?;
+    finalize_process_execution(execution, context)
 }
 
 /// Executes command with progress tracking and event emission (ADAPTER)
