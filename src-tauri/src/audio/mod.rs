@@ -14,6 +14,7 @@ pub mod processor;
 pub mod constants;
 pub mod session;
 pub mod context;
+pub mod cleanup;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,3 +146,5 @@ pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};
 pub use processor::process_audiobook_with_events;
 #[allow(unused_imports)] // Context structures are designed for future use
 pub use context::{ProcessingContext, ProcessingContextBuilder, ProgressContext, ProgressContextBuilder};
+#[allow(unused_imports)] // Cleanup guards are designed for future use
+pub use cleanup::{CleanupGuard, ProcessGuard};

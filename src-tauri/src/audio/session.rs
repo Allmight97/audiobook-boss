@@ -12,6 +12,7 @@ use uuid::Uuid;
 /// 
 /// Each session has a unique UUID identifier and provides
 /// convenience methods for checking processing status.
+#[derive(Debug)]
 pub struct ProcessingSession {
     /// Unique identifier for this session
     id: Uuid,

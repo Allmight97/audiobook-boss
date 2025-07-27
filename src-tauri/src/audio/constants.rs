@@ -35,6 +35,18 @@ pub const PROCESS_TERMINATION_MAX_ATTEMPTS: u32 = 20;
 /// Delay between process termination checks in milliseconds
 pub const PROCESS_TERMINATION_CHECK_DELAY_MS: u64 = 100;
 
+/// Timeout duration for process termination in seconds
+#[allow(dead_code)]
+pub const PROCESS_TERMINATION_TIMEOUT_SECS: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Delay between process kill retry attempts in milliseconds
+#[allow(dead_code)]
+pub const PROCESS_KILL_RETRY_DELAY_MS: u64 = 100;
+
+/// Maximum number of cleanup retry attempts
+#[allow(dead_code)]
+pub const MAX_CLEANUP_RETRIES: u32 = 3;
+
 // Time calculation multipliers
 /// Minimum number of progress updates before estimating total time
 pub const PROGRESS_ESTIMATION_MIN_COUNT: i32 = 5;

@@ -16,7 +16,7 @@ use tauri::Window;
 /// 
 /// This context contains the essential components needed for audio processing,
 /// reducing the need to pass multiple parameters through function calls.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProcessingContext {
     /// Tauri window for event emission
     pub window: Window,
@@ -277,6 +277,130 @@ mod tests {
             // This test would require mocking Tauri Window and other dependencies
             // Skipping for now as it requires integration test setup
         }
+        
+        #[test]
+        fn test_processing_context_session_integration() {
+            // Test integration with ProcessingSession
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            let session_id = session.id();
+            
+            // We can't easily create a full ProcessingContext without mocking Tauri,
+            // but we can test the session integration aspects
+            assert!(!session_id.is_empty());
+            assert!(!session.is_cancelled());
+            assert!(!session.is_processing());
+        }
+        
+        #[test]
+        fn test_processing_context_cancellation_behavior() {
+            // Test cancellation behavior
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            
+            // Initially not cancelled
+            assert!(!session.is_cancelled());
+            
+            // Set cancellation through state access
+            {
+                let mut is_cancelled = session.state().is_cancelled.lock().unwrap();
+                *is_cancelled = true;
+            }
+            assert!(session.is_cancelled());
+        }
+        
+        #[test]
+        fn test_processing_context_state_management() {
+            // Test processing state management
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            
+            // Initially not processing
+            assert!(!session.is_processing());
+            
+            // Start processing through state access
+            {
+                let mut is_processing = session.state().is_processing.lock().unwrap();
+                *is_processing = true;
+            }
+            assert!(session.is_processing());
+            
+            // Stop processing through state access
+            {
+                let mut is_processing = session.state().is_processing.lock().unwrap();
+                *is_processing = false;
+            }
+            assert!(!session.is_processing());
+        }
+        
+        #[test]
+        fn test_processing_context_builder_validation() {
+            // Test that builder properly validates required fields
+            let builder = ProcessingContextBuilder::new();
+            
+            // Should fail without required fields
+            let result = builder.build();
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Window is required"));
+        }
+        
+        #[test]
+        fn test_processing_context_builder_partial() {
+            // Test builder with partial fields
+            use crate::audio::session::ProcessingSession;
+            use crate::audio::AudioSettings;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            let settings = AudioSettings::default();
+            
+            // Test with session but no window
+            let builder = ProcessingContextBuilder::new()
+                .session(session)
+                .settings(settings);
+                
+            let result = builder.build();
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Window is required"));
+        }
+        
+        #[test]
+        fn test_processing_context_enhanced_features() {
+            // Test enhanced features in ProcessingContext
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            
+            // Test session ID generation and uniqueness
+            let session_id1 = session.id();
+            let session2 = Arc::new(ProcessingSession::new());
+            let session_id2 = session2.id();
+            
+            assert_ne!(session_id1, session_id2);
+            assert!(!session_id1.is_empty());
+            assert!(!session_id2.is_empty());
+        }
+        
+        #[test]
+        fn test_processing_context_error_propagation() {
+            // Test error handling and propagation in context
+            use crate::errors::AppError;
+            
+            // Test that context-related errors are properly typed
+            let error = AppError::InvalidInput("Context validation failed".to_string());
+            assert!(error.to_string().contains("Context validation failed"));
+            
+            // Test that context errors can be converted and propagated
+            let general_error = AppError::General("General context error".to_string());
+            assert!(general_error.to_string().contains("General context error"));
+        }
     }
     
     mod progress_context {
@@ -330,6 +454,176 @@ mod tests {
             assert_eq!(ctx.files_completed, 9);
             assert_eq!(ctx.total_files, 10);
             assert_eq!(ctx.eta_seconds, Some(30.5));
+        }
+        
+        #[test]
+        fn test_progress_context_integration_with_cleanup() {
+            // Test integration between ProgressContext and cleanup operations
+            use crate::audio::cleanup::CleanupGuard;
+            
+            let ctx = ProgressContext::new(ProcessingStage::Analyzing, 25.0)
+                .with_message("Preparing cleanup resources");
+            
+            // Create a cleanup guard to simulate resource management during progress
+            let mut guard = CleanupGuard::new("progress-test-session".to_string());
+            
+            assert!(matches!(ctx.stage, ProcessingStage::Analyzing));
+            assert_eq!(ctx.progress, 25.0);
+            assert_eq!(guard.path_count(), 0);
+            
+            // Add some paths to simulate resource management
+            guard.add_path("/tmp/test1");
+            guard.add_path("/tmp/test2");
+            assert_eq!(guard.path_count(), 2);
+        }
+        
+        #[test]
+        fn test_progress_context_with_session_isolation() {
+            // Test that progress context works with session-isolated operations
+            let ctx1 = ProgressContext::new(ProcessingStage::Converting, 50.0)
+                .with_current_file("session1_file.mp3")
+                .with_file_progress(1, 5);
+                
+            let ctx2 = ProgressContext::new(ProcessingStage::Converting, 30.0)
+                .with_current_file("session2_file.mp3")
+                .with_file_progress(2, 8);
+            
+            // Contexts should be independent
+            assert_eq!(ctx1.current_file.as_deref(), Some("session1_file.mp3"));
+            assert_eq!(ctx2.current_file.as_deref(), Some("session2_file.mp3"));
+            assert_eq!(ctx1.files_completed, 1);
+            assert_eq!(ctx2.files_completed, 2);
+            assert_eq!(ctx1.total_files, 5);
+            assert_eq!(ctx2.total_files, 8);
+            
+            // Progress calculations should be independent
+            assert_eq!(ctx1.calculate_file_progress(), 20.0); // 1/5 * 100
+            assert_eq!(ctx2.calculate_file_progress(), 25.0); // 2/8 * 100
+        }
+        
+        #[test]
+        fn test_progress_context_error_handling() {
+            // Test error handling scenarios in progress context
+            let ctx = ProgressContext::new(ProcessingStage::WritingMetadata, 0.0)
+                .with_message("Handling error condition")
+                .with_file_progress(0, 0); // Edge case: no files
+            
+            // Should handle zero division gracefully
+            assert_eq!(ctx.calculate_file_progress(), 0.0);
+            
+            // Test extreme progress values
+            let ctx_extreme = ProgressContext::new(ProcessingStage::Merging, 150.0);
+            // Progress should be clamped in actual usage, but let's test the raw value
+            assert_eq!(ctx_extreme.progress, 150.0);
+            
+            // With clamping
+            let ctx_clamped = ProgressContext::new(ProcessingStage::Merging, 0.0)
+                .with_progress(150.0);
+            assert_eq!(ctx_clamped.progress, 100.0);
+        }
+    }
+    
+    mod integration_tests {
+        use super::*;
+        
+        #[test]
+        fn test_context_cleanup_integration() {
+            // Test integration between ProcessingContext and cleanup operations
+            use crate::audio::session::ProcessingSession;
+            use crate::audio::cleanup::{CleanupGuard, ProcessGuard};
+            use std::sync::Arc;
+            use std::process::Command;
+            
+            let session = Arc::new(ProcessingSession::new());
+            let session_id = session.id();
+            
+            // Test CleanupGuard integration
+            let cleanup_guard = CleanupGuard::new(session_id.clone());
+            assert_eq!(cleanup_guard.session_id(), session_id);
+            
+            // Test ProcessGuard integration (if we have a process)
+            if let Ok(child) = Command::new("echo").arg("test").spawn() {
+                let process_guard = ProcessGuard::new(
+                    child,
+                    session_id.clone(),
+                    "Integration test process".to_string()
+                );
+                assert_eq!(process_guard.session_id(), session_id);
+                assert_eq!(process_guard.description(), "Integration test process");
+            }
+        }
+        
+        #[test]
+        fn test_context_progress_integration() {
+            // Test integration between ProcessingContext and ProgressContext
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let _session = Arc::new(ProcessingSession::new());
+            
+            // Create progress context for different stages
+            let analyzing_ctx = ProgressContext::new(ProcessingStage::Analyzing, 10.0);
+            let converting_ctx = ProgressContext::new(ProcessingStage::Converting, 50.0);
+            let metadata_ctx = ProgressContext::new(ProcessingStage::WritingMetadata, 90.0);
+            
+            // Verify stages are correctly set
+            assert!(matches!(analyzing_ctx.stage, ProcessingStage::Analyzing));
+            assert!(matches!(converting_ctx.stage, ProcessingStage::Converting));
+            assert!(matches!(metadata_ctx.stage, ProcessingStage::WritingMetadata));
+            
+            // Verify progress values
+            assert_eq!(analyzing_ctx.progress, 10.0);
+            assert_eq!(converting_ctx.progress, 50.0);
+            assert_eq!(metadata_ctx.progress, 90.0);
+        }
+        
+        #[test]
+        fn test_context_error_handling_integration() {
+            // Test error handling across context boundaries
+            use crate::errors::AppError;
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let _session = Arc::new(ProcessingSession::new());
+            
+            // Test error scenarios that might occur in context usage
+            let validation_error = AppError::InvalidInput("Context validation failed".to_string());
+            let file_error = AppError::FileValidation("Context file operation failed".to_string());
+            let general_error = AppError::General("Context general error".to_string());
+            
+            // Verify error messages are preserved
+            assert!(validation_error.to_string().contains("Context validation failed"));
+            assert!(file_error.to_string().contains("Context file operation failed"));
+            assert!(general_error.to_string().contains("Context general error"));
+        }
+        
+        #[test]
+        fn test_context_resource_management() {
+            // Test resource management across context lifecycles
+            use crate::audio::session::ProcessingSession;
+            use crate::audio::cleanup::CleanupGuard;
+            use std::sync::Arc;
+            use tempfile::TempDir;
+            
+            let session = Arc::new(ProcessingSession::new());
+            let session_id = session.id();
+            
+            // Create temporary resources
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let test_file = temp_dir.path().join("context_test.txt");
+            std::fs::write(&test_file, "context test content").expect("Failed to write test file");
+            
+            // Use cleanup guard with session
+            {
+                let mut guard = CleanupGuard::new(session_id.clone());
+                guard.add_path(&test_file);
+                
+                // File should exist while guard is active
+                assert!(test_file.exists());
+            } // Guard drops here
+            
+            // File should be cleaned up
+            assert!(!test_file.exists());
         }
     }
 }

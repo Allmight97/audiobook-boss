@@ -19,6 +19,15 @@ pub enum AppError {
     #[error("Audio metadata error: {0}")]
     Metadata(#[from] lofty::error::LoftyError),
     
+    #[error("Process termination failed: {0}")]
+    ProcessTermination(String),
+    
+    #[error("Temporary directory creation failed: {0}")]
+    TempDirectoryCreation(String),
+    
+    #[error("Resource cleanup failed: {0}")]
+    ResourceCleanup(String),
+    
     #[error("Operation failed: {0}")]
     General(String),
 }

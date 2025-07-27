@@ -351,6 +351,7 @@ REPORT: [phase0_baseline_metrics.md](docs/planning/phase0_baseline_metrics.md)
 - ❌ Configuration management system
 - ❌ Plugin architecture
 
+
 ## Risk Mitigation
 
 ### Reduced Risks (vs Original Plan):
@@ -381,5 +382,7 @@ REPORT: [phase0_baseline_metrics.md](docs/planning/phase0_baseline_metrics.md)
 
 # Post-refactoring module strategy (future planning pending completion of this refactoring plan)
 Dev note: I'm concerned about modules larger than 400 lines.
-- processor.rs → Split into processor.rs, conversion.rs, validation.rs
+- processor.rs → Split into processor.rs, conversion.rs, validation.rs - AI agents keep adding more functions to this module and they shouldn't.
 - progress.rs → Potentially split tracking from calculation logic
+- cleanup.rs - make plan to split into smaller modules.
+- context.rs - make plan to split into smaller modules.
