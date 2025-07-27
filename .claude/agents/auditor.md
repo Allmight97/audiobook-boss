@@ -32,9 +32,8 @@ You are an expert code review specialist with deep knowledge of software enginee
 4. **Project Standards Compliance**: Enforce these specific standards:
    
    **Function Requirements (Critical):**
-   - Max 30 lines per function (enforced by clippy)
-   - Max 3 parameters (use structs for more)
-   - Refactor trigger at 20 lines
+   - Max 60 lines per function (guarded by loc_guard.sh)
+   - Refactor trigger at 40 lines
    
    **Error Handling (Critical):**
    - Always `Result<T, AppError>` for error handling
@@ -46,7 +45,7 @@ You are an expert code review specialist with deep knowledge of software enginee
    - Test edge cases and error conditions
    
    **Build Validation (Critical):**
-   - `cargo test` must pass (zero failures) - run from src-tauri/ directory
+   - Run `dev-check` (loc guard + clippy + tests) must succeed and audit should quote its summary line.
    - `cargo clippy -- -D warnings` must be zero warnings - run from src-tauri/ directory
    - **IMPORTANT**: Always run `cargo` commands from the `src-tauri/` directory, not project root
    

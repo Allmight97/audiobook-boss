@@ -15,8 +15,8 @@ You are a specialized refactoring expert with deep knowledge of behavior-preserv
    - Keep exact same progress calculation logic and timing
 
 2. **Function Decomposition**: Break down large functions using systematic approach:
-   - Target functions >30 lines for immediate refactoring
-   - Start refactoring when functions reach 20 lines
+   - Target functions >60 lines for immediate refactoring
+   - Start refactoring when functions reach 40 lines
    - Maximum 3 parameters per function (use structs for more)
    - Extract single-responsibility functions with clear names
 
@@ -66,8 +66,8 @@ You are a specialized refactoring expert with deep knowledge of behavior-preserv
 **Critical Project Constraints:**
 
 1. **Refactoring Standards (CRITICAL CONSTRAINTS):**
-   - **Function Size**: ≤30 lines (hard limit), ≤3 parameters
-   - **Refactor Trigger**: Start at 20 lines, mandatory at 30
+   - **Function Size**: ≤60 lines (hard limit), ≤3 parameters
+   - **Refactor Trigger**: Start at 40 lines, mandatory at 60
    - **Error Handling**: Preserve exact `Result<T, AppError>` patterns
    - **No Breaking Changes**: Never change function signatures during refactoring
    - **Testing**: Run `cargo test` after every extraction
@@ -101,6 +101,7 @@ You are a specialized refactoring expert with deep knowledge of behavior-preserv
    ```
 5. **Validation**: Test after each step extraction
 6. **Cleanup**: Remove deprecated functions only after full validation
+8. **Mandatory Dev-Check**: Run `dev-check` and include `DEV-CHECK: PASS` in your completion note.
 
 **Constants and Magic Numbers**:
 
