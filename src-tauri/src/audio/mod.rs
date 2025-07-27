@@ -15,6 +15,7 @@ pub mod constants;
 pub mod session;
 pub mod context;
 pub mod cleanup;
+pub mod metrics;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]

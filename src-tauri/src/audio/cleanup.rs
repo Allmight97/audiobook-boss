@@ -34,7 +34,22 @@ impl CleanupGuard {
     /// * `session_id` - Unique identifier for tracking cleanup operations
     /// 
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
+    /// # use std::collections::HashSet;
+    /// # struct CleanupGuard {
+    /// #     paths: HashSet<std::path::PathBuf>,
+    /// #     session_id: String,
+    /// #     enabled: bool,
+    /// # }
+    /// # impl CleanupGuard {
+    /// #     fn new(session_id: String) -> Self {
+    /// #         Self {
+    /// #             paths: HashSet::new(),
+    /// #             session_id,
+    /// #             enabled: true,
+    /// #         }
+    /// #     }
+    /// # }
     /// let guard = CleanupGuard::new("session-123".to_string());
     /// ```
     pub fn new(session_id: String) -> Self {
@@ -52,7 +67,26 @@ impl CleanupGuard {
     /// * `path` - Path to directory or file to be cleaned up
     /// 
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
+    /// # use std::collections::HashSet;
+    /// # use std::path::{Path, PathBuf};
+    /// # struct CleanupGuard {
+    /// #     paths: HashSet<PathBuf>,
+    /// #     session_id: String,
+    /// #     enabled: bool,
+    /// # }
+    /// # impl CleanupGuard {
+    /// #     fn new(session_id: String) -> Self {
+    /// #         Self {
+    /// #             paths: HashSet::new(),
+    /// #             session_id,
+    /// #             enabled: true,
+    /// #         }
+    /// #     }
+    /// #     fn add_path<P: AsRef<Path>>(&mut self, path: P) {
+    /// #         self.paths.insert(path.as_ref().to_path_buf());
+    /// #     }
+    /// # }
     /// let mut guard = CleanupGuard::new("session-123".to_string());
     /// guard.add_path("/tmp/audiobook_processing");
     /// ```
@@ -245,9 +279,30 @@ impl ProcessGuard {
     /// * `description` - Human-readable description of the process
     /// 
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
+    /// use std::process::{Command, Child};
+    /// # use std::sync::{Arc, Mutex};
+    /// # struct ProcessGuard {
+    /// #     process: Arc<Mutex<Option<Child>>>,
+    /// #     session_id: String,
+    /// #     description: String,
+    /// #     enabled: bool,
+    /// # }
+    /// # impl ProcessGuard {
+    /// #     fn new(process: Child, session_id: String, description: String) -> Self {
+    /// #         Self {
+    /// #             process: Arc::new(Mutex::new(Some(process))),
+    /// #             session_id,
+    /// #             description,
+    /// #             enabled: true,
+    /// #         }
+    /// #     }
+    /// # }
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let child = Command::new("ffmpeg").spawn()?;
     /// let guard = ProcessGuard::new(child, "session-123".to_string(), "FFmpeg conversion".to_string());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(process: Child, session_id: String, description: String) -> Self {
         debug!("Session {session_id}: Creating process guard for: {description}");

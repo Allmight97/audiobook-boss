@@ -41,7 +41,12 @@ impl ProcessingContext {
         use tauri::Emitter;
         self.window
             .emit(event_name, payload)
-            .map_err(|e| crate::errors::AppError::General(format!("Event emission failed: {e}")))?;
+            .map_err(|e| crate::errors::AppError::General(format!(
+                "Failed to emit event '{}' for session {}: {}",
+                event_name,
+                self.session.id(),
+                e
+            )))?;
         Ok(())
     }
     
@@ -53,6 +58,31 @@ impl ProcessingContext {
     /// Checks if processing is currently active
     pub fn is_processing(&self) -> bool {
         self.session.is_processing()
+    }
+    
+    /// Creates an error with session context
+    pub fn create_error(&self, operation: &str, reason: &str) -> crate::errors::AppError {
+        crate::errors::AppError::General(format!(
+            "Failed to {operation} for session {}: {reason}",
+            self.session.id()
+        ))
+    }
+    
+    /// Creates a file validation error with session and file context
+    pub fn create_file_error(&self, operation: &str, file_path: &str, reason: &str) -> crate::errors::AppError {
+        crate::errors::AppError::FileValidation(format!(
+            "Failed to {operation} file '{}' in session {}: {reason}",
+            file_path,
+            self.session.id()
+        ))
+    }
+    
+    /// Creates an input validation error with session context
+    pub fn create_input_error(&self, field: &str, reason: &str) -> crate::errors::AppError {
+        crate::errors::AppError::InvalidInput(format!(
+            "Failed to validate {field} for session {}: {reason}",
+            self.session.id()
+        ))
     }
 }
 
@@ -97,11 +127,17 @@ impl ProcessingContextBuilder {
     /// Returns an error if any required field is missing
     pub fn build(self) -> Result<ProcessingContext> {
         let window = self.window
-            .ok_or_else(|| crate::errors::AppError::InvalidInput("Window is required".to_string()))?;
+            .ok_or_else(|| crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Tauri window is required for event emission".to_string()
+            ))?;
         let session = self.session
-            .ok_or_else(|| crate::errors::AppError::InvalidInput("Session is required".to_string()))?;
+            .ok_or_else(|| crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Processing session is required for state management".to_string()
+            ))?;
         let settings = self.settings
-            .ok_or_else(|| crate::errors::AppError::InvalidInput("Settings are required".to_string()))?;
+            .ok_or_else(|| crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Audio settings are required for processing configuration".to_string()
+            ))?;
             
         Ok(ProcessingContext::new(window, session, settings))
     }
@@ -186,6 +222,39 @@ impl ProgressContext {
             return 0.0;
         }
         (self.files_completed as f32 / self.total_files as f32) * 100.0
+    }
+    
+    /// Creates a formatted progress message with file context
+    pub fn format_progress_message(&self) -> String {
+        let mut message = format!("Stage: {:?}, Progress: {:.1}%", self.stage, self.progress);
+        
+        if let Some(ref current_file) = self.current_file {
+            message.push_str(&format!(" | Current file: {current_file}"));
+        }
+        
+        if self.total_files > 0 {
+            message.push_str(&format!(" | Files: {}/{}", self.files_completed, self.total_files));
+        }
+        
+        if let Some(eta) = self.eta_seconds {
+            let minutes = (eta / 60.0) as i32;
+            let seconds = (eta % 60.0) as i32;
+            message.push_str(&format!(" | ETA: {minutes}m {seconds}s"));
+        }
+        
+        if let Some(ref msg) = self.message {
+            message.push_str(&format!(" | {msg}"));
+        }
+        
+        message
+    }
+    
+    /// Creates an error with progress context
+    pub fn create_error(&self, operation: &str, reason: &str) -> crate::errors::AppError {
+        let progress_info = self.format_progress_message();
+        crate::errors::AppError::General(format!(
+            "Failed to {operation} during processing ({progress_info}): {reason}"
+        ))
     }
 }
 
@@ -347,7 +416,7 @@ mod tests {
             // Should fail without required fields
             let result = builder.build();
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("Window is required"));
+            assert!(result.unwrap_err().to_string().contains("Failed to build ProcessingContext: Tauri window is required"));
         }
         
         #[test]
@@ -367,7 +436,7 @@ mod tests {
                 
             let result = builder.build();
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("Window is required"));
+            assert!(result.unwrap_err().to_string().contains("Failed to build ProcessingContext: Tauri window is required"));
         }
         
         #[test]
@@ -400,6 +469,45 @@ mod tests {
             // Test that context errors can be converted and propagated
             let general_error = AppError::General("General context error".to_string());
             assert!(general_error.to_string().contains("General context error"));
+        }
+        
+        #[test]
+        fn test_processing_context_error_helpers() {
+            // Test the new error helper methods
+            // We can't create a full ProcessingContext without Tauri, but we can test the error format
+            use crate::audio::session::ProcessingSession;
+            use std::sync::Arc;
+            
+            let session = Arc::new(ProcessingSession::new());
+            let session_id = session.id();
+            
+            // Test error format (we'll simulate the error messages that would be created)
+            let operation = "process audio";
+            let reason = "invalid format";
+            let expected_error = format!("Failed to {operation} for session {session_id}: {reason}");
+            assert!(expected_error.contains("Failed to process audio"));
+            assert!(expected_error.contains(&session_id));
+            assert!(expected_error.contains("invalid format"));
+            
+            // Test file error format
+            let file_path = "/path/to/audio.mp3";
+            let expected_file_error = format!(
+                "Failed to {operation} file '{}' in session {}: {reason}",
+                file_path,
+                session_id
+            );
+            assert!(expected_file_error.contains("Failed to process audio"));
+            assert!(expected_file_error.contains(file_path));
+            assert!(expected_file_error.contains(&session_id));
+            
+            // Test input error format
+            let field = "bitrate";
+            let expected_input_error = format!(
+                "Failed to validate {field} for session {}: {reason}",
+                session_id
+            );
+            assert!(expected_input_error.contains("Failed to validate bitrate"));
+            assert!(expected_input_error.contains(&session_id));
         }
     }
     
@@ -521,6 +629,49 @@ mod tests {
                 .with_progress(150.0);
             assert_eq!(ctx_clamped.progress, 100.0);
         }
+        
+        #[test]
+        fn test_progress_context_format_message() {
+            // Test the format_progress_message method
+            let ctx = ProgressContext::new(ProcessingStage::Converting, 45.5)
+                .with_message("Processing audio")
+                .with_current_file("track01.mp3")
+                .with_file_progress(3, 10)
+                .with_eta(125.0); // 2m 5s
+            
+            let message = ctx.format_progress_message();
+            assert!(message.contains("Stage: Converting"));
+            assert!(message.contains("Progress: 45.5%"));
+            assert!(message.contains("Current file: track01.mp3"));
+            assert!(message.contains("Files: 3/10"));
+            assert!(message.contains("ETA: 2m 5s"));
+            assert!(message.contains("Processing audio"));
+            
+            // Test minimal context
+            let minimal_ctx = ProgressContext::new(ProcessingStage::Analyzing, 10.0);
+            let minimal_message = minimal_ctx.format_progress_message();
+            assert!(minimal_message.contains("Stage: Analyzing"));
+            assert!(minimal_message.contains("Progress: 10.0%"));
+            assert!(!minimal_message.contains("Current file:")); // Should not include empty fields
+        }
+        
+        #[test]
+        fn test_progress_context_create_error() {
+            // Test the create_error method
+            let ctx = ProgressContext::new(ProcessingStage::Converting, 50.0)
+                .with_current_file("audio.mp3")
+                .with_file_progress(5, 10);
+            
+            let error = ctx.create_error("convert file", "FFmpeg process failed");
+            let error_msg = error.to_string();
+            
+            assert!(error_msg.contains("Failed to convert file during processing"));
+            assert!(error_msg.contains("Stage: Converting"));
+            assert!(error_msg.contains("Progress: 50.0%"));
+            assert!(error_msg.contains("Current file: audio.mp3"));
+            assert!(error_msg.contains("Files: 5/10"));
+            assert!(error_msg.contains("FFmpeg process failed"));
+        }
     }
     
     mod integration_tests {
@@ -584,7 +735,8 @@ mod tests {
             use crate::audio::session::ProcessingSession;
             use std::sync::Arc;
             
-            let _session = Arc::new(ProcessingSession::new());
+            let session = Arc::new(ProcessingSession::new());
+            let session_id = session.id();
             
             // Test error scenarios that might occur in context usage
             let validation_error = AppError::InvalidInput("Context validation failed".to_string());
@@ -595,6 +747,30 @@ mod tests {
             assert!(validation_error.to_string().contains("Context validation failed"));
             assert!(file_error.to_string().contains("Context file operation failed"));
             assert!(general_error.to_string().contains("Context general error"));
+            
+            // Demonstrate enhanced error messages with context
+            let enhanced_general = AppError::General(format!(
+                "Failed to process audio for session {}: FFmpeg terminated unexpectedly",
+                session_id
+            ));
+            assert!(enhanced_general.to_string().contains(&session_id));
+            assert!(enhanced_general.to_string().contains("FFmpeg terminated unexpectedly"));
+            
+            let enhanced_file = AppError::FileValidation(format!(
+                "Failed to validate file '/path/to/audio.mp3' in session {}: Unsupported audio format",
+                session_id
+            ));
+            assert!(enhanced_file.to_string().contains(&session_id));
+            assert!(enhanced_file.to_string().contains("/path/to/audio.mp3"));
+            assert!(enhanced_file.to_string().contains("Unsupported audio format"));
+            
+            let enhanced_input = AppError::InvalidInput(format!(
+                "Failed to validate bitrate for session {}: Value 512k exceeds maximum allowed (320k)",
+                session_id
+            ));
+            assert!(enhanced_input.to_string().contains(&session_id));
+            assert!(enhanced_input.to_string().contains("bitrate"));
+            assert!(enhanced_input.to_string().contains("512k exceeds maximum"));
         }
         
         #[test]

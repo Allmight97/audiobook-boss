@@ -6,6 +6,7 @@ use super::context::ProcessingContext;
 use super::session::ProcessingSession;
 use super::progress::ProgressEmitter;
 use super::cleanup::CleanupGuard;
+use super::metrics::ProcessingMetrics;
 use crate::errors::{AppError, Result};
 use crate::ffmpeg::FFmpegError;
 use crate::metadata::{AudiobookMetadata, write_metadata};
@@ -15,6 +16,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
+use std::time::Duration;
 
 // ProgressEvent moved to progress.rs module for centralized management
 // Using the centralized ProgressEvent from super::progress module
@@ -40,7 +42,7 @@ pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
             }
             Err(e) => {
                 // Log the error but continue with other files
-                eprintln!("Warning: Could not read sample rate from {}: {}", path.display(), e);
+                log::warn!("Could not read sample rate from {}: {}", path.display(), e);
             }
         }
     }
@@ -108,7 +110,11 @@ pub async fn process_audiobook(
     // Stage 3: Write metadata if provided
     if let Some(metadata) = metadata {
         reporter.set_stage(ProcessingStage::WritingMetadata);
-        write_metadata(&merged_output, &metadata)?;
+        write_metadata(&merged_output, &metadata)
+            .map_err(|e| {
+                log::error!("Failed to write metadata to '{}': {}", merged_output.display(), e);
+                e
+            })?;
     }
     
     // Stage 4: Move to final location
@@ -388,7 +394,7 @@ async fn execute_processing(
     emitter.emit_converting_start("Starting audio conversion...");
     
     // Log basic info for debugging
-    eprintln!("Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k", 
+    log::info!("Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k", 
               workflow.total_duration, context.settings.bitrate);
     
     let merged_output = merge_audio_files_with_context(
@@ -473,16 +479,36 @@ pub async fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
+    let mut metrics = ProcessingMetrics::new();
     
     // Stage 1: Validate and prepare
     reporter.set_stage(ProcessingStage::Analyzing);
     let workflow = validate_and_prepare(&context, &files)?;
     
+    // Update metrics with file information
+    for file in &files {
+        if file.is_valid {
+            if let Some(duration) = file.duration {
+                // Estimate file size based on duration and bitrate
+                let estimated_bytes = (duration * context.settings.bitrate as f64 * 125.0) as usize;
+                metrics.update_file_processed(
+                    Duration::from_secs_f64(duration),
+                    estimated_bytes
+                );
+            }
+        }
+    }
+    
     // Stage 2: Execute processing
     let merged_output = execute_processing(&context, &workflow, &files, &mut reporter).await?;
     
     // Stage 3: Finalize with metadata and cleanup
-    finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await
+    let result = finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await?;
+    
+    // Log final metrics summary
+    log::info!("{}", metrics.format_summary());
+    
+    Ok(result)
 }
 
 /// Creates processing session from legacy state
@@ -596,18 +622,18 @@ fn check_cancellation_and_kill_context(
     child: &mut std::process::Child,
 ) -> Result<()> {
     if context.is_cancelled() {
-        eprintln!("Cancellation detected, killing FFmpeg process...");
+        log::debug!("Cancellation detected, killing FFmpeg process...");
         let _ = child.kill();
         
         // Wait for process to actually terminate
         for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {  // Try for 2 seconds max
             if let Ok(Some(_)) = child.try_wait() {
-                eprintln!("FFmpeg process terminated successfully");
+                log::debug!("FFmpeg process terminated successfully");
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_CHECK_DELAY_MS));
             if i == PROCESS_TERMINATION_MAX_ATTEMPTS - 1 {
-                eprintln!("Warning: FFmpeg process may not have terminated cleanly");
+                log::warn!("FFmpeg process may not have terminated cleanly");
             }
         }
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
@@ -629,18 +655,18 @@ fn check_cancellation_and_kill(
         .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
     
     if *is_cancelled {
-        eprintln!("Cancellation detected, killing FFmpeg process...");
+        log::debug!("Cancellation detected, killing FFmpeg process...");
         let _ = child.kill();
         
         // Wait for process to actually terminate
         for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {  // Try for 2 seconds max
             if let Ok(Some(_)) = child.try_wait() {
-                eprintln!("FFmpeg process terminated successfully");
+                log::debug!("FFmpeg process terminated successfully");
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_CHECK_DELAY_MS));
             if i == PROCESS_TERMINATION_MAX_ATTEMPTS - 1 {
-                eprintln!("Warning: FFmpeg process may not have terminated cleanly");
+                log::warn!("FFmpeg process may not have terminated cleanly");
             }
         }
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
@@ -871,9 +897,12 @@ fn handle_progress_line(
     // Check for errors (but ignore case-insensitive matches in file paths)
     if (line.contains("Error") || line.contains("error")) && 
        !line.contains("Output") && !line.contains("Input") {
-        eprintln!("FFmpeg error line: {line}");
+        log::error!("FFmpeg error line: {line}");
         if line.contains("No such file") || line.contains("Invalid data") {
-            return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(format!("FFmpeg error: {line}"))));
+            log::error!("FFmpeg critical error: {line}");
+            return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(
+                format!("FFmpeg failed to process audio files: {line}")
+            )));
         }
     }
     
@@ -906,15 +935,25 @@ fn finalize_process_execution(
 ) -> Result<()> {
     // Check if process was cancelled before waiting
     if context.is_cancelled() {
-        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+        log::info!("Processing cancelled before FFmpeg completion");
+        return Err(AppError::InvalidInput("Processing was cancelled by user before FFmpeg completion".to_string()));
     }
     
     // Wait for completion only if not cancelled
     let status = execution.child.wait()
-        .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("FFmpeg execution failed".to_string())))?;
+        .map_err(|e| {
+            let msg = format!("Failed to wait for FFmpeg process completion: {e}");
+            log::error!("{msg}");
+            AppError::FFmpeg(FFmpegError::ExecutionFailed(msg))
+        })?;
     
     if !status.success() {
-        return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed("FFmpeg exited with error".to_string())));
+        let exit_code = status.code()
+            .map(|c| format!(" (exit code: {c})"))
+            .unwrap_or_default();
+        let msg = format!("FFmpeg process failed during audio conversion{exit_code}");
+        log::error!("{msg}");
+        return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(msg)));
     }
     
     Ok(())
@@ -967,9 +1006,14 @@ async fn execute_with_progress_events(
 
 /// Cleans up session-specific temporary directory using CleanupGuard
 fn cleanup_temp_directory_with_session(session_id: &str, temp_dir: PathBuf) -> Result<()> {
+    log::debug!("Cleaning up temporary directory for session {}: {}", session_id, temp_dir.display());
     let mut guard = CleanupGuard::new(session_id.to_string());
     guard.add_path(&temp_dir);
     guard.cleanup_now()
+        .map_err(|e| {
+            log::warn!("Failed to cleanup temporary directory '{}': {}", temp_dir.display(), e);
+            e
+        })
 }
 
 /// Cleans up temporary directory (ADAPTER)
@@ -979,9 +1023,12 @@ fn cleanup_temp_directory_with_session(session_id: &str, temp_dir: PathBuf) -> R
 #[deprecated = "Use cleanup_temp_directory_with_session for session isolation"]
 fn cleanup_temp_directory(temp_dir: PathBuf) -> Result<()> {
     std::fs::remove_dir_all(&temp_dir)
-        .map_err(|e| AppError::FileValidation(
-            format!("Cannot cleanup temp directory: {e}")
-        ))?;
+        .map_err(|e| {
+            let msg = format!("Cannot cleanup temporary directory '{}': {}. Directory may still contain files.", 
+                temp_dir.display(), e);
+            log::warn!("{msg}");
+            AppError::FileValidation(msg)
+        })?;
     Ok(())
 }
 
@@ -1035,10 +1082,13 @@ mod tests {
 
     #[test]
     fn test_create_temp_directory() {
-        let result = create_temp_directory();
+        let session_id = "test-session-123";
+        let result = create_temp_directory_with_session(session_id);
         assert!(result.is_ok());
         let temp_dir = result.unwrap();
         assert!(temp_dir.exists());
+        // Check that session ID is in the path
+        assert!(temp_dir.to_string_lossy().contains(session_id));
         
         // Cleanup
         let _ = std::fs::remove_dir_all(temp_dir);

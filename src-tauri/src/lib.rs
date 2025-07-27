@@ -25,6 +25,12 @@ pub struct ProcessingState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging with INFO level for production
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .init();
+    
+    log::info!("Starting Audiobook Boss application");
+    
     let processing_state = ProcessingState::default();
     
     tauri::Builder::default()

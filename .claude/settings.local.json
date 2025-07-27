@@ -18,7 +18,8 @@
       "Bash(rg:*)",
       "Bash(cargo run:*)",
       "Bash(sed:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(RUST_LOG=debug cargo run --bin audiobook-boss)"
     ],
     "deny": []
   }
