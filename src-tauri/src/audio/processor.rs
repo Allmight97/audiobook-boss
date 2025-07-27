@@ -1,6 +1,10 @@
 //! Core audio processing and merge implementation
 
 use super::{AudioFile, AudioSettings, ProgressReporter, ProcessingStage, SampleRateConfig};
+use super::constants::*;
+use super::context::ProcessingContext;
+use super::session::ProcessingSession;
+use super::progress::ProgressEmitter;
 use crate::errors::{AppError, Result};
 use crate::ffmpeg::FFmpegError;
 use crate::metadata::{AudiobookMetadata, write_metadata};
@@ -10,18 +14,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
-use serde::Serialize;
-use tauri::Emitter;
 
-/// Progress event for frontend communication
-#[derive(Clone, Serialize)]
-struct ProgressEvent {
-    stage: String,
-    percentage: f32,
-    message: String,
-    current_file: Option<String>,
-    eta_seconds: Option<f64>,
-}
+// ProgressEvent moved to progress.rs module for centralized management
+// Using the centralized ProgressEvent from super::progress module
 
 /// Detects the most common sample rate from input files
 pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
@@ -152,7 +147,7 @@ fn validate_processing_inputs(
 
 /// Creates temporary directory for processing
 fn create_temp_directory() -> Result<PathBuf> {
-    let temp_dir = std::env::temp_dir().join("audiobook-boss");
+    let temp_dir = std::env::temp_dir().join(TEMP_DIR_NAME);
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| AppError::FileValidation(
             format!("Cannot create temp directory: {e}")
@@ -165,7 +160,7 @@ fn create_concat_file(
     files: &[AudioFile],
     temp_dir: &Path
 ) -> Result<PathBuf> {
-    let concat_file = temp_dir.join("concat.txt");
+    let concat_file = temp_dir.join(TEMP_CONCAT_FILENAME);
     
     let mut content = String::new();
     for file in files {
@@ -192,7 +187,7 @@ async fn merge_audio_files_with_progress(
 ) -> Result<PathBuf> {
     let temp_output = concat_file.parent()
         .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
-        .join("merged.m4b");
+        .join(TEMP_MERGED_FILENAME);
     
     // Extract file paths for sample rate detection
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
@@ -223,17 +218,17 @@ fn build_merge_command(
     
     let mut cmd = Command::new(ffmpeg_path);
     cmd.args([
-        "-f", "concat",
-        "-safe", "0",
+        "-f", FFMPEG_CONCAT_FORMAT,
+        "-safe", FFMPEG_CONCAT_SAFE_MODE,
         "-i", &concat_file.to_string_lossy(),
         "-vn",  // Disable video processing (ignore album artwork)
         "-map", "0:a",  // Only map audio streams
         "-map_metadata", "0",  // Preserve metadata from first input
-        "-c:a", "libfdk_aac",
+        "-c:a", FFMPEG_AUDIO_CODEC,
         "-b:a", &format!("{}k", settings.bitrate),
         "-ar", &sample_rate.to_string(),
         "-ac", &settings.channels.channel_count().to_string(),
-        "-progress", "pipe:2",  // Enable progress output to stderr
+        "-progress", FFMPEG_PROGRESS_PIPE,  // Enable progress output to stderr
         "-nostats",  // Disable normal stats output to avoid interference
         "-y",  // Overwrite output file
         &output.to_string_lossy(),
@@ -305,63 +300,41 @@ fn move_to_final_location(
     Ok(final_path.to_path_buf())
 }
 
-/// Main function to process audiobook with event emission for progress tracking
-pub async fn process_audiobook_with_events(
-    window: tauri::Window,
-    state: tauri::State<'_, crate::ProcessingState>,
+/// Main function to process audiobook with context-based architecture
+/// 
+/// This is the new structured approach using ProcessingContext
+/// All new code should use this function directly
+pub async fn process_audiobook_with_context(
+    context: ProcessingContext,
     files: Vec<AudioFile>,
-    settings: AudioSettings,
     metadata: Option<AudiobookMetadata>,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
+    let emitter = ProgressEmitter::new(context.window.clone());
     
-    // Helper function to emit progress events
-    let emit_progress = |stage: &ProcessingStage, progress: f32, message: &str| {
-        let stage_str = match stage {
-            ProcessingStage::Analyzing => "analyzing",
-            ProcessingStage::Converting => "converting", 
-            ProcessingStage::Merging => "merging",
-            ProcessingStage::WritingMetadata => "writing",
-            ProcessingStage::Completed => "completed",
-            ProcessingStage::Failed(_) => "failed",
-        };
-        
-        let event = ProgressEvent {
-            stage: stage_str.to_string(),
-            percentage: progress,
-            message: message.to_string(),
-            current_file: None,
-            eta_seconds: None,
-        };
-        
-        let _ = window.emit("processing-progress", &event);
-    };
-    
-    // Check for cancellation
+    // Helper function to check for cancellation
     let check_cancelled = || -> Result<()> {
-        let is_cancelled = state.is_cancelled.lock()
-            .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
-        if *is_cancelled {
+        if context.is_cancelled() {
             return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
         }
         Ok(())
     };
     
     // Validate inputs
-    emit_progress(&ProcessingStage::Analyzing, 0.0, "Validating input files...");
-    validate_processing_inputs(&files, &settings)?;
+    emitter.emit_analyzing_start("Validating input files...");
+    validate_processing_inputs(&files, &context.settings)?;
     check_cancelled()?;
     
     // Stage 1: Analyze files
     reporter.set_stage(ProcessingStage::Analyzing);
-    emit_progress(&ProcessingStage::Analyzing, 10.0, "Creating temporary workspace...");
+    emitter.emit_analyzing_end("Creating temporary workspace...");
     let temp_dir = create_temp_directory()?;
     let concat_file = create_concat_file(&files, &temp_dir)?;
     check_cancelled()?;
     
     // Stage 2: Convert and merge files
     reporter.set_stage(ProcessingStage::Converting);
-    emit_progress(&ProcessingStage::Converting, 10.0, "Starting audio conversion...");
+    emitter.emit_converting_start("Starting audio conversion...");
     
     // Calculate total duration for progress tracking
     let total_duration: f64 = files.iter()
@@ -371,14 +344,12 @@ pub async fn process_audiobook_with_events(
     
     // Log basic info for debugging
     eprintln!("Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k", 
-              total_duration, settings.bitrate);
+              total_duration, context.settings.bitrate);
     
-    let merged_output = merge_audio_files_with_events(
+    let merged_output = merge_audio_files_with_context(
         &concat_file,
-        &settings,
+        &context,
         &mut reporter,
-        &window,
-        &state,
         total_duration,
         &files
     ).await?;
@@ -387,27 +358,96 @@ pub async fn process_audiobook_with_events(
     // Stage 3: Write metadata if provided
     if let Some(metadata) = metadata {
         reporter.set_stage(ProcessingStage::WritingMetadata);
-        emit_progress(&ProcessingStage::WritingMetadata, 90.0, "Writing metadata...");
+        emitter.emit_metadata_start("Writing metadata...");
         write_metadata(&merged_output, &metadata)?;
         check_cancelled()?;
     }
     
     // Stage 4: Move to final location
-    emit_progress(&ProcessingStage::WritingMetadata, 95.0, "Moving to final location...");
-    let final_output = move_to_final_location(merged_output, &settings.output_path)?;
+    emitter.emit_finalizing("Moving to final location...");
+    let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
     check_cancelled()?;
     
     // Cleanup
-    emit_progress(&ProcessingStage::Completed, 98.0, "Cleaning up temporary files...");
+    emitter.emit_cleanup("Cleaning up temporary files...");
     cleanup_temp_directory(temp_dir)?;
     
     reporter.complete();
-    emit_progress(&ProcessingStage::Completed, 100.0, "Processing completed successfully!");
+    emitter.emit_complete("Processing completed successfully!");
     
     Ok(format!("Successfully created audiobook: {}", final_output.display()))
 }
 
-/// Merges audio files with progress tracking and event emission
+/// Main function to process audiobook with event emission for progress tracking
+/// 
+/// ADAPTER FUNCTION: This maintains backward compatibility by converting
+/// the old parameter-based approach to use the new ProcessingContext internally.
+/// 
+/// All existing code calling this function will continue to work unchanged.
+#[deprecated = "Use process_audiobook_with_context for new code - this adapter maintains compatibility"]
+pub async fn process_audiobook_with_events(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::ProcessingState>,
+    files: Vec<AudioFile>,
+    settings: AudioSettings,
+    metadata: Option<AudiobookMetadata>,
+) -> Result<String> {
+    // Create ProcessingContext from legacy parameters
+    use std::sync::Arc;
+    let session = Arc::new(ProcessingSession::new());
+    
+    // Copy state values from old state to new session
+    {
+        let old_is_processing = state.is_processing.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access processing state".to_string()))?;
+        let old_is_cancelled = state.is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access cancellation state".to_string()))?;
+            
+        let mut new_is_processing = session.state().is_processing.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access new processing state".to_string()))?;
+        let mut new_is_cancelled = session.state().is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access new cancellation state".to_string()))?;
+            
+        *new_is_processing = *old_is_processing;
+        *new_is_cancelled = *old_is_cancelled;
+    }
+    
+    let context = ProcessingContext::new(window, session, settings);
+    
+    // Delegate to the new context-based function
+    process_audiobook_with_context(context, files, metadata).await
+}
+
+/// Merges audio files with context-based progress tracking
+async fn merge_audio_files_with_context(
+    concat_file: &Path,
+    context: &ProcessingContext,
+    reporter: &mut ProgressReporter,
+    total_duration: f64,
+    files: &[AudioFile],
+) -> Result<PathBuf> {
+    let temp_output = concat_file.parent()
+        .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
+        .join(TEMP_MERGED_FILENAME);
+    
+    // Extract file paths for sample rate detection
+    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    
+    // Build FFmpeg command
+    let cmd = build_merge_command(concat_file, &temp_output, &context.settings, &file_paths)?;
+    
+    // Execute with progress tracking using context
+    execute_with_progress_context(cmd, reporter, context, total_duration).await?;
+    
+    Ok(temp_output)
+}
+
+/// Merges audio files with progress tracking and event emission (ADAPTER)
+/// 
+/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
+/// to use the new context-based approach internally.
+#[deprecated = "Use merge_audio_files_with_context for new code - this adapter maintains compatibility"]
+#[allow(dead_code)]
 async fn merge_audio_files_with_events(
     concat_file: &Path,
     settings: &AudioSettings,
@@ -417,23 +457,56 @@ async fn merge_audio_files_with_events(
     total_duration: f64,
     files: &[AudioFile],
 ) -> Result<PathBuf> {
-    let temp_output = concat_file.parent()
-        .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
-        .join("merged.m4b");
+    // Create context from legacy parameters
+    use std::sync::Arc;
+    let session = Arc::new(ProcessingSession::new());
     
-    // Extract file paths for sample rate detection
-    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    // Copy state values
+    {
+        let old_is_cancelled = state.is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access cancellation state".to_string()))?;
+        let mut new_is_cancelled = session.state().is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access new cancellation state".to_string()))?;
+        *new_is_cancelled = *old_is_cancelled;
+    }
     
-    // Build FFmpeg command
-    let cmd = build_merge_command(concat_file, &temp_output, settings, &file_paths)?;
+    let context = ProcessingContext::new(window.clone(), session, settings.clone());
     
-    // Execute with progress tracking and events
-    execute_with_progress_events(cmd, reporter, window, state, total_duration).await?;
-    
-    Ok(temp_output)
+    // Delegate to new context-based function
+    merge_audio_files_with_context(concat_file, &context, reporter, total_duration, files).await
 }
 
-/// Checks for cancellation and kills process if needed
+/// Checks for cancellation and kills process if needed (context-based)
+fn check_cancellation_and_kill_context(
+    context: &ProcessingContext,
+    child: &mut std::process::Child,
+) -> Result<()> {
+    if context.is_cancelled() {
+        eprintln!("Cancellation detected, killing FFmpeg process...");
+        let _ = child.kill();
+        
+        // Wait for process to actually terminate
+        for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {  // Try for 2 seconds max
+            if let Ok(Some(_)) = child.try_wait() {
+                eprintln!("FFmpeg process terminated successfully");
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_CHECK_DELAY_MS));
+            if i == PROCESS_TERMINATION_MAX_ATTEMPTS - 1 {
+                eprintln!("Warning: FFmpeg process may not have terminated cleanly");
+            }
+        }
+        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+    }
+    Ok(())
+}
+
+/// Checks for cancellation and kills process if needed (ADAPTER)
+/// 
+/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
+/// to use the new context-based approach internally.
+#[deprecated = "Use check_cancellation_and_kill_context for new code - this adapter maintains compatibility"]
+#[allow(dead_code)]
 fn check_cancellation_and_kill(
     state: &tauri::State<'_, crate::ProcessingState>,
     child: &mut std::process::Child,
@@ -446,13 +519,13 @@ fn check_cancellation_and_kill(
         let _ = child.kill();
         
         // Wait for process to actually terminate
-        for i in 0..20 {  // Try for 2 seconds max
+        for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {  // Try for 2 seconds max
             if let Ok(Some(_)) = child.try_wait() {
                 eprintln!("FFmpeg process terminated successfully");
                 break;
             }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            if i == 19 {
+            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_CHECK_DELAY_MS));
+            if i == PROCESS_TERMINATION_MAX_ATTEMPTS - 1 {
                 eprintln!("Warning: FFmpeg process may not have terminated cleanly");
             }
         }
@@ -476,26 +549,24 @@ fn parse_speed_multiplier(line: &str) -> Option<f64> {
     None
 }
 
-/// Processes progress update and emits events
-fn process_progress_update(
+/// Processes progress update and emits events (context-based)
+fn process_progress_update_context(
     progress_time: f32,
     last_progress_time: &mut f32,
     progress_count: &mut i32,
     estimated_total_time: &mut f64,
     total_duration: f64,
     speed_multiplier: Option<f64>,
-    window: &tauri::Window,
+    emitter: &ProgressEmitter,
 ) -> Result<()> {
-    if progress_time == 100.0 {
+    if progress_time == PROGRESS_COMPLETE {
         eprint!("\rConverting: Done!                                          \n");
-        let event = ProgressEvent {
-            stage: "converting".to_string(),
-            percentage: 90.0,
-            message: "Finalizing audio conversion...".to_string(),
-            current_file: None,
-            eta_seconds: None,
-        };
-        let _ = window.emit("processing-progress", &event);
+        emitter.emit_converting_progress(
+            PROGRESS_METADATA_START,
+            "Finalizing audio conversion...",
+            None,
+            None,
+        );
     } else if progress_time > *last_progress_time {
         *last_progress_time = progress_time;
         *progress_count += 1;
@@ -503,8 +574,8 @@ fn process_progress_update(
         // Use known total duration if available
         if *estimated_total_time == 0.0 && total_duration > 0.0 {
             *estimated_total_time = total_duration;
-        } else if *progress_count > 5 && *estimated_total_time == 0.0 {
-            *estimated_total_time = progress_time as f64 * 10.0; // Conservative estimate
+        } else if *progress_count > PROGRESS_ESTIMATION_MIN_COUNT && *estimated_total_time == 0.0 {
+            *estimated_total_time = progress_time as f64 * INITIAL_TIME_ESTIMATE_MULTIPLIER; // Conservative estimate
         }
         
         let progress_percentage = calculate_and_display_progress(
@@ -514,16 +585,48 @@ fn process_progress_update(
             speed_multiplier,
         );
         
-        let event = ProgressEvent {
-            stage: "converting".to_string(),
-            percentage: progress_percentage.min(79.0) as f32,
-            message: "Converting and merging audio files...".to_string(),
-            current_file: None,
-            eta_seconds: None,
+        let eta_seconds = if let Some(speed) = speed_multiplier {
+            let remaining_time = (*estimated_total_time - progress_time as f64) / speed;
+            if remaining_time > 0.0 { Some(remaining_time) } else { None }
+        } else {
+            None
         };
-        let _ = window.emit("processing-progress", &event);
+        
+        emitter.emit_converting_progress(
+            progress_percentage.min(PROGRESS_CONVERTING_MAX as f64) as f32,
+            "Converting and merging audio files...",
+            None,
+            eta_seconds,
+        );
     }
     Ok(())
+}
+
+/// Processes progress update and emits events (ADAPTER)
+/// 
+/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
+/// to use the new ProgressEmitter approach internally.
+#[deprecated = "Use process_progress_update_context for new code - this adapter maintains compatibility"]
+#[allow(dead_code)]
+fn process_progress_update(
+    progress_time: f32,
+    last_progress_time: &mut f32,
+    progress_count: &mut i32,
+    estimated_total_time: &mut f64,
+    total_duration: f64,
+    speed_multiplier: Option<f64>,
+    window: &tauri::Window,
+) -> Result<()> {
+    let emitter = ProgressEmitter::new(window.clone());
+    process_progress_update_context(
+        progress_time,
+        last_progress_time,
+        progress_count,
+        estimated_total_time,
+        total_duration,
+        speed_multiplier,
+        &emitter,
+    )
 }
 
 /// Calculates and displays progress information
@@ -535,7 +638,7 @@ fn calculate_and_display_progress(
 ) -> f64 {
     if estimated_total_time > 0.0 {
         let file_progress = (progress_time as f64 / estimated_total_time).min(1.0);
-        let percentage = 10.0 + (file_progress * 70.0); // Map to 10-80% range
+        let percentage = PROGRESS_CONVERTING_START as f64 + (file_progress * PROGRESS_RANGE_MULTIPLIER); // Map to 10-80% range
         
         let speed_text = speed_multiplier
             .map(|s| format!(" [Speed: {s:.1}x]"))
@@ -544,8 +647,8 @@ fn calculate_and_display_progress(
         let eta_text = if let Some(speed) = speed_multiplier {
             let remaining_time = (estimated_total_time - progress_time as f64) / speed;
             if remaining_time > 0.0 {
-                let minutes = (remaining_time / 60.0) as u32;
-                let seconds = (remaining_time % 60.0) as u32;
+                let minutes = (remaining_time / SECONDS_PER_MINUTE) as u32;
+                let seconds = (remaining_time % SECONDS_PER_MINUTE) as u32;
                 format!(" [ETA: {minutes}m {seconds}s]")
             } else {
                 String::new()
@@ -563,22 +666,23 @@ fn calculate_and_display_progress(
         
         percentage
     } else {
-        let percentage = 10.0 + ((progress_count as f64).min(50.0) * 1.4);
+        let percentage = PROGRESS_CONVERTING_START as f64 + ((progress_count as f64).min(MAX_INITIAL_PROGRESS_COUNT) * ANALYSIS_PROGRESS_MULTIPLIER);
         eprint!("\rConverting: {percentage:.1}% (analyzing...)");
         percentage
     }
 }
 
-/// Executes command with progress tracking and event emission
-async fn execute_with_progress_events(
+/// Executes command with context-based progress tracking
+async fn execute_with_progress_context(
     mut cmd: Command,
     _reporter: &mut ProgressReporter,
-    window: &tauri::Window,
-    state: &tauri::State<'_, crate::ProcessingState>,
+    context: &ProcessingContext,
     total_duration: f64,
 ) -> Result<()> {
     let mut child = cmd.spawn()
         .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Failed to start FFmpeg".to_string())))?;
+    
+    let emitter = ProgressEmitter::new(context.window.clone());
     
     // Track progress state
     let mut last_progress_time = 0.0;
@@ -589,7 +693,7 @@ async fn execute_with_progress_events(
     if let Some(stderr) = child.stderr.take() {
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
-            check_cancellation_and_kill(state, &mut child)?;
+            check_cancellation_and_kill_context(context, &mut child)?;
             
             let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
             
@@ -597,14 +701,14 @@ async fn execute_with_progress_events(
 
             // Parse progress from FFmpeg output and emit events
             if let Some(progress_time) = crate::audio::progress::parse_ffmpeg_progress(&line) {
-                process_progress_update(
+                process_progress_update_context(
                     progress_time,
                     &mut last_progress_time,
                     &mut progress_count,
                     &mut estimated_total_time,
                     total_duration,
                     speed_multiplier,
-                    window,
+                    &emitter,
                 )?;
             }
             
@@ -620,10 +724,7 @@ async fn execute_with_progress_events(
     }
     
     // Check if process was cancelled before waiting
-    let is_cancelled = state.is_cancelled.lock()
-        .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
-    
-    if *is_cancelled {
+    if context.is_cancelled() {
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
     }
     
@@ -636,6 +737,39 @@ async fn execute_with_progress_events(
     }
     
     Ok(())
+}
+
+/// Executes command with progress tracking and event emission (ADAPTER)
+/// 
+/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
+/// to use the new context-based approach internally.
+#[deprecated = "Use execute_with_progress_context for new code - this adapter maintains compatibility"]
+#[allow(dead_code)]
+async fn execute_with_progress_events(
+    cmd: Command,
+    _reporter: &mut ProgressReporter,
+    window: &tauri::Window,
+    state: &tauri::State<'_, crate::ProcessingState>,
+    total_duration: f64,
+) -> Result<()> {
+    // Create context from legacy parameters
+    use std::sync::Arc;
+    let session = Arc::new(ProcessingSession::new());
+    
+    // Copy state values
+    {
+        let old_is_cancelled = state.is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access cancellation state".to_string()))?;
+        let mut new_is_cancelled = session.state().is_cancelled.lock()
+            .map_err(|_| AppError::InvalidInput("Failed to access new cancellation state".to_string()))?;
+        *new_is_cancelled = *old_is_cancelled;
+    }
+    
+    // Create a minimal settings for context (we only need it for structure)
+    let context = ProcessingContext::new(window.clone(), session, AudioSettings::default());
+    
+    // Delegate to new context-based function
+    execute_with_progress_context(cmd, _reporter, &context, total_duration).await
 }
 
 /// Cleans up temporary directory

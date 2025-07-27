@@ -366,6 +366,7 @@ pub async fn process_audiobook_files(
     let file_info = crate::audio::get_file_list_info(&paths)?;
     
     // Process the audiobook with progress events
+    #[allow(deprecated)]
     let result = crate::audio::process_audiobook_with_events(
         window,
         state.clone(),

@@ -5,11 +5,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use self::constants::{DEFAULT_BITRATE, DEFAULT_SAMPLE_RATE, DEFAULT_OUTPUT_EXTENSION};
 
 pub mod file_list;
 pub mod settings;
 pub mod progress;
 pub mod processor;
+pub mod constants;
+pub mod session;
+pub mod context;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,10 +94,10 @@ impl AudioSettings {
     #[allow(dead_code)]
     pub fn default() -> Self {
         Self {
-            bitrate: 64,
+            bitrate: DEFAULT_BITRATE,
             channels: ChannelConfig::Mono,
-            sample_rate: SampleRateConfig::Explicit(22050),
-            output_path: PathBuf::from("output.m4b"),
+            sample_rate: SampleRateConfig::Explicit(DEFAULT_SAMPLE_RATE),
+            output_path: PathBuf::from(format!("output.{DEFAULT_OUTPUT_EXTENSION}")),
         }
     }
 }
@@ -135,5 +139,9 @@ pub enum ProcessingStage {
 // Re-export main functions for convenience
 pub use file_list::get_file_list_info;
 pub use settings::validate_audio_settings;
-pub use progress::ProgressReporter;
+#[allow(unused_imports)] // ProgressEmitter and ProgressEvent are new infrastructure for future use
+pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};
+#[allow(deprecated)]
 pub use processor::process_audiobook_with_events;
+#[allow(unused_imports)] // Context structures are designed for future use
+pub use context::{ProcessingContext, ProcessingContextBuilder, ProgressContext, ProgressContextBuilder};

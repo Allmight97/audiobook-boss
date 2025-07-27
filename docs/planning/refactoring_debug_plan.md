@@ -379,24 +379,7 @@ REPORT: [phase0_baseline_metrics.md](docs/planning/phase0_baseline_metrics.md)
 - Add complexity only when you hit actual problems
 - "Premature optimization is the root of all evil"
 
-## Timeline
-
-**Total Duration**: 5-6 weeks (part-time development)
-
-1. **Week 0**: Bug fixes (current codebase)
-2. **Week 1**: Test infrastructure
-3. **Week 2**: Foundation & constants
-4. **Week 3**: Function decomposition
-5. **Week 4**: Process management
-6. **Week 5**: Polish & testing
-
-## Key Differences from V1
-
-1. **Bug fixes first** - Establishes stable baseline
-2. **Smaller scope** - macOS only, basic features
-3. **Gradual migration** - Adapter patterns preserve old code
-4. **Simpler solutions** - No over-architecting
-5. **Focus on fundamentals** - Prevent future tech debt
-6. **Learning-friendly** - One step at a time
-
-This plan gets you a solid, maintainable codebase without the complexity of enterprise patterns you don't need yet.
+# Post-refactoring module strategy (future planning pending completion of this refactoring plan)
+Dev note: I'm concerned about modules larger than 400 lines.
+- processor.rs → Split into processor.rs, conversion.rs, validation.rs
+- progress.rs → Potentially split tracking from calculation logic

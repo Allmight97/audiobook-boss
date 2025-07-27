@@ -1,9 +1,212 @@
-//! Progress reporting for audio processing operations
+//! Centralized progress event emission for audio processing
+//! 
+//! This module provides a unified interface for emitting progress events
+//! throughout the audio processing pipeline, eliminating duplicate code
+//! and ensuring consistent progress reporting to the frontend.
 
 use super::{ProcessingProgress, ProcessingStage};
+use super::constants::*;
+use serde::Serialize;
 use std::time::Instant;
+use tauri::{Emitter, Window};
+
+/// Progress event structure for frontend communication
+/// Extracted from processor.rs to centralize progress event handling
+#[derive(Clone, Serialize)]
+pub struct ProgressEvent {
+    /// Current processing stage name
+    pub stage: String,
+    /// Progress percentage (0-100)
+    pub percentage: f32,
+    /// Human-readable status message
+    pub message: String,
+    /// Currently processing file (if applicable)
+    pub current_file: Option<String>,
+    /// Estimated time remaining in seconds
+    pub eta_seconds: Option<f64>,
+}
+
+/// Centralized progress event emitter
+/// Eliminates duplicate progress emission code throughout the codebase
+#[allow(dead_code)] // New infrastructure - will be used when processor.rs is refactored
+pub struct ProgressEmitter {
+    /// Reference to the Tauri window for event emission
+    window: Window,
+}
+
+#[allow(dead_code)] // New infrastructure - methods will be used when processor.rs is refactored
+impl ProgressEmitter {
+    /// Creates a new progress emitter
+    pub fn new(window: Window) -> Self {
+        Self { window }
+    }
+
+    /// Emits a progress event for analyzing stage start
+    pub fn emit_analyzing_start(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::Analyzing,
+            PROGRESS_ANALYZING_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event for analyzing stage end
+    pub fn emit_analyzing_end(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::Analyzing,
+            PROGRESS_ANALYZING_END,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event for converting stage start
+    pub fn emit_converting_start(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::Converting,
+            PROGRESS_CONVERTING_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event during conversion with file info
+    pub fn emit_converting_progress(
+        &self,
+        percentage: f32,
+        message: &str,
+        current_file: Option<String>,
+        eta_seconds: Option<f64>,
+    ) {
+        let clamped_percentage = percentage.min(PROGRESS_CONVERTING_MAX);
+        self.emit_event(
+            ProcessingStage::Converting,
+            clamped_percentage,
+            message,
+            current_file,
+            eta_seconds,
+        );
+    }
+
+    /// Emits a progress event for metadata writing start
+    pub fn emit_metadata_start(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::WritingMetadata,
+            PROGRESS_METADATA_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event for finalizing stage
+    pub fn emit_finalizing(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::WritingMetadata,
+            PROGRESS_FINALIZING,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event for cleanup stage
+    pub fn emit_cleanup(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::Completed,
+            PROGRESS_CLEANUP,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a progress event for completion
+    pub fn emit_complete(&self, message: &str) {
+        self.emit_event(
+            ProcessingStage::Completed,
+            PROGRESS_COMPLETE,
+            message,
+            None,
+            None,
+        );
+    }
+
+    /// Emits a custom progress event with all parameters
+    pub fn emit_custom(
+        &self,
+        stage: ProcessingStage,
+        percentage: f32,
+        message: &str,
+        current_file: Option<String>,
+        eta_seconds: Option<f64>,
+    ) {
+        self.emit_event(stage, percentage, message, current_file, eta_seconds);
+    }
+
+    /// Internal method to emit progress events
+    fn emit_event(
+        &self,
+        stage: ProcessingStage,
+        percentage: f32,
+        message: &str,
+        current_file: Option<String>,
+        eta_seconds: Option<f64>,
+    ) {
+        let stage_str = match stage {
+            ProcessingStage::Analyzing => "analyzing",
+            ProcessingStage::Converting => "converting",
+            ProcessingStage::Merging => "merging",
+            ProcessingStage::WritingMetadata => "writing_metadata",
+            ProcessingStage::Completed => "completed",
+            ProcessingStage::Failed(_) => "failed",
+        };
+
+        let event = ProgressEvent {
+            stage: stage_str.to_string(),
+            percentage,
+            message: message.to_string(),
+            current_file,
+            eta_seconds,
+        };
+
+        let _ = self.window.emit("processing-progress", &event);
+    }
+
+    /// Calculates progress percentage within a stage range
+    pub fn calculate_stage_progress(
+        current: f64,
+        total: f64,
+        start_percentage: f32,
+        end_percentage: f32,
+    ) -> f32 {
+        if total <= 0.0 {
+            return start_percentage;
+        }
+
+        let progress_ratio = (current / total) as f32;
+        let range = end_percentage - start_percentage;
+        start_percentage + (progress_ratio * range)
+    }
+
+    /// Formats estimated time remaining into a human-readable string
+    pub fn format_eta(seconds: f64) -> String {
+        if seconds < SECONDS_PER_MINUTE {
+            format!("{seconds:.0}s")
+        } else {
+            let minutes = (seconds / SECONDS_PER_MINUTE) as u32;
+            let remaining_seconds = seconds % SECONDS_PER_MINUTE;
+            format!("{minutes}m {remaining_seconds:.0}s")
+        }
+    }
+}
 
 /// Progress reporter for tracking audio processing operations
+/// Maintained for compatibility with existing code
 pub struct ProgressReporter {
     /// Total number of files to process
     total_files: usize,
@@ -192,6 +395,40 @@ fn parse_ffmpeg_time(time_str: &str) -> Result<f64, std::num::ParseFloatError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_progress_emitter_calculate_stage_progress() {
+        // Test progress calculation within a stage
+        assert_eq!(
+            ProgressEmitter::calculate_stage_progress(0.0, 100.0, 10.0, 80.0),
+            10.0
+        );
+        assert_eq!(
+            ProgressEmitter::calculate_stage_progress(50.0, 100.0, 10.0, 80.0),
+            45.0
+        );
+        assert_eq!(
+            ProgressEmitter::calculate_stage_progress(100.0, 100.0, 10.0, 80.0),
+            80.0
+        );
+        
+        // Test edge cases
+        assert_eq!(
+            ProgressEmitter::calculate_stage_progress(50.0, 0.0, 10.0, 80.0),
+            10.0
+        );
+    }
+
+    #[test]
+    fn test_progress_emitter_format_eta() {
+        assert_eq!(ProgressEmitter::format_eta(30.0), "30s");
+        assert_eq!(ProgressEmitter::format_eta(90.0), "1m 30s");
+        assert_eq!(ProgressEmitter::format_eta(150.5), "2m 30s");
+        assert_eq!(ProgressEmitter::format_eta(0.0), "0s");
+        assert_eq!(ProgressEmitter::format_eta(59.9), "60s");
+        assert_eq!(ProgressEmitter::format_eta(60.0), "1m 0s");
+        assert_eq!(ProgressEmitter::format_eta(125.0), "2m 5s");
+    }
 
     #[test]
     fn test_progress_reporter_new() {
