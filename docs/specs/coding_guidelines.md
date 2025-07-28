@@ -3,13 +3,31 @@
 
 **Referenced by:** CLAUDE.md and all sub-agents (auditor, coder, debugger, refactorer)
 
-## Core Coding Standards (NON-NEGOTIABLE)
+## 🚨 **IMPORTANT: Codebase in Transition**
 
-### Function Requirements
-- **Max 30 lines** per function (enforced by clippy `too_many_lines`)
+**Current Reality** (as of 2025-01-27 audit):
+- Many functions are 50-100+ lines (violating targets below)
+- 5 modules exceed 400 lines (largest: 1,455 lines)
+- Systematic refactoring in progress via planning system
+
+**Refactoring Roadmap**: See `docs/planning/README.md` for complete transition plan
+
+---
+
+## Target Coding Standards (APPLY TO NEW CODE)
+
+### Function Requirements (TARGET STANDARDS)
+- **NEW functions: <50 lines** (ideally, practical target)
+- **EXISTING functions: <60 lines** if possible (during refactoring, without breaking things)
 - **Max 3 parameters** per function (use structs for complex signatures)
-- **Refactor at 20 lines** - don't wait until you hit the limit
+- **NEW CODE: Refactor at 40 lines** - don't wait until you hit the limit
+- **EXISTING CODE: Follow refactoring plans** - don't arbitrarily refactor without plan
 - Extract single-responsibility functions with clear, descriptive names
+
+### Module Requirements (TARGET STANDARDS)
+- **NEW modules: <400 lines** (actual implementation code, minus comments and tests)
+- **EXISTING modules: Follow refactoring plans** - systematic splitting to achieve target
+- Use facade pattern for module organization (see `ffmpeg/` and `metadata/` examples)
 
 ### Error Handling Requirements
 - **Always use `Result<T, AppError>`** for error handling
@@ -32,7 +50,8 @@
 - ✅ Code compiles without warnings
 - ✅ `cargo test` - all tests pass
 - ✅ `cargo clippy -- -D warnings` - zero warnings
-- ✅ Every function ≤ 30 lines and ≤ 3 parameters
+- ✅ **NEW CODE**: Every function <50 lines and ≤ 3 parameters
+- ✅ **EXISTING CODE**: Aim for <60 lines during refactoring, don't exceed current complexity
 - ✅ No `unwrap()` or `expect()` calls (except in tests)
 - ✅ Error handling uses `AppError` type, not `String`
 - ✅ Frontend command accessible via `window.testX` in browser console
@@ -43,6 +62,26 @@
 - Using FFmpeg for audio processing, Lofty for metadata  
 - Tauri 2.0 desktop app targeting macOS first
 - Testing via Cargo with unit tests - Reference: [Cargo Testing Guide](../cargo-testing-guide.md)
+- **REFACTORING IN PROGRESS**: See `docs/planning/README.md` for systematic improvement plan
+
+## 🔄 **Working with Existing Code**
+
+### Current State (Don't Be Surprised)
+- `processor.rs`: 1,455 lines (being refactored in Plan A)
+- `cleanup.rs`: 946 lines (scheduled for Plan B)
+- `context.rs`: 804 lines (scheduled for Plan B)
+- Functions often 50-100+ lines (target: <50 lines for new, <60 lines for existing post-refactoring)
+
+### Guidelines for Existing Code
+- **FOLLOW REFACTORING PLANS** - don't arbitrarily change large modules
+- **NEW FUNCTIONS**: Apply ≤30 line standard
+- **EXISTING FUNCTIONS**: Only refactor as part of systematic plan
+- **EMERGENCY FIXES**: Minimal changes only, note technical debt
+
+### Guidelines for New Code
+- **ALL TARGET STANDARDS APPLY** - <50 lines, ≤3 parameters, full testing
+- **USE EXISTING PATTERNS** - follow `ffmpeg/` and `metadata/` module examples
+- **PLAN BEFORE CODING** - design module structure before implementation
 
 ## Required Error Handling Pattern (COPY THIS)
 
@@ -425,5 +464,25 @@ fn test_invalid_audio_file() {
 }
 ```
 
+## 🤖 **AI Agent Guidelines**
+
+### Understanding Current State
+- **DON'T EXPECT** all functions to be <50 lines (many are 50-100+ lines)
+- **DON'T PANIC** when seeing 1,455-line modules (refactoring in progress)
+- **DO FOLLOW** the refactoring plans for systematic improvements
+- **DO APPLY** practical standards to any new code you write
+
+### Working During Refactoring
+- **EXISTING CODE**: Follow specific plan being executed (A, B, or C), aim for <60 lines if practical
+- **NEW FEATURES**: Apply practical standards (<50 lines, ≤3 params, full testing)
+- **EMERGENCY FIXES**: Minimal changes only, document technical debt
+- **VALIDATION**: Always run tests + clippy after changes
+
+### Navigation
+- **Strategic Overview**: `docs/planning/README.md`
+- **Current Plan**: Check which plan is being executed
+- **Technical Details**: `docs/audit_report_comprehensive.md`
+- **Basic Patterns**: [CLAUDE.md](../../CLAUDE.md)
+
 ## Remember
-This is JStar's first Rust project. Focus on teachable patterns and clear examples that demonstrate both what to do and why it works. For basic rules, see [CLAUDE.md](../../CLAUDE.md).
+This is JStar's first Rust project during a major refactoring transition. Focus on teachable patterns and clear examples that demonstrate both what to do and why it works. **The codebase will transform significantly** - don't assume current module sizes represent good practice!

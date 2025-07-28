@@ -11,7 +11,7 @@
 - Write test signatures before implementing functions
 
 ## Critical Rules (NON-NEGOTIABLE)
-- **Functions**: Max 30 lines, max 3 parameters (use structs for more)
+- **Functions**: <50 lines for NEW code (existing aim for <60 lines during refactoring), max 3 parameters (use structs for more)
 - **Error Handling**: Always `Result<T, AppError>`, never `unwrap()` in production
 - **Paths**: Use `PathBuf` not `String` for file paths in Rust
 - **Memory**: Prefer borrowing (`&str`) over cloning (`String`)
@@ -32,7 +32,7 @@
 - ✅ Code compiles without warnings
 - ✅ `cargo test` - all tests pass
 - ✅ `cargo clippy -- -D warnings` - zero warnings
-- ✅ Every function ≤ 30 lines (verified by clippy)
+- ✅ NEW FUNCTIONS <50 lines (existing functions aim for <60 lines during refactoring)
 - ✅ Every function ≤ 3 parameters
 - ✅ Zero `unwrap()` or `expect()` calls (except in tests)
 - ✅ Error handling uses `AppError` type, not `String`
@@ -71,7 +71,8 @@ For each new backend command, add to `src/main.ts`:
 - **Current Phase**: [imp_plan.md](docs/planning/imp_plan.md)
 - **Progress Tracker**: [progress.md](docs/planning/progress.md)
 
-**PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.
+**PROJECT CONTEXT**: JStar's first Rust project - write clear, teachable code.  
+**REFACTORING STATE**: Codebase in systematic refactoring transition - see `docs/planning/README.md`
 
 **CRITICAL**: No task is complete until frontend and backend are connected and tested.
 
