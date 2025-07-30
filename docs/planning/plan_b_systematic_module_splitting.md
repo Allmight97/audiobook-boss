@@ -1,50 +1,48 @@
 # PLAN B: Systematic Module Splitting Plan
 
-_Prerequisites: Plan A (Emergency Stabilization) must be completed first_  
-_Previous: `docs/planning/plan_a_emergency_stabilization.md`_  
-_Next: `docs/planning/plan_c_quality_enhancement.md`_  
-_Timeline: 3-4 weeks after Plan A completion_  
-_Complexity: MEDIUM - following established patterns_
+_Prerequisites: Plan A (Stabilization) must be completed first_
+_Previous: `docs/planning/plan_a_emergency_stabilization.md`_
+_Next: `docs/planning/plan_c_quality_enhancement.md`_
 
 ## Prerequisites Check
 
 Before starting Plan B, verify Plan A success:
-- ✅ `processor.rs` reduced to ≤800 lines
-- ✅ Progress tracking centralized in utilities  
-- ✅ All 130+ tests still passing
-- ✅ Zero clippy warnings
-- ✅ UI functionality preserved
+- ✅ `processor.rs` reduced to ≤800 lines.
+- ✅ Progress tracking is centralized in utilities.
+- ✅ All 130+ tests are still passing.
+- ✅ Zero clippy warnings.
+- ✅ UI functionality is preserved.
 
 ## Plan B Overview
 
-**Goal**: Split remaining oversized modules using proven facade pattern from Plan A
+**Goal**: Split the remaining oversized modules using the facade pattern established in Plan A.
 
 **Modules to Split**:
 1. `cleanup.rs` (946 lines) → 3 sub-modules
-2. `context.rs` (804 lines) → 3 sub-modules  
+2. `context.rs` (804 lines) → 3 sub-modules
 3. `progress.rs` (485 lines) → 2 sub-modules
 4. `commands/mod.rs` (438 lines) → 3 sub-modules
 
-**Key Difference from Plan A**: These modules are more self-contained and have fewer DRY violations, making them safer to split.
+**Note**: These modules are more self-contained and have fewer DRY violations than `processor.rs`, making them safer to split.
 
 ---
 
-## Phase B1: cleanup.rs Splitting (Week 1)
+## Phase B1: `cleanup.rs` Splitting
 
-### B1.1: Analysis - cleanup.rs Structure
-**Current**: 946 lines of RAII cleanup guards
+### B1.1: Analysis - `cleanup.rs` Structure
+**Current**: 946 lines of RAII cleanup guards.
 
 **Target Sub-modules**:
 ```
 src-tauri/src/audio/cleanup/
 ├── guards.rs        # CleanupGuard struct (~300 lines)
-├── processes.rs     # ProcessGuard struct (~250 lines)  
+├── processes.rs     # ProcessGuard struct (~250 lines)
 ├── strategies.rs    # Cleanup algorithms (~200 lines)
 └── mod.rs          # Public facade (~50 lines)
 ```
 
 ### B1.2: Extraction Strategy
-**Step 1**: Create directory structure
+**Step 1**: Create the directory structure.
 ```bash
 cd src-tauri/src/audio/
 mkdir cleanup_new
@@ -52,7 +50,7 @@ cd cleanup_new
 touch guards.rs processes.rs strategies.rs mod.rs
 ```
 
-**Step 2**: Move CleanupGuard implementation
+**Step 2**: Move `CleanupGuard` implementation.
 ```rust
 // NEW: guards.rs
 pub struct CleanupGuard {
@@ -70,7 +68,7 @@ impl Drop for CleanupGuard {
 }
 ```
 
-**Step 3**: Move ProcessGuard implementation  
+**Step 3**: Move `ProcessGuard` implementation.
 ```rust
 // NEW: processes.rs
 pub struct ProcessGuard {
@@ -78,7 +76,7 @@ pub struct ProcessGuard {
 }
 ```
 
-**Step 4**: Create facade
+**Step 4**: Create the facade.
 ```rust
 // NEW: mod.rs
 pub use guards::CleanupGuard;
@@ -86,7 +84,7 @@ pub use processes::ProcessGuard;
 // Re-export minimal public API
 ```
 
-**Step 5**: Update imports throughout codebase
+**Step 5**: Update imports throughout the codebase.
 ```bash
 # Find all uses of cleanup types:
 rg "use.*cleanup" src-tauri/src/
@@ -102,10 +100,10 @@ cargo clippy -- -D warnings
 
 ---
 
-## Phase B2: context.rs Splitting (Week 2)
+## Phase B2: `context.rs` Splitting
 
-### B2.1: Analysis - context.rs Structure  
-**Current**: 804 lines of context builders
+### B2.1: Analysis - `context.rs` Structure
+**Current**: 804 lines of context builders.
 
 **Target Sub-modules**:
 ```
@@ -117,9 +115,9 @@ src-tauri/src/audio/context/
 ```
 
 ### B2.2: Extraction Strategy
-**Lower Risk**: Context objects are mostly data structures with builders
+**Note**: Context objects are mostly data structures with builders, making this a lower-priority refactoring.
 
-**Step 1**: Move ProcessingContext
+**Step 1**: Move `ProcessingContext`.
 ```rust
 // NEW: processing.rs
 pub struct ProcessingContext {
@@ -131,19 +129,19 @@ pub struct ProcessingContextBuilder {
 }
 ```
 
-**Step 2**: Move ProgressContext
-```rust  
+**Step 2**: Move `ProgressContext`.
+```rust
 // NEW: progress.rs
 pub struct ProgressContext {
     // Move struct definition and impl
 }
 
 pub struct ProgressContextBuilder {
-    // Move builder pattern implementation  
+    // Move builder pattern implementation
 }
 ```
 
-**Step 3**: Extract shared types
+**Step 3**: Extract shared types.
 ```rust
 // NEW: types.rs
 pub enum ContextError {
@@ -153,36 +151,36 @@ pub enum ContextError {
 // Move any shared constants or utilities
 ```
 
-### B2.3: Low-Risk Validation
-Context splitting is lower risk because contexts are mainly data containers.
+### B2.3: Validation
+Context splitting is lower priority because contexts are mainly data containers. Standard validation applies.
 
 ---
 
-## Phase B3: progress.rs Splitting (Week 3)
+## Phase B3: `progress.rs` Splitting
 
-### B3.1: Analysis - progress.rs Structure
-**Current**: 485 lines of progress parsing and emission
+### B3.1: Analysis - `progress.rs` Structure
+**Current**: 485 lines of progress parsing and emission.
 
 **Target Sub-modules**:
 ```
 src-tauri/src/audio/progress/
 ├── parsing.rs       # FFmpeg output parsing (~250 lines)
-├── emission.rs      # Progress event emission (~200 lines)  
+├── emission.rs      # Progress event emission (~200 lines)
 └── mod.rs          # Public facade (~50 lines)
 ```
 
 ### B3.2: Extraction Strategy
-**Higher Risk**: Progress logic is critical for UI updates
+**Note**: Progress logic is critical for UI updates and requires careful handling.
 
-**Step 1**: Move parsing functions
+**Step 1**: Move parsing functions.
 ```rust
-// NEW: parsing.rs  
+// NEW: parsing.rs
 pub fn parse_ffmpeg_time(time_str: &str) -> Result<f64>
 pub fn parse_ffmpeg_progress(line: &str) -> Result<f32>
 pub fn parse_speed_multiplier(line: &str) -> Option<f64>
 ```
 
-**Step 2**: Move emission logic
+**Step 2**: Move emission logic.
 ```rust
 // NEW: emission.rs
 pub struct ProgressEmitter {
@@ -196,8 +194,8 @@ impl ProgressEmitter {
 }
 ```
 
-### B3.3: Critical Validation
-Progress changes risk breaking UI updates:
+### B3.3: Validation
+Progress changes risk breaking UI updates.
 ```bash
 cargo test --lib
 npm run tauri dev
@@ -207,10 +205,10 @@ npm run tauri dev
 
 ---
 
-## Phase B4: commands/mod.rs Splitting (Week 4)
+## Phase B4: `commands/mod.rs` Splitting
 
-### B4.1: Analysis - commands/mod.rs Structure
-**Current**: 438 lines of all Tauri commands in one file
+### B4.1: Analysis - `commands/mod.rs` Structure
+**Current**: 438 lines for all Tauri commands in one file.
 
 **Target Sub-modules**:
 ```
@@ -222,22 +220,22 @@ src-tauri/src/commands/
 ```
 
 ### B4.2: Extraction Strategy
-**Lowest Risk**: Commands are independent functions
+**Note**: Commands are independent functions, making this the lowest-priority refactoring in this plan.
 
-**Step 1**: Group by functionality
+**Step 1**: Group by functionality.
 ```rust
 // NEW: audio.rs
 #[tauri::command]
 pub fn merge_audio_files(...) -> Result<String>
 
-#[tauri::command]  
+#[tauri::command]
 pub fn analyze_audio_files(...) -> Result<FileListInfo>
 
 #[tauri::command]
 pub fn process_audiobook_files(...) -> Result<String>
 ```
 
-**Step 2**: Metadata commands
+**Step 2**: Metadata commands.
 ```rust
 // NEW: metadata.rs
 #[tauri::command]
@@ -250,7 +248,7 @@ pub fn write_audio_metadata(...) -> Result<()>
 pub fn write_cover_art(...) -> Result<()>
 ```
 
-**Step 3**: File management
+**Step 3**: File management.
 ```rust
 // NEW: files.rs
 #[tauri::command]
@@ -260,7 +258,7 @@ pub fn validate_files(...) -> Result<String>
 pub fn validate_audio_settings(...) -> Result<String>
 ```
 
-**Step 4**: Update Tauri registration
+**Step 4**: Update Tauri registration.
 ```rust
 // UPDATE: src-tauri/src/lib.rs
 .invoke_handler(tauri::generate_handler![
@@ -272,7 +270,7 @@ pub fn validate_audio_settings(...) -> Result<String>
 ```
 
 ### B4.3: Frontend Integration Check
-Commands splitting could break frontend calls:
+Command splitting could break frontend calls.
 ```bash
 npm run tauri dev
 # Test all UI functions that call backend commands
@@ -281,24 +279,24 @@ npm run tauri dev
 
 ---
 
-## Remaining DRY Violations (Address During Plan B)
+## DRY Violations to Address During Plan B
 
-### Moderate DRY Violations to Fix
+### P1 Priority DRY Violations
 
-**1. Temp Directory Management** (during cleanup.rs split)
-- Extract common temp directory creation patterns
-- Consolidate cleanup retry logic
-- Standardize error handling for directory operations
+**1. Temp Directory Management** (during `cleanup.rs` split)
+- Extract common temp directory creation patterns.
+- Consolidate cleanup retry logic.
+- Standardize error handling for directory operations.
 
-**2. File Validation Patterns** (during commands split)  
-- Extract common file existence checking
-- Consolidate audio file validation logic
-- Standardize error messages for file operations
+**2. File Validation Patterns** (during `commands` split)
+- Extract common file existence checking.
+- Consolidate audio file validation logic.
+- Standardize error messages for file operations.
 
-**3. Command Parameter Validation** (during commands split)
-- Extract common parameter checking patterns
-- Consolidate input sanitization logic
-- Standardize validation error responses
+**3. Command Parameter Validation** (during `commands` split)
+- Extract common parameter checking patterns.
+- Consolidate input sanitization logic.
+- Standardize validation error responses.
 
 ### Implementation During Splitting
 ```rust
@@ -312,7 +310,7 @@ pub fn validate_audio_file_exists(path: &Path) -> Result<()> {
     // Centralized file validation logic
 }
 
-// validation_utils.rs  
+// validation_utils.rs
 pub fn validate_non_empty_string(value: &str, field_name: &str) -> Result<()> {
     // Centralized string validation
 }
@@ -327,17 +325,17 @@ pub fn create_session_temp_dir(session_id: &str) -> Result<PathBuf> {
 
 ## Success Criteria for Plan B
 
-### ✅ Must Pass Before Plan C
-- [ ] All 4 modules split successfully
-- [ ] All modules ≤400 lines (target: ≤300 lines)
-- [ ] Facade pattern consistently applied
-- [ ] Moderate DRY violations eliminated
-- [ ] All 130+ tests still passing
-- [ ] Zero clippy warnings
-- [ ] UI functionality unchanged
-- [ ] No performance regressions
+### Must Be Met Before Starting Plan C
+- [ ] All 4 modules split successfully.
+- [ ] All modules ≤400 lines (target: ≤300 lines).
+- [ ] Facade pattern is consistently applied.
+- [ ] P1 DRY violations are eliminated.
+- [ ] All 130+ tests are still passing.
+- [ ] Zero clippy warnings.
+- [ ] UI functionality is unchanged.
+- [ ] No performance regressions.
 
-### 📊 Line Count Targets
+### Line Count Targets
 | Module            | Before Plan B | After Plan B      | Sub-modules         |
 | ----------------- | ------------- | ----------------- | ------------------- |
 | `cleanup.rs`      | 946 lines     | ≤300 lines facade | 3 modules ≤300 each |
@@ -349,33 +347,25 @@ pub fn create_session_temp_dir(session_id: &str) -> Result<PathBuf> {
 
 ## Risk Management
 
-### Lower Risk Modules (start here)
-1. **commands/mod.rs** - Independent functions, easy to split
-2. **context.rs** - Mostly data structures, low coupling
-3. **cleanup.rs** - RAII patterns, well-encapsulated
-
-### Higher Risk Module (do last)  
-4. **progress.rs** - Critical for UI updates, test thoroughly
+### Prioritization
+1. **P3 (Lowest)**: `commands/mod.rs` - Independent functions, easy to split.
+2. **P3 (Low)**: `context.rs` - Mostly data structures, low coupling.
+3. **P2 (Medium)**: `cleanup.rs` - RAII patterns, well-encapsulated.
+4. **P1 (High)**: `progress.rs` - Critical for UI updates, requires thorough testing.
 
 ### Rollback Strategy
-- Commit after each successful module split
-- Keep old files as `.bak` until validation complete
-- Have working UI test procedure for each change
-
-### Junior Developer Safety
-- Split one module completely before starting the next
-- Test UI functionality after each module split
-- Ask for help if module seems more complex than expected
-- Stop immediately if tests start failing
+- Commit after each successful module split.
+- Keep old files as `.bak` until validation is complete.
+- Have a working UI test procedure for each change.
 
 ---
 
 ## Preparation for Plan C
 
-After Plan B completion, the codebase will be ready for Plan C:
-- All major modules will be properly sized
-- Facade pattern will be consistently applied
-- Major DRY violations will be resolved
-- Foundation set for final quality improvements
+After Plan B is complete, the codebase will be ready for Plan C:
+- All major modules will be properly sized.
+- The facade pattern will be consistently applied.
+- Major DRY violations will be resolved.
+- The foundation is set for final quality improvements.
 
-**Next**: Plan C Quality Enhancement (`docs/planning/plan_c_quality_enhancement.md`) for final polish phase. 
+**Next**: Plan C Quality Enhancement (`docs/planning/plan_c_quality_enhancement.md`) for the final polish phase. 

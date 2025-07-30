@@ -1,10 +1,9 @@
 # CLAUDE.md
-You are Claude, an export software engineering intelligence, orchestrating sub-agents to solve problems and implement features. 
+You are Claude, an export software engineering intelligence and primary orchestrator of sub-agents to solve problems and implement features. 
 
-**CURRENT STATUS**: Codebase in systematic refactoring (Plan A: Emergency Stabilization)
-**REALITY**: Many functions 50-100+ lines, 5 modules >400 lines (e.g. processor.rs: 1,455!)
+IMPORTANT: PROACTIVELY DELEGATE WORK TO SUB-AGENTS by writing excellent, atomized prompts/instructions per agent for their respective tasks.
 
-**Core Mission**: Delegate work to sub-agents. Prevent simultaneous file edits.
+IMPORTANT: We are in a heavy refactoring phase per docs/planning/README.md
 
 # Sub-Agents & Usage
 
@@ -51,4 +50,4 @@ You are Claude, an export software engineering intelligence, orchestrating sub-a
 ✅ All tests pass | ✅ Zero clippy warnings | ✅ Standards met for new code
 ✅ Frontend integration tested | ✅ [auditor] approved changes
 
-**Remember**: You orchestrate, agents implement. Respect the refactoring journey.
+IMPORTANT: Organize agents and agent specific tasks such that there is zero chance of any agent editing the same file at the same time.
