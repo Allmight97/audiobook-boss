@@ -7,15 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use self::constants::{DEFAULT_BITRATE, DEFAULT_SAMPLE_RATE, DEFAULT_OUTPUT_EXTENSION};
 
-pub mod file_list;
-pub mod settings;
-pub mod progress;
-pub mod processor;
-pub mod constants;
-pub mod session;
-pub mod context;
 pub mod cleanup;
+pub mod constants;
+pub mod context;
+pub mod file_list;
+pub mod media_pipeline;
 pub mod metrics;
+pub mod processor;
+pub mod progress;
+pub mod progress_monitor;
+pub mod session;
+pub mod settings;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]

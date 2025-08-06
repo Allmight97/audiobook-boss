@@ -48,12 +48,6 @@ pub const PROCESS_KILL_RETRY_DELAY_MS: u64 = 100;
 pub const MAX_CLEANUP_RETRIES: u32 = 3;
 
 // Time calculation multipliers
-/// Minimum number of progress updates before estimating total time
-pub const PROGRESS_ESTIMATION_MIN_COUNT: i32 = 5;
-
-/// Conservative multiplier for initial time estimation
-pub const INITIAL_TIME_ESTIMATE_MULTIPLIER: f64 = 10.0;
-
 /// Progress percentage calculation range (maps file progress to UI progress)
 pub const PROGRESS_RANGE_MULTIPLIER: f64 = 70.0;
 

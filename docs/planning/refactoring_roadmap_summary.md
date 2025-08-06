@@ -16,20 +16,22 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 
 ---
 
-### **Phase A: Stabilization** 
+### **Phase A: Stabilization**
+🔗 Detailed FFmpeg-next migration plan: `FFMPEG_MIGRATION_RECOMMENDATIONS.md`
 📁 `docs/planning/plan_a_emergency_stabilization.md`
 
 **Focus**: High-priority refactoring of blocking issues.
 
 **Goals**:
-- Reduce `processor.rs` from 1,455 lines to a more manageable size (target: ≤800 lines).
+- Reduce `processor.rs` from 1,455 lines to a more manageable size (target: <500 lines).
 - Eliminate high-priority DRY violations in progress tracking.
+- Complete initial migration to the `ffmpeg-next` crate (see `FFMPEG_MIGRATION_RECOMMENDATIONS.md`).
 - Create extraction patterns for subsequent phases to follow.
 
 **Rationale**: These issues block all audio processing feature development.
 
 **Success Criteria**:
-- ✅ `processor.rs` is a manageable size (≤800 lines).
+- ✅ `processor.rs` is a manageable size (<500 lines).
 - ✅ Progress tracking has a single source of truth.
 - ✅ All 130+ tests continue to pass.
 - ✅ A foundation is ready for systematic refactoring.
@@ -50,7 +52,7 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 **Rationale**: With patterns from Phase A established, these modules are safer to split. They have fewer DRY violations and clearer boundaries.
 
 **Success Criteria**:
-- ✅ All modules are ≤400 lines (target: ≤300).
+- ✅ All modules are ≤400 lines (exceptions allowed for 'processor.rs' for now)
 - ✅ The facade pattern is consistently applied.
 - ✅ Moderate DRY violations are eliminated.
 - ✅ The codebase is ready for feature development.
@@ -103,7 +105,7 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 
 ### After Phase A (Stabilized)
 ```
-- processor.rs: ≤800 lines (manageable)
+- processor.rs: <500 lines (manageable)
 - Progress tracking: centralized utilities
 - Audio processing features can be added more safely
 - Foundation for systematic refactoring is in place
@@ -111,7 +113,7 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 
 ### After Phase B (Modularized)  
 ```
-- All modules: ≤400 lines (most ≤300)
+- All modules: ≤400 lines
 - Facade pattern: consistently applied
 - Module boundaries: clear and logical
 - Ready for significant feature expansion
@@ -119,7 +121,7 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 
 ### After Phase C (Production-Ready)
 ```
-- Functions: all ≤30 lines
+- Functions: all ≤60lines
 - DRY violations: eliminated
 - Documentation: comprehensive
 - Developer tooling: complete
@@ -134,4 +136,5 @@ This roadmap breaks down the task of refactoring a 1,455-line monolith into thre
 - **Phase A (Stabilization)**: `docs/planning/plan_a_emergency_stabilization.md`
 - **Phase B (Systematic)**: `docs/planning/plan_b_systematic_module_splitting.md`
 - **Phase C (Polish)**: `docs/planning/plan_c_quality_enhancement.md`
+- **FFmpeg-next Migration Plan**: `FFMPEG_MIGRATION_RECOMMENDATIONS.md`
 - **This Overview**: `docs/planning/refactoring_roadmap_summary.md` 
