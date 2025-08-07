@@ -95,64 +95,7 @@ pub fn merge_audio_files(
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ping() {
-        let result = ping();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "pong");
-    }
-
-    #[test]
-    fn test_echo() {
-        let test_string = "Hello, Tauri!".to_string();
-        let result = echo(test_string.clone());
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), test_string);
-    }
-
-    #[test]
-    fn test_validate_files_empty() {
-        let result = validate_files(vec![]);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No files provided for validation"));
-    }
-
-    #[test]
-    fn test_validate_files_nonexistent() {
-        let files = vec!["nonexistent_file.txt".to_string()];
-        let result = validate_files(files);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("File not found"));
-    }
-
-    #[test]
-    fn test_get_ffmpeg_version() {
-        let result = get_ffmpeg_version();
-        // This test might fail if FFmpeg isn't installed
-        // We just verify the function runs without panic
-        
-        if result.is_ok() {
-            assert!(result.unwrap().contains("ffmpeg version"));
-        } else {
-            // If FFmpeg isn't found, we should get a specific error
-            assert!(result.unwrap_err().to_string().contains("not found"));
-        }
-    }
-
-    #[test]
-    fn test_merge_audio_files_nonexistent() {
-        let result = merge_audio_files(
-            "nonexistent1.mp3".to_string(),
-            "nonexistent2.mp3".to_string()
-        );
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("file not found"));
-    }
-}
+// basic, audio, and merge command tests moved to `tests/unit/commands/*.rs`
 
 /// Reads metadata from an audio file
 /// Returns metadata as JSON-serializable struct
@@ -260,67 +203,7 @@ fn validate_image_format(data: &[u8], extension: &str) -> Result<()> {
     }
 }
 
-#[cfg(test)]
-mod metadata_tests {
-    use super::*;
-    use tempfile::TempDir;
-    use std::fs;
-
-    #[test]
-    fn test_read_metadata_nonexistent() {
-        let result = read_audio_metadata("nonexistent.m4b".to_string());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("File not found"));
-    }
-
-    #[test]
-    fn test_write_metadata_nonexistent() {
-        let metadata = AudiobookMetadata::new();
-        let result = write_audio_metadata("nonexistent.m4b".to_string(), metadata);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("File not found"));
-    }
-
-    #[test]
-    fn test_write_cover_art_nonexistent() {
-        let cover_data = vec![0u8; 100];
-        let result = write_cover_art("nonexistent.m4b".to_string(), cover_data);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("File not found"));
-    }
-
-    #[tokio::test]
-    async fn test_load_cover_art_file_nonexistent() {
-        let result = load_cover_art_file("nonexistent.jpg".to_string()).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Image file not found"));
-    }
-
-    #[tokio::test] 
-    async fn test_load_cover_art_file_invalid_extension() {
-        use tempfile::TempDir;
-        use std::fs;
-        
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        fs::write(&file_path, b"not an image").unwrap();
-        
-        let result = load_cover_art_file(file_path.to_string_lossy().to_string()).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported image format"));
-    }
-
-    #[test]
-    fn test_read_metadata_invalid_file() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("invalid.txt");
-        fs::write(&file_path, b"not audio").unwrap();
-        
-        let result = read_audio_metadata(file_path.to_string_lossy().to_string());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("metadata error"));
-    }
-}
+// metadata command tests moved to `tests/unit/commands/metadata_commands_tests.rs`
 
 /// Validates and analyzes a list of audio files
 /// Returns comprehensive file information including duration and size
@@ -394,45 +277,4 @@ pub fn cancel_processing(state: tauri::State<crate::ProcessingState>) -> Result<
     Ok("Processing cancellation requested".to_string())
 }
 
-#[cfg(test)]
-mod audio_tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_analyze_audio_files_empty() {
-        let result = analyze_audio_files(vec![]);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No files provided"));
-    }
-
-    #[test]
-    fn test_analyze_audio_files_nonexistent() {
-        let files = vec!["nonexistent.mp3".to_string()];
-        let result = analyze_audio_files(files).unwrap();
-        assert_eq!(result.files.len(), 1);
-        assert!(!result.files[0].is_valid);
-        assert_eq!(result.valid_count, 0);
-        assert_eq!(result.invalid_count, 1);
-    }
-
-    #[test]
-    fn test_validate_audio_settings_valid() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut settings = AudioSettings::audiobook_preset();
-        settings.output_path = temp_dir.path().join("test.m4b");
-        let result = validate_audio_settings(settings);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Settings are valid");
-    }
-
-    #[test]
-    fn test_validate_audio_settings_invalid_bitrate() {
-        let mut settings = AudioSettings::audiobook_preset();
-        settings.bitrate = 256; // Invalid - too high
-        let result = validate_audio_settings(settings);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Bitrate must be"));
-    }
-
-}
+// audio command tests moved to `tests/unit/commands/audio_commands_tests.rs`

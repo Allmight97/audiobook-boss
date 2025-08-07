@@ -464,23 +464,23 @@ mod tests {
 
     #[test]
     fn test_parse_ffmpeg_time() {
-        assert_eq!(parse_ffmpeg_time("00:01:30.50").unwrap(), 90.5);
-        assert_eq!(parse_ffmpeg_time("01:00:00.00").unwrap(), 3600.0);
+        assert_eq!(parse_ffmpeg_time("00:01:30.50").expect("parse time"), 90.5);
+        assert_eq!(parse_ffmpeg_time("01:00:00.00").expect("parse time"), 3600.0);
     }
 
     #[test]
     fn test_parse_ffmpeg_progress() {
         // Test old format
-        assert_eq!(parse_ffmpeg_progress("time=00:01:30.45").unwrap(), 90.45);
+        assert_eq!(parse_ffmpeg_progress("time=00:01:30.45").expect("parse progress"), 90.45);
         
         // Test new -progress format
-        assert_eq!(parse_ffmpeg_progress("out_time_us=90450000").unwrap(), 90.45);
-        assert_eq!(parse_ffmpeg_progress("progress=end").unwrap(), 100.0);
+        assert_eq!(parse_ffmpeg_progress("out_time_us=90450000").expect("parse progress"), 90.45);
+        assert_eq!(parse_ffmpeg_progress("progress=end").expect("parse progress"), 100.0);
         assert!(parse_ffmpeg_progress("progress=continue").is_none());
         assert!(parse_ffmpeg_progress("other output").is_none());
         
         // Test various progress outputs
-        assert_eq!(parse_ffmpeg_progress("out_time_us=1000000").unwrap(), 1.0);
-        assert_eq!(parse_ffmpeg_progress("out_time_us=60000000").unwrap(), 60.0);
+        assert_eq!(parse_ffmpeg_progress("out_time_us=1000000").expect("parse progress"), 1.0);
+        assert_eq!(parse_ffmpeg_progress("out_time_us=60000000").expect("parse progress"), 60.0);
     }
 }

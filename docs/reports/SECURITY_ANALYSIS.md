@@ -4,6 +4,20 @@
 
 This document analyzes security vulnerabilities in the audiobook processing codebase and provides remediation strategies. The analysis identifies critical security issues in command injection, shell escaping, process management, and resource cleanup, along with proposed type-safe alternatives.
 
+### Quick Start (for junior devs)
+- What to do today (fast wins):
+  - Centralize path escaping used for FFmpeg concat lists (see Section 1). Use it everywhere we build concat content.
+  - Validate paths before writing concat files: strip newlines, reject NUL bytes, and canonicalize paths.
+  - Keep process termination simple but reliable: prefer waiting for child to exit; add a fallback kill if needed.
+  - Run tests and clippy after each change. If a fix impacts behavior, add or update a unit test.
+- What to plan this week:
+  - Introduce a `MediaProcessor` trait so the code doesn’t depend directly on shell command building.
+  - Add a feature flag for a future ffmpeg-next implementation (do not enable by default yet).
+  - Defer large module trims until after the above two items are merged and stable.
+- How to decide when to refactor vs. fix in place:
+  - If a change only needs validation or escaping: fix in place.
+  - If a change touches multiple modules or behaviors: define a boundary (trait) and refactor behind it.
+
 ## Critical Security Vulnerabilities
 
 ### 1. Command Injection Risks in Path Handling
@@ -33,7 +47,7 @@ file 'file'; rm -rf /; echo '.mp3'
 
 #### Remediation Strategy
 
-1. **Immediate Fix**: Implement proper shell escaping
+1. **Immediate Fix**: Implement proper shell escaping (use this helper in both `ffmpeg/command.rs` and `audio/processor.rs`)
 ```rust
 fn escape_ffmpeg_path(path: &str) -> String {
     // Escape single quotes by replacing ' with '\''
@@ -154,7 +168,7 @@ for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {
 
 #### Remediation Strategy
 
-1. **Implement Graceful Shutdown with Escalation**:
+1. **Implement Graceful Shutdown with Escalation** (keep a simple sync fallback while we evolve async code):
 ```rust
 use std::time::{Duration, Instant};
 use nix::sys::signal::{self, Signal};
@@ -194,7 +208,7 @@ async fn terminate_process_safely(child: &mut Child) -> Result<()> {
 }
 ```
 
-2. **Use ProcessGuard with Proper RAII**:
+2. **Use ProcessGuard with Proper RAII** (drop handler ensures cleanup even on panic/early return):
 ```rust
 impl Drop for ProcessGuard {
     fn drop(&mut self) {
@@ -359,7 +373,7 @@ impl SafeMediaProcessor {
 }
 ```
 
-### Migration Strategy
+### Migration Strategy (aligns with current refactor plan)
 
 1. **Phase 1**: Add ffmpeg-next to Cargo.toml
 ```toml
@@ -571,15 +585,15 @@ impl AudioSettings {
 
 ### Immediate Actions Required
 
-- [ ] Replace all string concatenation for shell commands with proper escaping
-- [ ] Implement path validation before any file operations
-- [ ] Add timeout mechanisms to all process operations
-- [ ] Use atomic operations for all cleanup tasks
-- [ ] Implement proper RAII guards for all resources
+- [ ] Replace string concatenation for shell commands with centralized escaping helper
+- [ ] Validate and canonicalize paths before any file operations
+- [ ] Add basic timeouts or exit checks to all process operations
+- [ ] Use atomic operations or rename-to-trash before delete in cleanup tasks
+- [ ] Implement RAII guards for resources that must be cleaned on drop
 
 ### Short-term Improvements (1-2 weeks)
 
-- [ ] Add input sanitization layer for all user inputs
+- [ ] Add input sanitization layer for all user inputs and filenames
 - [ ] Implement comprehensive logging for security events
 - [ ] Add rate limiting for processing operations
 - [ ] Create security test suite with fuzzing

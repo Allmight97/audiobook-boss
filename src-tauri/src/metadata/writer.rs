@@ -123,9 +123,9 @@ mod tests {
 
     #[test]
     fn test_write_metadata_invalid_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("create temp dir");
         let file_path = temp_dir.path().join("invalid.txt");
-        fs::write(&file_path, b"not audio").unwrap();
+        fs::write(&file_path, b"not audio").expect("write temp file");
         
         let metadata = AudiobookMetadata::new();
         let result = write_metadata(&file_path, &metadata);

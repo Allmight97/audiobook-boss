@@ -80,19 +80,4 @@ pub fn locate_ffmpeg() -> Result<PathBuf> {
     Err(FFmpegError::BinaryNotFound)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_locate_ffmpeg() {
-        // This test might fail if FFmpeg isn't installed
-        // We just verify the function runs without panic
-        let result = locate_ffmpeg();
-        
-        // If FFmpeg is found, path should exist
-        if let Ok(path) = result {
-            assert!(path.exists() || path.to_str().map_or(false, |s| s.contains("ffmpeg")));
-        }
-    }
-}
+// tests moved to `tests/unit/ffmpeg/ffmpeg_mod_tests.rs`

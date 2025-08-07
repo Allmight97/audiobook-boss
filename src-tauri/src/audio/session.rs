@@ -69,33 +69,4 @@ impl Default for ProcessingSession {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new_session_has_unique_id() {
-        let session1 = ProcessingSession::new();
-        let session2 = ProcessingSession::new();
-        
-        assert_ne!(session1.id(), session2.id());
-    }
-
-    #[test]
-    fn test_new_session_not_processing() {
-        let session = ProcessingSession::new();
-        
-        assert!(!session.is_processing());
-        assert!(!session.is_cancelled());
-    }
-
-    #[test]
-    fn test_session_id_format() {
-        let session = ProcessingSession::new();
-        let id = session.id();
-        
-        // UUID v4 format: 8-4-4-4-12 hexadecimal digits
-        assert_eq!(id.len(), 36);
-        assert_eq!(id.chars().filter(|&c| c == '-').count(), 4);
-    }
-}
+// tests moved to `tests/unit/audio/session_tests.rs`

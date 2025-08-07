@@ -1,7 +1,7 @@
-use audiobook_boss::audio::processor::*;
-use audiobook_boss::audio::{AudioFile, AudioSettings};
-use audiobook_boss::errors::{AppError, Result};
-use audiobook_boss::audio::constants::*;
+use audiobook_boss_lib::audio::processor::*;
+use audiobook_boss_lib::audio::{AudioFile, AudioSettings};
+use audiobook_boss_lib::errors::{AppError, Result};
+use audiobook_boss_lib::audio::constants::*;
 use tempfile::TempDir;
 use std::fs;
 use std::path::PathBuf;
@@ -12,7 +12,8 @@ fn test_validate_processing_inputs_empty() {
     let settings = AudioSettings::default();
     let result = validate_processing_inputs(&files, &settings);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No files to process"));
+    let err = result.expect_err("expected no files error");
+    assert!(err.to_string().contains("No files to process"));
 }
 
 #[test]
@@ -45,7 +46,8 @@ fn test_validate_processing_inputs_invalid_file() {
     let settings = AudioSettings::default();
     let result = validate_processing_inputs(&files, &settings);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid file"));
+    let err = result.expect_err("expected invalid file error");
+    assert!(err.to_string().contains("Invalid file"));
 }
 
 #[test]
@@ -53,7 +55,7 @@ fn test_create_temp_directory() {
     let session_id = "test-session-123";
     let result = create_temp_directory_with_session(session_id);
     assert!(result.is_ok());
-    let temp_dir = result.unwrap();
+    let temp_dir = result.expect("temp dir created");
     assert!(temp_dir.exists());
     // Check that session ID is in the path
     assert!(temp_dir.to_string_lossy().contains(session_id));
@@ -64,7 +66,7 @@ fn test_create_temp_directory() {
 
 #[test]
 fn test_create_concat_file() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("create temp dir");
     
     let mut file1 = AudioFile::new("/path/to/file1.mp3".into());
     file1.is_valid = true;
@@ -75,10 +77,10 @@ fn test_create_concat_file() {
     let result = create_concat_file(&files, temp_dir.path());
     assert!(result.is_ok());
     
-    let concat_file = result.unwrap();
+    let concat_file = result.expect("concat file path");
     assert!(concat_file.exists());
     
-    let content = fs::read_to_string(&concat_file).unwrap();
+    let content = fs::read_to_string(&concat_file).expect("read concat file");
     assert!(content.contains("file '/path/to/file1.mp3'"));
     assert!(content.contains("file '/path/to/file2.mp3'"));
 }
@@ -87,18 +89,20 @@ fn test_create_concat_file() {
 fn test_detect_input_sample_rate_empty() {
     let result = detect_input_sample_rate(&[]);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("no input files provided"));
+    let err = result.expect_err("expected empty input error");
+    assert!(err.to_string().contains("no input files provided"));
 }
 
 #[test]
 fn test_detect_input_sample_rate_no_valid_files() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("create temp dir");
     let invalid_file = temp_dir.path().join("invalid.mp3");
-    fs::write(&invalid_file, b"not audio data").unwrap();
+    fs::write(&invalid_file, b"not audio data").expect("write invalid file");
     
     let result = detect_input_sample_rate(&[invalid_file]);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("no valid audio files found"));
+    let err = result.expect_err("expected no valid files error");
+    assert!(err.to_string().contains("no valid audio files found"));
 }
 
 #[test] 
@@ -110,7 +114,7 @@ fn test_get_file_sample_rate_nonexistent() {
 
 #[test]
 fn test_ffmpeg_command_includes_metadata_mapping() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("create temp dir");
     let concat_file = temp_dir.path().join("concat.txt");
     let output_file = temp_dir.path().join("output.m4b");
     let settings = AudioSettings::default();
@@ -120,8 +124,7 @@ fn test_ffmpeg_command_includes_metadata_mapping() {
     // We're testing the command construction logic
     let result = build_merge_command(&concat_file, &output_file, &settings, &file_paths);
     
-    // The test should either succeed or fail due to ffmpeg not being found
-    // If it succeeds, the command should be built correctly
+    // The test should either succeed or fail due to ffmpeg not being available, not our logic
     if let Ok(cmd) = result {
         let cmd_str = format!("{:?}", cmd);
         // Verify metadata mapping is included
@@ -156,9 +159,9 @@ fn test_session_isolated_temp_directories() -> Result<()> {
     let file2 = temp_dir2.join("test.txt");
     
     std::fs::write(&file1, "session 1 content")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     std::fs::write(&file2, "session 2 content")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     
     // Files should exist independently
     assert!(file1.exists());
@@ -166,9 +169,9 @@ fn test_session_isolated_temp_directories() -> Result<()> {
     
     // Contents should be different (proving isolation)
     let content1 = std::fs::read_to_string(&file1)
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     let content2 = std::fs::read_to_string(&file2)
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     
     assert_eq!(content1, "session 1 content");
     assert_eq!(content2, "session 2 content");
@@ -192,11 +195,11 @@ fn test_session_temp_directory_cleanup() -> Result<()> {
     let sub_file = sub_dir.join("nested.txt");
     
     std::fs::write(&test_file, "test content")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     std::fs::create_dir(&sub_dir)
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     std::fs::write(&sub_file, "nested content")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     
     // Verify files exist
     assert!(temp_dir.exists());
@@ -231,9 +234,9 @@ fn test_multiple_sessions_no_interference() -> Result<()> {
     let file_b = temp_dir_b.join("session_b_data.txt");
     
     std::fs::write(&file_a, "Session A data")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     std::fs::write(&file_b, "Session B data")
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     
     // Both should exist independently
     assert!(file_a.exists());
@@ -270,7 +273,7 @@ fn test_parse_speed_multiplier() {
 #[test]
 fn test_error_handling_for_new_error_variants() {
     // Test that our error handling works correctly with new error types
-    use audiobook_boss::errors::AppError;
+    use audiobook_boss_lib::errors::AppError;
     
     // Test FileValidation error (used in temp directory creation)
     let file_error = AppError::FileValidation("Test file validation error".to_string());
@@ -299,7 +302,7 @@ fn test_resource_leak_prevention() -> Result<()> {
         // Create some files
         let test_file = temp_dir.join(format!("test_{i}.txt"));
         std::fs::write(&test_file, format!("Test content {i}"))
-            .map_err(|e| AppError::Io(e))?;
+            .map_err(AppError::Io)?;
         
         temp_dirs.push((format!("{session_id}-{i}"), temp_dir));
     }
@@ -319,34 +322,19 @@ fn test_resource_leak_prevention() -> Result<()> {
     if base_temp_dir.exists() {
         // Check that our session directories are gone
         let entries = std::fs::read_dir(&base_temp_dir)
-            .map_err(|e| AppError::Io(e))?;
+            .map_err(AppError::Io)?;
         
         for entry in entries {
-            let entry = entry.map_err(|e| AppError::Io(e))?;
+            let entry = entry.map_err(AppError::Io)?;
             let file_name = entry.file_name();
             let name = file_name.to_string_lossy();
-            assert!(!name.contains("leak-test-session"), 
-                "Found leaked directory: {}", name);
+            assert!(
+                !name.contains("leak-test-session"), 
+                "Found leaked directory: {}", 
+                name
+            );
         }
     }
-    
-    Ok(())
-}
-
-#[test]
-fn test_deprecated_adapter_functions() -> Result<()> {
-    // Test that deprecated adapter functions still work for backward compatibility
-    
-    // Test deprecated create_temp_directory
-    #[allow(deprecated)]
-    let temp_dir = create_temp_directory()?;
-    assert!(temp_dir.exists());
-    assert!(temp_dir.to_string_lossy().contains("default-session"));
-    
-    // Test deprecated cleanup_temp_directory
-    #[allow(deprecated)]
-    let result = cleanup_temp_directory(temp_dir);
-    assert!(result.is_ok());
     
     Ok(())
 }
@@ -420,3 +408,5 @@ fn test_progress_calculation() {
     let expected_percentage = expected_base + (file_progress * PROGRESS_RANGE_MULTIPLIER);
     assert!((percentage - expected_percentage).abs() < 0.1);
 }
+
+

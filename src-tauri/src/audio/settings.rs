@@ -160,18 +160,18 @@ mod tests {
 
     #[test]
     fn test_validate_output_path_valid() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("create temp dir");
         let output_path = temp_dir.path().join("test.m4b");
         assert!(validate_output_path(&output_path).is_ok());
     }
 
     #[test]
     fn test_validate_output_path_invalid_extension() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("create temp dir");
         let output_path = temp_dir.path().join("test.mp3");
         let result = validate_output_path(&output_path);
         assert!(result.is_err());
-        let error_msg = result.unwrap_err().to_string();
+        let error_msg = result.expect_err("expected invalid extension").to_string();
         assert!(error_msg.contains(".m4b"));
     }
 
@@ -179,7 +179,8 @@ mod tests {
     fn test_validate_output_path_nonexistent_dir() {
         let result = validate_output_path("/nonexistent/dir/test.m4b");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("does not exist"));
+        let err = result.expect_err("expected nonexistent dir error");
+        assert!(err.to_string().contains("does not exist"));
     }
 
     #[test]
