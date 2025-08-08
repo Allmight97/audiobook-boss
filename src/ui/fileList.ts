@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sortBtn) {
         sortBtn.addEventListener('click', toggleFileSort);
     }
+    const clearBtn = document.getElementById('clear-files-btn') as HTMLButtonElement | null;
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => clearAllFiles());
+    }
 });
 
 export function displayFileList(fileListInfo: FileListInfo): void {
@@ -43,6 +47,10 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     if (sortBtn) {
         sortBtn.style.display = fileListInfo.files.length > 1 ? 'block' : 'none';
         sortBtn.textContent = sortAscending ? 'Sort: A-Z' : 'Sort: Z-A';
+    }
+    const clearBtn = document.getElementById('clear-files-btn');
+    if (clearBtn) {
+        clearBtn.style.display = fileListInfo.files.length > 0 ? 'block' : 'none';
     }
 }
 
@@ -423,6 +431,10 @@ function updateFileListDOM(): void {
     if (sortBtn) {
         sortBtn.style.display = currentFileList.files.length > 1 ? 'block' : 'none';
     }
+    const clearBtn = document.getElementById('clear-files-btn');
+    if (clearBtn) {
+        clearBtn.style.display = currentFileList.files.length > 0 ? 'block' : 'none';
+    }
     
     updateTotalStats();
     updateSelection();
@@ -510,6 +522,10 @@ export function clearAllFiles(): void {
     const sortBtn = document.getElementById('sort-toggle-btn');
     if (sortBtn) {
         sortBtn.style.display = 'none';
+    }
+    const clearBtn = document.getElementById('clear-files-btn');
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
     }
     
     selectedFileIndex = -1;
