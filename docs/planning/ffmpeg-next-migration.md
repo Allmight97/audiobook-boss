@@ -20,13 +20,13 @@ References
 
 #### Rollout Strategy (phased)
 - P0 (enable parallel path; no default switch)
-  1. Add deps (compile only when feature enabled)
+  1. Add deps (compile only when feature enabled) — DONE
      - `Cargo.toml` (root crate in `src-tauri/`):
        - `[features] safe-ffmpeg = []` (no default)
        - `[dependencies] ffmpeg-next = "^7"` (behind cfg when used)
        - `[build-dependencies]` unchanged
      - Doc the platform prerequisite: Homebrew `ffmpeg` dev libs are required to build `ffmpeg-next` (Apple Silicon only). Command: `brew install ffmpeg`.
-  2. Create module `src-tauri/src/processing/ffmpeg_next.rs` (or `src-tauri/src/audio/ffmpeg_next.rs`) with `FfmpegNextProcessor` implementing `MediaProcessor`:
+  2. Create module `src-tauri/src/processing/ffmpeg_next.rs` (or `src-tauri/src/audio/ffmpeg_next.rs`) with `FfmpegNextProcessor` implementing `MediaProcessor` — BOOTSTRAPPED in `audio/media_pipeline.rs`:
      - `execute(&self, plan: &MediaProcessingPlan, ctx: &ProcessingContext) -> Result<()>` (async wrapper that runs blocking work in a dedicated thread if needed).
      - Pipeline (first pass): open each input via `ffmpeg_next::format::input`, find audio stream, decode packets and re-encode to AAC into an MP4/M4B container (libavcodec `aac`).
        - Sample rate: from `plan.settings` (explicit) or detected (`MediaProcessingPlan` already computed; reuse value). Channels: mono/stereo per `settings`.
@@ -34,10 +34,10 @@ References
        - Produce single continuous output file (concatenate by sequentially appending encoded frames for each input).
      - Progress: compute total seconds from `plan.total_duration`; emit progress every N frames using accumulated PTS/time.
      - Cancellation: poll `ctx.is_cancelled()` and abort early with a clean shutdown.
-  3. Wire a chooser without changing default behavior:
+  3. Wire a chooser without changing default behavior — PARTIAL: processor type is scaffolded; default remains shell:
      - In `audio/processor.rs::merge_audio_files_with_context`, behind `#[cfg(feature = "safe-ffmpeg")]` instantiate `FfmpegNextProcessor` if a runtime env var OR compile flag selects it; otherwise use `ShellFFmpegProcessor`.
      - Keep default path as legacy (`ShellFFmpegProcessor`).
-  4. Tests and lint:
+  4. Tests and lint — validated both builds (`default`, `--features safe-ffmpeg`) compile and tests pass.
      - Keep existing tests green.
      - Add a feature-gated test (unit/integration) that merges a tiny sample (use `media/01 - Introduction.mp3` as source) only when `safe-ffmpeg` is enabled. Mark as `#[cfg(feature = "safe-ffmpeg")]`.
   5. Docs:
@@ -69,11 +69,17 @@ References
 
 #### Detailed Tasks (with P0/P1/P2)
 - P0
-  - Add Cargo feature `safe-ffmpeg` and conditional deps/imports.
-  - Implement `FfmpegNextProcessor` minimally to merge inputs → AAC in M4B container; emit progress; honor cancel.
-  - Wire non-default selection via compile-time feature (no behavior change by default).
-  - Add a small, feature-gated test using repository media.
-  - Update development docs and hand-off notes.
+  - [X] Add Cargo feature `safe-ffmpeg` and conditional deps/imports.
+  - [ ] Implement `FfmpegNextProcessor` minimally to merge inputs → AAC in M4B container; emit progress; honor cancel.
+  - [ ] Wire non-default selection via compile-time feature (no behavior change by default).
+  - [ ] Add a small, feature-gated test using repository media.
+  - [X] Update development docs and hand-off notes (this doc + hand-off updated).
+
+#### Next tasks (can proceed mostly in parallel)
+- Implement core decode→encode loop in `FfmpegNextProcessor` (P0)
+- Emit progress by accumulated PTS; plumb cancel checks (P0)
+- Wire runtime selection behind feature with a `DefaultProcessor` alias (P1-prep)
+- Add feature-gated integration test using small media sample (P0)
 
 - P1
   - Switch default engine via `DefaultProcessor` type alias when building with `--features safe-ffmpeg`.
@@ -124,4 +130,13 @@ Note: keep `ShellFFmpegProcessor` implementation around behind `legacy-ffmpeg` (
 - P1 complete when: feature-on build is selectable as the default engine and repo doesn’t rely on concat files in the new path.
 - P2 complete when: legacy shell code is removed from default build and docs/tests reflect the new boundary.
 
+#### Suggestions for proceeding mostly in parallel (atomized tasks):
+- Implement core decode→encode in FfmpegNextProcessor (P0).
+- Add progress via PTS accumulation and cancellation checks (P0).
+- Wire runtime selection with a DefaultProcessor type alias (P1 prep).
+- Add a small feature-gated integration test using media/01 - Introduction.mp3 (P0).
 
+You can now enable the feature locally with:
+  - `cargo test --features safe-ffmpeg`
+  - `cargo clippy --features safe-ffmpeg`
+  - `build/run` with the same flag when we start implementing the real pipeline.

@@ -37,5 +37,11 @@ env_logger = "0.11"
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
 
+# Type-safe FFmpeg engine based on ffmpeg-next (disabled by default)
+safe-ffmpeg = []
+
+[target.'cfg(feature = "safe-ffmpeg")'.dependencies]
+ffmpeg-next = "7"
+
 [dev-dependencies]
 tempfile = "3.20.0"

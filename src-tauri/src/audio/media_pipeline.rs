@@ -112,6 +112,27 @@ impl MediaProcessor for ShellFFmpegProcessor {
     }
 }
 
+// Feature-gated processor based on ffmpeg-next bindings (skeleton)
+#[cfg(feature = "safe-ffmpeg")]
+pub struct FfmpegNextProcessor;
+
+#[cfg(feature = "safe-ffmpeg")]
+impl MediaProcessor for FfmpegNextProcessor {
+    fn execute<'a>(
+        &'a self,
+        _plan: &'a MediaProcessingPlan,
+        _context: &'a ProcessingContext,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            // TODO(P0): Implement decode→encode pipeline using ffmpeg-next
+            // This is an initial scaffold to allow building behind the feature flag.
+            Err(crate::errors::AppError::General(
+                "FfmpegNextProcessor not yet implemented (enable safe-ffmpeg to develop)".to_string(),
+            ))
+        })
+    }
+}
+
 /// Builds FFmpeg command for merging audio files
 /// 
 /// This function encapsulates all FFmpeg command construction logic,
