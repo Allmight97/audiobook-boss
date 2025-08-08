@@ -19,6 +19,10 @@ pub enum AppError {
     #[error("Audio metadata error: {0}")]
     Metadata(#[from] lofty::error::LoftyError),
     
+    #[cfg(feature = "safe-ffmpeg")]
+    #[error("FFmpeg-next operation failed: {0}")]
+    FfmpegNext(#[from] ffmpeg_next::Error),
+    
     #[error("Process termination failed: {0}")]
     ProcessTermination(String),
     

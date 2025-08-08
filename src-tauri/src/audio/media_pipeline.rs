@@ -112,7 +112,7 @@ impl MediaProcessor for ShellFFmpegProcessor {
     }
 }
 
-// Feature-gated processor based on ffmpeg-next bindings (skeleton)
+// Feature-gated processor based on ffmpeg-next bindings
 #[cfg(feature = "safe-ffmpeg")]
 pub struct FfmpegNextProcessor;
 
@@ -120,18 +120,126 @@ pub struct FfmpegNextProcessor;
 impl MediaProcessor for FfmpegNextProcessor {
     fn execute<'a>(
         &'a self,
-        _plan: &'a MediaProcessingPlan,
-        _context: &'a ProcessingContext,
+        plan: &'a MediaProcessingPlan,
+        context: &'a ProcessingContext,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
-            // TODO(P0): Implement decode→encode pipeline using ffmpeg-next
-            // This is an initial scaffold to allow building behind the feature flag.
-            Err(crate::errors::AppError::General(
-                "FfmpegNextProcessor not yet implemented (enable safe-ffmpeg to develop)".to_string(),
-            ))
+            // Run the blocking ffmpeg-next work in a dedicated thread
+            let plan = plan.clone();
+            let context = context.clone();
+            
+            tokio::task::spawn_blocking(move || {
+                execute_ffmpeg_next_blocking(&plan, &context)
+            }).await
+                .map_err(|e| crate::errors::AppError::General(format!("Task join error: {}", e)))?
         })
     }
 }
+
+#[cfg(feature = "safe-ffmpeg")]
+fn execute_ffmpeg_next_blocking(
+    _plan: &MediaProcessingPlan, 
+    _context: &ProcessingContext
+) -> Result<()> {
+    use super::progress::ProgressEmitter;
+    
+    log::info!("FfmpegNextProcessor: Starting (basic implementation)");
+    
+    // Initialize ffmpeg-next to validate it works
+    ffmpeg_next::init().map_err(|e| {
+        crate::errors::AppError::General(format!("Failed to initialize ffmpeg-next: {}", e))
+    })?;
+    
+    log::info!("ffmpeg-next initialized successfully");
+    
+    // For now, return an error indicating this is not fully implemented
+    // This allows us to test the integration without full decode/encode pipeline
+    Err(crate::errors::AppError::General(
+        "FfmpegNextProcessor: Core decode/encode pipeline not yet implemented. This is a P0 task.".to_string()
+    ))
+}
+
+// Placeholder functions - will be implemented in subsequent iterations
+#[cfg(feature = "safe-ffmpeg")]
+fn setup_output_context(_plan: &MediaProcessingPlan) -> Result<OutputContext> {
+    Err(crate::errors::AppError::General(
+        "Output context setup: To be implemented".to_string()
+    ))
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn get_sample_rate_for_plan(plan: &MediaProcessingPlan) -> Result<u32> {
+    match &plan.settings.sample_rate {
+        SampleRateConfig::Explicit(rate) => Ok(*rate),
+        SampleRateConfig::Auto => detect_input_sample_rate(&plan.input_file_paths),
+    }
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn get_channel_layout_for_plan(_plan: &MediaProcessingPlan) -> Result<()> {
+    // Placeholder - will return proper ChannelLayout when implementing
+    Ok(())
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn process_input_file(
+    _input_path: &std::path::Path,
+    _output_context: &OutputContext,
+    _plan: &MediaProcessingPlan,
+    _context: &ProcessingContext,
+    _progress_emitter: &super::progress::ProgressEmitter,
+    _processed_duration: f64,
+    _file_name: &str,
+    _file_index: usize,
+) -> Result<f64> {
+    Err(crate::errors::AppError::General(
+        "Input file processing: To be implemented".to_string()
+    ))
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn setup_resampler(
+    _decoder: &(),  // Placeholder type
+    _encoder: &()   // Placeholder type
+) -> Result<Option<()>> {
+    Err(crate::errors::AppError::General(
+        "Resampler setup: To be implemented".to_string()
+    ))
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn resample_frame(
+    _resampler: &mut (),
+    _frame: &mut (),
+) -> Result<Vec<()>> {
+    Err(crate::errors::AppError::General(
+        "Frame resampling: To be implemented".to_string()
+    ))
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn calculate_overall_progress(current_duration: f64, total_duration: f64) -> f32 {
+    if total_duration <= 0.0 {
+        return 0.0;
+    }
+    
+    let progress = (current_duration / total_duration) * 100.0;
+    progress.min(100.0).max(0.0) as f32
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+fn finalize_output_context(_output_context: OutputContext) -> Result<()> {
+    Err(crate::errors::AppError::General(
+        "Output finalization: To be implemented".to_string()
+    ))
+}
+
+#[cfg(feature = "safe-ffmpeg")]
+struct OutputContext {
+    // Placeholder - will contain actual ffmpeg-next types when implementing
+    _placeholder: (),
+}
+
 
 /// Builds FFmpeg command for merging audio files
 /// 

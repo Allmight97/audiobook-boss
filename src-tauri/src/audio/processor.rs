@@ -508,8 +508,21 @@ async fn merge_audio_files_with_context(
         total_duration,
     );
     
-    // Route execution through the trait boundary (no behavior change)
-    let processor = ShellFFmpegProcessor;
+    // Select processor implementation based on compile-time feature
+    // Default behavior unchanged: always uses ShellFFmpegProcessor unless safe-ffmpeg is enabled
+    #[cfg(feature = "safe-ffmpeg")]
+    let processor = {
+        log::info!("Using FfmpegNextProcessor (safe-ffmpeg feature enabled)");
+        crate::audio::media_pipeline::FfmpegNextProcessor
+    };
+    
+    #[cfg(not(feature = "safe-ffmpeg"))]
+    let processor = {
+        log::debug!("Using ShellFFmpegProcessor (default)");
+        crate::audio::media_pipeline::ShellFFmpegProcessor
+    };
+    
+    // Route execution through the trait boundary
     processor.execute(&plan, context).await?;
     
     Ok(temp_output)
