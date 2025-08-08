@@ -738,6 +738,7 @@ The current implementation has several security gaps that need immediate attenti
 
 The recommended approach is to:
 1. Complete P0 items first (shared escaping + validation), matching the hand-off plan
+    - P0 & P1 items located here: docs/planning/ffmpeg-next-migration.md
 2. Implement P1 boundary and process reaping; prefer bundled FFmpeg in releases
 3. Begin migration to ffmpeg-next behind a feature flag
 4. Establish security testing and monitoring practices
