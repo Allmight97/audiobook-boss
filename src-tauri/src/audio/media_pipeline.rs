@@ -14,6 +14,8 @@ use super::progress_monitor::{setup_process_execution, monitor_process_with_prog
 use crate::errors::Result;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::future::Future;
+use std::pin::Pin;
 
 /// Media processing plan that encapsulates inputs, outputs, and metadata
 /// 
@@ -81,6 +83,35 @@ impl MediaProcessingPlan {
 
 }
 
+/// Trait defining a media processor boundary for executing processing plans.
+///
+/// This allows swapping implementations (e.g., shell-based FFmpeg vs ffmpeg-next)
+/// without changing call sites.
+pub trait MediaProcessor {
+    fn execute<'a>(
+        &'a self,
+        plan: &'a MediaProcessingPlan,
+        context: &'a ProcessingContext,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+}
+
+/// Shell-based FFmpeg processor implementation that delegates to the existing
+/// command-building and progress-execution pipeline.
+pub struct ShellFFmpegProcessor;
+
+impl MediaProcessor for ShellFFmpegProcessor {
+    fn execute<'a>(
+        &'a self,
+        plan: &'a MediaProcessingPlan,
+        context: &'a ProcessingContext,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            let cmd = plan.build_ffmpeg_command()?;
+            execute_ffmpeg_with_progress_context(cmd, context, plan.total_duration).await
+        })
+    }
+}
+
 /// Builds FFmpeg command for merging audio files
 /// 
 /// This function encapsulates all FFmpeg command construction logic,
@@ -99,7 +130,10 @@ pub fn build_merge_command(
         SampleRateConfig::Auto => detect_input_sample_rate(file_paths)?,
     };
     
-    let mut cmd = Command::new(ffmpeg_path);
+    // Log the resolved FFmpeg path once per invocation (helps debug env issues)
+    log::info!("Using FFmpeg binary: {}", ffmpeg_path.display());
+
+    let mut cmd = Command::new(&ffmpeg_path);
     cmd.args([
         "-f", FFMPEG_CONCAT_FORMAT,
         "-safe", FFMPEG_CONCAT_SAFE_MODE,
@@ -119,6 +153,22 @@ pub fn build_merge_command(
     
     cmd.stderr(Stdio::piped());
     cmd.stdout(Stdio::piped());
+
+    // Emit a debug-friendly preview of the command that can be copy-pasted
+    let cmd_preview = format!(
+        "{} -f {} -safe {} -i {} -vn -map 0:a -map_metadata 0 -c:a {} -b:a {}k -ar {} -ac {} -progress {} -nostats -y {}",
+        ffmpeg_path.display(),
+        FFMPEG_CONCAT_FORMAT,
+        FFMPEG_CONCAT_SAFE_MODE,
+        concat_file.to_string_lossy(),
+        FFMPEG_AUDIO_CODEC,
+        settings.bitrate,
+        sample_rate,
+        settings.channels.channel_count(),
+        FFMPEG_PROGRESS_PIPE,
+        output.to_string_lossy()
+    );
+    log::info!("FFmpeg command preview: {}", cmd_preview);
     
     Ok(cmd)
 }

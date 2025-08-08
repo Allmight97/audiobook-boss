@@ -1,0 +1,43 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+- `src/`: Frontend (Vite + TypeScript). UI modules in `src/ui/`, shared types in `src/types/`, assets in `src/assets/`.
+- `src-tauri/`: Rust backend for Tauri. Code in `src-tauri/src/` with domains like `audio/`, `metadata/`, `ffmpeg/`, `commands/`.
+- `docs/`, `media/`: Documentation and media assets. `dist/`: Vite build output.
+- `src-tauri/binaries/`: FFmpeg bundling helpers. `scripts/`: project scripts.
+
+## Build, Test, and Development Commands
+- `npm run tauri dev`: Start the full desktop app (frontend + Rust).
+- `npm run dev`: Frontend dev server only (port 1420).
+- `npm run build`: Type-check and build frontend to `dist/`.
+- `npm run build-macos` / `npm run package-macos`: Prepare FFmpeg and build/package macOS app.
+- `npm run setup-ffmpeg`: Download/bundle FFmpeg for macOS.
+- Rust tests (from `src-tauri/`): `cargo test` (optionally `cargo clippy` for lints).
+
+## Coding Style & Naming Conventions
+- TypeScript: strict mode; prefer explicit types, avoid `any`. Files typically camelCase (e.g., `fileList.ts`), types/interfaces PascalCase.
+- Rust: follow Rust conventions (snake_case modules, CamelCase types). Lints: `#![deny(clippy::unwrap_used)]` and `#![warn(clippy::too_many_lines)]` are enforced—avoid `unwrap`; use `Result` and `?`.
+- Formatting: use default rustfmt; for TS, rely on `tsc` + Vite. Keep functions small and focused.
+
+## Project Coding Guidelines (Policy)
+- Modules: keep new modules under 400 lines.
+- Functions/features: keep new functions under 60 lines; prefer small, composable helpers.
+- Tests: prefer external tests in `src-tauri/tests/unit/**` for public APIs/behavior; use inline tests only when needed to cover private/internal items that aren’t accessible externally.
+- Visibility: keep private/internal items non-`pub` unless required by cross-module use.
+
+## Testing Guidelines
+- Rust: place external tests under `src-tauri/tests/unit/**` by domain (e.g., `audio/`, `commands/`, `ffmpeg/`, `metadata/`). Use inline tests inside modules only when required to test non-`pub` internals (including `pub(crate)`, `pub(super)`, `pub(in ...)`). Run with `cargo test` in `src-tauri/`.
+- Frontend: no formal test runner yet; use `window.testCommands` in `src/main.ts` for manual validation paths.
+- Coverage focus: `audio` pipeline, Tauri command handlers, and metadata read/write; name tests by behavior and module.
+
+## Architecture Map
+- See `docs/reports/dependency-map.md` for a concise function and dependency trace of Rust and TS modules, external crates, and runtime dependencies.
+
+## Commit & Pull Request Guidelines
+- Commits: concise, imperative, and scoped (e.g., "Refactor FFmpeg path handling"). Emojis are fine; keep subject ≤ 72 chars.
+- PRs: include a clear summary, linked issues, steps to test, and screenshots/GIFs for UI changes.
+- Checks: `cargo test` passes, `npm run build` succeeds, and app runs via `npm run tauri dev`. Avoid committing large binaries—use `src-tauri/binaries/` scripts.
+
+## Security & Configuration Tips
+- Logging: set `RUST_LOG` (e.g., `RUST_LOG=info npm run tauri dev`).
+- FFmpeg: prefer `npm run setup-ffmpeg`; the bundled binary is referenced in `tauri.conf.json` (`bundle.externalBin`).

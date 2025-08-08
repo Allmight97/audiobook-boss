@@ -193,6 +193,9 @@ export function getCurrentCoverArt(): number[] | null {
 export function setCoverArt(coverArtBytes: number[] | null): void {
     currentCoverArt = coverArtBytes;
     displayCoverArt(coverArtBytes);
+    // Ensure the Clear button visibility stays in sync when cover art
+    // is set from any source (metadata load, manual clear, etc.)
+    updateClearButtonVisibility();
 }
 
 /**
@@ -203,4 +206,6 @@ export function clearCoverArt(): void {
     currentCoverArt = null;
     displayCoverArt(null);
     delete (window as any).currentCoverArt;
+    // Hide the Clear button when no cover art is present
+    updateClearButtonVisibility();
 }

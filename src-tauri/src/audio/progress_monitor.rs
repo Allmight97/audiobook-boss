@@ -125,6 +125,8 @@ pub fn finalize_process_execution(
             .unwrap_or_default();
         let msg = format!("FFmpeg process failed during audio conversion{exit_code}");
         log::error!("{msg}");
+        // At this point stderr has been consumed during monitoring. We cannot re-read it,
+        // but we can hint where to look for the cause via prior logs.
         return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(msg)));
     }
     
@@ -151,6 +153,8 @@ pub fn check_cancellation_and_kill_context(
                 log::warn!("FFmpeg process may not have terminated cleanly");
             }
         }
+        // Best-effort reap to avoid zombie processes
+        let _ = child.wait();
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
     }
     Ok(())
@@ -201,12 +205,8 @@ pub fn process_progress_update_context(
 /// Handles completion state when progress reaches 100%
 pub fn handle_progress_completion(emitter: &ProgressEmitter) {
     eprint!("\rConverting: Done!                                          \n");
-    emitter.emit_converting_progress(
-        PROGRESS_METADATA_START,
-        "Finalizing audio conversion...",
-        None,
-        None,
-    );
+    // Transition UI away from converting (79%) into finalization stage
+    emitter.emit_finalizing("Finalizing audio conversion...");
 }
 
 /// Updates time estimation based on current progress
@@ -356,6 +356,8 @@ pub fn check_cancellation_and_kill(
                 log::warn!("FFmpeg process may not have terminated cleanly");
             }
         }
+        // Best-effort reap to avoid zombie processes
+        let _ = child.wait();
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
     }
     Ok(())

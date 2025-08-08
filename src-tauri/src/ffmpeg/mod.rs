@@ -53,7 +53,7 @@ pub fn locate_ffmpeg() -> Result<PathBuf> {
     // Check bundled binary in app bundle first (for distributed apps)
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(app_dir) = exe_path.parent() {
-            // Check for the external binary bundled by Tauri
+            // Check for the external binary bundled by Tauri (externalBin)
             let bundled_external = app_dir.join("ffmpeg-universal");
             if bundled_external.exists() {
                 return Ok(bundled_external);

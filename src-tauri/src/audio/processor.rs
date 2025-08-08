@@ -3,7 +3,7 @@
 use super::{AudioFile, AudioSettings, ProgressReporter, ProcessingStage, CleanupGuard};
 use super::constants::*;
 use super::context::ProcessingContext;
-use super::media_pipeline::MediaProcessingPlan;
+use super::media_pipeline::{MediaProcessingPlan, MediaProcessor, ShellFFmpegProcessor};
 use super::metrics::ProcessingMetrics;
 use super::session::ProcessingSession;
 use crate::errors::{AppError, Result};
@@ -342,9 +342,12 @@ fn write_metadata_stage(
     reporter: &mut ProgressReporter,
 ) -> Result<()> {
     if let Some(metadata) = metadata {
-        let mut emitter = ProgressReporter::new(1); // Single file processing
+        // Emit UI event for metadata stage
+        {
+            let ui = super::progress::ProgressEmitter::new(context.window.clone());
+            ui.emit_metadata_start("Writing metadata...");
+        }
         reporter.set_stage(ProcessingStage::WritingMetadata);
-        emitter.set_stage(ProcessingStage::WritingMetadata);
         write_metadata(merged_output, &metadata)?;
         
         if context.is_cancelled() {
@@ -361,9 +364,9 @@ fn complete_processing(
     merged_output: PathBuf,
     reporter: &mut ProgressReporter,
 ) -> Result<String> {
-    let mut emitter = ProgressReporter::new(1); // Single file processing
-    
-    emitter.set_stage(ProcessingStage::Completed);
+    // Emit UI events for cleanup and completion
+    let ui = super::progress::ProgressEmitter::new(context.window.clone());
+    ui.emit_cleanup("Cleaning up...");
     let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
     
     if context.is_cancelled() {
@@ -374,7 +377,7 @@ fn complete_processing(
     cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
     
     reporter.complete();
-    emitter.complete();
+    ui.emit_complete("Processing complete");
     
     Ok(format!("Successfully created audiobook: {}", final_output.display()))
 }
@@ -505,7 +508,9 @@ async fn merge_audio_files_with_context(
         total_duration,
     );
     
-    plan.execute_with_context(context).await?;
+    // Route execution through the trait boundary (no behavior change)
+    let processor = ShellFFmpegProcessor;
+    processor.execute(&plan, context).await?;
     
     Ok(temp_output)
 }
