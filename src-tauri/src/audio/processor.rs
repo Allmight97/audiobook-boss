@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
+use crate::ffmpeg::format_concat_file_line;
 
 // ProgressEvent moved to progress.rs module for centralized management
 // Using the centralized ProgressEvent from super::progress module
@@ -208,9 +209,8 @@ fn create_concat_file(
     
     let mut content = String::new();
     for file in files {
-        // Escape file paths for FFmpeg
-        let escaped_path = file.path.to_string_lossy().replace('\'', "'\"'\"'");
-        content.push_str(&format!("file '{escaped_path}'\n"));
+        // Use centralized escaping and canonicalization
+        content.push_str(&format_concat_file_line(&file.path));
     }
     
     std::fs::write(&concat_file, content)

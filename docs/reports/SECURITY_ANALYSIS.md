@@ -546,29 +546,21 @@ fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
 // Optional improvement (P2): attempt a temporary write to verify permissions.
 ```
 
-## 7. Prioritized Security Plan (aligned with hand-off)
+## 7. Prioritized Security Plan (single, canonical plan)
 
-- [P0][pre-ffmpeg-next] Centralize concat escaping and validation
-  - Add `escape_ffmpeg_path(&str)`; strip CR/LF/NUL and escape single quotes
-  - Use in `ffmpeg/command.rs::create_concat_list` and `audio/processor.rs::create_concat_file`
-  - Canonicalize to absolute paths when building concat content
-  - Add unit tests for escaping and concat content
+The canonical plan is maintained in `docs/planning/hand-off-2025-08-07.md` under “Consolidated plan (canonical)”. Summary:
 
-- [P1][pre-ffmpeg-next] FFmpeg boundary and process reliability
+- Pre-ffmpeg-next
+  - Centralize concat escaping and canonicalization (DONE)
   - Introduce `MediaProcessor` + `ShellFFmpegProcessor` (no behavior change)
-  - Ensure child reaping after cancel: after `kill()` polling, call best-effort `wait()`
-  - Prefer bundled FFmpeg for releases; optionally verify checksum of bundled binary
+  - Ensure child reaping after cancel (best-effort `wait()` after `kill()` polling)
+  - Prefer bundled FFmpeg for releases (optional checksum verification)
 
-- [P2][pre-ffmpeg-next] Cleanup hardening and settings UX
-  - Rename-to-trash + async deletion pattern in `cleanup.rs`
+- Post-ffmpeg-next
+  - Feature flag scaffold (`safe-ffmpeg`) and `FfmpegNextProcessor` (non-default)
+  - Migrate off concat files; retire `escape_ffmpeg_path`
+  - Maintain input path validation (exists, is regular file, extension whitelist); canonicalize; define symlink/base-dir policy as needed
   - Optional: write-permission probe for output directory
-
-- [post-ffmpeg-next] Type-safe processing
-  - Add feature flag scaffold (`safe-ffmpeg`) and a non-default `FfmpegNextProcessor` implementation
-  - Gradually migrate off concat files; retire `escape_ffmpeg_path` once not needed
-
-Notes
-- Items and ordering match `docs/planning/hand-off-2025-08-07.md` (steps 1–3 and the pre-migration checklist). Completing P0 first reduces risk without large refactors; P1 establishes the boundary for migration and tightens process handling; P2 hardens cleanup and UX.
 
 ## 8. Testing Security Improvements
 

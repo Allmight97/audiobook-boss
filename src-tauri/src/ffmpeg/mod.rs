@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 pub mod command;
@@ -17,6 +17,31 @@ pub enum FFmpegError {
 }
 
 pub type Result<T> = std::result::Result<T, FFmpegError>;
+
+/// Escape a raw path string for safe inclusion in an FFmpeg concat list line.
+///
+/// Behavior (P0 baseline):
+/// - Strip CR, LF, and NUL characters
+/// - Escape single quotes using the standard `'` -> `'\''` transformation
+pub fn escape_ffmpeg_path(raw: &str) -> String {
+    // Remove problematic control characters that can break concat list format
+    let mut sanitized = raw.replace('\0', "");
+    sanitized = sanitized.replace('\n', "");
+    sanitized = sanitized.replace('\r', "");
+
+    // FFmpeg concat demuxer lines use single-quoted paths: file '...'
+    // To embed a single quote inside single quotes, close, escape, and reopen: 'foo'\''bar'
+    sanitized.replace('\'', "'\\''")
+}
+
+/// Format a single concat file line from a filesystem path.
+/// Attempts to canonicalize to an absolute path; if that fails, uses the original.
+pub fn format_concat_file_line(path: &Path) -> String {
+    let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let path_str = absolute.to_string_lossy();
+    let escaped = escape_ffmpeg_path(&path_str);
+    format!("file '{escaped}'\n")
+}
 
 /// Locate the FFmpeg binary
 /// Checks in order:

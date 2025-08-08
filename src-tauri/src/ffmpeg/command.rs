@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::process::Command;
-use super::{FFmpegError, Result, locate_ffmpeg};
+use super::{FFmpegError, Result, locate_ffmpeg, format_concat_file_line};
 
 pub struct FFmpegCommand {
     binary_path: PathBuf,
@@ -138,11 +138,8 @@ impl FFmpegCommand {
     fn create_concat_list(&self) -> Result<String> {
         let mut concat_list = String::new();
         for input in &self.inputs {
-            let path_str = input.to_str()
-                .ok_or_else(|| FFmpegError::ExecutionFailed(
-                    "Invalid UTF-8 in file path".to_string()
-                ))?;
-            concat_list.push_str(&format!("file '{path_str}'\n"));
+            // Use centralized escaping and canonicalization
+            concat_list.push_str(&format_concat_file_line(input));
         }
         Ok(concat_list)
     }
