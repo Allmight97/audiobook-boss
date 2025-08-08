@@ -120,15 +120,218 @@ pub struct FfmpegNextProcessor;
 impl MediaProcessor for FfmpegNextProcessor {
     fn execute<'a>(
         &'a self,
-        _plan: &'a MediaProcessingPlan,
-        _context: &'a ProcessingContext,
+        plan: &'a MediaProcessingPlan,
+        context: &'a ProcessingContext,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        use crate::errors::AppError;
+        use ffmpeg_next as ff;
+        use std::sync::Once;
+
+        // Initialize FFmpeg (idempotent)
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let _ = ff::init();
+        });
+
         Box::pin(async move {
-            // TODO(P0): Implement decode→encode pipeline using ffmpeg-next
-            // This is an initial scaffold to allow building behind the feature flag.
-            Err(crate::errors::AppError::General(
-                "FfmpegNextProcessor not yet implemented (enable safe-ffmpeg to develop)".to_string(),
-            ))
+            // Resolve target audio parameters
+            let (target_sample_rate, target_channels) = match &plan.settings.sample_rate {
+                SampleRateConfig::Explicit(rate) => (*rate, plan.settings.channels.channel_count() as i32),
+                SampleRateConfig::Auto => {
+                    // Fallback to first input's properties; if unavailable, use DEFAULT_SAMPLE_RATE
+                    let first = plan.input_file_paths.first()
+                        .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
+                    let ictx = ff::format::input(&first).map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+                    let stream = ictx.streams()
+                        .best(ff::media::Type::Audio)
+                        .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
+                    let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
+                        .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
+                    let decoder = codec_ctx.decoder().audio()
+                        .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
+                    (decoder.rate(), decoder.channels() as i32)
+                }
+            };
+
+            // Prepare output muxer and encoder
+            let mut octx = ff::format::output(&plan.output_path)
+                .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+
+            let codec = ff::encoder::find(ff::codec::Id::AAC)
+                .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
+
+            // Compute global header flag before borrowing stream
+            let requires_global_header = octx.format().flags().contains(ff::format::flag::Flags::GLOBAL_HEADER);
+
+            let mut ost = octx.add_stream(codec)
+                .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
+
+            let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
+
+            // Choose a reasonable sample format (fallback to planar f32)
+            let sample_format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+
+            let time_base = ff::Rational(1, target_sample_rate as i32);
+
+            let mut opened = ff::codec::context::Context::new()
+                .encoder()
+                .audio()
+                .map_err(|e| AppError::General(format!("Open encoder failed: {e}")))?;
+            opened.set_bit_rate(((plan.settings.bitrate as i64) * 1000) as usize);
+            opened.set_rate(target_sample_rate as i32);
+            opened.set_channel_layout(channel_layout);
+            opened.set_format(sample_format);
+            opened.set_time_base(time_base);
+            // Some containers require global header on encoder
+            if requires_global_header {
+                opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
+            }
+            let mut enc_ctx = opened.open_as(codec)
+                .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
+
+            ost.set_time_base(enc_ctx.time_base());
+            ost.set_parameters(&enc_ctx);
+            let ost_index = ost.index();
+            let ost_time_base = ost.time_base();
+            drop(ost);
+
+            octx.write_header().map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
+
+            // Resampler from input-decoder fmt → encoder fmt
+            let mut running_pts: i64 = 0; // in encoder time_base units
+            let total_duration = plan.total_duration.max(0.001);
+            let mut last_emit = std::time::Instant::now();
+
+            // Progress emitter
+            let emitter = crate::audio::progress::ProgressEmitter::new(context.window.clone());
+
+            for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
+                if context.is_cancelled() {
+                    return Err(AppError::InvalidInput("Processing was cancelled".into()));
+                }
+
+                let mut ictx = ff::format::input(&in_path)
+                    .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+                let istream = ictx.streams()
+                    .best(ff::media::Type::Audio)
+                    .ok_or_else(|| AppError::InvalidInput(format!("No audio stream in input {}", in_path.display())))?;
+                let stream_index = istream.index();
+                let dec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
+                    .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
+                let mut decoder = dec_ctx.decoder().audio()
+                    .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
+
+                // Build resampler for this input stream
+                let in_layout = decoder.channel_layout();
+                let in_rate = decoder.rate();
+                let in_format = decoder.format();
+                let mut resampler = ff::software::resampling::Context::get(
+                    in_format,
+                    in_layout,
+                    in_rate,
+                    enc_ctx.format(),
+                    enc_ctx.channel_layout(),
+                    enc_ctx.rate(),
+                ).map_err(|e| AppError::General(format!("Create resampler failed: {e}")))?;
+
+                // Read packets/frames
+                for (si, packet) in ictx.packets() {
+                    if context.is_cancelled() {
+                        return Err(AppError::InvalidInput("Processing was cancelled".into()));
+                    }
+                    if si.index() != stream_index { continue; }
+
+                    decoder.send_packet(&packet)
+                        .map_err(|e| AppError::General(format!("Decoder send failed: {e}")))?;
+                    loop {
+                        let mut frame = ff::frame::Audio::empty();
+                        match decoder.receive_frame(&mut frame) {
+                            Ok(()) => {
+                                // Resample to encoder format
+                                let mut out = ff::frame::Audio::empty();
+                                out.set_format(enc_ctx.format());
+                                out.set_channel_layout(enc_ctx.channel_layout());
+                                out.set_rate(enc_ctx.rate());
+                                resampler.run(&frame, &mut out)
+                                    .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
+
+                                // Set PTS in encoder time_base
+                                out.set_pts(Some(running_pts));
+                                running_pts += out.samples() as i64;
+
+                                // Encode and write
+                                enc_ctx.send_frame(&out)
+                                    .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+                                let mut pkt = ff::Packet::empty();
+                                while enc_ctx.receive_packet(&mut pkt).is_ok() {
+                                    pkt.set_stream(ost_index);
+                                    pkt.rescale_ts(enc_ctx.time_base(), ost_time_base);
+                                    pkt.write_interleaved(&mut octx)
+                                        .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
+                                }
+
+                                // Progress emit every ~200ms
+                                if last_emit.elapsed() > std::time::Duration::from_millis(200) {
+                                    last_emit = std::time::Instant::now();
+                                    let current_seconds = running_pts as f64 / target_sample_rate as f64;
+                                    let file_progress = (current_seconds / total_duration).clamp(0.0, 1.0);
+                                    let percentage = super::constants::PROGRESS_CONVERTING_START as f64 + (file_progress * super::constants::PROGRESS_RANGE_MULTIPLIER);
+                                    emitter.emit_converting_progress(
+                                        percentage.min(super::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
+                                        "Converting and merging audio files...",
+                                        Some(format!("Input {} of {}", idx + 1, plan.input_file_paths.len())),
+                                        None,
+                                    );
+                                }
+                            }
+                            Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
+                            Err(e) => return Err(AppError::General(format!("Decoder receive failed: {e}"))),
+                        }
+                    }
+                }
+
+                // Flush decoder for this input
+                decoder.send_eof().ok();
+                loop {
+                    let mut frame = ff::frame::Audio::empty();
+                    match decoder.receive_frame(&mut frame) {
+                        Ok(()) => {
+                            let mut out = ff::frame::Audio::empty();
+                            out.set_format(enc_ctx.format());
+                            out.set_channel_layout(enc_ctx.channel_layout());
+                            out.set_rate(enc_ctx.rate());
+                            resampler.run(&frame, &mut out)
+                                .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
+                            out.set_pts(Some(running_pts));
+                            running_pts += out.samples() as i64;
+                            enc_ctx.send_frame(&out)
+                                .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+                            let mut pkt = ff::Packet::empty();
+                            while enc_ctx.receive_packet(&mut pkt).is_ok() {
+                                pkt.set_stream(ost_index);
+                                pkt.rescale_ts(enc_ctx.time_base(), ost_time_base);
+                                pkt.write_interleaved(&mut octx)
+                                    .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
+                            }
+                        }
+                        Err(ff::Error::Eof) | Err(ff::Error::Other { .. }) => break,
+                        Err(e) => return Err(AppError::General(format!("Decoder flush failed: {e}"))),
+                    }
+                }
+            }
+
+            // Flush encoder and write remaining packets
+            enc_ctx.send_eof().ok();
+            let mut pkt = ff::Packet::empty();
+            while enc_ctx.receive_packet(&mut pkt).is_ok() {
+                pkt.set_stream(ost_index);
+                pkt.rescale_ts(enc_ctx.time_base(), ost_time_base);
+                pkt.write_interleaved(&mut octx)
+                    .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
+            }
+
+            octx.write_trailer().map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
+            Ok(())
         })
     }
 }
@@ -189,7 +392,7 @@ pub fn build_merge_command(
         FFMPEG_PROGRESS_PIPE,
         output.to_string_lossy()
     );
-    log::info!("FFmpeg command preview: {}", cmd_preview);
+    log::info!("FFmpeg command preview: {cmd_preview}");
     
     Ok(cmd)
 }
