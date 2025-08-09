@@ -148,6 +148,12 @@ pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};
 #[allow(deprecated)]
 pub use processor::process_audiobook_with_events;
 #[allow(unused_imports)] // Context structures are designed for future use
-pub use context::{ProcessingContext, ProcessingContextBuilder, ProgressContext, ProgressContextBuilder};
+pub use context::ProcessingContext;
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+#[allow(unused_imports)]
+pub use context::{ProcessingContextBuilder, ProgressContextBuilder};
 #[allow(unused_imports)] // Cleanup guards are designed for future use
-pub use cleanup::{CleanupGuard, ProcessGuard};
+pub use cleanup::CleanupGuard;
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+#[allow(unused_imports)]
+pub use cleanup::ProcessGuard;

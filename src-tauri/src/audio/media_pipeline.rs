@@ -72,6 +72,7 @@ impl MediaProcessingPlan {
     }
 
     /// Executes the processing plan with context-based progress tracking
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub async fn execute_with_context(
         &self,
         context: &ProcessingContext,
@@ -133,6 +134,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             let _ = ff::init();
         });
 
+        #[allow(clippy::too_many_lines)]
         Box::pin(async move {
             // Resolve target audio parameters
             let (target_sample_rate, target_channels) = match &plan.settings.sample_rate {
@@ -193,7 +195,6 @@ impl MediaProcessor for FfmpegNextProcessor {
             ost.set_parameters(&enc_ctx);
             let ost_index = ost.index();
             let ost_time_base = ost.time_base();
-            drop(ost);
 
             octx.write_header().map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
 

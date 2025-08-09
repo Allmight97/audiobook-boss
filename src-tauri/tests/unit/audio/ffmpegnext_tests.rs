@@ -5,6 +5,7 @@ use tempfile::TempDir;
 
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 use audiobook_boss_lib::audio::media_pipeline::MediaProcessingPlan;
+use audiobook_boss_lib::audio::context::ProgressContextBuilder;
 
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
 
@@ -75,4 +76,16 @@ async fn test_ffmpegnext_error_for_missing_input() {
     let processor = audiobook_boss_lib::audio::media_pipeline::FfmpegNextProcessor;
     let result = processor.execute(&plan, &context).await;
     assert!(result.is_err(), "missing input should error");
+}
+
+#[test]
+fn test_progress_context_builder_usage() {
+    // Minimal usage of ProgressContextBuilder to ensure it remains exercised in feature-on builds
+    let ctx = ProgressContextBuilder::new(audiobook_boss_lib::audio::ProcessingStage::Analyzing)
+        .progress(5.0)
+        .message("testing")
+        .file_progress(0, 1)
+        .eta(10.0)
+        .build();
+    assert_eq!(ctx.progress, 5.0);
 }

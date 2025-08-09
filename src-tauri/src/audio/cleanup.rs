@@ -7,9 +7,13 @@
 use crate::errors::{AppError, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 use std::process::Child;
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 use std::sync::{Arc, Mutex};
-use log::{debug, warn, error};
+use log::{debug, error};
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+use log::warn;
 
 /// RAII guard for automatic cleanup of temporary directories and files
 /// 
@@ -99,6 +103,7 @@ impl CleanupGuard {
     /// 
     /// # Arguments
     /// * `paths` - Iterator of paths to be cleaned up
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn add_paths<I, P>(&mut self, paths: I) 
     where
         I: IntoIterator<Item = P>,
@@ -116,6 +121,7 @@ impl CleanupGuard {
     /// 
     /// # Returns
     /// `true` if the path was removed, `false` if it wasn't in the list
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn remove_path<P: AsRef<Path>>(&mut self, path: P) -> bool {
         let path_buf = path.as_ref().to_path_buf();
         let removed = self.paths.remove(&path_buf);
@@ -130,23 +136,27 @@ impl CleanupGuard {
     /// 
     /// When disabled, paths will not be cleaned up on drop.
     /// This is useful for debugging to inspect temporary files.
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn disable_cleanup(&mut self) {
         debug!("Session {}: Cleanup disabled for debugging", self.session_id);
         self.enabled = false;
     }
     
     /// Enables cleanup (default state)
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn enable_cleanup(&mut self) {
         debug!("Session {}: Cleanup enabled", self.session_id);
         self.enabled = true;
     }
     
     /// Returns the number of paths being tracked
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn path_count(&self) -> usize {
         self.paths.len()
     }
     
     /// Returns the session ID
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
@@ -257,6 +267,7 @@ impl Drop for CleanupGuard {
 /// 
 /// This guard wraps a child process and ensures it's properly terminated
 /// when the guard is dropped, even if an error occurs or panic happens.
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 pub struct ProcessGuard {
     /// The child process being managed
     process: Arc<Mutex<Option<Child>>>,
@@ -268,6 +279,9 @@ pub struct ProcessGuard {
     enabled: bool,
 }
 
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProcessGuard {
     /// Creates a new process guard for the given child process
     /// 
@@ -316,6 +330,7 @@ impl ProcessGuard {
     /// 
     /// This allows multiple threads to monitor or interact with the process
     /// while maintaining the cleanup guarantee.
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn process_handle(&self) -> Arc<Mutex<Option<Child>>> {
         Arc::clone(&self.process)
     }
@@ -327,6 +342,7 @@ impl ProcessGuard {
     /// 
     /// # Returns
     /// The process exit status, or an error if waiting failed
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn wait(self) -> Result<std::process::ExitStatus> {
         debug!("Session {}: Waiting for process completion: {}", 
                self.session_id, self.description);
@@ -356,6 +372,7 @@ impl ProcessGuard {
     /// 
     /// # Returns
     /// `Ok(())` if termination succeeded, error otherwise
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn terminate(&self) -> Result<()> {
         if !self.enabled {
             debug!("Session {}: Process termination disabled", self.session_id);
@@ -404,28 +421,33 @@ impl ProcessGuard {
     }
     
     /// Disables automatic termination for debugging
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn disable_termination(&mut self) {
         debug!("Session {}: Process termination disabled for debugging", self.session_id);
         self.enabled = false;
     }
     
     /// Enables automatic termination (default state)
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn enable_termination(&mut self) {
         debug!("Session {}: Process termination enabled", self.session_id);
         self.enabled = true;
     }
     
     /// Returns the session ID
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
     
     /// Returns the process description
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn description(&self) -> &str {
         &self.description
     }
 }
 
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl Drop for ProcessGuard {
     /// Automatically terminate the process when guard is dropped
     /// 
@@ -442,6 +464,7 @@ impl Drop for ProcessGuard {
                self.session_id, self.description);
         
         // Never panic in Drop - just log errors
+        #[cfg(any(test, feature = "safe-ffmpeg"))]
         if let Err(e) = self.terminate() {
             error!("Session {}: Process termination failed during drop: {}", 
                    self.session_id, e);
@@ -458,6 +481,7 @@ impl CleanupGuard {
     /// 
     /// # Arguments
     /// * `context` - Processing context containing session information
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn from_context(context: &crate::audio::ProcessingContext) -> Self {
         Self::new(context.session.id())
     }
@@ -470,6 +494,7 @@ impl ProcessGuard {
     /// * `process` - Child process to manage
     /// * `context` - Processing context containing session information
     /// * `description` - Description of the process
+    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn from_context(
         process: Child, 
         context: &crate::audio::ProcessingContext, 
