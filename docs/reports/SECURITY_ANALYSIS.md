@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document analyzes security vulnerabilities in the audiobook processing codebase and provides remediation strategies. The analysis identifies critical issues in concat-list escaping (no shell used), process termination/reaping, and resource cleanup, along with a type-safe ffmpeg-next migration path. Items are prioritized and aligned with `docs/planning/hand-off-2025-08-07.md`.
+This document analyzes security vulnerabilities in the audiobook processing codebase and provides remediation strategies. The analysis identifies critical issues in concat-list escaping (no shell used), process termination/reaping, and resource cleanup, along with a type-safe ffmpeg-next migration path. Items are prioritized and aligned with `docs/planning/consolidated-roadmap.md`.
 
 ## Table of Contents
 
@@ -548,7 +548,7 @@ fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
 
 ## 7. Prioritized Security Plan (single, canonical plan)
 
-The canonical plan is maintained in `docs/planning/hand-off-2025-08-07.md` under “Consolidated plan (canonical)”. Summary:
+The canonical plan is maintained in `docs/planning/consolidated-roadmap.md` under “Consolidated plan (canonical)”. Summary:
 
 - Pre-ffmpeg-next
   - Centralize concat escaping and canonicalization (DONE)
@@ -738,7 +738,7 @@ The current implementation has several security gaps that need immediate attenti
 
 The recommended approach is to:
 1. Complete P0 items first (shared escaping + validation), matching the hand-off plan
-    - P0 & P1 items located here: docs/planning/ffmpeg-next-migration.md
+    - P0 & P1 items located here: docs/planning/consolidated-roadmap.md
 2. Implement P1 boundary and process reaping; prefer bundled FFmpeg in releases
 3. Begin migration to ffmpeg-next behind a feature flag
 4. Establish security testing and monitoring practices

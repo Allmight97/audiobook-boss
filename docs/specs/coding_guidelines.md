@@ -1,8 +1,6 @@
 # Audiobook Boss: Coding Guidelines
 **THE SINGLE SOURCE OF TRUTH for all coding standards and implementation patterns.**
 
-**Referenced by:** CLAUDE.md and all sub-agents (auditor, coder, debugger, refactorer)
-
 ## 🚨 **IMPORTANT: Codebase in Transition**
 
 **Current Reality** (as of 2025-01-27 audit):
@@ -10,7 +8,7 @@
 - 5 modules exceed 400 lines (largest: 1,455 lines)
 - Systematic refactoring in progress via planning system
 
-**Refactoring Roadmap**: See `docs/planning/README.md` for complete transition plan
+**Refactoring Roadmap**: See `docs/planning/consolidated-roadmap.md` for complete transition plan
 
 ---
 
@@ -62,7 +60,7 @@
 - Using FFmpeg for audio processing, Lofty for metadata  
 - Tauri 2.0 desktop app targeting macOS first
 - Testing via Cargo with unit tests - Reference: [Cargo Testing Guide](../cargo-testing-guide.md)
-- **REFACTORING IN PROGRESS**: See `docs/planning/README.md` for systematic improvement plan
+- **REFACTORING IN PROGRESS**: See `docs/planning/consolidated-roadmap.md` for systematic improvement plan
 
 ## 🔄 **Working with Existing Code**
 
@@ -479,10 +477,9 @@ fn test_invalid_audio_file() {
 - **VALIDATION**: Always run tests + clippy after changes
 
 ### Navigation
-- **Strategic Overview**: `docs/planning/README.md`
-- **Current Plan**: Check which plan is being executed
-- **Technical Details**: `docs/audit_report_comprehensive.md`
-- **Basic Patterns**: [CLAUDE.md](../../CLAUDE.md)
+- **Strategic Overview**: `docs/planning/consolidated-roadmap.md`
+- **Current Plan**: `docs/reports/mvp-roadmap.md`
+- **Technical Details**: `docs/reports/SECURITY_ANALYSIS.md`
 
 ## Remember
 This is JStar's first Rust project during a major refactoring transition. Focus on teachable patterns and clear examples that demonstrate both what to do and why it works. **The codebase will transform significantly** - don't assume current module sizes represent good practice!
