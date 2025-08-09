@@ -120,6 +120,17 @@ Tag now (P1) and remove at P2 unless otherwise noted:
 
 Note: keep `ShellFFmpegProcessor` implementation around behind `legacy-ffmpeg` (or simply not compiled when `safe-ffmpeg` is the only engine) to facilitate quick re-enable if needed during early adoption.
 
+#### Addendum: Audit-Driven Extensions and Adjustments
+
+For a consolidated plan addressing audit issues (e.g., build noise, testing gaps, path validation), integrated into P0-P3 phases, see [migration_audit_adjustments.md](../reports/migration_audit_adjustments.md). Key insertions:
+
+- **P0 Insertions:** After task 4: Full path validation (C2.1-C2.3). After task 5: Platform docs (M1.1).
+- **P1 Insertions:** Before task 1: Build/Clippy fixes (C1.1-C1.3). After task 4: Tests/cancellation (H1.1-H1.3, H3.1).
+- **P2 Insertions:** Before task 1: Refactor oversized code (H2.1-H2.2). After task 3: Medium fixes (M2.1-M2.2, M3.1, M4.1).
+- **New P3:** Post-migration cleanup (L1.1, L2.1, L3.1-L3.3); updated testing/CI.
+
+Proceed with original tasks, incorporating these in order for comprehensive coverage.
+
 #### Testing Plan
 - Unit:
   - Feature-on tests for packet decode/encode and duration accounting; path validation remains in the `audio` layer.
