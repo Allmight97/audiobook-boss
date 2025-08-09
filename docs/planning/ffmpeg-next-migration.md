@@ -34,14 +34,14 @@ References
        - Produce single continuous output file (concatenate by sequentially appending encoded frames for each input).
      - Progress: compute total seconds from `plan.total_duration`; emit progress every N frames using accumulated PTS/time.
      - Cancellation: poll `ctx.is_cancelled()` and abort early with a clean shutdown.
-  3. Wire a chooser without changing default behavior — PARTIAL: processor type is scaffolded; default remains shell:
-     - In `audio/processor.rs::merge_audio_files_with_context`, behind `#[cfg(feature = "safe-ffmpeg")]` instantiate `FfmpegNextProcessor` if a runtime env var OR compile flag selects it; otherwise use `ShellFFmpegProcessor`.
-     - Keep default path as legacy (`ShellFFmpegProcessor`).
-  4. Tests and lint — validated both builds (`default`, `--features safe-ffmpeg`) compile and tests pass.
-     - Keep existing tests green.
-     - Add a feature-gated test (unit/integration) that merges a tiny sample (use `media/01 - Introduction.mp3` as source) only when `safe-ffmpeg` is enabled. Mark as `#[cfg(feature = "safe-ffmpeg")]`.
+  3. Wire a chooser without changing default behavior — DONE:
+     - In `audio/processor.rs::merge_audio_files_with_context`, we instantiate `FfmpegNextProcessor` when compiled with `--features safe-ffmpeg`, else `ShellFFmpegProcessor`.
+     - Default path remains legacy (shell), preserving behavior.
+  4. Tests and lint — DONE
+     - Feature-gated tests added at `src-tauri/tests/unit/audio/ffmpegnext_tests.rs` (use `media/01 - Introduction.mp3` when present).
+     - Default build remains unchanged and green; feature-on build compiles and tests pass on macOS.
   5. Docs:
-     - Add build note to `docs/specs/development.md` about enabling `safe-ffmpeg` and Homebrew requirement on Apple Silicon.
+     - Build note: Enable `safe-ffmpeg` and ensure Homebrew FFmpeg dev libs on macOS (Apple Silicon). Command: `brew install ffmpeg`.
 
 - P1 (flip-by-project-level setting; start retiring legacy)
   1. Feature flag scaffold in code paths:
@@ -70,10 +70,23 @@ References
 #### Detailed Tasks (with P0/P1/P2)
 - P0
   - [X] Add Cargo feature `safe-ffmpeg` and conditional deps/imports.
-  - [ ] Implement `FfmpegNextProcessor` minimally to merge inputs → AAC in M4B container; emit progress; honor cancel.
-  - [ ] Wire non-default selection via compile-time feature (no behavior change by default).
-  - [ ] Add a small, feature-gated test using repository media.
+  - [X] Implement `FfmpegNextProcessor` minimally to merge inputs → AAC in M4B container; emit progress; honor cancel.
+  - [X] Wire non-default selection via compile-time feature (no behavior change by default).
+  - [X] Add a small, feature-gated test using repository media.
   - [X] Update development docs and hand-off notes (this doc + hand-off updated).
+
+#### P0 Implementation Notes
+- Encoder: libavcodec AAC via ffmpeg-next; bitrate from settings (kbps), channels from settings, sample rate explicit or derived from first input when Auto.
+- Container: mp4/m4b muxer selected by output path; continuous timeline by rescaling PTS and appending frames across inputs.
+- Resampling: per-input resampler to target encoder format (rate/layout/sample fmt).
+- Progress: computed from accumulated encoded samples vs `plan.total_duration`, emitted every ~200ms and clamped to converting range.
+- Cancellation: checked each packet/frame; aborts cleanly before trailer write when requested.
+
+#### How to run locally (feature-on)
+- macOS setup (one-time): `brew install ffmpeg`
+- Build and test (feature on) from `src-tauri/`:
+  - `cargo test --features safe-ffmpeg`
+  - Optionally: `cargo clippy --features safe-ffmpeg`
 
 #### Next tasks (can proceed mostly in parallel)
 - Implement core decode→encode loop in `FfmpegNextProcessor` (P0)

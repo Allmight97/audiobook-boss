@@ -31,6 +31,7 @@ anyhow = "1.0"
 uuid = { version = "1.11", features = ["v4"] }
 log = "0.4"
 env_logger = "0.11"
+ffmpeg-next = { version = "7", optional = true }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
@@ -38,10 +39,7 @@ env_logger = "0.11"
 custom-protocol = ["tauri/custom-protocol"]
 
 # Type-safe FFmpeg engine based on ffmpeg-next (disabled by default)
-safe-ffmpeg = []
-
-[target.'cfg(feature = "safe-ffmpeg")'.dependencies]
-ffmpeg-next = "7"
+safe-ffmpeg = ["dep:ffmpeg-next"]
 
 [dev-dependencies]
 tempfile = "3.20.0"

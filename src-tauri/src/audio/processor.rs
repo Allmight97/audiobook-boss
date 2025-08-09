@@ -3,7 +3,9 @@
 use super::{AudioFile, AudioSettings, ProgressReporter, ProcessingStage, CleanupGuard};
 use super::constants::*;
 use super::context::ProcessingContext;
-use super::media_pipeline::{MediaProcessingPlan, MediaProcessor, ShellFFmpegProcessor};
+use super::media_pipeline::{MediaProcessingPlan, MediaProcessor};
+#[cfg(not(feature = "safe-ffmpeg"))]
+use super::media_pipeline::ShellFFmpegProcessor;
 use super::metrics::ProcessingMetrics;
 use super::session::ProcessingSession;
 use crate::errors::{AppError, Result};
@@ -508,7 +510,10 @@ async fn merge_audio_files_with_context(
         total_duration,
     );
     
-    // Route execution through the trait boundary (no behavior change)
+    // Route execution through the trait boundary
+    #[cfg(feature = "safe-ffmpeg")]
+    let processor = super::media_pipeline::FfmpegNextProcessor;
+    #[cfg(not(feature = "safe-ffmpeg"))]
     let processor = ShellFFmpegProcessor;
     processor.execute(&plan, context).await?;
     
