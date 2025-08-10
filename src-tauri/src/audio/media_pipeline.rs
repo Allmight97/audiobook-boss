@@ -350,8 +350,10 @@ impl FfmpegNextProcessor {
         if last_emit.elapsed() > std::time::Duration::from_millis(200) {
             *last_emit = std::time::Instant::now();
             let current_seconds = running_pts as f64 / target_sample_rate as f64;
-            let file_progress = (current_seconds / total_duration).clamp(0.0, 1.0);
-            let percentage = super::constants::PROGRESS_CONVERTING_START as f64 + (file_progress * super::constants::PROGRESS_RANGE_MULTIPLIER);
+            let percentage = crate::audio::progress::converting_percentage_from_seconds(
+                current_seconds,
+                total_duration,
+            ) as f64;
             emitter.emit_converting_progress(
                 percentage.min(super::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
                 "Converting and merging audio files...",
@@ -371,7 +373,7 @@ impl FfmpegNextProcessor {
         running_pts: &mut i64,
         output_stream_index: usize,
         output_time_base: ffmpeg_next::Rational,
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
         emitter: &crate::audio::progress::ProgressEmitter,
         file_index: usize,
         total_files: usize,
@@ -383,6 +385,11 @@ impl FfmpegNextProcessor {
         use ffmpeg_next as ff;
 
         loop {
+            if context.is_cancelled() {
+                // Best-effort flush signal, but we will delete partial output via guard
+                let _ = encoder.send_eof();
+                return Err(AppError::InvalidInput("Processing was cancelled".into()));
+            }
             let mut frame = ff::frame::Audio::empty();
             match decoder.receive_frame(&mut frame) {
                 Ok(()) => {
@@ -570,6 +577,10 @@ impl MediaProcessor for FfmpegNextProcessor {
             let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) = 
                 Self::setup_encoder(plan)?;
 
+            // Ensure partial outputs are removed on failure or cancellation
+            let mut cleanup_guard = crate::audio::cleanup::CleanupGuard::new(context.session.id());
+            cleanup_guard.add_path(&plan.output_path);
+
             // Initialize processing state
             let mut running_pts: i64 = 0; // in encoder time_base units
             let mut last_emit = std::time::Instant::now();
@@ -595,6 +606,9 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             // Finalize encoding
             Self::finalize_encoding(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
+
+            // Preserve output on success
+            let _ = cleanup_guard.remove_path(&plan.output_path);
 
             Ok(())
         })

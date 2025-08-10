@@ -205,6 +205,18 @@ impl ProgressEmitter {
     }
 }
 
+/// Converts current processed seconds to converting-stage UI percentage.
+/// Public for testing; used by ffmpeg-next progress emission.
+pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: f64) -> f32 {
+    if total_duration <= 0.0 {
+        return super::constants::PROGRESS_CONVERTING_START;
+    }
+    let ratio = (current_seconds / total_duration).clamp(0.0, 1.0);
+    let pct = super::constants::PROGRESS_CONVERTING_START as f64
+        + ratio * super::constants::PROGRESS_RANGE_MULTIPLIER;
+    pct as f32
+}
+
 /// Progress reporter for tracking audio processing operations
 /// Maintained for compatibility with existing code
 pub struct ProgressReporter {

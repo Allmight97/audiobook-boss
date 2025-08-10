@@ -15,10 +15,7 @@ This document summarizes completed work, then breaks remaining tasks into phases
 - **Build/Clippy Noise Reduction**: Completed P0.2 Build/Clippy Noise Reduction with proper cfg gating, strategic allows using cfg_attr patterns, and comprehensive CI matrix testing. Fixed all clippy errors (Default trait implementations, format string inlining, too_many_lines allows) ensuring both default and safe-ffmpeg configurations pass cleanly with -D warnings. Enhanced documentation in CLAUDE.md with verification commands and strategic allow patterns for future development.
 - **FFmpeg-Next Core Pipeline (P0.3.1-P0.3.2)**: Completed full implementation of FfmpegNextProcessor with multi-input decode/resample/encode/mux pipeline, proper settings handling (bitrate, channels, sample rate), and comprehensive test coverage. Refactored 200+ line execute function into 12 helper functions (<60 lines each) added 19 new tests covering integration and settings validation. All functionality verified with zero clippy warnings in both default and safe-ffmpeg configurations.
 
-**Current Status**: Tests/clippy green in default and --features safe-ffmpeg configurations. FFmpeg-Next core pipeline fully implemented and tested. Default engine is shell; feature-on uses complete ffmpeg-next implementation ready for production.
-
-
-
+- **Progress & Cancellation (P0.4.1–P0.4.2)**: Added ffmpeg-next progress based on accumulated PTS with ~200ms emits, plus per-frame `ctx.is_cancelled()` polling. Integrated `CleanupGuard` to remove partial outputs on cancel/error, with a best-effort encoder flush; added unit tests for progress math and cancellation cleanup; clippy clean.
 
 ### P0: Blockers and Security (Focus: Secure FFmpeg, Stabilize Builds)
 These must be done first to unblock safe migration and fix risks.
@@ -33,11 +30,11 @@ These must be done first to unblock safe migration and fix risks.
    - **Task P0.2.2**: Add #[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(dead_code)] to unused helpers (e.g., CleanupGuard methods) temporarily. (Deps: P0.2.1. Verify: No dead_code warnings in default build. Effort: Low.)
    - **Task P0.2.3**: Add CI jobs for default and feature-on Clippy; fail on warnings. (Deps: P0.2.1. Verify: CI passes both matrices. Effort: Low.)
 
-3. **FFmpeg-Next Core Pipeline** (Critical; Maps to P0):
+3. **FFmpeg-Next Core Pipeline** (Critical; Maps to P0): DONE ✅
    - **Task P0.3.1**: Flesh out FfmpegNextProcessor::execute: Open each input, find audio stream, decode packets, resample, encode to AAC, mux to m4b (sequential append). (Deps: None. Verify: Small merge test in ffmpegnext_tests.rs with repo media produces playable file. Effort: High.)
    - **Task P0.3.2**: Handle settings: bitrate, channels (mono/stereo), sample rate (explicit or auto from first input). (Deps: P0.3.1. Verify: Test with explicit/auto settings matches output properties. Effort: Medium.)
 
-4. **Progress and Cancellation in FFmpeg-Next** (Critical; Maps to P0):
+4. **Progress and Cancellation in FFmpeg-Next** (Critical; Maps to P0): DONE ✅
    - **Task P0.4.1**: Compute progress from accumulated PTS/encoded samples vs total_duration; emit every ~200ms. (Deps: P0.3.1. Verify: Test validates emitted percentages (e.g., 50% at half). Effort: Medium.)
    - **Task P0.4.2**: Poll ctx.is_cancelled() per packet/frame; abort cleanly (flush encoder, delete partial output). (Deps: P0.4.1. Verify: Mid-process cancel test aborts without artifacts. Effort: Low.)
 
