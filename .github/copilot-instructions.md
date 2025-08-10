@@ -32,14 +32,7 @@ npm run setup-ffmpeg                # Bundle FFmpeg for packaging
 cargo clippy --features safe-ffmpeg # Check feature-gated code
 ```
 
-## Project-Specific Patterns
-
-### Module Size Enforcement
-- **Hard Limits**: Files ≤400 lines, functions ≤60 lines
-- **When Violated**: Extract helpers, but avoid >3 parameters or circular deps
-- **Check Compliance**: Use `scripts/sg/size_budget.sh`
-
-# Coding Style & Naming Conventions
+### Coding Style & Naming Conventions
 - TypeScript: strict mode; prefer explicit types, avoid `any`. Files typically camelCase (e.g., `fileList.ts`), types/interfaces PascalCase.
 - Rust: follow Rust conventions (snake_case modules, CamelCase types). Lints: `#![deny(clippy::unwrap_used)]` and `#![warn(clippy::too_many_lines)]` are enforced—avoid `unwrap`; use `Result` and `?`.
 - Formatting: use default rustfmt; for TS, rely on `tsc` + Vite. Keep functions small and focused.
@@ -101,4 +94,4 @@ The codebase is actively migrating from shell FFmpeg to ffmpeg-next. When workin
 - Test both engines: `cargo test` and `cargo test --features safe-ffmpeg`
 - Follow P0/P1/P2 priority tasks from `docs/planning/consolidated-roadmap.md`
 ```
-Always apply [general coding guidelines](instructions/coding-guidelines.instructions.md)
+Always apply [general coding guidelines](instructions/coding-guidelines.instructions.md) when modifiying any code.
