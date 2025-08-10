@@ -487,6 +487,7 @@ impl CleanupGuard {
     }
 }
 
+#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProcessGuard {
     /// Creates a process guard from a processing context
     /// 
@@ -494,7 +495,6 @@ impl ProcessGuard {
     /// * `process` - Child process to manage
     /// * `context` - Processing context containing session information
     /// * `description` - Description of the process
-    #[cfg(any(test, feature = "safe-ffmpeg"))]
     pub fn from_context(
         process: Child, 
         context: &crate::audio::ProcessingContext, 

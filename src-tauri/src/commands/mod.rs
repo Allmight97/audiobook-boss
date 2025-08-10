@@ -31,24 +31,24 @@ pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
     }
 
     let mut validated_count = 0;
-    let mut missing_files = Vec::new();
+    let mut validation_errors = Vec::new();
 
     for path_str in file_paths {
         let path = PathBuf::from(&path_str);
         
-        if path.exists() {
-            if path.is_file() {
+        // Use shared path validation
+        match crate::audio::path_validation::validate_input_audio_path(&path) {
+            Ok(_canonical_path) => {
                 validated_count += 1;
-            } else {
-                missing_files.push(format!("Path is not a file: {path_str}"));
             }
-        } else {
-            missing_files.push(format!("File not found: {path_str}"));
+            Err(e) => {
+                validation_errors.push(e.to_string());
+            }
         }
     }
 
-    if !missing_files.is_empty() {
-        return Err(AppError::FileValidation(missing_files.join("; ")));
+    if !validation_errors.is_empty() {
+        return Err(AppError::FileValidation(validation_errors.join("; ")));
     }
 
     Ok(format!("Successfully validated {validated_count} files"))

@@ -172,6 +172,9 @@ fn validate_processing_inputs(
                        file.error.as_deref().unwrap_or("Unknown error"))
             ));
         }
+        
+        // Additional path validation as safety check
+        let _canonical = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
     }
     
     // Validate settings

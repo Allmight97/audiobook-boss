@@ -41,17 +41,43 @@ fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
     Ok(())
 }
 
+/// Validates output directory is writable by creating and removing a temp file
+fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()> {
+    let dir = dir_path.as_ref();
+    
+    if !dir.exists() {
+        return Err(AppError::FileValidation(
+            format!("Output directory does not exist: {}", dir.display())
+        ));
+    }
+    
+    if !dir.is_dir() {
+        return Err(AppError::FileValidation(
+            format!("Output path is not a directory: {}", dir.display())
+        ));
+    }
+    
+    // Probe write permission by creating and removing a temp file
+    let temp_file = dir.join(".audiobook_boss_write_test");
+    match std::fs::write(&temp_file, b"test") {
+        Ok(_) => {
+            // Clean up test file
+            let _ = std::fs::remove_file(&temp_file);
+            Ok(())
+        }
+        Err(e) => Err(AppError::FileValidation(
+            format!("Output directory not writable: {}", e)
+        ))
+    }
+}
+
 /// Validates output path is writable
 fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
     
-    // Check if parent directory exists
+    // Validate parent directory exists and is writable
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            return Err(AppError::FileValidation(
-                format!("Output directory does not exist: {}", parent.display())
-            ));
-        }
+        validate_output_directory_writable(parent)?;
     }
     
     // Check file extension
@@ -181,6 +207,41 @@ mod tests {
         assert!(result.is_err());
         let err = result.expect_err("expected nonexistent dir error");
         assert!(err.to_string().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_output_directory_write_permission_probe() {
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let result = validate_output_directory_writable(temp_dir.path());
+        assert!(result.is_ok(), "Temp directory should be writable");
+        
+        // Test with file instead of directory
+        let temp_file = temp_dir.path().join("not_a_dir.txt");
+        std::fs::write(&temp_file, b"test").expect("create temp file");
+        let result = validate_output_directory_writable(&temp_file);
+        assert!(result.is_err(), "File should not be valid as directory");
+        assert!(result.expect_err("expected not directory error").to_string().contains("not a directory"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_read_only_output_directory() {
+        use std::fs::Permissions;
+        use std::os::unix::fs::PermissionsExt;
+        
+        let temp_dir = TempDir::new().expect("create temp dir");
+        
+        // Make directory read-only
+        let readonly_perms = Permissions::from_mode(0o444);
+        std::fs::set_permissions(temp_dir.path(), readonly_perms).expect("set readonly permissions");
+        
+        let result = validate_output_directory_writable(temp_dir.path());
+        assert!(result.is_err(), "Read-only directory should fail write test");
+        assert!(result.expect_err("expected write permission error").to_string().contains("not writable"));
+        
+        // Restore permissions for cleanup
+        let normal_perms = Permissions::from_mode(0o755);
+        std::fs::set_permissions(temp_dir.path(), normal_perms).expect("restore permissions");
     }
 
     #[test]

@@ -211,7 +211,7 @@ mod integration_tests {
         assert!(validation_result.is_err(), "Should fail for nonexistent files");
         
         let error_msg = validation_result.expect_err("expected validation error").to_string();
-        assert!(error_msg.contains("File not found"), "Should report file not found");
+        assert!(error_msg.contains("No such file or directory"), "Should report file not found");
 
         // Test analysis of invalid files
         let invalid_files = vec!["nonexistent.mp3".to_string()];

@@ -47,14 +47,21 @@ pub fn validate_audio_files<P: AsRef<Path>>(
 fn validate_single_file(path: &Path) -> Result<AudioFile> {
     let mut audio_file = AudioFile::new(path.to_path_buf());
     
-    // Check if file exists
-    if !path.exists() {
-        audio_file.error = Some(format!("File not found: {}", path.display()));
-        return Ok(audio_file);
-    }
+    // Use shared validation first
+    let canonical_path = match crate::audio::path_validation::validate_input_audio_path(path) {
+        Ok(canonical) => {
+            // Update AudioFile to use canonical path
+            audio_file.path = canonical.clone();
+            canonical
+        }
+        Err(e) => {
+            audio_file.error = Some(e.to_string());
+            return Ok(audio_file);
+        }
+    };
     
-    // Get file size
-    match fs::metadata(path) {
+    // Get file size (canonical path should exist)
+    match fs::metadata(&canonical_path) {
         Ok(metadata) => audio_file.size = Some(metadata.len() as f64),
         Err(e) => {
             audio_file.error = Some(format!("Cannot read file metadata: {e}"));
@@ -62,8 +69,8 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
         }
     }
     
-    // Validate audio format and get comprehensive metadata
-    match validate_audio_format(path) {
+    // Validate audio format and get comprehensive metadata using canonical path
+    match validate_audio_format(&canonical_path) {
         Ok((format, duration, bitrate, sample_rate, channels)) => {
             audio_file.format = Some(format);
             audio_file.duration = Some(duration);
@@ -177,7 +184,8 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert!(!result[0].is_valid);
         let msg = result[0].error.as_ref().expect("error message for invalid file");
-        assert!(msg.contains("File not found"));
+        // Updated to reflect shared validation error messages
+        assert!(msg.contains("Cannot read file metadata") || msg.contains("File not found"));
     }
 
     #[test]

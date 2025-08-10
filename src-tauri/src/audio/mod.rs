@@ -13,6 +13,7 @@ pub mod context;
 pub mod file_list;
 pub mod media_pipeline;
 pub mod metrics;
+pub mod path_validation;
 pub mod processor;
 pub mod progress;
 pub mod progress_monitor;
@@ -142,6 +143,7 @@ pub enum ProcessingStage {
 
 // Re-export main functions for convenience
 pub use file_list::get_file_list_info;
+pub use path_validation::validate_input_audio_path;
 pub use settings::validate_audio_settings;
 #[allow(unused_imports)] // ProgressEmitter and ProgressEvent are new infrastructure for future use
 pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};

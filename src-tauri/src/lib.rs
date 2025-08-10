@@ -3,11 +3,11 @@
 #![deny(clippy::unwrap_used)]
 #![warn(clippy::too_many_lines)]
 
-mod commands;
+pub mod commands;
 mod errors;
 mod ffmpeg;
 mod metadata;
-mod audio;
+pub mod audio;
 
 #[cfg(test)]
 mod tests_integration;
