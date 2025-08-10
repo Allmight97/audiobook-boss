@@ -1,0 +1,30 @@
+---
+applyTo: '**'
+---
+# Code Size & Modularity Standard
+Principles:
+- Uphold Single Responsibility, high cohesion, and orthogonality (independent components).
+- Prefer low cyclomatic/cognitive complexity via simple control flow and early returns.
+
+Hard limits:
+- Module/file: ≤ 400 lines of code (exclude comments/blank).
+- Function/method: ≤ 60 lines of code (exclude comments/blank).
+
+Agent behavior:
+- During generation: structure code to meet limits; extract helpers without harming cohesion.
+  - Avoid extracting helpers when it would:
+    - Require passing >3 parameters between functions
+    - Split logically atomic operations (e.g., validate-then-act patterns)
+    - Create circular dependencies between modules
+- During review: flag any violation and propose concrete refactors (what to extract, names, inputs/outputs, test seams).
+- Only exceed limits for justified generated/protocol glue; annotate with a comment with `// EXCEPTION:` and create a refactor ticket
+  - Exceeding limits allowed only for:
+    - Generated code (proc macros, build scripts)
+    - Protocol implementations (Tauri command handlers, serialization)
+    - Third-party interface adapters (FFmpeg bindings, external APIs)
+
+Checklist before returning code:
+- [ ] Each function ≤ 60 LOC and single-purpose
+- [ ] File ≤ 400 LOC
+- [ ] Complexity is low; boundaries clean; helpers testable
+- [ ] Any exception annotated + ticketed
