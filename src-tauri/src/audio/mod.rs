@@ -153,6 +153,9 @@ pub use processor::process_audiobook_with_events;
 pub use context::ProcessingContext;
 #[cfg(any(test, feature = "safe-ffmpeg"))]
 #[allow(unused_imports)]
+pub use context::ProgressContext;
+#[cfg(any(test, feature = "safe-ffmpeg"))]
+#[allow(unused_imports)]
 pub use context::{ProcessingContextBuilder, ProgressContextBuilder};
 #[allow(unused_imports)] // Cleanup guards are designed for future use
 pub use cleanup::CleanupGuard;

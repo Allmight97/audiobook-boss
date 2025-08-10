@@ -92,6 +92,7 @@ impl CleanupGuard {
     /// let mut guard = CleanupGuard::new("session-123".to_string());
     /// guard.add_path("/tmp/audiobook_processing");
     /// ```
+    #[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(dead_code))]
     pub fn add_path<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
         debug!("Session {}: Adding path to cleanup: {}", 
@@ -280,8 +281,6 @@ pub struct ProcessGuard {
 }
 
 #[cfg(any(test, feature = "safe-ffmpeg"))]
-#[cfg(any(test, feature = "safe-ffmpeg"))]
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProcessGuard {
     /// Creates a new process guard for the given child process
     /// 
@@ -464,7 +463,6 @@ impl Drop for ProcessGuard {
                self.session_id, self.description);
         
         // Never panic in Drop - just log errors
-        #[cfg(any(test, feature = "safe-ffmpeg"))]
         if let Err(e) = self.terminate() {
             error!("Session {}: Process termination failed during drop: {}", 
                    self.session_id, e);

@@ -11,6 +11,7 @@ This document summarizes completed work, then breaks remaining tasks into phases
 - **Progress UX**: Emitted final stages (Finalizing, Writing Metadata, Completed); no stall at 79%.
 - **FFmpeg-Next Bootstrap**: Added safe-ffmpeg feature; initial FfmpegNextProcessor impl (decode/resample/encode/mux); feature-gated tests in unit/audio/ffmpegnext_tests.rs.
 - **P1 Noise Reduction (Partial)**: Gated some scaffolding (ProcessingContextBuilder, etc.); temporary allows for dead_code and too_many_lines in feature-on builds.
+- **Build/Clippy Noise Reduction**: Standardized cfg gating for ProcessGuard, ProgressContext*, and ProcessingContextBuilder behind `any(test, feature = "safe-ffmpeg")`, and added temporary `dead_code` allowances for unused helpers in default builds. Introduced a CI Clippy matrix (default and `safe-ffmpeg`) that fails on warnings to keep both configurations lint-clean.
 
 **Current Status**: Tests/clippy green in default and --features safe-ffmpeg (with some allows). Large modules remain (e.g., processor.rs at 631 lines). Default engine is shell; feature-on uses ffmpeg-next skeleton.
 
@@ -24,10 +25,10 @@ These must be done first to unblock safe migration and fix risks.
    - **Task P0.1.1**: Implement shared input path validation function: Check exists, is regular file, extension in whitelist (mp3/m4a/m4b/etc), canonicalize with Path::canonicalize(), strip invalid chars (CR/LF/NUL). (Deps: None. Verify: New unit tests for edge cases (nonexistent, dir, invalid ext, symlinks). Effort: Low.)
    - **Task P0.1.2**: Apply validation to all input sites (e.g., file_list.rs validate_audio_files, processor.rs process_audiobook_with_context). (Deps: P0.1.1. Verify: Integration test with invalid inputs errors correctly. Effort: Medium.)
    - **Task P0.1.3**: Add symlink policy: Resolve with canonicalize; log warnings for symlinks but proceed. Add output dir write-permission probe (create/test-remove temp file). (Deps: P0.1.1. Verify: Test with symlinked input and read-only output dir. Effort: Low.)
-      - DONE - summary
+      - DONE - summary 
          - Implemented comprehensive path validation system with shared validation function, integrated across all input entry points (file_list, processor, commands), and added symlink resolution with warning logging plus output directory write permission probing. This critical security enhancement prevents path traversal attacks, injection vulnerabilities, and ensures consistent validation behavior throughout the audio processing pipeline. All 63 tests pass including 18 new path validation tests covering edge cases and integration scenarios.
 
-2. **Build/Clippy Noise Reduction** (Critical; Maps to P0):
+2. **Build/Clippy Noise Reduction** (Critical; Maps to P0): DONE
    - **Task P0.2.1**: Apply consistent gating to ProcessGuard, ProgressContext*, ProcessingContextBuilder using #[cfg(any(test, feature = "safe-ffmpeg"))] on types, impls, and re-exports in audio/mod.rs. (Deps: None. Verify: cargo clippy -- -D warnings and --features safe-ffmpeg both pass. Effort: Medium.)
    - **Task P0.2.2**: Add #[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(dead_code)] to unused helpers (e.g., CleanupGuard methods) temporarily. (Deps: P0.2.1. Verify: No dead_code warnings in default build. Effort: Low.)
    - **Task P0.2.3**: Add CI jobs for default and feature-on Clippy; fail on warnings. (Deps: P0.2.1. Verify: CI passes both matrices. Effort: Low.)
