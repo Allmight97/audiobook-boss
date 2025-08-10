@@ -20,7 +20,9 @@
       "Bash(sed:*)",
       "Bash(grep:*)",
       "Bash(RUST_LOG=debug cargo run --bin audiobook-boss)",
-      "Bash(tokei:*)"
+      "Bash(tokei:*)",
+      "Bash(cargo build:*)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }

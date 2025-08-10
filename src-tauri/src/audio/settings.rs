@@ -146,6 +146,21 @@ impl ChannelConfig {
     }
 }
 
+impl SampleRateConfig {
+    /// Returns whether this configuration requires sample rate detection
+    pub fn requires_detection(&self) -> bool {
+        matches!(self, SampleRateConfig::Auto)
+    }
+    
+    /// Returns the sample rate value if explicit, None if auto
+    pub fn explicit_rate(&self) -> Option<u32> {
+        match self {
+            SampleRateConfig::Explicit(rate) => Some(*rate),
+            SampleRateConfig::Auto => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +273,26 @@ mod tests {
         assert_eq!(ChannelConfig::Stereo.channel_count(), 2);
         assert_eq!(ChannelConfig::Mono.ffmpeg_layout(), "mono");
         assert_eq!(ChannelConfig::Stereo.ffmpeg_layout(), "stereo");
+    }
+
+    #[test]
+    fn test_sample_rate_config_methods() {
+        // Test Auto configuration
+        let auto_config = SampleRateConfig::Auto;
+        assert!(auto_config.requires_detection());
+        assert_eq!(auto_config.explicit_rate(), None);
+        
+        // Test Explicit configuration
+        let explicit_config = SampleRateConfig::Explicit(44100);
+        assert!(!explicit_config.requires_detection());
+        assert_eq!(explicit_config.explicit_rate(), Some(44100));
+        
+        // Test different explicit rates
+        let rates = [22050, 32000, 44100, 48000];
+        for rate in rates {
+            let config = SampleRateConfig::Explicit(rate);
+            assert!(!config.requires_detection());
+            assert_eq!(config.explicit_rate(), Some(rate));
+        }
     }
 }

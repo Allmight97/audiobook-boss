@@ -62,7 +62,7 @@ impl AudioFile {
 }
 
 /// Sample rate configuration options
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleRateConfig {
     /// Automatically detect from input files
@@ -86,7 +86,7 @@ pub struct AudioSettings {
 }
 
 /// Channel configuration options
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ChannelConfig {
     /// Mono (1 channel)
     Mono,
@@ -123,7 +123,7 @@ pub struct ProcessingProgress {
 }
 
 /// Processing stage enumeration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ProcessingStage {
     /// Analyzing input files
     Analyzing,

@@ -1,3 +1,7 @@
+//! FFmpeg-next test module
+//! 
+//! Tests for FFmpeg-next functionality when the safe-ffmpeg feature is enabled.
+
 #![cfg(feature = "safe-ffmpeg")]
 
 use std::path::PathBuf;

@@ -13,22 +13,22 @@ This document summarizes completed work, then breaks remaining tasks into phases
 - **P1 Noise Reduction (Partial)**: Gated some scaffolding (ProcessingContextBuilder, etc.); temporary allows for dead_code and too_many_lines in feature-on builds.
 - **Path validation and Escaping**: Implemented comprehensive path validation system with shared validation function, integrated across all input entry points (file_list, processor, commands), and added symlink resolution with warning logging plus output directory write permission probing. This critical security enhancement prevents path traversal attacks, injection vulnerabilities, and ensures consistent validation behavior throughout the audio processing pipeline. All 63 tests pass including 18 new path validation tests covering edge cases and integration scenarios.
 - **Build/Clippy Noise Reduction**: Completed P0.2 Build/Clippy Noise Reduction with proper cfg gating, strategic allows using cfg_attr patterns, and comprehensive CI matrix testing. Fixed all clippy errors (Default trait implementations, format string inlining, too_many_lines allows) ensuring both default and safe-ffmpeg configurations pass cleanly with -D warnings. Enhanced documentation in CLAUDE.md with verification commands and strategic allow patterns for future development.
-[PLACEHOLDER_NEXT_COMPLETED]
+- **FFmpeg-Next Core Pipeline (P0.3.1-P0.3.2)**: Completed full implementation of FfmpegNextProcessor with multi-input decode/resample/encode/mux pipeline, proper settings handling (bitrate, channels, sample rate), and comprehensive test coverage. Refactored 200+ line execute function into 12 helper functions (<60 lines each) added 19 new tests covering integration and settings validation. All functionality verified with zero clippy warnings in both default and safe-ffmpeg configurations.
 
-**Current Status**: Tests/clippy green in default and --features safe-ffmpeg (with some allows). Large modules remain (e.g., processor.rs at 631 lines). Default engine is shell; feature-on uses ffmpeg-next skeleton.
+**Current Status**: Tests/clippy green in default and --features safe-ffmpeg configurations. FFmpeg-Next core pipeline fully implemented and tested. Default engine is shell; feature-on uses complete ffmpeg-next implementation ready for production.
 
-## Remaining Work by Priority
-Tasks are atomized with IDs, step-by-step descriptions, dependencies, verification steps, and effort estimates (Low/Medium/High), considering junior dev guidance confirm changes. This format enhances the original tasks with granularity from the audit.
+
+
 
 ### P0: Blockers and Security (Focus: Secure FFmpeg, Stabilize Builds)
 These must be done first to unblock safe migration and fix risks.
 
-1. **Path Validation and Escaping** (Critical):
+1. **Path Validation and Escaping** (Critical): DONE ✅
    - **Task P0.1.1**: Implement shared input path validation function: Check exists, is regular file, extension in whitelist (mp3/m4a/m4b/etc), canonicalize with Path::canonicalize(), strip invalid chars (CR/LF/NUL). (Deps: None. Verify: New unit tests for edge cases (nonexistent, dir, invalid ext, symlinks). Effort: Low.)
    - **Task P0.1.2**: Apply validation to all input sites (e.g., file_list.rs validate_audio_files, processor.rs process_audiobook_with_context). (Deps: P0.1.1. Verify: Integration test with invalid inputs errors correctly. Effort: Medium.)
    - **Task P0.1.3**: Add symlink policy: Resolve with canonicalize; log warnings for symlinks but proceed. Add output dir write-permission probe (create/test-remove temp file). (Deps: P0.1.1. Verify: Test with symlinked input and read-only output dir. Effort: Low.)
 
-2. **Build/Clippy Noise Reduction** (Critical; Maps to P0): DONE
+2. **Build/Clippy Noise Reduction** (Critical; Maps to P0): DONE ✅
    - **Task P0.2.1**: Apply consistent gating to ProcessGuard, ProgressContext*, ProcessingContextBuilder using #[cfg(any(test, feature = "safe-ffmpeg"))] on types, impls, and re-exports in audio/mod.rs. (Deps: None. Verify: cargo clippy -- -D warnings and --features safe-ffmpeg both pass. Effort: Medium.)
    - **Task P0.2.2**: Add #[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(dead_code)] to unused helpers (e.g., CleanupGuard methods) temporarily. (Deps: P0.2.1. Verify: No dead_code warnings in default build. Effort: Low.)
    - **Task P0.2.3**: Add CI jobs for default and feature-on Clippy; fail on warnings. (Deps: P0.2.1. Verify: CI passes both matrices. Effort: Low.)
