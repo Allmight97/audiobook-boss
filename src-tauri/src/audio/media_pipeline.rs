@@ -119,6 +119,7 @@ pub struct FfmpegNextProcessor;
 
 #[cfg(feature = "safe-ffmpeg")]
 impl MediaProcessor for FfmpegNextProcessor {
+    #[allow(clippy::too_many_lines)] // TODO: Split in P1.2 refactoring - scheduled for module size reduction
     fn execute<'a>(
         &'a self,
         plan: &'a MediaProcessingPlan,

@@ -18,6 +18,12 @@ pub struct ProcessingMetrics {
     bytes_processed: usize,
 }
 
+impl Default for ProcessingMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProcessingMetrics {
     /// Creates a new ProcessingMetrics instance
     pub fn new() -> Self {

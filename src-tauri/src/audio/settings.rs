@@ -66,7 +66,7 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
             Ok(())
         }
         Err(e) => Err(AppError::FileValidation(
-            format!("Output directory not writable: {}", e)
+            format!("Output directory not writable: {e}")
         ))
     }
 }

@@ -94,10 +94,8 @@ pub enum ChannelConfig {
     Stereo,
 }
 
-impl AudioSettings {
-    /// Creates default audio settings
-    #[allow(dead_code)]
-    pub fn default() -> Self {
+impl Default for AudioSettings {
+    fn default() -> Self {
         Self {
             bitrate: DEFAULT_BITRATE,
             channels: ChannelConfig::Mono,
@@ -145,20 +143,28 @@ pub enum ProcessingStage {
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
 pub use settings::validate_audio_settings;
-#[allow(unused_imports)] // ProgressEmitter and ProgressEvent are new infrastructure for future use
+// New infrastructure - will be used when processor.rs is refactored
+#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
 pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};
+
+// Deprecated adapter - maintained for backward compatibility
 #[allow(deprecated)]
 pub use processor::process_audiobook_with_events;
-#[allow(unused_imports)] // Context structures are designed for future use
+
+// Core context - used in current implementation
 pub use context::ProcessingContext;
+
+// Feature-gated infrastructure - used in safe-ffmpeg builds and tests
 #[cfg(any(test, feature = "safe-ffmpeg"))]
-#[allow(unused_imports)]
+#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
 pub use context::ProgressContext;
+
 #[cfg(any(test, feature = "safe-ffmpeg"))]
-#[allow(unused_imports)]
+#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
 pub use context::{ProcessingContextBuilder, ProgressContextBuilder};
-#[allow(unused_imports)] // Cleanup guards are designed for future use
+
+// Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;
 #[cfg(any(test, feature = "safe-ffmpeg"))]
-#[allow(unused_imports)]
+#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
 pub use cleanup::ProcessGuard;
