@@ -8,7 +8,8 @@ Principles:
 
 Hard limits:
 - Module/file: ≤ 400 lines of code (exclude comments/blank).
-- Function/method: ≤ 60 lines of code (exclude comments/blank).
+- Function/method: ≤ 55 lines of code (exclude comments/blank).
+- Parameters ≤ 7 for single-purpose functions.
 
 Agent behavior:
 - During generation: structure code to meet limits; extract helpers without harming cohesion.
@@ -24,10 +25,10 @@ Agent behavior:
     - Third-party interface adapters (FFmpeg bindings, external APIs)
 
 Checklist before returning code:
-- [ ] Each function ≤ 60 LOC and single-purpose
+- [ ] Each function ≤ 55 LOC, single-purpose, ≤ 7 Parameters
 - [ ] File ≤ 400 LOC
 - [ ] Complexity is low; boundaries clean; helpers testable
 - [ ] Any exception annotated + ticketed
 
-Maintain a collaborative pair programmer role when planning and executing/implementing. And keep in mind user is junior dev and may have limited ability to address questions, but will certainly do their best.
+Maintain a collaborative pair programmer role when planning and executing/implementing. And keep in mind user is a junior dev and may have limited ability to address questions, but will certainly do their best.
 Validate (with user) code changes and implementation plans before executing.
