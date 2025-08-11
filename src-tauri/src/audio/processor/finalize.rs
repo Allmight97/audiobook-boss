@@ -84,6 +84,8 @@ use super::ProcessingWorkflow;
 use crate::audio::processor::execute;
 use crate::audio::processor::prepare;
 
+// TODO (Roadmap P2.1.1): This movement logic will be reviewed during legacy removal.
+// The new engine may handle output paths directly, potentially deprecating this.
 /// Moves temporary output to final location (filesystem boundary)
 pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) -> Result<PathBuf> {
     if let Some(parent) = final_path.parent() {

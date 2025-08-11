@@ -24,21 +24,25 @@ P0-A1 Capture current function + file LOC (informal).
 P0-A2 Create directory `src-tauri/src/audio/processor/`.  
 P0-A3 Create empty module files: `mod.rs`, `prepare.rs`, `execute.rs`, `finalize.rs`, `legacy.rs` (legacy last; compile stubs).  
 P0-A4 Add `ProcessingWorkflow` struct to `mod.rs` (pub(crate)).  
+**Status: Completed.** Directory structure and module files created. `ProcessingWorkflow` struct defined.
 
 ### Phase 1: Prepare Stage Extraction
 P1-A1 Move: `detect_input_sample_rate`, `get_file_sample_rate`, `validate_processing_inputs`, `create_temp_directory_with_session`, `create_concat_file`, `validate_inputs_with_progress`, `prepare_workspace`, `validate_and_prepare` → `prepare.rs`.  
 P1-A2 Adjust visibility: internal helpers `fn`, cross-module needs `pub(crate)`.  
 P1-A3 Add comment above `detect_input_sample_rate`: “Potential future extraction to analysis module (see roadmap).”  
+**Status: Completed.** All preparation logic successfully migrated to `prepare.rs`.
 
 ### Phase 2: Execute Stage Extraction
 P2-A1 Move: `execute_processing`, `merge_audio_files_with_context` → `execute.rs`.  
 P2-A2 Ensure feature-gated processor selection logic preserved.  
 P2-A3 Verify function lengths (<60 LOC); if borderline, extract a logging helper (`log_execute_start`).  
+**Status: Completed.** Execution logic moved to `execute.rs`, preserving feature-gated processor selection.
 
 ### Phase 3: Finalize Stage Extraction
 P3-A1 Move: `write_metadata_stage`, `complete_processing`, `finalize_processing`, `move_to_final_location`, `cleanup_temp_directory_with_session` → `finalize.rs`.  
 P3-A2 Ensure metadata + UI emission untouched.  
 P3-A3 Add TODO above deprecated movement logic referencing P2.1.1 for later adapter gating.  
+**Status: Completed.** Finalization logic moved to `finalize.rs` and required TODO comment added.
 
 ### Phase 4: Legacy Isolation
 P4-A1 Move deprecated/adapter functions to `legacy.rs`:  
