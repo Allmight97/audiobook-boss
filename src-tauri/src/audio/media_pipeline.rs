@@ -402,28 +402,19 @@ impl FfmpegNextProcessor {
     }
 
     /// Processes audio frames from decoder through resample and encode pipeline
-    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline
     fn process_decoded_frames(
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
-        running_pts: &mut i64,
-        output_stream_index: usize,
-        output_time_base: ffmpeg_next::Rational,
-        context: &ProcessingContext,
-        emitter: &crate::audio::progress::ProgressEmitter,
         file_index: usize,
-        total_files: usize,
-        target_sample_rate: u32,
-        total_duration: f64,
-        last_emit: &mut std::time::Instant,
+        ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
         loop {
-            if context.is_cancelled() {
+            if ctx.context.is_cancelled() {
                 // Best-effort flush signal, but we will delete partial output via guard
                 let _ = encoder.send_eof();
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
@@ -441,27 +432,27 @@ impl FfmpegNextProcessor {
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
 
                     // Set PTS in encoder time_base
-                    out.set_pts(Some(*running_pts));
-                    *running_pts += out.samples() as i64;
+                    out.set_pts(Some(*ctx.running_pts));
+                    *ctx.running_pts += out.samples() as i64;
 
                     // Encode and write
                     Self::encode_and_write_frame(
                         encoder,
                         &out,
                         output_context,
-                        output_stream_index,
-                        output_time_base,
+                        ctx.output_stream_index,
+                        ctx.output_time_base,
                     )?;
 
                     // Progress emit every ~200ms
                     Self::emit_progress_update(
-                        emitter,
-                        *running_pts,
-                        target_sample_rate,
-                        total_duration,
+                        ctx.emitter,
+                        *ctx.running_pts,
+                        ctx.target_sample_rate,
+                        ctx.total_duration,
                         file_index,
-                        total_files,
-                        last_emit,
+                        ctx.total_files,
+                        ctx.last_emit,
                     );
                 }
                 Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,

@@ -29,3 +29,6 @@ Checklist before returning code:
 - [ ] File ≤ 400 LOC
 - [ ] Complexity is low; boundaries clean; helpers testable
 - [ ] Any exception annotated + ticketed
+
+Maintain a collaborative pair programmer role when planning and executing/implementing. And keep in mind user is junior dev and may have limited ability to address questions, but will certainly do their best.
+Validate (with user) code changes and implementation plans before executing.
