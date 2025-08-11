@@ -1,8 +1,4 @@
-//! Centralized progress event emission for audio processing
-//! 
-//! This module provides a unified interface for emitting progress events
-//! throughout the audio processing pipeline, eliminating duplicate code
-//! and ensuring consistent progress reporting to the frontend.
+//! Progress event emission and reporting for audio processing
 
 use crate::audio::{ProcessingProgress, ProcessingStage};
 use crate::audio::constants::*;
@@ -11,7 +7,6 @@ use std::time::Instant;
 use tauri::{Emitter, Window};
 
 /// Progress event structure for frontend communication
-/// Extracted from processor.rs to centralize progress event handling
 #[derive(Clone, Serialize)]
 pub struct ProgressEvent {
     /// Current processing stage name
@@ -27,7 +22,6 @@ pub struct ProgressEvent {
 }
 
 /// Centralized progress event emitter
-/// Eliminates duplicate progress emission code throughout the codebase
 #[allow(dead_code)] // New infrastructure - will be used when processor.rs is refactored
 pub struct ProgressEmitter {
     /// Reference to the Tauri window for event emission
@@ -41,7 +35,7 @@ impl ProgressEmitter {
         Self { window }
     }
 
-    /// Emits a progress event for analyzing stage start
+    /// Emits analyzing start event
     pub fn emit_analyzing_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Analyzing,
@@ -52,7 +46,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for analyzing stage end
+    /// Emits analyzing end event
     pub fn emit_analyzing_end(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Analyzing,
@@ -63,7 +57,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for converting stage start
+    /// Emits converting start event
     pub fn emit_converting_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Converting,
@@ -74,7 +68,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event during conversion with file info
+    /// Emits converting progress with file info
     pub fn emit_converting_progress(
         &self,
         percentage: f32,
@@ -92,7 +86,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for metadata writing start
+    /// Emits metadata writing start event
     pub fn emit_metadata_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::WritingMetadata,
@@ -103,7 +97,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for finalizing stage
+    /// Emits finalizing event
     pub fn emit_finalizing(&self, message: &str) {
         self.emit_event(
             ProcessingStage::WritingMetadata,
@@ -114,7 +108,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for cleanup stage
+    /// Emits cleanup event
     pub fn emit_cleanup(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Completed,
@@ -125,7 +119,7 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits a progress event for completion
+    /// Emits completion event
     pub fn emit_complete(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Completed,
@@ -135,8 +129,7 @@ impl ProgressEmitter {
             None,
         );
     }
-
-    /// Emits a custom progress event with all parameters
+    /// Emits custom progress event with all parameters
     pub fn emit_custom(
         &self,
         stage: ProcessingStage,
@@ -205,8 +198,7 @@ impl ProgressEmitter {
     }
 }
 
-/// Converts current processed seconds to converting-stage UI percentage.
-/// Public for testing; used by ffmpeg-next progress emission.
+/// Converts seconds to converting-stage UI percentage.
 pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: f64) -> f32 {
     if total_duration <= 0.0 {
         return PROGRESS_CONVERTING_START;
@@ -218,7 +210,6 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
 }
 
 /// Progress reporter for tracking audio processing operations
-/// Maintained for compatibility with existing code
 pub struct ProgressReporter {
     /// Total number of files to process
     total_files: usize,
@@ -245,25 +236,25 @@ impl ProgressReporter {
         }
     }
     
-    /// Updates the current processing stage
+    /// Updates processing stage
     pub fn set_stage(&mut self, stage: ProcessingStage) {
         self.current_stage = stage;
     }
     
-    /// Sets the current file being processed
+    /// Sets current file being processed
     #[allow(dead_code)]
     pub fn set_current_file<S: Into<String>>(&mut self, filename: S) {
         self.current_file = Some(filename.into());
     }
     
-    /// Increments the completed file count
+    /// Increments completed file count
     #[allow(dead_code)]
     pub fn complete_file(&mut self) {
         self.files_completed += 1;
         self.current_file = None;
     }
     
-    /// Calculates current progress as a percentage
+    /// Calculates current progress percentage
     #[allow(dead_code)]
     pub fn calculate_progress(&self) -> f32 {
         if self.total_files == 0 {
@@ -292,7 +283,7 @@ impl ProgressReporter {
         }
     }
     
-    /// Estimates time remaining based on current progress
+    /// Estimates remaining time based on progress
     #[allow(dead_code)]
     pub fn estimate_time_remaining(&self) -> Option<f64> {
         let progress = self.calculate_progress();
