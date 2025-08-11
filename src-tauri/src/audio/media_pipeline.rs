@@ -112,6 +112,22 @@ impl MediaProcessor for ShellFFmpegProcessor {
 #[cfg(feature = "safe-ffmpeg")]
 pub struct FfmpegNextProcessor;
 
+// Phase 1: Context Type Introduction (no functional changes)
+// Private context carrying frequently-shared parameters across the frame pipeline
+#[cfg(feature = "safe-ffmpeg")]
+#[allow(dead_code)]
+struct FramePipelineCtx<'a> {
+    context: &'a super::context::ProcessingContext,
+    emitter: &'a crate::audio::progress::ProgressEmitter,
+    total_duration: f64,
+    total_files: usize,
+    target_sample_rate: u32,
+    output_stream_index: usize,
+    output_time_base: ffmpeg_next::Rational,
+    running_pts: &'a mut i64,
+    last_emit: &'a mut std::time::Instant,
+}
+
 #[cfg(feature = "safe-ffmpeg")]
 impl FfmpegNextProcessor {
     /// Resolves target sample rate and channels from plan settings
