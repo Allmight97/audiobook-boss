@@ -1,26 +1,36 @@
-//! Audio processor module (split refactor - Phase 1 state).
+//! Audio processor module (split refactor - Phase 5 complete).
 //!
 //! Current staged modules:
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
 //!   - execute.rs   : merge / ffmpeg execution logic
-//!   - finalize.rs  : metadata writing, move, cleanup, orchestrator (temporary placement)
-//!   - legacy.rs    : deprecated adapters (to be isolated fully in later phase; TODO P2.1.1 gating/removal)
+//!   - finalize.rs  : metadata writing, move, cleanup
+//!   - legacy.rs    : deprecated adapters (to be gated/removed in P2.1.1)
+//!   - mod.rs       : orchestrator and public API re-exports
 //!
-//! Plan Reference: docs/planning/processor_split_plan.md (Task P1.1.1, Phase 1)
+//! Plan Reference: docs/planning/processor_split_plan.md (Task P1.1.1, Phase 5)
 //!
 //! Status:
-//!   Phase 1 complete: preparation + finalize/orchestrator logic migrated. Execution
-//!   stage & legacy adapters have initial extraction; further consolidation / legacy
-//!   isolation continues in later phases.
+//!   Phase 5 complete: Orchestrator consolidated in mod.rs, calling staged functions:
+//!   - prepare::validate_and_prepare
+//!   - execute::execute_processing  
+//!   - finalize::finalize_processing
 //!
 //! Public Surface (current):
 //!   - processor::detect_input_sample_rate
 //!   - processor::process_audiobook_with_context
-//!   (Deprecated adapters will be re-exported once moved into legacy.rs in Phase 4.)
+//!   - Deprecated adapters re-exported from legacy.rs
 //!
 //! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
 
 #![allow(dead_code)] // Transitional allowance until all phases complete (will tighten later).
+
+// Imports for orchestrator function
+use std::time::Duration;
+use crate::audio::context::ProcessingContext;
+use crate::audio::metrics::ProcessingMetrics;
+use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
+use crate::errors::Result;
+use crate::metadata::AudiobookMetadata;
 
 // Submodules
 pub mod execute;
@@ -30,7 +40,7 @@ pub mod prepare;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed
-pub use finalize::process_audiobook_with_context;
+// Note: process_audiobook_with_context now implemented in this module (Phase 5)
 #[allow(deprecated)]
 pub use legacy::process_audiobook_with_events;
 pub use prepare::detect_input_sample_rate;
@@ -85,11 +95,54 @@ impl ProcessingWorkflow {
     }
 }
 
-// NOTE (Phase 1):
+/// Orchestrator: Main processing entrypoint (Phase 5: moved from finalize.rs)
+/// 
+/// Coordinates the three-stage processing pipeline:
+/// 1. Validate & Prepare
+/// 2. Execute Processing  
+/// 3. Finalize Processing
+pub async fn process_audiobook_with_context(
+    context: ProcessingContext,
+    files: Vec<AudioFile>,
+    metadata: Option<AudiobookMetadata>,
+) -> Result<String> {
+    let mut reporter = ProgressReporter::new(files.len());
+    let mut metrics = ProcessingMetrics::new();
+
+    // Stage 1: Validate + Prepare (from prepare module)
+    reporter.set_stage(ProcessingStage::Analyzing);
+    let workflow = prepare::validate_and_prepare(&context, &files)?;
+
+    // Metrics accumulation (estimates)
+    for file in &files {
+        if file.is_valid {
+            if let Some(duration) = file.duration {
+                let estimated_bytes = (duration * context.settings.bitrate as f64 * 125.0) as usize;
+                metrics.update_file_processed(Duration::from_secs_f64(duration), estimated_bytes);
+            }
+        }
+    }
+
+    // Stage 2: Execute (execute module)
+    let merged_output =
+        execute::execute_processing(&context, &workflow, &files, &mut reporter).await?;
+
+    // Stage 3: Finalize
+    let result =
+        finalize::finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await?;
+
+    log::info!("{}", metrics.format_summary());
+    Ok(result)
+}
+
+// NOTE (Phase 5 Complete):
 // - Preparation + validation + workflow construction migrated (prepare.rs)
-// - Orchestrator + finalize logic migrated (finalize.rs)
 // - Execution layer extracted (execute.rs) with feature-gated processor selection
-// - Legacy / deprecated adapters scheduled for isolation (legacy.rs future phase)
+// - Finalization logic migrated (finalize.rs) 
+// - Legacy / deprecated adapters isolated (legacy.rs) - TODO P2.1.1 for gating/removal
+// - Orchestrator consolidated in mod.rs calling staged functions
+// Next Steps:
+//   Phase 6+: Compile & lint validation, test verification
 // Next Steps:
 //   Phase 2+: Refine execution module & ensure function size limits remain enforced
 //   Phase 4: Move deprecated adapters into legacy.rs with TODO gating

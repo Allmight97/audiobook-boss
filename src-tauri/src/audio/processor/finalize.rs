@@ -43,46 +43,22 @@
 //!   - Deprecated adapters referencing these functions will receive a
 //!     file‑level TODO in `legacy.rs` for gating/removal (Roadmap P2.1.1).
 //!
-//! Phase: 0 (Baseline & Scaffolding) – intentionally empty file except for
-//! documentation and temporary lint allowances.
+//! Phase: 3 (Finalize Stage Extraction) - metadata writing, cleanup, and file movement
 //!
-//! NOTE: Leaving this stub present while the original monolithic
-//! `audio/processor.rs` still exists. Only after migration + removal of the
-//! monolith will the compiled module set become active.
-//!
-//! After migration this file will own side-effect boundaries; tests targeting
-//! end-to-end behavior should continue to exercise through the high-level
-//! `process_audiobook_with_context` orchestrator in `mod.rs`.
-//!
-//! Size expectations (post-migration):
-//!   - finalize.rs < 400 LOC
-//!   - Each function < 60 LOC
-//!
-//! Keeping `#![allow(dead_code)]` temporarily. This will be removed or narrowed
-//! once Phase 3 completes and functions are referenced.
-//
+//! NOTE: Orchestrator moved to mod.rs in Phase 5.
+
 #![allow(dead_code)]
-// Phase 1 NOTE:
-// Temporarily housing finalize + orchestrator logic here earlier than original
-// phase plan for continuity. Execution functions still reside in the legacy
-// monolithic file until Phase 2 extraction; references to `execute::execute_processing`
-// will resolve only after that migration (or after removing the monolith).
-//
+
 // Imports
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
-use crate::audio::metrics::ProcessingMetrics;
-use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
+use crate::audio::{ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 use crate::metadata::{write_metadata, AudiobookMetadata};
 
 use super::ProcessingWorkflow;
-// Prepare + Execute stage modules (execute still pending migration)
-use crate::audio::processor::execute;
-use crate::audio::processor::prepare;
 
 // TODO (Roadmap P2.1.1): This movement logic will be reviewed during legacy removal.
 // The new engine may handle output paths directly, potentially deprecating this.
@@ -183,42 +159,3 @@ pub(crate) async fn finalize_processing(
     write_metadata_stage(context, &merged_output, metadata, reporter)?;
     complete_processing(context, workflow, merged_output, reporter)
 }
-
-/// Orchestrator (temporary placement here during early split)
-/// Public API (will be re-exported) - context-based processing entrypoint.
-pub async fn process_audiobook_with_context(
-    context: ProcessingContext,
-    files: Vec<AudioFile>,
-    metadata: Option<AudiobookMetadata>,
-) -> Result<String> {
-    let mut reporter = ProgressReporter::new(files.len());
-    let mut metrics = ProcessingMetrics::new();
-
-    // Stage 1: Validate + Prepare (from prepare module)
-    reporter.set_stage(ProcessingStage::Analyzing);
-    let workflow = prepare::validate_and_prepare(&context, &files)?;
-
-    // Metrics accumulation (estimates)
-    for file in &files {
-        if file.is_valid {
-            if let Some(duration) = file.duration {
-                let estimated_bytes = (duration * context.settings.bitrate as f64 * 125.0) as usize;
-                metrics.update_file_processed(Duration::from_secs_f64(duration), estimated_bytes);
-            }
-        }
-    }
-
-    // Stage 2: Execute (execute module; still pending migration if monolith present)
-    let merged_output =
-        execute::execute_processing(&context, &workflow, &files, &mut reporter).await?;
-
-    // Stage 3: Finalize
-    let result =
-        finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await?;
-
-    log::info!("{}", metrics.format_summary());
-    Ok(result)
-}
-
-// TODO (Phase 5): Move orchestrator export + re-export logic into mod.rs to align
-// with final architecture layout once execute + legacy migrations complete.

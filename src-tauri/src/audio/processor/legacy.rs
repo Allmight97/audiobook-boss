@@ -55,7 +55,7 @@
 //
 // Imports (scoped to legacy adapter responsibilities only)
 use std::process::Command;
-use super::finalize::process_audiobook_with_context;
+use super::process_audiobook_with_context;
 use crate::audio::context::ProcessingContext;
 use crate::audio::session::ProcessingSession;
 use crate::audio::{AudioFile, AudioSettings};

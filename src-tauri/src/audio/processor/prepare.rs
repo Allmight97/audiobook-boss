@@ -33,7 +33,6 @@ use crate::audio::context::ProcessingContext;
 use crate::audio::{AudioFile, AudioSettings, ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 use crate::ffmpeg::format_concat_file_line;
-use lofty::file::AudioFile;
 
 use super::ProcessingWorkflow;
 
@@ -85,6 +84,8 @@ pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
 /// Private helper to retrieve sample rate from a single file.
 fn get_file_sample_rate(path: &Path) -> Result<u32> {
     use lofty::probe::Probe;
+    use lofty::file::AudioFile as LoftyAudioFile;
+    
     let tagged_file = Probe::open(path)
         .map_err(AppError::Metadata)?
         .read()
