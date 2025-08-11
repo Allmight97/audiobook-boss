@@ -254,6 +254,7 @@ impl FfmpegNextProcessor {
     }
 
     /// Processes packets from input stream through decoder pipeline
+    #[allow(clippy::too_many_arguments)] // TODO: Reduce further in future phases
     fn process_input_packets(
         ictx: &mut ffmpeg_next::format::context::Input,
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
@@ -446,31 +447,21 @@ impl FfmpegNextProcessor {
     }
 
     /// Processes a single input file through the decode/resample/encode pipeline
-    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline
     fn process_input_file(
         input_path: &Path,
-        context: &ProcessingContext,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
         output_context: &mut ffmpeg_next::format::context::Output,
-        running_pts: &mut i64,
-        emitter: &crate::audio::progress::ProgressEmitter,
-        plan: &MediaProcessingPlan,
         file_index: usize,
-        target_sample_rate: u32,
-        output_stream_index: usize,
-        output_time_base: ffmpeg_next::Rational,
-        last_emit: &mut std::time::Instant,
+        ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
 
-        if context.is_cancelled() {
+        if ctx.context.is_cancelled() {
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
 
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             Self::setup_decoder_and_resampler(input_path, encoder)?;
-
-        let total_duration = plan.total_duration.max(0.001);
 
         // Process input packets through decoder pipeline
         Self::process_input_packets(
@@ -480,16 +471,8 @@ impl FfmpegNextProcessor {
             &mut resampler,
             output_context,
             stream_index,
-            running_pts,
-            output_stream_index,
-            output_time_base,
-            context,
-            emitter,
-            plan,
             file_index,
-            target_sample_rate,
-            total_duration,
-            last_emit,
+            ctx,
         )?;
 
         // Flush decoder for this input
@@ -498,9 +481,9 @@ impl FfmpegNextProcessor {
             encoder,
             output_context,
             &mut resampler,
-            running_pts,
-            output_stream_index,
-            output_time_base,
+            ctx.running_pts,
+            ctx.output_stream_index,
+            ctx.output_time_base,
         )?;
 
         Ok(())
@@ -609,22 +592,22 @@ impl MediaProcessor for FfmpegNextProcessor {
             let mut last_emit = std::time::Instant::now();
             let emitter = crate::audio::progress::ProgressEmitter::new(context.window.clone());
 
+            // Construct context struct to reduce parameter passing
+            let mut ctx = FramePipelineCtx {
+                context,
+                emitter: &emitter,
+                total_duration: plan.total_duration.max(0.001),
+                total_files: plan.input_file_paths.len(),
+                target_sample_rate,
+                output_stream_index: ost_index,
+                output_time_base: ost_time_base,
+                running_pts: &mut running_pts,
+                last_emit: &mut last_emit,
+            };
+
             // Process each input file
             for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
-                Self::process_input_file(
-                    in_path,
-                    context,
-                    &mut enc_ctx,
-                    &mut octx,
-                    &mut running_pts,
-                    &emitter,
-                    plan,
-                    idx,
-                    target_sample_rate,
-                    ost_index,
-                    ost_time_base,
-                    &mut last_emit,
-                )?;
+                Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx)?;
             }
 
             // Finalize encoding
