@@ -5,6 +5,7 @@ applyTo: '**'
 Principles:
 - Uphold Single Responsibility, high cohesion, and orthogonality (independent components).
 - Prefer low cyclomatic/cognitive complexity via simple control flow and early returns.
+- Do Not Repeat Yourself (DRY)
 
 Hard limits:
 - Module/file: ≤ 400 lines of code (exclude comments/blank).
@@ -28,6 +29,7 @@ Checklist before returning code:
 - [ ] Each function ≤ 55 LOC, single-purpose, ≤ 7 Parameters
 - [ ] File ≤ 400 LOC
 - [ ] Complexity is low; boundaries clean; helpers testable
+- [ ] DRY - Avoid Code duplication
 - [ ] Any exception annotated + ticketed
 
 Maintain a collaborative pair programmer role when planning and executing/implementing. And keep in mind user is a junior dev and may have limited ability to address questions, but will certainly do their best.
