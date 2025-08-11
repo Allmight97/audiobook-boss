@@ -29,7 +29,8 @@ After P0, these improve code quality and enable defaulting to safe engine.
 
 1.  **Module/Function Trimming (High Priority)**:
     - **Task P1.1.1**: Split `audio/processor.rs` into `processor/{prepare.rs, execute.rs, finalize.rs}`. Goal: <400 lines/module, <60 lines/function. (Deps: None. Verify: `size_budget.sh` compliance; `cargo clippy` passes. Effort: High.) ✅ **COMPLETED**
-    - **Task P1.1.2**: Refactor `media_pipeline.rs` functions with excessive parameters (`process_input_packets`, `process_decoded_frames`, `process_input_file`) to use a context struct. This is a critical step to improve readability and maintainability. (Deps: None. Verify: Reduced parameter count, clean `clippy` run. Effort: Medium.)
+    - **Task P1.1.2**: Refactor `media_pipeline.rs` functions with excessive parameters (`process_input_packets`, `process_decoded_frames`, `process_input_file`) to use a context struct. This is a critical step to improve readability and maintainability. (Deps: None. Verify: Reduced parameter count, clean `clippy` run. Effort: Medium.) ✅ **COMPLETED** — See `docs/planning/archive_completed/p1.1.2_media_pipeline_context_refactor_plan.md` for outcomes (context wiring, parameter reduction, validation results).
+      - TODO: a minor follow-up may move `stream_index`/`file_index` into context to remove the remaining allow on `process_input_packets`.
     - **Task P1.1.3**: Split `audio/progress.rs` into `progress/{reporter.rs, parser.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Medium.)
     - **Task P1.1.4**: Split `audio/cleanup.rs` into `cleanup/{guard.rs, ops.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Medium.)
     - **Task P1.1.5**: Split `commands/mod.rs` into `commands/{audio.rs, metadata.rs, system.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Low.)
@@ -107,4 +108,4 @@ After P2.
 - **Priorities**: Tag new items with P1/P2/P3; defer non-essentials.
 - **Tracking**: Update this doc as single source; archive old ones.
 
-Last Updated: 2025-08-10
+Last Updated: 2025-08-11

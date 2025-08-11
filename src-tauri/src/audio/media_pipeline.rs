@@ -481,24 +481,19 @@ impl FfmpegNextProcessor {
             encoder,
             output_context,
             &mut resampler,
-            ctx.running_pts,
-            ctx.output_stream_index,
-            ctx.output_time_base,
+            ctx,
         )?;
 
         Ok(())
     }
 
     /// Flushes any remaining frames from the decoder after processing an input file
-    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline
     fn flush_decoder_frames(
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
         output_context: &mut ffmpeg_next::format::context::Output,
         resampler: &mut ffmpeg_next::software::resampling::Context,
-        running_pts: &mut i64,
-        output_stream_index: usize,
-        output_time_base: ffmpeg_next::Rational,
+        ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
@@ -515,15 +510,15 @@ impl FfmpegNextProcessor {
                     resampler
                         .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
-                    out.set_pts(Some(*running_pts));
-                    *running_pts += out.samples() as i64;
+                    out.set_pts(Some(*ctx.running_pts));
+                    *ctx.running_pts += out.samples() as i64;
                     encoder
                         .send_frame(&out)
                         .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
                     let mut pkt = ff::Packet::empty();
                     while encoder.receive_packet(&mut pkt).is_ok() {
-                        pkt.set_stream(output_stream_index);
-                        pkt.rescale_ts(encoder.time_base(), output_time_base);
+                        pkt.set_stream(ctx.output_stream_index);
+                        pkt.rescale_ts(encoder.time_base(), ctx.output_time_base);
                         pkt.write_interleaved(output_context)
                             .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
                     }
