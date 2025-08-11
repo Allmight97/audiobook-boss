@@ -254,7 +254,6 @@ impl FfmpegNextProcessor {
     }
 
     /// Processes packets from input stream through decoder pipeline
-    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline
     fn process_input_packets(
         ictx: &mut ffmpeg_next::format::context::Input,
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
@@ -262,22 +261,14 @@ impl FfmpegNextProcessor {
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
         stream_index: usize,
-        running_pts: &mut i64,
-        output_stream_index: usize,
-        output_time_base: ffmpeg_next::Rational,
-        context: &ProcessingContext,
-        emitter: &crate::audio::progress::ProgressEmitter,
-        plan: &MediaProcessingPlan,
         file_index: usize,
-        target_sample_rate: u32,
-        total_duration: f64,
-        last_emit: &mut std::time::Instant,
+        ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
 
         // Read packets/frames
         for (si, packet) in ictx.packets() {
-            if context.is_cancelled() {
+            if ctx.context.is_cancelled() {
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
             if si.index() != stream_index {
@@ -293,16 +284,8 @@ impl FfmpegNextProcessor {
                 encoder,
                 resampler,
                 output_context,
-                running_pts,
-                output_stream_index,
-                output_time_base,
-                context,
-                emitter,
                 file_index,
-                plan.input_file_paths.len(),
-                target_sample_rate,
-                total_duration,
-                last_emit,
+                ctx,
             )?;
         }
         Ok(())
