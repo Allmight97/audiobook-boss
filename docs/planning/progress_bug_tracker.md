@@ -12,3 +12,7 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
 [ ] BUG: Loaded cover art is replaced with whatever was imported from the input file the moment I click on another file in the file list.
     - CONTEXT:cover art correctly loads when pressing 'load cover art' button and correctly clears when pressing 'clear cover art' button. In the case of editing several audio files from the same book.
     - DESIRED BEHAVIOR: Cover art should be preserved when I click on another file in the file list. Clearing should only occur when I press 'clear cover art' button; when I load a new file or clear the file list; when I override the cover art with a new file.
+
+[ ] BUG: Noticing a warning about lofty since completing p1.1.3_progress_split
+    [2025-08-11T23:41:09Z INFO  audiobook_boss_lib] Starting Audiobook Boss application
+        [2025-08-11T23:46:21Z WARN  lofty::mpeg::properties] MPEG: Using bitrate to estimate duration
