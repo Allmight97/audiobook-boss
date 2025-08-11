@@ -34,6 +34,15 @@ pub use finalize::process_audiobook_with_context;
 #[allow(deprecated)]
 pub use legacy::process_audiobook_with_events;
 pub use prepare::detect_input_sample_rate;
+
+// Legacy function re-exports (Phase 4 additions)
+#[allow(deprecated)]
+pub use legacy::execute_with_progress_events;
+#[allow(deprecated)]
+pub use legacy::create_temp_directory;
+#[allow(deprecated)]
+pub use legacy::cleanup_temp_directory;
+pub use legacy::create_session_from_legacy_state;
 // TODO (Phase 5): Re-export deprecated adapters from legacy.rs maintaining original signatures.
 
 /// Internal workflow state passed between staged phases of processing.

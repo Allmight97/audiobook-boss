@@ -54,8 +54,11 @@ P4-A1 Move deprecated/adapter functions to `legacy.rs`:
 - `cleanup_temp_directory` (deprecated)  
 - `create_session_from_legacy_state`  
 P4-A2 Preserve all existing `#[deprecated]` attributes.  
-P4-A3 Add file header: “TODO (Roadmap P2.1.1): Feature-gate or remove.”  
+P4-A3 Add file header: "TODO (Roadmap P2.1.1): Feature-gate or remove."  
 P4-A4 Keep adapter calls targeting new staged functions (no logic divergence).  
+**Status: Completed.** Legacy functions isolated in `legacy.rs`. Added TODO header, moved `execute_with_progress_events` from `media_pipeline.rs`, created deprecated adapters for temp directory functions, updated re-exports in `mod.rs`. Functions not found in codebase (`process_audiobook`, `merge_audio_files_with_events`) documented as already removed. All adapters delegate to new staged implementations with no logic duplication.
+
+**Note:** Expect compile warnings/errors during incremental refactor phases. Formal compilation fixes and linking validation begins in Phase 6.e.rs, execute.rs, finalize.rs}`  
 
 ### Phase 5: Orchestrator Consolidation
 P5-A1 Implement `process_audiobook_with_context` in `mod.rs` calling:  

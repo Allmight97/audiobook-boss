@@ -743,26 +743,6 @@ pub async fn execute_ffmpeg_with_progress_context(
     Ok(())
 }
 
-/// ADAPTER: Executes command with progress tracking (legacy compatibility)
-///
-/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
-/// to use the new context-based approach internally.
-#[deprecated = "Use execute_ffmpeg_with_progress_context for new code - this adapter maintains compatibility"]
-#[allow(dead_code)]
-pub async fn execute_with_progress_events(
-    cmd: Command,
-    window: &tauri::Window,
-    state: &tauri::State<'_, crate::ProcessingState>,
-    total_duration: f64,
-) -> Result<()> {
-    // Convert legacy parameters to context-based approach
-    let session = crate::audio::processor::legacy::create_session_from_legacy_state(state)?;
-    let context = ProcessingContext::new(window.clone(), session, AudioSettings::default());
-    // Note: We use default settings here since they're not available in the legacy adapter
-
-    execute_ffmpeg_with_progress_context(cmd, &context, total_duration).await
-}
-
 /// ADAPTER: Builds merge command (legacy compatibility)
 ///
 /// ADAPTER FUNCTION: Maintains backward compatibility for existing code

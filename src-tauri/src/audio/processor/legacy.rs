@@ -1,8 +1,10 @@
 //! legacy.rs
 //!
+//! TODO (Roadmap P2.1.1): Feature-gate or remove.
+//!
 //! Legacy / deprecated adapter functions for audio processor.
 //!
-//! Phase 0 scaffold as part of processor split (Task P1.1.1).
+//! Phase 4 legacy isolation as part of processor split (Task P1.1.1).
 //! See: docs/planning/processor_split_plan.md
 //!
 //! Contents (future migration in Phase 4):
@@ -52,6 +54,7 @@
 // migration proceeds.
 //
 // Imports (scoped to legacy adapter responsibilities only)
+use std::process::Command;
 use super::finalize::process_audiobook_with_context;
 use crate::audio::context::ProcessingContext;
 use crate::audio::session::ProcessingSession;
@@ -63,7 +66,7 @@ use crate::metadata::AudiobookMetadata;
 ///
 /// ADAPTER FUNCTION: Bridges old global state to new session model.
 /// Maintains backward compatibility for legacy command handlers.
-pub(crate) fn create_session_from_legacy_state(
+pub fn create_session_from_legacy_state(
     state: &tauri::State<'_, crate::ProcessingState>,
 ) -> Result<std::sync::Arc<ProcessingSession>> {
     use std::sync::Arc;
@@ -104,6 +107,52 @@ pub async fn process_audiobook_with_events(
     let context = ProcessingContext::new(window, session, settings);
     process_audiobook_with_context(context, files, metadata).await
 }
+
+/// Execute with progress events (deprecated adapter)
+///
+/// DEPRECATED ADAPTER: Maintains legacy call pattern for media pipeline execution.
+/// New code should use execute_ffmpeg_with_progress_context directly.
+#[deprecated = "Use execute_ffmpeg_with_progress_context for new code - this adapter maintains compatibility"]
+pub async fn execute_with_progress_events(
+    cmd: Command,
+    window: &tauri::Window,
+    state: &tauri::State<'_, crate::ProcessingState>,
+    total_duration: f64,
+) -> Result<()> {
+    // Convert legacy parameters to context-based approach
+    let session = create_session_from_legacy_state(state)?;
+    let context = ProcessingContext::new(window.clone(), session, AudioSettings::default());
+    // Note: We use default settings here since they're not available in the legacy adapter
+
+    crate::audio::media_pipeline::execute_ffmpeg_with_progress_context(cmd, &context, total_duration).await
+}
+
+/// Create temporary directory (deprecated adapter)
+///
+/// DEPRECATED ADAPTER: Maintains legacy call pattern.
+/// New code should use create_temp_directory_with_session directly.
+#[deprecated = "Use create_temp_directory_with_session for new code - this adapter maintains compatibility"]
+pub fn create_temp_directory() -> Result<std::path::PathBuf> {
+    use uuid::Uuid;
+    let session_id = Uuid::new_v4().to_string();
+    super::prepare::create_temp_directory_with_session(&session_id)
+}
+
+/// Clean up temporary directory (deprecated adapter)
+///
+/// DEPRECATED ADAPTER: Maintains legacy call pattern.
+/// New code should use cleanup_temp_directory_with_session directly.
+#[deprecated = "Use cleanup_temp_directory_with_session for new code - this adapter maintains compatibility"]
+pub fn cleanup_temp_directory(temp_dir: std::path::PathBuf) -> Result<()> {
+    use uuid::Uuid;
+    let session_id = Uuid::new_v4().to_string();
+    super::finalize::cleanup_temp_directory_with_session(&session_id, temp_dir)
+}
+
+// NOTE: The following functions were listed in the plan but do not exist in the current codebase:
+// - process_audiobook: Not found in current codebase
+// - merge_audio_files_with_events: Not found in current codebase
+// These may have been removed in earlier phases or never existed.
 
 // Re-exports for internal (crate) visibility until final public API reconciliation (Phase 5)
 // Removed unused re-export aliases (_legacy_*), no longer needed.
