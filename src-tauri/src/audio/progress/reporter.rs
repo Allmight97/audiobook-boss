@@ -4,8 +4,8 @@
 //! throughout the audio processing pipeline, eliminating duplicate code
 //! and ensuring consistent progress reporting to the frontend.
 
-use super::{ProcessingProgress, ProcessingStage};
-use super::constants::*;
+use crate::audio::{ProcessingProgress, ProcessingStage};
+use crate::audio::constants::*;
 use serde::Serialize;
 use std::time::Instant;
 use tauri::{Emitter, Window};
@@ -209,11 +209,11 @@ impl ProgressEmitter {
 /// Public for testing; used by ffmpeg-next progress emission.
 pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: f64) -> f32 {
     if total_duration <= 0.0 {
-        return super::constants::PROGRESS_CONVERTING_START;
+        return PROGRESS_CONVERTING_START;
     }
     let ratio = (current_seconds / total_duration).clamp(0.0, 1.0);
-    let pct = super::constants::PROGRESS_CONVERTING_START as f64
-        + ratio * super::constants::PROGRESS_RANGE_MULTIPLIER;
+    let pct = PROGRESS_CONVERTING_START as f64
+        + ratio * PROGRESS_RANGE_MULTIPLIER;
     pct as f32
 }
 
@@ -333,77 +333,6 @@ impl ProgressReporter {
     }
 }
 
-/// Holds state for FFmpeg progress parsing
-#[derive(Default)]
-#[allow(dead_code)]
-pub struct FFmpegProgressState {
-    pub out_time_us: Option<i64>,
-    pub total_size: Option<i64>,
-    pub bitrate: Option<f64>,
-    pub speed: Option<f64>,
-}
-
-/// Parses FFmpeg progress output to extract percentage
-pub fn parse_ffmpeg_progress(line: &str) -> Option<f32> {
-    // Parse FFmpeg progress output
-    
-    // FFmpeg with -progress outputs key=value pairs
-    if line.contains("=") {
-        let parts: Vec<&str> = line.splitn(2, '=').collect();
-        if parts.len() == 2 {
-            let key = parts[0].trim();
-            let value = parts[1].trim();
-            
-            match key {
-                "out_time_us" => {
-                    // Time in microseconds - we can use this for rough progress
-                    if let Ok(time_us) = value.parse::<i64>() {
-                        // Convert to seconds
-                        let time_seconds = time_us as f64 / 1_000_000.0;
-                        // Return time in seconds as a rough progress indicator
-                        // The actual percentage will be calculated in the processor
-                        return Some(time_seconds as f32);
-                    }
-                }
-                "progress" => {
-                    if value == "end" {
-                        return Some(100.0);
-                    } else if value == "continue" {
-                        // Processing is continuing, not a progress value
-                        return None;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    
-    // Fallback: parse old-style time= format
-    if line.starts_with("time=") {
-        if let Some(time_str) = line.strip_prefix("time=") {
-            if let Ok(duration) = parse_ffmpeg_time(time_str) {
-                return Some(duration as f32);
-            }
-        }
-    }
-    
-    None
-}
-
-/// Parses FFmpeg time format (HH:MM:SS.ss) to seconds
-fn parse_ffmpeg_time(time_str: &str) -> Result<f64, std::num::ParseFloatError> {
-    let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() != 3 {
-        return Ok(0.0);
-    }
-    
-    let hours: f64 = parts[0].parse()?;
-    let minutes: f64 = parts[1].parse()?;
-    let seconds: f64 = parts[2].parse()?;
-    
-    Ok(hours * 3600.0 + minutes * 60.0 + seconds)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,25 +403,7 @@ mod tests {
         assert!(reporter.estimate_time_remaining().is_none());
     }
 
-    #[test]
-    fn test_parse_ffmpeg_time() {
-        assert_eq!(parse_ffmpeg_time("00:01:30.50").expect("parse time"), 90.5);
-        assert_eq!(parse_ffmpeg_time("01:00:00.00").expect("parse time"), 3600.0);
-    }
-
-    #[test]
-    fn test_parse_ffmpeg_progress() {
-        // Test old format
-        assert_eq!(parse_ffmpeg_progress("time=00:01:30.45").expect("parse progress"), 90.45);
-        
-        // Test new -progress format
-        assert_eq!(parse_ffmpeg_progress("out_time_us=90450000").expect("parse progress"), 90.45);
-        assert_eq!(parse_ffmpeg_progress("progress=end").expect("parse progress"), 100.0);
-        assert!(parse_ffmpeg_progress("progress=continue").is_none());
-        assert!(parse_ffmpeg_progress("other output").is_none());
-        
-        // Test various progress outputs
-        assert_eq!(parse_ffmpeg_progress("out_time_us=1000000").expect("parse progress"), 1.0);
-        assert_eq!(parse_ffmpeg_progress("out_time_us=60000000").expect("parse progress"), 60.0);
-    }
+    // parse_* tests moved to parser.rs in Phase 1
 }
+
+
