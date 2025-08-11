@@ -1,24 +1,26 @@
 //! Media processing pipeline for FFmpeg operations
-//! 
+//!
 //! This module provides a unified interface for all FFmpeg operations,
 //! encapsulating command building and execution behind a stable Rust interface.
-//! 
+//!
 //! The `MediaProcessingPlan` struct holds inputs, outputs, and metadata for
 //! processing operations, following mentor recommendations for abstraction.
 
-use super::{AudioSettings, SampleRateConfig};
 use super::constants::*;
 use super::context::ProcessingContext;
-use super::processor::{detect_input_sample_rate, create_session_from_legacy_state};
-use super::progress_monitor::{setup_process_execution, monitor_process_with_progress, finalize_process_execution};
+use super::processor::prepare::detect_input_sample_rate;
+use super::progress_monitor::{
+    finalize_process_execution, monitor_process_with_progress, setup_process_execution,
+};
+use super::{AudioSettings, SampleRateConfig};
 use crate::errors::Result;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::future::Future;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::process::{Command, Stdio};
 
 /// Media processing plan that encapsulates inputs, outputs, and metadata
-/// 
+///
 /// This struct follows the mentor's recommendation to use a `MediaProcessingPlan`
 /// to hold all processing parameters in a structured way.
 #[derive(Debug, Clone)]
@@ -56,9 +58,7 @@ impl MediaProcessingPlan {
     /// Helper function to calculate total duration from AudioFile list
     /// Handles Option<f64> duration fields properly
     pub fn calculate_total_duration(files: &[super::AudioFile]) -> f64 {
-        files.iter()
-            .filter_map(|f| f.duration)
-            .sum()
+        files.iter().filter_map(|f| f.duration).sum()
     }
 
     /// Builds FFmpeg command for this processing plan
@@ -73,15 +73,10 @@ impl MediaProcessingPlan {
 
     /// Executes the processing plan with context-based progress tracking
     #[cfg(any(test, feature = "safe-ffmpeg"))]
-    pub async fn execute_with_context(
-        &self,
-        context: &ProcessingContext,
-    ) -> Result<()> {
+    pub async fn execute_with_context(&self, context: &ProcessingContext) -> Result<()> {
         let cmd = self.build_ffmpeg_command()?;
         execute_ffmpeg_with_progress_context(cmd, context, self.total_duration).await
     }
-
-
 }
 
 /// Trait defining a media processor boundary for executing processing plans.
@@ -123,20 +118,29 @@ impl FfmpegNextProcessor {
     fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
-        
+
         match &plan.settings.sample_rate {
-            SampleRateConfig::Explicit(rate) => Ok((*rate, plan.settings.channels.channel_count() as i32)),
+            SampleRateConfig::Explicit(rate) => {
+                Ok((*rate, plan.settings.channels.channel_count() as i32))
+            }
             SampleRateConfig::Auto => {
                 // Fallback to first input's properties; if unavailable, use DEFAULT_SAMPLE_RATE
-                let first = plan.input_file_paths.first()
+                let first = plan
+                    .input_file_paths
+                    .first()
                     .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-                let ictx = ff::format::input(&first).map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-                let stream = ictx.streams()
-                    .best(ff::media::Type::Audio)
-                    .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
+                let ictx = ff::format::input(&first)
+                    .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+                let stream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
+                    AppError::InvalidInput("No audio stream in first input".to_string())
+                })?;
                 let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
-                    .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
-                let decoder = codec_ctx.decoder().audio()
+                    .map_err(|e| {
+                    AppError::General(format!("Decoder ctx from params failed: {e}"))
+                })?;
+                let decoder = codec_ctx
+                    .decoder()
+                    .audio()
                     .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
                 Ok((decoder.rate(), decoder.channels() as i32))
             }
@@ -155,7 +159,7 @@ impl FfmpegNextProcessor {
 
         let codec = ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
-        
+
         let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
         // Choose a reasonable sample format (fallback to planar f32)
         let sample_format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
@@ -174,7 +178,8 @@ impl FfmpegNextProcessor {
         if requires_global_header {
             opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
         }
-        let enc_ctx = opened.open_as(codec)
+        let enc_ctx = opened
+            .open_as(codec)
             .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
 
         Ok(enc_ctx)
@@ -205,19 +210,29 @@ impl FfmpegNextProcessor {
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
 
         // Compute global header flag before borrowing stream
-        let requires_global_header = octx.format().flags().contains(ff::format::flag::Flags::GLOBAL_HEADER);
+        let requires_global_header = octx
+            .format()
+            .flags()
+            .contains(ff::format::flag::Flags::GLOBAL_HEADER);
 
-        let mut ost = octx.add_stream(codec)
+        let mut ost = octx
+            .add_stream(codec)
             .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-        let enc_ctx = Self::create_audio_encoder(plan, target_sample_rate, target_channels, requires_global_header)?;
+        let enc_ctx = Self::create_audio_encoder(
+            plan,
+            target_sample_rate,
+            target_channels,
+            requires_global_header,
+        )?;
 
         ost.set_time_base(enc_ctx.time_base());
         ost.set_parameters(&enc_ctx);
         let ost_index = ost.index();
         let ost_time_base = ost.time_base();
 
-        octx.write_header().map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
+        octx.write_header()
+            .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
 
         Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
     }
@@ -249,11 +264,14 @@ impl FfmpegNextProcessor {
             if context.is_cancelled() {
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
-            if si.index() != stream_index { continue; }
+            if si.index() != stream_index {
+                continue;
+            }
 
-            decoder.send_packet(&packet)
+            decoder
+                .send_packet(&packet)
                 .map_err(|e| AppError::General(format!("Decoder send failed: {e}")))?;
-            
+
             Self::process_decoded_frames(
                 decoder,
                 encoder,
@@ -289,13 +307,15 @@ impl FfmpegNextProcessor {
 
         let ictx = ff::format::input(&input_path)
             .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-        let istream = ictx.streams()
-            .best(ff::media::Type::Audio)
-            .ok_or_else(|| AppError::InvalidInput(format!("No audio stream in input {}", input_path.display())))?;
+        let istream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
+            AppError::InvalidInput(format!("No audio stream in input {}", input_path.display()))
+        })?;
         let stream_index = istream.index();
         let dec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
             .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
-        let decoder = dec_ctx.decoder().audio()
+        let decoder = dec_ctx
+            .decoder()
+            .audio()
             .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
 
         // Build resampler for this input stream
@@ -309,7 +329,8 @@ impl FfmpegNextProcessor {
             encoder.format(),
             encoder.channel_layout(),
             encoder.rate(),
-        ).map_err(|e| AppError::General(format!("Create resampler failed: {e}")))?;
+        )
+        .map_err(|e| AppError::General(format!("Create resampler failed: {e}")))?;
 
         Ok((ictx, decoder, resampler, stream_index))
     }
@@ -325,7 +346,8 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
-        encoder.send_frame(frame)
+        encoder
+            .send_frame(frame)
             .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
         let mut pkt = ff::Packet::empty();
         while encoder.receive_packet(&mut pkt).is_ok() {
@@ -398,7 +420,8 @@ impl FfmpegNextProcessor {
                     out.set_format(encoder.format());
                     out.set_channel_layout(encoder.channel_layout());
                     out.set_rate(encoder.rate());
-                    resampler.run(&frame, &mut out)
+                    resampler
+                        .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
 
                     // Set PTS in encoder time_base
@@ -406,16 +429,22 @@ impl FfmpegNextProcessor {
                     *running_pts += out.samples() as i64;
 
                     // Encode and write
-                    Self::encode_and_write_frame(encoder, &out, output_context, output_stream_index, output_time_base)?;
+                    Self::encode_and_write_frame(
+                        encoder,
+                        &out,
+                        output_context,
+                        output_stream_index,
+                        output_time_base,
+                    )?;
 
                     // Progress emit every ~200ms
                     Self::emit_progress_update(
-                        emitter, 
-                        *running_pts, 
-                        target_sample_rate, 
-                        total_duration, 
-                        file_index, 
-                        total_files, 
+                        emitter,
+                        *running_pts,
+                        target_sample_rate,
+                        total_duration,
+                        file_index,
+                        total_files,
                         last_emit,
                     );
                 }
@@ -448,7 +477,7 @@ impl FfmpegNextProcessor {
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
 
-        let (mut ictx, mut decoder, mut resampler, stream_index) = 
+        let (mut ictx, mut decoder, mut resampler, stream_index) =
             Self::setup_decoder_and_resampler(input_path, encoder)?;
 
         let total_duration = plan.total_duration.max(0.001);
@@ -488,7 +517,7 @@ impl FfmpegNextProcessor {
     }
 
     /// Flushes any remaining frames from the decoder after processing an input file
-    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline 
+    #[allow(clippy::too_many_arguments)] // EXCEPTION: Context needed for complex media processing pipeline
     fn flush_decoder_frames(
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
@@ -510,11 +539,13 @@ impl FfmpegNextProcessor {
                     out.set_format(encoder.format());
                     out.set_channel_layout(encoder.channel_layout());
                     out.set_rate(encoder.rate());
-                    resampler.run(&frame, &mut out)
+                    resampler
+                        .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
                     out.set_pts(Some(*running_pts));
                     *running_pts += out.samples() as i64;
-                    encoder.send_frame(&out)
+                    encoder
+                        .send_frame(&out)
                         .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
                     let mut pkt = ff::Packet::empty();
                     while encoder.receive_packet(&mut pkt).is_ok() {
@@ -551,7 +582,9 @@ impl FfmpegNextProcessor {
                 .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
         }
 
-        output_context.write_trailer().map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
+        output_context
+            .write_trailer()
+            .map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
         Ok(())
     }
 }
@@ -563,8 +596,8 @@ impl MediaProcessor for FfmpegNextProcessor {
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-        use std::sync::Once;
         use ffmpeg_next as ff;
+        use std::sync::Once;
 
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
@@ -574,7 +607,7 @@ impl MediaProcessor for FfmpegNextProcessor {
 
         Box::pin(async move {
             // Setup encoder and output context
-            let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) = 
+            let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) =
                 Self::setup_encoder(plan)?;
 
             // Ensure partial outputs are removed on failure or cancellation
@@ -616,7 +649,7 @@ impl MediaProcessor for FfmpegNextProcessor {
 }
 
 /// Builds FFmpeg command for merging audio files
-/// 
+///
 /// This function encapsulates all FFmpeg command construction logic,
 /// providing a stable interface for audio processing operations.
 pub fn build_merge_command(
@@ -626,34 +659,44 @@ pub fn build_merge_command(
     file_paths: &[PathBuf],
 ) -> Result<Command> {
     let ffmpeg_path = crate::ffmpeg::locate_ffmpeg()?;
-    
+
     // Resolve sample rate (auto-detect if needed)
     let sample_rate = match &settings.sample_rate {
         SampleRateConfig::Explicit(rate) => *rate,
         SampleRateConfig::Auto => detect_input_sample_rate(file_paths)?,
     };
-    
+
     // Log the resolved FFmpeg path once per invocation (helps debug env issues)
     log::info!("Using FFmpeg binary: {}", ffmpeg_path.display());
 
     let mut cmd = Command::new(&ffmpeg_path);
     cmd.args([
-        "-f", FFMPEG_CONCAT_FORMAT,
-        "-safe", FFMPEG_CONCAT_SAFE_MODE,
-        "-i", &concat_file.to_string_lossy(),
-        "-vn",  // Disable video processing (ignore album artwork)
-        "-map", "0:a",  // Only map audio streams
-        "-map_metadata", "0",  // Preserve metadata from first input
-        "-c:a", FFMPEG_AUDIO_CODEC,
-        "-b:a", &format!("{}k", settings.bitrate),
-        "-ar", &sample_rate.to_string(),
-        "-ac", &settings.channels.channel_count().to_string(),
-        "-progress", FFMPEG_PROGRESS_PIPE,  // Enable progress output to stderr
-        "-nostats",  // Disable normal stats output to avoid interference
-        "-y",  // Overwrite output file
+        "-f",
+        FFMPEG_CONCAT_FORMAT,
+        "-safe",
+        FFMPEG_CONCAT_SAFE_MODE,
+        "-i",
+        &concat_file.to_string_lossy(),
+        "-vn", // Disable video processing (ignore album artwork)
+        "-map",
+        "0:a", // Only map audio streams
+        "-map_metadata",
+        "0", // Preserve metadata from first input
+        "-c:a",
+        FFMPEG_AUDIO_CODEC,
+        "-b:a",
+        &format!("{}k", settings.bitrate),
+        "-ar",
+        &sample_rate.to_string(),
+        "-ac",
+        &settings.channels.channel_count().to_string(),
+        "-progress",
+        FFMPEG_PROGRESS_PIPE, // Enable progress output to stderr
+        "-nostats",           // Disable normal stats output to avoid interference
+        "-y",                 // Overwrite output file
         &output.to_string_lossy(),
     ]);
-    
+
     cmd.stderr(Stdio::piped());
     cmd.stdout(Stdio::piped());
 
@@ -672,12 +715,12 @@ pub fn build_merge_command(
         output.to_string_lossy()
     );
     log::info!("FFmpeg command preview: {cmd_preview}");
-    
+
     Ok(cmd)
 }
 
 /// Executes FFmpeg command with context-based progress tracking
-/// 
+///
 /// This function provides a unified interface for executing FFmpeg commands
 /// with proper progress monitoring and cancellation support.
 pub async fn execute_ffmpeg_with_progress_context(
@@ -686,22 +729,22 @@ pub async fn execute_ffmpeg_with_progress_context(
     total_duration: f64,
 ) -> Result<()> {
     log::debug!("Starting FFmpeg execution with progress tracking");
-    
+
     // Set up process execution
     let mut execution = setup_process_execution(cmd, context)?;
-    
+
     // Monitor process with progress updates
     monitor_process_with_progress(&mut execution, context, total_duration)?;
-    
+
     // Finalize and check exit status
     finalize_process_execution(execution, context)?;
-    
+
     log::debug!("FFmpeg execution completed successfully");
     Ok(())
 }
 
 /// ADAPTER: Executes command with progress tracking (legacy compatibility)
-/// 
+///
 /// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
 /// to use the new context-based approach internally.
 #[deprecated = "Use execute_ffmpeg_with_progress_context for new code - this adapter maintains compatibility"]
@@ -713,15 +756,15 @@ pub async fn execute_with_progress_events(
     total_duration: f64,
 ) -> Result<()> {
     // Convert legacy parameters to context-based approach
-    let session = create_session_from_legacy_state(state)?;
+    let session = crate::audio::processor::legacy::create_session_from_legacy_state(state)?;
     let context = ProcessingContext::new(window.clone(), session, AudioSettings::default());
     // Note: We use default settings here since they're not available in the legacy adapter
-    
+
     execute_ffmpeg_with_progress_context(cmd, &context, total_duration).await
 }
 
 /// ADAPTER: Builds merge command (legacy compatibility)
-/// 
+///
 /// ADAPTER FUNCTION: Maintains backward compatibility for existing code
 /// that calls build_merge_command directly.
 #[deprecated = "Use MediaProcessingPlan::build_ffmpeg_command for new code - this adapter maintains compatibility"]

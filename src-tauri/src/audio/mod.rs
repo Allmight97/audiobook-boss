@@ -1,11 +1,11 @@
 //! Audio processing module for audiobook creation
-//! 
+//!
 //! This module handles file list management, audio settings,
 //! progress reporting, and the full merge pipeline.
 
+use self::constants::{DEFAULT_BITRATE, DEFAULT_OUTPUT_EXTENSION, DEFAULT_SAMPLE_RATE};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use self::constants::{DEFAULT_BITRATE, DEFAULT_SAMPLE_RATE, DEFAULT_OUTPUT_EXTENSION};
 
 pub mod cleanup;
 pub mod constants;
@@ -145,11 +145,15 @@ pub use path_validation::validate_input_audio_path;
 pub use settings::validate_audio_settings;
 // New infrastructure - will be used when processor.rs is refactored
 #[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
-pub use progress::{ProgressReporter, ProgressEmitter, ProgressEvent};
+pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
 
-// Deprecated adapter - maintained for backward compatibility
+// Core processor API (post-split staged)
 #[allow(deprecated)]
 pub use processor::process_audiobook_with_events;
+pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
+
+// Deprecated adapter - maintained for backward compatibility
+// Deprecated adapter re-export temporarily removed pending legacy module migration (Phase 4).
 
 // Core context - used in current implementation
 pub use context::ProcessingContext;
