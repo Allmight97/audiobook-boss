@@ -23,7 +23,7 @@ export function createFileListItem(file: AudioFile, index: number): HTMLElement 
     item.className = `file-list-item ${file.isValid ? 'valid' : 'invalid'}`;
     item.dataset.index = index.toString();
 
-    const fileName = file.path.split('/').pop() || file.path;
+    const fileName = file.path.split(/[\\\/]/).pop() || file.path;
     const statusIcon = file.isValid ? '✓' : '✗';
     const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
     
@@ -55,7 +55,7 @@ export function updateFileListItem(item: HTMLElement, file: AudioFile, index: nu
     item.className = `file-list-item ${file.isValid ? 'valid' : 'invalid'}`;
     item.dataset.index = index.toString();
     
-    const fileName = file.path.split('/').pop() || file.path;
+    const fileName = file.path.split(/[\\\/]/).pop() || file.path;
     const statusIcon = file.isValid ? '✓' : '✗';
     const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
     

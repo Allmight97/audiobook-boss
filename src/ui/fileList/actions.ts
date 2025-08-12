@@ -2,6 +2,7 @@ import { AudioFile, FileListInfo, formatFileSize } from '../../types/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from '../outputPanel';
 import { setCoverArt } from '../coverArt';
+import type { AudiobookMetadata } from '../../types/metadata';
 import { 
     currentFileList, 
     selectedFileIndex, 
@@ -11,11 +12,12 @@ import {
     setSortAscending 
 } from './state';
 import { 
-    createFileListItem, 
-    updateFileListDOM, 
-    updateTotalStats, 
-    updateSelection, 
+    createFileListItem,
+    updateFileListDOM,
+    updateTotalStats,
+    updateSelection,
     updateSortButtonText,
+    updateButtonVisibility,
     showEmptyState 
 } from './dom';
 import { initFileListEvents } from './events';
@@ -42,16 +44,9 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     initFileListEvents();
     onFileListChange();
     
-    // Update sort button visibility and text
-    const sortBtn = document.getElementById('sort-toggle-btn');
-    if (sortBtn) {
-        sortBtn.style.display = fileListInfo.files.length > 1 ? 'block' : 'none';
-        sortBtn.textContent = getSortAscending() ? 'Sort: A-Z' : 'Sort: Z-A';
-    }
-    const clearBtn = document.getElementById('clear-files-btn');
-    if (clearBtn) {
-        clearBtn.style.display = fileListInfo.files.length > 0 ? 'block' : 'none';
-    }
+    // Centralized button updates
+    updateButtonVisibility();
+    updateSortButtonText(getSortAscending());
 }
 
 export function selectFile(index: number): void {
@@ -116,14 +111,14 @@ export function updateFileProperties(file: AudioFile): void {
 
 async function loadFileMetadata(filePath: string): Promise<void> {
     try {
-        const metadata = await invoke('read_audio_metadata', { filePath: filePath });
+        const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath });
         populateMetadataForm(metadata);
     } catch (error) {
         console.warn('Failed to load metadata:', error);
     }
 }
 
-function populateMetadataForm(metadata: any): void {
+function populateMetadataForm(metadata: AudiobookMetadata): void {
     const titleEl = document.getElementById('meta-title') as HTMLInputElement;
     const authorEl = document.getElementById('meta-author') as HTMLInputElement;
     const albumEl = document.getElementById('meta-album') as HTMLInputElement;
@@ -223,8 +218,8 @@ export function toggleFileSort(): void {
     
     // Sort files by name
     currentFileList.files.sort((a, b) => {
-        const nameA = a.path.split('/').pop() || a.path;
-        const nameB = b.path.split('/').pop() || b.path;
+        const nameA = a.path.split(/[\\\/]/).pop() || a.path;
+        const nameB = b.path.split(/[\\\/]/).pop() || b.path;
         
         if (getSortAscending()) {
             return nameA.localeCompare(nameB);
@@ -239,6 +234,9 @@ export function toggleFileSort(): void {
     
     // Update the sort button text
     updateSortButtonText(getSortAscending());
+    
+    // Ensure button visibility is updated after reordering
+    updateButtonVisibility();
     
     updateFileListDOM();
     onFileListChange();
@@ -258,5 +256,6 @@ export function clearAllFiles(): void {
     setSelectedIndex(-1);
     clearFileProperties();
     updateTotalStats();
+    updateButtonVisibility();
     onFileListChange();
 }

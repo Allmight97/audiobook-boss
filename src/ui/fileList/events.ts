@@ -59,6 +59,5 @@ function handleFileListClick(e: Event): void {
 
 // Initialize event handlers for sort and clear buttons on DOM load
 export function initDOMEventHandlers(): void {
-    // This will be called from the main fileList.ts module during DOMContentLoaded
-    // Button event handlers are set up in the main module to maintain initialization order
+    // No-op: handlers are bound in `index.ts` on DOMContentLoaded.
 }

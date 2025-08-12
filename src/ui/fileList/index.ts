@@ -7,7 +7,9 @@ import { toggleFileSort, clearAllFiles } from './actions';
 export { 
     displayFileList, 
     toggleFileSort, 
-    clearAllFiles 
+    clearAllFiles,
+    moveFileUp,
+    moveFileDown
 } from './actions';
 
 // Re-export state from state module  
