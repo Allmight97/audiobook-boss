@@ -1,6 +1,7 @@
 ---
-alwaysApply: true
+applyTo: '**'
 ---
+# Audiobook Boss (ABB) Project Guidelines
 
 ## Architecture Overview
 This is a Tauri desktop app with TypeScript frontend and Rust backend that converts audio files into audiobooks. The app is currently migrating from shell-based FFmpeg to type-safe `ffmpeg-next` bindings via feature flags.
@@ -40,22 +41,6 @@ cargo clippy --features safe-ffmpeg # Check feature-gated code
 - Formatting: use default rustfmt; for TS, rely on `tsc` + Vite. Keep functions small and focused.
 - Visibility: keep private/internal items non-`pub` unless required by cross-module use.
 
-## Repository Coding Standards
-This repository follows the Global Coding Standards (single-responsibility, high cohesion, orthogonality, low complexity via guard clauses, DRY) with these repo-specific interpretations:
-
-- Exceptions to file/function size limits are allowed only for:
-  - Generated code (proc macros, build scripts)
-  - Protocol implementations (Tauri command handlers, serialization for metadata formats)
-  - Third-party adapters (FFmpeg bindings: `ffmpeg-next`, shell FFmpeg; OS/platform adapters)
-  When exceeding limits: annotate with `// EXCEPTION: [reason]`, explain briefly in the PR, and consider a follow-up refactor.
-
-- Helper extraction guidance:
-  - Extract helpers to improve readability/reuse.
-  - Avoid extraction if it requires passing more than 3 parameters, splits validate-then-act sequences, introduces circular dependencies/tight coupling, or harms cohesion.
-
-- Review expectations:
-  - Flag size/complexity violations and propose concrete refactors: what to extract, suggested names, clear input/output contracts, and test seams.
-
 ### Test Organization
 - **External Tests**: `src-tauri/tests/unit/{audio,metadata,ffmpeg,commands}/` for public APIs
 - **Inline Tests**: Only for private/`pub(crate)` internals that can't be tested externally
@@ -66,6 +51,17 @@ This repository follows the Global Coding Standards (single-responsibility, high
 - **Banned**: `unwrap()` and `expect()` in production code (`#![deny(clippy::unwrap_used)]`)
 - **Required**: Return `Result<T, AppError>` and use `?` operator
 - **Custom Errors**: Use `AppError` enum from `src-tauri/src/errors.rs`
+
+### Project-Specific Coding Exceptions
+When applying cross-project coding standards, these audiobook-boss specific exceptions are allowed:
+- **Tauri command handlers**: May exceed function size limits for complex command orchestration
+- **FFmpeg integration code**: Bindings and adapters may exceed limits due to external API constraints
+- **Generated protocol code**: Serialization and IPC boundaries may have larger functions
+
+### Collaboration Context
+- Maintain a collaborative pair programmer approach when planning and implementing
+- User is a junior developer - validate code changes and implementation plans before executing
+- Provide clear explanations and rationale for architectural decisions
 
 ### Feature Flag Conventions
 ```rust
