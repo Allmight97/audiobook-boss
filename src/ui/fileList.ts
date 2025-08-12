@@ -1,4 +1,4 @@
-import { AudioFile, FileListInfo, formatDuration, formatFileSize } from '../types/audio';
+import { AudioFile, FileListInfo, formatFileSize } from '../types/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from './outputPanel';
 import { setCoverArt } from './coverArt';
@@ -10,11 +10,21 @@ import {
     getSortAscending, 
     setSortAscending 
 } from './fileList/state';
+import { 
+    initDOMCache,
+    createFileListItem, 
+    updateFileListDOM, 
+    updateTotalStats, 
+    updateSelection, 
+    updateSortButtonText,
+    showEmptyState 
+} from './fileList/dom';
 
 // let draggedIndex: number = -1; // Removed - using arrow buttons instead
 
 // Initialize sort button when module loads
 document.addEventListener('DOMContentLoaded', () => {
+    initDOMCache(); // Initialize DOM caching
     const sortBtn = document.getElementById('sort-toggle-btn');
     if (sortBtn) {
         sortBtn.addEventListener('click', toggleFileSort);
@@ -59,55 +69,12 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     }
 }
 
-function createFileListItem(file: AudioFile, index: number): HTMLElement {
-    const item = document.createElement('div');
-    item.className = `file-list-item ${file.isValid ? 'valid' : 'invalid'}`;
-    // Phase 1: Remove draggable functionality
-    // item.draggable = true;
-    item.dataset.index = index.toString();
-
-    const fileName = file.path.split('/').pop() || file.path;
-    const statusIcon = file.isValid ? '✓' : '✗';
-    const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
-    
-    const isFirst = index === 0;
-    const isLast = currentFileList ? index === currentFileList.files.length - 1 : false;
-
-    item.innerHTML = `
-        <div class="file-item-content">
-            <div class="file-status ${statusClass}">${statusIcon}</div>
-            <div class="file-info">
-                <div class="file-name">${fileName}</div>
-                <div class="file-details">
-                    ${file.isValid && file.duration && file.size ? 
-                        `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}` :
-                        `Error: ${file.error || 'Invalid file'}`
-                    }
-                </div>
-            </div>
-            <button class="move-up-btn" data-index="${index}" ${isFirst ? 'disabled' : ''}>▲</button>
-            <button class="move-down-btn" data-index="${index}" ${isLast ? 'disabled' : ''}>▼</button>
-            <button class="remove-file-btn" data-index="${index}">×</button>
-        </div>
-    `;
-
-    // Note: Event handlers are now attached via event delegation in initFileListEvents()
-    return item;
-}
-
 function selectFile(index: number): void {
     if (!currentFileList || index < 0 || index >= currentFileList.files.length) return;
 
     setSelectedIndex(index);
     updateSelection();
     updateFileProperties(currentFileList.files[index]);
-}
-
-function updateSelection(): void {
-    const items = document.querySelectorAll('.file-list-item');
-    items.forEach((item, index) => {
-        item.classList.toggle('selected', index === selectedFileIndex);
-    });
 }
 
 function removeFile(index: number): void {
@@ -136,13 +103,6 @@ function recalculateTotals(): void {
     const validFiles = currentFileList.files.filter(f => f.isValid && f.duration && f.size);
     currentFileList.totalDuration = validFiles.reduce((sum, f) => sum + (f.duration || 0), 0);
     currentFileList.totalSize = validFiles.reduce((sum, f) => sum + (f.size || 0), 0);
-}
-
-function updateTotalStats(): void {
-    if (!currentFileList) return;
-
-    const totalSizeEl = document.getElementById('prop-combinedsize');
-    if (totalSizeEl) totalSizeEl.textContent = formatFileSize(currentFileList.totalSize);
 }
 
 function updateFileProperties(file: AudioFile): void {
@@ -391,91 +351,6 @@ function handleDragEnd(): void {
 }
 */
 
-function updateFileListDOM(): void {
-    if (!currentFileList) return;
-    
-    const container = document.querySelector('.file-list-container');
-    if (!container) return;
-
-    // If no files, show placeholder
-    if (currentFileList.files.length === 0) {
-        container.innerHTML = '<p class="text-gray-500">No files loaded</p>';
-        container.className = 'file-list-placeholder';
-        
-        // Hide sort button when no files
-        const sortBtn = document.getElementById('sort-toggle-btn');
-        if (sortBtn) {
-            sortBtn.style.display = 'none';
-        }
-        
-        return;
-    }
-
-    // Ensure container has correct class
-    container.className = 'file-list-container';
-    
-    // Remove excess items
-    const existingItems = container.querySelectorAll('.file-list-item');
-    for (let i = currentFileList.files.length; i < existingItems.length; i++) {
-        existingItems[i].remove();
-    }
-    
-    // Update or create items
-    currentFileList.files.forEach((file, index) => {
-        const existingItem = existingItems[index] as HTMLElement;
-        if (existingItem) {
-            updateFileListItem(existingItem, file, index);
-        } else {
-            const newItem = createFileListItem(file, index);
-            container.appendChild(newItem);
-        }
-    });
-    
-    // Update sort button visibility
-    const sortBtn = document.getElementById('sort-toggle-btn');
-    if (sortBtn) {
-        sortBtn.style.display = currentFileList.files.length > 1 ? 'block' : 'none';
-    }
-    const clearBtn = document.getElementById('clear-files-btn');
-    if (clearBtn) {
-        clearBtn.style.display = currentFileList.files.length > 0 ? 'block' : 'none';
-    }
-    
-    updateTotalStats();
-    updateSelection();
-    initFileListEvents();
-}
-
-function updateFileListItem(item: HTMLElement, file: AudioFile, index: number): void {
-    item.className = `file-list-item ${file.isValid ? 'valid' : 'invalid'}`;
-    item.dataset.index = index.toString();
-    
-    const fileName = file.path.split('/').pop() || file.path;
-    const statusIcon = file.isValid ? '✓' : '✗';
-    const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
-    
-    const isFirst = index === 0;
-    const isLast = currentFileList ? index === currentFileList.files.length - 1 : false;
-    
-    item.innerHTML = `
-        <div class="file-item-content">
-            <div class="file-status ${statusClass}">${statusIcon}</div>
-            <div class="file-info">
-                <div class="file-name">${fileName}</div>
-                <div class="file-details">
-                    ${file.isValid && file.duration && file.size ? 
-                        `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}` :
-                        `Error: ${file.error || 'Invalid file'}`
-                    }
-                </div>
-            </div>
-            <button class="move-up-btn" data-index="${index}" ${isFirst ? 'disabled' : ''}>▲</button>
-            <button class="move-down-btn" data-index="${index}" ${isLast ? 'disabled' : ''}>▼</button>
-            <button class="remove-file-btn" data-index="${index}">×</button>
-        </div>
-    `;
-}
-
 // Phase 4: Toggle file sort order
 export function toggleFileSort(): void {
     if (!currentFileList || currentFileList.files.length <= 1) return;
@@ -499,10 +374,7 @@ export function toggleFileSort(): void {
     clearFileProperties();
     
     // Update the sort button text
-    const sortBtn = document.getElementById('sort-toggle-btn');
-    if (sortBtn) {
-        sortBtn.textContent = getSortAscending() ? 'Sort: A-Z' : 'Sort: Z-A';
-    }
+    updateSortButtonText(getSortAscending());
     
     updateFileListDOM();
     onFileListChange();
@@ -517,21 +389,7 @@ export function clearAllFiles(): void {
     currentFileList.totalDuration = 0;
     currentFileList.totalSize = 0;
     
-    const container = document.querySelector('.file-list-container');
-    if (container) {
-        container.innerHTML = '<p class="text-gray-500">No files loaded</p>';
-        container.className = 'file-list-placeholder';
-    }
-    
-    // Hide sort button when no files
-    const sortBtn = document.getElementById('sort-toggle-btn');
-    if (sortBtn) {
-        sortBtn.style.display = 'none';
-    }
-    const clearBtn = document.getElementById('clear-files-btn');
-    if (clearBtn) {
-        clearBtn.style.display = 'none';
-    }
+    showEmptyState();
     
     setSelectedIndex(-1);
     clearFileProperties();
