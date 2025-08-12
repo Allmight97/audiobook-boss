@@ -2,11 +2,16 @@ import { AudioFile, FileListInfo, formatDuration, formatFileSize } from '../type
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from './outputPanel';
 import { setCoverArt } from './coverArt';
+import { 
+    currentFileList, 
+    selectedFileIndex, 
+    setCurrentFileList, 
+    setSelectedIndex, 
+    getSortAscending, 
+    setSortAscending 
+} from './fileList/state';
 
-let currentFileList: FileListInfo | null = null;
-let selectedFileIndex: number = -1;
 // let draggedIndex: number = -1; // Removed - using arrow buttons instead
-let sortAscending: boolean = true;
 
 // Initialize sort button when module loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 export function displayFileList(fileListInfo: FileListInfo): void {
-    currentFileList = fileListInfo;
+    setCurrentFileList(fileListInfo);
     const container = document.querySelector('.file-list-placeholder');
     if (!container) return;
 
@@ -46,7 +51,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     const sortBtn = document.getElementById('sort-toggle-btn');
     if (sortBtn) {
         sortBtn.style.display = fileListInfo.files.length > 1 ? 'block' : 'none';
-        sortBtn.textContent = sortAscending ? 'Sort: A-Z' : 'Sort: Z-A';
+        sortBtn.textContent = getSortAscending() ? 'Sort: A-Z' : 'Sort: Z-A';
     }
     const clearBtn = document.getElementById('clear-files-btn');
     if (clearBtn) {
@@ -93,7 +98,7 @@ function createFileListItem(file: AudioFile, index: number): HTMLElement {
 function selectFile(index: number): void {
     if (!currentFileList || index < 0 || index >= currentFileList.files.length) return;
 
-    selectedFileIndex = index;
+    setSelectedIndex(index);
     updateSelection();
     updateFileProperties(currentFileList.files[index]);
 }
@@ -116,10 +121,10 @@ function removeFile(index: number): void {
     updateFileListDOM();
     
     if (selectedFileIndex === index) {
-        selectedFileIndex = -1;
+        setSelectedIndex(-1);
         clearFileProperties();
     } else if (selectedFileIndex > index) {
-        selectedFileIndex--;
+        setSelectedIndex(selectedFileIndex - 1);
     }
     
     onFileListChange();
@@ -206,9 +211,9 @@ function moveFileUp(index: number): void {
     
     // Update selected index if needed
     if (selectedFileIndex === index) {
-        selectedFileIndex = index - 1;
+        setSelectedIndex(index - 1);
     } else if (selectedFileIndex === index - 1) {
-        selectedFileIndex = index;
+        setSelectedIndex(index);
     }
     
     updateFileListDOM();
@@ -226,9 +231,9 @@ function moveFileDown(index: number): void {
     
     // Update selected index if needed
     if (selectedFileIndex === index) {
-        selectedFileIndex = index + 1;
+        setSelectedIndex(index + 1);
     } else if (selectedFileIndex === index + 1) {
-        selectedFileIndex = index;
+        setSelectedIndex(index);
     }
     
     updateFileListDOM();
@@ -475,14 +480,14 @@ function updateFileListItem(item: HTMLElement, file: AudioFile, index: number): 
 export function toggleFileSort(): void {
     if (!currentFileList || currentFileList.files.length <= 1) return;
     
-    sortAscending = !sortAscending;
+    setSortAscending(!getSortAscending());
     
     // Sort files by name
     currentFileList.files.sort((a, b) => {
         const nameA = a.path.split('/').pop() || a.path;
         const nameB = b.path.split('/').pop() || b.path;
         
-        if (sortAscending) {
+        if (getSortAscending()) {
             return nameA.localeCompare(nameB);
         } else {
             return nameB.localeCompare(nameA);
@@ -490,13 +495,13 @@ export function toggleFileSort(): void {
     });
     
     // Reset selected index as files have been reordered
-    selectedFileIndex = -1;
+    setSelectedIndex(-1);
     clearFileProperties();
     
     // Update the sort button text
     const sortBtn = document.getElementById('sort-toggle-btn');
     if (sortBtn) {
-        sortBtn.textContent = sortAscending ? 'Sort: A-Z' : 'Sort: Z-A';
+        sortBtn.textContent = getSortAscending() ? 'Sort: A-Z' : 'Sort: Z-A';
     }
     
     updateFileListDOM();
@@ -528,10 +533,11 @@ export function clearAllFiles(): void {
         clearBtn.style.display = 'none';
     }
     
-    selectedFileIndex = -1;
+    setSelectedIndex(-1);
     clearFileProperties();
     updateTotalStats();
     onFileListChange();
 }
 
-export { currentFileList, selectedFileIndex };
+// Re-export state variables from the new state module  
+export { currentFileList, selectedFileIndex } from './fileList/state';
