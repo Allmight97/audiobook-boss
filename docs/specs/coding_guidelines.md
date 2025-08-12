@@ -8,7 +8,7 @@
 - 5 modules exceed 400 lines (largest: 1,455 lines)
 - Systematic refactoring in progress via planning system
 
-**Refactoring Roadmap**: See `docs/planning/consolidated-roadmap.md` for complete transition plan
+**Refactoring Roadmap**: See `docs/planning/final_implementation_roadmap_L4_2025-08-12.md` (source of truth)
 
 ---
 
@@ -60,7 +60,7 @@
 - Using FFmpeg for audio processing, Lofty for metadata  
 - Tauri 2.0 desktop app targeting macOS first
 - Testing via Cargo with unit tests - Reference: [Cargo Testing Guide](../cargo-testing-guide.md)
-- **REFACTORING IN PROGRESS**: See `docs/planning/consolidated-roadmap.md` for systematic improvement plan
+- **REFACTORING IN PROGRESS**: See `docs/planning/final_implementation_roadmap_L4_2025-08-12.md` for systematic improvement plan
 
 ## 🔄 **Working with Existing Code**
 
@@ -477,7 +477,7 @@ fn test_invalid_audio_file() {
 - **VALIDATION**: Always run tests + clippy after changes
 
 ### Navigation
-- **Strategic Overview**: `docs/planning/consolidated-roadmap.md`
+- **Strategic Overview**: `docs/planning/final_implementation_roadmap_L4_2025-08-12.md`
 - **Current Plan**: `docs/reports/mvp-roadmap.md`
 - **Technical Details**: `docs/reports/SECURITY_ANALYSIS.md`
 

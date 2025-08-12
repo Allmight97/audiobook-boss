@@ -1,6 +1,11 @@
-# Consolidated Roadmap: Refactoring, FFmpeg Migration, and Maintenance
+# [DEPRECATED] Consolidated Roadmap
 
-This document summarizes completed work, then breaks remaining tasks into phases prioritized by P0 (blockers/security), P1 (high-impact maintainability), and P2 (optimizations/cleanup). Each task is atomized for ordered workflow: assign to agents, implement one-by-one, test (cargo test + clippy), and confirm before merging.
+This roadmap has been superseded.
+
+- New source of truth: `docs/planning/final_implementation_roadmap_L4_2025-08-12.md`.
+- Historical reference only; do not update this file further.
+
+For audit context and rationale behind the new plan, see: `docs/reports/l4_audit_and_updated_roadmap_draft_2025-08-12.md`.
 
 ## Completed Work Summary
 - **Test Hygiene**: Inline tests extracted to `src-tauri/tests/unit/**` for errors, audio/session/metrics, metadata/reader/writer, ffmpeg/mod, and commands (split by domain). unwrap/expect fixes and clippy suggestions applied. Processor tests moved to unit/audio/.
@@ -32,7 +37,7 @@ After P0, these improve code quality and enable defaulting to safe engine.
     - **Task P1.1.2**: Refactor `media_pipeline.rs` functions with excessive parameters (`process_input_packets`, `process_decoded_frames`, `process_input_file`) to use a context struct. This is a critical step to improve readability and maintainability. (Deps: None. Verify: Reduced parameter count, clean `clippy` run. Effort: Medium.) ✅ **COMPLETED** — See `docs/planning/archive_completed/p1.1.2_media_pipeline_context_refactor_plan.md` for outcomes (context wiring, parameter reduction, validation results).
       - TODO: a minor follow-up may move `stream_index`/`file_index` into context to remove the remaining allow on `process_input_packets`.
     - **Task P1.1.3**: Split `audio/progress.rs` into `progress/{reporter.rs, parser.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Medium.) ✅ **COMPLETED**
-  - Combined Tasks: tracking in `docs/planning/p1.1.4-1.1.6_combined_split_plan.md`
+  - Combined Tasks: tracking in `docs/planning/p1.1.4-1.1.6_combined_split_plan.md` ✅ - **DONE**
     - **Task P1.1.4**: Split `audio/cleanup.rs` into `cleanup/{guard.rs, ops.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Medium.) [Branch: `feat/p1.1.4_split_cleanup.rs` - Combined with P1.1.5-P1.1.6 per feasibility audit 2025-08-11]
     - **Task P1.1.5**: Split `commands/mod.rs` into `commands/{audio.rs, metadata.rs, system.rs, mod.rs}`. (Deps: P1.1.1. Verify: `size_budget.sh` compliance. Effort: Low.) [Combined with P1.1.4, P1.1.6]
     - **Task P1.1.6**: For TS: Split `ui/fileList.ts` and `ui/statusPanel.ts` into sub-files (e.g., state/dom/actions). (Deps: None. Verify: `npm run build` succeeds; manual UI test. Effort: Medium.) [Combined with P1.1.4, P1.1.5]
