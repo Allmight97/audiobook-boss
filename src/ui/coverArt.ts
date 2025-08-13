@@ -3,6 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
+// Tracks whether the user manually loaded custom cover art (preserved across file selection)
+let hasCustomCoverArt: boolean = false;
 
 /**
  * Initializes the cover art functionality
@@ -72,6 +74,7 @@ async function handleLoadCoverArt(): Promise<void> {
 
         // Update global state
         currentCoverArt = imageData;
+        hasCustomCoverArt = true;
 
         // Display the loaded cover art
         displayCoverArt(imageData);
@@ -187,6 +190,13 @@ export function getCurrentCoverArt(): number[] | null {
 }
 
 /**
+ * Returns whether a user has manually set custom cover art in this session
+ */
+export function getHasCustomCoverArt(): boolean {
+    return hasCustomCoverArt;
+}
+
+/**
  * Sets cover art data (used by other modules)
  * Updates display and state
  */
@@ -208,4 +218,5 @@ export function clearCoverArt(): void {
     delete (window as any).currentCoverArt;
     // Hide the Clear button when no cover art is present
     updateClearButtonVisibility();
+    hasCustomCoverArt = false;
 }

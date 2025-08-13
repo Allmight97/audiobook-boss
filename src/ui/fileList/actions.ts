@@ -1,7 +1,7 @@
 import { AudioFile, FileListInfo, formatFileSize } from '../../types/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from '../outputPanel';
-import { setCoverArt } from '../coverArt';
+import { setCoverArt, getHasCustomCoverArt } from '../coverArt';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { 
     currentFileList, 
@@ -135,8 +135,10 @@ function populateMetadataForm(metadata: AudiobookMetadata): void {
     if (genreEl && metadata.genre) genreEl.value = metadata.genre;
     if (descriptionEl && metadata.description) descriptionEl.value = metadata.description;
 
-    // Handle cover art display - use the new cover art module
-    setCoverArt(metadata.cover_art || null);
+    // Handle cover art display - preserve user-loaded custom art
+    if (!getHasCustomCoverArt()) {
+        setCoverArt(metadata.cover_art || null);
+    }
 }
 
 // Move file up in the list

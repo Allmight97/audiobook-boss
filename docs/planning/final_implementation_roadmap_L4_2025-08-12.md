@@ -43,9 +43,6 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Frontend: In `src/ui/coverArt.ts`, track `hasCustomCoverArt` (set on manual load, cleared on `clearCoverArt`). In `src/ui/fileList/actions.ts` `populateMetadataForm`, only call `setCoverArt(metadata.cover_art || null)` if `!hasCustomCoverArt`.
   - Success criteria: Manual UI test switching files does not overwrite manually loaded art; Clear button visibility toggles correctly.
 
-- **P0.4 Deprecate old roadmap doc**
-  - Mark `docs/planning/consolidated-roadmap.md` as deprecated and point readers to this file as the source of truth.
-
 ### Phase P1 — Maintainability and engine flip preparation
 
 - **P1.1 Gate legacy adapters and remove dead-code allows**

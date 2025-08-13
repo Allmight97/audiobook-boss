@@ -115,6 +115,10 @@ pub(crate) fn write_metadata_stage(
         ui.emit_metadata_start("Writing metadata...");
         reporter.set_stage(ProcessingStage::WritingMetadata);
         write_metadata(merged_output, &metadata)?;
+        // If cover art bytes are present, write them after basic tags
+        if let Some(cover) = metadata.cover_art.as_ref() {
+            crate::metadata::writer::write_cover_art(merged_output, cover)?;
+        }
         if context.is_cancelled() {
             return Err(AppError::InvalidInput(
                 "Processing was cancelled".to_string(),

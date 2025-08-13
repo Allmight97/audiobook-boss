@@ -12,6 +12,7 @@ import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
 import { AudiobookMetadata } from '../../types/metadata';
 import * as dom from './dom';
+import { getCurrentCoverArt } from '../coverArt';
 
 interface ProcessingStatus {
     stage: 'idle' | 'analyzing' | 'converting' | 'merging' | 'writing' | 'completed' | 'cancelled' | 'failed';
@@ -342,6 +343,12 @@ export class StatusPanel {
         if (genre) metadata.genre = genre;
         if (series) metadata.series = series;
         if (description) metadata.description = description;
+
+        // Include cover art if user has selected any
+        const coverBytes = getCurrentCoverArt();
+        if (coverBytes && coverBytes.length > 0) {
+            metadata.cover_art = coverBytes;
+        }
 
         return metadata;
     }
