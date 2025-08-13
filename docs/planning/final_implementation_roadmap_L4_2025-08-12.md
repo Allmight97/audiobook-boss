@@ -4,7 +4,7 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 
 ### Phase P0.5 — Tauri v2 foundation modernization
 
-- **P0.5.1 Security permissions audit**
+- **P0.5.1 Security permissions audit** ✅
   - Backend: Replace `src-tauri/capabilities/default.json` broad permissions (`core:default`, `dialog:default`, `opener:default`) with explicit least-privilege grants actually used by the UI.
     - Events (frontend): `core:event:allow-listen`, `core:event:allow-unlisten` (do not grant `allow-emit` to the frontend unless required).
     - Dialog: `dialog:allow-open`.
@@ -12,25 +12,18 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
     - Opener: include `opener:allow-open-url` only if there is an actual UI feature invoking it; otherwise remove `opener:*` entirely.
   - Success criteria: `npm run tauri dev` starts without capability errors; smoke test file-open dialog and progress events with the narrowed capability set.
 
-- **P0.5.2 Frontend API standardization**
+- **P0.5.2 Frontend API standardization** ✅
   - Frontend: Verify all TypeScript uses `@tauri-apps/api` imports (no `window.__TAURI__` references). Current code already follows this; keep it enforced.
   - Replace any stragglers if discovered: `window.__TAURI__.core.invoke` → `import { invoke } from '@tauri-apps/api/core'`, `window.__TAURI__.event.listen` → `import { listen } from '@tauri-apps/api/event'`.
   - Success criteria: No `window.__TAURI__` references exist; imports resolve and app runs.
 
-- **P0.5.3 Event constants definition**
+- **P0.5.3 Event constants definition** ✅
   - Frontend: Create constants in `src/types/events.ts` for the single progress event and for stage names to prevent string drift:
     - `export const EVENTS = { PROGRESS: 'processing-progress' } as const;`
     - `export const STAGES = { analyzing: 'analyzing', converting: 'converting', merging: 'merging', writing: 'writing', completed: 'completed', failed: 'failed', cancelled: 'cancelled' } as const;`
   - Backend: Align emitted stage strings to match frontend stages (rename `writing_metadata` → `writing` in the emitter mapping); optionally define a Rust-side constant for the event name.
   - Update all emit/listen and stage comparisons to use constants instead of string literals.
   - Success criteria: No hardcoded event strings remain; FE/BE stage names match (specifically `writing`).
-
-### P0.5 — nice-to-haves to reach Level 5 (consider these after we achieve fully functional MVP and prior to distrubtion to the public)
-
-- Add a brief Success criteria matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
-- Audit and remove unused plugin capabilities (e.g., `opener:*`) and capture the minimal set in documentation.
-- Add `tracing` + subscriber setup for async observability on long-running operations.
-- Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
 
 ### Phase P0 — E2E stability and user-facing fixes
 
@@ -98,7 +91,14 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 - Frontend: Basic manual run `npm run tauri dev` to verify progress/cancel, cover art persistence and writing.
 - P0.5 specific: Verify modern Tauri API usage, proper permissions, and event constant usage throughout codebase.
 
-### Phase 4 - Create/update documentation
+### Phase 4 - (optional) Nice-to-haves to reach Level 5 (consider these after we achieve fully functional MVP and prior to public distribution)
+  - From phase 0.5:
+    - Add a brief Success criteria matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
+    - Audit and remove unused plugin capabilities (e.g., `opener:*`) and capture the minimal set in documentation.
+    - Add `tracing` + subscriber setup for async observability on long-running operations.
+    - Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
+
+### Phase 5 - Create/update documentation
 - Tasks pending ...
 
 
