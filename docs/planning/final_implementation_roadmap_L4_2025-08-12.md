@@ -37,7 +37,7 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
     - Shell path: `src-tauri/src/audio/progress_monitor.rs` before returning `Err` in `check_cancellation_and_kill_context` and related paths.
     - ffmpeg-next path: guard points in `src-tauri/src/audio/media_pipeline.rs` where `ctx.context.is_cancelled()` returns early.
   - Frontend: In `src/ui/statusPanel/logic.ts` `handleCancel()`, stop setting stage to `cancelled`. Instead, show a local "Cancellation requested…" message and wait for the backend `cancelled` event to transition.
-  - Success criteria: Manual click test + integration test that asserts cancel produces a `cancelled` event and stops processing without zombie processes.
+  - Success criteria: Manual click test + integration test that asserts cancel produces a `cancelled` event and stops processing without zombie processes. RUST_LOG=debug npm run tauri dev - confirmed working.
 
 - **P0.3 Preserve custom cover art across file selection** ✅
   - Frontend: In `src/ui/coverArt.ts`, track `hasCustomCoverArt` (set on manual load, cleared on `clearCoverArt`). In `src/ui/fileList/actions.ts` `populateMetadataForm`, only call `setCoverArt(metadata.cover_art || null)` if `!hasCustomCoverArt`.
