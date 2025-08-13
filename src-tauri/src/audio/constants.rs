@@ -3,6 +3,10 @@
 //! This module contains all magic numbers and constants used throughout
 //! the audio processing pipeline, grouped by functional area.
 
+// Event names
+/// Progress event name for frontend communication
+pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
+
 // Progress stage percentages
 /// Progress percentage at the end of the analyzing stage (0-10%)
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;

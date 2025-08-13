@@ -7,7 +7,7 @@
 
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { ProcessingProgressEvent } from '../../types/events';
+import { ProcessingProgressEvent, EVENTS, STAGES } from '../../types/events';
 import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
 import { AudiobookMetadata } from '../../types/metadata';
@@ -142,7 +142,7 @@ export class StatusPanel {
             this.cancelUnlisten();
         }
 
-        this.cancelUnlisten = await listen('processing-progress', (event) => {
+        this.cancelUnlisten = await listen(EVENTS.PROGRESS, (event) => {
             const progress = event.payload as ProcessingProgressEvent;
             this.updateProgress(progress);
         });
@@ -160,15 +160,15 @@ export class StatusPanel {
         this.updateStatus(status);
 
         // Handle completion or failure
-        if (status.stage === 'completed') {
+        if (status.stage === STAGES.completed) {
             setTimeout(() => {
                 this.resetToIdle();
                 dom.showSuccess('Audiobook created successfully!');
             }, 2000); // Show success for 2 seconds
-        } else if (status.stage === 'failed') {
+        } else if (status.stage === STAGES.failed) {
             this.resetToIdle();
             dom.showError(status.message);
-        } else if (status.stage === 'cancelled') {
+        } else if (status.stage === STAGES.cancelled) {
             this.resetToIdle();
             dom.showInfo('Processing was cancelled.');
         }

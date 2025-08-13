@@ -10,6 +10,26 @@
  */
 
 // ============================================================================
+// EVENT CONSTANTS (P0.5.3)
+// ============================================================================
+
+/** Event name constants to prevent string drift */
+export const EVENTS = {
+    PROGRESS: 'processing-progress'
+} as const;
+
+/** Stage name constants to prevent string drift */
+export const STAGES = {
+    analyzing: 'analyzing',
+    converting: 'converting', 
+    merging: 'merging',
+    writing: 'writing',
+    completed: 'completed',
+    failed: 'failed',
+    cancelled: 'cancelled'
+} as const;
+
+// ============================================================================
 // PROCESSING EVENTS (Backend → Frontend)
 // ============================================================================
 
@@ -17,7 +37,7 @@
  * Progress event emitted by Rust backend during audio processing
  * 
  * Source: src-tauri/src/audio/processor.rs (ProgressEvent struct)
- * Handler: src/ui/statusPanel.ts (listen('processing-progress'))
+ * Handler: src/ui/statusPanel.ts (listen(EVENTS.PROGRESS))
  * 
  * Emitted during:
  * - File analysis phase
@@ -27,7 +47,7 @@
  */
 export interface ProcessingProgressEvent {
     /** Processing stage identifier */
-    stage: 'analyzing' | 'converting' | 'merging' | 'writing' | 'completed' | 'failed' | 'cancelled';
+    stage: keyof typeof STAGES;
     
     /** Progress percentage (0.0 to 100.0) */
     percentage: number;
@@ -76,7 +96,7 @@ export interface TauriFileDropEvents {
  */
 export interface ApplicationEvents extends TauriFileDropEvents {
     /** Progress updates during audiobook processing */
-    'processing-progress': ProcessingProgressEvent;
+    [EVENTS.PROGRESS]: ProcessingProgressEvent;
 }
 
 // ============================================================================
@@ -93,14 +113,14 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  *    
  * 2. PROCESSING EVENTS:
  *    - User clicks "Process Audiobook" → invoke('process_audiobook_files')
- *    - Backend emits progress → 'processing-progress' events
+ *    - Backend emits progress → EVENTS.PROGRESS events
  *    - Frontend updates UI based on stage and percentage
- *    - Process completes → final 'processing-progress' with stage='completed'
+ *    - Process completes → final EVENTS.PROGRESS with stage=STAGES.completed
  *    
  * 3. CANCELLATION FLOW:
  *    - User clicks "Cancel" → invoke('cancel_processing')
  *    - Backend sets cancellation flag
- *    - Backend emits 'processing-progress' with stage='cancelled'
+ *    - Backend emits EVENTS.PROGRESS with stage=STAGES.cancelled
  *    - Frontend resets to idle state
  */
 
@@ -117,7 +137,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * - listen('tauri://file-drop-cancelled') → remove drag-over CSS class
  * 
  * File: src/ui/statusPanel.ts  
- * - listen('processing-progress') → updateProgress() → updateStatus() → updateUI()
+ * - listen(EVENTS.PROGRESS) → updateProgress() → updateStatus() → updateUI()
  * 
  * PROCESSING STATES (frontend):
  * - isProcessing: boolean flag in StatusPanel
@@ -185,7 +205,7 @@ export function isProcessingProgressEvent(
         typeof e.stage === 'string' &&
         typeof e.percentage === 'number' &&
         typeof e.message === 'string' &&
-        ['analyzing', 'converting', 'merging', 'writing', 'completed', 'failed', 'cancelled'].includes(e.stage)
+        Object.values(STAGES).includes(e.stage as keyof typeof STAGES)
     );
 }
 

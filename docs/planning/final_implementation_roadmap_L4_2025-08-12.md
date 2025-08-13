@@ -10,12 +10,12 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
     - Dialog: `dialog:allow-open`.
     - Path: avoid granting any `core:path:*` unless a specific command is used by the frontend (none required at present).
     - Opener: include `opener:allow-open-url` only if there is an actual UI feature invoking it; otherwise remove `opener:*` entirely.
-  - Verification: `npm run tauri dev` starts without capability errors; smoke test file-open dialog and progress events with the narrowed capability set.
+  - Success criteria: `npm run tauri dev` starts without capability errors; smoke test file-open dialog and progress events with the narrowed capability set.
 
 - **P0.5.2 Frontend API standardization**
   - Frontend: Verify all TypeScript uses `@tauri-apps/api` imports (no `window.__TAURI__` references). Current code already follows this; keep it enforced.
   - Replace any stragglers if discovered: `window.__TAURI__.core.invoke` → `import { invoke } from '@tauri-apps/api/core'`, `window.__TAURI__.event.listen` → `import { listen } from '@tauri-apps/api/event'`.
-  - Verification: No `window.__TAURI__` references exist; imports resolve and app runs.
+  - Success criteria: No `window.__TAURI__` references exist; imports resolve and app runs.
 
 - **P0.5.3 Event constants definition**
   - Frontend: Create constants in `src/types/events.ts` for the single progress event and for stage names to prevent string drift:
@@ -23,11 +23,11 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
     - `export const STAGES = { analyzing: 'analyzing', converting: 'converting', merging: 'merging', writing: 'writing', completed: 'completed', failed: 'failed', cancelled: 'cancelled' } as const;`
   - Backend: Align emitted stage strings to match frontend stages (rename `writing_metadata` → `writing` in the emitter mapping); optionally define a Rust-side constant for the event name.
   - Update all emit/listen and stage comparisons to use constants instead of string literals.
-  - Verification: No hardcoded event strings remain; FE/BE stage names match (specifically `writing`).
+  - Success criteria: No hardcoded event strings remain; FE/BE stage names match (specifically `writing`).
 
-### P0.5 — nice-to-haves to reach Level 5
+### P0.5 — nice-to-haves to reach Level 5 (consider these after we achieve fully functional MVP and prior to distrubtion to the public)
 
-- Add a brief verification matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
+- Add a brief Success criteria matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
 - Audit and remove unused plugin capabilities (e.g., `opener:*`) and capture the minimal set in documentation.
 - Add `tracing` + subscriber setup for async observability on long-running operations.
 - Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
@@ -37,18 +37,18 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 - **P0.1 Cover art end-to-end in processing**
   - Backend: In `src-tauri/src/audio/processor/finalize.rs` `write_metadata_stage`, if `metadata.cover_art.is_some()`, call `crate::metadata::writer::write_cover_art(merged_output, bytes)` after `write_metadata`.
   - Frontend: In `src/ui/statusPanel/logic.ts` `getCurrentMetadata()`, include `cover_art` if present from `src/ui/coverArt.ts` (e.g., exported getter). Ensure `invoke('process_audiobook_files', { metadata })` receives it.
-  - Verification: Add a unit test for `write_cover_art` (temp file) and an integration test that processes a file with cover art then reads it back with `read_audio_metadata` to assert a non-empty `cover_art`.
+  - Success criteria: Add a unit test for `write_cover_art` (temp file) and an integration test that processes a file with cover art then reads it back with `read_audio_metadata` to assert a non-empty `cover_art`.
 
 - **P0.2 Consistent cancellation semantics (backend event + UI)**
   - Backend: Emit cancellation events using event constants from P0.5.3. In both engines emit `EVENTS.CANCELLED` when cancellation is detected before early returns:
     - Shell path: `src-tauri/src/audio/progress_monitor.rs` before returning `Err` in `check_cancellation_and_kill_context` and related paths.
     - ffmpeg-next path: guard points in `src-tauri/src/audio/media_pipeline.rs` where `ctx.context.is_cancelled()` returns early.
   - Frontend: In `src/ui/statusPanel/logic.ts` `handleCancel()`, stop setting stage to `cancelled`. Instead, show a local "Cancellation requested…" message and wait for the backend `cancelled` event to transition.
-  - Verification: Manual click test + integration test that asserts cancel produces a `cancelled` event and stops processing without zombie processes.
+  - Success criteria: Manual click test + integration test that asserts cancel produces a `cancelled` event and stops processing without zombie processes.
 
 - **P0.3 Preserve custom cover art across file selection**
   - Frontend: In `src/ui/coverArt.ts`, track `hasCustomCoverArt` (set on manual load, cleared on `clearCoverArt`). In `src/ui/fileList/actions.ts` `populateMetadataForm`, only call `setCoverArt(metadata.cover_art || null)` if `!hasCustomCoverArt`.
-  - Verification: Manual UI test switching files does not overwrite manually loaded art; Clear button visibility toggles correctly.
+  - Success criteria: Manual UI test switching files does not overwrite manually loaded art; Clear button visibility toggles correctly.
 
 - **P0.4 Deprecate old roadmap doc**
   - Mark `docs/planning/consolidated-roadmap.md` as deprecated and point readers to this file as the source of truth.
@@ -58,12 +58,12 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 - **P1.1 Gate legacy adapters and remove dead-code allows**
   - Add a `legacy-adapters` feature (or align with `not(feature = "safe-ffmpeg")`) and gate `src-tauri/src/audio/processor/legacy.rs` and any deprecated adapters accordingly.
   - Remove `#![allow(dead_code)]` from `audio/*` where code is covered by features or used; retain only in test-only contexts.
-  - Verification: `cargo clippy -- -D warnings` is clean for default and `--features safe-ffmpeg`.
+  - Success criteria: `cargo clippy -- -D warnings` is clean for default and `--features safe-ffmpeg`.
 
 - **P1.2 Event and stage type unification**
   - Frontend: Remove unused `merging` from `src/types/events.ts` and `src/ui/statusPanel/logic.ts` stage union if not emitted. Keep `converting`, `writing`, `completed`, `failed`, `cancelled`.
   - Backend: Ensure all progress messages flow through `ProgressEmitter` using event constants from P0.5.3; minimize string drift.
-  - Verification: All events use centralized constants; no hardcoded event strings remain.
+  - Success criteria: All events use centralized constants; no hardcoded event strings remain.
 
 - **P1.3 Default engine flip prep**
   - Optional alias: Introduce `type DefaultProcessor = ...` in a dedicated module, and use it in `execute.rs` for selection clarity while maintaining current `#[cfg(feature = "safe-ffmpeg")]` behavior.
@@ -71,7 +71,7 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 
 - **P1.4 ffmpeg-next internals cleanups**
   - In `src-tauri/src/audio/media_pipeline.rs`, move `stream_index`/`file_index` into the pipeline context to eliminate `#[allow(clippy::too_many_arguments)]` and keep functions < 60 LOC.
-  - Verification: `cargo clippy` clean with feature on.
+  - Success criteria: `cargo clippy` clean with feature on.
 
 ### Phase P2 — Cleanup, CI guards, parity and packaging
 
@@ -92,10 +92,13 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Document and stabilize extension points around `finalize` (e.g., normalization, chapterization), ensuring `MediaProcessor` boundary and `ProgressEmitter` remain central.
   - No functional change required; provides a clear path for future stages.
 
-### Verification checklist per phase
+### Success criteria checklist per phase
 - Build/lint: `cargo clippy -- -D warnings` (default and `--features safe-ffmpeg`).
 - Tests: `cargo test` (default and `--features safe-ffmpeg`).
 - Frontend: Basic manual run `npm run tauri dev` to verify progress/cancel, cover art persistence and writing.
 - P0.5 specific: Verify modern Tauri API usage, proper permissions, and event constant usage throughout codebase.
+
+### Phase 4 - Create/update documentation
+- Tasks pending ...
 
 

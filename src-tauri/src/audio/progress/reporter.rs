@@ -154,7 +154,7 @@ impl ProgressEmitter {
             ProcessingStage::Analyzing => "analyzing",
             ProcessingStage::Converting => "converting",
             ProcessingStage::Merging => "merging",
-            ProcessingStage::WritingMetadata => "writing_metadata",
+            ProcessingStage::WritingMetadata => "writing",
             ProcessingStage::Completed => "completed",
             ProcessingStage::Failed(_) => "failed",
         };
@@ -167,7 +167,7 @@ impl ProgressEmitter {
             eta_seconds,
         };
 
-        let _ = self.window.emit("processing-progress", &event);
+        let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
     }
 
     /// Calculates progress percentage within a stage range
