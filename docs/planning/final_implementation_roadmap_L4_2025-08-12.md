@@ -96,7 +96,11 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
     - Add `tracing` + subscriber setup for async observability on long-running operations.
     - Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
   - From phase 0:
-    - Pending Review ...
+    - Add unit tests for `write_cover_art` function covering edge cases (empty files, corrupted data, permission failures).
+    - Create integration tests for complete E2E cover art flow: selection → processing → verification with `read_audio_metadata`.
+    - Add comprehensive cancellation integration tests covering both shell and ffmpeg-next engines with zombie process detection.
+    - Enhance error handling with user-friendly messages for cover art loading failures and processing errors.
+    - Add performance optimization for large cover art files (lazy loading, compression, size limits).
   - From phase 1:
     - Pending Review ...
   - From phase 2:
@@ -104,7 +108,8 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - From phase 3:
     - Pending Review ...
 
-### Phase 5 - Create/update formal documentation
+TODO Phase 5 - Create/update formal documentation
+- [ ] Document complete cover art flow with usage examples in user-facing documentation.
 - Tasks pending ...
 
 
