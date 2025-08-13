@@ -91,14 +91,23 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 - Frontend: Basic manual run `npm run tauri dev` to verify progress/cancel, cover art persistence and writing.
 - P0.5 specific: Verify modern Tauri API usage, proper permissions, and event constant usage throughout codebase.
 
-### Phase 4 - (optional) Nice-to-haves to reach Level 5 (consider these after we achieve fully functional MVP and prior to public distribution)
+### Phase 4 - (optional) Nice-to-haves to reach Level 5
+**Consider these prior to docs in phase 5 as items to implement for public distribution post MVP**
   - From phase 0.5:
     - Add a brief Success criteria matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
     - Audit and remove unused plugin capabilities (e.g., `opener:*`) and capture the minimal set in documentation.
     - Add `tracing` + subscriber setup for async observability on long-running operations.
     - Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
+  - From phase 0:
+    - Pending Review ...
+  - From phase 1:
+    - Pending Review ...
+  - From phase 2:
+    - Pending Review ...
+  - From phase 3:
+    - Pending Review ...
 
-### Phase 5 - Create/update documentation
+### Phase 5 - Create/update formal documentation
 - Tasks pending ...
 
 
