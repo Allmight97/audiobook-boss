@@ -1,7 +1,7 @@
 import { AudioFile, FileListInfo, formatFileSize } from '../../types/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { onFileListChange } from '../outputPanel';
-import { setCoverArt, getHasCustomCoverArt } from '../coverArt';
+import { setCoverArt, getHasCustomCoverArt, clearCoverArt } from '../coverArt';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { 
     currentFileList, 
@@ -47,6 +47,10 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     // Centralized button updates
     updateButtonVisibility();
     updateSortButtonText(getSortAscending());
+
+    // Auto-load cover art from the first valid file unless the user has
+    // already provided custom cover art
+    void autoUpdateCoverArtFromFirstValidFile();
 }
 
 export function selectFile(index: number): void {
@@ -141,6 +145,27 @@ function populateMetadataForm(metadata: AudiobookMetadata): void {
     }
 }
 
+async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
+    try {
+        if (getHasCustomCoverArt()) return;
+        if (!currentFileList || !currentFileList.files.length) {
+            setCoverArt(null);
+            return;
+        }
+        const firstValid = currentFileList.files.find(f => f.isValid);
+        if (!firstValid) {
+            setCoverArt(null);
+            return;
+        }
+        const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { filePath: firstValid.path });
+        setCoverArt(metadata.cover_art || null);
+    } catch (error) {
+        // Non-fatal: just reset to placeholder if metadata cannot be read
+        setCoverArt(null);
+        console.warn('Failed to auto-load cover art:', error);
+    }
+}
+
 // Move file up in the list
 export function moveFileUp(index: number): void {
     if (!currentFileList || index <= 0 || index >= currentFileList.files.length) return;
@@ -209,8 +234,8 @@ export function clearFileProperties(): void {
     if (genreEl) genreEl.value = '';
     if (descriptionEl) descriptionEl.value = '';
 
-    // Clear cover art display
-    setCoverArt(null);
+    // Clear cover art display and reset custom-art flag
+    clearCoverArt();
 }
 
 export function toggleFileSort(): void {
