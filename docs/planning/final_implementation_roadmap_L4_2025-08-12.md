@@ -25,9 +25,9 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Update all emit/listen and stage comparisons to use constants instead of string literals.
   - Success criteria: No hardcoded event strings remain; FE/BE stage names match (specifically `writing`).
 
-### Phase P0 — E2E stability and user-facing fixes
+### Phase P0 — E2E stability and user-facing fixes ✅
 
-- **P0.1 Cover art end-to-end in processing**
+- **P0.1 Cover art end-to-end in processing** ✅
   - Backend: In `src-tauri/src/audio/processor/finalize.rs` `write_metadata_stage`, if `metadata.cover_art.is_some()`, call `crate::metadata::writer::write_cover_art(merged_output, bytes)` after `write_metadata`.
   - Frontend: In `src/ui/statusPanel/logic.ts` `getCurrentMetadata()`, include `cover_art` if present from `src/ui/coverArt.ts` (e.g., exported getter). Ensure `invoke('process_audiobook_files', { metadata })` receives it.
   - Success criteria: Add a unit test for `write_cover_art` (temp file) and an integration test that processes a file with cover art then reads it back with `read_audio_metadata` to assert a non-empty `cover_art`.
@@ -39,9 +39,9 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Frontend: In `src/ui/statusPanel/logic.ts` `handleCancel()`, stop setting stage to `cancelled`. Instead, show a local "Cancellation requested…" message and wait for the backend `cancelled` event to transition.
   - Success criteria: Manual click test + integration test that asserts cancel produces a `cancelled` event and stops processing without zombie processes.
 
-- **P0.3 Preserve custom cover art across file selection**
+- **P0.3 Preserve custom cover art across file selection** ✅
   - Frontend: In `src/ui/coverArt.ts`, track `hasCustomCoverArt` (set on manual load, cleared on `clearCoverArt`). In `src/ui/fileList/actions.ts` `populateMetadataForm`, only call `setCoverArt(metadata.cover_art || null)` if `!hasCustomCoverArt`.
-  - Success criteria: Manual UI test switching files does not overwrite manually loaded art; Clear button visibility toggles correctly.
+  - Success criteria: Manual UI test switching files does not overwrite manually loaded art; Clear button visibility toggles correctly. - Tested and confirmed working.
 
 ### Phase P1 — Maintainability and engine flip preparation
 
