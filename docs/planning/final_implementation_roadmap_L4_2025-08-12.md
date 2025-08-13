@@ -2,6 +2,36 @@
 
 Reference: see audit for rationale and evidence: `../reports/l4_audit_and_updated_roadmap_draft_2025-08-12.md`.
 
+### Phase P0.5 — Tauri v2 foundation modernization
+
+- **P0.5.1 Security permissions audit**
+  - Backend: Replace `src-tauri/capabilities/default.json` broad permissions (`core:default`, `dialog:default`, `opener:default`) with explicit least-privilege grants actually used by the UI.
+    - Events (frontend): `core:event:allow-listen`, `core:event:allow-unlisten` (do not grant `allow-emit` to the frontend unless required).
+    - Dialog: `dialog:allow-open`.
+    - Path: avoid granting any `core:path:*` unless a specific command is used by the frontend (none required at present).
+    - Opener: include `opener:allow-open-url` only if there is an actual UI feature invoking it; otherwise remove `opener:*` entirely.
+  - Verification: `npm run tauri dev` starts without capability errors; smoke test file-open dialog and progress events with the narrowed capability set.
+
+- **P0.5.2 Frontend API standardization**
+  - Frontend: Verify all TypeScript uses `@tauri-apps/api` imports (no `window.__TAURI__` references). Current code already follows this; keep it enforced.
+  - Replace any stragglers if discovered: `window.__TAURI__.core.invoke` → `import { invoke } from '@tauri-apps/api/core'`, `window.__TAURI__.event.listen` → `import { listen } from '@tauri-apps/api/event'`.
+  - Verification: No `window.__TAURI__` references exist; imports resolve and app runs.
+
+- **P0.5.3 Event constants definition**
+  - Frontend: Create constants in `src/types/events.ts` for the single progress event and for stage names to prevent string drift:
+    - `export const EVENTS = { PROGRESS: 'processing-progress' } as const;`
+    - `export const STAGES = { analyzing: 'analyzing', converting: 'converting', merging: 'merging', writing: 'writing', completed: 'completed', failed: 'failed', cancelled: 'cancelled' } as const;`
+  - Backend: Align emitted stage strings to match frontend stages (rename `writing_metadata` → `writing` in the emitter mapping); optionally define a Rust-side constant for the event name.
+  - Update all emit/listen and stage comparisons to use constants instead of string literals.
+  - Verification: No hardcoded event strings remain; FE/BE stage names match (specifically `writing`).
+
+### P0.5 — nice-to-haves to reach Level 5
+
+- Add a brief verification matrix doc covering: dev run, progress event smoke test, dialog open, and narrowed capabilities validation.
+- Audit and remove unused plugin capabilities (e.g., `opener:*`) and capture the minimal set in documentation.
+- Add `tracing` + subscriber setup for async observability on long-running operations.
+- Evaluate Vite v7 upgrade plan (compat notes, roll-back plan), schedule once compatible with Tauri 2 toolchain.
+
 ### Phase P0 — E2E stability and user-facing fixes
 
 - **P0.1 Cover art end-to-end in processing**
@@ -10,7 +40,7 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Verification: Add a unit test for `write_cover_art` (temp file) and an integration test that processes a file with cover art then reads it back with `read_audio_metadata` to assert a non-empty `cover_art`.
 
 - **P0.2 Consistent cancellation semantics (backend event + UI)**
-  - Backend: Emit `window.emit("processing-progress", { stage: "cancelled", ... })` when cancellation is detected before early returns in both engines:
+  - Backend: Emit cancellation events using event constants from P0.5.3. In both engines emit `EVENTS.CANCELLED` when cancellation is detected before early returns:
     - Shell path: `src-tauri/src/audio/progress_monitor.rs` before returning `Err` in `check_cancellation_and_kill_context` and related paths.
     - ffmpeg-next path: guard points in `src-tauri/src/audio/media_pipeline.rs` where `ctx.context.is_cancelled()` returns early.
   - Frontend: In `src/ui/statusPanel/logic.ts` `handleCancel()`, stop setting stage to `cancelled`. Instead, show a local "Cancellation requested…" message and wait for the backend `cancelled` event to transition.
@@ -32,7 +62,8 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 
 - **P1.2 Event and stage type unification**
   - Frontend: Remove unused `merging` from `src/types/events.ts` and `src/ui/statusPanel/logic.ts` stage union if not emitted. Keep `converting`, `writing`, `completed`, `failed`, `cancelled`.
-  - Ensure all progress messages flow through `ProgressEmitter` on the backend; minimize string drift.
+  - Backend: Ensure all progress messages flow through `ProgressEmitter` using event constants from P0.5.3; minimize string drift.
+  - Verification: All events use centralized constants; no hardcoded event strings remain.
 
 - **P1.3 Default engine flip prep**
   - Optional alias: Introduce `type DefaultProcessor = ...` in a dedicated module, and use it in `execute.rs` for selection clarity while maintaining current `#[cfg(feature = "safe-ffmpeg")]` behavior.
@@ -65,5 +96,6 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 - Build/lint: `cargo clippy -- -D warnings` (default and `--features safe-ffmpeg`).
 - Tests: `cargo test` (default and `--features safe-ffmpeg`).
 - Frontend: Basic manual run `npm run tauri dev` to verify progress/cancel, cover art persistence and writing.
+- P0.5 specific: Verify modern Tauri API usage, proper permissions, and event constant usage throughout codebase.
 
 
