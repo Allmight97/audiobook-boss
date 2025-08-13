@@ -132,8 +132,12 @@ export class StatusPanel {
             console.log('Processing completed successfully:', result);
 
         } catch (error) {
+            const msg = String((error as any)?.message ?? error ?? '');
+            if (msg.toLowerCase().includes('cancelled')) {
+                return;
+            }
             console.error('Processing failed:', error);
-            dom.showError(`Processing failed: ${error}`);
+            dom.showError(`Processing failed: ${msg}`);
             this.resetToIdle();
         }
     }
@@ -222,10 +226,11 @@ export class StatusPanel {
     private async handleCancel(): Promise<void> {
         try {
             await invoke('cancel_processing');
+            // Do not set final cancelled state here; wait for backend event
             this.updateStatus({
-                stage: 'cancelled',
+                stage: this.currentStatus.stage,
                 percentage: this.currentStatus.percentage,
-                message: 'Cancellation requested...'
+                message: 'Cancellation requested…'
             });
         } catch (error) {
             console.error('Failed to cancel processing:', error);

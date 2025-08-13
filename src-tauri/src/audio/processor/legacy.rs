@@ -70,25 +70,13 @@ pub fn create_session_from_legacy_state(
     state: &tauri::State<'_, crate::ProcessingState>,
 ) -> Result<std::sync::Arc<ProcessingSession>> {
     use std::sync::Arc;
-    let session = Arc::new(ProcessingSession::new());
-    {
-        let old_is_processing = state
-            .is_processing
-            .lock()
-            .map_err(|_| AppError::InvalidInput("Failed to access processing state".to_string()))?;
-        let old_is_cancelled = state.is_cancelled.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to access cancellation state".to_string())
-        })?;
-        let mut new_is_processing = session.state().is_processing.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to access new processing state".to_string())
-        })?;
-        let mut new_is_cancelled = session.state().is_cancelled.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to access new cancellation state".to_string())
-        })?;
-        *new_is_processing = *old_is_processing;
-        *new_is_cancelled = *old_is_cancelled;
-    }
-    Ok(session)
+    // Share the same underlying Arcs so cancellation and processing flags
+    // are observed consistently across command handlers and processing code.
+    let mut session = ProcessingSession::new();
+    session.state_mut().is_processing = state.is_processing.clone();
+    session.state_mut().is_cancelled = state.is_cancelled.clone();
+    session.state_mut().progress = state.progress.clone();
+    Ok(Arc::new(session))
 }
 
 /// Main function to process audiobook with event emission for progress tracking

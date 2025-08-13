@@ -155,6 +155,9 @@ pub fn check_cancellation_and_kill_context(
         }
         // Best-effort reap to avoid zombie processes
         let _ = child.wait();
+        // Emit a cancelled event for the frontend before returning
+        let emitter = crate::audio::progress::ProgressEmitter::new(context.window.clone());
+        emitter.emit_cancelled("Processing was cancelled");
         return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
     }
     Ok(())

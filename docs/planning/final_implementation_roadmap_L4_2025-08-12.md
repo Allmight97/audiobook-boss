@@ -32,7 +32,7 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Frontend: In `src/ui/statusPanel/logic.ts` `getCurrentMetadata()`, include `cover_art` if present from `src/ui/coverArt.ts` (e.g., exported getter). Ensure `invoke('process_audiobook_files', { metadata })` receives it.
   - Success criteria: Add a unit test for `write_cover_art` (temp file) and an integration test that processes a file with cover art then reads it back with `read_audio_metadata` to assert a non-empty `cover_art`.
 
-- **P0.2 Consistent cancellation semantics (backend event + UI)**
+- **P0.2 Consistent cancellation semantics (backend event + UI)** ✅
   - Backend: Emit cancellation events using event constants from P0.5.3. In both engines emit `EVENTS.CANCELLED` when cancellation is detected before early returns:
     - Shell path: `src-tauri/src/audio/progress_monitor.rs` before returning `Err` in `check_cancellation_and_kill_context` and related paths.
     - ffmpeg-next path: guard points in `src-tauri/src/audio/media_pipeline.rs` where `ctx.context.is_cancelled()` returns early.

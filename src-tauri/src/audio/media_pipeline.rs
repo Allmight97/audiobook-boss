@@ -270,6 +270,7 @@ impl FfmpegNextProcessor {
         // Read packets/frames
         for (si, packet) in ictx.packets() {
             if ctx.context.is_cancelled() {
+                ctx.emitter.emit_cancelled("Processing was cancelled");
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
             if si.index() != stream_index {
@@ -401,6 +402,7 @@ impl FfmpegNextProcessor {
             if ctx.context.is_cancelled() {
                 // Best-effort flush signal, but we will delete partial output via guard
                 let _ = encoder.send_eof();
+                ctx.emitter.emit_cancelled("Processing was cancelled");
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
             let mut frame = ff::frame::Audio::empty();
@@ -457,6 +459,7 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
 
         if ctx.context.is_cancelled() {
+            ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
 

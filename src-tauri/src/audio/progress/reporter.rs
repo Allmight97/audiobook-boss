@@ -129,6 +129,18 @@ impl ProgressEmitter {
             None,
         );
     }
+
+    /// Emits cancelled event (special-case stage not represented in ProcessingStage enum)
+    pub fn emit_cancelled(&self, message: &str) {
+        let event = ProgressEvent {
+            stage: "cancelled".to_string(),
+            percentage: 0.0,
+            message: message.to_string(),
+            current_file: None,
+            eta_seconds: None,
+        };
+        let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
+    }
     /// Emits custom progress event with all parameters
     pub fn emit_custom(
         &self,
