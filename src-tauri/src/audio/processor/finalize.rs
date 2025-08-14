@@ -47,7 +47,7 @@
 //!
 //! NOTE: Orchestrator moved to mod.rs in Phase 5.
 
-#![allow(dead_code)]
+
 
 // Imports
 use std::path::{Path, PathBuf};

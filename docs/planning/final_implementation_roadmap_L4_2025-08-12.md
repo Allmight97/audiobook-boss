@@ -45,10 +45,11 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
 
 ### Phase P1 — Maintainability and engine flip preparation
 
-- **P1.1 Gate legacy adapters and remove dead-code allows**
+- **P1.1 Gate legacy adapters and remove dead-code allows** ✅
   - Add a `legacy-adapters` feature (or align with `not(feature = "safe-ffmpeg")`) and gate `src-tauri/src/audio/processor/legacy.rs` and any deprecated adapters accordingly.
   - Remove `#![allow(dead_code)]` from `audio/*` where code is covered by features or used; retain only in test-only contexts.
   - Success criteria: `cargo clippy -- -D warnings` is clean for default and `--features safe-ffmpeg`.
+  - DONE: gating and dead-code cleanup across src-tauri/src/audio/*, added legacy-adapters feature (default-enabled), and ensured the legacy path remains available while enabling a non-legacy path when disabled. Build/lint/tests green for default and --features safe-ffmpeg
 
 - **P1.2 Event and stage type unification**
   - Frontend: Remove unused `merging` from `src/types/events.ts` and `src/ui/statusPanel/logic.ts` stage union if not emitted. Keep `converting`, `writing`, `completed`, `failed`, `cancelled`.

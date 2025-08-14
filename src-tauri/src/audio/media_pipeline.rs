@@ -718,8 +718,8 @@ pub async fn execute_ffmpeg_with_progress_context(
 ///
 /// ADAPTER FUNCTION: Maintains backward compatibility for existing code
 /// that calls build_merge_command directly.
+#[cfg(feature = "legacy-adapters")]
 #[deprecated = "Use MediaProcessingPlan::build_ffmpeg_command for new code - this adapter maintains compatibility"]
-#[allow(dead_code)]
 pub fn build_merge_command_legacy(
     concat_file: &Path,
     output: &Path,

@@ -22,7 +22,7 @@
 //!
 //! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
 
-#![allow(dead_code)] // Transitional allowance until all phases complete (will tighten later).
+
 
 // Imports for orchestrator function
 use std::time::Duration;
@@ -35,23 +35,29 @@ use crate::metadata::AudiobookMetadata;
 // Submodules
 pub mod execute;
 pub mod finalize;
+#[cfg(feature = "legacy-adapters")]
 pub mod legacy;
 pub mod prepare;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
+#[cfg(feature = "legacy-adapters")]
 #[allow(deprecated)]
 pub use legacy::process_audiobook_with_events;
 pub use prepare::detect_input_sample_rate;
 
 // Legacy function re-exports (Phase 4 additions)
+#[cfg(feature = "legacy-adapters")]
 #[allow(deprecated)]
 pub use legacy::execute_with_progress_events;
+#[cfg(feature = "legacy-adapters")]
 #[allow(deprecated)]
 pub use legacy::create_temp_directory;
+#[cfg(feature = "legacy-adapters")]
 #[allow(deprecated)]
 pub use legacy::cleanup_temp_directory;
+#[cfg(feature = "legacy-adapters")]
 pub use legacy::create_session_from_legacy_state;
 // TODO (Phase 5): Re-export deprecated adapters from legacy.rs maintaining original signatures.
 
@@ -84,6 +90,7 @@ impl ProcessingWorkflow {
     }
 
     /// Accessor helpers (kept small / inline for clarity).
+    #[allow(dead_code)] // Internal accessor kept for near-term staged use
     pub(crate) fn temp_dir(&self) -> &std::path::PathBuf {
         &self.temp_dir
     }

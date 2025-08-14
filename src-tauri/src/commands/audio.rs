@@ -81,6 +81,7 @@ pub async fn process_audiobook_files(
 
     // Process the audiobook with progress events
     #[allow(deprecated)]
+    #[cfg(feature = "legacy-adapters")]
     let result = audio::process_audiobook_with_events(
         window,
         state.clone(),
@@ -89,6 +90,13 @@ pub async fn process_audiobook_files(
         metadata,
     )
     .await;
+
+    #[cfg(not(feature = "legacy-adapters"))]
+    let result = {
+        let session = audio::session::ProcessingSession::new();
+        let context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
+        audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await
+    };
 
     // Reset processing state
     {

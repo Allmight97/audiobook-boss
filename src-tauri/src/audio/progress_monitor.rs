@@ -308,8 +308,8 @@ pub fn parse_speed_multiplier(line: &str) -> Option<f64> {
 /// 
 /// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
 /// to use the new ProgressEmitter approach internally.
+#[cfg(feature = "legacy-adapters")]
 #[deprecated = "Use process_progress_update_context for new code - this adapter maintains compatibility"]
-#[allow(dead_code)]
 pub fn process_progress_update(
     progress_time: f32,
     last_progress_time: &mut f32,
@@ -335,8 +335,8 @@ pub fn process_progress_update(
 /// 
 /// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
 /// to use the new context-based approach internally.
+#[cfg(feature = "legacy-adapters")]
 #[deprecated = "Use check_cancellation_and_kill_context for new code - this adapter maintains compatibility"]
-#[allow(dead_code)]
 pub fn check_cancellation_and_kill(
     state: &tauri::State<'_, crate::ProcessingState>,
     child: &mut Child,

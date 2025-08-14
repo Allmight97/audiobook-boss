@@ -45,7 +45,6 @@
 //!
 //! Size expectation: << 400 LOC (will shrink further post-removal).
 //
-#![allow(dead_code)]
 #![allow(deprecated)]
 //
 // Phase 1 NOTE:
@@ -59,7 +58,7 @@ use super::process_audiobook_with_context;
 use crate::audio::context::ProcessingContext;
 use crate::audio::session::ProcessingSession;
 use crate::audio::{AudioFile, AudioSettings};
-use crate::errors::{AppError, Result};
+use crate::errors::Result;
 use crate::metadata::AudiobookMetadata;
 
 /// Creates processing session from legacy state

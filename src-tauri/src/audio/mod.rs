@@ -148,6 +148,7 @@ pub use settings::validate_audio_settings;
 pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
 
 // Core processor API (post-split staged)
+#[cfg(feature = "legacy-adapters")]
 #[allow(deprecated)]
 pub use processor::process_audiobook_with_events;
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
