@@ -15,7 +15,7 @@ import * as dom from './dom';
 import { getCurrentCoverArt } from '../coverArt';
 
 interface ProcessingStatus {
-    stage: 'idle' | 'analyzing' | 'converting' | 'merging' | 'writing' | 'completed' | 'cancelled' | 'failed';
+    stage: 'idle' | 'analyzing' | 'converting' | 'writing' | 'completed' | 'cancelled' | 'failed';
     percentage: number;
     message: string;
     currentFile?: string;
@@ -208,8 +208,6 @@ export class StatusPanel {
                 return 'Analyzing';
             case 'converting':
                 return 'Converting';
-            case 'merging':
-                return 'Merging';
             case 'writing':
                 return 'Writing Metadata';
             case 'completed':

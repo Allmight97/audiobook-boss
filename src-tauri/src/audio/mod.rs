@@ -129,8 +129,6 @@ pub enum ProcessingStage {
     Analyzing,
     /// Converting audio files
     Converting,
-    /// Merging files together
-    Merging,
     /// Writing metadata
     WritingMetadata,
     /// Process completed

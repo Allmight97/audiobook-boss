@@ -165,7 +165,6 @@ impl ProgressEmitter {
         let stage_str = match stage {
             ProcessingStage::Analyzing => "analyzing",
             ProcessingStage::Converting => "converting",
-            ProcessingStage::Merging => "merging",
             ProcessingStage::WritingMetadata => "writing",
             ProcessingStage::Completed => "completed",
             ProcessingStage::Failed(_) => "failed",
@@ -276,8 +275,7 @@ impl ProgressReporter {
         // Base progress on stage and files completed
         let _stage_weight = match self.current_stage {
             ProcessingStage::Analyzing => 0.1,
-            ProcessingStage::Converting => 0.7,
-            ProcessingStage::Merging => 0.15,
+            ProcessingStage::Converting => 0.85,
             ProcessingStage::WritingMetadata => 0.05,
             ProcessingStage::Completed => 1.0,
             ProcessingStage::Failed(_) => 0.0,
@@ -288,7 +286,6 @@ impl ProgressReporter {
         match self.current_stage {
             ProcessingStage::Analyzing => PROGRESS_ANALYZING_END * file_progress,
             ProcessingStage::Converting => PROGRESS_CONVERTING_START + (PROGRESS_CONVERTING_RANGE * file_progress),
-            ProcessingStage::Merging => PROGRESS_MERGING_START + (PROGRESS_MERGING_WEIGHT * file_progress),
             ProcessingStage::WritingMetadata => PROGRESS_FINALIZING + (PROGRESS_METADATA_WEIGHT * file_progress),
             ProcessingStage::Completed => PROGRESS_COMPLETE,
             ProcessingStage::Failed(_) => 0.0,

@@ -22,7 +22,6 @@ export const EVENTS = {
 export const STAGES = {
     analyzing: 'analyzing',
     converting: 'converting', 
-    merging: 'merging',
     writing: 'writing',
     completed: 'completed',
     failed: 'failed',
@@ -162,7 +161,6 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * Stage Mapping (backend → frontend):
  * - ProcessingStage::Analyzing → "analyzing"
  * - ProcessingStage::Converting → "converting" 
- * - ProcessingStage::Merging → "merging" (legacy)
  * - ProcessingStage::WritingMetadata → "writing"
  * - ProcessingStage::Completed → "completed"
  * - ProcessingStage::Failed(_) → "failed"

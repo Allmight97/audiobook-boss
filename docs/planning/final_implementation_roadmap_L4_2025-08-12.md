@@ -51,10 +51,17 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Success criteria: `cargo clippy -- -D warnings` is clean for default and `--features safe-ffmpeg`.
   - DONE: gating and dead-code cleanup across src-tauri/src/audio/*, added legacy-adapters feature (default-enabled), and ensured the legacy path remains available while enabling a non-legacy path when disabled. Build/lint/tests green for default and --features safe-ffmpeg
 
-- **P1.2 Event and stage type unification**
+- **P1.2 Event and stage type unification** ✅
   - Frontend: Remove unused `merging` from `src/types/events.ts` and `src/ui/statusPanel/logic.ts` stage union if not emitted. Keep `converting`, `writing`, `completed`, `failed`, `cancelled`.
   - Backend: Ensure all progress messages flow through `ProgressEmitter` using event constants from P0.5.3; minimize string drift.
   - Success criteria: All events use centralized constants; no hardcoded event strings remain.
+  
+  **DONE** – Frontend removed `merging` (`src/types/events.ts`, `src/ui/statusPanel/logic.ts`); Backend removed dormant `ProcessingStage::Merging` and merging constants; all progress via `ProgressEmitter` (`PROGRESS_EVENT_NAME`). Build/lint/tests green for default and `--features safe-ffmpeg`.
+
+  TODO: Highest-impact improvements (for later)
+  - [ ] Shared stage schema generation (Rust → TS) to eliminate cross-language drift.
+  - [ ] CI guard to fail on hardcoded `processing-progress` strings outside constants.
+  - [ ] Remove legacy progress monitor when `safe-ffmpeg` is enabled (scheduled under P2.1).
 
 - **P1.3 Default engine flip prep**
   - Optional alias: Introduce `type DefaultProcessor = ...` in a dedicated module, and use it in `execute.rs` for selection clarity while maintaining current `#[cfg(feature = "safe-ffmpeg")]` behavior.

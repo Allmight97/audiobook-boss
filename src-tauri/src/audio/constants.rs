@@ -19,9 +19,6 @@ pub const PROGRESS_CONVERTING_END: f32 = 80.0;
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0; // Max to avoid reaching 80% prematurely
 pub const PROGRESS_CONVERTING_RANGE: f32 = 70.0; // Range from start to end (80.0 - 10.0)
 
-/// Progress percentage range for merging stage (80-95%)
-pub const PROGRESS_MERGING_START: f32 = 80.0;
-
 /// Progress percentage range for metadata writing (80-95%)
 pub const PROGRESS_METADATA_START: f32 = 90.0;
 #[allow(dead_code)]
@@ -147,10 +144,6 @@ pub const MONO_CHANNELS: u8 = 1;
 pub const STEREO_CHANNELS: u8 = 2;
 
 // Progress calculation weights
-/// Weight for merging stage in progress calculations
-#[allow(dead_code)]
-pub const PROGRESS_MERGING_WEIGHT: f32 = 15.0;
-
 /// Weight for metadata writing in progress calculations
 #[allow(dead_code)]
 pub const PROGRESS_METADATA_WEIGHT: f32 = 5.0;
