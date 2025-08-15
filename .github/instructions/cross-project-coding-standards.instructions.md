@@ -16,24 +16,20 @@ applyTo: '**'
 - **Function parameters**: ≤ 7 for single-purpose functions
 - **Nesting depth**: ≤ 4 levels (prefer early returns/guard clauses)
 
-## Agent Behavior Guidelines
+# Coding & Documentation Standards
 
-### During Code Generation
-- Structure code to meet size limits from the start
-- Extract helper functions when beneficial to readability/reusability
-- **Avoid extraction when it would:**
-  - Require passing >3 parameters between functions
-  - Split logically atomic operations (validate-then-act patterns)
-  - Create circular dependencies or tight coupling
-  - Harm natural cohesion of related logic
-
-### During Code Review
-- Flag violations of size/complexity limits
-- Propose concrete refactoring suggestions with:
-  - What to extract (specific functions/modules)
-  - Suggested names that reflect purpose
-  - Clear input/output contracts
-  - Test boundaries and seams
+- Principles: Single-responsibility, high cohesion, orthogonality, low complexity (guard clauses), DRY.
+- Limits: file ≤400 LOC; function ≤55 LOC; ≤7 params; nesting ≤4.
+- Extraction: create helpers for readability/reuse; avoid if >3 params passed, splits validate-then-act, increases coupling/cycles, or harms cohesion.
+- Review: flag size/complexity violations; propose concrete refactors (what to extract, names, IO contracts, test seams).
+- Exceptions: only generated code, protocol impls, third-party adapters; annotate // EXCEPTION: [reason], document, consider future refactor.
+- Checklist: within limits, low complexity, clean module boundaries, helpers testable, DRY, exceptions documented.
+- Cross-language: applies across paradigms with idiomatic mapping.
+- Lean heavily towards self-documenting code commenting only to add context that can't be stated in code. If you must add commentary/documentation, follow these rules:
+    - **Comments and documentation**:
+        - ALWAYS remove outdated/irrelevant items; concisely inform the user - if nothing needed removed, say nothing to the user.
+        - Use TODO/FIXME very sparingly informing the user when used; preface each with brackets (e.g. [ ] TODO: )
+        - ALWAYS follow language specific (Rustdoc/Javadoc/Google-style docstrings/JSDoc/Doxygen/Go conventions) documentation formats framed within principles of concise, clear, consistent comments focusing on the “why” vs restating the code (the “what”).
 
 ### Exception Handling
 Limits may be exceeded only for:
