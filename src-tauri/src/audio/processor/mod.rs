@@ -4,6 +4,7 @@
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
 //!   - execute.rs   : merge / ffmpeg execution logic
 //!   - finalize.rs  : metadata writing, move, cleanup
+//!   - selection.rs : engine selection type aliases (P1.3)
 //!   - legacy.rs    : deprecated adapters (to be gated/removed in P2.1.1)
 //!   - mod.rs       : orchestrator and public API re-exports
 //!
@@ -38,6 +39,7 @@ pub mod finalize;
 #[cfg(feature = "legacy-adapters")]
 pub mod legacy;
 pub mod prepare;
+pub mod selection;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed

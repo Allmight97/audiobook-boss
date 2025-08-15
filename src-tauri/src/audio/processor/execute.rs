@@ -12,6 +12,11 @@
 //! Feature Flags:
 //!   - `safe-ffmpeg`: uses ffmpeg-next via `FfmpegNextProcessor`
 //!   - otherwise: falls back to shell-based `ShellFFmpegProcessor`
+//!   
+//! Engine Selection:
+//!   Engine selection is now centralized via the `selection` module's `DefaultProcessor`
+//!   type alias. This provides a clean abstraction that prepares for the eventual
+//!   engine flip while maintaining current feature flag behavior.
 //!
 //! Function Size Compliance:
 //!   All functions <60 LOC. A logging helper can be introduced later if
@@ -29,12 +34,11 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
 use crate::audio::context::ProcessingContext;
-#[cfg(not(feature = "safe-ffmpeg"))]
-use crate::audio::media_pipeline::ShellFFmpegProcessor;
 use crate::audio::media_pipeline::{MediaProcessingPlan, MediaProcessor};
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 
+use super::selection::{create_default_processor, get_engine_description};
 use super::ProcessingWorkflow;
 
 /// Executes core audio processing operations (merge / convert).
@@ -96,10 +100,10 @@ pub(crate) async fn merge_audio_files_with_context(
         total_duration,
     );
 
-    #[cfg(feature = "safe-ffmpeg")]
-    let processor = crate::audio::media_pipeline::FfmpegNextProcessor;
-    #[cfg(not(feature = "safe-ffmpeg"))]
-    let processor = ShellFFmpegProcessor;
+    // Use centralized engine selection via create_default_processor function
+    // This abstracts away the feature flag logic and prepares for engine flip
+    log::debug!("Using media processor: {}", get_engine_description());
+    let processor = create_default_processor();
     processor.execute(&plan, context).await?;
 
     Ok(temp_output)
