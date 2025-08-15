@@ -67,9 +67,12 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - Optional alias: Introduce `type DefaultProcessor = ...` in a dedicated module, and use it in `execute.rs` for selection clarity while maintaining current `#[cfg(feature = "safe-ffmpeg")]` behavior.
   - Ensure both engines build and pass tests; document selection in code comments.
 
-- **P1.4 ffmpeg-next internals cleanups** ✅
-  - In `src-tauri/src/audio/media_pipeline.rs`, move `stream_index`/`file_index` into the pipeline context to eliminate `#[allow(clippy::too_many_arguments)]` and keep functions < 60 LOC.
-  - Success criteria: `cargo clippy` clean with feature on.
+- **P1.4 ffmpeg-next internals cleanups** ✅ (Completed 2025-08-14)
+  - Refactored `media_pipeline.rs`: moved `stream_index` & `file_index` into `FramePipelineCtx` (`current_stream_index`, `current_file_index`).
+  - Removed `#[allow(clippy::too_many_arguments)]` from `process_input_packets`; reduced arg surface across helper functions.
+  - Centralized progress emission using context state; all affected functions remain < 60 LOC.
+  - Verified with `cargo clippy --features safe-ffmpeg -D warnings` and full test suite.
+  - (Optional next) Add a dedicated unit test for progress emission frequency (currently covered indirectly).
 
 ### Phase P2 — Cleanup, CI guards, parity and packaging
 
