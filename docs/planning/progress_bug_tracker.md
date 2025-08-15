@@ -26,3 +26,8 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
 
 [ ] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
     - Action: No feature gates nor safeffmpeg - default encode will be ffmpeg-next using standard AAC-LC
+        - Consider UI options to allow use to apply the 'twoloop' flag to enhance audio quality of native AAC encoder: e.g. 'ffmpeg -i input.mp3 -c:a aac -aac_coder twoloop -b:a 64k output.m4b'
+[ ] TODO: How to add these FFmpeg sources to repo so Ai agents can easily reference them when coding and auditing?
+        - docs.rs/ffmpeg-next
+        - ffmpeg.org/ffmpeg.html
+    - Detailed chat and context: https://www.perplexity.ai/search/i-just-heard-about-ffmpeg-8-0-caDGTIhOSDeSNn2FJKoU0Q
