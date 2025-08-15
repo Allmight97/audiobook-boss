@@ -87,11 +87,9 @@ impl MediaProcessingPlan {
 
     /// Executes the processing plan with context-based progress tracking (safe-ffmpeg version)
     #[cfg(all(any(test, feature = "safe-ffmpeg"), feature = "safe-ffmpeg"))]
-    pub async fn execute_with_context(&self, _context: &ProcessingContext) -> Result<()> {
-        // TODO: Implement using ffmpeg-next library
-        Err(crate::errors::AppError::InvalidInput(
-            "safe-ffmpeg execution not yet implemented".to_string(),
-        ))
+    pub async fn execute_with_context(&self, context: &ProcessingContext) -> Result<()> {
+        let processor = crate::audio::media_pipeline::FfmpegNextProcessor;
+        processor.execute(self, context).await
     }
 }
 

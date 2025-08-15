@@ -55,7 +55,7 @@ pub const FFMPEG_CONCAT_FORMAT: &str = "concat";
 pub const FFMPEG_CONCAT_SAFE_MODE: &str = "0";
 
 /// FFmpeg audio codec for AAC encoding
-pub const FFMPEG_AUDIO_CODEC: &str = "libfdk_aac";
+pub const FFMPEG_AUDIO_CODEC: &str = "aac";
 
 /// FFmpeg progress output pipe
 pub const FFMPEG_PROGRESS_PIPE: &str = "pipe:2";
