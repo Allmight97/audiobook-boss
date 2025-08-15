@@ -126,6 +126,9 @@ struct FramePipelineCtx<'a> {
     output_time_base: ffmpeg_next::Rational,
     running_pts: &'a mut i64,
     last_emit: &'a mut std::time::Instant,
+    // Mutable per-file state (P1.4 refactor): updated at start of each input file
+    current_file_index: usize,
+    current_stream_index: usize,
 }
 
 #[cfg(feature = "safe-ffmpeg")]
@@ -254,15 +257,14 @@ impl FfmpegNextProcessor {
     }
 
     /// Processes packets from input stream through decoder pipeline
-    #[allow(clippy::too_many_arguments)] // TODO: Reduce further in future phases
+    ///
+    /// P1.4 cleanup: stream_index & file_index now stored in FramePipelineCtx
     fn process_input_packets(
         ictx: &mut ffmpeg_next::format::context::Input,
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
-        stream_index: usize,
-        file_index: usize,
         ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
@@ -273,7 +275,7 @@ impl FfmpegNextProcessor {
                 ctx.emitter.emit_cancelled("Processing was cancelled");
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
-            if si.index() != stream_index {
+            if si.index() != ctx.current_stream_index {
                 continue;
             }
 
@@ -286,7 +288,6 @@ impl FfmpegNextProcessor {
                 encoder,
                 resampler,
                 output_context,
-                file_index,
                 ctx,
             )?;
         }
@@ -360,27 +361,23 @@ impl FfmpegNextProcessor {
         Ok(())
     }
 
-    /// Emits progress updates during audio processing
-    fn emit_progress_update(
-        emitter: &crate::audio::progress::ProgressEmitter,
-        running_pts: i64,
-        target_sample_rate: u32,
-        total_duration: f64,
-        file_index: usize,
-        total_files: usize,
-        last_emit: &mut std::time::Instant,
-    ) {
-        if last_emit.elapsed() > std::time::Duration::from_millis(200) {
-            *last_emit = std::time::Instant::now();
-            let current_seconds = running_pts as f64 / target_sample_rate as f64;
+    /// Emits progress updates during audio processing using context state
+    fn emit_progress_update(ctx: &mut FramePipelineCtx) {
+        if ctx.last_emit.elapsed() > std::time::Duration::from_millis(200) {
+            *ctx.last_emit = std::time::Instant::now();
+            let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
             let percentage = crate::audio::progress::converting_percentage_from_seconds(
                 current_seconds,
-                total_duration,
+                ctx.total_duration,
             ) as f64;
-            emitter.emit_converting_progress(
+            ctx.emitter.emit_converting_progress(
                 percentage.min(super::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
                 "Converting and merging audio files...",
-                Some(format!("Input {} of {}", file_index + 1, total_files)),
+                Some(format!(
+                    "Input {} of {}",
+                    ctx.current_file_index + 1,
+                    ctx.total_files
+                )),
                 None,
             );
         }
@@ -392,7 +389,6 @@ impl FfmpegNextProcessor {
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
-        file_index: usize,
         ctx: &mut FramePipelineCtx,
     ) -> Result<()> {
         use crate::errors::AppError;
@@ -431,15 +427,7 @@ impl FfmpegNextProcessor {
                     )?;
 
                     // Progress emit every ~200ms
-                    Self::emit_progress_update(
-                        ctx.emitter,
-                        *ctx.running_pts,
-                        ctx.target_sample_rate,
-                        ctx.total_duration,
-                        file_index,
-                        ctx.total_files,
-                        ctx.last_emit,
-                    );
+                    Self::emit_progress_update(ctx);
                 }
                 Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
                 Err(e) => return Err(AppError::General(format!("Decoder receive failed: {e}"))),
@@ -466,15 +454,16 @@ impl FfmpegNextProcessor {
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             Self::setup_decoder_and_resampler(input_path, encoder)?;
 
-        // Process input packets through decoder pipeline
+        // Update context indices for this file (P1.4) then process packets
+        ctx.current_file_index = file_index;
+        ctx.current_stream_index = stream_index;
+
         Self::process_input_packets(
             &mut ictx,
             &mut decoder,
             encoder,
             &mut resampler,
             output_context,
-            stream_index,
-            file_index,
             ctx,
         )?;
 
@@ -601,6 +590,8 @@ impl MediaProcessor for FfmpegNextProcessor {
                 output_time_base: ost_time_base,
                 running_pts: &mut running_pts,
                 last_emit: &mut last_emit,
+                current_file_index: 0,
+                current_stream_index: 0,
             };
 
             // Process each input file

@@ -63,11 +63,11 @@ Reference: see audit for rationale and evidence: `../reports/l4_audit_and_update
   - [ ] CI guard to fail on hardcoded `processing-progress` strings outside constants.
   - [ ] Remove legacy progress monitor when `safe-ffmpeg` is enabled (scheduled under P2.1).
 
-- **P1.3 Default engine flip prep**
+- **P1.3 Default engine flip prep** ✅
   - Optional alias: Introduce `type DefaultProcessor = ...` in a dedicated module, and use it in `execute.rs` for selection clarity while maintaining current `#[cfg(feature = "safe-ffmpeg")]` behavior.
   - Ensure both engines build and pass tests; document selection in code comments.
 
-- **P1.4 ffmpeg-next internals cleanups**
+- **P1.4 ffmpeg-next internals cleanups** ✅
   - In `src-tauri/src/audio/media_pipeline.rs`, move `stream_index`/`file_index` into the pipeline context to eliminate `#[allow(clippy::too_many_arguments)]` and keep functions < 60 LOC.
   - Success criteria: `cargo clippy` clean with feature on.
 
