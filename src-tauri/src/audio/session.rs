@@ -3,8 +3,6 @@
 //! Provides a wrapper around ProcessingState with unique session identification
 //! and convenience methods for state management.
 
-#![allow(dead_code)] // TODO: Remove when session management is fully integrated
-
 use crate::ProcessingState;
 use uuid::Uuid;
 

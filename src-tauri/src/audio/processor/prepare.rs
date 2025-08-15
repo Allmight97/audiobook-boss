@@ -32,6 +32,7 @@ use std::path::{Path, PathBuf};
 use crate::audio::context::ProcessingContext;
 use crate::audio::{AudioFile, AudioSettings, ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
+#[cfg(not(feature = "safe-ffmpeg"))]
 use crate::ffmpeg::format_concat_file_line;
 
 use super::ProcessingWorkflow;
@@ -138,6 +139,7 @@ pub(crate) fn create_temp_directory_with_session(session_id: &str) -> Result<Pat
 }
 
 /// Creates FFmpeg concat list file with properly escaped lines.
+#[cfg(not(feature = "safe-ffmpeg"))]
 pub(crate) fn create_concat_file(files: &[AudioFile], temp_dir: &Path) -> Result<PathBuf> {
     const TEMP_CONCAT_FILENAME: &str = crate::audio::constants::TEMP_CONCAT_FILENAME;
     let concat_file = temp_dir.join(TEMP_CONCAT_FILENAME);
@@ -184,7 +186,14 @@ pub(crate) fn prepare_workspace(
     emitter.set_stage(ProcessingStage::Analyzing);
 
     let temp_dir = create_temp_directory_with_session(&context.session.id())?;
+    
+    // Create concat file only for legacy shell-based processing
+    #[cfg(not(feature = "safe-ffmpeg"))]
     let concat_file = create_concat_file(files, &temp_dir)?;
+    
+    // For safe-ffmpeg, create a placeholder path (won't be used)
+    #[cfg(feature = "safe-ffmpeg")]
+    let concat_file = temp_dir.join("unused_concat.txt");
 
     let total_duration: f64 = files
         .iter()

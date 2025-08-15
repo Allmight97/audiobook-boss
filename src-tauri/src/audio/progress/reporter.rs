@@ -22,13 +22,11 @@ pub struct ProgressEvent {
 }
 
 /// Centralized progress event emitter
-#[allow(dead_code)] // New infrastructure - will be used when processor.rs is refactored
 pub struct ProgressEmitter {
     /// Reference to the Tauri window for event emission
     window: Window,
 }
 
-#[allow(dead_code)] // New infrastructure - methods will be used when processor.rs is refactored
 impl ProgressEmitter {
     /// Creates a new progress emitter
     pub fn new(window: Window) -> Self {
@@ -229,7 +227,6 @@ pub struct ProgressReporter {
     /// Current processing stage
     current_stage: ProcessingStage,
     /// Start time of processing
-    #[allow(dead_code)]
     start_time: Instant,
     /// Current file being processed
     current_file: Option<String>,
@@ -253,20 +250,17 @@ impl ProgressReporter {
     }
     
     /// Sets current file being processed
-    #[allow(dead_code)]
     pub fn set_current_file<S: Into<String>>(&mut self, filename: S) {
         self.current_file = Some(filename.into());
     }
     
-    /// Increments completed file count
-    #[allow(dead_code)]
+    /// Increments completed file count  
     pub fn complete_file(&mut self) {
         self.files_completed += 1;
         self.current_file = None;
     }
     
     /// Calculates current progress percentage
-    #[allow(dead_code)]
     pub fn calculate_progress(&self) -> f32 {
         if self.total_files == 0 {
             return 0.0;
@@ -293,7 +287,6 @@ impl ProgressReporter {
     }
     
     /// Estimates remaining time based on progress
-    #[allow(dead_code)]
     pub fn estimate_time_remaining(&self) -> Option<f64> {
         let progress = self.calculate_progress();
         if progress <= 0.0 || progress >= 100.0 {
@@ -306,7 +299,6 @@ impl ProgressReporter {
     }
     
     /// Gets current progress information
-    #[allow(dead_code)]
     pub fn get_progress(&self) -> ProcessingProgress {
         ProcessingProgress {
             stage: self.current_stage.clone(),
@@ -326,7 +318,6 @@ impl ProgressReporter {
     }
     
     /// Marks processing as failed
-    #[allow(dead_code)]
     pub fn fail<S: Into<String>>(&mut self, error: S) {
         self.current_stage = ProcessingStage::Failed(error.into());
         self.current_file = None;

@@ -1,3 +1,8 @@
+//! FFmpeg shell-based processing module
+//! 
+//! This module is disabled when `safe-ffmpeg` feature is enabled,
+//! as ffmpeg-next provides the functionality directly.
+
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 

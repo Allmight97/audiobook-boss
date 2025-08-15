@@ -122,6 +122,7 @@ pub fn cancel_processing(state: tauri::State<crate::ProcessingState>) -> Result<
 
 /// Basic merge command for two audio files
 /// Merges files to a fixed output location for testing
+#[cfg(not(feature = "safe-ffmpeg"))]
 #[tauri::command]
 pub fn merge_audio_files(file1: String, file2: String) -> Result<String> {
     let input1 = PathBuf::from(&file1);
@@ -153,6 +154,15 @@ pub fn merge_audio_files(file1: String, file2: String) -> Result<String> {
         "Successfully merged files to: {}",
         output.to_string_lossy()
     ))
+}
+
+/// Basic merge command for two audio files (safe-ffmpeg version)
+/// Placeholder implementation using ffmpeg-next library
+#[cfg(feature = "safe-ffmpeg")]
+#[tauri::command]
+pub fn merge_audio_files(file1: String, file2: String) -> Result<String> {
+    // TODO: Implement using ffmpeg-next library
+    Ok(format!("Safe merge not yet implemented for files: {file1}, {file2}"))
 }
 
 

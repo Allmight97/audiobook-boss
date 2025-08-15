@@ -6,9 +6,12 @@
 //! The `MediaProcessingPlan` struct holds inputs, outputs, and metadata for
 //! processing operations, following mentor recommendations for abstraction.
 
+#[cfg(not(feature = "safe-ffmpeg"))]
 use super::constants::*;
 use super::context::ProcessingContext;
+#[cfg(not(feature = "safe-ffmpeg"))]
 use super::processor::prepare::detect_input_sample_rate;
+#[cfg(not(feature = "safe-ffmpeg"))]
 use super::progress_monitor::{
     finalize_process_execution, monitor_process_with_progress, setup_process_execution,
 };
@@ -17,6 +20,7 @@ use crate::errors::Result;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+#[cfg(not(feature = "safe-ffmpeg"))]
 use std::process::{Command, Stdio};
 
 /// Media processing plan that encapsulates inputs, outputs, and metadata
@@ -62,6 +66,7 @@ impl MediaProcessingPlan {
     }
 
     /// Builds FFmpeg command for this processing plan
+    #[cfg(not(feature = "safe-ffmpeg"))]
     pub fn build_ffmpeg_command(&self) -> Result<Command> {
         build_merge_command(
             &self.input_concat_file,
@@ -71,11 +76,22 @@ impl MediaProcessingPlan {
         )
     }
 
+
+
     /// Executes the processing plan with context-based progress tracking
-    #[cfg(any(test, feature = "safe-ffmpeg"))]
+    #[cfg(all(any(test, feature = "safe-ffmpeg"), not(feature = "safe-ffmpeg")))]
     pub async fn execute_with_context(&self, context: &ProcessingContext) -> Result<()> {
         let cmd = self.build_ffmpeg_command()?;
         execute_ffmpeg_with_progress_context(cmd, context, self.total_duration).await
+    }
+
+    /// Executes the processing plan with context-based progress tracking (safe-ffmpeg version)
+    #[cfg(all(any(test, feature = "safe-ffmpeg"), feature = "safe-ffmpeg"))]
+    pub async fn execute_with_context(&self, _context: &ProcessingContext) -> Result<()> {
+        // TODO: Implement using ffmpeg-next library
+        Err(crate::errors::AppError::InvalidInput(
+            "safe-ffmpeg execution not yet implemented".to_string(),
+        ))
     }
 }
 
@@ -93,8 +109,10 @@ pub trait MediaProcessor {
 
 /// Shell-based FFmpeg processor implementation that delegates to the existing
 /// command-building and progress-execution pipeline.
+#[cfg(not(feature = "safe-ffmpeg"))]
 pub struct ShellFFmpegProcessor;
 
+#[cfg(not(feature = "safe-ffmpeg"))]
 impl MediaProcessor for ShellFFmpegProcessor {
     fn execute<'a>(
         &'a self,
@@ -115,7 +133,6 @@ pub struct FfmpegNextProcessor;
 // Phase 1: Context Type Introduction (no functional changes)
 // Private context carrying frequently-shared parameters across the frame pipeline
 #[cfg(feature = "safe-ffmpeg")]
-#[allow(dead_code)]
 struct FramePipelineCtx<'a> {
     context: &'a super::context::ProcessingContext,
     emitter: &'a crate::audio::progress::ProgressEmitter,
@@ -614,6 +631,7 @@ impl MediaProcessor for FfmpegNextProcessor {
 ///
 /// This function encapsulates all FFmpeg command construction logic,
 /// providing a stable interface for audio processing operations.
+#[cfg(not(feature = "safe-ffmpeg"))]
 pub fn build_merge_command(
     concat_file: &Path,
     output: &Path,
@@ -685,6 +703,7 @@ pub fn build_merge_command(
 ///
 /// This function provides a unified interface for executing FFmpeg commands
 /// with proper progress monitoring and cancellation support.
+#[cfg(not(feature = "safe-ffmpeg"))]
 pub async fn execute_ffmpeg_with_progress_context(
     cmd: Command,
     context: &ProcessingContext,
@@ -709,7 +728,7 @@ pub async fn execute_ffmpeg_with_progress_context(
 ///
 /// ADAPTER FUNCTION: Maintains backward compatibility for existing code
 /// that calls build_merge_command directly.
-#[cfg(feature = "legacy-adapters")]
+#[cfg(all(feature = "legacy-adapters", not(feature = "safe-ffmpeg")))]
 #[deprecated = "Use MediaProcessingPlan::build_ffmpeg_command for new code - this adapter maintains compatibility"]
 pub fn build_merge_command_legacy(
     concat_file: &Path,

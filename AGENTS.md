@@ -1,69 +1,75 @@
----
-alwaysApply: true
----
-## Project Structure & Module Organization
-- `src/`: Frontend (Vite + TypeScript). UI modules in `src/ui/`, shared types in `src/types/`, assets in `src/assets/`.
-- `src-tauri/`: Rust backend for Tauri. Code in `src-tauri/src/` with domains like `audio/`, `metadata/`, `ffmpeg/`, `commands/`.
-- `docs/`, `media/`: Documentation and media assets. `dist/`: Vite build output.
-- `src-tauri/binaries/`: FFmpeg bundling helpers. `scripts/`: project scripts.
+# Agents Guide - Audiobook Boss
 
-## Build, Test, and Development Commands
-- `npm run tauri dev`: Start the full desktop app (frontend + Rust).
-- `npm run dev`: Frontend dev server only (port 1420).
-- `npm run build`: Type-check and build frontend to `dist/`.
-- `npm run build-macos` / `npm run package-macos`: Prepare FFmpeg and build/package macOS app.
-- `npm run setup-ffmpeg`: Download/bundle FFmpeg for macOS.
-- Rust tests (from `src-tauri/`): `cargo test` (optionally `cargo clippy` for lints).
+## Build/Test Commands
+- `npm run tauri dev` - Full app dev mode (frontend + Rust backend)
+- `cargo test` - All Rust tests (run from `src-tauri/`)
+- `cargo test path_validation` - Run specific test module
+- `cargo test --features safe-ffmpeg` - Test new FFmpeg engine
+- `cargo clippy -- -D warnings` - Required lint checks
+- `npm run build` - Type-check and build frontend
 
-## Commit & Pull Request Guidelines
-- Commits: concise, imperative, and scoped (e.g., "Refactor FFmpeg path handling"). Emojis are fine; keep subject ≤ 72 chars.
-- PRs: include a clear summary, linked issues, steps to test, and screenshots/GIFs for UI changes.
-- Checks: `cargo test` passes, `npm run build` succeeds, and app runs via `npm run tauri dev`. Avoid committing large binaries—use `src-tauri/binaries/` scripts.
+## Code Style & Standards
+- **Rust**: snake_case modules, CamelCase types. BANNED: `unwrap()`, `expect()` - use `Result` and `?`
+- **TypeScript**: camelCase files, PascalCase types/interfaces, strict mode, avoid `any`
+- **Size limits**: ≤400 LOC per file, ≤55 LOC per function (exceptions for generated/protocol code only)
+- **Error handling**: Return `Result<T, AppError>`, use custom errors from `src-tauri/src/errors.rs`
+- **Tests**: External tests in `src-tauri/tests/unit/**`, inline tests only for private/`pub(crate)` items
 
-## Security & Configuration Tips
-- Logging: set `RUST_LOG` (e.g., `RUST_LOG=info npm run tauri dev`).
-- FFmpeg: prefer `npm run setup-ffmpeg`; the bundled binary is referenced in `tauri.conf.json` (`bundle.externalBin`).
+## Universal Coding Standards (Cross-Project)
+- **Single Responsibility**: Each module/function has one clear purpose
+- **High Cohesion**: Related functionality grouped together  
+- **Orthogonality**: Components are independent and composable
+- **Low Complexity**: Prefer simple control flow, early returns, guard clauses
+- **DRY Principle**: Avoid code duplication through strategic abstraction
+- **Hard limits**: ≤55 LOC per function, ≤7 parameters, ≤4 nesting levels
 
-## Testing Guidelines
-- Rust: place external tests under `src-tauri/tests/unit/**` by domain (e.g., `audio/`, `commands/`, `ffmpeg/`, `metadata/`). Use inline tests inside modules only when required to test non-`pub` internals (including `pub(crate)`, `pub(super)`, `pub(in ...)`). Run with `cargo test` in `src-tauri/`.
-- Frontend: no formal test runner yet; use `window.testCommands` in `src/main.ts` for manual validation paths.
-- Coverage focus: `audio` pipeline, Tauri command handlers, and metadata read/write; name tests by behavior and module.
-- Tests: prefer external tests in `src-tauri/tests/unit/**` for public APIs/behavior; use inline tests only when needed to cover private/internal items that aren’t accessible externally.
-  - Use inline tests only when testing items that are:
-  - Private (`fn` without `pub`)
-  - Module-scoped (`pub(crate)`, `pub(super)`, `pub(in path)`) or
-  - Cannot be meaningfully tested through public APIs
+## Agent Behavior During Development
+**Code Generation**:
+- Structure code to meet size limits from the start
+- Extract helpers to improve readability/reuse
+- Avoid extraction if it requires >3 parameters, splits validate-then-act sequences, or harms cohesion
 
-## Coding Style & Naming Conventions
-- TypeScript: strict mode; prefer explicit types, avoid `any`. Files typically camelCase (e.g., `fileList.ts`), types/interfaces PascalCase.
-- Rust: follow Rust conventions (snake_case modules, CamelCase types). Lints: `#![deny(clippy::unwrap_used)]` and `#![warn(clippy::too_many_lines)]` are enforced—avoid `unwrap`; use `Result` and `?`.
-- Formatting: use default rustfmt; for TS, rely on `tsc` + Vite. Keep functions small and focused.
-- Visibility: keep private/internal items non-`pub` unless required by cross-module use.
+**Code Review**:
+- Flag size/complexity violations and propose concrete refactors
+- Suggest what to extract, names, input/output contracts, test seams
 
-## Code Size & Modularity Standard
-Principles:
-- Uphold Single Responsibility, high cohesion, and orthogonality (independent components).
-- Prefer low cyclomatic/cognitive complexity via simple control flow and early returns.
+**Exceptions**: Only for generated code, protocol implementations, third-party adapters
+- Annotate with `// EXCEPTION: [reason]` and document justification
 
-Hard limits:
-- Module/file: ≤ 400 lines of code (exclude comments/blank).
-- Function/method: ≤ 60 lines of code (exclude comments/blank).
+## Project Structure
+- `src/` - TypeScript frontend (Vite), UI modules in `src/ui/`
+- `src-tauri/src/` - Rust backend with domains: `audio/`, `metadata/`, `ffmpeg/`, `commands/`
+- Feature flags: `#[cfg(feature = "safe-ffmpeg")]` for new FFmpeg engine
 
-Agent behavior:
-- During generation: structure code to meet limits; extract helpers without harming cohesion.
-  - Avoid extracting helpers when it would:
-    - Require passing >3 parameters between functions
-    - Split logically atomic operations (e.g., validate-then-act patterns)
-    - Create circular dependencies between modules
-- During review: flag any violation and propose concrete refactors (what to extract, names, inputs/outputs, test seams).
-- Only exceed limits for justified generated/protocol glue; annotate with a comment with `// EXCEPTION:` and create a refactor ticket
-  - Exceeding limits allowed only for:
-    - Generated code (proc macros, build scripts)
-    - Protocol implementations (Tauri command handlers, serialization)
-    - Third-party interface adapters (FFmpeg bindings, external APIs)
+## Security & Validation
+- All input paths MUST go through `audio::path_validation::validate_input_audio_path()`
+- Validate file extensions against `ALLOWED_AUDIO_EXTENSIONS` whitelist
+- Use `ProcessingState` for cancellation and progress tracking in Tauri commands
 
-Checklist before returning code:
-- [ ] Each function ≤ 60 LOC and single-purpose
-- [ ] File ≤ 400 LOC
-- [ ] Complexity is low; boundaries clean; helpers testable
-- [ ] Any exception annotated + ticketed
+## L6 Engineering Standards & Mentorship
+When working with plans or implementations—whether created by you, me, or others—always:
+
+1. **Apply the mindset and standards of a holistic, multi-dimensional L6 Distinguished Engineer mentoring a junior dev.**
+2. **Rate quality from 1–5** (1 = L1 novice, 5 = L5 senior/staff engineer) across: correctness, design/modularity, robustness, tests/observability, developer experience, performance, security. If info is insufficient for a dimension, note "N/A" and state any assumption (never guess silently).
+3. **After the score, give 1–3 ranked improvements total** (not per category), focused only on the highest-impact flagged areas. If an L5 trigger applies, add one L5-specific improvement.
+4. **Add a concise L6 overlay note** if the work reframes the problem or creates a reusable pattern.
+
+**Default target**: Level 4. Escalate to Level 5 only if the work is safety/security/compliance-critical, a long-lived public API/interface, a core reusable library/pattern, a high-scale/SLO-critical path, or involves an irreversible migration/data-schema change—and the benefit clearly outweighs the cost.
+
+**When generating plans or code**, apply this rubric to your own output before returning; if your self-score is below 4.0, upgrade the output to meet L4 and briefly note what you changed and why. If you escalate to L5, name the specific trigger and benefit.
+
+## Agent Behavior & Communication
+- **Mentorship Role**: Collaborative pair programmer mentoring a junior developer
+- **Validation Approach**: Validate code changes and implementation plans with user before executing
+- **Explanation Style**: User may have limited ability to address complex questions but will do their best
+- **Quality Focus**: Always apply engineering standards rubric before delivering solutions
+
+## Quality Checklist
+- [ ] Each function ≤55 LOC, single-purpose, ≤7 parameters
+- [ ] Each file ≤400 LOC  
+- [ ] Cyclomatic/cognitive complexity is minimal
+- [ ] Module boundaries are clean and logical
+- [ ] Helper functions are testable in isolation
+- [ ] No code duplication (DRY principle applied)
+- [ ] Any exceptions properly documented and justified
+- [ ] L6 engineering standards applied (4.0+ rating across all dimensions)

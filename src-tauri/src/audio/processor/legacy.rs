@@ -99,6 +99,7 @@ pub async fn process_audiobook_with_events(
 ///
 /// DEPRECATED ADAPTER: Maintains legacy call pattern for media pipeline execution.
 /// New code should use execute_ffmpeg_with_progress_context directly.
+#[cfg(not(feature = "safe-ffmpeg"))]
 #[deprecated = "Use execute_ffmpeg_with_progress_context for new code - this adapter maintains compatibility"]
 pub async fn execute_with_progress_events(
     cmd: Command,
@@ -112,6 +113,20 @@ pub async fn execute_with_progress_events(
     // Note: We use default settings here since they're not available in the legacy adapter
 
     crate::audio::media_pipeline::execute_ffmpeg_with_progress_context(cmd, &context, total_duration).await
+}
+
+/// Execute with progress events (safe-ffmpeg version)
+#[cfg(feature = "safe-ffmpeg")]
+#[deprecated = "Legacy adapter not available in safe-ffmpeg mode"]
+pub async fn execute_with_progress_events(
+    _cmd: Command,
+    _window: &tauri::Window,
+    _state: &tauri::State<'_, crate::ProcessingState>,
+    _total_duration: f64,
+) -> Result<()> {
+    Err(crate::errors::AppError::InvalidInput(
+        "Legacy adapter not available in safe-ffmpeg mode".to_string(),
+    ))
 }
 
 /// Create temporary directory (deprecated adapter)

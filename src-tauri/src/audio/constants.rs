@@ -14,15 +14,11 @@ pub const PROGRESS_ANALYZING_END: f32 = 10.0;
 
 /// Progress percentage range for the converting stage (10-80%)
 pub const PROGRESS_CONVERTING_START: f32 = 10.0;
-#[allow(dead_code)]
-pub const PROGRESS_CONVERTING_END: f32 = 80.0;
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0; // Max to avoid reaching 80% prematurely
 pub const PROGRESS_CONVERTING_RANGE: f32 = 70.0; // Range from start to end (80.0 - 10.0)
 
 /// Progress percentage range for metadata writing (80-95%)
 pub const PROGRESS_METADATA_START: f32 = 90.0;
-#[allow(dead_code)]
-pub const PROGRESS_METADATA_END: f32 = 95.0;
 
 /// Progress percentage for final steps (95-100%)
 pub const PROGRESS_FINALIZING: f32 = 95.0;
@@ -35,18 +31,6 @@ pub const PROCESS_TERMINATION_MAX_ATTEMPTS: u32 = 20;
 
 /// Delay between process termination checks in milliseconds
 pub const PROCESS_TERMINATION_CHECK_DELAY_MS: u64 = 100;
-
-/// Timeout duration for process termination in seconds
-#[allow(dead_code)]
-pub const PROCESS_TERMINATION_TIMEOUT_SECS: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// Delay between process kill retry attempts in milliseconds
-#[allow(dead_code)]
-pub const PROCESS_KILL_RETRY_DELAY_MS: u64 = 100;
-
-/// Maximum number of cleanup retry attempts
-#[allow(dead_code)]
-pub const MAX_CLEANUP_RETRIES: u32 = 3;
 
 // Time calculation multipliers
 /// Progress percentage calculation range (maps file progress to UI progress)
@@ -100,71 +84,22 @@ pub const TEMP_MERGED_FILENAME: &str = "merged.m4b";
 /// Temporary directory name
 pub const TEMP_DIR_NAME: &str = "audiobook-boss";
 
-// Audio validation constraints
-/// Minimum allowed bitrate in kbps for audio encoding
-#[allow(dead_code)]
-pub const MIN_BITRATE: u32 = 32;
-
-/// Maximum allowed bitrate in kbps for audio encoding  
-#[allow(dead_code)]
-pub const MAX_BITRATE: u32 = 128;
-
-/// Valid sample rates supported for audio processing
-#[allow(dead_code)]
-pub const VALID_SAMPLE_RATES: [u32; 4] = [22050, 32000, 44100, 48000];
-
-// Audio preset configurations
-/// Standard audiobook preset bitrate in kbps
-#[allow(dead_code)]
-pub const AUDIOBOOK_PRESET_BITRATE: u32 = 64;
-
-/// High quality preset bitrate in kbps
-#[allow(dead_code)]
-pub const HIGH_QUALITY_PRESET_BITRATE: u32 = 128;
-
-/// Low bandwidth preset bitrate in kbps
-#[allow(dead_code)]
-pub const LOW_BANDWIDTH_PRESET_BITRATE: u32 = 32;
-
-/// High quality preset sample rate in Hz
-#[allow(dead_code)]
-pub const HIGH_QUALITY_PRESET_SAMPLE_RATE: u32 = 44100;
-
-/// Low bandwidth preset sample rate in Hz
-#[allow(dead_code)]
-pub const LOW_BANDWIDTH_PRESET_SAMPLE_RATE: u32 = 22050;
-
-// Audio channel configurations
-/// Mono audio channel count
-#[allow(dead_code)]
-pub const MONO_CHANNELS: u8 = 1;
-
-/// Stereo audio channel count
-#[allow(dead_code)]
-pub const STEREO_CHANNELS: u8 = 2;
-
 // Progress calculation weights
 /// Weight for metadata writing in progress calculations
-#[allow(dead_code)]
 pub const PROGRESS_METADATA_WEIGHT: f32 = 5.0;
 
 // Image format validation
 /// JPEG file header signature
-#[allow(dead_code)]
 pub const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 
 /// PNG file header signature
-#[allow(dead_code)]
 pub const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// Minimum image file size in bytes
-#[allow(dead_code)]
 pub const MIN_IMAGE_SIZE: usize = 4;
 
 /// Minimum PNG file size in bytes
-#[allow(dead_code)]
 pub const MIN_PNG_SIZE: usize = 8;
 
 /// Minimum WebP file size in bytes
-#[allow(dead_code)]
 pub const MIN_WEBP_SIZE: usize = 12;

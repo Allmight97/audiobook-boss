@@ -17,9 +17,12 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     [2025-08-11T23:41:09Z INFO  audiobook_boss_lib] Starting Audiobook Boss application
         [2025-08-11T23:46:21Z WARN  lofty::mpeg::properties] MPEG: Using bitrate to estimate duration
 
-[ ] BUG: Output M4B file does NOT have Cover Art at all - regardless of whether I load cover art manually or from the input file when setting up output file for processing.
-[ ] BUG: "cancel processing" button doesn't cancel current process. Nothing shows in DOM console nor terminal output as registered click of the button. When I press it there appears to be split second change in the "current step: ..." text display as the job processes, but no change in behavior.
+[X] BUG: Output M4B file does NOT have Cover Art at all - regardless of whether I load cover art manually or from the input file when setting up output file for processing. [FIXED]
+[X] BUG: "cancel processing" button doesn't cancel current process. Nothing shows in DOM console nor terminal output as registered click of the button. When I press it there appears to be split second change in the "current step: ..." text display as the job processes, but no change in behavior. [FIXED]
 
 [ ] FEATURE: Give users ability to choose FDK-AAC if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
     - Action: Work up a plan to inject this option to the output panel settings and give the user the ability to set the path of FDK-AAC, or possibly have the app be able to detect it automatically if option is ticked. Manual option is best for now due to presumed implementation complexity. Plan should also include steps to default ffmpeg-next encoder to use native AAC-LC.
         - SEE docs/reports/AAC_advice.md for the advice I was given for this feature and why.
+
+[ ] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
+    - Action: No feature gates nor safeffmpeg - default encode will be ffmpeg-next using standard AAC-LC

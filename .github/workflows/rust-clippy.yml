@@ -39,6 +39,19 @@ jobs:
           rustc -Vv
           cargo -V
 
+      - name: Check for disallowed dead_code attributes
+        run: |
+          # Fail if dead_code allows exist outside test modules and build scripts
+          if grep -r "#\[allow(dead_code)\]" src/ | grep -v -E "(#\[cfg.*test|tests?/|_tests?\.rs)" | grep -v "src/tests_integration.rs"; then
+            echo "❌ Found disallowed #[allow(dead_code)] attributes outside tests:"
+            grep -r "#\[allow(dead_code)\]" src/ | grep -v -E "(#\[cfg.*test|tests?/|_tests?\.rs)" | grep -v "src/tests_integration.rs"
+            echo ""
+            echo "Please remove these allows or move the code to test-only contexts"
+            exit 1
+          else
+            echo "✅ No disallowed dead_code attributes found"
+          fi
+
       - name: Run Clippy (default)
         if: matrix.feature == ''
         run: cargo clippy -- -D warnings

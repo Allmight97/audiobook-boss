@@ -92,10 +92,6 @@ impl ProcessingWorkflow {
     }
 
     /// Accessor helpers (kept small / inline for clarity).
-    #[allow(dead_code)] // Internal accessor kept for near-term staged use
-    pub(crate) fn temp_dir(&self) -> &std::path::PathBuf {
-        &self.temp_dir
-    }
     pub(crate) fn concat_file(&self) -> &std::path::PathBuf {
         &self.concat_file
     }

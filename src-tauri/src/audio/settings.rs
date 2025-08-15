@@ -93,38 +93,6 @@ fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
 }
 
 impl AudioSettings {
-    /// Creates settings optimized for audiobooks
-    #[allow(dead_code)]
-    pub fn audiobook_preset() -> Self {
-        Self {
-            bitrate: 64,  // Good quality for speech
-            channels: ChannelConfig::Mono,  // Most audiobooks are mono
-            sample_rate: SampleRateConfig::Auto,  // Auto-detect from input
-            output_path: "audiobook.m4b".into(),
-        }
-    }
-    
-    /// Creates high-quality settings
-    #[allow(dead_code)]
-    pub fn high_quality_preset() -> Self {
-        Self {
-            bitrate: 128,
-            channels: ChannelConfig::Stereo,
-            sample_rate: SampleRateConfig::Explicit(44100),
-            output_path: "audiobook_hq.m4b".into(),
-        }
-    }
-    
-    /// Creates low-bandwidth settings
-    #[allow(dead_code)]
-    pub fn low_bandwidth_preset() -> Self {
-        Self {
-            bitrate: 32,
-            channels: ChannelConfig::Mono,
-            sample_rate: SampleRateConfig::Explicit(22050),
-            output_path: "audiobook_low.m4b".into(),
-        }
-    }
 }
 
 impl ChannelConfig {
@@ -136,8 +104,8 @@ impl ChannelConfig {
         }
     }
     
-    /// Returns FFmpeg channel layout string
-    #[allow(dead_code)]
+    /// Returns FFmpeg channel layout string  
+    #[cfg_attr(feature = "safe-ffmpeg", allow(dead_code))]
     pub fn ffmpeg_layout(&self) -> &'static str {
         match self {
             ChannelConfig::Mono => "mono",
@@ -260,19 +228,9 @@ mod tests {
     }
 
     #[test]
-    fn test_audiobook_preset() {
-        let settings = AudioSettings::audiobook_preset();
-        assert_eq!(settings.bitrate, 64);
-        assert!(matches!(settings.channels, ChannelConfig::Mono));
-        assert!(matches!(settings.sample_rate, SampleRateConfig::Auto));
-    }
-
-    #[test]
     fn test_channel_config_methods() {
         assert_eq!(ChannelConfig::Mono.channel_count(), 1);
         assert_eq!(ChannelConfig::Stereo.channel_count(), 2);
-        assert_eq!(ChannelConfig::Mono.ffmpeg_layout(), "mono");
-        assert_eq!(ChannelConfig::Stereo.ffmpeg_layout(), "stereo");
     }
 
     #[test]

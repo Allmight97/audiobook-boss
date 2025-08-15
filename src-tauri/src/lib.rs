@@ -5,6 +5,7 @@
 
 pub mod commands;
 mod errors;
+#[cfg(not(feature = "safe-ffmpeg"))]
 mod ffmpeg;
 mod metadata;
 pub mod audio;

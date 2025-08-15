@@ -16,6 +16,7 @@ pub mod metrics;
 pub mod path_validation;
 pub mod processor;
 pub mod progress;
+#[cfg(not(feature = "safe-ffmpeg"))]
 pub mod progress_monitor;
 pub mod session;
 pub mod settings;
