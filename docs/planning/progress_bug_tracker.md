@@ -24,7 +24,7 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     - Action: Work up a plan to inject this option to the output panel settings and give the user the ability to set the path of FDK-AAC, or possibly have the app be able to detect it automatically if option is ticked. Manual option is best for now due to presumed implementation complexity. Plan should also include steps to default ffmpeg-next encoder to use native AAC-LC.
         - SEE docs/reports/AAC_advice.md for the advice I was given for this feature and why.
 
-[ ] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
+[X] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
     - Action: No feature gates nor safeffmpeg - default encode will be ffmpeg-next using standard AAC-LC
         - Consider UI options to allow use to apply the 'twoloop' flag to enhance audio quality of native AAC encoder: e.g. 'ffmpeg -i input.mp3 -c:a aac -aac_coder twoloop -b:a 64k output.m4b'
 [ ] TODO: How to add these FFmpeg sources to repo so Ai agents can easily reference them when coding and auditing?
