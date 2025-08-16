@@ -5,8 +5,6 @@
 
 pub mod commands;
 mod errors;
-#[cfg(not(feature = "safe-ffmpeg"))]
-mod ffmpeg;
 mod metadata;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::AudiobookMetadata;
