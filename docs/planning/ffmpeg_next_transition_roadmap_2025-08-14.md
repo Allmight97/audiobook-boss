@@ -84,6 +84,35 @@ This roadmap supersedes the L4 Final Implementation Roadmap for the specific goa
   - `cargo test --features safe-ffmpeg` passes all tests
   - No performance regression (≤10% encoding time increase)
   - Maintain backward compatibility with existing cover art workflow
+  - Address Cargo test errors:
+    - ```
+    Compiling tauri v2.6.2
+   Compiling tauri-plugin-fs v2.4.1
+   Compiling tauri-plugin-opener v2.4.0
+   Compiling tauri-plugin-dialog v2.3.1
+   Compiling audiobook-boss v0.1.0 (/Users/jstar/Projects/audiobook-boss/src-tauri)
+error[E0599]: no function or associated item named `audiobook_preset` found for struct `AudioSettings` in the current scope
+   --> tests/settings_validation_integration.rs:155:36
+    |
+155 |     let audiobook = AudioSettings::audiobook_preset();
+    |                                    ^^^^^^^^^^^^^^^^ function or associated item not found in `AudioSettings`
+
+error[E0599]: no function or associated item named `high_quality_preset` found for struct `AudioSettings` in the current scope
+   --> tests/settings_validation_integration.rs:161:29
+    |
+161 |     let hq = AudioSettings::high_quality_preset();
+    |                             ^^^^^^^^^^^^^^^^^^^ function or associated item not found in `AudioSettings`
+
+error[E0599]: no function or associated item named `low_bandwidth_preset` found for struct `AudioSettings` in the current scope
+   --> tests/settings_validation_integration.rs:167:30
+    |
+167 |     let low = AudioSettings::low_bandwidth_preset();
+    |                              ^^^^^^^^^^^^^^^^^^^^ function or associated item not found in `AudioSettings`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `audiobook-boss` (test "settings_validation_integration") due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+```
 
 ### **P4.3 Engine Transition and Validation**
 **Goal**: Switch defaults and validate parity with minimal risk
