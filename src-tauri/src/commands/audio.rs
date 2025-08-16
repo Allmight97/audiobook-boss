@@ -80,19 +80,8 @@ pub async fn process_audiobook_files(
     let file_info = audio::get_file_list_info(&paths)?;
 
     // Process the audiobook with progress events
-    #[allow(deprecated)]
-    #[cfg(feature = "legacy-adapters")]
-    let result = audio::process_audiobook_with_events(
-        window,
-        state.clone(),
-        file_info.files,
-        settings,
-        metadata,
-    )
-    .await;
-
-    #[cfg(not(feature = "legacy-adapters"))]
     let result = {
+        // Single engine path: ffmpeg-next context based processing
         let session = audio::session::ProcessingSession::new();
         let context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
         audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await
@@ -120,49 +109,6 @@ pub fn cancel_processing(state: tauri::State<crate::ProcessingState>) -> Result<
     Ok("Processing cancellation requested".to_string())
 }
 
-/// Basic merge command for two audio files
-/// Merges files to a fixed output location for testing
-#[cfg(not(feature = "safe-ffmpeg"))]
-#[tauri::command]
-pub fn merge_audio_files(file1: String, file2: String) -> Result<String> {
-    let input1 = PathBuf::from(&file1);
-    let input2 = PathBuf::from(&file2);
-
-    // Validate inputs exist
-    if !input1.exists() {
-        return Err(AppError::FileValidation(format!(
-            "First input file not found: {file1}"
-        )));
-    }
-    if !input2.exists() {
-        return Err(AppError::FileValidation(format!(
-            "Second input file not found: {file2}"
-        )));
-    }
-
-    // Fixed output for testing
-    let output = PathBuf::from("merged_output.m4b");
-
-    // Create and execute FFmpeg command
-    crate::ffmpeg::command::FFmpegCommand::new()?
-        .add_input(input1)
-        .add_input(input2)
-        .set_output(output.clone())
-        .execute()?;
-
-    Ok(format!(
-        "Successfully merged files to: {}",
-        output.to_string_lossy()
-    ))
-}
-
-/// Basic merge command for two audio files (safe-ffmpeg version)
-/// Placeholder implementation using ffmpeg-next library
-#[cfg(feature = "safe-ffmpeg")]
-#[tauri::command]
-pub fn merge_audio_files(file1: String, file2: String) -> Result<String> {
-    // TODO: Implement using ffmpeg-next library
-    Ok(format!("Safe merge not yet implemented for files: {file1}, {file2}"))
-}
+// Removed legacy merge_audio_files command and shell-based implementation during nuclear cleanup.
 
 

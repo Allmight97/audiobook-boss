@@ -12,7 +12,25 @@
 
 ## Execution Plan - Atomized Steps
 
-### **Phase 1: Pre-Flight Validation & Git Safety Net**
+## Validation Strategy for Each Commit Point
+
+For each commit point, validate with:
+
+```bash
+# Compilation check
+cargo check
+
+# Test compilation
+cargo test --lib --no-run
+
+# If tests compile, run them
+cargo test --lib
+
+# Build check
+cargo build
+```
+
+### **Phase 1: Pre-Flight Validation & Git Safety Net** ✅
 **Commit Point**: `P4.3-pre: Validate current state before nuclear transition`
 
 1. **Baseline Test & Documentation**
@@ -31,7 +49,7 @@
    - **REMOVE** `which = "6.0"` dependency entirely
    - **Test**: `cargo check` should compile successfully with simplified dependencies
 
-### **Phase 3: Configuration File Cleanup**
+### **Phase 3: Configuration File Cleanup** ✅
 **Commit Point**: `P4.3.2: Remove FFmpeg binary bundling from Tauri config`
 
 3. **Tauri Configuration Cleanup**
@@ -40,7 +58,7 @@
    - **UPDATE** `build.rs` to remove FFmpeg bundling warnings
    - **Test**: `cargo check` should compile without bundling warnings
 
-### **Phase 4: Code Purge - Remove Shell FFmpeg Module**
+### **Phase 4: Code Purge - Remove Shell FFmpeg Module** ✅
 **Commit Point**: `P4.4.1: Delete shell FFmpeg module entirely`
 
 4. **Delete Shell FFmpeg Code**
@@ -48,7 +66,7 @@
    - **REMOVE** `pub mod ffmpeg;` from `src-tauri/src/lib.rs`
    - **Test**: Expect compilation errors - we'll fix these in next steps
 
-### **Phase 5: Remove Conditional Compilation - Media Pipeline**
+### **Phase 5: Remove Conditional Compilation - Media Pipeline** ✅
 **Commit Point**: `P4.4.2: Eliminate conditional compilation in media pipeline`
 
 5. **Simplify Media Pipeline Module**
@@ -59,7 +77,7 @@
    - **REMOVE** synthetic command building for tests
    - **Test**: `cargo check` - expect more compilation errors
 
-### **Phase 6: Processor Selection Simplification**
+### **Phase 6: Processor Selection Simplification** ✅
 **Commit Point**: `P4.4.3: Simplify processor selection to single ffmpeg-next engine`
 
 6. **Update Processor Selection**
@@ -80,15 +98,14 @@
    - **UPDATE** error handling to remove `FFmpegError` variants
 
 ### **Phase 8: Error Handling Simplification**
-**Commit Point**: `P4.4.5: Simplify error handling without shell FFmpeg errors`
-
 8. **Update Error Types**
    - **REMOVE** `FFmpegError` import and variants from `errors.rs`
    - **SIMPLIFY** error conversion functions
    - **REMOVE** shell-specific error handling
 
+   **Commit Point**: Write concise commit message summarizing what was done and commit.
+
 ### **Phase 9: Progress Monitor & Process Management Cleanup**
-**Commit Point**: `P4.4.6: Remove shell process monitoring and management`
 
 9. **Remove Shell Process Code**
    - **DELETE** `progress_monitor.rs` entirely (shell process monitoring)
@@ -96,8 +113,9 @@
    - **REMOVE** `Child` process handling in cleanup modules
    - **REMOVE** `#[cfg(feature = "legacy-adapters")]` blocks
 
+   **Commit Point**: Write concise commit message summarizing what was done and commit.
+
 ### **Phase 10: Build System & Integration Cleanup**
-**Commit Point**: `P4.4.7: Clean build system and package.json scripts`
 
 10. **Final System Cleanup**
     - **REMOVE** FFmpeg setup scripts from `package.json`
@@ -105,8 +123,9 @@
     - **REMOVE** FFmpeg binary references from `.gitignore` and docs
     - **UPDATE** any remaining documentation references
 
+    **Commit Point**: Write concise commit message summarizing what was done and commit.
+
 ### **Phase 11: Post-Nuclear Debug & Validation**
-**Commit Point**: `P4.5: Post-nuclear compilation fixes and validation`
 
 11. **Compilation Error Resolution**
     - **FIX** remaining compilation errors from removed dependencies
@@ -114,10 +133,14 @@
     - **RESOLVE** any remaining shell command references
     - **ENSURE** `cargo build` succeeds
 
+    **Commit Point**: Write concise commit message summarizing what was done and commit.
+
 12. **Test Suite Restoration**
     - **UPDATE** tests to work without shell command mocking
     - **FIX** integration tests that relied on shell FFmpeg
     - **ENSURE** `cargo test` passes with ffmpeg-next only
+
+    **Commit Point**: Write concise commit message summarizing what was done and commit.
 
 13. **Functional Validation**
     - **TEST** audiobook processing works end-to-end
@@ -125,8 +148,9 @@
     - **CONFIRM** progress tracking and cancellation work
     - **VALIDATE** all UI workflows function correctly
 
+    **Commit Point**: Write concise commit message summarizing what was done and commit.
+
 ### **Phase 12: Technical Debt Resolution**
-**Commit Point**: `P4.5-debt: Resolve deferred technical debt items`
 
 14. **Complete Deferred Features**
     - **IMPLEMENT** native cover art embedding via ffmpeg-next
@@ -134,23 +158,7 @@
     - **RESEARCH** and implement twoloop AAC enhancement properly
     - **ELIMINATE** Lofty fallback in finalize stage
 
-## Validation Strategy for Each Commit Point
-
-For each commit point, validate with:
-
-```bash
-# Compilation check
-cargo check
-
-# Test compilation
-cargo test --lib --no-run
-
-# If tests compile, run them
-cargo test --lib
-
-# Build check
-cargo build
-```
+    **Commit Point**: Write concise commit message summarizing what was done and commit.
 
 ## Risk Mitigation
 

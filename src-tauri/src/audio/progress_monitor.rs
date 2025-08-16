@@ -8,7 +8,6 @@ use super::constants::*;
 use super::context::ProcessingContext;
 use super::progress::ProgressEmitter;
 use crate::errors::{AppError, Result};
-use crate::ffmpeg::FFmpegError;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Child};
 
@@ -31,7 +30,7 @@ pub fn setup_process_execution(
     context: &ProcessingContext,
 ) -> Result<ProcessExecution> {
     let child = cmd.spawn()
-        .map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Failed to start FFmpeg".to_string())))?;
+        .map_err(|e| AppError::General(format!("Failed to start legacy FFmpeg process: {e}")))?;
     
     let emitter = ProgressEmitter::new(context.window.clone());
     
@@ -55,7 +54,7 @@ pub fn monitor_process_with_progress(
         for line in reader.lines() {
             check_cancellation_and_kill_context(context, &mut execution.child)?;
             
-            let line = line.map_err(|_| AppError::FFmpeg(FFmpegError::ExecutionFailed("Error reading FFmpeg output".to_string())))?;
+            let line = line.map_err(|e| AppError::General(format!("Error reading legacy FFmpeg output: {e}")))?;
             
             handle_progress_line(&line, execution, context, total_duration)?;
         }
@@ -91,8 +90,8 @@ pub fn handle_progress_line(
         log::error!("FFmpeg error line: {line}");
         if line.contains("No such file") || line.contains("Invalid data") {
             log::error!("FFmpeg critical error: {line}");
-            return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(
-                format!("FFmpeg failed to process audio files: {line}")
+            return Err(AppError::General(format!(
+                "Legacy FFmpeg failed to process audio files: {line}"
             )));
         }
     }
@@ -114,9 +113,9 @@ pub fn finalize_process_execution(
     // Wait for completion only if not cancelled
     let status = execution.child.wait()
         .map_err(|e| {
-            let msg = format!("Failed to wait for FFmpeg process completion: {e}");
+            let msg = format!("Failed to wait for legacy FFmpeg process completion: {e}");
             log::error!("{msg}");
-            AppError::FFmpeg(FFmpegError::ExecutionFailed(msg))
+            AppError::General(msg)
         })?;
     
     if !status.success() {
@@ -127,7 +126,7 @@ pub fn finalize_process_execution(
         log::error!("{msg}");
         // At this point stderr has been consumed during monitoring. We cannot re-read it,
         // but we can hint where to look for the cause via prior logs.
-        return Err(AppError::FFmpeg(FFmpegError::ExecutionFailed(msg)));
+    return Err(AppError::General(msg));
     }
     
     Ok(())
@@ -302,66 +301,4 @@ pub fn parse_speed_multiplier(line: &str) -> Option<f64> {
     }
 }
 
-// ADAPTER FUNCTIONS for backward compatibility
-
-/// Processes progress update and emits events (ADAPTER)
-/// 
-/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
-/// to use the new ProgressEmitter approach internally.
-#[cfg(feature = "legacy-adapters")]
-#[deprecated = "Use process_progress_update_context for new code - this adapter maintains compatibility"]
-pub fn process_progress_update(
-    progress_time: f32,
-    last_progress_time: &mut f32,
-    progress_count: &mut i32,
-    estimated_total_time: &mut f64,
-    total_duration: f64,
-    speed_multiplier: Option<f64>,
-    window: &tauri::Window,
-) -> Result<()> {
-    let emitter = ProgressEmitter::new(window.clone());
-    process_progress_update_context(
-        progress_time,
-        last_progress_time,
-        progress_count,
-        estimated_total_time,
-        total_duration,
-        speed_multiplier,
-        &emitter,
-    )
-}
-
-/// Checks for cancellation and kills process if needed (ADAPTER)
-/// 
-/// ADAPTER FUNCTION: Maintains backward compatibility by converting parameters
-/// to use the new context-based approach internally.
-#[cfg(feature = "legacy-adapters")]
-#[deprecated = "Use check_cancellation_and_kill_context for new code - this adapter maintains compatibility"]
-pub fn check_cancellation_and_kill(
-    state: &tauri::State<'_, crate::ProcessingState>,
-    child: &mut Child,
-) -> Result<()> {
-    let is_cancelled = state.is_cancelled.lock()
-        .map_err(|_| AppError::InvalidInput("Failed to check cancellation state".to_string()))?;
-    
-    if *is_cancelled {
-        log::debug!("Cancellation detected, killing FFmpeg process...");
-        let _ = child.kill();
-        
-        // Wait for process to actually terminate
-        for i in 0..PROCESS_TERMINATION_MAX_ATTEMPTS {  // Try for 2 seconds max
-            if let Ok(Some(_)) = child.try_wait() {
-                log::debug!("FFmpeg process terminated successfully");
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_CHECK_DELAY_MS));
-            if i == PROCESS_TERMINATION_MAX_ATTEMPTS - 1 {
-                log::warn!("FFmpeg process may not have terminated cleanly");
-            }
-        }
-        // Best-effort reap to avoid zombie processes
-        let _ = child.wait();
-        return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
-    }
-    Ok(())
-}
+// Legacy adapter functions removed during nuclear cleanup.

@@ -51,8 +51,7 @@ pub fn run() {
             commands::ping,
             commands::echo,
             commands::validate_files,
-            commands::get_ffmpeg_version,
-            commands::merge_audio_files,
+            // Removed get_ffmpeg_version & merge_audio_files (legacy shell commands) in nuclear cleanup
             commands::read_audio_metadata,
             commands::write_audio_metadata,
             commands::write_cover_art,

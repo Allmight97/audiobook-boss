@@ -12,8 +12,7 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   ping: () => invoke('ping'),
   echo: (input: string) => invoke('echo', { input }),
   validateFiles: (paths: string[]) => invoke('validate_files', { filePaths: paths }),
-  getFFmpegVersion: () => invoke('get_ffmpeg_version'),
-  mergeAudioFiles: (file1: string, file2: string) => invoke('merge_audio_files', { file1, file2 }),
+  // Removed getFFmpegVersion and mergeAudioFiles test commands after nuclear cleanup
   
   // Metadata commands
   readMetadata: (filePath: string) => invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath }),
@@ -77,8 +76,7 @@ console.log('Test commands available:');
 console.log('  window.testCommands.ping()');
 console.log('  window.testCommands.echo(input)');
 console.log('  window.testCommands.validateFiles(paths)');
-console.log('  window.testCommands.getFFmpegVersion()');
-console.log('  window.testCommands.mergeAudioFiles(file1, file2)');
+// Removed: getFFmpegVersion, mergeAudioFiles
 console.log('  window.testCommands.readMetadata(filePath)');
 console.log('  window.testCommands.writeMetadata(filePath, metadata)');
 console.log('  window.testCommands.writeCoverArt(filePath, coverData)');

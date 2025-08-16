@@ -1,14 +1,8 @@
 use thiserror::Error;
-#[cfg(not(feature = "safe-ffmpeg"))]
-use crate::ffmpeg::FFmpegError;
 
 /// Application-wide error type for structured error handling
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[cfg(not(feature = "safe-ffmpeg"))]
-    #[error("FFmpeg operation failed: {0}")]
-    FFmpeg(#[from] FFmpegError),
-    
     #[error("File validation failed: {0}")]
     FileValidation(String),
     
