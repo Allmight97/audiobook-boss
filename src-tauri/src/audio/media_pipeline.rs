@@ -6,7 +6,6 @@
 //! The `MediaProcessingPlan` struct holds inputs, outputs, and metadata for
 //! processing operations, following mentor recommendations for abstraction.
 
-use super::constants::PROGRESS_CONVERTING_MAX;
 use super::context::ProcessingContext;
 use super::{AudioSettings, SampleRateConfig};
 use crate::errors::Result;
@@ -600,14 +599,12 @@ impl MediaProcessor for FfmpegNextProcessor {
             let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) =
                 Self::setup_encoder(plan, metadata)?;
 
-            // Validate metadata compatibility if provided
-            if let Some(_metadata) = metadata {
-                // TODO: Re-enable after metadata module cleanup
-                // let warnings = crate::metadata::ffmpeg_bridge::validate_metadata_compatibility(_metadata);
-                // for warning in warnings {
-                //     log::warn!("Metadata compatibility: {}", warning);
-                // }
-                log::info!("Metadata validation temporarily disabled during transition");
+            // Validate metadata compatibility if provided (now active post-legacy purge)
+            if let Some(md) = metadata {
+                let warnings = crate::metadata::ffmpeg_bridge::validate_metadata_compatibility(md);
+                for warning in warnings {
+                    log::warn!("Metadata compatibility: {}", warning);
+                }
             }
 
             // Ensure partial outputs are removed on failure or cancellation

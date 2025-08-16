@@ -4,12 +4,12 @@ applyTo: '**'
 # Audiobook Boss (ABB) Project Guidelines
 
 ## Architecture Overview
-This is a Tauri desktop app with TypeScript frontend and Rust backend that converts audio files into audiobooks. The app is currently migrating from shell-based FFmpeg to type-safe `ffmpeg-next` bindings via feature flags.
+This is a Tauri desktop app with TypeScript frontend and Rust backend that converts audio files into audiobooks. After the P4.3/P4.4 "nuclear" transition the codebase runs exclusively on the type-safe `ffmpeg-next` engine (all shell-based FFmpeg and feature flags removed).
 
 ### Key Architectural Patterns
-- **Dual Processing Engines**: `ShellFFmpegProcessor` (default) vs `FfmpegNextProcessor` (feature = "safe-ffmpeg")
-- **MediaProcessor Trait**: Unified interface (`MediaProcessingPlan` → `execute()`) abstracts FFmpeg execution
-- **Feature-Gated Migration**: Use `#[cfg(any(test, feature = "safe-ffmpeg"))]` for new engine components
+- **Single Processing Engine**: `FfmpegNextProcessor` implements `MediaProcessor`
+- **Media Abstraction**: `MediaProcessingPlan` → `execute()` keeps future extensibility
+- **No Feature Flags**: All former `legacy-adapters` / `safe-ffmpeg` conditionals purged
 - **Path Security**: All input paths go through `audio::path_validation::validate_input_audio_path()`
 
 ### Critical Data Flows
@@ -21,18 +21,15 @@ This is a Tauri desktop app with TypeScript frontend and Rust backend that conve
 
 ### Testing Commands (from `src-tauri/`)
 ```bash
-cargo test                           # All tests (unit + integration)  
-cargo test --features safe-ffmpeg   # Test new FFmpeg-Next engine
-cargo clippy -- -D warnings         # Lint checks (must pass)
-cargo test path_validation           # Run path security tests
+cargo test                 # All tests (unit + integration)
+cargo clippy -- -D warnings
+cargo test path_validation # Run path security tests subset
 ```
 
 ### Build Commands
 ```bash
-npm run tauri dev                    # Full dev mode (port 1420)
-RUST_LOG=debug npm run tauri dev     # With verbose logging
-npm run setup-ffmpeg                # Bundle FFmpeg for packaging
-cargo clippy --features safe-ffmpeg # Check feature-gated code
+npm run tauri dev                # Full dev mode (port 1420)
+RUST_LOG=debug npm run tauri dev # With verbose logging
 ```
 
 ### Coding Style & Naming Conventions
@@ -63,12 +60,8 @@ When applying cross-project coding standards, these audiobook-boss specific exce
 - User is a junior developer - validate code changes and implementation plans before executing
 - Provide clear explanations and rationale for architectural decisions
 
-### Feature Flag Conventions
-```rust
-#[cfg(any(test, feature = "safe-ffmpeg"))]  // New engine components
-#[cfg(not(feature = "safe-ffmpeg"))]        // Legacy shell-based code
-#[cfg(feature = "safe-ffmpeg")]             // FFmpeg-Next exclusive
-```
+### Feature Flags
+Feature flags related to engine selection have been removed. Any new feature gating should be unrelated to the core processing engine and documented explicitly.
 
 ### Frontend Patterns (TypeScript)
 - **Class-Based UI Components**: Each UI module (`StatusPanel`, `FileList`) uses classes with private state and DOM element caching
@@ -85,15 +78,11 @@ When applying cross-project coding standards, these audiobook-boss specific exce
 - Use `ProcessingState` for cancellation and progress tracking
 
 ### Progress System
-- **Legacy**: `progress_monitor.rs` with shell FFmpeg parsing
-- **New**: Direct progress calculation from ffmpeg-next PTS/duration
-- **Events**: Emit via `window.emit("processing-progress", event)`
+- Direct progress calculation from ffmpeg-next PTS/duration (legacy parser removed)
+- Events emitted via `window.emit("processing-progress", event)`
 
-### FFmpeg Path Discovery (`src-tauri/src/ffmpeg/mod.rs`)
-1. Bundled binary (`src-tauri/binaries/ffmpeg-universal`)
-2. Development symlink to Homebrew
-3. System PATH lookup
-4. macOS-specific locations (`/opt/homebrew/bin`, `/usr/local/bin`)
+### FFmpeg Runtime
+The application links to system FFmpeg libraries via `ffmpeg-next`; no bundled binary discovery logic remains.
 
 ## Security & Validation Requirements
 - **All Inputs**: Must pass through `validate_input_audio_path()` which canonicalizes paths, checks extensions, and prevents directory traversal
@@ -101,9 +90,5 @@ When applying cross-project coding standards, these audiobook-boss specific exce
 - **Output Directories**: Probed for write permissions before processing
 - **File Extensions**: Validated against `ALLOWED_AUDIO_EXTENSIONS` whitelist
 
-## Migration Context
-The codebase is actively migrating from shell FFmpeg to ffmpeg-next. When working on audio processing:
-- Prefer `FfmpegNextProcessor` for new features (when safe-ffmpeg enabled)
-- Keep `ShellFFmpegProcessor` working as fallback
-- Test both engines: `cargo test` and `cargo test --features safe-ffmpeg`
-- Follow P0/P1/P2 priority tasks from `docs/planning/consolidated-roadmap.md`
+## Post-Migration Context
+The migration to ffmpeg-next is complete. Follow-up enhancements (native cover art embedding, AAC encoder option tuning, metadata enrichment) should target the single engine path without reintroducing shell execution.

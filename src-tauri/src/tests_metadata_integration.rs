@@ -2,7 +2,6 @@
 //! This test validates that metadata flows correctly from frontend to backend via ffmpeg-next
 
 #[cfg(test)]
-#[cfg(feature = "safe-ffmpeg")]
 mod metadata_integration_tests {
     use crate::metadata::AudiobookMetadata;
     use crate::metadata::ffmpeg_bridge;

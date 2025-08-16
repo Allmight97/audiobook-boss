@@ -1,10 +1,8 @@
-//! Tests native ffmpeg-next cover art embedding (safe-ffmpeg feature only)
-//! Ensures that when cover art is provided, a stream is added pre-header and packet written.
-
-#![cfg(all(feature = "safe-ffmpeg", not(test)))] // temporarily disable during unit test runs
+//! Tests native ffmpeg-next cover art embedding (placeholder).
+//! Currently skipped: native cover art embedding path is disabled post nuclear cleanup.
+//! This file is retained as a scaffold for future implementation.
 
 use audiobook_boss_lib::AudiobookMetadata;
-#[cfg(feature = "safe-ffmpeg")]
 use ffmpeg_next as ff;
 use tempfile::TempDir;
 use std::path::PathBuf;
@@ -14,6 +12,7 @@ use lofty::file::TaggedFileExt;
 // Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
 const MINIMAL_JPEG: &[u8] = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9"; // SOI + APP0 + EOI
 
+#[allow(dead_code)] // Helper retained for future activation when native cover art embedding is implemented
 fn create_silent_wav(path: &PathBuf) {
     let wav_data = [
         0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
@@ -24,8 +23,9 @@ fn create_silent_wav(path: &PathBuf) {
     std::fs::write(path, &wav_data).expect("write wav");
 }
 
-#[allow(dead_code)]
-fn test_native_cover_art_embedding_end_to_end_disabled() {
+#[ignore]
+#[test]
+fn test_native_cover_art_embedding_end_to_end_placeholder() {
     let temp = TempDir::new().expect("temp");
     let output = temp.path().join("out.m4b");
 
@@ -71,8 +71,9 @@ fn test_native_cover_art_embedding_end_to_end_disabled() {
     }
 }
 
-#[allow(dead_code)]
-fn test_cover_art_unsupported_format_fallback_disabled() {
+#[ignore]
+#[test]
+fn test_cover_art_unsupported_format_fallback_placeholder() {
     let temp = TempDir::new().expect("temp");
     let output = temp.path().join("out.m4b");
     ff::init().expect("ffmpeg init");

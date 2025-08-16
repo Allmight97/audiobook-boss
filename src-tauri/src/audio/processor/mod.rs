@@ -5,7 +5,6 @@
 //!   - execute.rs   : merge / ffmpeg execution logic
 //!   - finalize.rs  : metadata writing, move, cleanup
 //!   - selection.rs : engine selection type aliases (P1.3)
-//!   - legacy.rs    : deprecated adapters (to be gated/removed in P2.1.1)
 //!   - mod.rs       : orchestrator and public API re-exports
 //!
 //! Plan Reference: docs/planning/processor_split_plan.md (Task P1.1.1, Phase 5)
@@ -19,7 +18,7 @@
 //! Public Surface (current):
 //!   - processor::detect_input_sample_rate
 //!   - processor::process_audiobook_with_context
-//!   - Deprecated adapters re-exported from legacy.rs
+//!   - (Former legacy adapter module removed during nuclear cleanup)
 //!
 //! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
 
@@ -36,7 +35,7 @@ use crate::metadata::AudiobookMetadata;
 // Submodules
 pub mod execute;
 pub mod finalize;
-// Removed legacy module during nuclear cleanup
+// (Legacy module removed during nuclear cleanup)
 pub mod prepare;
 pub mod selection;
 
@@ -45,8 +44,7 @@ pub mod selection;
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
 pub use prepare::detect_input_sample_rate;
 
-// Legacy function re-exports (Phase 4 additions)
-// TODO (Phase 5): Re-export deprecated adapters from legacy.rs maintaining original signatures.
+// Legacy adapter re-exports removed; no longer supported post single-engine transition.
 
 /// Internal workflow state passed between staged phases of processing.
 ///
@@ -129,7 +127,7 @@ pub async fn process_audiobook_with_context(
 // - Preparation + validation + workflow construction migrated (prepare.rs)
 // - Execution layer extracted (execute.rs) with feature-gated processor selection
 // - Finalization logic migrated (finalize.rs) 
-// - Legacy / deprecated adapters isolated (legacy.rs) - TODO P2.1.1 for gating/removal
+// - Legacy adapters fully removed (legacy.rs deleted) as part of nuclear cleanup
 // - Orchestrator consolidated in mod.rs calling staged functions
 // Next Steps:
 //   Phase 6+: Compile & lint validation, test verification

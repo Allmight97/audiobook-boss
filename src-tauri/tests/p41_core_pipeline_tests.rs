@@ -3,15 +3,12 @@
 //! Tests the complete ffmpeg-next audio processing pipeline to verify
 //! P4.1 success criteria are met.
 
-#![cfg(feature = "safe-ffmpeg")]
 
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 use audiobook_boss_lib::audio::media_pipeline::{MediaProcessingPlan, FfmpegNextProcessor};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-// Test media file path - using the existing test file from the project
-const TEST_MEDIA_FILE: &str = "media/01 - Introduction.mp3";
 
 /// Test that MediaProcessingPlan::execute_with_context works with safe-ffmpeg (no placeholder)
 #[test]

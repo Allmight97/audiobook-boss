@@ -8,8 +8,21 @@ use super::AudiobookMetadata;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
-/// Converts AudiobookMetadata to ffmpeg-next metadata dictionary
-/// Maps our standardized metadata fields to container-appropriate metadata keys
+/// Converts `AudiobookMetadata` into an ffmpeg-next `Dictionary`.
+///
+/// Field mapping strategy:
+/// - Standard textual fields (title, artist, album, composer, genre, comment, description)
+///   map directly to container keys of the same name.
+/// - `artist` is also duplicated to `album_artist` (common audiobook convention).
+/// - `date` is written both as `date` and `year` to maximize player compatibility.
+/// - A constant `media_type = 2` (iTunes audiobook) is always set for m4b targets.
+///
+/// Returns a populated `ffmpeg_next::Dictionary` ready to attach to an output
+/// format context via `set_metadata`.
+///
+/// This function intentionally ignores fields currently unsupported by the
+/// native embedding path (track, disk, cover art) – these are validated via
+/// `validate_metadata_compatibility` beforehand so callers can surface warnings.
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
     let mut dict = ff::Dictionary::new();
     

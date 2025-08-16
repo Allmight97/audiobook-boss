@@ -2,13 +2,13 @@
 
 **Goal**: Eliminate all shell-based FFmpeg code and transition to 100% ffmpeg-next implementation
 
-## Overview of Current State
+## Overview of Current State (POST-TRANSITION)
 
-- **Dual engine system**: Shell-based FFmpeg + ffmpeg-next with feature flags
-- **Feature flags**: `legacy-adapters` (default), `safe-ffmpeg` (optional)
-- **Shell dependencies**: `which` crate, `Command`/`process`, FFmpeg binaries
-- **Complex conditional compilation**: `#[cfg(feature = "...")]` blocks throughout codebase
-- **Working ffmpeg-next implementation**: Already functional with `--features safe-ffmpeg`
+- **Single engine system**: ffmpeg-next only
+- **Feature flags removed**: `legacy-adapters`, `safe-ffmpeg`
+- **Shell dependencies removed**: `which`, direct `Command` spawning, bundled binaries
+- **Conditional compilation purged**: All engine-selection `cfg` blocks removed
+- **Goal achieved**: Clean ffmpeg-next implementation as the sole path
 
 ## Execution Plan - Atomized Steps
 
@@ -38,7 +38,7 @@ cargo build
    - Document current feature behavior for rollback reference
    - Commit current working state as recovery point
 
-### **Phase 2: Cargo.toml Nuclear Changes**
+### **Phase 2: Cargo.toml Nuclear Changes** ✅
 **Commit Point**: `P4.3.1: Nuclear Cargo.toml simplification - make ffmpeg-next mandatory`
 
 2. **Remove Feature Flags & Dependencies**
@@ -97,7 +97,7 @@ cargo build
    - **REMOVE** imports of `crate::ffmpeg::` modules
    - **UPDATE** error handling to remove `FFmpegError` variants
 
-### **Phase 8: Error Handling Simplification**
+### **Phase 8: Error Handling Simplification** ✅
 8. **Update Error Types**
    - **REMOVE** `FFmpegError` import and variants from `errors.rs`
    - **SIMPLIFY** error conversion functions
@@ -105,7 +105,7 @@ cargo build
 
    **Commit Point**: Write concise commit message summarizing what was done push commit.
 
-### **Phase 9: Progress Monitor & Process Management Cleanup**
+### **Phase 9: Progress Monitor & Process Management Cleanup** ✅
 
 9. **Remove Shell Process Code**
    - **DELETE** `progress_monitor.rs` entirely (shell process monitoring)
@@ -115,7 +115,7 @@ cargo build
 
    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
-### **Phase 10: Build System & Integration Cleanup**
+### **Phase 10: Build System & Integration Cleanup** (PARTIAL / FOLLOW-UP)
 
 10. **Final System Cleanup**
     - **REMOVE** FFmpeg setup scripts from `package.json`
@@ -125,7 +125,7 @@ cargo build
 
     **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
-### **Phase 11: Post-Nuclear Debug & Validation**
+### **Phase 11: Post-Nuclear Debug & Validation** ✅ (core engine aspects)
 
 11. **Compilation Error Resolution**
     - **FIX** remaining compilation errors from removed dependencies
@@ -150,7 +150,7 @@ cargo build
 
     **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
-### **Phase 12: Technical Debt Resolution**
+### **Phase 12: Technical Debt Resolution** (IN PROGRESS)
 
 14. **Complete Deferred Features**
     - **IMPLEMENT** native cover art embedding via ffmpeg-next
@@ -167,17 +167,16 @@ cargo build
 3. **Focused Debugging**: Single implementation easier to debug than dual-engine
 4. **No Production Impact**: Solo development environment
 
-## Success Criteria
+## Success Criteria (Updated)
 
-- ✅ `cargo build` compiles successfully
-- ✅ `cargo test` passes completely
-- ✅ Single, clean ffmpeg-next-only codebase
-- ✅ No feature flags or conditional compilation
-- ✅ No shell dependencies (`which`, `Command`, etc.)
-- ✅ No bundled FFmpeg binaries
-- ✅ All metadata and cover art functionality preserved
-- ✅ UI processing creates valid M4B files
-- ✅ Technical debt items resolved
+- ✅ `cargo build` compiles successfully (single engine)
+- ✅ `cargo test` passes for current implemented features
+- ✅ No engine-related feature flags or conditional compilation
+- ✅ No shell dependencies or bundled FFmpeg binaries
+- ⏳ Native cover art embedding via ffmpeg-next (stream insertion) – temporarily disabled pending follow-up
+- ⏳ Twoloop AAC enhancement – logging placeholder only
+- ✅ UI processing produces valid M4B files (core path)
+- ⏳ Remaining technical debt items tracked in roadmap
 ---
 
 **Nuclear Approach Rationale**: The dual-engine complexity is causing more problems than it solves. Better to debug a clean, single-implementation codebase than continue with feature flag spaghetti code.

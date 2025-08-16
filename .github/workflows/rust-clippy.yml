@@ -8,25 +8,20 @@ on:
 
 jobs:
   clippy:
-    name: Clippy (${{ matrix.feature || 'default' }})
+    name: Clippy
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: src-tauri
-    strategy:
-      fail-fast: false
-      matrix:
-        feature: ["", "safe-ffmpeg"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg + Clang dev libraries (feature-on)
-        if: matrix.feature == 'safe-ffmpeg'
+      - name: Install FFmpeg + Clang dev libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config clang libclang-dev \ 
-            libavcodec-dev libavformat-dev libavutil-dev \ 
+          sudo apt-get install -y pkg-config clang libclang-dev \
+            libavcodec-dev libavformat-dev libavutil-dev \
             libavfilter-dev libavdevice-dev libswresample-dev libswscale-dev
 
       - name: Install Rust toolchain
@@ -52,10 +47,5 @@ jobs:
             echo "✅ No disallowed dead_code attributes found"
           fi
 
-      - name: Run Clippy (default)
-        if: matrix.feature == ''
+      - name: Run Clippy
         run: cargo clippy -- -D warnings
-
-      - name: Run Clippy (safe-ffmpeg)
-        if: matrix.feature == 'safe-ffmpeg'
-        run: cargo clippy --features safe-ffmpeg -- -D warnings
