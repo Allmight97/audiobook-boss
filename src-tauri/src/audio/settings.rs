@@ -93,6 +93,44 @@ fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
 }
 
 impl AudioSettings {
+    /// Returns the standard audiobook preset.
+    ///
+    /// Chosen for typical spoken-word balance of size vs quality:
+    /// - 64 kbps mono is common for audiobooks
+    /// - Auto sample rate preserves original where possible
+    ///
+    /// Caller is expected to set a specific `output_path` before validation.
+    pub fn audiobook_preset() -> Self {
+        Self {
+            bitrate: 64,
+            channels: ChannelConfig::Mono,
+            sample_rate: SampleRateConfig::Auto,
+            // Placeholder path; tests overwrite. Keep consistent with Default extension (.m4b)
+            output_path: std::path::PathBuf::from("output.m4b"),
+        }
+    }
+
+    /// Returns a higher quality stereo preset suitable for music-heavy or
+    /// ambience-rich audiobooks. Uses 128 kbps stereo @ 44.1 kHz.
+    pub fn high_quality_preset() -> Self {
+        Self {
+            bitrate: 128,
+            channels: ChannelConfig::Stereo,
+            sample_rate: SampleRateConfig::Explicit(44100),
+            output_path: std::path::PathBuf::from("output.m4b"),
+        }
+    }
+
+    /// Returns a low bandwidth preset for minimal file size / slower networks.
+    /// 32 kbps mono @ 22.05 kHz still preserves intelligibility for speech.
+    pub fn low_bandwidth_preset() -> Self {
+        Self {
+            bitrate: 32,
+            channels: ChannelConfig::Mono,
+            sample_rate: SampleRateConfig::Explicit(22050),
+            output_path: std::path::PathBuf::from("output.m4b"),
+        }
+    }
 }
 
 impl ChannelConfig {
