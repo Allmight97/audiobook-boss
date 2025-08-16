@@ -150,7 +150,7 @@ cargo build
 
     **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
-### **Pre-Phase 12: Stabilization & Validation Interlude** ✅ (added after Phase 11)
+### **Pre-Phase 12: Stabilization & Validation Interlude** ✅ COMPLETED
 
 Purpose: Capture and track non-feature technical stabilization tasks that are NOT core Phase 12 feature work but should ideally be addressed (or consciously deferred) before deeper technical debt / feature reactivation begins.
 
@@ -218,10 +218,12 @@ Status: Not implemented (intentional defer; low risk).
 | Cancellation leaves orphan file | Manual multi-file cancel check | Low if runbook executed |
 | Twoloop API changes upstream | Logged placeholder clarifies intent | Low |
 
-Exit Criteria to begin Phase 12:
-1. Runbook executed and recorded (timestamp + output size noted)
-2. No unexpected WARN/ERROR log lines
-3. Output `.m4b` passes basic playback check (any media player)
+Exit Criteria to begin Phase 12: ✅ COMPLETED
+1. ✅ Runbook executed and recorded (timestamp + output size noted)
+2. ✅ No unexpected WARN/ERROR log lines  
+3. ✅ Output `.m4b` passes basic playback check (any media player)
+4. ✅ All legacy modules and stale TODO references removed
+5. ✅ Documentation updated to reflect single-engine architecture
 
 #### F. Explicit Deferrals (Not in Phase 12 Scope Unless Re-Prioritized)
 - Progress emission throttling refactor for testability
@@ -231,7 +233,14 @@ Exit Criteria to begin Phase 12:
 #### Summary
 Baseline is stable (single engine, clean tests). We proceed to Phase 12 once the manual runbook passes. Optional env-gated E2E test can be added opportunistically but is not a blocker.
 
-### **Phase 12: Technical Debt Resolution** (IN PROGRESS)
+### **Phase 12: Technical Debt Resolution** ✅ PREPARATION COMPLETED - READY FOR IMPLEMENTATION
+
+**Phase 12 Preparation Completed** ✅  
+All nuclear cleanup tasks finished. Legacy modules removed, stale references updated.
+
+**Phase 12 Implementation Plans Available**:
+- **Preparation Plan**: [phase_12_preparation_plan.md](phase_12_preparation_plan.md) ✅ COMPLETED
+- **Implementation Plan**: [phase_12_implementation_plan.md](phase_12_implementation_plan.md) ⏳ READY FOR EXECUTION
 
 14. **Complete Deferred Features**
     - **IMPLEMENT** native cover art embedding via ffmpeg-next

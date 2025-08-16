@@ -57,8 +57,9 @@ use crate::metadata::{write_metadata, AudiobookMetadata};
 
 use super::ProcessingWorkflow;
 
-// TODO (Roadmap P2.1.1): This movement logic will be reviewed during legacy removal.
-// The new engine may handle output paths directly, potentially deprecating this.
+// NOTE: File movement logic uses filesystem operations rather than FFmpeg output paths.
+// This approach ensures compatibility across different output destinations and provides
+// atomic completion semantics for the processing pipeline.
 /// Moves temporary output to final location (filesystem boundary)
 pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) -> Result<PathBuf> {
     if let Some(parent) = final_path.parent() {

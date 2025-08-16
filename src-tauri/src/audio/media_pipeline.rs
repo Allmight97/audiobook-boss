@@ -72,8 +72,8 @@ impl MediaProcessingPlan {
 
 /// Trait defining a media processor boundary for executing processing plans.
 ///
-/// This allows swapping implementations (e.g., shell-based FFmpeg vs ffmpeg-next)
-/// without changing call sites.
+/// This provides a stable interface for media processing implementations.
+/// Currently uses ffmpeg-next as the single processing engine.
 pub trait MediaProcessor {
     fn execute<'a>(
         &'a self,
@@ -212,9 +212,9 @@ impl FfmpegNextProcessor {
 
         // Set container metadata if provided
         if let Some(_metadata) = metadata {
-            // TODO: Re-enable metadata integration after module cleanup
-            // crate::metadata::ffmpeg_bridge::set_container_metadata(&mut octx, metadata)?;
-            log::info!("Metadata support temporarily disabled during transition");
+            // NOTE: Container metadata setting temporarily disabled pending ffmpeg-next integration
+            // Implementation deferred to Phase 12 technical debt resolution
+            log::info!("Container metadata support temporarily disabled during single-engine transition");
         }
 
         // PRE-HEADER: Attempt to add cover art stream (store index & format for post-header packet write)

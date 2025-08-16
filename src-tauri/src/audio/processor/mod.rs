@@ -7,10 +7,10 @@
 //!   - selection.rs : engine selection type aliases (P1.3)
 //!   - mod.rs       : orchestrator and public API re-exports
 //!
-//! Plan Reference: docs/planning/processor_split_plan.md (Task P1.1.1, Phase 5)
+//! Post-nuclear cleanup: processor split and single-engine architecture complete
 //!
-//! Legacy feature flags (`legacy-adapters`, `safe-ffmpeg`) and adapter module were
-//! fully removed; any stray roadmap TODO references to them should now be ignored.
+//! Post-nuclear cleanup: All legacy feature flags and dual-engine complexity removed.
+//! Single ffmpeg-next engine provides simplified, maintainable architecture.
 //!
 //! Status:
 //!   Phase 5 complete: Orchestrator consolidated in mod.rs, calling staged functions:
@@ -21,7 +21,7 @@
 //! Public Surface (current):
 //!   - processor::detect_input_sample_rate
 //!   - processor::process_audiobook_with_context
-//!   - (Former legacy adapter module removed during nuclear cleanup)
+//!   - Single-engine processing with ffmpeg-next only
 //!
 //! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
 
@@ -38,7 +38,7 @@ use crate::metadata::AudiobookMetadata;
 // Submodules
 pub mod execute;
 pub mod finalize;
-// Legacy module fully removed in nuclear cleanup (Phase 4) – no further references
+// Legacy module removed during nuclear cleanup - single-engine architecture achieved
 pub mod prepare;
 pub mod selection;
 
@@ -47,7 +47,7 @@ pub mod selection;
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
 pub use prepare::detect_input_sample_rate;
 
-// Legacy adapter re-exports removed; no longer supported post single-engine transition.
+// Single-engine architecture: only ffmpeg-next processor supported
 
 /// Internal workflow state passed between staged phases of processing.
 ///
@@ -130,7 +130,7 @@ pub async fn process_audiobook_with_context(
 // - Preparation + validation + workflow construction migrated (prepare.rs)
 // - Execution layer extracted (execute.rs) with feature-gated processor selection
 // - Finalization logic migrated (finalize.rs) 
-// Legacy adapters fully removed as part of nuclear cleanup
+// Nuclear cleanup complete: simplified single-engine processing
 // - Orchestrator consolidated in mod.rs calling staged functions
 // Next Steps:
 //   Phase 6+: Compile & lint validation, test verification
