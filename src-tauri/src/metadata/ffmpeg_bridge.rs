@@ -57,20 +57,58 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
 /// Embeds cover art using ffmpeg-next attachment streams
 /// This is the preferred method for embedding cover art during encoding
 pub fn embed_cover_art_ffmpeg(
-    _octx: &mut ff::format::context::Output,
+    octx: &mut ff::format::context::Output,
     cover_data: &[u8],
 ) -> Result<()> {
-    // TODO: Implement cover art embedding via ffmpeg-next
-    // Current implementation is a placeholder - research correct API for:
-    // 1. Creating attachment streams in ffmpeg-next
-    // 2. Setting stream disposition for cover art
-    // 3. Writing cover art packets to output format
-    
-    log::warn!("Cover art embedding via ffmpeg-next not yet implemented");
-    log::info!("Cover art size: {} bytes (will be embedded via finalize stage)", cover_data.len());
-    
-    // For now, return success - cover art will be embedded via lofty in finalize stage
-    // This ensures no regression while we complete the ffmpeg-next integration
+    // No direct AppError usage required at scaffolding stage.
+
+    if cover_data.is_empty() {
+        log::warn!("Cover art data empty; skipping embedding scaffolding");
+        return Ok(());
+    }
+
+    // --- Format Detection (scaffolding) ---
+    #[derive(Debug, Copy, Clone)]
+    enum CoverFormat { Jpeg, Png }
+    let format = if cover_data.len() >= 3 && cover_data[0] == 0xFF && cover_data[1] == 0xD8 && cover_data[2] == 0xFF {
+        Some(CoverFormat::Jpeg)
+    } else if cover_data.len() >= 8 && cover_data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+        Some(CoverFormat::Png)
+    } else {
+        None
+    };
+
+    let Some(format) = format else {
+        log::warn!("Unsupported or unrecognized cover art format (only JPEG/PNG supported in scaffolding); deferring to finalize stage");
+        return Ok(()); // graceful fallback
+    };
+
+    // --- Stream Addition (no packet write yet) ---
+    // We add a placeholder stream with the appropriate codec so that in the
+    // next implementation step we can write a single packet after header.
+    let codec_id = match format { CoverFormat::Jpeg => ff::codec::Id::MJPEG, CoverFormat::Png => ff::codec::Id::PNG };
+    let Some(codec) = ff::encoder::find(codec_id) else {
+        log::warn!("Cover art codec {:?} not found in ffmpeg build; deferring to finalize stage", format);
+        return Ok(());
+    };
+
+    match octx.add_stream(codec) {
+        Ok(stream) => {
+            // NOTE: We are not configuring width/height or writing a packet yet.
+            // Some players may ignore an empty MJPEG/PNG stream; that's acceptable
+            // at this scaffolding stage because Lofty finalize embedding still runs.
+            // We log the index for traceability.
+            let idx = stream.index();
+            log::info!(
+                "Cover art scaffolding: added placeholder stream (index={}, codec={:?}, bytes={})", 
+                idx, format, cover_data.len()
+            );
+        }
+        Err(e) => {
+            log::warn!("Failed to add cover art stream ({}); deferring to finalize stage", e);
+        }
+    }
+
     Ok(())
 }
 
