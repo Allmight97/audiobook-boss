@@ -85,7 +85,7 @@ This roadmap supersedes the L4 Final Implementation Roadmap for the specific goa
   - No performance regression (≤10% encoding time increase)
   - Maintain backward compatibility with existing cover art workflow
   - Address Cargo test errors:
-    - ```
+    - 
     Compiling tauri v2.6.2
    Compiling tauri-plugin-fs v2.4.1
    Compiling tauri-plugin-opener v2.4.0
@@ -112,7 +112,7 @@ error[E0599]: no function or associated item named `low_bandwidth_preset` found 
 For more information about this error, try `rustc --explain E0599`.
 error: could not compile `audiobook-boss` (test "settings_validation_integration") due to 3 previous errors
 warning: build failed, waiting for other jobs to finish...
-```
+
 
 ### **P4.3 Engine Transition and Validation**
 **Goal**: Switch defaults and validate parity with minimal risk
