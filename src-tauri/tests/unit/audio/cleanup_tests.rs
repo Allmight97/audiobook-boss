@@ -6,11 +6,8 @@ use std::process::{Command, Stdio};
 #[test]
 fn test_cleanup_guard_creation() {
     let guard = CleanupGuard::new("test-session".to_string());
-    #[cfg(any(test, feature = "safe-ffmpeg"))]
-    {
-        assert_eq!(guard.session_id(), "test-session");
-        assert_eq!(guard.path_count(), 0);
-    }
+    assert_eq!(guard.session_id(), "test-session");
+    assert_eq!(guard.path_count(), 0);
 }
 
 #[test]
@@ -19,21 +16,17 @@ fn test_cleanup_guard_add_remove_paths() {
     let temp_path = PathBuf::from("/tmp/test");
     
     guard.add_path(&temp_path);
-    #[cfg(any(test, feature = "safe-ffmpeg"))]
-    {
-        assert_eq!(guard.path_count(), 1);
-        
-        let removed = guard.remove_path(&temp_path);
-        assert!(removed);
-        assert_eq!(guard.path_count(), 0);
-        
-        let removed_again = guard.remove_path(&temp_path);
-        assert!(!removed_again);
-    }
+    assert_eq!(guard.path_count(), 1);
+    
+    let removed = guard.remove_path(&temp_path);
+    assert!(removed);
+    assert_eq!(guard.path_count(), 0);
+    
+    let removed_again = guard.remove_path(&temp_path);
+    assert!(!removed_again);
 }
 
 #[test]
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 fn test_cleanup_guard_add_multiple_paths() {
     let mut guard = CleanupGuard::new("test-session".to_string());
     let paths = vec![
@@ -47,7 +40,6 @@ fn test_cleanup_guard_add_multiple_paths() {
 }
 
 #[test]
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 fn test_cleanup_guard_enable_disable() {
     let mut guard = CleanupGuard::new("test-session".to_string());
     

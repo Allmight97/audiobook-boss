@@ -1,65 +1,66 @@
-# Encoder strategy and quality safeguards (pre-production)
-- Default codec/path
-  - Use ffmpeg-next with native AAC (LC), mono, 44.1/48 kHz, ABR/CBR at 80–96 kbps.
-  - Default preset: 96 kbps (speech-safe). Offer alternatives: 80 kbps (“balanced”), 64 kbps (“smaller file”).
-- Optional FDK support
-  - Do not bundle FDK. At runtime, detect if libfdk_aac is available in the system FFmpeg build and expose it as “FDK-AAC (system)”.
-  - Show an info tooltip: “Higher quality at low bitrates. Uses your system’s encoder; not bundled.”
-- Runtime detection (ffmpeg-next)
-  - Enumerate encoders via libavcodec; cache capabilities:
-    - If encoder name contains “libfdk_aac” → mark FDK available.
-    - Always include “aac” (native).
-  - UI: Encoder dropdown with Auto = Native AAC; show “FDK detected” badge if present.
-- Quality parity gate
-  - Build a 10-sample corpus (8 speech, 2 stress music). Include sibilance, breaths, quiet passages, noisy room.
-  - Encode matrix: Native AAC and FDK at 64/80/96 kbps mono.
-  - Acceptance: For speech, native @ 80–96 kbps must be ABX-indistinguishable from FDK on majority of trials; if not, set default to 96 kbps.
-  - Automate as a script + manual ABX checklist (human-in-the-loop).
-- Tuning checks (native AAC)
-  - Force LC profile, mono layout, desired bitrate.
-  - Verify twoloop coder is active (default in modern FFmpeg). Lock sample rate to 44.1 or 48 kHz.
-  - Consistent downmix to mono before encode.
+# Enhancing Audio Quality with ffmpeg-next Native AAC Encoder
 
-# Roadmap integration (add to P1/P2)
-- P1.x: Encoder selection seam
-  - Create Encoder trait and two implementations: NativeAacEncoder, FdkAacEncoder.
-  - Add runtime encoder registry + selection logic (env override for tests).
-  - Unit test: registry detects available encoders; falls back to native.
-- P2.3: Parity tests
-  - Implement corpus-driven encode harness and comparison:
-    - Objective checks: duration match, RMS level drift < 0.5 dB, no channel/layout drift.
-    - Store encodes; provide ABX instructions output (links to files).
-  - CI job runs objective checks; ABX is documented/manual sign-off before engine flip.
-- P2.1: Remove ShellFFmpeg
-  - Delete shell path; ensure ffmpeg-next handles both encoders behind feature/registry.
-  - Packaging: confirm no external FFmpeg binary bundled on platforms where policy forbids it.
+ffmpeg-next uses FFmpeg's native AAC encoder by default, which has been stable and production-ready since 2015, with ongoing improvements in recent versions like FFmpeg 7.1 (e.g., better handling of low-bitrate scenarios). At 64kbps for M4B audiobooks (speech-focused content), you can achieve good quality by enabling the advanced 'twoloop' coding method, using variable bitrate (VBR) mode, and optimizing for mono audio.[1][2][3]
 
-# Legal/packaging guardrails
-- Do not link or ship libfdk_aac.
-- Add docs page: “Why FDK isn’t bundled; how to enable via system FFmpeg.”
-- On first toggle of FDK in UI, show informational notice: “Uses system-provided encoder. Licensing is your responsibility.”
+## Recommended Settings for 64kbps M4B
 
-# User-facing presets
-- Presets:
-  - Max quality (default): 96 kbps, LC, mono.
-  - Balanced: 80 kbps, LC, mono.
-  - Smaller file: 64 kbps, LC, mono.
-- Advanced option (when detected): Encoder = Native AAC (default) or FDK-AAC (system).
+- **Use Twoloop Coder**: This is the highest-quality mode for the native encoder, improving quantization and reducing artifacts at low bitrates.[4]
+- **Variable Bitrate (VBR)**: Target an average of 64kbps with VBR for better efficiency than constant bitrate (CBR).[4]
+- **Mono Channel Layout**: For audiobooks, downmix to mono to allocate all bits to a single channel, effectively doubling perceived quality.[5]
+- **Other Optimizations**: Set a cutoff frequency (e.g., 16kHz) to focus bits on speech ranges, and consider de-essing filters for sibilance.[5]
 
-# Minimal code tasks (bite-sized)
-- Add encoder registry (Rust): enumerate encoders; expose is_fdk_available().
-- Implement NativeAacEncoder using ffmpeg-next; lock LC/mono/bitrate.
-- Implement FdkAacEncoder guarded by runtime availability.
-- UI: Add Encoder dropdown + Presets.
-- Add encode harness script for corpus.
-- Write docs: encoder selection, licensing note, how to install FDK-enabled FFmpeg.
+These settings produce transparent quality for speech at ~64kbps while keeping files small.[2][5]
 
-# Exit criteria to ship
-- Native AAC passes ABX gate for speech at 96 kbps on corpus; defaults set accordingly.
-- Shell path removed; ffmpeg-next path stable.
-- Runtime FDK detection works; UI toggle appears only when available.
-- Docs updated with legal note and user guidance.
+### Rust Code Example with ffmpeg-next
 
-If you want, I can draft:
-- The Encoder trait + registry skeleton (Rust).
-- The corpus harness script and the ABX checklist template.
+In your encoder setup, configure the AAC codec context like this:
+
+```rust
+use ffmpeg_next::{codec::{Context, Id}, format, Dictionary, Rational};
+
+// Assuming you have an output context and audio stream
+let mut encoder = Context::new(Id::AAC, &mut stream, octx.format(), None).unwrap(); // Create AAC encoder
+
+// Set quality-focused options
+let mut opts = Dictionary::new();
+opts.set("aac_coder", "twoloop");  // Enable twoloop for best quality
+opts.set("q", "5");                // VBR quality scale (1-5; 5 is highest, targets ~64kbps for mono speech)
+encoder.apply_codec_options(&opts).unwrap();
+
+// Additional audio settings for 64kbps target
+encoder.set_bit_rate(64000);       // Average target (adjust for VBR)
+encoder.set_channel_layout(ffmpeg_next::channel_layout::MONO); // Mono for audiobooks
+encoder.set_sample_rate(44100);    // Common rate
+encoder.set_sample_format(ffmpeg_next::format::Sample::F32(format::sample::Type::Planar)); // Or match input
+encoder.set_time_base(Rational::new(1, 44100));
+
+// Optional: Cutoff for low-bitrate efficiency
+encoder.set_cutoff(16000);         // Focus on speech frequencies
+
+// Open encoder and proceed with encoding frames
+encoder.open_with(opts).unwrap();
+```
+
+- **Output Command Analogy**: This is equivalent to FFmpeg CLI: `ffmpeg -i input.wav -c:a aac -aac_coder twoloop -q:a 5 -ac 1 -ar 44100 -cutoff 16000 -b:a 64k output.m4b`.[5]
+- **Why Twoloop?**: It dynamically optimizes quantizers for better sound, outperforming the default 'fast' coder at low bitrates.[4]
+
+## Additional Tips
+
+- **Test and Tune**: At 64kbps, listen for artifacts in speech; adjust 'q' (VBR quality) or add filters like `-af "adeclick"` for cleanup.[5]
+- **Performance**: Native AAC is efficient but may be slower than external encoders; benchmark against your shell version.[6]
+- **Fallback**: If quality isn't sufficient, consider Opus (better for low-bitrate speech) but ensure M4B compatibility as discussed previously.[2]
+
+# References
+For full details, check [ffmpeg.org/ffmpeg-codecs.html](https://ffmpeg.org/ffmpeg-codecs.html) (AAC section) and [docs.rs/ffmpeg-next](https://docs.rs/ffmpeg-next) for Rust bindings.[7][4]
+
+[1] https://ffmpeg.org
+[2] https://trac.ffmpeg.org/wiki/Encode/AAC
+[3] https://linuxiac.com/ffmpeg-7-1-promises-major-improvements-in-video-processing/
+[4] https://manpages.ubuntu.com/manpages/focal/man1/ffmpeg-codecs.1.html
+[5] https://www.reddit.com/r/audiobooks/comments/yeh2ls/audiobook_conversion_from_mp3_aac_m4b/
+[6] https://www.mux.com/articles/change-video-bitrate-with-ffmpeg
+[7] https://docs.rs/ffmpeg-next
+[8] https://github.com/ffmpegwasm/ffmpeg.wasm/issues/61
+[9] https://linuxiac.com/ffmpeg-introduces-native-xhe-aac-decoder/
+[10] https://hydrogenaudio.org/index.php/topic,120741.0.html
+[11] https://www.reddit.com/r/ffmpeg/comments/1fsljnp/low_bitrate_high_quality/

@@ -1,8 +1,6 @@
 //! FFmpeg-next test module
 //! 
-//! Tests for FFmpeg-next functionality when the safe-ffmpeg feature is enabled.
-
-#![cfg(feature = "safe-ffmpeg")]
+//! Tests for FFmpeg-next functionality.
 
 use std::path::PathBuf;
 use tempfile::TempDir;

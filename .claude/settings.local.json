@@ -22,7 +22,14 @@
       "Bash(RUST_LOG=debug cargo run --bin audiobook-boss)",
       "Bash(tokei:*)",
       "Bash(cargo build:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(rm:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "mcp__context-7__get-library-docs",
+      "WebSearch",
+      "Bash(cargo doc:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

@@ -247,25 +247,19 @@ fn test_media_processing_plan_construction() {
         1.0, // 1 second duration
     );
     
-    // Test command building
-    let cmd = plan.build_ffmpeg_command();
-    assert!(cmd.is_ok(), "Plan should build valid FFmpeg command");
+    // Test plan creation and validation
+    // Note: build_ffmpeg_command removed in Phase 11 cleanup - behavior now validated via end-to-end processing
     
-    // The command should contain our settings
-    let cmd = cmd.expect("command should build successfully");
-    let cmd_str = format!("{:?}", cmd);
-    
-    // Check for bitrate setting
-    assert!(cmd_str.contains("64k") || cmd_str.contains("-b:a"), 
-            "Command should contain bitrate setting");
+    // Verify the plan contains our settings
+    assert_eq!(plan.settings.bitrate, 64, "Plan should contain correct bitrate setting");
     
     // Check for sample rate setting  
-    assert!(cmd_str.contains("22050") || cmd_str.contains("-ar"),
-            "Command should contain sample rate setting");
+    assert!(matches!(plan.settings.sample_rate, audiobook_boss_lib::audio::SampleRateConfig::Explicit(22050)),
+            "Plan should contain sample rate setting");
     
     // Check for channel setting
-    assert!(cmd_str.contains("-ac") || cmd_str.contains("1"),
-            "Command should contain channel setting");
+    assert!(matches!(plan.settings.channels, audiobook_boss_lib::audio::ChannelConfig::Mono),
+            "Plan should contain channel setting");
 }
 
 /// Integration test that verifies settings are applied correctly by the processor
@@ -319,9 +313,9 @@ fn test_settings_application_integration() {
             1.0,
         );
         
-        // Verify command can be built
-        let cmd = plan.build_ffmpeg_command();
-        assert!(cmd.is_ok(), "Test case {i} should build valid command");
+        // Verify plan can be created
+        // Note: build_ffmpeg_command removed in Phase 11 cleanup
+        assert!(plan.settings.bitrate > 0, "Test case {i} should have valid bitrate");
         
         // In a full integration test, we would:
         // 1. Create mock ProcessingContext
