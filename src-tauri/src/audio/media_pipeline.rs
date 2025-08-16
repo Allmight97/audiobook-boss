@@ -55,25 +55,9 @@ impl MediaProcessingPlan {
         files.iter().filter_map(|f| f.duration).sum()
     }
 
-    /// Test helper: builds a synthetic command representation for test inspection
-    ///
-    /// The integration tests inspect the command string for bitrate / sample rate / channel
-    /// flags. To keep those tests working, we construct a dummy Command struct echoing the
-    /// equivalent arguments for introspection only. This is NOT executed.
-    pub fn build_ffmpeg_command(&self) -> Result<std::process::Command> {
-        use std::process::Command;
-        let mut cmd = Command::new("ffmpeg-simulated");
-        // Simulate relevant args for tests
-        cmd.arg("-b:a").arg(format!("{}k", self.settings.bitrate));
-        let sample_rate = match self.settings.sample_rate {
-            SampleRateConfig::Explicit(r) => r.to_string(),
-            SampleRateConfig::Auto => "auto".to_string(),
-        };
-        cmd.arg("-ar").arg(sample_rate);
-        cmd.arg("-ac").arg(self.settings.channels.channel_count().to_string());
-        Ok(cmd)
-    }
-
+    // Legacy test helper build_ffmpeg_command removed (Phase 11 cleanup):
+    // Integration tests no longer inspect synthetic command strings; behavior
+    // is validated via end-to-end processing and sample rate detection tests.
 
     /// Executes the processing plan with context-based progress tracking
     pub async fn execute_with_context(
@@ -639,9 +623,8 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Finalize encoding
             Self::finalize_encoding(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
 
-            // Preserve output on success
-            // TODO: Re-enable after feature gate cleanup is complete
-            // let _ = cleanup_guard.remove_path(&plan.output_path);
+            // Preserve output on success (Phase 11: re-enabled after legacy purge)
+            let _ = cleanup_guard.remove_path(&plan.output_path);
 
             if let Some(_metadata) = metadata {
                 log::info!("Audio processing completed with metadata integration");

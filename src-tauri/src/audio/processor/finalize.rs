@@ -15,8 +15,6 @@
 //!   - move_to_final_location
 //!   - cleanup_temp_directory_with_session
 //!
-//! Additionally, Phase 4 will relocate deprecated adapter helpers that
-//! delegate to these functions into `legacy.rs` (e.g. old cleanup wrapper).
 //!
 //! Design Notes:
 //!   - All filesystem side-effects (rename/move + cleanup) centralized here
@@ -39,9 +37,8 @@
 //!      fully qualified paths sparingly to keep readability.
 //!   5. Run incremental compilation (Phase 6) after each move if desired.
 //!
-//! Roadmap TODOs:
-//!   - Deprecated adapters referencing these functions will receive a
-//!     file‑level TODO in `legacy.rs` for gating/removal (Roadmap P2.1.1).
+//! Legacy adapters referencing finalize helpers were removed during nuclear
+//! cleanup; no further gating required.
 //!
 //! Phase: 3 (Finalize Stage Extraction) - metadata writing, cleanup, and file movement
 //!

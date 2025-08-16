@@ -9,14 +9,10 @@
 //!   - Perform cancellation checks post-execution
 //!   - Provide context-based (window/session) execution path
 //!
-//! Feature Flags:
-//!   - `safe-ffmpeg`: uses ffmpeg-next via `FfmpegNextProcessor`
-//!   - otherwise: falls back to shell-based `ShellFFmpegProcessor`
-//!   
-//! Engine Selection:
-//!   Engine selection is now centralized via the `selection` module's `DefaultProcessor`
-//!   type alias. This provides a clean abstraction that prepares for the eventual
-//!   engine flip while maintaining current feature flag behavior.
+//! Engine Selection (Post-Nuclear Phase 11):
+//!   All feature flags and shell fallbacks were removed. The only implementation is
+//!   `FfmpegNextProcessor` accessed through `selection::create_default_processor()`.
+//!   Remaining abstraction is intentionally minimal for future enhancements.
 //!
 //! Function Size Compliance:
 //!   All functions <60 LOC. A logging helper can be introduced later if

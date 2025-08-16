@@ -9,6 +9,9 @@
 //!
 //! Plan Reference: docs/planning/processor_split_plan.md (Task P1.1.1, Phase 5)
 //!
+//! Legacy feature flags (`legacy-adapters`, `safe-ffmpeg`) and adapter module were
+//! fully removed; any stray roadmap TODO references to them should now be ignored.
+//!
 //! Status:
 //!   Phase 5 complete: Orchestrator consolidated in mod.rs, calling staged functions:
 //!   - prepare::validate_and_prepare
@@ -35,7 +38,7 @@ use crate::metadata::AudiobookMetadata;
 // Submodules
 pub mod execute;
 pub mod finalize;
-// (Legacy module removed during nuclear cleanup)
+// Legacy module fully removed in nuclear cleanup (Phase 4) – no further references
 pub mod prepare;
 pub mod selection;
 
@@ -127,11 +130,10 @@ pub async fn process_audiobook_with_context(
 // - Preparation + validation + workflow construction migrated (prepare.rs)
 // - Execution layer extracted (execute.rs) with feature-gated processor selection
 // - Finalization logic migrated (finalize.rs) 
-// - Legacy adapters fully removed (legacy.rs deleted) as part of nuclear cleanup
+// Legacy adapters fully removed as part of nuclear cleanup
 // - Orchestrator consolidated in mod.rs calling staged functions
 // Next Steps:
 //   Phase 6+: Compile & lint validation, test verification
 // Next Steps:
 //   Phase 2+: Refine execution module & ensure function size limits remain enforced
-//   Phase 4: Move deprecated adapters into legacy.rs with TODO gating
 //   Phase 5: Centralize re-exports here (including deprecated) and finalize public surface

@@ -17,18 +17,16 @@
 
 use crate::audio::media_pipeline::FfmpegNextProcessor;
 
-/// The default media processor implementation - now simplified to single engine.
+/// The default media processor implementation (single-engine state).
 ///
-/// This type alias provides a clean, centralized way to access the single
-/// FFmpeg engine after the nuclear transition.
+/// Retained as a type alias so future experimental engines (e.g., hardware
+/// accelerated or alternative codecs) can slot in with minimal churn.
 pub type DefaultProcessor = FfmpegNextProcessor;
 
 /// Returns a description of the currently selected engine for logging and diagnostics.
 ///
 /// After the nuclear transition, this always returns the same engine description.
-pub fn get_engine_description() -> &'static str {
-    "FfmpegNextProcessor (nuclear transition complete)"
-}
+pub fn get_engine_description() -> &'static str { "FfmpegNextProcessor (single-engine)" }
 
 /// Creates an instance of the default media processor.
 ///
