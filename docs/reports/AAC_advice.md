@@ -50,17 +50,40 @@ encoder.open_with(opts).unwrap();
 - **Performance**: Native AAC is efficient but may be slower than external encoders; benchmark against your shell version.[6]
 - **Fallback**: If quality isn't sufficient, consider Opus (better for low-bitrate speech) but ensure M4B compatibility as discussed previously.[2]
 
-# References
-For full details, check [ffmpeg.org/ffmpeg-codecs.html](https://ffmpeg.org/ffmpeg-codecs.html) (AAC section) and [docs.rs/ffmpeg-next](https://docs.rs/ffmpeg-next) for Rust bindings.[7][4]
+Yes—combining **twoloop** with **VBR** (variable bitrate) is the most recent and recommended approach for maximizing quality with FFmpeg's native AAC encoder at low bitrates like 64kbps for audiobooks. Twoloop alone improves quantization and reduces artifacts, but pairing it with VBR allows the encoder to dynamically allocate bits (higher for complex speech, lower for silence), achieving better perceived quality and efficiency than CBR (constant bitrate) without exceeding your average target.[1][2][3][4]
 
-[1] https://ffmpeg.org
-[2] https://trac.ffmpeg.org/wiki/Encode/AAC
-[3] https://linuxiac.com/ffmpeg-7-1-promises-major-improvements-in-video-processing/
-[4] https://manpages.ubuntu.com/manpages/focal/man1/ffmpeg-codecs.1.html
-[5] https://www.reddit.com/r/audiobooks/comments/yeh2ls/audiobook_conversion_from_mp3_aac_m4b/
-[6] https://www.mux.com/articles/change-video-bitrate-with-ffmpeg
-[7] https://docs.rs/ffmpeg-next
-[8] https://github.com/ffmpegwasm/ffmpeg.wasm/issues/61
-[9] https://linuxiac.com/ffmpeg-introduces-native-xhe-aac-decoder/
-[10] https://hydrogenaudio.org/index.php/topic,120741.0.html
-[11] https://www.reddit.com/r/ffmpeg/comments/1fsljnp/low_bitrate_high_quality/
+This has been standard since FFmpeg 3.x improvements, with no major changes in 2025 versions.[3][4]
+
+## Why VBR + Twoloop?
+- **Quality Gains**: VBR targets an average bitrate while optimizing for transparency; at 64kbps, it often sounds better than CBR by focusing bits where needed (e.g., dialogue vs. pauses in audiobooks).[2][1]
+- **Efficiency for Speech**: Audiobooks benefit from VBR's flexibility, avoiding waste on simple audio.[5][1]
+- **No Drawbacks**: It's lightweight to implement and doesn't increase encoding time significantly.[4]
+
+## Implementation in ffmpeg-next
+
+In your Rust code, set twoloop as the coder and use VBR via the quality scale (`q` option, 1-5; aim for 4-5 to hit ~64kbps average for mono speech).[1][4]
+
+```rust
+use ffmpeg_next::{codec::{Context, Id}, Dictionary};
+
+// In your encoder setup
+let mut encoder = Context::new(Id::AAC, &mut stream, octx.format(), None).unwrap();
+
+let mut opts = Dictionary::new();
+opts.set("aac_coder", "twoloop");  // Highest quality coder
+opts.set("q", "4");                // VBR quality (4-5 targets ~64kbps average for mono; test and adjust)
+encoder.apply_codec_options(&opts).unwrap();
+
+// Other settings (as before)
+encoder.set_bit_rate(64000);       // Guide for average; VBR will vary around this
+encoder.set_channel_layout(ffmpeg_next::channel_layout::MONO); // Mono for audiobooks
+encoder.set_sample_rate(44100);
+encoder.set_cutoff(16000);         // Optional: Focus on speech frequencies
+
+encoder.open_with(opts).unwrap();
+```
+
+- **Equivalent CLI**: `ffmpeg -i input.wav -c:a aac -aac_coder twoloop -q:a 4 -ac 1 -ar 44100 -cutoff 16000 output.m4b` (average ~64kbps).[4][1]
+- **Tuning Tip**: Test with real audiobook samples; if files exceed 64kbps average, lower 'q' to 3. For stricter control, fall back to CBR with `-b:a 64k` but keep twoloop.[1][4]
+
+This setup should give you "fine" quality for your MVP without Opus, as you noted.
