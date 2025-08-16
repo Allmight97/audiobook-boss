@@ -16,6 +16,10 @@ pub use metadata::ffmpeg_bridge::{
     validate_metadata_compatibility as ffmpeg_validate_metadata_compatibility,
     CoverFormat as FfmpegCoverFormat,
 };
+pub use metadata::writer::{
+    write_cover_art as lofty_write_cover_art,
+    write_metadata as lofty_write_metadata,
+};
 pub mod audio;
 
 #[cfg(test)]

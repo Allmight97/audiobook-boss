@@ -6,7 +6,7 @@ use lofty::file::AudioFile;
 use lofty::prelude::{Accessor, ItemKey, TagExt, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::picture::{Picture, PictureType, MimeType};
-use lofty::tag::{Tag, TagItem, ItemValue};
+use lofty::tag::{Tag, TagItem, ItemValue, TagType};
 use std::path::Path;
 
 /// Writes metadata to an existing M4B file
@@ -22,13 +22,21 @@ pub fn write_metadata<P: AsRef<Path>>(
         ));
     }
     
-    let mut tagged_file = Probe::open(path)?
-        .read()?;
-    
-    let tag = tagged_file.primary_tag_mut()
-        .ok_or_else(|| AppError::Metadata(
-            lofty::error::LoftyError::new(lofty::error::ErrorKind::UnknownFormat)
-        ))?;
+    let mut tagged_file = Probe::open(path)?.read()?;
+
+    // Ensure a primary tag exists – some freshly muxed MP4/M4B files may have
+    // no tag atoms yet, in which case Lofty returns None. We create an MP4 iTunes
+    // list (MP4ILST) tag so metadata writing does not abort the finalize stage
+    // leaving the temp output un‑moved.
+    if tagged_file.primary_tag().is_none() {
+    log::debug!("No primary tag present – creating new Mp4Ilst tag");
+    tagged_file.insert_tag(Tag::new(TagType::Mp4Ilst));
+    }
+    let tag = tagged_file.primary_tag_mut().ok_or_else(|| {
+        AppError::Metadata(lofty::error::LoftyError::new(
+            lofty::error::ErrorKind::UnknownFormat,
+        ))
+    })?;
     
     update_tag_data(tag, metadata)?;
     tagged_file.save_to_path(path, Default::default())?;

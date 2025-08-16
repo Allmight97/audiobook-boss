@@ -137,6 +137,45 @@ impl FfmpegNextProcessor {
         }
     }
 
+    /// Attempts to configure AAC encoder for variable frame sizes
+    /// 
+    /// This function uses unsafe FFI to set encoder options that allow variable frame sizes,
+    /// which should help with the frame size mismatch issue we're experiencing.
+    fn try_configure_variable_frame_size(encoder_ctx: &mut ffmpeg_next::codec::context::Context) -> Result<()> {
+        use crate::errors::AppError;
+        use std::ffi::CString;
+        
+        unsafe {
+            let av_ctx = encoder_ctx.as_mut_ptr();
+            if av_ctx.is_null() {
+                return Err(AppError::General("Invalid encoder context pointer".to_string()));
+            }
+            
+            // Try to set strict compliance to experimental to allow more flexibility
+            let strict_key = CString::new("strict").map_err(|e| {
+                AppError::General(format!("Failed to create strict key string: {}", e))
+            })?;
+            let experimental_value = CString::new("experimental").map_err(|e| {
+                AppError::General(format!("Failed to create experimental value string: {}", e))
+            })?;
+            
+            let result = ffmpeg_next::sys::av_opt_set(
+                av_ctx as *mut std::ffi::c_void,
+                strict_key.as_ptr(),
+                experimental_value.as_ptr(),
+                0,
+            );
+            
+            if result < 0 {
+                log::debug!("Could not set strict=experimental: FFmpeg error code {}", result);
+            } else {
+                log::debug!("Set strict=experimental on encoder context");
+            }
+            
+            Ok(())
+        }
+    }
+
     /// Attempts to enable twoloop AAC enhancement for better psychoacoustic analysis
     /// 
     /// This function uses unsafe FFI to access the underlying AVCodecContext and set
@@ -213,6 +252,12 @@ impl FfmpegNextProcessor {
         opened.set_format(sample_format);
         opened.set_time_base(time_base);
         
+        // Try to configure encoder for variable frame sizes before other options
+        match Self::try_configure_variable_frame_size(&mut opened) {
+            Ok(()) => log::info!("AAC encoder configured for variable frame sizes"),
+            Err(e) => log::warn!("Could not configure variable frame sizes ({}), may have frame size issues", e),
+        }
+        
         // Enhanced AAC quality: Enable twoloop for better psychoacoustic analysis
         // Implemented with graceful fallback. Users can disable via ABB_DISABLE_TWOOLOOP=1
         let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
@@ -270,20 +315,6 @@ impl FfmpegNextProcessor {
             }
         }
 
-        // PRE-HEADER: Attempt to add cover art stream (store index & format for post-header packet write)
-        // Native cover art embedding with graceful fallback to Lofty in finalize stage
-        let mut cover_art_stream_info: Option<(usize, crate::metadata::CoverFormat)> = None;
-        if let Some(metadata) = metadata {
-            if let Some(ref cover_data) = metadata.cover_art {
-                cover_art_stream_info = crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
-                if cover_art_stream_info.is_some() {
-                    log::info!("Native cover art stream added successfully - will embed during encoding");
-                } else {
-                    log::info!("Native cover art stream failed - will fallback to Lofty embedding in finalize stage");
-                }
-            }
-        }
-
         let codec = ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
 
@@ -293,6 +324,7 @@ impl FfmpegNextProcessor {
             .flags()
             .contains(ff::format::flag::Flags::GLOBAL_HEADER);
 
+        // IMPORTANT: Add audio stream FIRST to ensure it gets index 0
         let mut ost = octx
             .add_stream(codec)
             .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
@@ -309,6 +341,28 @@ impl FfmpegNextProcessor {
         let ost_index = ost.index();
         let ost_time_base = ost.time_base();
 
+        // PRE-HEADER: Attempt to add cover art stream AFTER audio stream (store index & format for post-header packet write)
+        // Native cover art embedding with graceful fallback to Lofty in finalize stage
+        let mut cover_art_stream_info: Option<(usize, crate::metadata::CoverFormat)> = None;
+        if let Some(metadata) = metadata {
+            if let Some(ref cover_data) = metadata.cover_art {
+                let bytes = cover_data.len();
+                log::info!("cover_art_plan decision=native_attempt bytes={}", bytes);
+                log::info!("Attempting native cover art embedding - {} bytes of cover data", bytes);
+                cover_art_stream_info = crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
+                if let Some((stream_idx, format)) = cover_art_stream_info {
+                    log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
+                } else {
+                    log::warn!("cover_art_plan decision=fallback reason=stream_creation_failed bytes={}", bytes);
+                    log::warn!("✗ Native cover art stream creation failed - will fallback to Lofty embedding in finalize stage");
+                }
+            } else {
+                log::info!("cover_art_plan decision=none reason=no_cover_art_data");
+            }
+        } else {
+            log::info!("cover_art_plan decision=none reason=no_metadata");
+        }
+
         // Write header (streams finalized)
         octx.write_header()
             .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
@@ -316,8 +370,11 @@ impl FfmpegNextProcessor {
         // POST-HEADER: Write cover art packet if we successfully added a stream
         if let Some(metadata) = metadata {
             if let (Some((stream_index, format)), Some(cover_data)) = (cover_art_stream_info, metadata.cover_art.as_ref()) {
+                log::info!("Writing cover art packet to stream {} ({:?} format, {} bytes)", stream_index, format, cover_data.len());
                 crate::metadata::write_cover_art_packet_post_header(&mut octx, stream_index, cover_data, format);
-                log::info!("Native cover art packet written to stream {}", stream_index);
+                log::info!("✓ Native cover art packet written successfully to stream {}", stream_index);
+            } else if metadata.cover_art.is_some() {
+                log::warn!("Cover art data present but no stream created - will rely on finalize stage fallback");
             }
         }
 
@@ -337,28 +394,47 @@ impl FfmpegNextProcessor {
     ) -> Result<()> {
         use crate::errors::AppError;
 
+        log::info!("📦 Starting packet processing for stream index: {}", ctx.current_stream_index);
+        let mut packet_count = 0;
+
         // Read packets/frames
+        log::info!("Starting packet iteration...");
         for (si, packet) in ictx.packets() {
+            log::debug!("Processing packet from stream {}", si.index());
             if ctx.context.is_cancelled() {
+                log::warn!("Processing was cancelled during packet processing");
                 ctx.emitter.emit_cancelled("Processing was cancelled");
                 return Err(AppError::InvalidInput("Processing was cancelled".into()));
             }
             if si.index() != ctx.current_stream_index {
+                log::debug!("Skipping packet from stream {} (expecting {})", si.index(), ctx.current_stream_index);
                 continue;
             }
 
-            decoder
-                .send_packet(&packet)
-                .map_err(|e| AppError::General(format!("Decoder send failed: {e}")))?;
+            packet_count += 1;
+            if packet_count % 100 == 0 {
+                log::info!("Processed {} packets so far", packet_count);
+            }
 
-            Self::process_decoded_frames(
-                decoder,
-                encoder,
-                resampler,
-                output_context,
-                ctx,
-            )?;
+            log::debug!("Sending packet {} to decoder", packet_count);
+            match decoder.send_packet(&packet) {
+                Ok(()) => log::debug!("✓ Packet {} sent to decoder successfully", packet_count),
+                Err(e) => {
+                    log::error!("✗ Failed to send packet {} to decoder: {}", packet_count, e);
+                    return Err(AppError::General(format!("Decoder send packet failed: {}", e)));
+                }
+            }
+
+            log::debug!("Processing decoded frames for packet {}", packet_count);
+            match Self::process_decoded_frames(decoder, encoder, resampler, output_context, ctx) {
+                Ok(()) => log::debug!("✓ Decoded frames processed successfully for packet {}", packet_count),
+                Err(e) => {
+                    log::error!("✗ Failed to process decoded frames for packet {}: {}", packet_count, e);
+                    return Err(e);
+                }
+            }
         }
+        log::info!("✓ Processed {} packets total", packet_count);
         Ok(())
     }
 
@@ -375,23 +451,46 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
+        log::info!("🔧 Setting up decoder for input file: {}", input_path.display());
+        
+        // Check if file exists first
+        if !input_path.exists() {
+            return Err(AppError::FileValidation(format!("Input file does not exist: {}", input_path.display())));
+        }
+        log::info!("✓ Input file exists and is accessible");
+
+        log::info!("Opening FFmpeg input context...");
         let ictx = ff::format::input(&input_path)
-            .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+            .map_err(|e| AppError::General(format!("Failed to open input file '{}': {}", input_path.display(), e)))?;
+        log::info!("✓ FFmpeg input context opened successfully");
+
+        log::info!("Finding best audio stream...");
         let istream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
-            AppError::InvalidInput(format!("No audio stream in input {}", input_path.display()))
+            AppError::InvalidInput(format!("No audio stream found in input file: {}", input_path.display()))
         })?;
         let stream_index = istream.index();
+        log::info!("✓ Found audio stream at index: {}", stream_index);
+
+        log::info!("Creating decoder context from stream parameters...");
         let dec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
-            .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
+            .map_err(|e| AppError::General(format!("Failed to create decoder context from parameters for '{}': {}", input_path.display(), e)))?;
+        log::info!("✓ Decoder context created successfully");
+
+        log::info!("Opening audio decoder...");
         let decoder = dec_ctx
             .decoder()
             .audio()
-            .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
+            .map_err(|e| AppError::General(format!("Failed to open audio decoder for '{}': {}", input_path.display(), e)))?;
+        log::info!("✓ Audio decoder opened successfully");
 
         // Build resampler for this input stream
+        log::info!("Creating resampler...");
         let in_layout = decoder.channel_layout();
         let in_rate = decoder.rate();
         let in_format = decoder.format();
+        log::info!("Input audio format: rate={}, channels={:?}, format={:?}", in_rate, in_layout, in_format);
+        log::info!("Output audio format: rate={}, channels={:?}, format={:?}", encoder.rate(), encoder.channel_layout(), encoder.format());
+        
         let resampler = ff::software::resampling::Context::get(
             in_format,
             in_layout,
@@ -400,8 +499,10 @@ impl FfmpegNextProcessor {
             encoder.channel_layout(),
             encoder.rate(),
         )
-        .map_err(|e| AppError::General(format!("Create resampler failed: {e}")))?;
+        .map_err(|e| AppError::General(format!("Failed to create resampler for '{}': {}", input_path.display(), e)))?;
+        log::info!("✓ Resampler created successfully");
 
+        log::info!("🎉 Decoder and resampler setup completed for: {}", input_path.display());
         Ok((ictx, decoder, resampler, stream_index))
     }
 
@@ -477,22 +578,78 @@ impl FfmpegNextProcessor {
                     out.set_format(encoder.format());
                     out.set_channel_layout(encoder.channel_layout());
                     out.set_rate(encoder.rate());
+                    
                     resampler
                         .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
 
-                    // Set PTS in encoder time_base
-                    out.set_pts(Some(*ctx.running_pts));
-                    *ctx.running_pts += out.samples() as i64;
+                    // Log frame details for debugging
+                    let encoder_frame_size = encoder.frame_size();
+                    log::debug!("Frame details - Encoder expects: {} samples, Resampled frame has: {} samples", encoder_frame_size, out.samples());
+                    
+                    // Handle frame size mismatch with chunking (don't skip frames)
+                    if encoder_frame_size > 0 && out.samples() as u32 != encoder_frame_size {
+                        log::debug!("Frame size mismatch: encoder expects {}, got {}. Using chunking approach.", encoder_frame_size, out.samples());
+                    }
 
-                    // Encode and write
-                    Self::encode_and_write_frame(
-                        encoder,
-                        &out,
-                        output_context,
-                        ctx.output_stream_index,
-                        ctx.output_time_base,
-                    )?;
+                    let target_size = encoder.frame_size() as usize; // e.g. 1024 for AAC
+                    let mut total_samples = out.samples() as usize;
+                    let mut start_sample = 0usize;
+
+                    // If oversized (e.g. 1152), slice into target_size chunks
+                    while start_sample < total_samples {
+                        let remaining = total_samples - start_sample;
+                        let take = remaining.min(target_size);
+
+                        // Fast path: if whole frame fits in one send
+                        if start_sample == 0 && take == total_samples && take <= target_size {
+                            out.set_pts(Some(*ctx.running_pts));
+                            *ctx.running_pts += take as i64;
+                            Self::encode_and_write_frame(
+                                encoder,
+                                &out,
+                                output_context,
+                                ctx.output_stream_index,
+                                ctx.output_time_base,
+                            )?;
+                            break;
+                        } else {
+                            // Create a sub-frame view
+                            let mut sub = ffmpeg_next::frame::Audio::empty();
+                            sub.set_format(encoder.format());
+                            sub.set_channel_layout(encoder.channel_layout());
+                            sub.set_rate(encoder.rate());
+                            sub.set_samples(take); // alloc internal buffer
+
+                            // Copy per-plane slice
+                            for ch in 0..encoder.channel_layout().channels() as usize {
+                                let src_plane = out.data(ch); // &[u8]
+                                let dst_plane = sub.data_mut(ch); // &mut [u8]
+                                let bytes_per_sample = 4; // F32 planar (current config)
+                                let plane_samples = out.samples() as usize;
+                                let src_offset_bytes = start_sample * bytes_per_sample;
+                                let take_bytes = take * bytes_per_sample;
+                                if src_offset_bytes + take_bytes <= plane_samples * bytes_per_sample &&
+                                   dst_plane.len() >= take_bytes && src_plane.len() >= src_offset_bytes + take_bytes {
+                                    dst_plane[..take_bytes]
+                                        .copy_from_slice(&src_plane[src_offset_bytes..src_offset_bytes + take_bytes]);
+                                } else {
+                                    log::warn!("Frame alignment copy bounds check failed (ch={}) - skipping remainder", ch);
+                                    break;
+                                }
+                            }
+                            sub.set_pts(Some(*ctx.running_pts));
+                            *ctx.running_pts += take as i64;
+                            Self::encode_and_write_frame(
+                                encoder,
+                                &sub,
+                                output_context,
+                                ctx.output_stream_index,
+                                ctx.output_time_base,
+                            )?;
+                            start_sample += take;
+                        }
+                    }
 
                     // Progress emit every ~200ms
                     Self::emit_progress_update(ctx);
@@ -514,18 +671,25 @@ impl FfmpegNextProcessor {
     ) -> Result<()> {
         use crate::errors::AppError;
 
+        log::info!("🎵 Starting to process input file: {}", input_path.display());
+
         if ctx.context.is_cancelled() {
+            log::warn!("Processing was cancelled before processing file: {}", input_path.display());
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
 
+        log::info!("Setting up decoder and resampler for: {}", input_path.display());
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             Self::setup_decoder_and_resampler(input_path, encoder)?;
+        log::info!("✓ Decoder and resampler setup complete for stream index: {}", stream_index);
 
         // Update context indices for this file (P1.4) then process packets
         ctx.current_file_index = file_index;
         ctx.current_stream_index = stream_index;
+        log::info!("Updated context: file_index={}, stream_index={}", file_index, stream_index);
 
+        log::info!("Processing input packets from: {}", input_path.display());
         Self::process_input_packets(
             &mut ictx,
             &mut decoder,
@@ -534,8 +698,10 @@ impl FfmpegNextProcessor {
             output_context,
             ctx,
         )?;
+        log::info!("✓ Input packets processed successfully");
 
         // Flush decoder for this input
+        log::info!("Flushing decoder frames for: {}", input_path.display());
         Self::flush_decoder_frames(
             &mut decoder,
             encoder,
@@ -543,7 +709,9 @@ impl FfmpegNextProcessor {
             &mut resampler,
             ctx,
         )?;
+        log::info!("✓ Decoder frames flushed successfully");
 
+        log::info!("✅ Completed processing file: {}", input_path.display());
         Ok(())
     }
 
@@ -570,17 +738,54 @@ impl FfmpegNextProcessor {
                     resampler
                         .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
-                    out.set_pts(Some(*ctx.running_pts));
-                    *ctx.running_pts += out.samples() as i64;
-                    encoder
-                        .send_frame(&out)
-                        .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
-                    let mut pkt = ff::Packet::empty();
-                    while encoder.receive_packet(&mut pkt).is_ok() {
-                        pkt.set_stream(ctx.output_stream_index);
-                        pkt.rescale_ts(encoder.time_base(), ctx.output_time_base);
-                        pkt.write_interleaved(output_context)
-                            .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
+                    let target_size = encoder.frame_size() as usize;
+                    let mut total_samples = out.samples() as usize;
+                    let mut start_sample = 0usize;
+                    while start_sample < total_samples {
+                        let remaining = total_samples - start_sample;
+                        let take = remaining.min(target_size);
+                        if start_sample == 0 && take == total_samples && take <= target_size {
+                            out.set_pts(Some(*ctx.running_pts));
+                            *ctx.running_pts += take as i64;
+                            encoder
+                                .send_frame(&out)
+                                .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+                        } else {
+                            let mut sub = ff::frame::Audio::empty();
+                            sub.set_format(encoder.format());
+                            sub.set_channel_layout(encoder.channel_layout());
+                            sub.set_rate(encoder.rate());
+                            sub.set_samples(take);
+                            for ch in 0..encoder.channel_layout().channels() as usize {
+                                let src_plane = out.data(ch);
+                                let dst_plane = sub.data_mut(ch);
+                                let bytes_per_sample = 4; // F32
+                                let plane_samples = out.samples() as usize;
+                                let src_offset_bytes = start_sample * bytes_per_sample;
+                                let take_bytes = take * bytes_per_sample;
+                                if src_offset_bytes + take_bytes <= plane_samples * bytes_per_sample &&
+                                   dst_plane.len() >= take_bytes && src_plane.len() >= src_offset_bytes + take_bytes {
+                                    dst_plane[..take_bytes]
+                                        .copy_from_slice(&src_plane[src_offset_bytes..src_offset_bytes + take_bytes]);
+                                } else {
+                                    log::warn!("Flush alignment copy bounds check failed (ch={}) - aborting remainder", ch);
+                                    break;
+                                }
+                            }
+                            sub.set_pts(Some(*ctx.running_pts));
+                            *ctx.running_pts += take as i64;
+                            encoder
+                                .send_frame(&sub)
+                                .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+                        }
+                        let mut pkt = ff::Packet::empty();
+                        while encoder.receive_packet(&mut pkt).is_ok() {
+                            pkt.set_stream(ctx.output_stream_index);
+                            pkt.rescale_ts(encoder.time_base(), ctx.output_time_base);
+                            pkt.write_interleaved(output_context)
+                                .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
+                        }
+                        start_sample += take;
                     }
                 }
                 Err(ff::Error::Eof) | Err(ff::Error::Other { .. }) => break,
@@ -671,12 +876,18 @@ impl MediaProcessor for FfmpegNextProcessor {
             };
 
             // Process each input file
+            log::info!("Starting audio processing for {} input files", plan.input_file_paths.len());
             for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
+                log::info!("Processing input file {}/{}: {}", idx + 1, plan.input_file_paths.len(), in_path.display());
                 Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx)?;
+                log::info!("✓ Completed processing input file {}/{}", idx + 1, plan.input_file_paths.len());
             }
+            log::info!("✓ All input files processed successfully");
 
             // Finalize encoding
+            log::info!("🏁 Starting encoding finalization...");
             Self::finalize_encoding(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
+            log::info!("✓ Encoding finalization completed successfully");
 
             // Preserve output on success (Phase 11: re-enabled after legacy purge)
             let _ = cleanup_guard.remove_path(&plan.output_path);

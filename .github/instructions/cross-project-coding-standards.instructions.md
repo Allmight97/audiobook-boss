@@ -27,9 +27,9 @@ applyTo: '**'
 - Cross-language: applies across paradigms with idiomatic mapping.
 - Lean heavily towards self-documenting code commenting only to add context that can't be stated in code. If you must add commentary/documentation, follow these rules:
     - **Comments and documentation**:
-        - ALWAYS remove outdated/irrelevant items; concisely inform the user - if nothing needed removed, say nothing to the user.
+        - opportunistically remove outdated/irrelevant items; concisely inform the user - if nothing needed removed, say nothing to the user.
         - Use TODO/FIXME very sparingly informing the user when used; preface each with brackets (e.g. [ ] TODO: )
-        - ALWAYS follow language specific (Rustdoc/Javadoc/Google-style docstrings/JSDoc/Doxygen/Go conventions) documentation formats framed within principles of concise, clear, consistent comments focusing on the “why” vs restating the code (the “what”).
+        - Follow language specific (Rustdoc/Javadoc/Google-style docstrings/JSDoc/Doxygen/Go conventions) documentation formats framed within principles of concise, clear, consistent comments focusing on the “why” vs restating the code (the “what”).
 
 ### Exception Handling
 Limits may be exceeded only for:
