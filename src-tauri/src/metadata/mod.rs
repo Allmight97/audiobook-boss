@@ -67,3 +67,12 @@ impl Default for AudiobookMetadata {
 // Re-export main functions for convenience
 pub use reader::read_metadata;
 pub use writer::write_metadata;
+
+// Re-export ffmpeg-next bridge functions for native metadata and cover art embedding
+pub use ffmpeg_bridge::{
+    add_cover_art_stream_pre_header,
+    write_cover_art_packet_post_header, 
+    set_container_metadata,
+    validate_metadata_compatibility,
+    CoverFormat,
+};

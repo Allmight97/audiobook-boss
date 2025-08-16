@@ -137,6 +137,54 @@ impl FfmpegNextProcessor {
         }
     }
 
+    /// Attempts to enable twoloop AAC enhancement for better psychoacoustic analysis
+    /// 
+    /// This function uses unsafe FFI to access the underlying AVCodecContext and set
+    /// the aac_coder option to twoloop. This provides better quality AAC encoding
+    /// through improved psychoacoustic analysis, at the cost of slightly longer encoding time.
+    /// 
+    /// Returns Ok(()) if successful, Err with description if failed.
+    /// Failures are non-critical - encoding continues with standard AAC-LC.
+    fn try_enable_twoloop_aac(encoder_ctx: &mut ffmpeg_next::codec::context::Context) -> Result<()> {
+        use crate::errors::AppError;
+        use std::ffi::CString;
+        
+        // Access the underlying AVCodecContext via unsafe FFI
+        // This is necessary because ffmpeg-next doesn't expose set_option for encoder contexts
+        unsafe {
+            let av_ctx = encoder_ctx.as_mut_ptr();
+            if av_ctx.is_null() {
+                return Err(AppError::General("Invalid encoder context pointer".to_string()));
+            }
+            
+            // Use av_opt_set to set aac_coder to "twoloop" (option value 1)
+            // This directly calls into libavcodec's option system
+            let key = CString::new("aac_coder").map_err(|e| {
+                AppError::General(format!("Failed to create key string: {}", e))
+            })?;
+            let value = CString::new("twoloop").map_err(|e| {
+                AppError::General(format!("Failed to create value string: {}", e))
+            })?;
+            
+            // av_opt_set returns 0 on success, negative on error
+            let result = ffmpeg_next::sys::av_opt_set(
+                av_ctx as *mut std::ffi::c_void,
+                key.as_ptr(),
+                value.as_ptr(),
+                0, // flags
+            );
+            
+            if result < 0 {
+                return Err(AppError::General(format!(
+                    "Failed to set aac_coder option: FFmpeg error code {}", result
+                )));
+            }
+            
+            log::debug!("Successfully set aac_coder=twoloop on encoder context");
+            Ok(())
+        }
+    }
+
     /// Creates and configures the audio encoder
     fn create_audio_encoder(
         plan: &MediaProcessingPlan,
@@ -171,10 +219,14 @@ impl FfmpegNextProcessor {
         if disable_twoloop {
             log::info!("Twoloop AAC enhancement disabled via environment override");
         } else {
-            // ffmpeg-next crate (current version) does not expose a safe set_option API on the
-            // audio encoder context for 'aac_coder'; implementing would require unsafe AVOption
-            // access. We log intent so future versions can enable it.
-            log::info!("Twoloop AAC enhancement pending (ffmpeg-next API limitation) – using standard AAC-LC");
+            // Attempt to enable twoloop AAC enhancement for better psychoacoustic analysis
+            match Self::try_enable_twoloop_aac(&mut opened) {
+                Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully - expect improved audio quality"),
+                Err(e) => {
+                    log::warn!("Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC", e);
+                    // Continue with standard AAC-LC encoding - this is not a critical failure
+                }
+            }
         }
         
         // Some containers require global header on encoder
@@ -211,22 +263,26 @@ impl FfmpegNextProcessor {
             .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
         // Set container metadata if provided
-        if let Some(_metadata) = metadata {
-            // NOTE: Container metadata setting temporarily disabled pending ffmpeg-next integration
-            // Implementation deferred to Phase 12 technical debt resolution
-            log::info!("Container metadata support temporarily disabled during single-engine transition");
+        if let Some(metadata) = metadata {
+            match crate::metadata::set_container_metadata(&mut octx, metadata) {
+                Ok(()) => log::debug!("Container metadata set successfully"),
+                Err(e) => log::warn!("Failed to set container metadata: {} - continuing with audio processing", e),
+            }
         }
 
         // PRE-HEADER: Attempt to add cover art stream (store index & format for post-header packet write)
-        // TEMPORARILY DISABLED: Native cover art embedding causing codec compatibility issues
-        // Will fall back to Lofty embedding in finalize stage
-        // let mut cover_art_stream_info: Option<(usize, crate::metadata::ffmpeg_bridge::CoverFormat)> = None;
-        // Cover art disabled during transition
-        // if let Some(_metadata) = _metadata {
-        //     if let Some(ref cover_data) = _metadata.cover_art {
-        //         cover_art_stream_info = crate::metadata::ffmpeg_bridge::add_cover_art_stream_pre_header(&mut octx, cover_data);
-        //     }
-        // }
+        // Native cover art embedding with graceful fallback to Lofty in finalize stage
+        let mut cover_art_stream_info: Option<(usize, crate::metadata::CoverFormat)> = None;
+        if let Some(metadata) = metadata {
+            if let Some(ref cover_data) = metadata.cover_art {
+                cover_art_stream_info = crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
+                if cover_art_stream_info.is_some() {
+                    log::info!("Native cover art stream added successfully - will embed during encoding");
+                } else {
+                    log::info!("Native cover art stream failed - will fallback to Lofty embedding in finalize stage");
+                }
+            }
+        }
 
         let codec = ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
@@ -258,13 +314,12 @@ impl FfmpegNextProcessor {
             .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
 
         // POST-HEADER: Write cover art packet if we successfully added a stream
-        // TEMPORARILY DISABLED: Native cover art embedding disabled above
-        // Cover art disabled during transition
-        // if let Some(_metadata) = metadata {
-        //     if let (Some((stream_index, format)), Some(ref cover_data)) = (cover_art_stream_info, _metadata.cover_art.as_ref()) {
-        //         crate::metadata::ffmpeg_bridge::write_cover_art_packet_post_header(&mut octx, stream_index, cover_data, format);
-        //     }
-        // }
+        if let Some(metadata) = metadata {
+            if let (Some((stream_index, format)), Some(cover_data)) = (cover_art_stream_info, metadata.cover_art.as_ref()) {
+                crate::metadata::write_cover_art_packet_post_header(&mut octx, stream_index, cover_data, format);
+                log::info!("Native cover art packet written to stream {}", stream_index);
+            }
+        }
 
         Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
     }
@@ -585,7 +640,7 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             // Validate metadata compatibility if provided (now active post-legacy purge)
             if let Some(md) = metadata {
-                let warnings = crate::metadata::ffmpeg_bridge::validate_metadata_compatibility(md);
+                let warnings = crate::metadata::validate_metadata_compatibility(md);
                 for warning in warnings {
                     log::warn!("Metadata compatibility: {}", warning);
                 }

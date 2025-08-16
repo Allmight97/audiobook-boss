@@ -1,7 +1,5 @@
-//! Tests native ffmpeg-next cover art embedding (safe-ffmpeg feature only)
+//! Tests native ffmpeg-next cover art embedding
 //! Ensures that when cover art is provided, a stream is added pre-header and packet written.
-
-#![cfg(feature = "safe-ffmpeg")]
 
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig, media_pipeline::MediaProcessingPlan};
 use audiobook_boss_lib::audio::context::ProcessingContextBuilder;

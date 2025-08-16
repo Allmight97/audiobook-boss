@@ -1,3 +1,4 @@
+
 //! FFmpeg-Next metadata integration bridge
 //!
 //! This module provides conversion and integration between our AudiobookMetadata
@@ -88,6 +89,9 @@ pub fn detect_cover_art_format(cover_data: &[u8]) -> Option<CoverFormat> {
 }
 
 /// Adds a cover art stream prior to header writing. Returns output stream index if added.
+/// 
+/// For M4B/MP4 containers, this properly sets the `attached_pic` disposition using
+/// FFI to ensure the stream is treated as cover art rather than a regular video stream.
 pub fn add_cover_art_stream_pre_header(
     octx: &mut ff::format::context::Output,
     cover_data: &[u8],
@@ -97,15 +101,25 @@ pub fn add_cover_art_stream_pre_header(
         log::warn!("Unsupported cover art format (only JPEG/PNG). Deferring to finalize stage");
         return None;
     };
+
     let codec_id = match format { CoverFormat::Jpeg => ff::codec::Id::MJPEG, CoverFormat::Png => ff::codec::Id::PNG };
     let Some(codec) = ff::encoder::find(codec_id) else {
         log::warn!("Cover art codec {:?} missing in ffmpeg build; fallback to finalize stage", format);
         return None;
     };
+    
     match octx.add_stream(codec) {
         Ok(stream) => {
             let idx = stream.index();
-            log::info!("Added cover art stream pre-header (index={}, format={:?}, bytes={})", idx, format, cover_data.len());
+            
+            // Set the ATTACHED_PIC disposition using FFI
+            // This is crucial for M4B/MP4 containers to properly recognize cover art
+            if let Err(e) = set_attached_pic_disposition(octx, idx) {
+                log::warn!("Failed to set attached_pic disposition ({}); trying without disposition", e);
+            }
+            
+            log::info!("Added cover art stream with attached_pic disposition (index={}, format={:?}, bytes={})", 
+                      idx, format, cover_data.len());
             Some((idx, format))
         }
         Err(e) => {
@@ -115,7 +129,46 @@ pub fn add_cover_art_stream_pre_header(
     }
 }
 
+/// Sets the ATTACHED_PIC disposition on a stream using FFI
+/// 
+/// This uses unsafe FFI to access the underlying AVStream and set the disposition
+/// flag directly, which is necessary because ffmpeg-next doesn't expose this functionality.
+fn set_attached_pic_disposition(octx: &mut ff::format::context::Output, stream_index: usize) -> Result<()> {
+    use crate::errors::AppError;
+    
+    unsafe {
+        // Get the format context
+        let format_ctx = octx.as_mut_ptr();
+        if format_ctx.is_null() {
+            return Err(AppError::General("Invalid format context".to_string()));
+        }
+        
+        // Access the streams array
+        let streams_ptr = (*format_ctx).streams;
+        if streams_ptr.is_null() || stream_index >= (*format_ctx).nb_streams as usize {
+            return Err(AppError::General("Invalid stream index".to_string()));
+        }
+        
+        // Get the specific stream
+        let stream_ptr = *streams_ptr.add(stream_index);
+        if stream_ptr.is_null() {
+            return Err(AppError::General("Invalid stream pointer".to_string()));
+        }
+        
+        // Set the ATTACHED_PIC disposition
+        // AV_DISPOSITION_ATTACHED_PIC = 0x0400
+        (*stream_ptr).disposition = 0x0400;
+        
+        log::debug!("Set ATTACHED_PIC disposition on stream {}", stream_index);
+        Ok(())
+    }
+}
+
 /// Writes the cover art packet after header if a stream was added.
+/// 
+/// For attached pics in M4B/MP4 containers, this writes a single packet with
+/// specific flags that mark it as cover art. The packet should have PTS/DTS of 0
+/// and KEY flag to indicate it's a standalone image.
 pub fn write_cover_art_packet_post_header(
     octx: &mut ff::format::context::Output,
     stream_index: usize,
@@ -123,13 +176,21 @@ pub fn write_cover_art_packet_post_header(
     format: CoverFormat,
 ) {
     if cover_data.is_empty() { return; }
+    
     let mut pkt = ff::Packet::copy(cover_data);
     pkt.set_stream(stream_index);
     pkt.set_flags(ff::packet::flag::Flags::KEY);
+    
+    // For attached pics, set PTS and DTS to 0
+    // This indicates it's a single frame that should be treated as cover art
+    pkt.set_pts(Some(0));
+    pkt.set_dts(Some(0));
+    
     if let Err(e) = pkt.write_interleaved(octx) {
-        log::warn!("Failed writing native cover art packet ({}); finalize stage will attempt embedding", e);
+        log::warn!("Failed writing cover art packet ({}); finalize stage will attempt embedding", e);
     } else {
-        log::info!("Native cover art packet written (stream={}, format={:?}, size={} bytes)", stream_index, format, cover_data.len());
+        log::info!("Cover art packet written as attached pic (stream={}, format={:?}, size={} bytes)", 
+                  stream_index, format, cover_data.len());
     }
 }
 

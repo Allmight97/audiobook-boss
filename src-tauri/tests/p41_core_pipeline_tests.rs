@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 
-/// Test that MediaProcessingPlan::execute_with_context works with safe-ffmpeg (no placeholder)
+/// Test that MediaProcessingPlan::execute_with_context works (no placeholder)
 #[test]
 fn test_media_processing_plan_execute_method_exists() {
     // This test verifies that the placeholder has been removed and the method compiles

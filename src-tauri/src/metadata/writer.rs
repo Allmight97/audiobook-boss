@@ -88,9 +88,12 @@ pub fn write_cover_art<P: AsRef<Path>>(
             lofty::error::LoftyError::new(lofty::error::ErrorKind::UnknownFormat)
         ))?;
     
+    // Detect the correct MIME type based on image format
+    let mime_type = detect_image_mime_type(cover_data)?;
+    
     let picture = Picture::new_unchecked(
         PictureType::CoverFront,
-        Some(MimeType::Jpeg),
+        Some(mime_type),
         None,
         cover_data.to_vec(),
     );
@@ -99,6 +102,39 @@ pub fn write_cover_art<P: AsRef<Path>>(
     tagged_file.save_to_path(path, Default::default())?;
     
     Ok(())
+}
+
+/// Detects MIME type from image data headers
+fn detect_image_mime_type(data: &[u8]) -> Result<MimeType> {
+    if data.len() < 8 {
+        return Err(AppError::InvalidInput("Image data too small to determine format".to_string()));
+    }
+    
+    // Check for JPEG (starts with FF D8 FF)
+    if data.len() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+        return Ok(MimeType::Jpeg);
+    }
+    
+    // Check for PNG (starts with 89 50 4E 47 0D 0A 1A 0A)
+    if data.len() >= 8 && data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+        return Ok(MimeType::Png);
+    }
+    
+    // Check for GIF (GIF87a or GIF89a)
+    if data.len() >= 6 && (&data[0..6] == b"GIF87a" || &data[0..6] == b"GIF89a") {
+        return Ok(MimeType::Gif);
+    }
+    
+    // For WebP and other formats, default to JPEG for compatibility
+    // (lofty may not support all MIME types we want to detect)
+    if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        log::info!("WebP format detected, using JPEG MIME type for compatibility");
+        return Ok(MimeType::Jpeg);
+    }
+    
+    // Default to JPEG for unknown formats (maintains backward compatibility)
+    log::warn!("Unknown image format, defaulting to JPEG MIME type");
+    Ok(MimeType::Jpeg)
 }
 
 #[cfg(test)]
@@ -130,5 +166,38 @@ mod tests {
         let metadata = AudiobookMetadata::new();
         let result = write_metadata(&file_path, &metadata);
         assert!(matches!(result, Err(AppError::Metadata(_))));
+    }
+
+    #[test]
+    fn test_detect_image_mime_type() {
+        // Test JPEG detection
+        let jpeg_data = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9";
+        let mime_type = detect_image_mime_type(jpeg_data).expect("Should detect JPEG");
+        assert!(matches!(mime_type, MimeType::Jpeg));
+
+        // Test PNG detection
+        let png_data = b"\x89PNG\r\n\x1A\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xDE";
+        let mime_type = detect_image_mime_type(png_data).expect("Should detect PNG");
+        assert!(matches!(mime_type, MimeType::Png));
+
+        // Test WebP detection (should default to JPEG for compatibility)
+        let webp_data = b"RIFF\x00\x00\x00\x00WEBP\x00\x00\x00\x00";
+        let mime_type = detect_image_mime_type(webp_data).expect("Should detect WebP");
+        assert!(matches!(mime_type, MimeType::Jpeg)); // WebP defaults to JPEG for compatibility
+
+        // Test GIF detection
+        let gif_data = b"GIF89a\x01\x00\x01\x00\x00\x00\x00!";
+        let mime_type = detect_image_mime_type(gif_data).expect("Should detect GIF");
+        assert!(matches!(mime_type, MimeType::Gif));
+
+        // Test unknown format (should default to JPEG)
+        let unknown_data = b"UNKNOWN_FORMAT_DATA";
+        let mime_type = detect_image_mime_type(unknown_data).expect("Should default to JPEG");
+        assert!(matches!(mime_type, MimeType::Jpeg));
+
+        // Test insufficient data
+        let short_data = b"123";
+        let result = detect_image_mime_type(short_data);
+        assert!(result.is_err());
     }
 }

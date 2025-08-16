@@ -1,8 +1,7 @@
 
 //! FFmpeg-next integration tests
 //! 
-//! This test file ensures FFmpeg-next functionality is properly tested
-//! when the safe-ffmpeg feature is enabled.
+//! This test file ensures FFmpeg-next functionality is properly tested.
 
 use std::path::PathBuf;
 
@@ -20,7 +19,7 @@ fn ensure_media() -> Option<PathBuf> {
 fn test_engine_is_single_and_available() {
     // Post-nuclear: single ffmpeg-next engine always present; no feature flags.
     // If a reintroduced feature flag appears, this test should be updated accordingly.
-    // We intentionally DO NOT query cfg!(feature = "safe-ffmpeg") anymore to avoid stale warnings.
+    // Single-engine architecture - no feature flags needed.
     assert!(true);
 }
 
@@ -56,7 +55,7 @@ fn test_audio_settings_creation() {
 
 #[test]
 fn test_progress_context_builder_usage() {
-    // Test ProgressContextBuilder to ensure it remains exercised in feature-on builds
+    // Test ProgressContextBuilder to ensure it remains exercised
     let ctx = ProgressContextBuilder::new(audiobook_boss_lib::audio::ProcessingStage::Analyzing)
         .progress(5.0)
         .message("testing")
@@ -70,7 +69,7 @@ fn test_progress_context_builder_usage() {
 
 #[test]
 fn test_ffmpeg_next_dependency_available() {
-    // Test that ffmpeg-next types are available when the feature is enabled
+    // Test that ffmpeg-next types are available
     // This verifies the dependency is properly configured
     
     // Simple test to ensure the ffmpeg-next crate is accessible

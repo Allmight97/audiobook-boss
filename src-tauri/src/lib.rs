@@ -12,6 +12,8 @@ pub use metadata::ffmpeg_bridge::{
     set_container_metadata as ffmpeg_set_container_metadata,
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
     write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
+    detect_cover_art_format as ffmpeg_detect_cover_art_format,
+    validate_metadata_compatibility as ffmpeg_validate_metadata_compatibility,
     CoverFormat as FfmpegCoverFormat,
 };
 pub mod audio;
