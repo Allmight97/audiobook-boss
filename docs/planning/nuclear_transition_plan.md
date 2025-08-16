@@ -87,7 +87,7 @@ cargo build
    - **SIMPLIFY** `get_engine_description()` to return static string
    - **SIMPLIFY** `create_default_processor()` to return `FfmpegNextProcessor`
 
-### **Phase 7: Commands Module Cleanup**
+### **Phase 7: Commands Module Cleanup** ✅
 **Commit Point**: `P4.4.4: Remove shell dependencies from command handlers`
 
 7. **Update Command Modules**
@@ -103,7 +103,7 @@ cargo build
    - **SIMPLIFY** error conversion functions
    - **REMOVE** shell-specific error handling
 
-   **Commit Point**: Write concise commit message summarizing what was done and commit.
+   **Commit Point**: Write concise commit message summarizing what was done push commit.
 
 ### **Phase 9: Progress Monitor & Process Management Cleanup**
 
@@ -113,7 +113,7 @@ cargo build
    - **REMOVE** `Child` process handling in cleanup modules
    - **REMOVE** `#[cfg(feature = "legacy-adapters")]` blocks
 
-   **Commit Point**: Write concise commit message summarizing what was done and commit.
+   **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 ### **Phase 10: Build System & Integration Cleanup**
 
@@ -123,7 +123,7 @@ cargo build
     - **REMOVE** FFmpeg binary references from `.gitignore` and docs
     - **UPDATE** any remaining documentation references
 
-    **Commit Point**: Write concise commit message summarizing what was done and commit.
+    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 ### **Phase 11: Post-Nuclear Debug & Validation**
 
@@ -133,14 +133,14 @@ cargo build
     - **RESOLVE** any remaining shell command references
     - **ENSURE** `cargo build` succeeds
 
-    **Commit Point**: Write concise commit message summarizing what was done and commit.
+    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 12. **Test Suite Restoration**
     - **UPDATE** tests to work without shell command mocking
     - **FIX** integration tests that relied on shell FFmpeg
     - **ENSURE** `cargo test` passes with ffmpeg-next only
 
-    **Commit Point**: Write concise commit message summarizing what was done and commit.
+    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 13. **Functional Validation**
     - **TEST** audiobook processing works end-to-end
@@ -148,7 +148,7 @@ cargo build
     - **CONFIRM** progress tracking and cancellation work
     - **VALIDATE** all UI workflows function correctly
 
-    **Commit Point**: Write concise commit message summarizing what was done and commit.
+    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 ### **Phase 12: Technical Debt Resolution**
 
@@ -158,7 +158,7 @@ cargo build
     - **RESEARCH** and implement twoloop AAC enhancement properly
     - **ELIMINATE** Lofty fallback in finalize stage
 
-    **Commit Point**: Write concise commit message summarizing what was done and commit.
+    **Commit Point**: Write concise commit message summarizing what was done and push commit.
 
 ## Risk Mitigation
 

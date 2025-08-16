@@ -16,8 +16,7 @@ pub mod metrics;
 pub mod path_validation;
 pub mod processor;
 pub mod progress;
-#[cfg(not(feature = "safe-ffmpeg"))]
-pub mod progress_monitor;
+// Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
 pub mod session;
 pub mod settings;
 
@@ -143,13 +142,9 @@ pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
 pub use settings::validate_audio_settings;
 // New infrastructure - will be used when processor.rs is refactored
-#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
 pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
 
 // Core processor API (post-split staged)
-#[cfg(feature = "legacy-adapters")]
-#[allow(deprecated)]
-pub use processor::process_audiobook_with_events;
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
 
 // Deprecated adapter - maintained for backward compatibility
@@ -158,17 +153,8 @@ pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
 // Core context - used in current implementation
 pub use context::ProcessingContext;
 
-// Feature-gated infrastructure - used in safe-ffmpeg builds and tests
-#[cfg(any(test, feature = "safe-ffmpeg"))]
-#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
-pub use context::ProgressContext;
-
-#[cfg(any(test, feature = "safe-ffmpeg"))]
-#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
-pub use context::{ProcessingContextBuilder, ProgressContextBuilder};
+// Builders and progress context always available after cleanup
+pub use context::{ProcessingContextBuilder, ProgressContextBuilder, ProgressContext};
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;
-#[cfg(any(test, feature = "safe-ffmpeg"))]
-#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(unused_imports))]
-pub use cleanup::ProcessGuard;

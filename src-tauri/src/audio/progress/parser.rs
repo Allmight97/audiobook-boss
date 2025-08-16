@@ -2,7 +2,6 @@
 
 /// Holds state for FFmpeg progress parsing
 #[derive(Default)]
-#[cfg_attr(not(any(test, feature = "safe-ffmpeg")), allow(dead_code))]
 pub struct FFmpegProgressState {
     pub out_time_us: Option<i64>,
     pub total_size: Option<i64>,

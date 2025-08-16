@@ -8,7 +8,6 @@ mod errors;
 mod metadata;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::AudiobookMetadata;
-#[cfg(feature = "safe-ffmpeg")]
 pub use metadata::ffmpeg_bridge::{
     set_container_metadata as ffmpeg_set_container_metadata,
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
@@ -19,8 +18,7 @@ pub mod audio;
 
 #[cfg(test)]
 pub mod tests_integration;
-#[cfg(feature = "safe-ffmpeg")]
-pub mod tests_metadata_integration;
+pub mod tests_metadata_integration; // formerly feature-gated
 
 use std::sync::{Arc, Mutex};
 use audio::ProcessingProgress;

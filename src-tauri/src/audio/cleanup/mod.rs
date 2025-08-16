@@ -1,9 +1,6 @@
 pub mod guard;
 pub mod ops;
 
-pub use guard::CleanupGuard;
-
-#[cfg(any(test, feature = "safe-ffmpeg"))]
-pub use guard::ProcessGuard;
+pub use guard::CleanupGuard; // ProcessGuard removed during nuclear cleanup
 
 

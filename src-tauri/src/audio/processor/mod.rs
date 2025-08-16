@@ -36,31 +36,16 @@ use crate::metadata::AudiobookMetadata;
 // Submodules
 pub mod execute;
 pub mod finalize;
-#[cfg(feature = "legacy-adapters")]
-pub mod legacy;
+// Removed legacy module during nuclear cleanup
 pub mod prepare;
 pub mod selection;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
-#[cfg(feature = "legacy-adapters")]
-#[allow(deprecated)]
-pub use legacy::process_audiobook_with_events;
 pub use prepare::detect_input_sample_rate;
 
 // Legacy function re-exports (Phase 4 additions)
-#[cfg(feature = "legacy-adapters")]
-#[allow(deprecated)]
-pub use legacy::execute_with_progress_events;
-#[cfg(feature = "legacy-adapters")]
-#[allow(deprecated)]
-pub use legacy::create_temp_directory;
-#[cfg(feature = "legacy-adapters")]
-#[allow(deprecated)]
-pub use legacy::cleanup_temp_directory;
-#[cfg(feature = "legacy-adapters")]
-pub use legacy::create_session_from_legacy_state;
 // TODO (Phase 5): Re-export deprecated adapters from legacy.rs maintaining original signatures.
 
 /// Internal workflow state passed between staged phases of processing.

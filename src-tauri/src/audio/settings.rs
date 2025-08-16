@@ -143,7 +143,6 @@ impl ChannelConfig {
     }
     
     /// Returns FFmpeg channel layout string  
-    #[cfg_attr(feature = "safe-ffmpeg", allow(dead_code))]
     pub fn ffmpeg_layout(&self) -> &'static str {
         match self {
             ChannelConfig::Mono => "mono",

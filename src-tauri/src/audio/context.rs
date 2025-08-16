@@ -5,7 +5,6 @@
 //! and improving code organization.
 
 use super::AudioSettings;
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 use crate::audio::ProcessingStage;
 use super::session::ProcessingSession;
 use crate::errors::Result;
@@ -87,14 +86,12 @@ impl ProcessingContext {
 }
 
 /// Builder pattern for ProcessingContext
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 pub struct ProcessingContextBuilder {
     window: Option<Window>,
     session: Option<Arc<ProcessingSession>>,
     settings: Option<AudioSettings>,
 }
 
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProcessingContextBuilder {
     /// Creates a new builder instance
     pub fn new() -> Self {
@@ -145,7 +142,6 @@ impl ProcessingContextBuilder {
     }
 }
 
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl Default for ProcessingContextBuilder {
     fn default() -> Self {
         Self::new()
@@ -157,7 +153,6 @@ impl Default for ProcessingContextBuilder {
 /// This context contains all the information needed for progress reporting
 /// and tracking during audio processing operations.
 #[derive(Clone)]
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 pub struct ProgressContext {
     /// Current processing stage
     pub stage: ProcessingStage,
@@ -175,7 +170,6 @@ pub struct ProgressContext {
     pub eta_seconds: Option<f64>,
 }
 
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProgressContext {
     /// Creates a new ProgressContext with minimal information
     pub fn new(stage: ProcessingStage, progress: f32) -> Self {
@@ -264,7 +258,6 @@ impl ProgressContext {
 }
 
 /// Builder pattern for ProgressContext
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 pub struct ProgressContextBuilder {
     stage: ProcessingStage,
     progress: f32,
@@ -275,7 +268,6 @@ pub struct ProgressContextBuilder {
     eta_seconds: Option<f64>,
 }
 
-#[cfg(any(test, feature = "safe-ffmpeg"))]
 impl ProgressContextBuilder {
     /// Creates a new builder with required fields
     pub fn new(stage: ProcessingStage) -> Self {

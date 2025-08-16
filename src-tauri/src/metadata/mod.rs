@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 pub mod reader;
 pub mod writer;
 
-// FFmpeg-next integration bridge for direct metadata embedding during encoding
-#[cfg(feature = "safe-ffmpeg")]
+// FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
 pub mod ffmpeg_bridge;
 
 /// Represents audiobook metadata
