@@ -82,13 +82,13 @@ This roadmap supersedes the L4 Final Implementation Roadmap for the specific goa
 ### **P4.3 Nuclear Engine Transition** 🚀 **REVISED APPROACH**
 **Goal**: Eliminate shell FFmpeg entirely, no safety nets or rollback capability
 
-- **Immediate Feature Flag Elimination**:
+- **P4.3.1 - Immediate Feature Flag Elimination**:
   - **REMOVE** `legacy-adapters` from default features entirely
   - **MAKE** ffmpeg-next dependencies non-optional (always included)
   - **DELETE** conditional feature dependencies: `which`, shell utilities
   - **STRIP** all `#[cfg(feature = "...")]` conditional compilation blocks
 
-- **Code Purge (No Validation)**:
+- **P4.3.2 - Code Purge (No Validation)**:
   - **DELETE** `src-tauri/src/ffmpeg/*` (entire shell command module)
   - **DELETE** `src-tauri/src/audio/progress_monitor.rs` (process monitoring)
   - **REMOVE** all shell-based processor selection logic
