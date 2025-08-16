@@ -26,25 +26,19 @@ serde_json = "1.0"
 lofty = "0.20.0"
 thiserror = "2.0"
 tokio = { version = "1.0", features = ["full"] }
-which = "6.0"
 anyhow = "1.0"
 uuid = { version = "1.11", features = ["v4"] }
 log = "0.4"
 env_logger = "0.11"
-ffmpeg-next = { version = "7", optional = true }
+ffmpeg-next = "7"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
 
-# Type-safe FFmpeg engine based on ffmpeg-next (disabled by default)
-safe-ffmpeg = ["dep:ffmpeg-next"]
-
-# Backward-compatibility layer for deprecated/legacy adapters
-# Enabled by default to preserve current public surface
-default = ["legacy-adapters"]
-legacy-adapters = []
+# Default features - now minimal with only essential Tauri features
+default = []
 
 [dev-dependencies]
 tempfile = "3.20.0"
