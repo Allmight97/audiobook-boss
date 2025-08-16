@@ -101,6 +101,8 @@ struct FramePipelineCtx<'a> {
     // Mutable per-file state (P1.4 refactor): updated at start of each input file
     current_file_index: usize,
     current_stream_index: usize,
+    input_samples_total: &'a mut u64,
+    encoded_samples_total: &'a mut u64,
 }
 
 impl FfmpegNextProcessor {
@@ -391,6 +393,7 @@ impl FfmpegNextProcessor {
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
         ctx: &mut FramePipelineCtx,
+        accumulator: &mut crate::audio::buffer::SampleAccumulator,
     ) -> Result<()> {
         use crate::errors::AppError;
 
@@ -426,7 +429,7 @@ impl FfmpegNextProcessor {
             }
 
             log::debug!("Processing decoded frames for packet {}", packet_count);
-            match Self::process_decoded_frames(decoder, encoder, resampler, output_context, ctx) {
+            match Self::process_decoded_frames(decoder, encoder, resampler, output_context, ctx, accumulator) {
                 Ok(()) => log::debug!("✓ Decoded frames processed successfully for packet {}", packet_count),
                 Err(e) => {
                     log::error!("✗ Failed to process decoded frames for packet {}: {}", packet_count, e);
@@ -559,6 +562,7 @@ impl FfmpegNextProcessor {
         resampler: &mut ffmpeg_next::software::resampling::Context,
         output_context: &mut ffmpeg_next::format::context::Output,
         ctx: &mut FramePipelineCtx,
+        accumulator: &mut crate::audio::buffer::SampleAccumulator,
     ) -> Result<()> {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
@@ -590,23 +594,19 @@ impl FfmpegNextProcessor {
                         continue;
                     }
 
-                    // SIMPLE FIX: If frame is oversized, truncate to encoder frame_size
-                    let encoder_frame_size = encoder.frame_size() as usize;
-                    if out.samples() > encoder_frame_size {
-                        log::debug!("Truncating frame from {} to {} samples for AAC", out.samples(), encoder_frame_size);
-                        out.set_samples(encoder_frame_size);
+                    *ctx.input_samples_total += out.samples() as u64;
+                    for mut full in accumulator.push_frame(&out) {
+                        full.set_pts(Some(*ctx.running_pts));
+                        *ctx.running_pts += full.samples() as i64;
+                        *ctx.encoded_samples_total += full.samples() as u64;
+                        Self::encode_and_write_frame(
+                            encoder,
+                            &full,
+                            output_context,
+                            ctx.output_stream_index,
+                            ctx.output_time_base,
+                        )?;
                     }
-
-                    // Send frame to encoder
-                    out.set_pts(Some(*ctx.running_pts));
-                    *ctx.running_pts += out.samples() as i64;
-                    Self::encode_and_write_frame(
-                        encoder,
-                        &out,
-                        output_context,
-                        ctx.output_stream_index,
-                        ctx.output_time_base,
-                    )?;
 
                     // Progress emit every ~200ms
                     Self::emit_progress_update(ctx);
@@ -625,6 +625,7 @@ impl FfmpegNextProcessor {
         output_context: &mut ffmpeg_next::format::context::Output,
         file_index: usize,
         ctx: &mut FramePipelineCtx,
+        accumulator: &mut crate::audio::buffer::SampleAccumulator,
     ) -> Result<()> {
         use crate::errors::AppError;
 
@@ -654,6 +655,7 @@ impl FfmpegNextProcessor {
             &mut resampler,
             output_context,
             ctx,
+            accumulator,
         )?;
         log::info!("✓ Input packets processed successfully");
 
@@ -832,6 +834,8 @@ impl MediaProcessor for FfmpegNextProcessor {
             let emitter = crate::audio::progress::ProgressEmitter::new(context.window.clone());
 
             // Construct context struct to reduce parameter passing
+            let mut input_samples_total: u64 = 0;
+            let mut encoded_samples_total: u64 = 0;
             let mut ctx = FramePipelineCtx {
                 context,
                 emitter: &emitter,
@@ -844,13 +848,22 @@ impl MediaProcessor for FfmpegNextProcessor {
                 last_emit: &mut last_emit,
                 current_file_index: 0,
                 current_stream_index: 0,
+                input_samples_total: &mut input_samples_total,
+                encoded_samples_total: &mut encoded_samples_total,
             };
 
             // Process each input file
             log::info!("Starting audio processing for {} input files", plan.input_file_paths.len());
+            let mut accumulator = crate::audio::buffer::SampleAccumulator::new(
+                enc_ctx.channel_layout().channels() as usize,
+                enc_ctx.frame_size() as usize,
+                enc_ctx.rate() as u32,
+                enc_ctx.channel_layout(),
+                enc_ctx.format(),
+            );
             for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
                 log::info!("Processing input file {}/{}: {}", idx + 1, plan.input_file_paths.len(), in_path.display());
-                Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx)?;
+                Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx, &mut accumulator)?;
                 log::info!("✓ Completed processing input file {}/{}", idx + 1, plan.input_file_paths.len());
             }
             log::info!("✓ All input files processed successfully");

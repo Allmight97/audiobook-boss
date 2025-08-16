@@ -12,6 +12,7 @@ pub mod constants;
 pub mod context;
 pub mod file_list;
 pub mod media_pipeline;
+pub mod buffer;
 pub mod metrics;
 pub mod path_validation;
 pub mod processor;
