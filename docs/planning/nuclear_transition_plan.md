@@ -65,7 +65,7 @@
 6. **Update Processor Selection**
    - **REMOVE** conditional imports in `processor/selection.rs`
    - **REMOVE** `DefaultProcessor` type alias complexity
-   - **HARDCODE** `FfmpegNextProcessor` as the only processor
+   - **HARDCODE** `FfmpegNextProcessor` as the only processor (Dev note: hardcode, is that a good senior software engineering practice inn this case?)
    - **SIMPLIFY** `get_engine_description()` to return static string
    - **SIMPLIFY** `create_default_processor()` to return `FfmpegNextProcessor`
 
