@@ -306,7 +306,7 @@ impl FfmpegNextProcessor {
             .add_stream(codec)
             .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-        let enc_ctx = Self::create_audio_encoder(
+    let enc_ctx = Self::create_audio_encoder(
             plan,
             target_sample_rate,
             target_channels,
@@ -318,18 +318,19 @@ impl FfmpegNextProcessor {
         let ost_index = ost.index();
         let ost_time_base = ost.time_base();
 
-            // Embed cover art if provided
-            if let Some(_metadata) = metadata {
-                if let Some(ref cover_data) = _metadata.cover_art {
-                    #[cfg(feature = "safe-ffmpeg")]
-                    if let Err(e) = crate::metadata::ffmpeg_bridge::embed_cover_art_ffmpeg(&mut octx, cover_data) {
-                        log::warn!("Failed to embed cover art: {}", e);
-                    }
-                }
-            }
-
+        // Write header first (required before we can safely write packets)
         octx.write_header()
             .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
+
+        // Embed cover art after header so we can write a packet to the new stream cleanly
+        if let Some(_metadata) = metadata {
+            if let Some(ref cover_data) = _metadata.cover_art {
+                #[cfg(feature = "safe-ffmpeg")]
+                if let Err(e) = crate::metadata::ffmpeg_bridge::embed_cover_art_ffmpeg(&mut octx, cover_data) {
+                    log::warn!("Failed to embed cover art: {}", e);
+                }
+            }
+        }
 
         Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
     }

@@ -92,17 +92,24 @@ pub fn embed_cover_art_ffmpeg(
         return Ok(());
     };
 
+    // Add stream and immediately write a single packet containing the raw image data.
+    // For MP4/M4B containers FFmpeg will wrap this appropriately. We rely on the muxer
+    // to interpret MJPEG/PNG packet.
     match octx.add_stream(codec) {
         Ok(stream) => {
-            // NOTE: We are not configuring width/height or writing a packet yet.
-            // Some players may ignore an empty MJPEG/PNG stream; that's acceptable
-            // at this scaffolding stage because Lofty finalize embedding still runs.
-            // We log the index for traceability.
             let idx = stream.index();
-            log::info!(
-                "Cover art scaffolding: added placeholder stream (index={}, codec={:?}, bytes={})", 
-                idx, format, cover_data.len()
-            );
+            let mut pkt = ff::Packet::copy(cover_data);
+            pkt.set_stream(idx);
+            // Mark as key packet
+            pkt.set_flags(ff::packet::flag::Flags::KEY);
+            // PTS/DTS not strictly necessary for attachments; leave unset.
+            if let Err(e) = pkt.write_interleaved(octx) {
+                log::warn!("Failed writing cover art packet ({}); will fall back to finalize stage", e);
+            } else {
+                log::info!(
+                    "Embedded cover art: stream_index={}, format={:?}, size={} bytes", idx, format, cover_data.len()
+                );
+            }
         }
         Err(e) => {
             log::warn!("Failed to add cover art stream ({}); deferring to finalize stage", e);
