@@ -54,69 +54,70 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     Ok(dict)
 }
 
-/// Embeds cover art using ffmpeg-next attachment streams
-/// This is the preferred method for embedding cover art during encoding
-pub fn embed_cover_art_ffmpeg(
+
+
+
+
+
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum CoverFormat { Jpeg, Png }
+
+/// Detects JPEG or PNG format from raw bytes
+pub fn detect_cover_art_format(cover_data: &[u8]) -> Option<CoverFormat> {
+    if cover_data.len() >= 3 && cover_data[0] == 0xFF && cover_data[1] == 0xD8 && cover_data[2] == 0xFF {
+        return Some(CoverFormat::Jpeg);
+    }
+    if cover_data.len() >= 8 && cover_data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+        return Some(CoverFormat::Png);
+    }
+    None
+}
+
+/// Adds a cover art stream prior to header writing. Returns output stream index if added.
+pub fn add_cover_art_stream_pre_header(
     octx: &mut ff::format::context::Output,
     cover_data: &[u8],
-) -> Result<()> {
-    // No direct AppError usage required at scaffolding stage.
-
-    if cover_data.is_empty() {
-        log::warn!("Cover art data empty; skipping embedding scaffolding");
-        return Ok(());
-    }
-
-    // --- Format Detection (scaffolding) ---
-    #[derive(Debug, Copy, Clone)]
-    enum CoverFormat { Jpeg, Png }
-    let format = if cover_data.len() >= 3 && cover_data[0] == 0xFF && cover_data[1] == 0xD8 && cover_data[2] == 0xFF {
-        Some(CoverFormat::Jpeg)
-    } else if cover_data.len() >= 8 && cover_data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
-        Some(CoverFormat::Png)
-    } else {
-        None
+) -> Option<(usize, CoverFormat)> {
+    if cover_data.is_empty() { return None; }
+    let Some(format) = detect_cover_art_format(cover_data) else {
+        log::warn!("Unsupported cover art format (only JPEG/PNG). Deferring to finalize stage");
+        return None;
     };
-
-    let Some(format) = format else {
-        log::warn!("Unsupported or unrecognized cover art format (only JPEG/PNG supported in scaffolding); deferring to finalize stage");
-        return Ok(()); // graceful fallback
-    };
-
-    // --- Stream Addition (no packet write yet) ---
-    // We add a placeholder stream with the appropriate codec so that in the
-    // next implementation step we can write a single packet after header.
     let codec_id = match format { CoverFormat::Jpeg => ff::codec::Id::MJPEG, CoverFormat::Png => ff::codec::Id::PNG };
     let Some(codec) = ff::encoder::find(codec_id) else {
-        log::warn!("Cover art codec {:?} not found in ffmpeg build; deferring to finalize stage", format);
-        return Ok(());
+        log::warn!("Cover art codec {:?} missing in ffmpeg build; fallback to finalize stage", format);
+        return None;
     };
-
-    // Add stream and immediately write a single packet containing the raw image data.
-    // For MP4/M4B containers FFmpeg will wrap this appropriately. We rely on the muxer
-    // to interpret MJPEG/PNG packet.
     match octx.add_stream(codec) {
         Ok(stream) => {
             let idx = stream.index();
-            let mut pkt = ff::Packet::copy(cover_data);
-            pkt.set_stream(idx);
-            // Mark as key packet
-            pkt.set_flags(ff::packet::flag::Flags::KEY);
-            // PTS/DTS not strictly necessary for attachments; leave unset.
-            if let Err(e) = pkt.write_interleaved(octx) {
-                log::warn!("Failed writing cover art packet ({}); will fall back to finalize stage", e);
-            } else {
-                log::info!(
-                    "Embedded cover art: stream_index={}, format={:?}, size={} bytes", idx, format, cover_data.len()
-                );
-            }
+            log::info!("Added cover art stream pre-header (index={}, format={:?}, bytes={})", idx, format, cover_data.len());
+            Some((idx, format))
         }
         Err(e) => {
-            log::warn!("Failed to add cover art stream ({}); deferring to finalize stage", e);
+            log::warn!("Failed adding cover art stream ({}); fallback to finalize stage", e);
+            None
         }
     }
+}
 
-    Ok(())
+/// Writes the cover art packet after header if a stream was added.
+pub fn write_cover_art_packet_post_header(
+    octx: &mut ff::format::context::Output,
+    stream_index: usize,
+    cover_data: &[u8],
+    format: CoverFormat,
+) {
+    if cover_data.is_empty() { return; }
+    let mut pkt = ff::Packet::copy(cover_data);
+    pkt.set_stream(stream_index);
+    pkt.set_flags(ff::packet::flag::Flags::KEY);
+    if let Err(e) = pkt.write_interleaved(octx) {
+        log::warn!("Failed writing native cover art packet ({}); finalize stage will attempt embedding", e);
+    } else {
+        log::info!("Native cover art packet written (stream={}, format={:?}, size={} bytes)", stream_index, format, cover_data.len());
+    }
 }
 
 /// Sets global metadata on output format context
@@ -159,6 +160,7 @@ pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ffmpeg_next as ff;
     
     #[test]
     fn test_metadata_conversion() {
@@ -192,5 +194,32 @@ mod tests {
         
         let warnings = validate_metadata_compatibility(&metadata);
         assert!(warnings.len() >= 2); // Should warn about track and cover art size
+    }
+
+    #[test]
+    fn test_detect_cover_art_format() {
+        let jpeg = b"\xFF\xD8\xFFrest"; // minimal marker
+        let png = b"\x89PNG\r\n\x1A\nrest"; // minimal signature
+        let bad = b"GIF89a";
+        assert_eq!(detect_cover_art_format(jpeg), Some(CoverFormat::Jpeg));
+        assert_eq!(detect_cover_art_format(png), Some(CoverFormat::Png));
+        assert_eq!(detect_cover_art_format(bad), None);
+    }
+
+    #[test]
+    fn test_add_cover_art_stream_pre_header_supported_and_unsupported() {
+        ff::init().expect("ffmpeg init");
+        let temp = tempfile::TempDir::new().expect("temp");
+        let output = temp.path().join("test.m4b");
+        let mut octx = ff::format::output(&output).expect("create output");
+
+        // Unsupported should return None
+        let unsupported = b"GIF89a"; // triggers log warning path
+        assert!(add_cover_art_stream_pre_header(&mut octx, unsupported).is_none());
+
+        // Supported JPEG returns Some
+        let jpeg = b"\xFF\xD8\xFF\xE0data";
+        let added = add_cover_art_stream_pre_header(&mut octx, jpeg);
+        assert!(matches!(added, Some((_idx, CoverFormat::Jpeg))));
     }
 }

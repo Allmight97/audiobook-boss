@@ -280,8 +280,8 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
-        // Resolve target audio parameters
-        let (target_sample_rate, target_channels) = Self::resolve_target_audio_params(plan)?;
+    // Resolve target audio parameters
+    let (target_sample_rate, target_channels) = Self::resolve_target_audio_params(plan)?;
 
         // Prepare output muxer and encoder
         let mut octx = ff::format::output(&plan.output_path)
@@ -291,6 +291,18 @@ impl FfmpegNextProcessor {
         if let Some(metadata) = metadata {
             #[cfg(feature = "safe-ffmpeg")]
             crate::metadata::ffmpeg_bridge::set_container_metadata(&mut octx, metadata)?;
+        }
+
+        // PRE-HEADER: Attempt to add cover art stream (store index & format for post-header packet write)
+        // TEMPORARILY DISABLED: Native cover art embedding causing codec compatibility issues
+        // Will fall back to Lofty embedding in finalize stage
+        #[cfg(feature = "safe-ffmpeg")]
+        let mut cover_art_stream_info: Option<(usize, crate::metadata::ffmpeg_bridge::CoverFormat)> = None;
+        #[cfg(all(feature = "safe-ffmpeg", feature = "never"))]  // Disabled
+        if let Some(_metadata) = metadata {
+            if let Some(ref cover_data) = _metadata.cover_art {
+                cover_art_stream_info = crate::metadata::ffmpeg_bridge::add_cover_art_stream_pre_header(&mut octx, cover_data);
+            }
         }
 
         let codec = ff::encoder::find(ff::codec::Id::AAC)
@@ -318,17 +330,16 @@ impl FfmpegNextProcessor {
         let ost_index = ost.index();
         let ost_time_base = ost.time_base();
 
-        // Write header first (required before we can safely write packets)
+        // Write header (streams finalized)
         octx.write_header()
             .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
 
-        // Embed cover art after header so we can write a packet to the new stream cleanly
+        // POST-HEADER: Write cover art packet if we successfully added a stream
+        // TEMPORARILY DISABLED: Native cover art embedding disabled above
+        #[cfg(all(feature = "safe-ffmpeg", feature = "never"))]  // Disabled
         if let Some(_metadata) = metadata {
-            if let Some(ref cover_data) = _metadata.cover_art {
-                #[cfg(feature = "safe-ffmpeg")]
-                if let Err(e) = crate::metadata::ffmpeg_bridge::embed_cover_art_ffmpeg(&mut octx, cover_data) {
-                    log::warn!("Failed to embed cover art: {}", e);
-                }
+            if let (Some((stream_index, format)), Some(ref cover_data)) = (cover_art_stream_info, _metadata.cover_art.as_ref()) {
+                crate::metadata::ffmpeg_bridge::write_cover_art_packet_post_header(&mut octx, stream_index, cover_data, format);
             }
         }
 

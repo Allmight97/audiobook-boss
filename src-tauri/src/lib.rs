@@ -8,6 +8,15 @@ mod errors;
 #[cfg(not(feature = "safe-ffmpeg"))]
 mod ffmpeg;
 mod metadata;
+// Re-export key public types needed by external integration tests without exposing full internal module structure
+pub use metadata::AudiobookMetadata;
+#[cfg(feature = "safe-ffmpeg")]
+pub use metadata::ffmpeg_bridge::{
+    set_container_metadata as ffmpeg_set_container_metadata,
+    add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
+    write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
+    CoverFormat as FfmpegCoverFormat,
+};
 pub mod audio;
 
 #[cfg(test)]
