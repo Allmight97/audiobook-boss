@@ -8,21 +8,31 @@ use serde::{Deserialize, Serialize};
 pub mod reader;
 pub mod writer;
 
+// FFmpeg-next integration bridge for direct metadata embedding during encoding
+#[cfg(feature = "safe-ffmpeg")]
+pub mod ffmpeg_bridge;
+
 /// Represents audiobook metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiobookMetadata {
     /// Title of the audiobook
     pub title: Option<String>,
-    /// Author of the book
-    pub author: Option<String>,
+    /// Author of the book (mapped to artist in containers)
+    pub artist: Option<String>,
     /// Album name (book/series name)
     pub album: Option<String>,
-    /// Narrator of the audiobook
-    pub narrator: Option<String>,
-    /// Publication year
-    pub year: Option<u32>,
+    /// Composer (often same as author for audiobooks)
+    pub composer: Option<String>,
     /// Genre of the book
     pub genre: Option<String>,
+    /// Publication year/date
+    pub date: Option<u32>,
+    /// Track number (chapter number, total chapters)
+    pub track: Option<(u32, Option<u32>)>,
+    /// Disk number (rarely used for audiobooks)
+    pub disk: Option<(u32, Option<u32>)>,
+    /// Comment field
+    pub comment: Option<String>,
     /// Description or synopsis
     pub description: Option<String>,
     /// Cover art as raw bytes
@@ -35,11 +45,14 @@ impl AudiobookMetadata {
     pub fn new() -> Self {
         Self {
             title: None,
-            author: None,
+            artist: None,
             album: None,
-            narrator: None,
-            year: None,
+            composer: None,
             genre: None,
+            date: None,
+            track: None,
+            disk: None,
+            comment: None,
             description: None,
             cover_art: None,
         }

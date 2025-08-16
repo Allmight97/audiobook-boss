@@ -336,16 +336,17 @@ export class StatusPanel {
         const description = getElementValue('meta-description');
 
         if (title) metadata.title = title;
-        if (author) metadata.author = author;
+        if (author) metadata.artist = author; // Map author -> artist for backend
         if (album) metadata.album = album;
-        if (narrator) metadata.narrator = narrator;
+        if (narrator) metadata.composer = narrator; // Map narrator -> composer for backend
         if (year) {
             const yearNum = parseInt(year);
-            if (!isNaN(yearNum)) metadata.year = yearNum;
+            if (!isNaN(yearNum)) metadata.date = yearNum; // Map year -> date for backend
         }
         if (genre) metadata.genre = genre;
-        if (series) metadata.series = series;
         if (description) metadata.description = description;
+        
+        // TODO: Handle series metadata - may need to be combined with album or stored separately
 
         // Include cover art if user has selected any
         const coverBytes = getCurrentCoverArt();

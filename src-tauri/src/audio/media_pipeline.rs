@@ -80,16 +80,25 @@ impl MediaProcessingPlan {
 
     /// Executes the processing plan with context-based progress tracking
     #[cfg(all(any(test, feature = "safe-ffmpeg"), not(feature = "safe-ffmpeg")))]
-    pub async fn execute_with_context(&self, context: &ProcessingContext) -> Result<()> {
+    pub async fn execute_with_context(
+        &self, 
+        context: &ProcessingContext,
+        _metadata: Option<&crate::metadata::AudiobookMetadata>,
+    ) -> Result<()> {
         let cmd = self.build_ffmpeg_command()?;
+        // Note: Shell implementation ignores metadata as it's handled in finalize stage
         execute_ffmpeg_with_progress_context(cmd, context, self.total_duration).await
     }
 
     /// Executes the processing plan with context-based progress tracking (safe-ffmpeg version)
     #[cfg(all(any(test, feature = "safe-ffmpeg"), feature = "safe-ffmpeg"))]
-    pub async fn execute_with_context(&self, context: &ProcessingContext) -> Result<()> {
+    pub async fn execute_with_context(
+        &self, 
+        context: &ProcessingContext,
+        metadata: Option<&crate::metadata::AudiobookMetadata>,
+    ) -> Result<()> {
         let processor = crate::audio::media_pipeline::FfmpegNextProcessor;
-        processor.execute(self, context).await
+        processor.execute(self, context, metadata).await
     }
 }
 
@@ -102,6 +111,7 @@ pub trait MediaProcessor {
         &'a self,
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
+        metadata: Option<&'a crate::metadata::AudiobookMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }
 
@@ -116,7 +126,9 @@ impl MediaProcessor for ShellFFmpegProcessor {
         &'a self,
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
+        _metadata: Option<&'a crate::metadata::AudiobookMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        // Note: Shell processor handles metadata via separate finalize stage
         Box::pin(async move {
             let cmd = plan.build_ffmpeg_command()?;
             execute_ffmpeg_with_progress_context(cmd, context, plan.total_duration).await
@@ -208,6 +220,23 @@ impl FfmpegNextProcessor {
         opened.set_channel_layout(channel_layout);
         opened.set_format(sample_format);
         opened.set_time_base(time_base);
+        
+        // Enhanced AAC quality: Enable twoloop for better psychoacoustic analysis
+        // TODO: Fix twoloop implementation - need to investigate correct API
+        // Note: twoloop option may not be available in all ffmpeg-next builds
+        // Graceful fallback ensures compatibility across different FFmpeg configurations
+        log::info!("Configuring AAC encoder (twoloop enhancement temporarily disabled)");
+        
+        // Set encoder options through AVCodecContext (twoloop enhancement)
+        // This is a best-effort attempt - will log warning if unavailable
+        // match opened.set_option("aac_coder", "twoloop") {
+        //     Ok(_) => log::info!("Enhanced AAC twoloop encoder enabled"),
+        //     Err(e) => {
+        //         log::warn!("Enhanced AAC twoloop not available, using standard AAC-LC: {}", e);
+        //         // Continue with standard AAC-LC encoding - this is not a failure
+        //     }
+        // }
+        
         // Some containers require global header on encoder
         if requires_global_header {
             opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
@@ -219,10 +248,11 @@ impl FfmpegNextProcessor {
         Ok(enc_ctx)
     }
 
-    /// Sets up the output encoder context and stream
+    /// Sets up the output encoder context and stream with metadata support
     /// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
     fn setup_encoder(
         plan: &MediaProcessingPlan,
+        metadata: Option<&crate::metadata::AudiobookMetadata>,
     ) -> Result<(
         ffmpeg_next::format::context::Output,
         ffmpeg_next::codec::encoder::audio::Encoder,
@@ -239,6 +269,12 @@ impl FfmpegNextProcessor {
         // Prepare output muxer and encoder
         let mut octx = ff::format::output(&plan.output_path)
             .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+
+        // Set container metadata if provided
+        if let Some(metadata) = metadata {
+            #[cfg(feature = "safe-ffmpeg")]
+            crate::metadata::ffmpeg_bridge::set_container_metadata(&mut octx, metadata)?;
+        }
 
         let codec = ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
@@ -264,6 +300,16 @@ impl FfmpegNextProcessor {
         ost.set_parameters(&enc_ctx);
         let ost_index = ost.index();
         let ost_time_base = ost.time_base();
+
+            // Embed cover art if provided
+            if let Some(_metadata) = metadata {
+                if let Some(ref cover_data) = _metadata.cover_art {
+                    #[cfg(feature = "safe-ffmpeg")]
+                    if let Err(e) = crate::metadata::ffmpeg_bridge::embed_cover_art_ffmpeg(&mut octx, cover_data) {
+                        log::warn!("Failed to embed cover art: {}", e);
+                    }
+                }
+            }
 
         octx.write_header()
             .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
@@ -570,6 +616,7 @@ impl MediaProcessor for FfmpegNextProcessor {
         &'a self,
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
+        metadata: Option<&'a crate::metadata::AudiobookMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         use ffmpeg_next as ff;
         use std::sync::Once;
@@ -581,9 +628,20 @@ impl MediaProcessor for FfmpegNextProcessor {
         });
 
         Box::pin(async move {
-            // Setup encoder and output context
+            // Setup encoder and output context with metadata
             let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) =
-                Self::setup_encoder(plan)?;
+                Self::setup_encoder(plan, metadata)?;
+
+            // Validate metadata compatibility if provided
+            if let Some(_metadata) = metadata {
+                #[cfg(feature = "safe-ffmpeg")]
+                {
+                    let warnings = crate::metadata::ffmpeg_bridge::validate_metadata_compatibility(_metadata);
+                    for warning in warnings {
+                        log::warn!("Metadata compatibility: {}", warning);
+                    }
+                }
+            }
 
             // Ensure partial outputs are removed on failure or cancellation
             let mut cleanup_guard = crate::audio::cleanup::CleanupGuard::new(context.session.id());
@@ -619,6 +677,12 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             // Preserve output on success
             let _ = cleanup_guard.remove_path(&plan.output_path);
+
+            if let Some(_metadata) = metadata {
+                log::info!("Audio processing completed with metadata integration");
+            } else {
+                log::info!("Audio processing completed without metadata");
+            }
 
             Ok(())
         })

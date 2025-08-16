@@ -45,16 +45,16 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     if let Some(title) = &metadata.title {
         tag.set_title(title.clone());
     }
-    if let Some(author) = &metadata.author {
+    if let Some(author) = &metadata.artist {
         tag.set_artist(author.clone());
     }
     if let Some(album) = &metadata.album {
         tag.set_album(album.clone());
     }
-    if let Some(narrator) = &metadata.narrator {
+    if let Some(narrator) = &metadata.composer {
         tag.insert(TagItem::new(ItemKey::AlbumArtist, ItemValue::Text(narrator.clone())));
     }
-    if let Some(year) = metadata.year {
+    if let Some(year) = metadata.date {
         tag.set_year(year);
     }
     if let Some(genre) = &metadata.genre {

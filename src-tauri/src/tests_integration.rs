@@ -109,7 +109,7 @@ mod integration_tests {
         // Document current metadata structure (don't assert specific values)
         eprintln!("Current metadata structure:");
         eprintln!("  Title: {:?}", input_metadata.title);
-        eprintln!("  Author: {:?}", input_metadata.author);
+        eprintln!("  Author: {:?}", input_metadata.artist);
         eprintln!("  Album: {:?}", input_metadata.album);
 
         // Note: Full processing test would require FFmpeg and is complex
@@ -180,25 +180,25 @@ mod integration_tests {
         // Document current metadata structure and behavior
         eprintln!("Original metadata behavior:");
         eprintln!("  Title: {:?}", original_metadata.title);
-        eprintln!("  Author: {:?}", original_metadata.author);
+        eprintln!("  Author: {:?}", original_metadata.artist);
         eprintln!("  Album: {:?}", original_metadata.album);
         eprintln!("  Genre: {:?}", original_metadata.genre);
-        eprintln!("  Year: {:?}", original_metadata.year);
-        eprintln!("  Narrator: {:?}", original_metadata.narrator);
+        eprintln!("  Year: {:?}", original_metadata.date);
+        eprintln!("  Narrator: {:?}", original_metadata.composer);
         eprintln!("  Description: {:?}", original_metadata.description);
         eprintln!("  Has cover art: {}", original_metadata.cover_art.is_some());
 
         // Test metadata creation and modification
         let mut new_metadata = AudiobookMetadata::new();
         assert!(new_metadata.title.is_none(), "New metadata should have no title");
-        assert!(new_metadata.author.is_none(), "New metadata should have no author");
+        assert!(new_metadata.artist.is_none(), "New metadata should have no author");
         assert!(new_metadata.cover_art.is_none(), "New metadata should have no cover art");
 
         // Test metadata field assignment
         new_metadata.title = Some("Test Title".to_string());
-        new_metadata.author = Some("Test Author".to_string());
+        new_metadata.artist = Some("Test Author".to_string());
         assert_eq!(new_metadata.title, Some("Test Title".to_string()));
-        assert_eq!(new_metadata.author, Some("Test Author".to_string()));
+        assert_eq!(new_metadata.artist, Some("Test Author".to_string()));
     }
 
     /// Test that captures current error handling behavior

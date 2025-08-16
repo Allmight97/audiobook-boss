@@ -11,7 +11,9 @@ mod metadata;
 pub mod audio;
 
 #[cfg(test)]
-mod tests_integration;
+pub mod tests_integration;
+#[cfg(feature = "safe-ffmpeg")]
+pub mod tests_metadata_integration;
 
 use std::sync::{Arc, Mutex};
 use audio::ProcessingProgress;

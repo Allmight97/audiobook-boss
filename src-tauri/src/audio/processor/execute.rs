@@ -46,6 +46,7 @@ pub(crate) async fn execute_processing(
     context: &ProcessingContext,
     workflow: &ProcessingWorkflow,
     files: &[AudioFile],
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
     let mut emitter = ProgressReporter::new(1); // Single logical processing unit
@@ -64,6 +65,7 @@ pub(crate) async fn execute_processing(
         reporter,
         workflow.total_duration(),
         files,
+        metadata,
     )
     .await?;
 
@@ -83,6 +85,7 @@ pub(crate) async fn merge_audio_files_with_context(
     _reporter: &mut ProgressReporter,
     total_duration: f64,
     files: &[AudioFile],
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
 ) -> Result<PathBuf> {
     let temp_output = concat_file
         .parent()
@@ -104,7 +107,7 @@ pub(crate) async fn merge_audio_files_with_context(
     // This abstracts away the feature flag logic and prepares for engine flip
     log::debug!("Using media processor: {}", get_engine_description());
     let processor = create_default_processor();
-    processor.execute(&plan, context).await?;
+    processor.execute(&plan, context, metadata).await?;
 
     Ok(temp_output)
 }

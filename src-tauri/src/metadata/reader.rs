@@ -35,12 +35,12 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 /// Extracts data from a tag into the metadata struct
 fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
     metadata.title = tag.title().map(|s| s.to_string());
-    metadata.author = tag.artist().map(|s| s.to_string());
+    metadata.artist = tag.artist().map(|s| s.to_string());
     metadata.album = tag.album().map(|s| s.to_string());
     if let Some(item) = tag.get(&ItemKey::AlbumArtist) {
-        metadata.narrator = Some(item.value().text().unwrap_or("").to_string());
+        metadata.composer = Some(item.value().text().unwrap_or("").to_string());
     }
-    metadata.year = tag.year();
+    metadata.date = tag.year();
     metadata.genre = tag.genre().map(|s| s.to_string());
     
     // Extract description from comment

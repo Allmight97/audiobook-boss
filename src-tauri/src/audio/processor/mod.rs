@@ -130,7 +130,7 @@ pub async fn process_audiobook_with_context(
 
     // Stage 2: Execute (execute module)
     let merged_output =
-        execute::execute_processing(&context, &workflow, &files, &mut reporter).await?;
+        execute::execute_processing(&context, &workflow, &files, metadata.as_ref(), &mut reporter).await?;
 
     // Stage 3: Finalize
     let result =
