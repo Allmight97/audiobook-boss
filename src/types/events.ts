@@ -167,7 +167,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * 
  * Percentage Ranges:
  * - 0-10%: Initial validation and setup
- * - 10-80%: Audio conversion (mapped from FFmpeg progress)
+ * - 10-80%: Audio conversion (mapped from encoder timestamps and total duration)
  * - 80-95%: Metadata writing
  * - 95-98%: File moving and cleanup
  * - 100%: Completion

@@ -144,9 +144,7 @@ fn test_channel_config_properties() {
     assert_eq!(ChannelConfig::Mono.channel_count(), 1);
     assert_eq!(ChannelConfig::Stereo.channel_count(), 2);
     
-    // Test FFmpeg layout strings
-    assert_eq!(ChannelConfig::Mono.ffmpeg_layout(), "mono");
-    assert_eq!(ChannelConfig::Stereo.ffmpeg_layout(), "stereo");
+    // Channel layout strings helper removed; verify counts only
 }
 
 #[test]
@@ -226,11 +224,9 @@ fn test_sample_rate_detection_error_cases() {
 fn test_media_processing_plan_construction() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let input_file = create_test_audio_file(&temp_dir, "input.wav").expect("create test file");
-    let concat_file = temp_dir.path().join("concat.txt");
     let output_file = temp_dir.path().join("output.m4b");
     
-    // Create concat file content
-    std::fs::write(&concat_file, format!("file '{}'\n", input_file.display())).expect("write concat file");
+    // Concat no longer required in single-engine path
     
     let settings = AudioSettings {
         bitrate: 64,
@@ -240,7 +236,6 @@ fn test_media_processing_plan_construction() {
     };
     
     let plan = MediaProcessingPlan::new(
-        concat_file,
         output_file,
         settings,
         vec![input_file],
@@ -268,11 +263,8 @@ fn test_media_processing_plan_construction() {
 fn test_settings_application_integration() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let input_file = create_test_audio_file(&temp_dir, "input.wav").expect("create test file");
-    let concat_file = temp_dir.path().join("concat.txt");
     let _output_file = temp_dir.path().join("output.m4b");
-    
-    // Create concat file
-    std::fs::write(&concat_file, format!("file '{}'\n", input_file.display())).expect("write concat file");
+    // Concat file not needed in single-engine path
     
     // Test different settings configurations
     let test_cases = vec![
@@ -306,7 +298,6 @@ fn test_settings_application_integration() {
         
         // Create processing plan
         let plan = MediaProcessingPlan::new(
-            concat_file.clone(),
             settings.output_path.clone(),
             settings,
             vec![input_file.clone()],
@@ -380,9 +371,7 @@ fn test_channel_config_edge_cases() {
     assert_eq!(mono.channel_count(), 1);
     assert_eq!(stereo.channel_count(), 2);
     
-    // Test FFmpeg layout strings are correct
-    assert_eq!(mono.ffmpeg_layout(), "mono");
-    assert_eq!(stereo.ffmpeg_layout(), "stereo");
+    // Channel layout helper removed
     
     // Test that these values work in settings validation
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -409,7 +398,7 @@ fn test_channel_config_edge_cases() {
 #[test] 
 fn test_media_processing_plan_settings_preservation() {
     let temp_dir = TempDir::new().expect("create temp dir");
-    let concat_file = temp_dir.path().join("concat.txt");
+    let _concat_file = temp_dir.path().join("concat.txt");
     let output_file = temp_dir.path().join("output.m4b");
     let input_file = temp_dir.path().join("input.wav");
     
@@ -421,7 +410,6 @@ fn test_media_processing_plan_settings_preservation() {
     };
     
     let plan = MediaProcessingPlan::new(
-        concat_file,
         output_file.clone(),
         original_settings.clone(),
         vec![input_file],

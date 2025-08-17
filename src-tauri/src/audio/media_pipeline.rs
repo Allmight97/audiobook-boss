@@ -19,8 +19,6 @@ use std::pin::Pin;
 /// to hold all processing parameters in a structured way.
 #[derive(Debug, Clone)]
 pub struct MediaProcessingPlan {
-    /// Input concat file path
-    pub input_concat_file: PathBuf,
     /// Output file path
     pub output_path: PathBuf,
     /// Audio processing settings
@@ -34,14 +32,12 @@ pub struct MediaProcessingPlan {
 impl MediaProcessingPlan {
     /// Creates a new media processing plan
     pub fn new(
-        input_concat_file: PathBuf,
         output_path: PathBuf,
         settings: AudioSettings,
         input_file_paths: Vec<PathBuf>,
         total_duration: f64,
     ) -> Self {
         Self {
-            input_concat_file,
             output_path,
             settings,
             input_file_paths,

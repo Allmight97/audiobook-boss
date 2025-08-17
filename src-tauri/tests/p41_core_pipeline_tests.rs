@@ -16,7 +16,6 @@ fn test_media_processing_plan_execute_method_exists() {
     // This test verifies that the placeholder has been removed and the method compiles
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("plan_output.m4b");
-    let concat_file = temp_dir.path().join("plan_concat.txt");
     
     let settings = AudioSettings {
         bitrate: 64,
@@ -26,7 +25,6 @@ fn test_media_processing_plan_execute_method_exists() {
     };
     
     let plan = MediaProcessingPlan::new(
-        concat_file,
         output_path.clone(),
         settings,
         vec![PathBuf::from("dummy.mp3")],
@@ -60,7 +58,7 @@ fn test_ffmpeg_next_processor_instantiation() {
 fn test_media_processing_plan_creation() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("test.m4b");
-    let concat_file = temp_dir.path().join("concat.txt");
+    let _concat_file = temp_dir.path().join("concat.txt");
     
     // Test various audio settings combinations
     let test_cases = vec![
@@ -80,7 +78,6 @@ fn test_media_processing_plan_creation() {
     
     for (i, settings) in test_cases.into_iter().enumerate() {
         let plan = MediaProcessingPlan::new(
-            concat_file.clone(),
             output_path.clone(),
             settings.clone(),
             vec![PathBuf::from(&format!("test{}.mp3", i))],

@@ -56,7 +56,7 @@ pub(crate) async fn execute_processing(
     );
 
     let merged_output = merge_audio_files_with_context(
-        workflow.concat_file(),
+        &workflow.temp_dir,
         context,
         reporter,
         workflow.total_duration(),
@@ -76,23 +76,19 @@ pub(crate) async fn execute_processing(
 
 /// Merges audio files with context-based progress tracking.
 pub(crate) async fn merge_audio_files_with_context(
-    concat_file: &Path,
+    temp_dir: &Path,
     context: &ProcessingContext,
     _reporter: &mut ProgressReporter,
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
 ) -> Result<PathBuf> {
-    let temp_output = concat_file
-        .parent()
-        .ok_or_else(|| AppError::FileValidation("Invalid concat file path".to_string()))?
-        .join(TEMP_MERGED_FILENAME);
+    let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
 
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let settings = &context.settings;
 
     let plan = MediaProcessingPlan::new(
-        concat_file.to_path_buf(),
         temp_output.clone(),
         settings.clone(),
         file_paths,

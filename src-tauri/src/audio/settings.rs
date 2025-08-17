@@ -142,13 +142,7 @@ impl ChannelConfig {
         }
     }
     
-    /// Returns FFmpeg channel layout string  
-    pub fn ffmpeg_layout(&self) -> &'static str {
-        match self {
-            ChannelConfig::Mono => "mono",
-            ChannelConfig::Stereo => "stereo",
-        }
-    }
+    // Removed: ffmpeg_layout() (CLI-oriented helper not used at runtime)
 }
 
 impl SampleRateConfig {

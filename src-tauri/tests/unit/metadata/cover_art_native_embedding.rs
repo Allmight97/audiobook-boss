@@ -25,8 +25,7 @@ fn test_native_cover_art_embedding_end_to_end() {
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
-    let concat = temp.path().join("concat.txt");
-    std::fs::write(&concat, format!("file '{}'\n", input.display())).unwrap();
+    let _concat = temp.path().join("concat.txt");
     let output = temp.path().join("out.m4b");
 
     let settings = AudioSettings {
@@ -43,7 +42,6 @@ fn test_native_cover_art_embedding_end_to_end() {
     };
 
     let plan = MediaProcessingPlan::new(
-        concat.clone(),
         output.clone(),
         settings,
         vec![input.clone()],
@@ -74,8 +72,7 @@ fn test_cover_art_unsupported_format_fallback() {
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
-    let concat = temp.path().join("concat.txt");
-    std::fs::write(&concat, format!("file '{}'\n", input.display())).unwrap();
+    let _concat = temp.path().join("concat.txt");
     let output = temp.path().join("out.m4b");
 
     // Fake GIF header (unsupported) to trigger fallback
@@ -95,7 +92,6 @@ fn test_cover_art_unsupported_format_fallback() {
     };
 
     let plan = MediaProcessingPlan::new(
-        concat.clone(),
         output.clone(),
         settings,
         vec![input.clone()],

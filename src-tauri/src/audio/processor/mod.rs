@@ -57,8 +57,6 @@ pub use prepare::detect_input_sample_rate;
 pub(crate) struct ProcessingWorkflow {
     /// Session-scoped temporary working directory
     pub(crate) temp_dir: std::path::PathBuf,
-    /// FFmpeg concat list file path
-    pub(crate) concat_file: std::path::PathBuf,
     /// Total duration (seconds) of all valid input files (pre‑computed)
     pub(crate) total_duration: f64,
 }
@@ -67,20 +65,15 @@ impl ProcessingWorkflow {
     /// Constructor helper to keep instantiation explicit at call sites.
     pub(crate) fn new(
         temp_dir: std::path::PathBuf,
-        concat_file: std::path::PathBuf,
         total_duration: f64,
     ) -> Self {
         Self {
             temp_dir,
-            concat_file,
             total_duration,
         }
     }
 
     /// Accessor helpers (kept small / inline for clarity).
-    pub(crate) fn concat_file(&self) -> &std::path::PathBuf {
-        &self.concat_file
-    }
     pub(crate) fn total_duration(&self) -> f64 {
         self.total_duration
     }

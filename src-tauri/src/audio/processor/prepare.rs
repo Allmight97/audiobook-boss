@@ -166,8 +166,7 @@ pub(crate) fn prepare_workspace(
 
     let temp_dir = create_temp_directory_with_session(&context.session.id())?;
     
-    // Single engine: no concat file needed; provide placeholder
-    let concat_file = temp_dir.join("unused_concat.txt");
+    // Single engine: no concat file needed
 
     let total_duration: f64 = files
         .iter()
@@ -183,7 +182,6 @@ pub(crate) fn prepare_workspace(
 
     Ok(ProcessingWorkflow::new(
         temp_dir,
-        concat_file,
         total_duration,
     ))
 }
