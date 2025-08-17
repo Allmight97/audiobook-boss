@@ -38,7 +38,7 @@ impl SampleAccumulator {
     /// Push a frame; return any full frames now available.
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
-        let in_samples = frame.samples() as usize;
+        let in_samples = frame.samples();
         if in_samples == 0 { return ready; }
         unsafe {
             for ch in 0..self.channels {
@@ -63,7 +63,7 @@ impl SampleAccumulator {
         if pad && self.buffers[0].len() < self.frame_size {
             let missing = self.frame_size - self.buffers[0].len();
             for ch in 0..self.channels {
-                self.buffers[ch].extend(std::iter::repeat(0.0).take(missing));
+                self.buffers[ch].extend(std::iter::repeat_n(0.0, missing));
             }
         }
         self.drain_one(true)

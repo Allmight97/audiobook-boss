@@ -667,6 +667,7 @@ impl FfmpegNextProcessor {
     }
 
     /// Flushes any remaining frames from the decoder after processing an input file
+    #[allow(dead_code)]
     fn flush_decoder_frames(
         decoder: &mut ffmpeg_next::codec::decoder::Audio,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
@@ -695,7 +696,7 @@ impl FfmpegNextProcessor {
                         continue;
                     }
                     let target_size = encoder.frame_size() as usize;
-                    let mut total_samples = out.samples() as usize;
+                    let total_samples = out.samples();
                     let mut start_sample = 0usize;
                     while start_sample < total_samples {
                         let remaining = total_samples - start_sample;
@@ -722,12 +723,12 @@ impl FfmpegNextProcessor {
                                 let src_plane = out.data(ch);
                                 let dst_plane = sub.data_mut(ch);
                                 let bytes_per_sample = 4; // F32
-                                let plane_samples = out.samples() as usize;
+                                let plane_samples = out.samples();
                                 let src_offset_bytes = start_sample * bytes_per_sample;
                                 let take_bytes = take * bytes_per_sample;
                                 
                                 // Defensive bounds check to prevent panic
-                                if dst_plane.len() == 0 {
+                                if dst_plane.is_empty() {
                                     log::error!("Destination plane {} has zero length - frame allocation failed during flush", ch);
                                     break;
                                 }
@@ -853,7 +854,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             let mut accumulator = crate::audio::buffer::SampleAccumulator::new(
                 enc_ctx.channel_layout().channels() as usize,
                 enc_ctx.frame_size() as usize,
-                enc_ctx.rate() as u32,
+                enc_ctx.rate(),
                 enc_ctx.channel_layout(),
                 enc_ctx.format(),
             );

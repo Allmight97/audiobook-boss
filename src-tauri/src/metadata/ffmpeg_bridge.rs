@@ -231,7 +231,7 @@ fn detect_png_dimensions(data: &[u8]) -> Option<(i32, i32)> {
     if data.len() < 24 { return None; }
     
     // PNG signature: 89 50 4E 47 0D 0A 1A 0A
-    if &data[0..8] != &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+    if data[0..8] != [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
         return None;
     }
     
