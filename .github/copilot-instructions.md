@@ -50,3 +50,4 @@ Failure patterns to avoid (and auto self-correct):
 
 ==
 When modifying code apply **[cross-project coding standards](instructions/cross-project-coding-standards.instructions.md)** ✅
+Reference docs/specs/db.json for FFMPEG-NEXT commands.
