@@ -102,6 +102,27 @@ struct FramePipelineCtx<'a> {
 }
 
 impl FfmpegNextProcessor {
+    #[cfg(debug_assertions)]
+    fn debug_validate_frame_contract(
+        frame: &ffmpeg_next::frame::Audio,
+        encoder: &ffmpeg_next::codec::encoder::audio::Encoder,
+    ) {
+        // Format/layout/rate must match encoder
+        debug_assert_eq!(frame.format(), encoder.format(), "Frame format must match encoder format");
+        debug_assert_eq!(frame.channel_layout(), encoder.channel_layout(), "Channel layout mismatch");
+        debug_assert_eq!(frame.rate(), encoder.rate(), "Sample rate mismatch");
+
+        // Samples must be > 0 and respect encoder frame size if non-zero
+        let samples_i64 = frame.samples() as i64;
+        debug_assert!(samples_i64 > 0, "Frame must contain at least one sample");
+        let enc_frame_size_i64 = encoder.frame_size() as i64;
+        if enc_frame_size_i64 > 0 {
+            debug_assert!(samples_i64 <= enc_frame_size_i64, "Frame samples exceed encoder.frame_size()");
+        }
+
+        // PTS should be set (monotonicity is enforced by caller via running_pts)
+        debug_assert!(frame.pts().is_some(), "Frame PTS must be set before encoding");
+    }
     /// Resolves target sample rate and channels from plan settings
     fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
         use crate::errors::AppError;
@@ -516,39 +537,14 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
-        // Unconditional sanitize: copy to a clean frame, clamp to [-1, 1], replace non-finite with 0.0
-        let mut clean = ff::frame::Audio::empty();
-        clean.set_format(frame.format());
-        clean.set_channel_layout(frame.channel_layout());
-        clean.set_rate(frame.rate());
-        clean.set_samples(frame.samples());
-        unsafe { clean.alloc(frame.format(), frame.samples(), frame.channel_layout()); }
-        clean.set_pts(frame.pts());
-
-        if frame.samples() > 0 {
-            let channels = frame.channel_layout().channels() as usize;
-            for ch in 0..channels {
-                let src_plane = frame.data(ch);
-                let dst_plane = clean.data_mut(ch);
-                let len_f32 = (dst_plane.len() / 4).min(src_plane.len() / 4);
-                let src: &[f32] = unsafe { std::slice::from_raw_parts(src_plane.as_ptr() as *const f32, len_f32) };
-                let dst: &mut [f32] = unsafe { std::slice::from_raw_parts_mut(dst_plane.as_mut_ptr() as *mut f32, len_f32) };
-                let mut repaired = 0usize;
-                for i in 0..len_f32 {
-                    let mut v = src[i];
-                    if !v.is_finite() { v = 0.0; repaired += 1; }
-                    if v > 1.0 { v = 1.0; repaired += 1; }
-                    if v < -1.0 { v = -1.0; repaired += 1; }
-                    dst[i] = v;
-                }
-                if repaired > 0 {
-                    log::warn!("Sanitized {} samples on channel {} before encoding", repaired, ch);
-                }
-            }
+        // Debug-only: validate frame contract prior to encoding; sanitation is centralized in buffer.rs
+        #[cfg(debug_assertions)]
+        {
+            Self::debug_validate_frame_contract(frame, encoder);
         }
 
         encoder
-            .send_frame(&clean)
+            .send_frame(frame)
             .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
         let mut pkt = ff::Packet::empty();
         while encoder.receive_packet(&mut pkt).is_ok() {
