@@ -41,6 +41,9 @@ pub mod finalize;
 // Legacy module removed during nuclear cleanup - single-engine architecture achieved
 pub mod prepare;
 pub mod selection;
+pub mod encoder;
+pub mod streams;
+pub mod frame_pipeline;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed

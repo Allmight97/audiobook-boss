@@ -67,8 +67,18 @@ Context anchors:
 ### P1.5 Settings regression fix (“settings not honored”)
 9) Verify UI → encoder param mapping
    - Log resolved params at start: `target_sample_rate`, `target_channels`, `bitrate`, UI `settings` snapshot.
-   - Ensure `SampleRateConfig::Explicit` is respected through decoder→resampler→encoder.
+   - Ensure `SampleRateConfig::Explicit` is respected through decoder→resampler→encoder and that `channels` is honored regardless of sample‑rate mode (decouple channel selection from sample‑rate resolution).
    - Acceptance: explicit selections reflected in output; add a simple integration test.
+
+Findings from first post‑split runs (user):
+- Able to merge multiple files into a single M4B; progress UI accurate; performance slower than CLI FFmpeg+FDK (acceptable for now).
+- Second run with same inputs appeared to process but final file was not saved.
+- Bitrate was honored; sample rate appeared passed through; mono channel choice was not honored.
+
+Hypotheses and immediate actions:
+- Channel config not honored: current param resolution ties channel count to `SampleRateConfig` branch; when `sample_rate=Auto`, channels default to input stream. Fix by always deriving channels from `settings.channels` and resolving only sample rate from Auto/Explicit.
+- “Did not save file” on repeat run: likely `move_to_final_location` failed because destination already existed (uses `std::fs::rename` without overwrite). Add overwrite strategy (e.g., pre‑remove existing, or write to temp then replace) and ensure UI surfaces the error if move fails.
+- Add debug logs at encoder setup summarizing resolved params and at finalize move step including destination existence/overwrite decision.
 
 ### P2 Encoder enhancements (feature‑flagged, graceful fallback)
 10) Threading
