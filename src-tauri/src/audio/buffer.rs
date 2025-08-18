@@ -44,9 +44,17 @@ impl SampleAccumulator {
             for ch in 0..self.channels {
                 let plane = frame.data(ch);
                 if plane.is_empty() { continue; }
+                let available_floats = plane.len() / 4; // bytes -> f32 count
+                let copy_len = available_floats.min(in_samples);
+                if copy_len < in_samples {
+                    log::warn!(
+                        "Frame plane {} has fewer samples than reported (have={}, expected={}) – truncating copy",
+                        ch, copy_len, in_samples
+                    );
+                }
                 let slice = std::slice::from_raw_parts(
                     plane.as_ptr() as *const f32,
-                    in_samples,
+                    copy_len,
                 );
                 self.buffers[ch].extend_from_slice(slice);
             }
@@ -77,23 +85,37 @@ impl SampleAccumulator {
         let mut frame = ff::frame::Audio::empty();
         frame.set_format(self.format);
         frame.set_channel_layout(self.channel_layout);
-    frame.set_rate(self.sample_rate);
+        frame.set_rate(self.sample_rate);
         frame.set_samples(take);
         unsafe { frame.alloc(self.format, take, self.channel_layout); }
+        let mut total_repairs = 0usize;
         for ch in 0..self.channels {
             let plane = frame.data_mut(ch);
             if plane.is_empty() { continue; }
-            let bytes_per_sample = 4; // f32
-            let take_bytes = take * bytes_per_sample;
-            let src = &self.buffers[ch][..take];
-            let src_bytes = unsafe {
-                std::slice::from_raw_parts(
-                    src.as_ptr() as *const u8,
-                    take_bytes,
-                )
+            let dst: &mut [f32] = unsafe {
+                std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take)
             };
-            plane[..take_bytes].copy_from_slice(src_bytes);
+            let src = &self.buffers[ch][..take];
+            let mut repaired = 0usize;
+            for i in 0..take {
+                let mut v = src[i];
+                if !v.is_finite() {
+                    v = 0.0;
+                    repaired += 1;
+                } else if v > 1.0 {
+                    v = 1.0;
+                    repaired += 1;
+                } else if v < -1.0 {
+                    v = -1.0;
+                    repaired += 1;
+                }
+                dst[i] = v;
+            }
+            total_repairs += repaired;
             self.buffers[ch].drain(..take);
+        }
+        if total_repairs > 0 {
+            log::warn!("Accumulator sanitized {} samples before encoding (frame_size={})", total_repairs, take);
         }
         Some(frame)
     }

@@ -26,7 +26,7 @@ When planning, auditing, or implementing **default to**:
 - **Explanation Style:** Plain, compact, and task-facing. Avoid restating obvious context or writing a technical treatise unless explicitly requested.
 - **Quality Focus:** Apply the engineering standards rubric **before** delivering solutions.
 
-### Concise Action & Rationale Directive (Added)
+### Concise Action & Rationale Directive
 To ensure consistently tight, high-signal responses:
 1. Begin every non-trivial reply with a concise (1-2 senteces) summary: WHAT is being done + WHY (impact).
 2. For multi-step work: structure incremental updates as: `Intent → Action Taken → Outcome / Next`. Keep each to one short line.
@@ -47,6 +47,11 @@ Failure patterns to avoid (and auto self-correct):
 
 
 **IMPORTANT:** Default to the holistic, multi-dimensional L6-mentoring-a-junior-dev mindset; it guides decisions while keeping outputs compact and actionable.
+
+- Do not add backwards compability unless speficially requested. Instead, update all downstream consumers to use the new code surface.
+- Do not remove existing comments unless the code they are referencing is also removed.
+- Only add new comments to code blocks if the code or logic is complex enough to warrant it or is not obvious at first glance.
+- When running tests prefer to use the built in tool that is available to you rather than running tests in the terminal. This should allow you to be more specific in running only applicable tests.
 
 ==
 When modifying code apply **[cross-project coding standards](instructions/cross-project-coding-standards.instructions.md)** ✅

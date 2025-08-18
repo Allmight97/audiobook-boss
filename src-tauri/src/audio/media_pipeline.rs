@@ -516,8 +516,39 @@ impl FfmpegNextProcessor {
         use crate::errors::AppError;
         use ffmpeg_next as ff;
 
+        // Unconditional sanitize: copy to a clean frame, clamp to [-1, 1], replace non-finite with 0.0
+        let mut clean = ff::frame::Audio::empty();
+        clean.set_format(frame.format());
+        clean.set_channel_layout(frame.channel_layout());
+        clean.set_rate(frame.rate());
+        clean.set_samples(frame.samples());
+        unsafe { clean.alloc(frame.format(), frame.samples(), frame.channel_layout()); }
+        clean.set_pts(frame.pts());
+
+        if frame.samples() > 0 {
+            let channels = frame.channel_layout().channels() as usize;
+            for ch in 0..channels {
+                let src_plane = frame.data(ch);
+                let dst_plane = clean.data_mut(ch);
+                let len_f32 = (dst_plane.len() / 4).min(src_plane.len() / 4);
+                let src: &[f32] = unsafe { std::slice::from_raw_parts(src_plane.as_ptr() as *const f32, len_f32) };
+                let dst: &mut [f32] = unsafe { std::slice::from_raw_parts_mut(dst_plane.as_mut_ptr() as *mut f32, len_f32) };
+                let mut repaired = 0usize;
+                for i in 0..len_f32 {
+                    let mut v = src[i];
+                    if !v.is_finite() { v = 0.0; repaired += 1; }
+                    if v > 1.0 { v = 1.0; repaired += 1; }
+                    if v < -1.0 { v = -1.0; repaired += 1; }
+                    dst[i] = v;
+                }
+                if repaired > 0 {
+                    log::warn!("Sanitized {} samples on channel {} before encoding", repaired, ch);
+                }
+            }
+        }
+
         encoder
-            .send_frame(frame)
+            .send_frame(&clean)
             .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
         let mut pkt = ff::Packet::empty();
         while encoder.receive_packet(&mut pkt).is_ok() {
@@ -573,17 +604,54 @@ impl FfmpegNextProcessor {
             let mut frame = ff::frame::Audio::empty();
             match decoder.receive_frame(&mut frame) {
                 Ok(()) => {
+                    // Fast path: if decoder frame already matches encoder format, skip resampler
+                    let decoder_matches_encoder =
+                        frame.format() == encoder.format()
+                        && frame.channel_layout() == encoder.channel_layout()
+                        && frame.rate() == encoder.rate();
+                    let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
+                        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                        .unwrap_or(false);
+
+                    if decoder_matches_encoder && !disable_fastpath {
+                        log::debug!("Fast-path: decoder frame matches encoder format – skipping resampler");
+                        if frame.samples() == 0 {
+                            log::warn!("Decoder produced 0 samples – skipping frame");
+                            continue;
+                        }
+                        *ctx.input_samples_total += frame.samples() as u64;
+                        for mut full in accumulator.push_frame(&frame) {
+                            full.set_pts(Some(*ctx.running_pts));
+                            *ctx.running_pts += full.samples() as i64;
+                            *ctx.encoded_samples_total += full.samples() as u64;
+                            Self::encode_and_write_frame(
+                                encoder,
+                                &full,
+                                output_context,
+                                ctx.output_stream_index,
+                                ctx.output_time_base,
+                            )?;
+                        }
+                        // Progress emit every ~200ms
+                        Self::emit_progress_update(ctx);
+                        continue;
+                    }
+
                     // Resample to encoder format
                     let mut out = ff::frame::Audio::empty();
                     out.set_format(encoder.format());
                     out.set_channel_layout(encoder.channel_layout());
                     out.set_rate(encoder.rate());
                     out.set_samples(frame.samples());
-                    
+                    // Ensure destination frame is allocated before resampling
+                    unsafe {
+                        out.alloc(encoder.format(), frame.samples(), encoder.channel_layout());
+                    }
+
                     resampler
                         .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
-                    
+
                     // Defensive check: ensure we have valid output
                     if out.samples() == 0 {
                         log::warn!("Resampler produced 0 samples – skipping frame to avoid panic");
@@ -688,6 +756,10 @@ impl FfmpegNextProcessor {
                     out.set_channel_layout(encoder.channel_layout());
                     out.set_rate(encoder.rate());
                     out.set_samples(frame.samples());
+                    // Ensure destination frame is allocated before resampling
+                    unsafe {
+                        out.alloc(encoder.format(), frame.samples(), encoder.channel_layout());
+                    }
                     resampler
                         .run(&frame, &mut out)
                         .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
