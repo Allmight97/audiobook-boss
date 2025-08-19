@@ -38,7 +38,7 @@ Context anchors:
 
 ## Phases, scope, and acceptance
 
-### P0 Guardrails (no feature work)
+### P0 Guardrails (no feature work) ✅ - DONE
 1) Centralize sanitization
    - Action: delete per-encode sanitize in `encode_and_write_frame()` once validator is in place and accumulator is confirmed as the single sanitation point.
    - Acceptance: no encoder NaN/Inf errors; waveforms differ only by clamping; tests green.
@@ -50,7 +50,7 @@ Context anchors:
 3) Fast-path policy
    - Keep `ABB_DISABLE_FASTPATH=1` default in docs/CI until P1 completes; retain toggle afterwards.
 
-### P1 Module split (behavior-preserving)
+### P1 Module split (behavior-preserving) ✅ - DONE
 4) Extract encoder concerns to `audio/processor/encoder.rs`
    - Move: `create_audio_encoder`, `setup_encoder`, `encode_and_write_frame`, `finalize_encoding`.
    - Acceptance: compile + tests; logs unchanged; `media_pipeline.rs` shrinks.
@@ -64,7 +64,7 @@ Context anchors:
    - Acceptance: native embedding still attempted; finalize fallback preserved; cover-art tests green.
 8) Keep `media_pipeline.rs` ≤250 LOC as façade.
 
-### P1.5 Settings regression fix (“settings not honored”)
+### P1.5 Settings regression fix (“settings not honored”) ✅ - DONE
 STATUS: Completed
 9) Verify UI → encoder param mapping
    - Log resolved params at start: `target_sample_rate`, `target_channels`, `bitrate`, UI `settings` snapshot.
