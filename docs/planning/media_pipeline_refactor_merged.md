@@ -65,6 +65,7 @@ Context anchors:
 8) Keep `media_pipeline.rs` ≤250 LOC as façade.
 
 ### P1.5 Settings regression fix (“settings not honored”)
+STATUS: Completed
 9) Verify UI → encoder param mapping
    - Log resolved params at start: `target_sample_rate`, `target_channels`, `bitrate`, UI `settings` snapshot.
    - Ensure `SampleRateConfig::Explicit` is respected through decoder→resampler→encoder and that `channels` is honored regardless of sample‑rate mode (decouple channel selection from sample‑rate resolution).
@@ -81,14 +82,43 @@ Hypotheses and immediate actions:
 - Add debug logs at encoder setup summarizing resolved params and at finalize move step including destination existence/overwrite decision.
 
 ### P2 Encoder enhancements (feature‑flagged, graceful fallback)
-10) Threading
-   - Prefer encoder context APIs; else attempt `av_opt_set("threads", N)`; log effective thread mode.
-11) Twoloop
-   - Keep `aac_coder=twoloop` best‑effort; respect `ABB_DISABLE_TWOOLOOP=1`.
-12) Optional AAC VBR plumbing (backend only for now)
-   - Extend `AudioSettings` with `bitrate_mode: Cbr(u32) | Vbr(u8)`.
-   - If VBR: set `bit_rate=0`, set quality via `global_quality`/`AV_CODEC_FLAG_QSCALE` (or `av_opt_set("q", ...)`); log mode; fallback to CBR.
-   - Acceptance: env `ABB_AUDIO_MODE=VBR3` selects VBR without UI; logs confirm; fallback cleanly handled.
+10) Threading (speed)
+   - Use `av_opt_set("threads", "0")` for auto or `N` via env; log effective threads.
+11) AAC coder selection (quality vs speed)
+   - Default `aac_coder=twoloop` (best speech quality); allow `anmr` for faster encode with minor quality tradeoff.
+   - Env: `ABB_AAC_CODER=twoloop|anmr` (default twoloop).
+12) VBR mode (quality at ~64–100 kbps mono)
+   - Backend-only VBR plumbing (no UI yet). If VBR:
+     - Set `bit_rate=0`, set `global_quality` and `AV_CODEC_FLAG_QSCALE` (or via `av_opt_set("q", ...)`).
+     - Start at `q=120` (~75–85 kbps mono @ 44.1k). Also test `q=100` (~60–70 kbps).
+   - Env: `ABB_AUDIO_MODE=VBR`, `ABB_VBR_Q=120` (or `100`).
+13) Sanitize and logging (perf)
+   - Keep accumulator sanitize; encode-stage sanitize default ON while stabilizing, then OFF for perf (`ABB_DISABLE_ENCODE_SANITIZE=1`).
+   - Reduce INFO logs; keep high-signal events only.
+14) Keep fast‑path OFF during these trials (`ABB_DISABLE_FASTPATH=1`).
+
+### P2.5 Preview mode (30‑second A/B and size estimate)
+- Add early‑stop preview to pipeline (backend only, env‑driven). If `ABB_PREVIEW_SECONDS=30`, stop encoding once `running_pts / rate >= 30.0`, finalize to a preview file, and log an output size estimate extrapolated from preview bytes/sec.
+- Preview file naming: `<final_basename>.preview.m4b` in the same output directory (or a session temp subdir), then open with OS if requested by UI.
+- Performance: preview mode still applies threads, coder, and VBR settings for realistic A/B.
+
+## Atomized steps to “make alive” the 30s Preview button in UI (no UI changes yet, just tasks)
+
+Backend
+1) In the processing entry (Tauri command path), read optional `preview_seconds` from env (`ABB_PREVIEW_SECONDS`) and/or command payload.
+2) Pass `preview_seconds` through `ProcessingContext` (or a small new preview config) to the media pipeline.
+3) In frame pipeline loop, after updating `running_pts`, early‑stop if `running_pts as f64 / rate as f64 >= preview_seconds`.
+4) Write preview to `<final_basename>.preview.m4b` and finalize (header/trailer). Skip heavy metadata if desired, or keep basic tags; log size estimate: `(preview_bytes / preview_seconds) * total_duration`.
+5) Return the preview file path in the command response.
+
+UI
+6) Wire the existing “30s Preview” button to call the processing command with `previewSeconds: 30`. Disable other controls during preview; show a distinct “Previewing…” state.
+7) On success, show the preview path and an “Open file” action (use `tauri-plugin-opener`).
+8) Restore UI state; allow re‑runs with different coder/Q combos (env‑controlled for now).
+
+Validation
+9) Confirm preview produces a valid `.m4b`, is ~30s, and size estimate logs appear.
+10) A/B listen twoloop vs anmr at Q=120 and Q=100 using preview.
 
 ### P3 Observability, tests, and perf
 13) Logging
@@ -108,6 +138,7 @@ Hypotheses and immediate actions:
 - `aac_coder=twoloop`: valid on native AAC; treat failures as non‑fatal and continue with AAC‑LC.
 - `strict=experimental`: may be ignored on modern builds; attempting via `av_opt_set` is safe with non‑fatal fallback.
 - Threading: prefer official encoder context APIs; if absent, `av_opt_set("threads", ...)` is acceptable with logging and fallback.
+
 
 ## Doc alignment: Lofty and Tauri 2
 - Lofty (0.20):
@@ -133,3 +164,27 @@ Hypotheses and immediate actions:
 - Execute P0 (centralize sanitize, add validator, keep fast‑path off by default in docs/CI).
 - Perform P1 extraction in small edits with green builds between each.
 - Address settings regression (P1.5) immediately after split.
+
+## Junior‑dev reference: toggles and example commands
+
+Environment flags (set before `npm run tauri dev`):
+- `ABB_DISABLE_FASTPATH=1` — keep fast‑path off during trials
+- `ABB_AAC_CODER=twoloop|anmr` — choose AAC coder (default twoloop)
+- `ABB_AUDIO_MODE=VBR` — enable VBR mode (bit_rate=0)
+- `ABB_VBR_Q=120|100` — VBR quality level (higher ≈ higher bitrate)
+- `ABB_THREADS=0|N` — 0=auto; or set a number like 4
+- `ABB_PREVIEW_SECONDS=30` — enable 30s preview (writes `.preview.m4b`)
+- `ABB_DISABLE_ENCODE_SANITIZE=1` — optional: disable encode‑stage sanitize for perf once stable
+- `RUST_LOG=info|debug` — control log verbosity
+
+Examples:
+- Twoloop + VBR q=120 + threads auto:
+  `ABB_DISABLE_FASTPATH=1 ABB_AAC_CODER=twoloop ABB_AUDIO_MODE=VBR ABB_VBR_Q=120 ABB_THREADS=0 RUST_LOG=info npm run tauri dev`
+
+- anmr + VBR q=100 (faster) + 30s preview:
+  `ABB_DISABLE_FASTPATH=1 ABB_AAC_CODER=anmr ABB_AUDIO_MODE=VBR ABB_VBR_Q=100 ABB_THREADS=0 ABB_PREVIEW_SECONDS=30 RUST_LOG=info npm run tauri dev`
+
+- Profiling run (disable encode‑sanitize, DEBUG logs):
+  `ABB_DISABLE_FASTPATH=1 ABB_AAC_CODER=twoloop ABB_AUDIO_MODE=VBR ABB_VBR_Q=120 ABB_THREADS=0 ABB_DISABLE_ENCODE_SANITIZE=1 RUST_LOG=debug npm run tauri dev`
+
+Tip (KISS): create shell aliases or npm scripts for common combos (e.g., `npm run dev:vbr120`, `npm run dev:anmr100`).
