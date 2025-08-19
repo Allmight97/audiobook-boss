@@ -102,13 +102,36 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
             ))
         })?;
     }
-    std::fs::rename(&temp_output, final_path).map_err(|e| {
-        AppError::FileValidation(format!(
-            "Cannot move file to final location '{}': {e}",
-            final_path.display()
-        ))
-    })?;
-    Ok(final_path.to_path_buf())
+    match std::fs::rename(&temp_output, final_path) {
+        Ok(()) => {
+            log::info!("finalize_move method=rename status=ok dest={}", final_path.display());
+            Ok(final_path.to_path_buf())
+        }
+        Err(rename_err) => {
+            log::warn!(
+                "finalize_move method=rename status=err dest={} err={}",
+                final_path.display(),
+                rename_err
+            );
+            // Fallback: copy then remove temp (handles cross-volume or other rename failures)
+            if final_path.exists() {
+                if let Err(e) = std::fs::remove_file(final_path) {
+                    log::warn!("finalize_move overwrite remove failed: {}", e);
+                }
+            }
+            std::fs::copy(&temp_output, final_path).map_err(|e| {
+                AppError::FileValidation(format!(
+                    "Cannot copy file to final location '{}': {e}",
+                    final_path.display()
+                ))
+            })?;
+            if let Err(e) = std::fs::remove_file(&temp_output) {
+                log::warn!("finalize_move temp removal failed: {}", e);
+            }
+            log::info!("finalize_move method=copy-replace status=ok dest={}", final_path.display());
+            Ok(final_path.to_path_buf())
+        }
+    }
 }
 
 /// Cleans up session-specific temporary directory using CleanupGuard

@@ -101,7 +101,8 @@ fn resolve_target_audio_params(
                 .decoder()
                 .audio()
                 .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
-            Ok((decoder.rate(), decoder.channels() as i32))
+            // Pass through sample rate; channels always come from UI settings
+            Ok((decoder.rate(), plan.settings.channels.channel_count() as i32))
         }
     }
 }
@@ -245,6 +246,16 @@ pub(crate) fn setup_encoder(
         }
     }
 
+    log::info!(
+        "encoder_setup resolved: rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k settings={:?}",
+        target_sample_rate,
+        target_channels,
+        enc_ctx.format(),
+        enc_ctx.frame_size(),
+        plan.settings.bitrate,
+        plan.settings
+    );
+
     Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
 }
 
@@ -279,15 +290,70 @@ pub(crate) fn encode_and_write_frame(
     output_time_base: ff::Rational,
 ) -> Result<()> {
     use crate::errors::AppError;
-
+    
     #[cfg(debug_assertions)]
     {
+        // Validate structural contract
         debug_validate_frame_contract(frame, encoder);
+        // Validate sample values (finite and in range) in debug builds
+        for ch in 0..encoder.channel_layout().channels() as usize {
+            let plane = frame.data(ch);
+            let len_f32 = plane.len() / 4;
+            let src: &[f32] = unsafe {
+                std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32)
+            };
+            for &v in src.iter().take(frame.samples() as usize) {
+                debug_assert!(v.is_finite(), "Non-finite sample encountered");
+                debug_assert!(v <= 1.0 && v >= -1.0, "Sample out of range [-1,1]");
+            }
+        }
     }
 
-    encoder
-        .send_frame(frame)
-        .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+    // Optional encode-stage sanitation (default ON, can be disabled via ABB_DISABLE_ENCODE_SANITIZE)
+    let disable_encode_sanitize = std::env::var("ABB_DISABLE_ENCODE_SANITIZE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !disable_encode_sanitize {
+        // Clamp to [-1,1] and replace non-finite values; preserve frame metadata
+        let mut clean = ff::frame::Audio::empty();
+        clean.set_format(frame.format());
+        clean.set_channel_layout(frame.channel_layout());
+        clean.set_rate(frame.rate());
+        clean.set_samples(frame.samples());
+        unsafe { clean.alloc(frame.format(), frame.samples(), frame.channel_layout()); }
+        clean.set_pts(frame.pts());
+
+        if frame.samples() > 0 {
+            let channels = frame.channel_layout().channels() as usize;
+            for ch in 0..channels {
+                let src_plane = frame.data(ch);
+                let dst_plane = clean.data_mut(ch);
+                let len_f32 = (dst_plane.len() / 4).min(src_plane.len() / 4);
+                let src: &[f32] = unsafe { std::slice::from_raw_parts(src_plane.as_ptr() as *const f32, len_f32) };
+                let dst: &mut [f32] = unsafe { std::slice::from_raw_parts_mut(dst_plane.as_mut_ptr() as *mut f32, len_f32) };
+                let mut repaired = 0usize;
+                for i in 0..len_f32 {
+                    let mut v = src[i];
+                    if !v.is_finite() { v = 0.0; repaired += 1; }
+                    if v > 1.0 { v = 1.0; repaired += 1; }
+                    if v < -1.0 { v = -1.0; repaired += 1; }
+                    dst[i] = v;
+                }
+                if repaired > 0 {
+                    log::warn!("Sanitized {} samples on channel {} before encoding", repaired, ch);
+                }
+            }
+        }
+
+        encoder
+            .send_frame(&clean)
+            .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+    } else {
+        encoder
+            .send_frame(frame)
+            .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
+    }
     let mut pkt = ff::Packet::empty();
     while encoder.receive_packet(&mut pkt).is_ok() {
         pkt.set_stream(output_stream_index);
