@@ -36,6 +36,14 @@ export class StatusPanel {
         
         this.initializeElements();
         this.setupEventHandlers();
+
+        // Ensure event listeners are cleaned up if the window unloads
+        window.addEventListener('beforeunload', () => {
+            if (this.cancelUnlisten) {
+                this.cancelUnlisten();
+                this.cancelUnlisten = undefined;
+            }
+        });
     }
 
     private initializeElements(): void {

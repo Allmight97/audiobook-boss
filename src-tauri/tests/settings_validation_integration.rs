@@ -398,7 +398,6 @@ fn test_channel_config_edge_cases() {
 #[test] 
 fn test_media_processing_plan_settings_preservation() {
     let temp_dir = TempDir::new().expect("create temp dir");
-    let _concat_file = temp_dir.path().join("concat.txt");
     let output_file = temp_dir.path().join("output.m4b");
     let input_file = temp_dir.path().join("input.wav");
     

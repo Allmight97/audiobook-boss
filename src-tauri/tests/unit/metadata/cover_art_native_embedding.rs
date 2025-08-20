@@ -25,7 +25,6 @@ fn test_native_cover_art_embedding_end_to_end() {
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
-    let _concat = temp.path().join("concat.txt");
     let output = temp.path().join("out.m4b");
 
     let settings = AudioSettings {
@@ -72,7 +71,7 @@ fn test_cover_art_unsupported_format_fallback() {
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
-    let _concat = temp.path().join("concat.txt");
+    // No concat file in ffmpeg-next engine
     let output = temp.path().join("out.m4b");
 
     // Fake GIF header (unsupported) to trigger fallback

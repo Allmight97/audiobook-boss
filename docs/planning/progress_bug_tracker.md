@@ -21,13 +21,14 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
 [X] BUG: "cancel processing" button doesn't cancel current process. Nothing shows in DOM console nor terminal output as registered click of the button. When I press it there appears to be split second change in the "current step: ..." text display as the job processes, but no change in behavior. [FIXED]
 
 [ ] FEATURE: Give users ability to choose FDK-AAC if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
-    - Action: Work up a plan to inject this option to the output panel settings and give the user the ability to set the path of FDK-AAC, or possibly have the app be able to detect it automatically if option is ticked. Manual option is best for now due to presumed implementation complexity. Plan should also include steps to default ffmpeg-next encoder to use native AAC-LC.
-        - SEE docs/reports/AAC_advice.md for the advice I was given for this feature and why.
+    - Action: If pursued later, design an opt-in path input and detection flow. Default remains ffmpeg-next native AAC-LC.
+    - Note: Internal doc AAC_advice.md was removed as dated; consult official FFmpeg docs if revisited.
 
 [X] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
     - Action: No feature gates nor safeffmpeg - default encode will be ffmpeg-next using standard AAC-LC
         - Consider UI options to allow use to apply the 'twoloop' flag to enhance audio quality of native AAC encoder: e.g. 'ffmpeg -i input.mp3 -c:a aac -aac_coder twoloop -b:a 64k output.m4b'
-[ ] TODO: How to add these FFmpeg sources to repo so Ai agents can easily reference them when coding and auditing?
-        - docs.rs/ffmpeg-next
-        - ffmpeg.org/ffmpeg.html
-    - Detailed chat and context: https://www.perplexity.ai/search/i-just-heard-about-ffmpeg-8-0-caDGTIhOSDeSNn2FJKoU0Q
+[ ] TODO: How to add these FFmpeg sources to repo so AI agents can easily reference them when coding and auditing?
+    - docs/external-apis/ffmpeg-next.md (added)
+    - docs/external-apis/lofty.md (added)
+    - docs/external-apis/tauri-patterns.md (added)
+    - Official FFmpeg docs: ffmpeg.org/ffmpeg-codecs.html#aac-1

@@ -138,13 +138,19 @@ pub(crate) fn process_input_packets(
 ) -> Result<()> {
     use crate::errors::AppError;
 
-    log::info!("📦 Starting packet processing for stream index: {}", ctx.current_stream_index);
+    if log::log_enabled!(log::Level::Info) {
+        log::info!("📦 Starting packet processing for stream index: {}", ctx.current_stream_index);
+    }
     let mut packet_count = 0;
     log::info!("Starting packet iteration...");
     for (si, packet) in ictx.packets() {
-        log::debug!("Processing packet from stream {}", si.index());
+        if log::log_enabled!(log::Level::Debug) {
+            log::debug!("Processing packet from stream {}", si.index());
+        }
         if ctx.context.is_cancelled() {
-            log::warn!("Processing was cancelled during packet processing");
+            if log::log_enabled!(log::Level::Warn) {
+                log::warn!("Processing was cancelled during packet processing");
+            }
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
@@ -155,10 +161,14 @@ pub(crate) fn process_input_packets(
 
         packet_count += 1;
         if packet_count % 100 == 0 {
-            log::info!("Processed {} packets so far", packet_count);
+            if log::log_enabled!(log::Level::Info) {
+                log::info!("Processed {} packets so far", packet_count);
+            }
         }
 
-        log::debug!("Sending packet {} to decoder", packet_count);
+        if log::log_enabled!(log::Level::Debug) {
+            log::debug!("Sending packet {} to decoder", packet_count);
+        }
         match decoder.send_packet(&packet) {
             Ok(()) => log::debug!("✓ Packet {} sent to decoder successfully", packet_count),
             Err(e) => {

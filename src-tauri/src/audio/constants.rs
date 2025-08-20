@@ -47,18 +47,7 @@ pub const ANALYSIS_PROGRESS_MULTIPLIER: f64 = 1.4;
 /// Seconds per minute for time calculations
 pub const SECONDS_PER_MINUTE: f64 = 60.0;
 
-// FFmpeg command constants
-/// FFmpeg concat demuxer format
-pub const FFMPEG_CONCAT_FORMAT: &str = "concat";
 
-/// FFmpeg safe mode for concat demuxer
-pub const FFMPEG_CONCAT_SAFE_MODE: &str = "0";
-
-/// FFmpeg audio codec for AAC encoding
-pub const FFMPEG_AUDIO_CODEC: &str = "aac";
-
-/// FFmpeg progress output pipe
-pub const FFMPEG_PROGRESS_PIPE: &str = "pipe:2";
 
 // Default values
 /// Default bitrate in kbps
@@ -73,10 +62,6 @@ pub const DEFAULT_OUTPUT_EXTENSION: &str = "m4b";
 
 /// Supported audio file extensions (lowercase)
 pub const ALLOWED_AUDIO_EXTENSIONS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav", "flac"];
-
-// Temporary file names
-/// Temporary concat list filename
-pub const TEMP_CONCAT_FILENAME: &str = "concat.txt";
 
 /// Temporary merged output filename
 pub const TEMP_MERGED_FILENAME: &str = "merged.m4b";

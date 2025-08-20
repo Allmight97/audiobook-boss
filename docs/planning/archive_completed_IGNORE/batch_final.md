@@ -1,5 +1,7 @@
-# FFmpeg Migration Audit Report - Final
-*Updated August 17, 2025*
+# FFmpeg Migration Audit Report — Historical (Archived)
+*Updated August 17, 2025; archived post-migration*
+
+Note: This repository is now ffmpeg-next only. The cleanup plan below reflects an earlier state and is kept for historical reference. Tests and code have since been aligned; action items here may be outdated. See docs/external-apis/* for current integration guides.
 
 ## Executive Summary
 **Status**: ffmpeg-next migration complete, **1,162 lines of orphaned test code identified**  

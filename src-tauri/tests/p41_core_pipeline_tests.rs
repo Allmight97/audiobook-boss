@@ -37,14 +37,6 @@ fn test_media_processing_plan_execute_method_exists() {
     assert_eq!(plan.output_path, output_path);
 }
 
-/// Test AAC codec constant alignment 
-#[test]
-fn test_aac_codec_constant_aligned() {
-    use audiobook_boss_lib::audio::constants::FFMPEG_AUDIO_CODEC;
-    
-    // Verify that shell path now uses "aac" instead of "libfdk_aac"
-    assert_eq!(FFMPEG_AUDIO_CODEC, "aac", "Shell path should use AAC-LC codec for consistency");
-}
 
 /// Test that FfmpegNextProcessor can be instantiated
 #[test]
@@ -58,7 +50,6 @@ fn test_ffmpeg_next_processor_instantiation() {
 fn test_media_processing_plan_creation() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("test.m4b");
-    let _concat_file = temp_dir.path().join("concat.txt");
     
     // Test various audio settings combinations
     let test_cases = vec![

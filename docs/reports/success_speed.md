@@ -77,7 +77,7 @@ RESULT: m4b file saved to host system as normal.
     Assessment:
     MP3 Decoder: Always outputs 1152 samples per frame (MPEG standard) • AAC Encoder: Always expects 1024 samples per frame (AAC standard) • Every audio app deals with this - FFmpeg CLI, Audacity, Pro Tools, etc.
 
-Shell FFmpeg was doing the exact same truncation/buffering internally - you just couldn't see it.
+Note: Historical reference removed — the codebase is now ffmpeg-next only.
 
 What's Next?
 Your current approach works but truncates 128 samples per frame (11% loss). For production quality, you'd want proper frame accumulation:
@@ -86,7 +86,6 @@ But honestly? Your truncation approach might be perfectly fine for audiobook use
 
 Quality Score: 4/5 - Working solution with minor audio quality tradeoff Architecture Decision: 5/5 - FFmpeg-next gives you production-grade control
 
-Dev repsonse: Processing those same files in the above test was MUCH faster with ffmpegshell. NOw that we have output again, that's great and all, but processing is slower AND results in 11% drop in audio quality?  NOPE.
-- Qusetions:
-    - What can we do to increase audio qualaitY? Something like: docs/reports/AAC_advice.md maybe?
-    - What can we do to increase processing performance?
+TODO: Questions:
+ [ ]   - What can we do to increase audio quality at ~64 kbps mono? (see ffmpeg-next and AAC coder tuning)
+ [ ]   - What can we do to increase processing performance within the ffmpeg-next engine?

@@ -1,7 +1,7 @@
 # Media Pipeline Refactor — Single Source of Truth (Merged Plan)
 
 Context anchors:
-- Single-engine `ffmpeg-next` only; shell FFmpeg was removed [[memory:6466795]].
+- Single-engine `ffmpeg-next` only.
 - Avoid adding new code to `media_pipeline.rs` beyond targeted fixes until it’s broken up [[memory:6473122]].
 - Runs succeed with fast-path disabled; failures were seen with fast-path enabled due to suspected encoder frame contract violations [[memory:6473122]].
 

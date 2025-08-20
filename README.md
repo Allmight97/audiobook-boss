@@ -1,8 +1,20 @@
-# Tauri + Vanilla TS
+# Audiobook Boss — Tauri 2 + TypeScript + Rust (ffmpeg-next only)
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+This app converts audio files into M4B audiobooks using a Rust backend with `ffmpeg-next` bindings and a TypeScript frontend. Shell-based FFmpeg is not used; the codebase is ffmpeg-next only.
 
 ## Recommended IDE Setup
+## Architecture Overview
+
+- Backend: Rust + `ffmpeg-next` for all audio processing (decode/resample/encode/mux)
+- Frontend: TypeScript (vanilla) + Tauri 2
+- Metadata: Lofty for MP4/M4B tag writes and cover art fallback
+
+Docs:
+- `docs/external-apis/ffmpeg-next.md` — audio/PTS/time_base, encoder, progress
+- `docs/external-apis/lofty.md` — MP4/M4B tags, cover art, atomic write options
+- `docs/external-apis/tauri-patterns.md` — event lifecycle & IPC patterns
+- `docs/external-apis/path-handling.md` — macOS-focused path validation and atomic moves
+
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 

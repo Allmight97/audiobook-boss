@@ -1,5 +1,7 @@
 ## Processing Regression Post‑Mortem (2025‑08‑18)
 
+Note: This repository is ffmpeg-next only; any references to shell FFmpeg are historical context.
+
 ### Executive summary
 - **Symptom**: Pressing Process did not start processing; terminal showed no meaningful progress or aborted early with AAC encoder errors.
 - **Primary finding**: The encoder received invalid audio frames ("Input contains (near) NaN/+-Inf"). This surfaced most reliably when the "fast‑path" (decoder → accumulator → encoder) bypassed the resampler.

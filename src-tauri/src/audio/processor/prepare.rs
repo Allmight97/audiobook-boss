@@ -136,8 +136,6 @@ pub(crate) fn create_temp_directory_with_session(session_id: &str) -> Result<Pat
     Ok(temp_dir)
 }
 
-// Removed legacy concat file creation (shell ffmpeg) during nuclear cleanup
-
 /// Emits initial progress + validates inputs with cancellation awareness.
 pub(crate) fn validate_inputs_with_progress(
     context: &ProcessingContext,

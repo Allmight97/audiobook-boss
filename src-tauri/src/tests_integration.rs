@@ -391,21 +391,7 @@ mod integration_tests {
         
         eprintln!("Temp directory created at: {}", temp_dir.path().display());
         
-        // Test concat file format by creating one manually
-        let concat_file = temp_dir.path().join("test_concat.txt");
-        let content = "file '/path/to/file1.mp3'\nfile '/path/to/file2.mp3'\n";
-        std::fs::write(&concat_file, content).expect("write concat file");
-        
-        assert!(concat_file.exists(), "Concat file should exist");
-        assert!(concat_file.is_file(), "Should be a file");
-        
-        let read_content = std::fs::read_to_string(&concat_file).expect("read concat file");
-        eprintln!("Concat file content format:\n{read_content}");
-        
-        assert!(read_content.contains("file '/path/to/file1.mp3'"), "Should contain first file");
-        assert!(read_content.contains("file '/path/to/file2.mp3'"), "Should contain second file");
-        assert_eq!(read_content.lines().count(), 2, "Should have exactly 2 lines");
-        
-        eprintln!("Temporary file handling behavior is captured through public API tests");
+        // Legacy CLI concat file behavior intentionally removed in ffmpeg-next engine
+        eprintln!("Temporary directory handling verified; no concat file behavior in ffmpeg-next engine");
     }
 }
