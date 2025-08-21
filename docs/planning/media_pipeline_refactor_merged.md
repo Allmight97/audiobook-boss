@@ -99,7 +99,7 @@ Decision gates:
     - Threads: auto/off/selector
       - If "auto", display the number of threads available on the machine that will be used and allow user to select the number of threads to use.
 
-
+### Are these encoder related options?
 1)  Sanitize and logging (perf)
    - Keep accumulator sanitize; encode-stage sanitize default ON while stabilizing, then OFF for perf (`ABB_DISABLE_ENCODE_SANITIZE=1`).
    - Reduce INFO logs; keep high-signal events only.
