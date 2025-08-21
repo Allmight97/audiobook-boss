@@ -20,9 +20,8 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
 [X] BUG: Output M4B file does NOT have Cover Art at all - regardless of whether I load cover art manually or from the input file when setting up output file for processing. [FIXED]
 [X] BUG: "cancel processing" button doesn't cancel current process. Nothing shows in DOM console nor terminal output as registered click of the button. When I press it there appears to be split second change in the "current step: ..." text display as the job processes, but no change in behavior. [FIXED]
 
-[ ] FEATURE: Give users ability to choose FDK-AAC if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
-    - Action: If pursued later, design an opt-in path input and detection flow. Default remains ffmpeg-next native AAC-LC.
-    - Note: Internal doc AAC_advice.md was removed as dated; consult official FFmpeg docs if revisited.
+[ ] FEATURE: Give users ability to choose FDK-AAC or AAC-AT (Apple's AudioToolbox) if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
+    - Action: Adjust output settings UI to accommdate features
 
 [X] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.
     - Action: No feature gates nor safeffmpeg - default encode will be ffmpeg-next using standard AAC-LC
