@@ -82,20 +82,28 @@ Hypotheses and immediate actions:
 - Add debug logs at encoder setup summarizing resolved params and at finalize move step including destination existence/overwrite decision.
 
 ### P2 Encoder enhancements (feature‑flagged, graceful fallback)
-10) Threading (speed)
-   - Use `av_opt_set("threads", "0")` for auto or `N` via env; log effective threads.
-11) AAC coder selection (quality vs speed)
-   - Default `aac_coder=twoloop` (best speech quality); allow `anmr` for faster encode with minor quality tradeoff.
-   - Env: `ABB_AAC_CODER=twoloop|anmr` (default twoloop).
-12) VBR mode (quality at ~64–100 kbps mono)
-   - Backend-only VBR plumbing (no UI yet). If VBR:
-     - Set `bit_rate=0`, set `global_quality` and `AV_CODEC_FLAG_QSCALE` (or via `av_opt_set("q", ...)`).
-     - Start at `q=120` (~75–85 kbps mono @ 44.1k). Also test `q=100` (~60–70 kbps).
-   - Env: `ABB_AUDIO_MODE=VBR`, `ABB_VBR_Q=120` (or `100`).
-13) Sanitize and logging (perf)
+STATUS: Pending - see important notes in 'docs/reports/encoder_options.md' for most recent research and encoder suggestions.
+Decision gates:
+- MacOS: Use `aac_at` on macOS for superior audio quality by default.
+- Linux/Windows: Use `HE-AAC` with `aac_coder=twoloop` for quality and `afterburner=1` to improve performance.
+- **Frontend Redesign**: Modify existing UI to give user ability to change more encoder options, possibly have no more than 3 profiles (e.g. max quality, max performance, balance) with default settings for each profile.
+  - Possible toggles:
+    - AAC coder: HE-AAC v1 (default mono/1-channel), HE-AAC v2 (default stereo/2-channel), AAC-AT (Choice between stereo/mono)
+    - Bitrate (dropdown box like existing UI): 56k, 64k, 72k, 80k, 88k, 96k
+    - Sample Rate: No option, pass-through from input file(s) and display the sample rate of the input file(s)
+    - Channels: 1, 2 (dropdown box like existing UI)
+    - Afterburner: on/off toggle (only available for HE-AAC v1 and HE-AAC v2)
+      - Very concise explanation of what it does and outcome it'll have on the file size and quality.
+    - TWOLoop/Fast Toggle: (only available for HE-AAC v1 and HE-AAC v2)
+      - Very concise explanation of what each does and outcome it'll have on the file size and quality.
+    - Threads: auto/off/selector
+      - If "auto", display the number of threads available on the machine that will be used and allow user to select the number of threads to use.
+
+
+1)  Sanitize and logging (perf)
    - Keep accumulator sanitize; encode-stage sanitize default ON while stabilizing, then OFF for perf (`ABB_DISABLE_ENCODE_SANITIZE=1`).
    - Reduce INFO logs; keep high-signal events only.
-14) Keep fast‑path OFF during these trials (`ABB_DISABLE_FASTPATH=1`).
+2)  Keep fast‑path OFF during these trials (`ABB_DISABLE_FASTPATH=1`).
 
 ### P2.5 Preview mode (30‑second A/B and size estimate)
 - Add early‑stop preview to pipeline (backend only, env‑driven). If `ABB_PREVIEW_SECONDS=30`, stop encoding once `running_pts / rate >= 30.0`, finalize to a preview file, and log an output size estimate extrapolated from preview bytes/sec.
