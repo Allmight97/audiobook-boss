@@ -6,10 +6,10 @@ Labels: enhancement, epic, audio, ui, tauri, ffmpeg
 Break down the advanced encoder/UI redesign into phases with clear contracts, validation, and test coverage. macOS-first with AAC-AT default; native AAC HEv1/HEv2 supported elsewhere. Single engine: ffmpeg-next.
 
 Related docs:
-- Dependency Map: `docs/planning/advanced_encoder_dependency_map.md`
-- Expanded Plan: `docs/planning/outcome2_advanced_encoder_plan.md`
-- Test Gaps Report: `docs/reports/encoding_test_gaps.md`
-- Original design: `docs/planning/outcome2_advanced_encoder_ui.md`
+- Dependency Map: `docs/planning/new_encoder/advanced_encoder_dependency_map.md`
+- Expanded Plan: `docs/planning/new_encoder/outcome2_advanced_encoder_plan.md`
+- Test Gaps Report: `docs/planning/new_encoder/encoding_test_gaps.md`
+- Original design: `docs/planning/new_encoder/outcome2_advanced_encoder_ui.md`
 
 ## Goals
 - Expose encoder options (AAC-AT/HE-AAC v1/v2, bitrate, channels) and advanced toggles (coder, afterburner, threads) with validation and logs

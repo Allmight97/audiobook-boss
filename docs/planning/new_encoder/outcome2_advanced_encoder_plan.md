@@ -2,11 +2,11 @@
 
 Last updated: 2025-08-22
 
-This plan expands on `docs/planning/outcome2_advanced_encoder_ui.md` and reflects the current codebase state, mapping goals to concrete, atomized steps with phases and guardrails.
+This plan expands on `docs/planning/new_encoder/outcome2_advanced_encoder_ui.md` and reflects the current codebase state, mapping goals to concrete, atomized steps with phases and guardrails.
 
 References:
-- Dependency map: `docs/planning/advanced_encoder_dependency_map.md`
-- External API patterns: `docs/external-apis/ffmpeg-next.md`, `lofty.md`, `tauri-patterns.md`, `tauri-ts-boundaries.md`
+- Dependency map: `docs/planning/new_encoder/advanced_encoder_dependency_map.md`
+- External API patterns: `docs/external-apis/ffmpeg-next.md`, `docs/external-apis/lofty.md`, `docs/external-apis/tauri-patterns.md`, `docs/external-apis/tauri-ts-boundaries.md`
 
 ## Current state vs goals (delta summary)
 
@@ -49,7 +49,7 @@ Notes:
 ### Phase 0 — Analysis and scaffolding (this PR)
 - [x] Dependency map of repo surfaces
 - [x] Expanded plan with phases and contracts
-- [x] Test gaps report (see `docs/reports/encoding_test_gaps.md`)
+- [x] Test gaps report (see `docs/planning/new_encoder/encoding_test_gaps.md`)
 - [x] Decide on API path: dual-command v1/v2 vs. extending `AudioSettings` with optional encoder settings
   Decision (solo-dev optimization): perform an in-place upgrade of the existing command/types in a single PR on this branch. Update all frontend call sites simultaneously (no v2 shim). This avoids later cleanup and matches repo guidance to not add backwards compatibility unless requested.
 
@@ -113,4 +113,3 @@ Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor i
 - Validation rejects HE-AAC v2 with mono channels and surfaces a user-facing error
 - Encoder summary log prints selected encoder, bitrate, channels, profile (if any), threads, and ignored/unsupported flags
 - On macOS, choosing AAC-AT results in native `aac_at` encoder being used
-
