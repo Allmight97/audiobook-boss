@@ -59,6 +59,7 @@ pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
 pub struct ProcessCommandResult {
     pub message: String,
     pub preview_file_path: Option<String>,
+    pub preview_actual_seconds: Option<f64>,
 }
 
 #[tauri::command]
@@ -88,19 +89,21 @@ pub async fn process_audiobook_files(
     let file_info = audio::get_file_list_info(&paths)?;
 
     // Process the audiobook with progress events
-    let (message, preview_path_opt) = {
+    let (message, preview_path_opt, preview_seconds_used) = {
         // Single engine path: ffmpeg-next context based processing
         let session = audio::session::ProcessingSession::new();
         // Clone settings for deriving preview path later (original moved into context)
         let settings_for_path = settings.clone();
         let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
         // Resolve preview seconds from payload or environment fallback
+        let mut preview_seconds_resolved: Option<f64> = None;
         if let Some(sec) = preview_seconds.or_else(|| {
             std::env::var("ABB_PREVIEW_SECONDS").ok().and_then(|s| s.parse::<f64>().ok())
         }) {
             if sec.is_finite() && sec > 0.0 {
                 context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
                 log::info!("Preview requested: seconds={:.3}", sec);
+                preview_seconds_resolved = Some(sec);
             }
         }
         let is_preview = context.preview.is_some();
@@ -118,7 +121,7 @@ pub async fn process_audiobook_files(
         } else {
             None
         };
-        (msg, preview_path)
+        (msg, preview_path, preview_seconds_resolved)
     };
 
     // Reset processing state
@@ -129,7 +132,7 @@ pub async fn process_audiobook_files(
         *is_processing = false;
     }
 
-    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt })
+    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt, preview_actual_seconds: preview_seconds_used })
 }
 
 /// Cancels the current audio processing operation

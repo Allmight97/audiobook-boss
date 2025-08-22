@@ -118,7 +118,14 @@ pub async fn process_audiobook_with_context(
     let result =
         finalize::finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await?;
 
-    log::info!("{}", metrics.format_summary());
+    // Suppress full-run metrics summary during preview; log preview-specific stats instead
+    if context.preview.is_some() {
+        // In preview mode, skip the full metrics summary (not representative).
+        // The UI receives precise seconds via the command payload.
+        log::info!("Preview run completed (metrics summary suppressed for preview mode)");
+    } else {
+        log::info!("{}", metrics.format_summary());
+    }
     Ok(result)
 }
 

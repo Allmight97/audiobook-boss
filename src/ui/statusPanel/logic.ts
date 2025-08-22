@@ -138,7 +138,7 @@ export class StatusPanel {
             const metadata = this.getCurrentMetadata();
 
             // Call backend processing command
-            const result = await invoke<{ message: string; previewFilePath?: string }>('process_audiobook_files', {
+            const result = await invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files', {
                 filePaths,
                 settings,
                 metadata: Object.keys(metadata).length > 0 ? metadata : null,
@@ -147,7 +147,8 @@ export class StatusPanel {
 
             console.log('Processing completed successfully:', result);
             if (result && result.previewFilePath) {
-                console.log('Preview file created at:', result.previewFilePath);
+                const seconds = typeof result.previewActualSeconds === 'number' ? result.previewActualSeconds.toFixed(3) : '≈30';
+                console.log(`Preview file created at: ${result.previewFilePath} (${seconds}s)`);
                 try {
                     await openExternal(result.previewFilePath);
                 } catch (e) {
