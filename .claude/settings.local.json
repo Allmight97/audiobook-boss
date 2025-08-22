@@ -29,7 +29,9 @@
       "mcp__context-7__get-library-docs",
       "WebSearch",
       "Bash(cargo doc:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

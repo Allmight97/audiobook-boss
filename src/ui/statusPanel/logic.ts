@@ -7,6 +7,7 @@
 
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { openPath as openExternal } from '@tauri-apps/plugin-opener';
 import { ProcessingProgressEvent, EVENTS, STAGES } from '../../types/events';
 import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
@@ -62,8 +63,14 @@ export class StatusPanel {
 
     private setupEventHandlers(): void {
         const processButton = dom.getProcessButton();
+        const previewButton = document.getElementById('preview-button') as HTMLButtonElement | null;
         if (processButton) {
             processButton.addEventListener('click', this.handleProcessButtonClick.bind(this));
+        }
+        if (previewButton) {
+            previewButton.addEventListener('click', async () => {
+                await this.startProcessing({ previewSeconds: 30 });
+            });
         }
     }
 
@@ -77,7 +84,7 @@ export class StatusPanel {
         }
     }
 
-    public async startProcessing(): Promise<void> {
+    public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
         try {
             console.log('StatusPanel: Starting processing...');
             console.log('Current file list:', currentFileList);
@@ -131,13 +138,26 @@ export class StatusPanel {
             const metadata = this.getCurrentMetadata();
 
             // Call backend processing command
-            const result = await invoke('process_audiobook_files', {
+            const result = await invoke<{ message: string; previewFilePath?: string }>('process_audiobook_files', {
                 filePaths,
                 settings,
-                metadata: Object.keys(metadata).length > 0 ? metadata : null
+                metadata: Object.keys(metadata).length > 0 ? metadata : null,
+                previewSeconds: options?.previewSeconds
             });
 
             console.log('Processing completed successfully:', result);
+            if (result && result.previewFilePath) {
+                console.log('Preview file created at:', result.previewFilePath);
+                try {
+                    await openExternal(result.previewFilePath);
+                } catch (e) {
+                    console.warn('Failed to open preview file automatically:', e);
+                }
+            }
+            if (options?.previewSeconds) {
+                // Optionally handle showing/opening preview file via result once backend returns a path shape
+                // Placeholder: UI messaging handled by progress events for now
+            }
 
         } catch (error) {
             const msg = String((error as any)?.message ?? error ?? '');

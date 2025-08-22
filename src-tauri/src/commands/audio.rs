@@ -54,6 +54,13 @@ pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
 
 /// Processes multiple audio files into a single M4B audiobook
 /// Merges files with specified settings and optional metadata
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessCommandResult {
+    pub message: String,
+    pub preview_file_path: Option<String>,
+}
+
 #[tauri::command]
 pub async fn process_audiobook_files(
     window: tauri::Window,
@@ -61,7 +68,8 @@ pub async fn process_audiobook_files(
     file_paths: Vec<String>,
     settings: AudioSettings,
     metadata: Option<crate::metadata::AudiobookMetadata>,
-) -> Result<String> {
+    preview_seconds: Option<f64>,
+) -> Result<ProcessCommandResult> {
     // Set processing state
     {
         let mut is_processing = state.is_processing.lock().map_err(|_| {
@@ -80,11 +88,37 @@ pub async fn process_audiobook_files(
     let file_info = audio::get_file_list_info(&paths)?;
 
     // Process the audiobook with progress events
-    let result = {
+    let (message, preview_path_opt) = {
         // Single engine path: ffmpeg-next context based processing
         let session = audio::session::ProcessingSession::new();
-        let context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
-        audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await
+        // Clone settings for deriving preview path later (original moved into context)
+        let settings_for_path = settings.clone();
+        let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
+        // Resolve preview seconds from payload or environment fallback
+        if let Some(sec) = preview_seconds.or_else(|| {
+            std::env::var("ABB_PREVIEW_SECONDS").ok().and_then(|s| s.parse::<f64>().ok())
+        }) {
+            if sec.is_finite() && sec > 0.0 {
+                context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
+                log::info!("Preview requested: seconds={:.3}", sec);
+            }
+        }
+        let is_preview = context.preview.is_some();
+        let msg = audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await?;
+        let preview_path = if is_preview {
+            // Derive preview path deterministically based on output settings
+            let final_output = &settings_for_path.output_path;
+            let parent = final_output.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let stem = final_output
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("output");
+            let p = parent.join(format!("{}.preview.m4b", stem));
+            Some(p.display().to_string())
+        } else {
+            None
+        };
+        (msg, preview_path)
     };
 
     // Reset processing state
@@ -95,7 +129,7 @@ pub async fn process_audiobook_files(
         *is_processing = false;
     }
 
-    result
+    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt })
 }
 
 /// Cancels the current audio processing operation

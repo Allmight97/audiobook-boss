@@ -48,6 +48,16 @@ export type ProcessingStage =
   | 'Completed'
   | { Failed: string };
 
+// Preview command typing helpers (Tauri boundary)
+export interface PreviewRequest {
+  previewSeconds?: number;
+}
+
+export interface ProcessCommandResult {
+  message: string;
+  previewFilePath?: string;
+}
+
 // Audio settings presets
 export const AudioPresets = {
   audiobook: (): AudioSettings => ({

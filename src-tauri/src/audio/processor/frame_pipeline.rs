@@ -17,6 +17,7 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) current_stream_index: usize,
     pub(crate) input_samples_total: &'a mut u64,
     pub(crate) encoded_samples_total: &'a mut u64,
+    pub(crate) early_stop: &'a mut bool,
 }
 
 fn emit_progress_update(ctx: &mut FramePipelineCtx) {
@@ -34,6 +35,25 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             None,
         );
     }
+}
+
+#[inline]
+fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) -> bool {
+    if let Some(preview) = ctx.context.preview.as_ref() {
+        let elapsed_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
+        if elapsed_seconds >= preview.seconds {
+            if log::log_enabled!(log::Level::Info) {
+                log::info!(
+                    "preview early-stop reached elapsed={:.3}s target={:.3}s",
+                    elapsed_seconds,
+                    preview.seconds
+                );
+            }
+            *ctx.early_stop = true;
+            return true;
+        }
+    }
+    false
 }
 
 /// Processes audio frames from decoder through resample and encode pipeline
@@ -84,6 +104,9 @@ pub(crate) fn process_decoded_frames(
                         )?;
                     }
                     emit_progress_update(ctx);
+                    if check_and_mark_preview_early_stop(ctx) {
+                        break;
+                    }
                     continue;
                 }
 
@@ -118,6 +141,9 @@ pub(crate) fn process_decoded_frames(
                 }
 
                 emit_progress_update(ctx);
+                if check_and_mark_preview_early_stop(ctx) {
+                    break;
+                }
             }
             Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
             Err(e) => return Err(AppError::General(format!("Decoder receive failed: {e}"))),
@@ -160,10 +186,10 @@ pub(crate) fn process_input_packets(
         }
 
         packet_count += 1;
-        if packet_count % 100 == 0 {
-            if log::log_enabled!(log::Level::Info) {
-                log::info!("Processed {} packets so far", packet_count);
-            }
+        if packet_count % 100 == 0
+            && log::log_enabled!(log::Level::Info)
+        {
+            log::info!("Processed {} packets so far", packet_count);
         }
 
         if log::log_enabled!(log::Level::Debug) {
@@ -184,6 +210,13 @@ pub(crate) fn process_input_packets(
                 log::error!("✗ Failed to process decoded frames for packet {}: {}", packet_count, e);
                 return Err(e);
             }
+        }
+
+        if *ctx.early_stop {
+            if log::log_enabled!(log::Level::Info) {
+                log::info!("Preview early-stop marked; exiting packet loop");
+            }
+            break;
         }
     }
     log::info!("✓ Processed {} packets total", packet_count);

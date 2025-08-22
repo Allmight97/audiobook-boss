@@ -10,6 +10,14 @@ use super::session::ProcessingSession;
 use crate::errors::Result;
 use std::sync::Arc;
 use tauri::Window;
+use serde::{Deserialize, Serialize};
+
+/// Preview configuration for early-stop preview encodes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewConfig {
+    /// Number of seconds to encode before early-stop
+    pub seconds: f64,
+}
 
 /// Groups core processing dependencies together
 /// 
@@ -23,6 +31,8 @@ pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
     /// Audio processing settings
     pub settings: AudioSettings,
+    /// Optional preview configuration (when present, processing should early‑stop)
+    pub preview: Option<PreviewConfig>,
 }
 
 impl ProcessingContext {
@@ -32,6 +42,7 @@ impl ProcessingContext {
             window,
             session,
             settings,
+            preview: None,
         }
     }
     

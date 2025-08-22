@@ -57,6 +57,16 @@ use crate::metadata::{write_metadata, AudiobookMetadata};
 
 use super::ProcessingWorkflow;
 
+/// Derives a preview output path `<final_basename>.preview.m4b` alongside the final output
+fn derive_preview_output_path(final_output: &Path) -> PathBuf {
+    let parent = final_output.parent().unwrap_or_else(|| Path::new("."));
+    let stem = final_output
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    parent.join(format!("{}.preview.m4b", stem))
+}
+
 /// Checks if native cover art embedding was successful by examining the output file
 /// 
 /// This function uses Lofty to probe the file and check for existing cover art,
@@ -267,5 +277,31 @@ pub(crate) async fn finalize_processing(
     reporter: &mut ProgressReporter,
 ) -> Result<String> {
     write_metadata_stage(context, &merged_output, metadata, reporter)?;
+
+    // If preview mode is enabled, move to preview-named path with overwrite policy
+    if let Some(preview_cfg) = context.preview.as_ref() {
+        let preview_path = derive_preview_output_path(&context.settings.output_path);
+        log::info!(
+            "Preview finalize: seconds={:.3} dest={}",
+            preview_cfg.seconds,
+            preview_path.display()
+        );
+
+        // Overwrite any existing preview file
+        if preview_path.exists() {
+            if let Err(e) = std::fs::remove_file(&preview_path) {
+                log::warn!("Failed to remove existing preview file ({}): {}", preview_path.display(), e);
+            }
+        }
+        let moved = move_to_final_location(merged_output.clone(), &preview_path)?;
+        cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
+        reporter.complete();
+        let ui = crate::audio::progress::ProgressEmitter::new(context.window.clone());
+        ui.emit_complete("Preview created successfully");
+        let msg = format!("Successfully created preview: {}", moved.display());
+        log::info!("🎉 {}", msg);
+        return Ok(msg);
+    }
+
     complete_processing(context, workflow, merged_output, reporter)
 }

@@ -302,9 +302,9 @@ pub(crate) fn encode_and_write_frame(
             let src: &[f32] = unsafe {
                 std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32)
             };
-            for &v in src.iter().take(frame.samples() as usize) {
+            for &v in src.iter().take(frame.samples()) {
                 debug_assert!(v.is_finite(), "Non-finite sample encountered");
-                debug_assert!(v <= 1.0 && v >= -1.0, "Sample out of range [-1,1]");
+                debug_assert!((-1.0..=1.0).contains(&v), "Sample out of range [-1,1]");
             }
         }
     }
@@ -386,6 +386,17 @@ pub(crate) fn finalize_encoding(
         .write_trailer()
         .map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
     Ok(())
+}
+
+/// Flushes the encoder and writes trailer, used when preview early-stop is engaged
+pub(crate) fn finalize_encoding_after_preview(
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    output_context: &mut ff::format::context::Output,
+    output_stream_index: usize,
+    output_time_base: ff::Rational,
+) -> Result<()> {
+    // Currently identical to finalize_encoding; separated for clarity and future hooks
+    finalize_encoding(encoder, output_context, output_stream_index, output_time_base)
 }
 
 

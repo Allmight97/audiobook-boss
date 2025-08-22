@@ -87,6 +87,7 @@ use crate::audio::processor::frame_pipeline::FramePipelineCtx;
 
 impl FfmpegNextProcessor {
     #[cfg(debug_assertions)]
+    #[allow(dead_code)]
     fn debug_validate_frame_contract(
         frame: &ffmpeg_next::frame::Audio,
         encoder: &ffmpeg_next::codec::encoder::audio::Encoder,
@@ -111,29 +112,13 @@ impl FfmpegNextProcessor {
 
     // Encoder FFI helpers moved to processor::encoder
 
-    /// Creates and configures the audio encoder
-    // create_audio_encoder moved to processor::encoder
-
-    /// Sets up the output encoder context and stream with metadata support
-    /// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
-    // setup_encoder moved to processor::encoder
-
-    /// Processes packets from input stream through decoder pipeline
-    ///
-    /// P1.4 cleanup: stream_index & file_index now stored in FramePipelineCtx
-    // process_input_packets moved to processor::frame_pipeline
-
-    /// Sets up decoder and resampler for a single input file
-    // setup_decoder_and_resampler moved to processor::streams
-
-    /// Encodes frame and writes packets to output
-    // encode_and_write_frame moved to processor::encoder
-
-    /// Emits progress updates during audio processing using context state
-    // emit_progress_update moved to processor::frame_pipeline
-
-    /// Processes audio frames from decoder through resample and encode pipeline
-    // process_decoded_frames moved to processor::frame_pipeline
+    // Creates and configures the audio encoder (moved to processor::encoder)
+    // Sets up the output encoder context and stream (moved to processor::encoder)
+    // Processes packets from input stream (moved to processor::frame_pipeline)
+    // Sets up decoder and resampler (moved to processor::streams)
+    // Encodes frame and writes packets (moved to processor::encoder)
+    // Emits progress updates (moved to processor::frame_pipeline)
+    // Processes audio frames (moved to processor::frame_pipeline)
 
     /// Processes a single input file through the decode/resample/encode pipeline
     fn process_input_file(
@@ -335,6 +320,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Construct context struct to reduce parameter passing
             let mut input_samples_total: u64 = 0;
             let mut encoded_samples_total: u64 = 0;
+            let mut preview_early_stop = false;
             let mut ctx = FramePipelineCtx {
                 context,
                 emitter: &emitter,
@@ -349,6 +335,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                 current_stream_index: 0,
                 input_samples_total: &mut input_samples_total,
                 encoded_samples_total: &mut encoded_samples_total,
+                early_stop: &mut preview_early_stop,
             };
 
             // Process each input file
@@ -364,12 +351,16 @@ impl MediaProcessor for FfmpegNextProcessor {
                 log::info!("Processing input file {}/{}: {}", idx + 1, plan.input_file_paths.len(), in_path.display());
                 Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx, &mut accumulator)?;
                 log::info!("✓ Completed processing input file {}/{}", idx + 1, plan.input_file_paths.len());
+                if *ctx.early_stop {
+                    log::info!("Preview early-stop engaged after file {}; stopping further input processing", idx + 1);
+                    break;
+                }
             }
             log::info!("✓ All input files processed successfully");
 
-            // Finalize encoding
+            // Finalize encoding (same path for full encode or preview early-stop)
             log::info!("🏁 Starting encoding finalization...");
-            crate::audio::processor::encoder::finalize_encoding(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
+            crate::audio::processor::encoder::finalize_encoding_after_preview(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
             log::info!("✓ Encoding finalization completed successfully");
 
             // Preserve output on success (Phase 11: re-enabled after legacy purge)
