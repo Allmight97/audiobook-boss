@@ -1,6 +1,6 @@
 # Advanced Encoder UI/Engine — Dependency Map (repo surfaces)
 
-Last updated: 2025-08-22
+Last updated: 2025-08-22 — See index: `docs/planning/new_encoder/README.md`
 
 Scope: Map every surface that touches audio encoding and the connected frontend/back-end paths to support Outcome 2 (advanced encoder options + UI redesign).
 
@@ -115,4 +115,4 @@ Scope: Map every surface that touches audio encoding and the connected frontend/
 
 ---
 
-This map should remain a living document during the Outcome 2 work. Update as new files are introduced.
+This map should remain a living document during the Outcome 2 work. Update as new files are introduced. See `README.md` for canonical decisions and cross-links.

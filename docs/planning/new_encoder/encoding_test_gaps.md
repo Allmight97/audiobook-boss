@@ -1,6 +1,6 @@
 # Encoding & Processing — Test Gaps and High-Value Additions
 
-Last updated: 2025-08-22
+Last updated: 2025-08-22 — See index: `docs/planning/new_encoder/README.md`
 
 Goal: Identify missing tests and propose high-value additions to cover the new encoder options and existing processing pipeline.
 
@@ -60,5 +60,5 @@ Goal: Identify missing tests and propose high-value additions to cover the new e
 
 ## Open items / questions
 - Will we support `libfdk_aac`? Decision: future optional feature flag; tests should treat it as ignored unless FDK encoder is active.
-- Do we want a v1 command to co-exist long-term? If not, plan deprecation tests and migration guidance.
+- Do we want a v1 command to co-exist long-term? Decision for now: yes (multi‑PR). Plan deprecation tests and migration guidance later. See `PR_strategy.md`.
 

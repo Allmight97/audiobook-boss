@@ -2,9 +2,11 @@
 
 Last updated: 2025-08-22
 
-This plan expands on `docs/planning/new_encoder/outcome2_advanced_encoder_ui.md` and reflects the current codebase state, mapping goals to concrete, atomized steps with phases and guardrails.
+This plan consolidates UI and encoder work in one place and reflects the current codebase state, mapping goals to concrete, atomized steps with phases and guardrails.
 
 References:
+- Index and canonical decisions: `docs/planning/new_encoder/README.md`
+- PR strategy: `docs/planning/new_encoder/PR_strategy.md`
 - Dependency map: `docs/planning/new_encoder/advanced_encoder_dependency_map.md`
 - External API patterns: `docs/external-apis/ffmpeg-next.md`, `docs/external-apis/lofty.md`, `docs/external-apis/tauri-patterns.md`, `docs/external-apis/tauri-ts-boundaries.md`
 
@@ -45,13 +47,14 @@ Notes:
 - macOS default: `encoderType = aac_at`.
 
 ## Phased implementation plan
+Agents: Create a new PR when each phase is complete.
 
 ### Phase 0 — Analysis and scaffolding (this PR)
 - [x] Dependency map of repo surfaces
 - [x] Expanded plan with phases and contracts
 - [x] Test gaps report (see `docs/planning/new_encoder/encoding_test_gaps.md`)
 - [x] Decide on API path: dual-command v1/v2 vs. extending `AudioSettings` with optional encoder settings
-  Decision (solo-dev optimization): perform an in-place upgrade of the existing command/types in a single PR on this branch. Update all frontend call sites simultaneously (no v2 shim). This avoids later cleanup and matches repo guidance to not add backwards compatibility unless requested.
+  Decision (canonical): adopt a multi‑PR path with a new v2 command that accepts `EncoderSettings`, keeping the existing v1 command intact initially. Migrate UI to v2 in a later PR, then deprecate v1. See `PR_strategy.md` and `README.md`.
 
 ### Phase 1 — Types and validation (no behavior change for v1)
 Backend:
@@ -65,15 +68,21 @@ Frontend:
 - [ ] Add `EncoderSettings` types to `src/types/audio.ts` or `src/types/encoder.ts`
 - [ ] Lightweight helper to produce default settings per platform
 
+- [ ] Collaborate with user on testing appropriate for the phase.
+- [ ] Add a new PR when this phase is complete.
+
 ### Phase 2 — Command upgrade & plumbing
 Backend:
-- [ ] Upgrade existing `process_audiobook_files` to accept the extended payload (with `EncoderSettings`) and route into the same pipeline
-- [ ] Derive `MediaProcessingPlan` from the upgraded payload
+- [ ] Add a new v2 command that accepts the payload with `EncoderSettings` and routes into the same pipeline
+- [ ] Derive `MediaProcessingPlan` from the v2 payload
 - [ ] Wire validation errors for invalid combinations
 
 Frontend:
-- [ ] Update `src/main.ts` to send the upgraded payload shape
+- [ ] Update `src/main.ts` to send the v2 payload shape
 - [ ] Ensure cancellation and progress listeners are unchanged
+
+- [ ] Collaborate with user on testing appropriate for the phase.
+- [ ] Add a new PR when this phase is complete.
 
 ### Phase 3 — Encoder mapping in ffmpeg-next
 - [ ] In `processor/encoder.rs`:
@@ -87,6 +96,9 @@ Frontend:
 
 Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor it. Keep UI gated accordingly.
 
+- [ ] Collaborate with user on testing appropriate for the phase.
+- [ ] Add a new PR when this phase is complete.
+
 ### Phase 4 — UI redesign and UX rules
 - [ ] New `EncoderPanel` with:
   - [ ] Encoder selection (AAC-AT / HE-AAC v1 / HE-AAC v2)
@@ -97,6 +109,8 @@ Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor i
 - [ ] macOS warning dialog when switching away from AAC-AT
 - [ ] HE-AAC v2 forces `channels=2` with inline helper text and a toast explaining: "HE-AAC v2 is stereo-only (Parametric Stereo). For mono, use HE-AAC v1"
 - [ ] Size estimate uses chosen bitrate and channels (pass-through sample rate display-only)
+- [ ] Collaborate with user on testing appropriate for the phase.
+- [ ] Add a new PR when this phase is complete.
 
 ### Phase 5 — Tests and docs
 - [ ] Unit tests: validation (HEv2 stereo), default resolution, option mapping returns

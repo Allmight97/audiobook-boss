@@ -4,7 +4,7 @@ Last updated: 2025-08-22
 
 ## Summary
 
-This report audits the planning docs in `docs/planning/new_encoder` against the current codebase and proposes a low‑risk PR sequence to introduce a v2 encoder with new frontend surfaces. The codebase today uses a single ffmpeg‑next engine with native AAC, no encoder selection, and no advanced options. The planning docs are largely coherent with this state, with a few link fixes and one strategy inconsistency noted below.
+This report audits the planning docs in `docs/planning/new_encoder` against the current codebase and proposes a low‑risk PR sequence to introduce a v2 encoder with new frontend surfaces. The codebase today uses a single ffmpeg‑next engine with native AAC, no encoder selection, and no advanced options. The planning docs are largely coherent with this state. As a canonical decision, we adopt a multi‑PR strategy (see `README.md`) aligned with the expanded plan in `encoder_imp_plan.md`.
 
 ## Current State vs. Docs (highlights)
 
@@ -25,8 +25,8 @@ This report audits the planning docs in `docs/planning/new_encoder` against the 
 - Link fixes (applied):
   - `ISSUE_DRAFT_outcome2_advanced_encoder_ui.md` now points to `docs/planning/new_encoder/*` and test gaps to `docs/planning/new_encoder/encoding_test_gaps.md`.
   - `outcome2_advanced_encoder_plan.md` now references `docs/planning/new_encoder/*` and uses full paths for external API docs in `docs/external-apis/*`.
-- Strategy conflict (still to resolve in process):
-  - Plan mentions both a new v2 command (back‑compat) and an in‑place upgrade (single PR). Choose one. Recommendation: multi‑PR path with minimal behavior change early, then backend mapping, then UI.
+- Strategy alignment (resolved):
+  - We choose the multi‑PR path with minimal behavior change early, then backend mapping, then UI. The plan in `outcome2_advanced_encoder_plan.md` reflects this.
 
 ## Recommended PR Strategy (safe, incremental)
 
@@ -46,6 +46,14 @@ This report audits the planning docs in `docs/planning/new_encoder` against the 
    - Update payload from UI to include `EncoderSettings`.
 
 4) PR: Tests
+## Branching & Merge Targets
+
+- One PR per phase (PR 1–4/5) to keep scope and review small.
+- Base branch: `feat/new_encoder` as the integration branch. Avoid merging intermediate phases directly to `main`.
+- For each phase: create a short-lived branch (e.g., `feat/new_encoder-phase1-types`), open a PR targeting `feat/new_encoder`, require green `cargo test`, `cargo test --features safe-ffmpeg`, and `cargo clippy -- -D warnings`.
+- After all phases merge into `feat/new_encoder` and stabilize, open a final PR from `feat/new_encoder` → `main`.
+- Small fixes or regressions discovered during later phases should be PRs against `feat/new_encoder`.
+
    - Unit: validation errors (HEv2+mono, threads), serde round‑trip, option mapping success/fallback behavior.
    - Integration: AAC‑AT selection on macOS, HE‑AAC v1/v2 profile open + stereo lock, logs contain summary.
 
@@ -62,9 +70,7 @@ This report audits the planning docs in `docs/planning/new_encoder` against the 
 
 ## Next Steps
 
-- Confirm API strategy (multi‑PR vs single PR) and update plan text to remove the internal contradiction.
-- Proceed with PR 1 (contracts + validation); keep behavior stable until PR 2.
-- Add tiny audio fixtures for fast tests and set up macOS‑only tests where needed.
+- See `README.md` for canonical decisions and links. Proceed with PR 1 (contracts + validation); keep behavior stable until PR 2. Add tiny audio fixtures for fast tests and set up macOS‑only tests where needed.
 
 ---
 
