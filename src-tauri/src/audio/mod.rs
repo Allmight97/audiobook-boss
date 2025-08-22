@@ -20,6 +20,7 @@ pub mod progress;
 // Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
 pub mod session;
 pub mod settings;
+pub mod settings_encoder;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +143,11 @@ pub enum ProcessingStage {
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
 pub use settings::validate_audio_settings;
+// New encoder settings infrastructure (Phase 1)
+pub use settings_encoder::{
+    AacCoder, EncoderSettings, EncoderType, ThreadSetting, 
+    validate_encoder_settings, ALLOWED_BITRATES
+};
 // New infrastructure - will be used when processor.rs is refactored
 pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
 
