@@ -20,6 +20,7 @@ pub mod progress;
 // Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
 pub mod session;
 pub mod settings;
+pub mod settings_encoder;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,3 +160,10 @@ pub use context::{ProcessingContextBuilder, ProgressContextBuilder, ProgressCont
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;
+
+// Encoder v2 settings and validation (Phase 1)
+pub use settings_encoder::{
+    EncoderSettings, EncoderType, AacCoder, ThreadSetting, 
+    validate_encoder_settings, is_encoder_available_by_name, resolve_encoder_name,
+    VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE
+};

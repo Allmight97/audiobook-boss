@@ -62,6 +62,7 @@ pub fn run() {
             commands::load_cover_art_file,
             commands::analyze_audio_files,
             commands::validate_audio_settings,
+            commands::validate_encoder_settings,
             commands::process_audiobook_files,
             commands::cancel_processing
         ])

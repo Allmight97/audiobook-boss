@@ -52,6 +52,14 @@ pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
     Ok("Settings are valid".to_string())
 }
 
+/// Validates encoder v2 settings 
+/// Checks bitrate whitelist, channel constraints, thread settings, and HE-AAC v2 stereo enforcement
+#[tauri::command]
+pub fn validate_encoder_settings(settings: crate::audio::EncoderSettings) -> Result<String> {
+    audio::validate_encoder_settings(&settings)?;
+    Ok("Encoder settings are valid".to_string())
+}
+
 /// Processes multiple audio files into a single M4B audiobook
 /// Merges files with specified settings and optional metadata
 #[derive(serde::Serialize)]
