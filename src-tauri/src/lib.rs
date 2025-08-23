@@ -64,6 +64,7 @@ pub fn run() {
             commands::validate_audio_settings,
             commands::validate_encoder_settings_cmd,
             commands::process_audiobook_files,
+            commands::process_audiobook_files_v2,
             commands::cancel_processing
         ])
         .run(tauri::generate_context!())

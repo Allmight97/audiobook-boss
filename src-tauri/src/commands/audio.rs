@@ -1,8 +1,10 @@
 use crate::errors::{AppError, Result};
 use crate::audio::{self, AudioSettings};
 use crate::audio::settings_encoder::{EncoderSettings, validate_encoder_settings};
+use crate::audio::{ChannelConfig, SampleRateConfig};
+use std::path::{Path, PathBuf};
 use crate::audio::file_list::FileListInfo;
-use std::path::PathBuf;
+// removed duplicate PathBuf import
 
 /// Validates that all provided file paths exist and are files
 /// Accepts an array of file paths and checks file existence
@@ -58,6 +60,141 @@ pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
 pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
     validate_encoder_settings(&settings)?;
     Ok("Encoder settings are valid".to_string())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessV2Payload {
+    pub input_files: Vec<String>,
+    pub output_dir: String,
+    pub settings: EncoderSettings,
+}
+
+fn derive_v1_settings_from_v2(payload: &ProcessV2Payload) -> Result<AudioSettings> {
+    // Map EncoderSettings -> current v1 AudioSettings (Phase 2: plumbing only)
+    let channels = match payload.settings.channels {
+        1 => ChannelConfig::Mono,
+        2 => ChannelConfig::Stereo,
+        other => {
+            return Err(AppError::InvalidInput(format!(
+                "Unsupported channel count: {} (allowed: 1 or 2)",
+                other
+            )))
+        }
+    };
+
+    let output_dir = Path::new(&payload.output_dir);
+    if !output_dir.exists() {
+        return Err(AppError::FileValidation(format!(
+            "Output directory does not exist: {}",
+            output_dir.display()
+        )));
+    }
+    if !output_dir.is_dir() {
+        return Err(AppError::FileValidation(format!(
+            "Output path is not a directory: {}",
+            output_dir.display()
+        )));
+    }
+    // Temporary deterministic filename; UI can override in Phase 4
+    let output_path: PathBuf = output_dir.join("audiobook.m4b");
+
+    let v1 = AudioSettings {
+        bitrate: payload.settings.bitrate_kbps as u32,
+        channels,
+        sample_rate: SampleRateConfig::Auto,
+        output_path,
+    };
+    // Reuse existing v1 validation
+    audio::validate_audio_settings(&v1)?;
+    Ok(v1)
+}
+
+/// Processes files using v2 payload (EncoderSettings + v2 shape). For now, routes
+/// through the same pipeline by mapping to v1 AudioSettings. No behavior change.
+#[tauri::command]
+pub async fn process_audiobook_files_v2(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::ProcessingState>,
+    payload: ProcessV2Payload,
+    metadata: Option<crate::metadata::AudiobookMetadata>,
+    preview_seconds: Option<f64>,
+) -> Result<ProcessCommandResult> {
+    // Validate encoder settings (v2)
+    validate_encoder_settings(&payload.settings)?;
+    log::info!(
+        "encoder_v2 summary: encoder={:?} bitrate={}k channels={} aac_coder={:?} afterburner={:?} threads={:?}",
+        payload.settings.encoder_type,
+        payload.settings.bitrate_kbps,
+        payload.settings.channels,
+        payload.settings.aac_coder,
+        payload.settings.afterburner,
+        payload.settings.threads
+    );
+
+    // Map to v1 settings for current pipeline
+    let settings_v1 = derive_v1_settings_from_v2(&payload)?;
+
+    // Set processing state
+    {
+        let mut is_processing = state.is_processing.lock().map_err(|_| {
+            AppError::InvalidInput("Failed to acquire processing lock".to_string())
+        })?;
+        *is_processing = true;
+
+        let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
+            AppError::InvalidInput("Failed to acquire cancellation lock".to_string())
+        })?;
+        *is_cancelled = false;
+    }
+
+    // Validate and get file information
+    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
+    let file_info = audio::get_file_list_info(&paths)?;
+
+    // Process the audiobook with progress events
+    let (message, preview_path_opt, preview_seconds_used) = {
+        let session = audio::session::ProcessingSession::new();
+        let settings_for_path = settings_v1.clone();
+        let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings_v1);
+
+        // Resolve preview seconds
+        let mut preview_seconds_resolved: Option<f64> = None;
+        if let Some(sec) = preview_seconds.or_else(|| {
+            std::env::var("ABB_PREVIEW_SECONDS").ok().and_then(|s| s.parse::<f64>().ok())
+        }) {
+            if sec.is_finite() && sec > 0.0 {
+                context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
+                log::info!("Preview requested (v2): seconds={:.3}", sec);
+                preview_seconds_resolved = Some(sec);
+            }
+        }
+        let is_preview = context.preview.is_some();
+        let msg = audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await?;
+        let preview_path = if is_preview {
+            let final_output = &settings_for_path.output_path;
+            let parent = final_output.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let stem = final_output
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("output");
+            let p = parent.join(format!("{}.preview.m4b", stem));
+            Some(p.display().to_string())
+        } else {
+            None
+        };
+        (msg, preview_path, preview_seconds_resolved)
+    };
+
+    // Reset processing state
+    {
+        let mut is_processing = state.is_processing.lock().map_err(|_| {
+            AppError::InvalidInput("Failed to acquire processing lock".to_string())
+        })?;
+        *is_processing = false;
+    }
+
+    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt, preview_actual_seconds: preview_seconds_used })
 }
 
 /// Processes multiple audio files into a single M4B audiobook
