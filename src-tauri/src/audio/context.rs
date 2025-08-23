@@ -5,6 +5,7 @@
 //! and improving code organization.
 
 use super::AudioSettings;
+use super::settings_encoder::EncoderSettings;
 use crate::audio::ProcessingStage;
 use super::session::ProcessingSession;
 use crate::errors::Result;
@@ -31,6 +32,8 @@ pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
     /// Audio processing settings
     pub settings: AudioSettings,
+    /// Optional advanced encoder settings (v2) carried through the pipeline
+    pub encoder_settings_v2: Option<EncoderSettings>,
     /// Optional preview configuration (when present, processing should early‑stop)
     pub preview: Option<PreviewConfig>,
 }
@@ -42,6 +45,7 @@ impl ProcessingContext {
             window,
             session,
             settings,
+            encoder_settings_v2: None,
             preview: None,
         }
     }

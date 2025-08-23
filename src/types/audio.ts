@@ -75,15 +75,22 @@ export interface EncoderSettings {
   threads: ThreadSetting;             // best-effort for aac_at
 }
 
-// Default encoder settings
-export const defaultEncoderSettings = (): EncoderSettings => ({
-  encoderType: 'he_aac_v1' as EncoderType,
-  bitrateKbps: 64 as const,
-  channels: 1 as const,
-  aacCoder: 'twoloop' as AacCoder,
-  afterburner: false,
-  threads: { mode: 'auto' as const }
-});
+// Platform-aware default encoder settings
+export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
+  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent);
+  const encoderType: EncoderType = isMac ? 'aac_at' : 'he_aac_v1';
+  return {
+    encoderType,
+    bitrateKbps: 64,
+    channels: 1,
+    aacCoder: 'twoloop',
+    afterburner: false,
+    threads: { mode: 'auto' }
+  };
+};
+
+// Default encoder settings (delegates to platform-aware helper)
+export const defaultEncoderSettings = (): EncoderSettings => getDefaultEncoderSettingsForPlatform();
 
 // Audio settings presets
 export const AudioPresets = {

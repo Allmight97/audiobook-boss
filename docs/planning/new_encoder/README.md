@@ -8,7 +8,7 @@ This index explains the roles of each document related to the new v2 encoder and
 
 ## Canonical Decisions
 
-- Strategy: multi-PR, incremental rollout with minimal behavior change first, then backend mapping, then UI.
+- Strategy: Since this is a personal APP with a solo developer, we will use ONE PR (off branch 'encoder_updates') for each phase allowing the audit agent to review each PR and provide feedback.
 - API path: keep the existing v1 command unchanged; introduce a new v2 command that accepts `EncoderSettings` for advanced options. Migrate the UI to v2 in a later PR, then deprecate v1.
 - Engine: ffmpeg-next only (no shell FFmpeg anywhere).
 

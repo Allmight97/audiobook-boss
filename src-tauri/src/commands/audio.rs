@@ -157,6 +157,8 @@ pub async fn process_audiobook_files_v2(
         let session = audio::session::ProcessingSession::new();
         let settings_for_path = settings_v1.clone();
         let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings_v1);
+        // Attach v2 encoder settings to context for downstream mapping
+        context.encoder_settings_v2 = Some(payload.settings.clone());
 
         // Resolve preview seconds
         let mut preview_seconds_resolved: Option<f64> = None;

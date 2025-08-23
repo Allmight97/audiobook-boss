@@ -88,12 +88,14 @@ pub(crate) async fn merge_audio_files_with_context(
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let settings = &context.settings;
 
-    let plan = MediaProcessingPlan::new(
+    let mut plan = MediaProcessingPlan::new(
         temp_output.clone(),
         settings.clone(),
         file_paths,
         total_duration,
     );
+    // Carry v2 encoder settings from context if present
+    plan.encoder_settings_v2 = context.encoder_settings_v2.clone();
 
     // Use centralized engine selection via create_default_processor function
     // This abstracts away the feature flag logic and prepares for engine flip

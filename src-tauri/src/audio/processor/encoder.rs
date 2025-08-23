@@ -116,8 +116,40 @@ pub(crate) fn create_audio_encoder(
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     use crate::errors::AppError;
 
-    let codec = ff::encoder::find(ff::codec::Id::AAC)
-        .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
+    // Encoder selection: prefer aac_at on macOS when requested and available; else native aac
+    let resolved_encoder_name: &str = {
+        if let Some(v2) = &plan.encoder_settings_v2 {
+            match v2.encoder_type {
+                crate::audio::settings_encoder::EncoderType::AacAt => {
+                    crate::audio::settings_encoder::resolve_encoder_name(crate::audio::settings_encoder::EncoderType::AacAt)
+                }
+                _ => "aac",
+            }
+        } else {
+            "aac"
+        }
+    };
+    let codec = if resolved_encoder_name == "aac" {
+        ff::encoder::find(ff::codec::Id::AAC)
+            .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
+    } else {
+        // Try name-based lookup (aac_at)
+        unsafe {
+            use std::ffi::CString;
+            let c = CString::new(resolved_encoder_name).map_err(|e| AppError::General(format!("Bad encoder name: {e}")))?;
+            let ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c.as_ptr());
+            if ptr.is_null() {
+                log::warn!("Requested encoder '{}' not found; falling back to native 'aac'", resolved_encoder_name);
+                ff::encoder::find(ff::codec::Id::AAC)
+                    .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
+            } else {
+                // Build a Codec wrapper via id lookup from the found codec
+                let id = (*ptr).id;
+                ff::encoder::find(ff::codec::Id::from(id))
+                    .ok_or_else(|| AppError::General("Encoder not found by id after name lookup".to_string()))?
+            }
+        }
+    };
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
@@ -127,6 +159,7 @@ pub(crate) fn create_audio_encoder(
         .encoder()
         .audio()
         .map_err(|e| AppError::General(format!("Open encoder failed: {e}")))?;
+    // Bitrate/rate/channels
     opened.set_bit_rate(((plan.settings.bitrate as i64) * 1000) as usize);
     opened.set_rate(target_sample_rate as i32);
     opened.set_channel_layout(channel_layout);
@@ -138,15 +171,74 @@ pub(crate) fn create_audio_encoder(
         Err(e) => log::warn!("Could not configure variable frame sizes ({}), may have frame size issues", e),
     }
 
-    let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    if disable_twoloop {
-        log::info!("Twoloop AAC enhancement disabled via environment override");
+    // Option mapping from v2 settings (profile, coder, threads)
+    if let Some(v2) = &plan.encoder_settings_v2 {
+        // HE-AAC profiles (best-effort, native AAC)
+        if matches!(v2.encoder_type, crate::audio::settings_encoder::EncoderType::HeAacV1 | crate::audio::settings_encoder::EncoderType::HeAacV2) {
+            unsafe {
+                use std::ffi::CString;
+                let av_ctx = opened.as_mut_ptr();
+                let key = CString::new("profile").unwrap();
+                // Values from FFmpeg headers
+                let value = match v2.encoder_type {
+                    crate::audio::settings_encoder::EncoderType::HeAacV1 => ffmpeg_next::sys::FF_PROFILE_AAC_HE,
+                    crate::audio::settings_encoder::EncoderType::HeAacV2 => ffmpeg_next::sys::FF_PROFILE_AAC_HE_V2,
+                    _ => ffmpeg_next::sys::FF_PROFILE_AAC_LOW,
+                } as i64;
+                let _ = ffmpeg_next::sys::av_opt_set_int(av_ctx as *mut std::ffi::c_void, key.as_ptr(), value, 0);
+            }
+        }
+
+        // aac_coder only for native aac
+        if resolved_encoder_name == "aac" {
+            if let Some(coder) = v2.aac_coder {
+                unsafe {
+                    use std::ffi::CString;
+                    let av_ctx = opened.as_mut_ptr();
+                    let key = CString::new("aac_coder").unwrap();
+                    let val_str = match coder {
+                        crate::audio::settings_encoder::AacCoder::Twoloop => "twoloop",
+                        crate::audio::settings_encoder::AacCoder::Fast => "fast",
+                    };
+                    let value = CString::new(val_str).unwrap();
+                    let rc = ffmpeg_next::sys::av_opt_set(av_ctx as *mut std::ffi::c_void, key.as_ptr(), value.as_ptr(), 0);
+                    if rc < 0 { log::debug!("Failed to set aac_coder={} rc={}", val_str, rc); }
+                }
+            }
+        }
+
+        // Threads mapping: Auto=0, Off=1, Fixed(n)=n
+        let threads_value = match v2.threads {
+            crate::audio::settings_encoder::ThreadSetting::Auto => 0,
+            crate::audio::settings_encoder::ThreadSetting::Off => 1,
+            crate::audio::settings_encoder::ThreadSetting::Fixed(n) => n as i32,
+        };
+        if threads_value > 0 {
+            // ffmpeg-next exposes set_threading on context via builder flags; use low-level opt if not available
+            unsafe {
+                use std::ffi::CString;
+                let av_ctx = opened.as_mut_ptr();
+                let key = CString::new("threads").unwrap();
+                let _ = ffmpeg_next::sys::av_opt_set_int(av_ctx as *mut std::ffi::c_void, key.as_ptr(), threads_value as i64, 0);
+            }
+        }
+
+        // Afterburner: FDK-only; log ignored for native or aac_at
+        if v2.afterburner.unwrap_or(false) {
+            log::info!("afterburner requested but non-FDK encoder in use - option ignored");
+        }
     } else {
-        match try_enable_twoloop_aac(&mut opened) {
-            Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully - expect improved audio quality"),
-            Err(e) => log::warn!("Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC", e),
+        // Legacy twoloop behavior behind env flag for native AAC
+        let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if disable_twoloop {
+            log::info!("Twoloop AAC enhancement disabled via environment override");
+        } else {
+            match try_enable_twoloop_aac(&mut opened) {
+                Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully - expect improved audio quality"),
+                Err(e) => log::warn!("Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC", e),
+            }
         }
     }
 

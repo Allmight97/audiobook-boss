@@ -27,6 +27,8 @@ pub struct MediaProcessingPlan {
     pub input_file_paths: Vec<PathBuf>,
     /// Total duration for progress tracking
     pub total_duration: f64,
+    /// Optional advanced encoder settings (v2) resolved from context
+    pub encoder_settings_v2: Option<crate::audio::settings_encoder::EncoderSettings>,
 }
 
 impl MediaProcessingPlan {
@@ -42,6 +44,7 @@ impl MediaProcessingPlan {
             settings,
             input_file_paths,
             total_duration,
+            encoder_settings_v2: None,
         }
     }
 

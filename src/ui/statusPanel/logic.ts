@@ -137,10 +137,38 @@ export class StatusPanel {
             // Get metadata from the form (basic implementation)
             const metadata = this.getCurrentMetadata();
 
-            // Call backend processing command
-            const result = await invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files', {
-                filePaths,
-                settings,
+            // Call backend processing command (v2 payload)
+            const v2Payload = {
+                inputFiles: filePaths,
+                outputDir: (document.getElementById('output-dir-text') as HTMLInputElement)?.value || '',
+                settings: (window as any).EncoderSettingsProvider?.() ?? ({} as any)
+            };
+            // Fallback: if provider not set, derive minimal v2 settings from UI
+            if (!v2Payload.settings || !v2Payload.settings.encoderType) {
+                const { defaultEncoderSettings } = await import('../../types/audio');
+                const def = defaultEncoderSettings();
+                v2Payload.settings = {
+                    encoderType: def.encoderType,
+                    bitrateKbps: (settings.bitrate as any) as 56|64|72|80|88|96,
+                    channels: settings.channels === 'Mono' ? 1 : 2,
+                    threads: { mode: 'auto' as const }
+                } as any;
+            }
+
+            // Enforce HE-AAC v2 stereo-only: coerce to stereo and update UI control when applicable
+            if (v2Payload.settings && v2Payload.settings.encoderType === 'he_aac_v2' && v2Payload.settings.channels !== 2) {
+                v2Payload.settings.channels = 2;
+                const chSelect = document.getElementById('output-channels') as HTMLSelectElement | null;
+                if (chSelect) {
+                    const monoOption = Array.from(chSelect.options).find(o => o.value.toLowerCase() === 'mono');
+                    if (monoOption) monoOption.disabled = true;
+                    chSelect.value = 'stereo';
+                }
+                console.info('HE-AAC v2 requires stereo; channels coerced to 2');
+            }
+
+            const result = await invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files_v2', {
+                payload: v2Payload,
                 metadata: Object.keys(metadata).length > 0 ? metadata : null,
                 previewSeconds: options?.previewSeconds
             });
