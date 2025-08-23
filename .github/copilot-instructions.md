@@ -53,6 +53,11 @@ Failure patterns to avoid (and auto self-correct):
 - Only add new comments to code blocks if the code or logic is complex enough to warrant it or is not obvious at first glance.
 - When running tests prefer to use the built in tool that is available to you rather than running tests in the terminal. This should allow you to be more specific in running only applicable tests.
 
+# Important PR Management Guidelines
+- When addressing review comments or code scan issues, apply all fixes to the open PR branch unless instructed otherwise.
+- Only open a new PR if the changes are unrelated or explicitly requested as a separate improvement.
+- Request user confirmation before opening any additional branches or PRs.
+
 ==
 When modifying code apply **[cross-project coding standards](instructions/cross-project-coding-standards.instructions.md)** ✅
 Reference docs/specs/db.json for FFMPEG-NEXT commands.
