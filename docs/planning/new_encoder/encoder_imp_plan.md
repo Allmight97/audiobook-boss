@@ -95,7 +95,7 @@ Frontend:
 - [ ] Log one INFO summary line with resolved params and DEBUG for each option set
 
 Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor it. Keep UI gated accordingly.
-  - DEV NOTE: COnfirmed in FFMPEG docs that afterburner is only available for FDK encoders - cannot use 'afterburner' with native 'aac' or 'aac_at' or HE-AAC v1/v2.
+  - DEV NOTE: Confirmed in FFMPEG docs that afterburner is only available for FDK encoders - cannot use 'afterburner' with native 'aac' or 'aac_at' or HE-AAC v1/v2.
 
 - [ ] Collaborate with user on testing appropriate for the phase.
 - [ ] When phase is complete, create a new PR for review and merge.
