@@ -69,7 +69,7 @@ Frontend:
 - [ ] Lightweight helper to produce default settings per platform
 
 - [ ] Collaborate with user on testing appropriate for the phase.
-- [ ] Add a new PR when this phase is complete.
+- [ ] When phase is complete, create a new PR for review and merge.
 
 ### Phase 2 — Command upgrade & plumbing
 Backend:
@@ -82,7 +82,7 @@ Frontend:
 - [ ] Ensure cancellation and progress listeners are unchanged
 
 - [ ] Collaborate with user on testing appropriate for the phase.
-- [ ] Add a new PR when this phase is complete.
+- [ ] When phase is complete, create a new PR for review and merge.
 
 ### Phase 3 — Encoder mapping in ffmpeg-next
 - [ ] In `processor/encoder.rs`:
@@ -97,7 +97,7 @@ Frontend:
 Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor it. Keep UI gated accordingly.
 
 - [ ] Collaborate with user on testing appropriate for the phase.
-- [ ] Add a new PR when this phase is complete.
+- [ ] When phase is complete, create a new PR for review and merge.
 
 ### Phase 4 — UI redesign and UX rules
 - [ ] New `EncoderPanel` with:
@@ -110,7 +110,7 @@ Caveat: "afterburner" is FDK-specific; native `aac` and `aac_at` won’t honor i
 - [ ] HE-AAC v2 forces `channels=2` with inline helper text and a toast explaining: "HE-AAC v2 is stereo-only (Parametric Stereo). For mono, use HE-AAC v1"
 - [ ] Size estimate uses chosen bitrate and channels (pass-through sample rate display-only)
 - [ ] Collaborate with user on testing appropriate for the phase.
-- [ ] Add a new PR when this phase is complete.
+- [ ] When phase is complete, create a new PR for review and merge.
 
 ### Phase 5 — Tests and docs
 - [ ] Unit tests: validation (HEv2 stereo), default resolution, option mapping returns

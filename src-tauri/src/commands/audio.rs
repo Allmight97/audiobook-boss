@@ -1,5 +1,6 @@
 use crate::errors::{AppError, Result};
 use crate::audio::{self, AudioSettings};
+use crate::audio::settings_encoder::{EncoderSettings, validate_encoder_settings};
 use crate::audio::file_list::FileListInfo;
 use std::path::PathBuf;
 
@@ -50,6 +51,13 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 pub fn validate_audio_settings(settings: AudioSettings) -> Result<String> {
     audio::validate_audio_settings(&settings)?;
     Ok("Settings are valid".to_string())
+}
+
+/// Validates advanced encoder v2 settings (no side effects)
+#[tauri::command]
+pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
+    validate_encoder_settings(&settings)?;
+    Ok("Encoder settings are valid".to_string())
 }
 
 /// Processes multiple audio files into a single M4B audiobook

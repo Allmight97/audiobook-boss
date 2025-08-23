@@ -20,6 +20,7 @@ pub mod progress;
 // Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
 pub mod session;
 pub mod settings;
+pub mod settings_encoder;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]

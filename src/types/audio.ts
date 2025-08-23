@@ -58,6 +58,31 @@ export interface ProcessCommandResult {
   previewFilePath?: string;
 }
 
+// Encoder v2 types (Phase 1)
+export type EncoderType = 'aac_at' | 'he_aac_v1' | 'he_aac_v2';
+export type AacCoder = 'twoloop' | 'fast';
+export type ThreadMode = 'auto' | 'off' | 'fixed';
+export type ThreadSetting =
+  | { mode: 'auto' }
+  | { mode: 'off' }
+  | { mode: 'fixed'; value: number };
+
+export interface EncoderSettings {
+  encoderType: EncoderType;
+  bitrateKbps: 56 | 64 | 72 | 80 | 88 | 96;
+  channels: 1 | 2;
+  aacCoder?: AacCoder;
+  afterburner?: boolean;
+  threads: ThreadSetting;
+}
+
+export const defaultEncoderSettings = (isMacOS: boolean): EncoderSettings => ({
+  encoderType: isMacOS ? 'aac_at' : 'he_aac_v1',
+  bitrateKbps: 64,
+  channels: 1,
+  threads: { mode: 'auto' }
+});
+
 // Audio settings presets
 export const AudioPresets = {
   audiobook: (): AudioSettings => ({
