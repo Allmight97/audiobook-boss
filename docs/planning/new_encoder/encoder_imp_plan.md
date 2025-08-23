@@ -49,14 +49,14 @@ Notes:
 ## Phased implementation plan
 Agents: Create a new PR when each phase is complete.
 
-### Phase 0 — Analysis and scaffolding (this PR)
+### Phase 0 — Analysis and scaffolding (this PR) - ✅ DONE
 - [x] Dependency map of repo surfaces
 - [x] Expanded plan with phases and contracts
 - [x] Test gaps report (see `docs/planning/new_encoder/encoding_test_gaps.md`)
 - [x] Decide on API path: dual-command v1/v2 vs. extending `AudioSettings` with optional encoder settings
   Decision (canonical): adopt a multi‑PR path with a new v2 command that accepts `EncoderSettings`, keeping the existing v1 command intact initially. Migrate UI to v2 in a later PR, then deprecate v1. See `PR_strategy.md` and `README.md`.
 
-### Phase 1 — Types and validation (no behavior change for v1)
+### Phase 1 — Types and validation (no behavior change for v1) - ✅ DONE
 Backend:
 - [ ] Add `src-tauri/src/audio/settings_encoder.rs` (new) with enums/structs + serde
 - [ ] Add validation helpers: bitrate whitelist, HE-AAC v2 stereo enforcement
@@ -71,7 +71,7 @@ Frontend:
 - [ ] Collaborate with user on testing appropriate for the phase.
 - [ ] When phase is complete, create a new PR for review and merge.
 
-### Phase 2 — Command upgrade & plumbing
+### Phase 2 — Command upgrade & plumbing IN-ProGRESS - validate before moving onto phase 2.
 Backend:
 - [ ] Add a new v2 command that accepts the payload with `EncoderSettings` and routes into the same pipeline
 - [ ] Derive `MediaProcessingPlan` from the v2 payload

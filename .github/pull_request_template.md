@@ -1,6 +1,6 @@
 ## Summary
 
-Describe the change.
+Concise description of change
 
 ## Links
 - Index: docs/planning/new_encoder/README.md
@@ -8,7 +8,7 @@ Describe the change.
 - Plan phase: docs/planning/new_encoder/encoder_imp_plan.md
 
 ## Scope
-- What files/areas changed
+- What files/areas changed and why. Map all services impacted by the cange.
 
 ## Checks
 - [ ] cargo test
