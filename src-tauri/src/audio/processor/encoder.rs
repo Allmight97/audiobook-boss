@@ -133,22 +133,7 @@ pub(crate) fn create_audio_encoder(
         ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
     } else {
-        // Try name-based lookup (aac_at)
-        unsafe {
-            use std::ffi::CString;
-            let c = CString::new(resolved_encoder_name).map_err(|e| AppError::General(format!("Bad encoder name: {e}")))?;
-            let ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c.as_ptr());
-            if ptr.is_null() {
-                log::warn!("Requested encoder '{}' not found; falling back to native 'aac'", resolved_encoder_name);
-                ff::encoder::find(ff::codec::Id::AAC)
-                    .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
-            } else {
-                // Build a Codec wrapper via id lookup from the found codec
-                let id = (*ptr).id;
-                ff::encoder::find(ff::codec::Id::from(id))
-                    .ok_or_else(|| AppError::General("Encoder not found by id after name lookup".to_string()))?
-            }
-        }
+        find_encoder_by_name(resolved_encoder_name)?
     };
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
