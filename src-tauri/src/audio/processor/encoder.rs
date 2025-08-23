@@ -3,6 +3,24 @@
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
+/// Finds encoder by name using FFmpeg's encoder registry
+fn find_encoder_by_name(name: &str) -> Result<ff::Codec> {
+    use crate::errors::AppError;
+    use std::ffi::CString;
+
+    unsafe {
+        let c_name = CString::new(name)
+            .map_err(|e| AppError::General(format!("Invalid encoder name '{}': {}", name, e)))?;
+        
+        let codec_ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c_name.as_ptr());
+        if codec_ptr.is_null() {
+            return Err(AppError::General(format!("Encoder '{}' not found", name)));
+        }
+        
+        Ok(ff::Codec::wrap(codec_ptr))
+    }
+}
+
 /// Attempts to configure AAC encoder for variable frame sizes.
 fn try_configure_variable_frame_size(encoder_ctx: &mut ff::codec::context::Context) -> Result<()> {
     use crate::errors::AppError;
@@ -107,7 +125,8 @@ fn resolve_target_audio_params(
     }
 }
 
-/// Creates and configures the audio encoder
+/// Creates and configures an AAC audio encoder with optimal settings
+#[allow(clippy::too_many_lines)]
 pub(crate) fn create_audio_encoder(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
     target_sample_rate: u32,
@@ -163,7 +182,7 @@ pub(crate) fn create_audio_encoder(
             unsafe {
                 use std::ffi::CString;
                 let av_ctx = opened.as_mut_ptr();
-                let key = CString::new("profile").unwrap();
+                let key = CString::new("profile").expect("profile key should be valid");
                 // Values from FFmpeg headers
                 let value = match v2.encoder_type {
                     crate::audio::settings_encoder::EncoderType::HeAacV1 => ffmpeg_next::sys::FF_PROFILE_AAC_HE,
@@ -180,12 +199,12 @@ pub(crate) fn create_audio_encoder(
                 unsafe {
                     use std::ffi::CString;
                     let av_ctx = opened.as_mut_ptr();
-                    let key = CString::new("aac_coder").unwrap();
+                    let key = CString::new("aac_coder").expect("aac_coder key should be valid");
                     let val_str = match coder {
                         crate::audio::settings_encoder::AacCoder::Twoloop => "twoloop",
                         crate::audio::settings_encoder::AacCoder::Fast => "fast",
                     };
-                    let value = CString::new(val_str).unwrap();
+                    let value = CString::new(val_str).expect("aac_coder value should be valid");
                     let rc = ffmpeg_next::sys::av_opt_set(av_ctx as *mut std::ffi::c_void, key.as_ptr(), value.as_ptr(), 0);
                     if rc < 0 { log::debug!("Failed to set aac_coder={} rc={}", val_str, rc); }
                 }
@@ -203,7 +222,7 @@ pub(crate) fn create_audio_encoder(
             unsafe {
                 use std::ffi::CString;
                 let av_ctx = opened.as_mut_ptr();
-                let key = CString::new("threads").unwrap();
+                let key = CString::new("threads").expect("threads key should be valid");
                 let _ = ffmpeg_next::sys::av_opt_set_int(av_ctx as *mut std::ffi::c_void, key.as_ptr(), threads_value as i64, 0);
             }
         }
