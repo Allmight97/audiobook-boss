@@ -412,9 +412,11 @@
 					document.addEventListener('keydown', handleKey);
 
 					const onChange = () => { const s = gatherSettings(); saveSettings(s); renderJSON(s); };
-					encoder && encoder.addEventListener('change', onChange);
-					encoder && encoder.addEventListener('change', updateFdkVisibility);
-					resample && resample.addEventListener('change', onChange);
+					encoder?.addEventListener('change', () => {
+						onChange();
+						updateFdkVisibility();
+					});
+					resample?.addEventListener('change', onChange);
 
 					if (fdkBrowse) {
 						fdkBrowse.addEventListener('click', () => {
