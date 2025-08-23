@@ -397,7 +397,7 @@
 
 				function handleKey(e) {
 					// Keyboard toggle: A key
-					if (e.key && (e.key === 'a' || e.key === 'A')) {
+					if (e.key?.toLowerCase() === 'a') {
 						toggleOpen();
 					}
 					// Close with Escape when panel is open
