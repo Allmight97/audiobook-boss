@@ -373,9 +373,11 @@ export class StatusPanel {
             if (!isNaN(yearNum)) metadata.date = yearNum; // Map year -> date for backend
         }
         if (genre) metadata.genre = genre;
+        if (series) {
+            // TODO: Handle series metadata properly - for now, append to album
+            metadata.album = album ? `${album} (${series})` : series;
+        }
         if (description) metadata.description = description;
-        
-        // TODO: Handle series metadata - may need to be combined with album or stored separately
 
         // Include cover art if user has selected any
         const coverBytes = getCurrentCoverArt();
