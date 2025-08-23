@@ -55,8 +55,10 @@ Failure patterns to avoid (and auto self-correct):
 
 # Important PR Management Guidelines
 - When addressing review comments or code scan issues, apply all fixes to the open PR branch unless instructed otherwise.
-- Only open a new PR if the changes are unrelated or explicitly requested as a separate improvement.
-- Request user confirmation before opening any additional branches or PRs.
+- Do not create new branches, pull requests, or commits unless explicitly assigned a separate issue by the maintainer.
+- Do not run or trigger any GitHub Actions workflows (e.g., rust-clippy.yml) during reviews—leave that to the maintainer.
+- If an issue is identified, suggest fixes in comments only; the maintainer will decide if/when to assign it as work.
+- Always keep responses concise and focused on the PR's changes.
 
 ==
 When modifying code apply **[cross-project coding standards](instructions/cross-project-coding-standards.instructions.md)** ✅
