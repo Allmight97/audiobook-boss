@@ -86,28 +86,6 @@ pub struct FfmpegNextProcessor;
 use crate::audio::processor::frame_pipeline::FramePipelineCtx;
 
 impl FfmpegNextProcessor {
-    #[cfg(debug_assertions)]
-    #[allow(dead_code)]
-    fn debug_validate_frame_contract(
-        frame: &ffmpeg_next::frame::Audio,
-        encoder: &ffmpeg_next::codec::encoder::audio::Encoder,
-    ) {
-        // Format/layout/rate must match encoder
-        debug_assert_eq!(frame.format(), encoder.format(), "Frame format must match encoder format");
-        debug_assert_eq!(frame.channel_layout(), encoder.channel_layout(), "Channel layout mismatch");
-        debug_assert_eq!(frame.rate(), encoder.rate(), "Sample rate mismatch");
-
-        // Samples must be > 0 and respect encoder frame size if non-zero
-        let samples_i64 = frame.samples() as i64;
-        debug_assert!(samples_i64 > 0, "Frame must contain at least one sample");
-        let enc_frame_size_i64 = encoder.frame_size() as i64;
-        if enc_frame_size_i64 > 0 {
-            debug_assert!(samples_i64 <= enc_frame_size_i64, "Frame samples exceed encoder.frame_size()");
-        }
-
-        // PTS should be set (monotonicity is enforced by caller via running_pts)
-        debug_assert!(frame.pts().is_some(), "Frame PTS must be set before encoding");
-    }
     // resolve_target_audio_params moved to processor::encoder
 
     // Encoder FFI helpers moved to processor::encoder
@@ -172,108 +150,7 @@ impl FfmpegNextProcessor {
         Ok(())
     }
 
-    /// Flushes any remaining frames from the decoder after processing an input file
-    #[allow(dead_code)]
-    fn flush_decoder_frames(
-        decoder: &mut ffmpeg_next::codec::decoder::Audio,
-        encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
-        output_context: &mut ffmpeg_next::format::context::Output,
-        resampler: &mut ffmpeg_next::software::resampling::Context,
-        ctx: &mut FramePipelineCtx,
-    ) -> Result<()> {
-        use crate::errors::AppError;
-        use ffmpeg_next as ff;
-
-        decoder.send_eof().ok();
-        loop {
-            let mut frame = ff::frame::Audio::empty();
-            match decoder.receive_frame(&mut frame) {
-                Ok(()) => {
-                    let mut out = ff::frame::Audio::empty();
-                    out.set_format(encoder.format());
-                    out.set_channel_layout(encoder.channel_layout());
-                    out.set_rate(encoder.rate());
-                    out.set_samples(frame.samples());
-                    // Ensure destination frame is allocated before resampling
-                    unsafe {
-                        out.alloc(encoder.format(), frame.samples(), encoder.channel_layout());
-                    }
-                    resampler
-                        .run(&frame, &mut out)
-                        .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
-                    if out.samples() == 0 {
-                        log::warn!("Resampler (flush) produced 0 samples – skipping");
-                        continue;
-                    }
-                    let target_size = encoder.frame_size() as usize;
-                    let total_samples = out.samples();
-                    let mut start_sample = 0usize;
-                    while start_sample < total_samples {
-                        let remaining = total_samples - start_sample;
-                        let take = remaining.min(target_size);
-                        if start_sample == 0 && take == total_samples && take <= target_size {
-                            out.set_pts(Some(*ctx.running_pts));
-                            *ctx.running_pts += take as i64;
-                            encoder
-                                .send_frame(&out)
-                                .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
-                        } else {
-                            let mut sub = ff::frame::Audio::empty();
-                            sub.set_format(encoder.format());
-                            sub.set_channel_layout(encoder.channel_layout());
-                            sub.set_rate(encoder.rate());
-                            sub.set_samples(take);
-                            
-                            // CRITICAL: Must allocate the frame buffer before accessing data_mut  
-                            unsafe {
-                                sub.alloc(encoder.format(), take, encoder.channel_layout());
-                            }
-                            
-                            for ch in 0..encoder.channel_layout().channels() as usize {
-                                let src_plane = out.data(ch);
-                                let dst_plane = sub.data_mut(ch);
-                                let bytes_per_sample = 4; // F32
-                                let plane_samples = out.samples();
-                                let src_offset_bytes = start_sample * bytes_per_sample;
-                                let take_bytes = take * bytes_per_sample;
-                                
-                                // Defensive bounds check to prevent panic
-                                if dst_plane.is_empty() {
-                                    log::error!("Destination plane {} has zero length - frame allocation failed during flush", ch);
-                                    break;
-                                }
-                                
-                                if src_offset_bytes + take_bytes <= plane_samples * bytes_per_sample &&
-                                   dst_plane.len() >= take_bytes && src_plane.len() >= src_offset_bytes + take_bytes {
-                                    dst_plane[..take_bytes]
-                                        .copy_from_slice(&src_plane[src_offset_bytes..src_offset_bytes + take_bytes]);
-                                } else {
-                                    log::warn!("Flush alignment copy bounds check failed (ch={}) - aborting remainder", ch);
-                                    break;
-                                }
-                            }
-                            sub.set_pts(Some(*ctx.running_pts));
-                            *ctx.running_pts += take as i64;
-                            encoder
-                                .send_frame(&sub)
-                                .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
-                        }
-                        let mut pkt = ff::Packet::empty();
-                        while encoder.receive_packet(&mut pkt).is_ok() {
-                            pkt.set_stream(ctx.output_stream_index);
-                            pkt.rescale_ts(encoder.time_base(), ctx.output_time_base);
-                            pkt.write_interleaved(output_context)
-                                .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
-                        }
-                        start_sample += take;
-                    }
-                }
-                Err(ff::Error::Eof) | Err(ff::Error::Other { .. }) => break,
-                Err(e) => return Err(AppError::General(format!("Decoder flush failed: {e}"))),
-            }
-        }
-        Ok(())
-    }
+    // Removed unused debug-only helpers to comply with CI dead_code policy
 
     // Finalizes encoding by flushing the encoder and writing the output trailer
     // finalize_encoding moved to processor::encoder

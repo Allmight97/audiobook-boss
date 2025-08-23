@@ -63,8 +63,7 @@ export type EncoderType = 'aac_at' | 'he_aac_v1' | 'he_aac_v2';
 export type AacCoder = 'twoloop' | 'fast';
 export type ThreadMode = 'auto' | 'off' | 'fixed';
 export type ThreadSetting =
-  | { mode: 'auto' }
-  | { mode: 'off' }
+  | { mode: 'auto' | 'off' }
   | { mode: 'fixed'; value: number };
 
 export interface EncoderSettings {

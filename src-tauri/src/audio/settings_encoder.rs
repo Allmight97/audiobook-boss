@@ -110,12 +110,15 @@ fn validate_profile_channel_combo(encoder_type: EncoderType, channels: u8) -> Re
 }
 
 fn validate_threads(setting: ThreadSetting) -> Result<()> {
+    const VALID_THREAD_COUNT_RANGE: std::ops::RangeInclusive<u16> = 1..=1024;
     match setting {
         ThreadSetting::Auto | ThreadSetting::Off => Ok(()),
-        ThreadSetting::Fixed(n) if (1..=1024).contains(&n) => Ok(()),
+        ThreadSetting::Fixed(n) if VALID_THREAD_COUNT_RANGE.contains(&n) => Ok(()),
         ThreadSetting::Fixed(n) => Err(AppError::InvalidInput(format!(
-            "Invalid threads value: {} (allowed 1..=1024)",
-            n
+            "Invalid threads value: {} (allowed {}..={})",
+            n,
+            VALID_THREAD_COUNT_RANGE.start(),
+            VALID_THREAD_COUNT_RANGE.end()
         ))),
     }
 }
