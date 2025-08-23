@@ -149,7 +149,7 @@ export class StatusPanel {
                 const def = defaultEncoderSettings();
                 v2Payload.settings = {
                     encoderType: def.encoderType,
-                    bitrateKbps: (settings.bitrate as any) as 56|64|72|80|88|96,
+                    bitrateKbps: ([56, 64, 72, 80, 88, 96] as number[]).includes(settings.bitrate) ? settings.bitrate as 56|64|72|80|88|96 : 64,
                     channels: settings.channels === 'Mono' ? 1 : 2,
                     threads: { mode: 'auto' as const }
                 } as any;
