@@ -179,11 +179,11 @@
 					<div>
 						<label for="output-bitrate">Bitrate (kbps)</label>
 												<select id="output-bitrate">
-													<option value="64" selected>64k</option>
+													<option value="64" selected>64k (Efficient)</option>
 													<option value="72">72k</option>
-													<option value="80">80k</option>
+													<option value="80">80k (Balanced)</option>
 													<option value="88">88k</option>
-													<option value="96">96k</option>
+													<option value="96">96k (High-Quality)</option>
 												</select>
 						<p class="text-xs text-gray-500 mt-1 italic">Re-encodes only if source > 64k, unless explicitly selected.</p>
 					</div>
@@ -242,50 +242,83 @@
 						<span class="text-xs text-gray-500">Press <span class="kbd">A</span> to toggle</span>
 					</div>
 
-					<div id="advanced-settings-panel" class="advanced-panel mt-3">
-						<div class="p-3">
-											<div class="grid grid-cols-3 gap-4">
-												<div class="col-span-1">
-													<label for="adv-encoder">Encoder</label>
-													<select id="adv-encoder">
-														<option value="aac_lc" selected>AAC-LC</option>
-														<option value="aac_at">AAC_AT</option>
-														<option value="fdk">FDK</option>
-													</select>
-													<p class="text-xs text-gray-500 mt-1">Select encoder implementation.</p>
-												</div>
-												<div class="col-span-2" id="adv-fdk-path-container" style="display: none;">
-													<label for="adv-fdk-path">Path to libfdk_aac</label>
-													<div class="output-dir-flex">
-														<input type="text" id="adv-fdk-path" placeholder="/usr/local/lib/libfdk_aac.dylib (example)" readonly />
-														<button id="adv-fdk-browse" class="button-secondary">Browse…</button>
-													</div>
-													<p class="text-xs text-gray-500 mt-1">Shown only when FDK is selected.</p>
-												</div>
-												<div class="col-span-2">
-													<label for="adv-resample-method">Resample Method</label>
-													<select id="adv-resample-method">
-														<option value="auto" selected>Auto</option>
-														<option value="swr_kaiser">Kaiser</option>
-														<option value="swr_sinc">Sinc</option>
-													</select>
+								<div id="advanced-settings-panel" class="advanced-panel mt-3">
+									<div class="p-3">
+										<div class="grid grid-cols-3 gap-4">
+											<!-- Encoder selection -->
+											<div class="col-span-1">
+												<label for="adv-encoder">Encoder</label>
+												<select id="adv-encoder">
+													<option value="native_aac">Native AAC</option>
+													<option value="aac_at">Apple AAC (aac_at)</option>
+													<option value="external_fdk">Fraunhofer FDK AAC (libfdk-aac)</option>
+												</select>
+												<p class="text-xs text-gray-500 mt-1">Select encoder implementation.</p>
+											</div>
+
+											<!-- Profile (shown for aac_at and external_fdk) -->
+											<div class="col-span-1" id="adv-profile-container" style="display: none;">
+												<label for="adv-profile">Profile</label>
+												<select id="adv-profile">
+													<option value="lc">LC (Low Quality)</option>
+													<option value="he">HE (v1 - mono only)</option>
+													<option value="he_v2">HE (v2 - best with stereo)</option>
+												</select>
+												<p id="adv-profile-note" class="text-xs text-gray-500 mt-1" style="display:none;">HE-AAC v2 requires stereo; for mono use HE v1.</p>
+											</div>
+
+											<!-- aac_at VBR controls -->
+											<div class="col-span-1" id="adv-aacat-vbr-container" style="display: none;">
+												<label class="checkbox-label"><input type="checkbox" id="adv-aacat-vbr-enabled" /> Use VBR</label>
+												<div class="mt-1" id="adv-aacat-vbr-quality-wrap" style="display:none;">
+													<label for="adv-aacat-vbr-quality" class="text-sm">Quality</label>
+													<input type="range" id="adv-aacat-vbr-quality" min="0" max="14" step="1" value="9" />
+													<p class="text-xs text-gray-500 mt-1">0 = highest quality, 14 = lowest. Size varies.</p>
 												</div>
 											</div>
-							<div class="divider"></div>
-							<div class="grid grid-cols-2 gap-4 items-start">
-								<div>
-									<button id="adv-reset" class="button-secondary text-sm">Reset to defaults</button>
+
+											<!-- FDK VBR controls -->
+											<div class="col-span-1" id="adv-fdk-vbr-container" style="display: none;">
+												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-vbr-enabled" /> Use VBR</label>
+												<div class="mt-1" id="adv-fdk-vbr-level-wrap" style="display:none;">
+													<label for="adv-fdk-vbr-level" class="text-sm">Level</label>
+													<select id="adv-fdk-vbr-level">
+														<option value="1">1</option>
+														<option value="2">2</option>
+														<option value="3">3</option>
+														<option value="4">4</option>
+														<option value="5">5</option>
+													</select>
+													<p class="text-xs text-gray-500 mt-1">1 = lowest quality, 5 = highest. Size varies.</p>
+												</div>
+											</div>
+
+											<!-- FDK Afterburner -->
+											<div class="col-span-1" id="adv-fdk-afterburner-container" style="display: none;">
+												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-afterburner" checked /> Afterburner (FDK only)</label>
+												<p class="text-xs text-gray-500 mt-1">Fraunhofer’s post-process polish. On = slightly better quality at low bitrates; CPU ↑. No size change in CBR.</p>
+											</div>
+
+											<!-- External FFmpeg path + Detect (FDK only) -->
+											<div class="col-span-2" id="adv-ffmpeg-path-container" style="display: none;">
+												<label for="adv-ffmpeg-path">Local Path to libfdk_aac</label>
+												<div class="output-dir-flex">
+													<input type="text" id="adv-ffmpeg-path" placeholder="/usr/local/bin/ffmpeg" readonly />
+													<button id="adv-ffmpeg-browse" class="button-secondary">Browse…</button>
+													<button id="adv-ffmpeg-detect" class="button-secondary" style="margin-left: 0.5rem;">Detect</button>
+												</div>
+												<div class="mt-1">
+													<span id="adv-fdk-status" class="pill">FDK: unknown</span>
+												</div>
+											</div>
+
+											<!-- Native AAC helper -->
+											<div class="col-span-2" id="adv-native-helper-container" style="display: none;">
+												<label class="checkbox-label"><input type="checkbox" id="adv-native-optimize-lc" /> Optimize LC at ≤64 kbps (32 kHz)</label>
+											</div>
+										</div>
+									</div>
 								</div>
-								<div class="text-right">
-									<button id="adv-copy-json" class="button-secondary text-sm">Copy JSON</button>
-								</div>
-								<div class="col-span-2">
-									<label class="text-sm text-gray-600">Advanced settings preview</label>
-									<textarea id="adv-json" rows="6" readonly style="width: 100%;"></textarea>
-								</div>
-							</div>
-						</div>
-					</div>
 				</div>
 
 				<div class="pt-4 border-t border-gray-200 text-sm mb-4">
@@ -319,10 +352,9 @@
 		</div>
 
 		<script>
-			// Minimal mock logic for advanced toggle and state preview
+			// Minimal mock logic for advanced toggle and contextual advanced controls
 			(function () {
 				const LS_KEY_OPEN = 'abb.mock.advanced.open';
-				const LS_KEY_SETTINGS = 'abb.mock.advanced.settings';
 
 				const $ = (sel) => document.querySelector(sel);
 				const toggleBtn = $('#advanced-settings-toggle');
@@ -330,60 +362,37 @@
 				const icon = $('#advanced-toggle-icon');
 
 				const encoder = $('#adv-encoder');
-				const resample = $('#adv-resample-method');
-				const fdkPathContainer = $('#adv-fdk-path-container');
-				const fdkPathInput = $('#adv-fdk-path');
-				const fdkBrowse = $('#adv-fdk-browse');
-				const resetBtn = $('#adv-reset');
-				const copyBtn = $('#adv-copy-json');
-				const jsonArea = $('#adv-json');
+				const profileContainer = $('#adv-profile-container');
+				const profileSelect = $('#adv-profile');
+				const profileNote = $('#adv-profile-note');
 
-				const defaults = {
-					encoder: 'aac_lc',
-					resampleMethod: 'auto',
-					fdkPath: ''
-				};
-				function defaultsForPlatform() {
-					const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
-					return { ...defaults, encoder: isMac ? 'aac_at' : defaults.encoder };
-				}
+				const aacAtVbrContainer = $('#adv-aacat-vbr-container');
+				const aacAtVbrEnabled = $('#adv-aacat-vbr-enabled');
+				const aacAtVbrQualityWrap = $('#adv-aacat-vbr-quality-wrap');
+				const aacAtVbrQuality = $('#adv-aacat-vbr-quality');
 
-				function loadOpenState() {
-					try { return localStorage.getItem(LS_KEY_OPEN) === 'true'; } catch { return false; }
-				}
-				function saveOpenState(val) {
-					try { localStorage.setItem(LS_KEY_OPEN, String(val)); } catch {}
-				}
-				function loadSettings() {
-					try {
-						const raw = localStorage.getItem(LS_KEY_SETTINGS);
-						return raw ? { ...defaults, ...JSON.parse(raw) } : defaultsForPlatform();
-					} catch {
-						return defaultsForPlatform();
-					}
-				}
-				function saveSettings(s) {
-					try { localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(s)); } catch {}
-				}
+				const fdkVbrContainer = $('#adv-fdk-vbr-container');
+				const fdkVbrEnabled = $('#adv-fdk-vbr-enabled');
+				const fdkVbrLevelWrap = $('#adv-fdk-vbr-level-wrap');
+				const fdkVbrLevel = $('#adv-fdk-vbr-level');
 
-				function updateUIFromSettings(s) {
-					if (encoder) encoder.value = s.encoder;
-					if (resample) resample.value = s.resampleMethod;
-					if (fdkPathInput) fdkPathInput.value = s.fdkPath || '';
-					updateFdkVisibility();
-					renderJSON(s);
-				}
-				function gatherSettings() {
-					return {
-						encoder: encoder?.value || 'aac_lc',
-						resampleMethod: resample?.value || 'auto',
-						fdkPath: fdkPathInput?.value || ''
-					};
-				}
-				function renderJSON(s) {
-					const obj = { advanced: s };
-					jsonArea && (jsonArea.value = JSON.stringify(obj, null, 2));
-				}
+				const fdkAfterburnerContainer = $('#adv-fdk-afterburner-container');
+				const fdkAfterburner = $('#adv-fdk-afterburner');
+
+				const ffmpegPathContainer = $('#adv-ffmpeg-path-container');
+				const ffmpegPathInput = $('#adv-ffmpeg-path');
+				const ffmpegBrowse = $('#adv-ffmpeg-browse');
+				const ffmpegDetect = $('#adv-ffmpeg-detect');
+				const fdkStatus = $('#adv-fdk-status');
+
+				const nativeHelperContainer = $('#adv-native-helper-container');
+				const nativeOptimizeLC = $('#adv-native-optimize-lc');
+
+				const outputBitrate = $('#output-bitrate');
+				const outputChannels = $('#output-channels');
+
+				function loadOpenState() { try { return localStorage.getItem(LS_KEY_OPEN) === 'true'; } catch { return false; } }
+				function saveOpenState(val) { try { localStorage.setItem(LS_KEY_OPEN, String(val)); } catch {} }
 
 				function setOpen(open) {
 					if (!panel || !toggleBtn) return;
@@ -396,54 +405,140 @@
 				function toggleOpen() { setOpen(!(toggleBtn.getAttribute('aria-expanded') === 'true')); }
 
 				function handleKey(e) {
-					// Keyboard toggle: A key
-					if (e.key?.toLowerCase() === 'a') {
-						toggleOpen();
-					}
-					// Close with Escape when panel is open
-					if (e.key === 'Escape' && toggleBtn.getAttribute('aria-expanded') === 'true') {
-						setOpen(false);
-						toggleBtn.focus();
-					}
+					if (e.key?.toLowerCase() === 'a') toggleOpen();
+					if (e.key === 'Escape' && toggleBtn.getAttribute('aria-expanded') === 'true') { setOpen(false); toggleBtn.focus(); }
 				}
 
 				function bind() {
 					if (toggleBtn) toggleBtn.addEventListener('click', toggleOpen);
 					document.addEventListener('keydown', handleKey);
 
-					const onChange = () => { const s = gatherSettings(); saveSettings(s); renderJSON(s); };
-					encoder?.addEventListener('change', () => {
-						onChange();
-						updateFdkVisibility();
+					encoder && encoder.addEventListener('change', onEncoderChange);
+					profileSelect && profileSelect.addEventListener('change', onProfileChange);
+					aacAtVbrEnabled && aacAtVbrEnabled.addEventListener('change', onVbrTogglesChange);
+					aacAtVbrQuality && aacAtVbrQuality.addEventListener('input', noop);
+					fdkVbrEnabled && fdkVbrEnabled.addEventListener('change', onVbrTogglesChange);
+					fdkVbrLevel && fdkVbrLevel.addEventListener('change', noop);
+					fdkAfterburner && fdkAfterburner.addEventListener('change', noop);
+					outputBitrate && outputBitrate.addEventListener('change', onBitrateChange);
+					ffmpegBrowse && ffmpegBrowse.addEventListener('click', () => {
+						const val = prompt('Enter path to ffmpeg (mock):', ffmpegPathInput?.value || '');
+						if (val != null && ffmpegPathInput) ffmpegPathInput.value = val;
 					});
-					resample?.addEventListener('change', onChange);
-
-					if (fdkBrowse) {
-						fdkBrowse.addEventListener('click', () => {
-							// Placeholder: simple prompt to simulate path selection in mock
-							const val = prompt('Enter path to libfdk_aac (mock):', fdkPathInput?.value || '');
-							if (val != null && fdkPathInput) {
-								fdkPathInput.value = val;
-								onChange();
-							}
-						});
-					}
-
-					resetBtn && resetBtn.addEventListener('click', () => { saveSettings(defaults); updateUIFromSettings(defaults); });
-					copyBtn && copyBtn.addEventListener('click', async () => {
-						try { await navigator.clipboard.writeText(jsonArea.value); copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy JSON', 1200); } catch {}
-					});
+					ffmpegDetect && ffmpegDetect.addEventListener('click', onDetectFdk);
 				}
 
-				function updateFdkVisibility() {
-					const show = encoder && encoder.value === 'fdk';
-					if (fdkPathContainer) fdkPathContainer.style.display = show ? 'block' : 'none';
+				function noop() {}
+
+				function updateAdvancedVisibility() {
+					const enc = encoder?.value;
+					const isNative = enc === 'native_aac';
+					const isAt = enc === 'aac_at';
+					const isFdk = enc === 'external_fdk';
+
+					if (profileContainer) profileContainer.style.display = (isAt || isFdk) ? 'block' : 'none';
+					if (aacAtVbrContainer) aacAtVbrContainer.style.display = isAt ? 'block' : 'none';
+					if (!isAt && aacAtVbrEnabled) { aacAtVbrEnabled.checked = false; aacAtVbrQualityWrap && (aacAtVbrQualityWrap.style.display = 'none'); }
+
+					if (fdkVbrContainer) fdkVbrContainer.style.display = isFdk ? 'block' : 'none';
+					if (fdkAfterburnerContainer) fdkAfterburnerContainer.style.display = isFdk ? 'block' : 'none';
+					if (ffmpegPathContainer) ffmpegPathContainer.style.display = isFdk ? 'block' : 'none';
+					if (!isFdk && fdkVbrEnabled) { fdkVbrEnabled.checked = false; fdkVbrLevelWrap && (fdkVbrLevelWrap.style.display = 'none'); }
+
+					if (nativeHelperContainer) nativeHelperContainer.style.display = isNative ? 'block' : 'none';
+
+					onVbrTogglesChange();
+					onProfileChange();
+					onBitrateChange();
+				}
+
+				function onEncoderChange() {
+					if (!profileSelect || !encoder) { updateAdvancedVisibility(); return; }
+					if (encoder.value === 'native_aac') {
+						profileSelect.value = 'lc';
+					} else if (encoder.value === 'aac_at') {
+						// Default Apple AAC profile to HE (v1)
+						profileSelect.value = 'he';
+					}
+					updateAdvancedVisibility();
+				}
+
+				function onProfileChange() {
+					if (!profileSelect || !outputChannels) return;
+					const isHev2 = profileSelect.value === 'he_v2';
+					if (profileNote) profileNote.style.display = isHev2 ? 'block' : 'none';
+					if (isHev2) {
+						outputChannels.value = 'stereo';
+						outputChannels.disabled = true;
+					} else {
+						outputChannels.disabled = false;
+						// When leaving HE v2, revert to mono per spec
+						outputChannels.value = 'mono';
+					}
+				}
+
+				function showVbrNote(show) {
+					const container = outputBitrate?.parentElement;
+					if (!container) return;
+					let note = container.querySelector('#adv-vbr-note');
+					if (show) {
+						if (!note) {
+							note = document.createElement('p');
+							note.id = 'adv-vbr-note';
+							note.className = 'text-xs text-gray-500 mt-1';
+							note.textContent = 'Bitrate ignored in VBR mode.';
+							container.appendChild(note);
+						}
+					} else if (note) {
+						note.remove();
+					}
+				}
+
+				function onVbrTogglesChange() {
+					const vbrOn = (aacAtVbrEnabled && aacAtVbrEnabled.checked) || (fdkVbrEnabled && fdkVbrEnabled.checked);
+					if (outputBitrate) outputBitrate.disabled = !!vbrOn;
+					showVbrNote(!!vbrOn);
+					if (aacAtVbrQualityWrap) aacAtVbrQualityWrap.style.display = (aacAtVbrEnabled && aacAtVbrEnabled.checked) ? 'block' : 'none';
+					if (fdkVbrLevelWrap) fdkVbrLevelWrap.style.display = (fdkVbrEnabled && fdkVbrEnabled.checked) ? 'block' : 'none';
+				}
+
+				function onBitrateChange() {
+					if (!outputBitrate) return;
+					const isNative = encoder && encoder.value === 'native_aac';
+					const val = parseInt(outputBitrate.value, 10);
+					const atOrBelow64 = !isNaN(val) && val <= 64;
+					const container = outputBitrate.parentElement;
+					if (!container) return;
+					let chip = container.querySelector('#adv-native-chip');
+					if (isNative && atOrBelow64) {
+						if (nativeOptimizeLC) nativeOptimizeLC.checked = true;
+						if (!chip) {
+							chip = document.createElement('p');
+							chip.id = 'adv-native-chip';
+							chip.className = 'text-xs text-gray-500 mt-1';
+							chip.textContent = 'Using 32 kHz to reduce artifacts. Turn off in Advanced.';
+							container.appendChild(chip);
+						}
+					} else {
+						if (nativeOptimizeLC) nativeOptimizeLC.checked = false;
+						if (chip) chip.remove();
+					}
+				}
+
+				function onDetectFdk() {
+					if (!fdkStatus) return;
+					const detected = fdkStatus.textContent?.includes('unknown') || fdkStatus.textContent?.includes('not');
+					fdkStatus.textContent = detected ? 'FDK: detected' : 'FDK: not detected';
 				}
 
 				// Init
-				document.addEventListener('DOMContentLoaded', () => {
+					document.addEventListener('DOMContentLoaded', () => {
 					setOpen(loadOpenState());
-					updateUIFromSettings(loadSettings());
+					// Platform-aware default encoder
+					const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
+						if (encoder) encoder.value = isMac ? 'aac_at' : 'native_aac';
+						// Apply encoder-driven defaults (e.g., aac_at -> HE v1)
+						onEncoderChange();
 					bind();
 				});
 			})();
