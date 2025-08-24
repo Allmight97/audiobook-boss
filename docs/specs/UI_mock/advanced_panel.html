@@ -355,6 +355,7 @@
 			// Minimal mock logic for advanced toggle and contextual advanced controls
 			(function () {
 				const LS_KEY_OPEN = 'abb.mock.advanced.open';
+				const LS_KEY_STATE = 'abb.mock.advanced.state';
 
 				const $ = (sel) => document.querySelector(sel);
 				const toggleBtn = $('#advanced-settings-toggle');
@@ -394,6 +395,21 @@
 				function loadOpenState() { try { return localStorage.getItem(LS_KEY_OPEN) === 'true'; } catch { return false; } }
 				function saveOpenState(val) { try { localStorage.setItem(LS_KEY_OPEN, String(val)); } catch {} }
 
+				function loadState() {
+					try {
+						const raw = localStorage.getItem(LS_KEY_STATE);
+						return raw ? JSON.parse(raw) : {};
+					} catch { return {}; }
+				}
+				function saveState() {
+					const state = {
+						encoder: encoder?.value,
+						profile: profileSelect?.value,
+						channels: outputChannels?.value,
+					};
+					try { localStorage.setItem(LS_KEY_STATE, JSON.stringify(state)); } catch {}
+				}
+
 				function setOpen(open) {
 					if (!panel || !toggleBtn) return;
 					toggleBtn.setAttribute('aria-expanded', String(open));
@@ -413,8 +429,9 @@
 					if (toggleBtn) toggleBtn.addEventListener('click', toggleOpen);
 					document.addEventListener('keydown', handleKey);
 
-					encoder && encoder.addEventListener('change', onEncoderChange);
-					profileSelect && profileSelect.addEventListener('change', onProfileChange);
+					encoder && encoder.addEventListener('change', () => { onEncoderChange(); saveState(); });
+					profileSelect && profileSelect.addEventListener('change', () => { onProfileChange(); saveState(); });
+					outputChannels && outputChannels.addEventListener('change', saveState);
 					aacAtVbrEnabled && aacAtVbrEnabled.addEventListener('change', onVbrTogglesChange);
 					aacAtVbrQuality && aacAtVbrQuality.addEventListener('input', noop);
 					fdkVbrEnabled && fdkVbrEnabled.addEventListener('change', onVbrTogglesChange);
@@ -461,6 +478,7 @@
 						profileSelect.value = 'he';
 					}
 					updateAdvancedVisibility();
+					saveState();
 				}
 
 				function onProfileChange() {
@@ -475,6 +493,7 @@
 						// When leaving HE v2, revert to mono per spec
 						outputChannels.value = 'mono';
 					}
+					saveState();
 				}
 
 				function showVbrNote(show) {
@@ -534,11 +553,23 @@
 				// Init
 					document.addEventListener('DOMContentLoaded', () => {
 					setOpen(loadOpenState());
-					// Platform-aware default encoder
-					const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
-						if (encoder) encoder.value = isMac ? 'aac_at' : 'native_aac';
-						// Apply encoder-driven defaults (e.g., aac_at -> HE v1)
-						onEncoderChange();
+						// Initialize from saved state with fallback to platform defaults
+						const state = loadState();
+						const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
+						if (encoder) encoder.value = state.encoder || (isMac ? 'aac_at' : 'native_aac');
+						if (profileSelect) {
+							if (state.profile) {
+								profileSelect.value = state.profile;
+							} else {
+								// Apply reasonable defaults when no saved profile exists
+								if (encoder?.value === 'aac_at') profileSelect.value = 'he';
+								if (encoder?.value === 'native_aac') profileSelect.value = 'lc';
+							}
+						}
+						if (outputChannels) outputChannels.value = state.channels || 'mono';
+						updateAdvancedVisibility();
+						// Ensure profile rules enforce channels if needed
+						onProfileChange();
 					bind();
 				});
 			})();
