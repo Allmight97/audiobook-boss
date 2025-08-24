@@ -116,5 +116,7 @@ cargo test path_validation
 ```
 
 ## Platform Notes
+- Repo Branches
+  - 'main' is the current stable branch.
+  - 'feat/new_encoder' is the current work-in-progress audio processing pipeline update that will supportApple AAC (aac_at) and HE-AAC v1/v2 and libfdk_aac (external call to local FDK binary only) encoders. And expose new 'advanced' settings panel for the user to configure more encoder and profile options.
 - Primary development target: macOS (Apple Silicon). Out of scope: Intel Macs, Linux, Windows.
-- Branch 'feat/new_encoder' is the current work-in-progress audio processing pipeline update that will supportApple AAC (aac_at) and HE-AAC v1/v2 and libfdk_aac (external call to local FDK binary only) encoders. And expose new 'advanced' settings panel for the user to configure more encoder and profile options.
