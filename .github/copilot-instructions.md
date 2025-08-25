@@ -7,7 +7,6 @@ When planning, auditing, or implementing **default to**:
 2. Rate quality from 1–5 (1 = L1 novice, 5 = L5 senior/staff engineer).
    - If a criterion truly doesn’t apply to this situation, note “N/A” and state any assumption (never guess silently).
    - **Default target:** Level 4. Escalate to Level 5 only if there’s a safety, security, or data-integrity concern, a cross-module architectural decision, a public API/ABI change, or an irreversible migration/data-schema change.
-   - **GPT-5 tuning:** **Reasoning effort = *medium*** by default; raise to *high* only when an L5 trigger applies or context is ambiguous. **Verbosity = *low*** by default.
 
 3. After the score, give **1–3 ranked improvements total** (not per category). If an L5 trigger applies, add **one** L5-specific improvement.
 
