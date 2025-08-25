@@ -269,34 +269,34 @@
 
 											<!-- aac_at VBR controls -->
 											<div class="col-span-1" id="adv-aacat-vbr-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-aacat-vbr-enabled" /> Use VBR</label>
+												<label class="checkbox-label"><input type="checkbox" id="adv-aacat-vbr-enabled" disabled /> Use VBR (disabled)</label>
 												<div class="mt-1" id="adv-aacat-vbr-quality-wrap" style="display:none;">
 													<label for="adv-aacat-vbr-quality" class="text-sm">Quality</label>
-													<input type="range" id="adv-aacat-vbr-quality" min="0" max="14" step="1" value="9" />
-													<p class="text-xs text-gray-500 mt-1">0 = highest quality, 14 = lowest. Size varies.</p>
+													<input type="range" id="adv-aacat-vbr-quality" min="0" max="14" step="1" value="9" disabled />
+													<p class="text-xs text-gray-500 mt-1">VBR is reserved for future; disabled in this build.</p>
 												</div>
 											</div>
 
 											<!-- FDK VBR controls -->
 											<div class="col-span-1" id="adv-fdk-vbr-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-vbr-enabled" /> Use VBR</label>
+												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-vbr-enabled" disabled /> Use VBR (disabled)</label>
 												<div class="mt-1" id="adv-fdk-vbr-level-wrap" style="display:none;">
 													<label for="adv-fdk-vbr-level" class="text-sm">Level</label>
-													<select id="adv-fdk-vbr-level">
+													<select id="adv-fdk-vbr-level" disabled>
 														<option value="1">1</option>
 														<option value="2">2</option>
 														<option value="3">3</option>
 														<option value="4">4</option>
 														<option value="5">5</option>
 													</select>
-													<p class="text-xs text-gray-500 mt-1">1 = lowest quality, 5 = highest. Size varies.</p>
+													<p class="text-xs text-gray-500 mt-1">FDK and VBR are future-only; controls disabled.</p>
 												</div>
 											</div>
 
 											<!-- FDK Afterburner -->
 											<div class="col-span-1" id="adv-fdk-afterburner-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-afterburner" checked /> Afterburner (FDK only)</label>
-												<p class="text-xs text-gray-500 mt-1">Fraunhofer’s post-process polish. On = slightly better quality at low bitrates; CPU ↑. No size change in CBR.</p>
+												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-afterburner" checked disabled /> Afterburner (disabled)</label>
+												<p class="text-xs text-gray-500 mt-1">FDK features are placeholders; not available in this build.</p>
 											</div>
 
 											<!-- External FFmpeg path + Detect (FDK only) -->
@@ -304,11 +304,11 @@
 												<label for="adv-ffmpeg-path">Local Path to libfdk_aac</label>
 												<div class="output-dir-flex">
 													<input type="text" id="adv-ffmpeg-path" placeholder="/usr/local/bin/ffmpeg" readonly />
-													<button id="adv-ffmpeg-browse" class="button-secondary">Browse…</button>
-													<button id="adv-ffmpeg-detect" class="button-secondary" style="margin-left: 0.5rem;">Detect</button>
+													<button id="adv-ffmpeg-browse" class="button-secondary" disabled>Browse…</button>
+													<button id="adv-ffmpeg-detect" class="button-secondary" style="margin-left: 0.5rem;" disabled>Detect</button>
 												</div>
 												<div class="mt-1">
-													<span id="adv-fdk-status" class="pill">FDK: unknown</span>
+													<span id="adv-fdk-status" class="pill">FDK: disabled (future)</span>
 												</div>
 											</div>
 

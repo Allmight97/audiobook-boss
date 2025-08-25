@@ -5,6 +5,7 @@ import { initFileImport } from "./ui/fileImport";
 import { displayFileList, currentFileList, clearAllFiles, toggleFileSort } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
+import { initEncoderPanel } from "./ui/encoderPanel";
 import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./ui/coverArt";
 
 // Expose test functions for console access
@@ -103,6 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initOutputPanel();
   initStatusPanel();
   initCoverArt();
+  // Initialize Advanced Encoder panel (no-op if panel not present)
+  initEncoderPanel();
   console.log('File import system initialized');
   console.log('Output panel initialized');
   console.log('Status panel initialized');
