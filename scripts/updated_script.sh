@@ -14,7 +14,7 @@
 #   ./updated_script.sh                 # sequential, default 64k CBR
 #   ABB_QUALITY=3 ./updated_script.sh   # use 72k CBR
 #   ABB_JOBS=2 ./updated_script.sh      # run up to 2 files in parallel
-#   ABB_PREVIEW=1 ./updated_script.sh   # enable 180s preview
+#   ABB_PREVIEW=1 ./updated_script.sh   # enable 60s preview
 #
 # Notes:
 # - Requires ffmpeg built with libfdk_aac. The script will fail fast with guidance if missing.
@@ -29,7 +29,7 @@ shopt -s nullglob
 # Configuration knobs (can be overridden via environment)
 ABB_QUALITY="${ABB_QUALITY:-2}"      # 1=56k, 2=64k (default), 3=72k
 ABB_AFTERBURNER="${ABB_AFTERBURNER:-1}" # 1=on (default), 0=off
-ABB_PREVIEW="${ABB_PREVIEW:-0}"      # 1=enable 180s preview, 0=off
+ABB_PREVIEW="${ABB_PREVIEW:-0}"      # 1=enable 60s preview, 0=off
 ABB_JOBS="${ABB_JOBS:-1}"            # 1 (default) or 2 (max)
 
 if [[ "$ABB_JOBS" != "1" && "$ABB_JOBS" != "2" ]]; then
