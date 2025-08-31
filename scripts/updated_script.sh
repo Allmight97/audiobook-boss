@@ -2,7 +2,7 @@
 
 # Purpose: Transcode audiobook files to .m4b using libfdk_aac HE-AAC v1 with afterburner, size-focused.
 # - Output: always .m4b
-# - Quality: HE-AAC v1, afterburner ON, VBR default 5 (1-6 supported)
+# - Quality: HE-AAC v1 CBR, afterburner ON; default 64k; knob: 1=56k, 2=64k, 3=72k
 # - Sample rate: pass-through (never set -ar)
 # - Channels: downmix to mono only if input > 1 ch
 # - Metadata/chapters/cover art: preserved (map metadata/chapters, copy art streams)
@@ -11,8 +11,8 @@
 # - Parallelization: optional up to 2 concurrent jobs
 #
 # Usage:
-#   ./updated_script.sh                 # sequential, default VBR=5
-#   ABB_VBR=5 ./updated_script.sh       # test VBR 5
+#   ./updated_script.sh                 # sequential, default 64k CBR
+#   ABB_QUALITY=3 ./updated_script.sh   # use 72k CBR
 #   ABB_JOBS=2 ./updated_script.sh      # run up to 2 files in parallel
 #   ABB_PREVIEW=1 ./updated_script.sh   # enable 180s preview
 #
@@ -27,7 +27,7 @@ IFS=$'\n\t'
 shopt -s nullglob
 
 # Configuration knobs (can be overridden via environment)
-ABB_VBR="${ABB_VBR:-5}"              # 5 (default) range 1-6
+ABB_QUALITY="${ABB_QUALITY:-2}"      # 1=56k, 2=64k (default), 3=72k
 ABB_AFTERBURNER="${ABB_AFTERBURNER:-1}" # 1=on (default), 0=off
 ABB_PREVIEW="${ABB_PREVIEW:-0}"      # 1=enable 180s preview, 0=off
 ABB_JOBS="${ABB_JOBS:-1}"            # 1 (default) or 2 (max)
@@ -37,10 +37,10 @@ if [[ "$ABB_JOBS" != "1" && "$ABB_JOBS" != "2" ]]; then
   exit 2
 fi
 
-# Validate VBR knob
-if ! [[ "$ABB_VBR" =~ ^[1-6]$ ]]; then
-  echo "ABB_VBR must be an integer 1-6; got '$ABB_VBR' — defaulting to 5" >&2
-  ABB_VBR="5"
+# Validate quality knob (1..3)
+if ! [[ "$ABB_QUALITY" =~ ^[1-3]$ ]]; then
+  echo "ABB_QUALITY must be 1, 2, or 3; got '$ABB_QUALITY' — defaulting to 2 (64k)" >&2
+  ABB_QUALITY="2"
 fi
 
 # Validate afterburner
@@ -76,7 +76,7 @@ EOF
 fi
 
 # Extra safety: verify ffmpeg actually uses libfdk_aac when requested (no silent fallback)
-if ! ffmpeg -hide_banner -loglevel info -f lavfi -t 0.1 -i anullsrc=r=44100:cl=mono -c:a libfdk_aac -f null - 2>&1 | grep -q "libfdk_aac"; then
+if ! ffmpeg -hide_banner -loglevel info -f lavfi -t 0.1 -i anullsrc=r=44100:cl=mono -c:a libfdk_aac -profile:a aac_he -afterburner "$ABB_AFTERBURNER" -b:a 64k -f null - 2>&1 | grep -q "libfdk_aac"; then
   echo "ERROR: ffmpeg did not report using libfdk_aac when requested. Aborting." >&2
   exit 1
 fi
@@ -212,13 +212,20 @@ process_one() { # $1 input file
     cmd+=( -map 0:v -c:v copy )
   fi
 
-  # Audio encoding params
+  # Audio encoding params (HE-AAC CBR)
   cmd+=( -c:a libfdk_aac -profile:a aac_he -afterburner "$ABB_AFTERBURNER" )
-  cmd+=( -vbr "$ABB_VBR" )
+  # Map quality levels to CBR bitrates
+  local target_bitrate="64k"
+  case "$ABB_QUALITY" in
+    1) target_bitrate="56k" ;;
+    2) target_bitrate="64k" ;;
+    3) target_bitrate="72k" ;;
+  esac
+  cmd+=( -b:a "$target_bitrate" )
 
-  # Preview mode limits output to 180 seconds
+  # Preview mode limits output to 60 seconds
   if [[ "$ABB_PREVIEW" == "1" ]]; then
-    cmd+=( -t 180 )
+    cmd+=( -t 60 )
   fi
 
   # Downmix only if input has more than 1 channel
