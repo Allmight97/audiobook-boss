@@ -24,8 +24,6 @@
 //!
 //! Phase: 1 (Prepare Stage Extraction)
 
-
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -82,9 +80,9 @@ pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
 
 /// Private helper to retrieve sample rate from a single file.
 fn get_file_sample_rate(path: &Path) -> Result<u32> {
-    use lofty::probe::Probe;
     use lofty::file::AudioFile as LoftyAudioFile;
-    
+    use lofty::probe::Probe;
+
     let tagged_file = Probe::open(path)
         .map_err(AppError::Metadata)?
         .read()
@@ -163,7 +161,7 @@ pub(crate) fn prepare_workspace(
     emitter.set_stage(ProcessingStage::Analyzing);
 
     let temp_dir = create_temp_directory_with_session(&context.session.id())?;
-    
+
     // Single engine: no concat file needed
 
     let total_duration: f64 = files
@@ -178,10 +176,7 @@ pub(crate) fn prepare_workspace(
         ));
     }
 
-    Ok(ProcessingWorkflow::new(
-        temp_dir,
-        total_duration,
-    ))
+    Ok(ProcessingWorkflow::new(temp_dir, total_duration))
 }
 
 /// Orchestrates validation + workspace preparation.

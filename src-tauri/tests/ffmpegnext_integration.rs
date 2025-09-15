@@ -1,18 +1,21 @@
-
 //! FFmpeg-next integration tests
-//! 
+//!
 //! This test file ensures FFmpeg-next functionality is properly tested.
 
 use std::path::PathBuf;
 
-use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 use audiobook_boss_lib::audio::context::ProgressContextBuilder;
+use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
 
 fn ensure_media() -> Option<PathBuf> {
     let p = PathBuf::from(TEST_MEDIA_FILE);
-    if p.exists() && p.is_file() { Some(p) } else { None }
+    if p.exists() && p.is_file() {
+        Some(p)
+    } else {
+        None
+    }
 }
 
 #[test]
@@ -47,7 +50,7 @@ fn test_audio_settings_creation() {
         sample_rate: SampleRateConfig::Auto,
         output_path: PathBuf::from("/tmp/test.m4b"),
     };
-    
+
     assert_eq!(settings.bitrate, 64);
     assert_eq!(settings.channels, ChannelConfig::Mono);
     assert_eq!(settings.sample_rate, SampleRateConfig::Auto);
@@ -64,19 +67,22 @@ fn test_progress_context_builder_usage() {
         .build();
     assert_eq!(ctx.progress, 5.0);
     assert_eq!(ctx.message.as_ref().unwrap(), "testing");
-    assert_eq!(ctx.stage, audiobook_boss_lib::audio::ProcessingStage::Analyzing);
+    assert_eq!(
+        ctx.stage,
+        audiobook_boss_lib::audio::ProcessingStage::Analyzing
+    );
 }
 
 #[test]
 fn test_ffmpeg_next_dependency_available() {
     // Test that ffmpeg-next types are available
     // This verifies the dependency is properly configured
-    
+
     // Simple test to ensure the ffmpeg-next crate is accessible
     // We don't initialize ffmpeg here to avoid global state issues in tests
     let version_info = format!("ffmpeg-next crate available for testing");
     println!("✓ {}", version_info);
-    
+
     // This test passing means the dependency is properly linked
     assert!(!version_info.is_empty());
 }

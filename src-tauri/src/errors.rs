@@ -5,25 +5,25 @@ use thiserror::Error;
 pub enum AppError {
     #[error("File validation failed: {0}")]
     FileValidation(String),
-    
+
     #[error("Invalid input: {0}")]
     InvalidInput(String),
-    
+
     #[error("IO operation failed: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Audio metadata error: {0}")]
     Metadata(#[from] lofty::error::LoftyError),
-    
+
     #[error("Process termination failed: {0}")]
     ProcessTermination(String),
-    
+
     #[error("Temporary directory creation failed: {0}")]
     TempDirectoryCreation(String),
-    
+
     #[error("Resource cleanup failed: {0}")]
     ResourceCleanup(String),
-    
+
     #[error("Operation failed: {0}")]
     General(String),
 }

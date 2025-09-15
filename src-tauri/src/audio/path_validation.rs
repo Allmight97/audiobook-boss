@@ -12,22 +12,26 @@ use crate::errors::{AppError, Result};
 pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     // Strip invalid chars (CR/LF/NUL)
     validate_path_characters(path)?;
-    
+
     // Check exists and is regular file
     validate_file_existence_and_type(path)?;
-    
+
     // Extension whitelist check
     validate_audio_extension(path)?;
-    
+
     // Check if it's a symlink before canonicalization (for logging)
-    let is_symlink = path.symlink_metadata()
+    let is_symlink = path
+        .symlink_metadata()
         .map(|meta| meta.file_type().is_symlink())
         .unwrap_or(false);
-        
+
     if is_symlink {
-        log::warn!("Input file is a symlink: {} -> resolving to target", path.display());
+        log::warn!(
+            "Input file is a symlink: {} -> resolving to target",
+            path.display()
+        );
     }
-    
+
     // Canonicalize to prevent path traversal and resolve symlinks
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
@@ -36,11 +40,11 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
             e
         ))
     })?;
-    
+
     if is_symlink {
         log::warn!("Symlink resolved to: {}", canonical.display());
     }
-    
+
     Ok(canonical)
 }
 
@@ -71,7 +75,7 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
             path.display()
         )));
     }
-    
+
     Ok(())
 }
 
@@ -88,7 +92,7 @@ fn validate_audio_extension(path: &Path) -> Result<()> {
             "Unsupported audio format: {ext}"
         )));
     }
-    
+
     Ok(())
 }
 
@@ -160,7 +164,7 @@ mod tests {
     fn test_accepts_all_supported_extensions() {
         let dir = tempdir().unwrap();
         let extensions = ["mp3", "m4a", "m4b", "aac", "wav", "flac"];
-        
+
         for ext in extensions {
             let path = dir.path().join(format!("test.{}", ext));
             File::create(&path).unwrap();
@@ -201,11 +205,9 @@ mod tests {
         let target = dir.path().join("nonexistent.mp3");
         let link = dir.path().join("broken_link.mp3");
         symlink(&target, &link).unwrap();
-        
+
         let err = validate_input_audio_path(&link).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("Cannot read file metadata") || msg.contains("canonicalize"));
     }
 }
-
-

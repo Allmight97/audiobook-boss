@@ -30,5 +30,3 @@ fn preview_path_derivation_does_not_panic() {
     assert!(expected.parent().unwrap().exists());
     drop(settings); // avoid unused warnings
 }
-
-

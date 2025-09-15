@@ -66,5 +66,3 @@ impl CleanupGuard {
         Ok(())
     }
 }
-
-

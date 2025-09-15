@@ -31,7 +31,11 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
         ctx.emitter.emit_converting_progress(
             percentage.min(crate::audio::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
             "Converting and merging audio files...",
-            Some(format!("Input {} of {}", ctx.current_file_index + 1, ctx.total_files)),
+            Some(format!(
+                "Input {} of {}",
+                ctx.current_file_index + 1,
+                ctx.total_files
+            )),
             None,
         );
     }
@@ -76,16 +80,17 @@ pub(crate) fn process_decoded_frames(
         let mut frame = ff::frame::Audio::empty();
         match decoder.receive_frame(&mut frame) {
             Ok(()) => {
-                let decoder_matches_encoder =
-                    frame.format() == encoder.format()
-                        && frame.channel_layout() == encoder.channel_layout()
-                        && frame.rate() == encoder.rate();
+                let decoder_matches_encoder = frame.format() == encoder.format()
+                    && frame.channel_layout() == encoder.channel_layout()
+                    && frame.rate() == encoder.rate();
                 let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
                     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                     .unwrap_or(false);
 
                 if decoder_matches_encoder && !disable_fastpath {
-                    log::debug!("Fast-path: decoder frame matches encoder format – skipping resampler");
+                    log::debug!(
+                        "Fast-path: decoder frame matches encoder format – skipping resampler"
+                    );
                     if frame.samples() == 0 {
                         log::warn!("Decoder produced 0 samples – skipping frame");
                         continue;
@@ -115,7 +120,9 @@ pub(crate) fn process_decoded_frames(
                 out.set_channel_layout(encoder.channel_layout());
                 out.set_rate(encoder.rate());
                 out.set_samples(frame.samples());
-                unsafe { out.alloc(encoder.format(), frame.samples(), encoder.channel_layout()); }
+                unsafe {
+                    out.alloc(encoder.format(), frame.samples(), encoder.channel_layout());
+                }
 
                 resampler
                     .run(&frame, &mut out)
@@ -165,7 +172,10 @@ pub(crate) fn process_input_packets(
     use crate::errors::AppError;
 
     if log::log_enabled!(log::Level::Info) {
-        log::info!("📦 Starting packet processing for stream index: {}", ctx.current_stream_index);
+        log::info!(
+            "📦 Starting packet processing for stream index: {}",
+            ctx.current_stream_index
+        );
     }
     let mut packet_count = 0;
     log::info!("Starting packet iteration...");
@@ -181,14 +191,16 @@ pub(crate) fn process_input_packets(
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
         if si.index() != ctx.current_stream_index {
-            log::debug!("Skipping packet from stream {} (expecting {})", si.index(), ctx.current_stream_index);
+            log::debug!(
+                "Skipping packet from stream {} (expecting {})",
+                si.index(),
+                ctx.current_stream_index
+            );
             continue;
         }
 
         packet_count += 1;
-        if packet_count % 100 == 0
-            && log::log_enabled!(log::Level::Info)
-        {
+        if packet_count % 100 == 0 && log::log_enabled!(log::Level::Info) {
             log::info!("Processed {} packets so far", packet_count);
         }
 
@@ -199,15 +211,32 @@ pub(crate) fn process_input_packets(
             Ok(()) => log::debug!("✓ Packet {} sent to decoder successfully", packet_count),
             Err(e) => {
                 log::error!("✗ Failed to send packet {} to decoder: {}", packet_count, e);
-                return Err(AppError::General(format!("Decoder send packet failed: {}", e)));
+                return Err(AppError::General(format!(
+                    "Decoder send packet failed: {}",
+                    e
+                )));
             }
         }
 
         log::debug!("Processing decoded frames for packet {}", packet_count);
-        match process_decoded_frames(decoder, encoder, resampler, output_context, ctx, accumulator) {
-            Ok(()) => log::debug!("✓ Decoded frames processed successfully for packet {}", packet_count),
+        match process_decoded_frames(
+            decoder,
+            encoder,
+            resampler,
+            output_context,
+            ctx,
+            accumulator,
+        ) {
+            Ok(()) => log::debug!(
+                "✓ Decoded frames processed successfully for packet {}",
+                packet_count
+            ),
             Err(e) => {
-                log::error!("✗ Failed to process decoded frames for packet {}: {}", packet_count, e);
+                log::error!(
+                    "✗ Failed to process decoded frames for packet {}: {}",
+                    packet_count,
+                    e
+                );
                 return Err(e);
             }
         }
@@ -222,5 +251,3 @@ pub(crate) fn process_input_packets(
     log::info!("✓ Processed {} packets total", packet_count);
     Ok(())
 }
-
-

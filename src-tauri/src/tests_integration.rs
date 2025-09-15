@@ -1,13 +1,15 @@
 //! Integration tests for Phase 0 refactoring safety net
-//! 
+//!
 //! These tests capture the EXACT current behavior of the audiobook processing
 //! pipeline to ensure no regressions occur during refactoring.
-//! 
+//!
 //! DO NOT MODIFY THESE TESTS - they document how the system works now.
 //! Any changes should only be made if the current behavior is incorrect.
 
 use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
-use crate::commands::{validate_files, analyze_audio_files, validate_audio_settings, read_audio_metadata};
+use crate::commands::{
+    analyze_audio_files, read_audio_metadata, validate_audio_settings, validate_files,
+};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::path::PathBuf;
@@ -41,15 +43,16 @@ fn create_mock_processing_state() -> crate::ProcessingState {
 fn verify_test_media_exists() -> Result<PathBuf> {
     let media_path = PathBuf::from(TEST_MEDIA_FILE);
     if !media_path.exists() {
-        return Err(AppError::FileValidation(
-            format!("Test media file not found: {}. This test requires the media file to be present.", 
-                    media_path.display())
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Test media file not found: {}. This test requires the media file to be present.",
+            media_path.display()
+        )));
     }
     if !media_path.is_file() {
-        return Err(AppError::FileValidation(
-            format!("Test media path is not a file: {}", media_path.display())
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Test media path is not a file: {}",
+            media_path.display()
+        )));
     }
     Ok(media_path)
 }
@@ -79,32 +82,46 @@ mod integration_tests {
         let files = vec![media_path.to_string_lossy().to_string()];
         let validation_result = validate_files(files.clone());
         assert!(validation_result.is_ok(), "File validation should succeed");
-        assert!(validation_result.expect("validation ok").contains("Successfully validated 1 files"));
+        assert!(validation_result
+            .expect("validation ok")
+            .contains("Successfully validated 1 files"));
 
         // Step 2: Analyze the audio file
         let analysis_result = analyze_audio_files(files);
         assert!(analysis_result.is_ok(), "File analysis should succeed");
-        
+
         let file_info = analysis_result.expect("analysis ok");
         assert_eq!(file_info.files.len(), 1, "Should analyze exactly 1 file");
         assert_eq!(file_info.valid_count, 1, "Should have 1 valid file");
         assert_eq!(file_info.invalid_count, 0, "Should have 0 invalid files");
-        
+
         let audio_file = &file_info.files[0];
         assert!(audio_file.is_valid, "Test media file should be valid");
-        assert!(audio_file.duration.is_some(), "Should have duration information");
+        assert!(
+            audio_file.duration.is_some(),
+            "Should have duration information"
+        );
         assert!(audio_file.size.is_some(), "Should have size information");
-        assert!(audio_file.format.is_some(), "Should have format information");
+        assert!(
+            audio_file.format.is_some(),
+            "Should have format information"
+        );
 
         // Step 3: Validate processing settings
         let settings_validation = validate_audio_settings(settings.clone());
-        assert!(settings_validation.is_ok(), "Settings validation should succeed");
-        assert_eq!(settings_validation.expect("settings ok"), "Settings are valid");
+        assert!(
+            settings_validation.is_ok(),
+            "Settings validation should succeed"
+        );
+        assert_eq!(
+            settings_validation.expect("settings ok"),
+            "Settings are valid"
+        );
 
         // Step 4: Read metadata from input file
         let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string());
         assert!(metadata_result.is_ok(), "Should be able to read metadata");
-        
+
         let input_metadata = metadata_result.expect("metadata ok");
         // Document current metadata structure (don't assert specific values)
         eprintln!("Current metadata structure:");
@@ -120,8 +137,8 @@ mod integration_tests {
     /// Documents how progress tracking currently works
     #[test]
     fn test_progress_reporting_accuracy() {
-        use crate::audio::ProgressReporter;
         use crate::audio::ProcessingStage;
+        use crate::audio::ProgressReporter;
 
         // Test current progress reporting implementation
         let mut reporter = ProgressReporter::new(3); // 3 files
@@ -173,10 +190,13 @@ mod integration_tests {
 
         // Read current metadata
         let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string());
-        assert!(metadata_result.is_ok(), "Should be able to read metadata from test file");
+        assert!(
+            metadata_result.is_ok(),
+            "Should be able to read metadata from test file"
+        );
 
         let original_metadata = metadata_result.expect("metadata ok");
-        
+
         // Document current metadata structure and behavior
         eprintln!("Original metadata behavior:");
         eprintln!("  Title: {:?}", original_metadata.title);
@@ -190,9 +210,18 @@ mod integration_tests {
 
         // Test metadata creation and modification
         let mut new_metadata = AudiobookMetadata::new();
-        assert!(new_metadata.title.is_none(), "New metadata should have no title");
-        assert!(new_metadata.artist.is_none(), "New metadata should have no author");
-        assert!(new_metadata.cover_art.is_none(), "New metadata should have no cover art");
+        assert!(
+            new_metadata.title.is_none(),
+            "New metadata should have no title"
+        );
+        assert!(
+            new_metadata.artist.is_none(),
+            "New metadata should have no author"
+        );
+        assert!(
+            new_metadata.cover_art.is_none(),
+            "New metadata should have no cover art"
+        );
 
         // Test metadata field assignment
         new_metadata.title = Some("Test Title".to_string());
@@ -206,45 +235,77 @@ mod integration_tests {
     #[test]
     fn test_error_handling() {
         // Test file validation errors
-        let nonexistent_files = vec!["nonexistent1.mp3".to_string(), "nonexistent2.mp3".to_string()];
+        let nonexistent_files = vec![
+            "nonexistent1.mp3".to_string(),
+            "nonexistent2.mp3".to_string(),
+        ];
         let validation_result = validate_files(nonexistent_files);
-        assert!(validation_result.is_err(), "Should fail for nonexistent files");
-        
-        let error_msg = validation_result.expect_err("expected validation error").to_string();
-        assert!(error_msg.contains("No such file or directory"), "Should report file not found");
+        assert!(
+            validation_result.is_err(),
+            "Should fail for nonexistent files"
+        );
+
+        let error_msg = validation_result
+            .expect_err("expected validation error")
+            .to_string();
+        assert!(
+            error_msg.contains("No such file or directory"),
+            "Should report file not found"
+        );
 
         // Test analysis of invalid files
         let invalid_files = vec!["nonexistent.mp3".to_string()];
         let analysis_result = analyze_audio_files(invalid_files);
-        assert!(analysis_result.is_ok(), "Analysis should succeed but mark files as invalid");
-        
+        assert!(
+            analysis_result.is_ok(),
+            "Analysis should succeed but mark files as invalid"
+        );
+
         let file_info = analysis_result.expect("analysis ok");
         assert_eq!(file_info.valid_count, 0, "Should have 0 valid files");
         assert_eq!(file_info.invalid_count, 1, "Should have 1 invalid file");
-        assert!(!file_info.files[0].is_valid, "File should be marked as invalid");
-        assert!(file_info.files[0].error.is_some(), "Should have error message");
+        assert!(
+            !file_info.files[0].is_valid,
+            "File should be marked as invalid"
+        );
+        assert!(
+            file_info.files[0].error.is_some(),
+            "Should have error message"
+        );
 
         // Test settings validation errors
         let temp_dir = TempDir::new().expect("create temp dir");
         let mut invalid_settings = create_test_settings(temp_dir.path().join("test.m4b"));
-        
+
         // Invalid bitrate
         invalid_settings.bitrate = 256; // Too high
         let settings_result = validate_audio_settings(invalid_settings.clone());
         assert!(settings_result.is_err(), "Should fail for invalid bitrate");
-        assert!(settings_result.expect_err("expected bitrate error").to_string().contains("Bitrate must be"));
+        assert!(settings_result
+            .expect_err("expected bitrate error")
+            .to_string()
+            .contains("Bitrate must be"));
 
         // Invalid output extension
         invalid_settings.bitrate = 64; // Fix bitrate
         invalid_settings.output_path = temp_dir.path().join("test.mp3"); // Wrong extension
         let settings_result = validate_audio_settings(invalid_settings);
-        assert!(settings_result.is_err(), "Should fail for wrong file extension");
-        assert!(settings_result.expect_err("expected extension error").to_string().contains(".m4b"));
+        assert!(
+            settings_result.is_err(),
+            "Should fail for wrong file extension"
+        );
+        assert!(settings_result
+            .expect_err("expected extension error")
+            .to_string()
+            .contains(".m4b"));
 
         // Test metadata reading from invalid file
         let metadata_result = read_audio_metadata("nonexistent.mp3".to_string());
         assert!(metadata_result.is_err(), "Should fail for nonexistent file");
-        assert!(metadata_result.expect_err("expected file not found").to_string().contains("File not found"));
+        assert!(metadata_result
+            .expect_err("expected file not found")
+            .to_string()
+            .contains("File not found"));
     }
 
     /// Test that captures current file validation logic
@@ -255,21 +316,27 @@ mod integration_tests {
         if let Ok(media_path) = verify_test_media_exists() {
             let files = vec![media_path.to_string_lossy().to_string()];
             let validation_result = validate_files(files.clone());
-            assert!(validation_result.is_ok(), "Valid file should pass validation");
+            assert!(
+                validation_result.is_ok(),
+                "Valid file should pass validation"
+            );
 
             let analysis_result = analyze_audio_files(files);
             assert!(analysis_result.is_ok(), "Valid file should be analyzable");
-            
+
             let file_info = analysis_result.expect("analysis ok");
             let audio_file = &file_info.files[0];
-            
+
             // Document current validation criteria
             assert!(audio_file.is_valid, "Test media should be valid");
-            assert!(audio_file.error.is_none(), "Valid file should have no error");
+            assert!(
+                audio_file.error.is_none(),
+                "Valid file should have no error"
+            );
             assert!(audio_file.size.is_some(), "Should determine file size");
             assert!(audio_file.duration.is_some(), "Should determine duration");
             assert!(audio_file.format.is_some(), "Should determine format");
-            
+
             eprintln!("Valid file properties:");
             eprintln!("  Size: {:?} bytes", audio_file.size);
             eprintln!("  Duration: {:?} seconds", audio_file.duration);
@@ -281,24 +348,36 @@ mod integration_tests {
 
         // Test invalid file scenarios
         let temp_dir = TempDir::new().expect("create temp dir");
-        
+
         // Create fake audio file with invalid content
         let fake_audio = temp_dir.path().join("fake.mp3");
         std::fs::write(&fake_audio, b"not audio content").expect("write fake audio");
-        
+
         let files = vec![fake_audio.to_string_lossy().to_string()];
         let analysis_result = analyze_audio_files(files);
-        assert!(analysis_result.is_ok(), "Analysis should succeed even for invalid files");
-        
+        assert!(
+            analysis_result.is_ok(),
+            "Analysis should succeed even for invalid files"
+        );
+
         let file_info = analysis_result.expect("analysis ok");
         let audio_file = &file_info.files[0];
-        
+
         // Document current behavior for invalid files
         assert!(!audio_file.is_valid, "Fake audio file should be invalid");
-        assert!(audio_file.error.is_some(), "Invalid file should have error message");
-        assert!(audio_file.size.is_some(), "Should still determine file size");
-        assert!(audio_file.duration.is_none(), "Invalid file should have no duration");
-        
+        assert!(
+            audio_file.error.is_some(),
+            "Invalid file should have error message"
+        );
+        assert!(
+            audio_file.size.is_some(),
+            "Should still determine file size"
+        );
+        assert!(
+            audio_file.duration.is_none(),
+            "Invalid file should have no duration"
+        );
+
         eprintln!("Invalid file properties:");
         eprintln!("  Error: {:?}", audio_file.error);
         eprintln!("  Size: {:?} bytes", audio_file.size);
@@ -306,15 +385,24 @@ mod integration_tests {
         // Test empty file list
         let empty_result = analyze_audio_files(vec![]);
         assert!(empty_result.is_err(), "Empty file list should fail");
-        assert!(empty_result.expect_err("expected empty list error").to_string().contains("No files provided"));
+        assert!(empty_result
+            .expect_err("expected empty list error")
+            .to_string()
+            .contains("No files provided"));
 
         // Test nonexistent file
         let nonexistent_files = vec!["totally_nonexistent.mp3".to_string()];
         let nonexistent_result = analyze_audio_files(nonexistent_files);
-        assert!(nonexistent_result.is_ok(), "Analysis should succeed for nonexistent files");
-        
+        assert!(
+            nonexistent_result.is_ok(),
+            "Analysis should succeed for nonexistent files"
+        );
+
         let file_info = nonexistent_result.expect("analysis ok");
-        assert_eq!(file_info.valid_count, 0, "Nonexistent file should be invalid");
+        assert_eq!(
+            file_info.valid_count, 0,
+            "Nonexistent file should be invalid"
+        );
         assert_eq!(file_info.invalid_count, 1, "Should count as invalid");
         assert!(!file_info.files[0].is_valid, "Should be marked invalid");
     }
@@ -328,31 +416,41 @@ mod integration_tests {
         // Test empty input
         let empty_result = detect_input_sample_rate(&[]);
         assert!(empty_result.is_err(), "Empty input should fail");
-        assert!(empty_result.expect_err("expected no input files error").to_string().contains("no input files provided"));
+        assert!(empty_result
+            .expect_err("expected no input files error")
+            .to_string()
+            .contains("no input files provided"));
 
         // Test nonexistent files
         let nonexistent = vec![PathBuf::from("nonexistent.mp3")];
         let nonexistent_result = detect_input_sample_rate(&nonexistent);
         assert!(nonexistent_result.is_err(), "Nonexistent files should fail");
-        assert!(nonexistent_result.expect_err("expected no valid audio files error").to_string().contains("no valid audio files found"));
+        assert!(nonexistent_result
+            .expect_err("expected no valid audio files error")
+            .to_string()
+            .contains("no valid audio files found"));
 
         // Test with actual media file if available
         if let Ok(media_path) = verify_test_media_exists() {
             let files = vec![media_path];
             let sample_rate_result = detect_input_sample_rate(&files);
-            
+
             if sample_rate_result.is_ok() {
                 let sample_rate = sample_rate_result.expect("sample rate ok");
                 eprintln!("Detected sample rate: {sample_rate} Hz");
                 assert!(sample_rate > 0, "Sample rate should be positive");
-                
+
                 // Document typical sample rates
                 let common_rates = [22050, 32000, 44100, 48000];
-                eprintln!("Sample rate {sample_rate} is common: {}", 
-                         common_rates.contains(&sample_rate));
+                eprintln!(
+                    "Sample rate {sample_rate} is common: {}",
+                    common_rates.contains(&sample_rate)
+                );
             } else {
-                eprintln!("Could not detect sample rate from test media: {}", 
-                         sample_rate_result.expect_err("expected sample rate error"));
+                eprintln!(
+                    "Could not detect sample rate from test media: {}",
+                    sample_rate_result.expect_err("expected sample rate error")
+                );
             }
         }
     }
@@ -364,14 +462,17 @@ mod integration_tests {
         // Note: build_merge_command is private, so we test the behavior indirectly
         // by testing the public API that uses it
         eprintln!("FFmpeg command construction is tested indirectly through processor module");
-        
+
         // Test the public sample rate detection function instead
         use crate::audio::processor::detect_input_sample_rate;
-        
+
         let empty_result = detect_input_sample_rate(&[]);
         assert!(empty_result.is_err());
-        assert!(empty_result.expect_err("expected no input files").to_string().contains("no input files provided"));
-        
+        assert!(empty_result
+            .expect_err("expected no input files")
+            .to_string()
+            .contains("no input files provided"));
+
         eprintln!("FFmpeg command building behavior is captured by end-to-end tests");
     }
 
@@ -381,17 +482,19 @@ mod integration_tests {
     fn test_temporary_file_handling() {
         // Note: create_temp_directory and create_concat_file are private functions
         // We test the temporary file behavior indirectly through the public API
-        
+
         use tempfile::TempDir;
-        
+
         // Test that we can create temporary directories manually
         let temp_dir = TempDir::new().expect("create temp dir");
         assert!(temp_dir.path().exists(), "Temp directory should exist");
         assert!(temp_dir.path().is_dir(), "Should be a directory");
-        
+
         eprintln!("Temp directory created at: {}", temp_dir.path().display());
-        
+
         // Legacy CLI concat file behavior intentionally removed in ffmpeg-next engine
-        eprintln!("Temporary directory handling verified; no concat file behavior in ffmpeg-next engine");
+        eprintln!(
+            "Temporary directory handling verified; no concat file behavior in ffmpeg-next engine"
+        );
     }
 }

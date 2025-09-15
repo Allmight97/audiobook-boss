@@ -16,7 +16,10 @@ pub(crate) fn setup_decoder_and_resampler(
 )> {
     use crate::errors::AppError;
 
-    log::info!("🔧 Setting up decoder for input file: {}", input_path.display());
+    log::info!(
+        "🔧 Setting up decoder for input file: {}",
+        input_path.display()
+    );
 
     if !input_path.exists() {
         return Err(AppError::FileValidation(format!(
@@ -47,20 +50,24 @@ pub(crate) fn setup_decoder_and_resampler(
     log::info!("✓ Found audio stream at index: {}", stream_index);
 
     log::info!("Creating decoder context from stream parameters...");
-    let dec_ctx = ff::codec::context::Context::from_parameters(istream.parameters()).map_err(|e| {
+    let dec_ctx =
+        ff::codec::context::Context::from_parameters(istream.parameters()).map_err(|e| {
+            AppError::General(format!(
+                "Failed to create decoder context from parameters for '{}': {}",
+                input_path.display(),
+                e
+            ))
+        })?;
+    log::info!("✓ Decoder context created successfully");
+
+    log::info!("Opening audio decoder...");
+    let decoder = dec_ctx.decoder().audio().map_err(|e| {
         AppError::General(format!(
-            "Failed to create decoder context from parameters for '{}': {}",
+            "Failed to open audio decoder for '{}': {}",
             input_path.display(),
             e
         ))
     })?;
-    log::info!("✓ Decoder context created successfully");
-
-    log::info!("Opening audio decoder...");
-    let decoder = dec_ctx
-        .decoder()
-        .audio()
-        .map_err(|e| AppError::General(format!("Failed to open audio decoder for '{}': {}", input_path.display(), e)))?;
     log::info!("✓ Audio decoder opened successfully");
 
     // Build resampler for this input stream
@@ -89,11 +96,18 @@ pub(crate) fn setup_decoder_and_resampler(
         encoder.channel_layout(),
         encoder.rate(),
     )
-    .map_err(|e| AppError::General(format!("Failed to create resampler for '{}': {}", input_path.display(), e)))?;
+    .map_err(|e| {
+        AppError::General(format!(
+            "Failed to create resampler for '{}': {}",
+            input_path.display(),
+            e
+        ))
+    })?;
     log::info!("✓ Resampler created successfully");
 
-    log::info!("🎉 Decoder and resampler setup completed for: {}", input_path.display());
+    log::info!(
+        "🎉 Decoder and resampler setup completed for: {}",
+        input_path.display()
+    );
     Ok((ictx, decoder, resampler, stream_index))
 }
-
-

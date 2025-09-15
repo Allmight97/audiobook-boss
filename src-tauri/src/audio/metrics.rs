@@ -1,5 +1,5 @@
 //! Audio processing metrics tracking
-//! 
+//!
 //! This module provides metrics tracking for audio processing operations,
 //! including throughput calculation and performance monitoring.
 
@@ -63,7 +63,7 @@ impl ProcessingMetrics {
         let throughput = self.throughput_mbps();
         let audio_hours = self.total_duration.as_secs_f64() / 3600.0;
         let mb_processed = self.bytes_processed as f64 / 1_048_576.0;
-        
+
         format!(
             "Processing Complete:\n\
              - Files processed: {}\n\

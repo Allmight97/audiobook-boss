@@ -25,25 +25,23 @@
 //!
 //! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
 
-
-
 // Imports for orchestrator function
-use std::time::Duration;
 use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::Result;
 use crate::metadata::AudiobookMetadata;
+use std::time::Duration;
 
 // Submodules
 pub mod execute;
 pub mod finalize;
 // Legacy module removed during nuclear cleanup - single-engine architecture achieved
+pub mod encoder;
+pub mod frame_pipeline;
 pub mod prepare;
 pub mod selection;
-pub mod encoder;
 pub mod streams;
-pub mod frame_pipeline;
 
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed
@@ -66,10 +64,7 @@ pub(crate) struct ProcessingWorkflow {
 
 impl ProcessingWorkflow {
     /// Constructor helper to keep instantiation explicit at call sites.
-    pub(crate) fn new(
-        temp_dir: std::path::PathBuf,
-        total_duration: f64,
-    ) -> Self {
+    pub(crate) fn new(temp_dir: std::path::PathBuf, total_duration: f64) -> Self {
         Self {
             temp_dir,
             total_duration,
@@ -83,7 +78,7 @@ impl ProcessingWorkflow {
 }
 
 /// Orchestrator: Main processing entrypoint (Phase 5: moved from finalize.rs)
-/// 
+///
 /// Coordinates the three-stage processing pipeline:
 /// 1. Validate & Prepare
 /// 2. Execute Processing  
@@ -111,12 +106,19 @@ pub async fn process_audiobook_with_context(
     }
 
     // Stage 2: Execute (execute module)
-    let merged_output =
-        execute::execute_processing(&context, &workflow, &files, metadata.as_ref(), &mut reporter).await?;
+    let merged_output = execute::execute_processing(
+        &context,
+        &workflow,
+        &files,
+        metadata.as_ref(),
+        &mut reporter,
+    )
+    .await?;
 
     // Stage 3: Finalize
     let result =
-        finalize::finalize_processing(&context, workflow, merged_output, metadata, &mut reporter).await?;
+        finalize::finalize_processing(&context, workflow, merged_output, metadata, &mut reporter)
+            .await?;
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead
     if context.preview.is_some() {
@@ -132,7 +134,7 @@ pub async fn process_audiobook_with_context(
 // NOTE (Phase 5 Complete):
 // - Preparation + validation + workflow construction migrated (prepare.rs)
 // - Execution layer extracted (execute.rs) with feature-gated processor selection
-// - Finalization logic migrated (finalize.rs) 
+// - Finalization logic migrated (finalize.rs)
 // Nuclear cleanup complete: simplified single-engine processing
 // - Orchestrator consolidated in mod.rs calling staged functions
 // Next Steps:

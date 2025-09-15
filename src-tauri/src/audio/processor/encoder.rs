@@ -11,12 +11,12 @@ fn find_encoder_by_name(name: &str) -> Result<ff::Codec> {
     unsafe {
         let c_name = CString::new(name)
             .map_err(|e| AppError::General(format!("Invalid encoder name '{}': {}", name, e)))?;
-        
+
         let codec_ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c_name.as_ptr());
         if codec_ptr.is_null() {
             return Err(AppError::General(format!("Encoder '{}' not found", name)));
         }
-        
+
         Ok(ff::Codec::wrap(codec_ptr))
     }
 }
@@ -29,12 +29,13 @@ fn try_configure_variable_frame_size(encoder_ctx: &mut ff::codec::context::Conte
     unsafe {
         let av_ctx = encoder_ctx.as_mut_ptr();
         if av_ctx.is_null() {
-            return Err(AppError::General("Invalid encoder context pointer".to_string()));
+            return Err(AppError::General(
+                "Invalid encoder context pointer".to_string(),
+            ));
         }
 
-        let strict_key = CString::new("strict").map_err(|e| {
-            AppError::General(format!("Failed to create strict key string: {}", e))
-        })?;
+        let strict_key = CString::new("strict")
+            .map_err(|e| AppError::General(format!("Failed to create strict key string: {}", e)))?;
         let experimental_value = CString::new("experimental").map_err(|e| {
             AppError::General(format!("Failed to create experimental value string: {}", e))
         })?;
@@ -47,7 +48,10 @@ fn try_configure_variable_frame_size(encoder_ctx: &mut ff::codec::context::Conte
         );
 
         if result < 0 {
-            log::debug!("Could not set strict=experimental: FFmpeg error code {}", result);
+            log::debug!(
+                "Could not set strict=experimental: FFmpeg error code {}",
+                result
+            );
         } else {
             log::debug!("Set strict=experimental on encoder context");
         }
@@ -64,15 +68,15 @@ fn try_enable_twoloop_aac(encoder_ctx: &mut ff::codec::context::Context) -> Resu
     unsafe {
         let av_ctx = encoder_ctx.as_mut_ptr();
         if av_ctx.is_null() {
-            return Err(AppError::General("Invalid encoder context pointer".to_string()));
+            return Err(AppError::General(
+                "Invalid encoder context pointer".to_string(),
+            ));
         }
 
-        let key = CString::new("aac_coder").map_err(|e| {
-            AppError::General(format!("Failed to create key string: {}", e))
-        })?;
-        let value = CString::new("twoloop").map_err(|e| {
-            AppError::General(format!("Failed to create value string: {}", e))
-        })?;
+        let key = CString::new("aac_coder")
+            .map_err(|e| AppError::General(format!("Failed to create key string: {}", e)))?;
+        let value = CString::new("twoloop")
+            .map_err(|e| AppError::General(format!("Failed to create value string: {}", e)))?;
 
         let result = ffmpeg_next::sys::av_opt_set(
             av_ctx as *mut std::ffi::c_void,
@@ -97,11 +101,13 @@ fn try_enable_twoloop_aac(encoder_ctx: &mut ff::codec::context::Context) -> Resu
 fn resolve_target_audio_params(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
 ) -> Result<(u32, i32)> {
-    use crate::audio::{SampleRateConfig};
+    use crate::audio::SampleRateConfig;
     use crate::errors::AppError;
 
     match &plan.settings.sample_rate {
-        SampleRateConfig::Explicit(rate) => Ok((*rate, plan.settings.channels.channel_count() as i32)),
+        SampleRateConfig::Explicit(rate) => {
+            Ok((*rate, plan.settings.channels.channel_count() as i32))
+        }
         SampleRateConfig::Auto => {
             let first = plan
                 .input_file_paths
@@ -109,10 +115,9 @@ fn resolve_target_audio_params(
                 .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
             let ictx = ff::format::input(&first)
                 .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-            let stream = ictx
-                .streams()
-                .best(ff::media::Type::Audio)
-                .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
+            let stream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
+                AppError::InvalidInput("No audio stream in first input".to_string())
+            })?;
             let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
                 .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
             let decoder = codec_ctx
@@ -120,7 +125,10 @@ fn resolve_target_audio_params(
                 .audio()
                 .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
             // Pass through sample rate; channels always come from UI settings
-            Ok((decoder.rate(), plan.settings.channels.channel_count() as i32))
+            Ok((
+                decoder.rate(),
+                plan.settings.channels.channel_count() as i32,
+            ))
         }
     }
 }
@@ -140,7 +148,9 @@ pub(crate) fn create_audio_encoder(
         if let Some(v2) = &plan.encoder_settings_v2 {
             match v2.encoder_type {
                 crate::audio::settings_encoder::EncoderType::AacAt => {
-                    crate::audio::settings_encoder::resolve_encoder_name(crate::audio::settings_encoder::EncoderType::AacAt)
+                    crate::audio::settings_encoder::resolve_encoder_name(
+                        crate::audio::settings_encoder::EncoderType::AacAt,
+                    )
                 }
                 _ => "aac",
             }
@@ -172,24 +182,40 @@ pub(crate) fn create_audio_encoder(
 
     match try_configure_variable_frame_size(&mut opened) {
         Ok(()) => log::info!("AAC encoder configured for variable frame sizes"),
-        Err(e) => log::warn!("Could not configure variable frame sizes ({}), may have frame size issues", e),
+        Err(e) => log::warn!(
+            "Could not configure variable frame sizes ({}), may have frame size issues",
+            e
+        ),
     }
 
     // Option mapping from v2 settings (profile, coder, threads)
     if let Some(v2) = &plan.encoder_settings_v2 {
         // HE-AAC profiles (best-effort, native AAC)
-        if matches!(v2.encoder_type, crate::audio::settings_encoder::EncoderType::HeAacV1 | crate::audio::settings_encoder::EncoderType::HeAacV2) {
+        if matches!(
+            v2.encoder_type,
+            crate::audio::settings_encoder::EncoderType::HeAacV1
+                | crate::audio::settings_encoder::EncoderType::HeAacV2
+        ) {
             unsafe {
                 use std::ffi::CString;
                 let av_ctx = opened.as_mut_ptr();
                 let key = CString::new("profile").expect("profile key should be valid");
                 // Values from FFmpeg headers
                 let value = match v2.encoder_type {
-                    crate::audio::settings_encoder::EncoderType::HeAacV1 => ffmpeg_next::sys::FF_PROFILE_AAC_HE,
-                    crate::audio::settings_encoder::EncoderType::HeAacV2 => ffmpeg_next::sys::FF_PROFILE_AAC_HE_V2,
+                    crate::audio::settings_encoder::EncoderType::HeAacV1 => {
+                        ffmpeg_next::sys::FF_PROFILE_AAC_HE
+                    }
+                    crate::audio::settings_encoder::EncoderType::HeAacV2 => {
+                        ffmpeg_next::sys::FF_PROFILE_AAC_HE_V2
+                    }
                     _ => ffmpeg_next::sys::FF_PROFILE_AAC_LOW,
                 } as i64;
-                let _ = ffmpeg_next::sys::av_opt_set_int(av_ctx as *mut std::ffi::c_void, key.as_ptr(), value, 0);
+                let _ = ffmpeg_next::sys::av_opt_set_int(
+                    av_ctx as *mut std::ffi::c_void,
+                    key.as_ptr(),
+                    value,
+                    0,
+                );
             }
         }
 
@@ -205,8 +231,15 @@ pub(crate) fn create_audio_encoder(
                         crate::audio::settings_encoder::AacCoder::Fast => "fast",
                     };
                     let value = CString::new(val_str).expect("aac_coder value should be valid");
-                    let rc = ffmpeg_next::sys::av_opt_set(av_ctx as *mut std::ffi::c_void, key.as_ptr(), value.as_ptr(), 0);
-                    if rc < 0 { log::debug!("Failed to set aac_coder={} rc={}", val_str, rc); }
+                    let rc = ffmpeg_next::sys::av_opt_set(
+                        av_ctx as *mut std::ffi::c_void,
+                        key.as_ptr(),
+                        value.as_ptr(),
+                        0,
+                    );
+                    if rc < 0 {
+                        log::debug!("Failed to set aac_coder={} rc={}", val_str, rc);
+                    }
                 }
             }
         }
@@ -223,7 +256,12 @@ pub(crate) fn create_audio_encoder(
                 use std::ffi::CString;
                 let av_ctx = opened.as_mut_ptr();
                 let key = CString::new("threads").expect("threads key should be valid");
-                let _ = ffmpeg_next::sys::av_opt_set_int(av_ctx as *mut std::ffi::c_void, key.as_ptr(), threads_value as i64, 0);
+                let _ = ffmpeg_next::sys::av_opt_set_int(
+                    av_ctx as *mut std::ffi::c_void,
+                    key.as_ptr(),
+                    threads_value as i64,
+                    0,
+                );
             }
         }
 
@@ -240,8 +278,13 @@ pub(crate) fn create_audio_encoder(
             log::info!("Twoloop AAC enhancement disabled via environment override");
         } else {
             match try_enable_twoloop_aac(&mut opened) {
-                Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully - expect improved audio quality"),
-                Err(e) => log::warn!("Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC", e),
+                Ok(()) => log::info!(
+                    "Twoloop AAC enhancement enabled successfully - expect improved audio quality"
+                ),
+                Err(e) => log::warn!(
+                    "Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC",
+                    e
+                ),
             }
         }
     }
@@ -278,7 +321,10 @@ pub(crate) fn setup_encoder(
     if let Some(metadata) = metadata {
         match crate::metadata::set_container_metadata(&mut octx, metadata) {
             Ok(()) => log::debug!("Container metadata set successfully"),
-            Err(e) => log::warn!("Failed to set container metadata: {} - continuing with audio processing", e),
+            Err(e) => log::warn!(
+                "Failed to set container metadata: {} - continuing with audio processing",
+                e
+            ),
         }
     }
 
@@ -312,12 +358,19 @@ pub(crate) fn setup_encoder(
         if let Some(ref cover_data) = metadata.cover_art {
             let bytes = cover_data.len();
             log::info!("cover_art_plan decision=native_attempt bytes={}", bytes);
-            log::info!("Attempting native cover art embedding - {} bytes of cover data", bytes);
-            cover_art_stream_info = crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
+            log::info!(
+                "Attempting native cover art embedding - {} bytes of cover data",
+                bytes
+            );
+            cover_art_stream_info =
+                crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
             if let Some((stream_idx, format)) = cover_art_stream_info {
                 log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
             } else {
-                log::warn!("cover_art_plan decision=fallback reason=stream_creation_failed bytes={}", bytes);
+                log::warn!(
+                    "cover_art_plan decision=fallback reason=stream_creation_failed bytes={}",
+                    bytes
+                );
                 log::warn!("✗ Native cover art stream creation failed - will fallback to Lofty embedding in finalize stage");
             }
         } else {
@@ -333,10 +386,25 @@ pub(crate) fn setup_encoder(
 
     // Post-header cover art packet
     if let Some(metadata) = metadata {
-        if let (Some((stream_index, format)), Some(cover_data)) = (cover_art_stream_info, metadata.cover_art.as_ref()) {
-            log::info!("Writing cover art packet to stream {} ({:?} format, {} bytes)", stream_index, format, cover_data.len());
-            crate::metadata::write_cover_art_packet_post_header(&mut octx, stream_index, cover_data, format);
-            log::info!("✓ Native cover art packet written successfully to stream {}", stream_index);
+        if let (Some((stream_index, format)), Some(cover_data)) =
+            (cover_art_stream_info, metadata.cover_art.as_ref())
+        {
+            log::info!(
+                "Writing cover art packet to stream {} ({:?} format, {} bytes)",
+                stream_index,
+                format,
+                cover_data.len()
+            );
+            crate::metadata::write_cover_art_packet_post_header(
+                &mut octx,
+                stream_index,
+                cover_data,
+                format,
+            );
+            log::info!(
+                "✓ Native cover art packet written successfully to stream {}",
+                stream_index
+            );
         } else if metadata.cover_art.is_some() {
             log::warn!("Cover art data present but no stream created - will rely on finalize stage fallback");
         }
@@ -361,8 +429,16 @@ fn debug_validate_frame_contract(
     encoder: &ff::codec::encoder::audio::Encoder,
 ) {
     // Format/layout/rate must match encoder
-    debug_assert_eq!(frame.format(), encoder.format(), "Frame format must match encoder format");
-    debug_assert_eq!(frame.channel_layout(), encoder.channel_layout(), "Channel layout mismatch");
+    debug_assert_eq!(
+        frame.format(),
+        encoder.format(),
+        "Frame format must match encoder format"
+    );
+    debug_assert_eq!(
+        frame.channel_layout(),
+        encoder.channel_layout(),
+        "Channel layout mismatch"
+    );
     debug_assert_eq!(frame.rate(), encoder.rate(), "Sample rate mismatch");
 
     // Samples must be > 0 and respect encoder frame size if non-zero
@@ -370,11 +446,17 @@ fn debug_validate_frame_contract(
     debug_assert!(samples_i64 > 0, "Frame must contain at least one sample");
     let enc_frame_size_i64 = encoder.frame_size() as i64;
     if enc_frame_size_i64 > 0 {
-        debug_assert!(samples_i64 <= enc_frame_size_i64, "Frame samples exceed encoder.frame_size()");
+        debug_assert!(
+            samples_i64 <= enc_frame_size_i64,
+            "Frame samples exceed encoder.frame_size()"
+        );
     }
 
     // PTS should be set
-    debug_assert!(frame.pts().is_some(), "Frame PTS must be set before encoding");
+    debug_assert!(
+        frame.pts().is_some(),
+        "Frame PTS must be set before encoding"
+    );
 }
 
 /// Encodes frame and writes packets to output
@@ -386,7 +468,7 @@ pub(crate) fn encode_and_write_frame(
     output_time_base: ff::Rational,
 ) -> Result<()> {
     use crate::errors::AppError;
-    
+
     #[cfg(debug_assertions)]
     {
         // Validate structural contract
@@ -395,9 +477,8 @@ pub(crate) fn encode_and_write_frame(
         for ch in 0..encoder.channel_layout().channels() as usize {
             let plane = frame.data(ch);
             let len_f32 = plane.len() / 4;
-            let src: &[f32] = unsafe {
-                std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32)
-            };
+            let src: &[f32] =
+                unsafe { std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32) };
             for &v in src.iter().take(frame.samples()) {
                 debug_assert!(v.is_finite(), "Non-finite sample encountered");
                 debug_assert!((-1.0..=1.0).contains(&v), "Sample out of range [-1,1]");
@@ -417,7 +498,9 @@ pub(crate) fn encode_and_write_frame(
         clean.set_channel_layout(frame.channel_layout());
         clean.set_rate(frame.rate());
         clean.set_samples(frame.samples());
-        unsafe { clean.alloc(frame.format(), frame.samples(), frame.channel_layout()); }
+        unsafe {
+            clean.alloc(frame.format(), frame.samples(), frame.channel_layout());
+        }
         clean.set_pts(frame.pts());
 
         if frame.samples() > 0 {
@@ -426,18 +509,35 @@ pub(crate) fn encode_and_write_frame(
                 let src_plane = frame.data(ch);
                 let dst_plane = clean.data_mut(ch);
                 let len_f32 = (dst_plane.len() / 4).min(src_plane.len() / 4);
-                let src: &[f32] = unsafe { std::slice::from_raw_parts(src_plane.as_ptr() as *const f32, len_f32) };
-                let dst: &mut [f32] = unsafe { std::slice::from_raw_parts_mut(dst_plane.as_mut_ptr() as *mut f32, len_f32) };
+                let src: &[f32] = unsafe {
+                    std::slice::from_raw_parts(src_plane.as_ptr() as *const f32, len_f32)
+                };
+                let dst: &mut [f32] = unsafe {
+                    std::slice::from_raw_parts_mut(dst_plane.as_mut_ptr() as *mut f32, len_f32)
+                };
                 let mut repaired = 0usize;
                 for i in 0..len_f32 {
                     let mut v = src[i];
-                    if !v.is_finite() { v = 0.0; repaired += 1; }
-                    if v > 1.0 { v = 1.0; repaired += 1; }
-                    if v < -1.0 { v = -1.0; repaired += 1; }
+                    if !v.is_finite() {
+                        v = 0.0;
+                        repaired += 1;
+                    }
+                    if v > 1.0 {
+                        v = 1.0;
+                        repaired += 1;
+                    }
+                    if v < -1.0 {
+                        v = -1.0;
+                        repaired += 1;
+                    }
                     dst[i] = v;
                 }
                 if repaired > 0 {
-                    log::warn!("Sanitized {} samples on channel {} before encoding", repaired, ch);
+                    log::warn!(
+                        "Sanitized {} samples on channel {} before encoding",
+                        repaired,
+                        ch
+                    );
                 }
             }
         }
@@ -492,7 +592,10 @@ pub(crate) fn finalize_encoding_after_preview(
     output_time_base: ff::Rational,
 ) -> Result<()> {
     // Currently identical to finalize_encoding; separated for clarity and future hooks
-    finalize_encoding(encoder, output_context, output_stream_index, output_time_base)
+    finalize_encoding(
+        encoder,
+        output_context,
+        output_stream_index,
+        output_time_base,
+    )
 }
-
-

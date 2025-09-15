@@ -1,5 +1,5 @@
 //! Constants for audio processing operations
-//! 
+//!
 //! This module contains all magic numbers and constants used throughout
 //! the audio processing pipeline, grouped by functional area.
 
@@ -46,8 +46,6 @@ pub const ANALYSIS_PROGRESS_MULTIPLIER: f64 = 1.4;
 // Time formatting constants
 /// Seconds per minute for time calculations
 pub const SECONDS_PER_MINUTE: f64 = 60.0;
-
-
 
 // Default values
 /// Default bitrate in kbps
