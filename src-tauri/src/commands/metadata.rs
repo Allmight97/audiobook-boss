@@ -12,10 +12,7 @@ pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
 /// Writes metadata to an existing M4B file
 /// Accepts file path and metadata object
 #[tauri::command]
-pub fn write_audio_metadata(
-    file_path: String,
-    metadata: AudiobookMetadata,
-) -> Result<()> {
+pub fn write_audio_metadata(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
     write_metadata(&file_path, &metadata)
 }
 
@@ -97,25 +94,29 @@ fn validate_image_format(data: &[u8], extension: &str) -> Result<()> {
             if data.len() >= JPEG_HEADER.len() && data[..JPEG_HEADER.len()] == JPEG_HEADER {
                 Ok(())
             } else {
-                Err(AppError::InvalidInput("Invalid JPEG file format".to_string()))
+                Err(AppError::InvalidInput(
+                    "Invalid JPEG file format".to_string(),
+                ))
             }
         }
         "png" => {
             if data.len() >= MIN_PNG_SIZE && data[..PNG_HEADER.len()] == PNG_HEADER {
                 Ok(())
             } else {
-                Err(AppError::InvalidInput("Invalid PNG file format".to_string()))
+                Err(AppError::InvalidInput(
+                    "Invalid PNG file format".to_string(),
+                ))
             }
         }
         "webp" => {
             if data.len() >= MIN_WEBP_SIZE && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
                 Ok(())
             } else {
-                Err(AppError::InvalidInput("Invalid WebP file format".to_string()))
+                Err(AppError::InvalidInput(
+                    "Invalid WebP file format".to_string(),
+                ))
             }
         }
         _ => Ok(()),
     }
 }
-
-

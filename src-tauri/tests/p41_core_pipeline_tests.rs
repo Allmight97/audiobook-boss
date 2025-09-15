@@ -3,12 +3,10 @@
 //! Tests the complete ffmpeg-next audio processing pipeline to verify
 //! P4.1 success criteria are met.
 
-
+use audiobook_boss_lib::audio::media_pipeline::{FfmpegNextProcessor, MediaProcessingPlan};
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
-use audiobook_boss_lib::audio::media_pipeline::{MediaProcessingPlan, FfmpegNextProcessor};
 use std::path::PathBuf;
 use tempfile::TempDir;
-
 
 /// Test that MediaProcessingPlan::execute_with_context works (no placeholder)
 #[test]
@@ -16,27 +14,26 @@ fn test_media_processing_plan_execute_method_exists() {
     // This test verifies that the placeholder has been removed and the method compiles
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("plan_output.m4b");
-    
+
     let settings = AudioSettings {
         bitrate: 64,
         sample_rate: SampleRateConfig::Explicit(44100),
         channels: ChannelConfig::Stereo,
         output_path: output_path.clone(),
     };
-    
+
     let plan = MediaProcessingPlan::new(
         output_path.clone(),
         settings,
         vec![PathBuf::from("dummy.mp3")],
         60.0,
     );
-    
+
     // We're just testing that the method exists and is callable
     // (execution would require a proper ProcessingContext which needs Tauri)
     assert_eq!(plan.total_duration, 60.0);
     assert_eq!(plan.output_path, output_path);
 }
-
 
 /// Test that FfmpegNextProcessor can be instantiated
 #[test]
@@ -50,7 +47,7 @@ fn test_ffmpeg_next_processor_instantiation() {
 fn test_media_processing_plan_creation() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("test.m4b");
-    
+
     // Test various audio settings combinations
     let test_cases = vec![
         AudioSettings {
@@ -66,7 +63,7 @@ fn test_media_processing_plan_creation() {
             output_path: output_path.clone(),
         },
     ];
-    
+
     for (i, settings) in test_cases.into_iter().enumerate() {
         let plan = MediaProcessingPlan::new(
             output_path.clone(),
@@ -74,7 +71,7 @@ fn test_media_processing_plan_creation() {
             vec![PathBuf::from(&format!("test{}.mp3", i))],
             30.0 * (i as f64 + 1.0),
         );
-        
+
         assert_eq!(plan.settings.bitrate, settings.bitrate);
         assert_eq!(plan.settings.channels, settings.channels);
         assert_eq!(plan.total_duration, 30.0 * (i as f64 + 1.0));
@@ -85,7 +82,7 @@ fn test_media_processing_plan_creation() {
 #[test]
 fn test_duration_calculation() {
     use audiobook_boss_lib::audio::AudioFile;
-    
+
     let files = vec![
         AudioFile {
             path: PathBuf::from("file1.mp3"),
@@ -121,7 +118,7 @@ fn test_duration_calculation() {
             error: None,
         },
     ];
-    
+
     let total = MediaProcessingPlan::calculate_total_duration(&files);
     assert_eq!(total, 75.5, "Should sum only non-None durations");
 }

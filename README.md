@@ -12,6 +12,10 @@ Internal docs:
 - `docs/external-apis/tauri-patterns.md` — event lifecycle & IPC patterns
 - `docs/external-apis/path-handling.md` — macOS-focused path validation and atomic moves
 
+## For AI agents
+
+If you are an AI coding agent, start with the project’s agent guide in `AGENTS.md`. It defines setup, checks to run automatically, architectural boundaries (single ffmpeg-next engine, path validation, progress events), and coding standards tailored for agents. See the AGENTS.md spec at [agents.md](https://agents.md/) for precedence rules.
+
 ## Architecture & Key Patterns
 - Single Processing Engine: `FfmpegNextProcessor` implements `MediaProcessor`
 - Media Abstraction: `MediaProcessingPlan` → `execute()`

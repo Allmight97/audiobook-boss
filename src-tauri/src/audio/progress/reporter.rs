@@ -1,7 +1,7 @@
 //! Progress event emission and reporting for audio processing
 
-use crate::audio::{ProcessingProgress, ProcessingStage};
 use crate::audio::constants::*;
+use crate::audio::{ProcessingProgress, ProcessingStage};
 use serde::Serialize;
 use std::time::Instant;
 use tauri::{Emitter, Window};
@@ -213,8 +213,7 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
         return PROGRESS_CONVERTING_START;
     }
     let ratio = (current_seconds / total_duration).clamp(0.0, 1.0);
-    let pct = PROGRESS_CONVERTING_START as f64
-        + ratio * PROGRESS_RANGE_MULTIPLIER;
+    let pct = PROGRESS_CONVERTING_START as f64 + ratio * PROGRESS_RANGE_MULTIPLIER;
     pct as f32
 }
 
@@ -243,29 +242,29 @@ impl ProgressReporter {
             current_file: None,
         }
     }
-    
+
     /// Updates processing stage
     pub fn set_stage(&mut self, stage: ProcessingStage) {
         self.current_stage = stage;
     }
-    
+
     /// Sets current file being processed
     pub fn set_current_file<S: Into<String>>(&mut self, filename: S) {
         self.current_file = Some(filename.into());
     }
-    
+
     /// Increments completed file count  
     pub fn complete_file(&mut self) {
         self.files_completed += 1;
         self.current_file = None;
     }
-    
+
     /// Calculates current progress percentage
     pub fn calculate_progress(&self) -> f32 {
         if self.total_files == 0 {
             return 0.0;
         }
-        
+
         // Base progress on stage and files completed
         let _stage_weight = match self.current_stage {
             ProcessingStage::Analyzing => 0.1,
@@ -274,30 +273,34 @@ impl ProgressReporter {
             ProcessingStage::Completed => 1.0,
             ProcessingStage::Failed(_) => 0.0,
         };
-        
+
         let file_progress = self.files_completed as f32 / self.total_files as f32;
-        
+
         match self.current_stage {
             ProcessingStage::Analyzing => PROGRESS_ANALYZING_END * file_progress,
-            ProcessingStage::Converting => PROGRESS_CONVERTING_START + (PROGRESS_CONVERTING_RANGE * file_progress),
-            ProcessingStage::WritingMetadata => PROGRESS_FINALIZING + (PROGRESS_METADATA_WEIGHT * file_progress),
+            ProcessingStage::Converting => {
+                PROGRESS_CONVERTING_START + (PROGRESS_CONVERTING_RANGE * file_progress)
+            }
+            ProcessingStage::WritingMetadata => {
+                PROGRESS_FINALIZING + (PROGRESS_METADATA_WEIGHT * file_progress)
+            }
             ProcessingStage::Completed => PROGRESS_COMPLETE,
             ProcessingStage::Failed(_) => 0.0,
         }
     }
-    
+
     /// Estimates remaining time based on progress
     pub fn estimate_time_remaining(&self) -> Option<f64> {
         let progress = self.calculate_progress();
         if progress <= 0.0 || progress >= 100.0 {
             return None;
         }
-        
+
         let elapsed = self.start_time.elapsed().as_secs_f64();
         let total_estimated = elapsed / (progress as f64 / 100.0);
         Some(total_estimated - elapsed)
     }
-    
+
     /// Gets current progress information
     pub fn get_progress(&self) -> ProcessingProgress {
         ProcessingProgress {
@@ -309,14 +312,14 @@ impl ProgressReporter {
             eta_seconds: self.estimate_time_remaining(),
         }
     }
-    
+
     /// Marks processing as completed
     pub fn complete(&mut self) {
         self.current_stage = ProcessingStage::Completed;
         self.files_completed = self.total_files;
         self.current_file = None;
     }
-    
+
     /// Marks processing as failed
     pub fn fail<S: Into<String>>(&mut self, error: S) {
         self.current_stage = ProcessingStage::Failed(error.into());
@@ -343,7 +346,7 @@ mod tests {
             ProgressEmitter::calculate_stage_progress(100.0, 100.0, 10.0, 80.0),
             80.0
         );
-        
+
         // Test edge cases
         assert_eq!(
             ProgressEmitter::calculate_stage_progress(50.0, 0.0, 10.0, 80.0),
@@ -373,15 +376,15 @@ mod tests {
     #[test]
     fn test_calculate_progress() {
         let mut reporter = ProgressReporter::new(4);
-        
+
         // Initial progress
         assert_eq!(reporter.calculate_progress(), 0.0);
-        
+
         // Complete analyzing stage
         reporter.complete_file();
         reporter.set_stage(ProcessingStage::Converting);
         assert!(reporter.calculate_progress() > 10.0);
-        
+
         // Complete all files
         reporter.complete();
         assert_eq!(reporter.calculate_progress(), 100.0);
@@ -396,5 +399,3 @@ mod tests {
 
     // parse_* tests moved to parser.rs in Phase 1
 }
-
-

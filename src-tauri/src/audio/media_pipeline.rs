@@ -60,7 +60,7 @@ impl MediaProcessingPlan {
 
     /// Executes the processing plan with context-based progress tracking
     pub async fn execute_with_context(
-        &self, 
+        &self,
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,
     ) -> Result<()> {
@@ -112,23 +112,39 @@ impl FfmpegNextProcessor {
     ) -> Result<()> {
         use crate::errors::AppError;
 
-        log::info!("🎵 Starting to process input file: {}", input_path.display());
+        log::info!(
+            "🎵 Starting to process input file: {}",
+            input_path.display()
+        );
 
         if ctx.context.is_cancelled() {
-            log::warn!("Processing was cancelled before processing file: {}", input_path.display());
+            log::warn!(
+                "Processing was cancelled before processing file: {}",
+                input_path.display()
+            );
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
         }
 
-        log::info!("Setting up decoder and resampler for: {}", input_path.display());
+        log::info!(
+            "Setting up decoder and resampler for: {}",
+            input_path.display()
+        );
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
-        log::info!("✓ Decoder and resampler setup complete for stream index: {}", stream_index);
+        log::info!(
+            "✓ Decoder and resampler setup complete for stream index: {}",
+            stream_index
+        );
 
         // Update context indices for this file (P1.4) then process packets
         ctx.current_file_index = file_index;
         ctx.current_stream_index = stream_index;
-        log::info!("Updated context: file_index={}, stream_index={}", file_index, stream_index);
+        log::info!(
+            "Updated context: file_index={}, stream_index={}",
+            file_index,
+            stream_index
+        );
 
         log::info!("Processing input packets from: {}", input_path.display());
         crate::audio::processor::frame_pipeline::process_input_packets(
@@ -144,7 +160,7 @@ impl FfmpegNextProcessor {
 
         // Flush decoder for this input
         log::info!("Flushing decoder frames for: {}", input_path.display());
-        
+
         // Skip the old flush for now - the simple truncation approach should work
         log::info!("✓ Decoder frames flushed successfully (skipped for simplicity)");
         log::info!("✓ Decoder frames flushed successfully");
@@ -219,7 +235,10 @@ impl MediaProcessor for FfmpegNextProcessor {
             };
 
             // Process each input file
-            log::info!("Starting audio processing for {} input files", plan.input_file_paths.len());
+            log::info!(
+                "Starting audio processing for {} input files",
+                plan.input_file_paths.len()
+            );
             let mut accumulator = crate::audio::buffer::SampleAccumulator::new(
                 enc_ctx.channel_layout().channels() as usize,
                 enc_ctx.frame_size() as usize,
@@ -228,9 +247,25 @@ impl MediaProcessor for FfmpegNextProcessor {
                 enc_ctx.format(),
             );
             for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
-                log::info!("Processing input file {}/{}: {}", idx + 1, plan.input_file_paths.len(), in_path.display());
-                Self::process_input_file(in_path, &mut enc_ctx, &mut octx, idx, &mut ctx, &mut accumulator)?;
-                log::info!("✓ Completed processing input file {}/{}", idx + 1, plan.input_file_paths.len());
+                log::info!(
+                    "Processing input file {}/{}: {}",
+                    idx + 1,
+                    plan.input_file_paths.len(),
+                    in_path.display()
+                );
+                Self::process_input_file(
+                    in_path,
+                    &mut enc_ctx,
+                    &mut octx,
+                    idx,
+                    &mut ctx,
+                    &mut accumulator,
+                )?;
+                log::info!(
+                    "✓ Completed processing input file {}/{}",
+                    idx + 1,
+                    plan.input_file_paths.len()
+                );
                 if *ctx.early_stop {
                     log::info!("Preview early-stop engaged after file {}; stopping further input processing", idx + 1);
                     break;
@@ -240,7 +275,12 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             // Finalize encoding (same path for full encode or preview early-stop)
             log::info!("🏁 Starting encoding finalization...");
-            crate::audio::processor::encoder::finalize_encoding_after_preview(&mut enc_ctx, &mut octx, ost_index, ost_time_base)?;
+            crate::audio::processor::encoder::finalize_encoding_after_preview(
+                &mut enc_ctx,
+                &mut octx,
+                ost_index,
+                ost_time_base,
+            )?;
             log::info!("✓ Encoding finalization completed successfully");
 
             // Preserve output on success (Phase 11: re-enabled after legacy purge)
@@ -256,5 +296,3 @@ impl MediaProcessor for FfmpegNextProcessor {
         })
     }
 }
-
-

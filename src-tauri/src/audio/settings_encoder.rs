@@ -70,12 +70,8 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     validate_threads(settings.threads)?;
 
     // Afterburner notice: only applicable to libfdk_aac encoders.
-    if settings.afterburner.unwrap_or(false)
-        && !is_encoder_available_by_name("libfdk_aac")
-    {
-        log::info!(
-            "afterburner flag present but libfdk_aac unavailable - will be ignored"
-        );
+    if settings.afterburner.unwrap_or(false) && !is_encoder_available_by_name("libfdk_aac") {
+        log::info!("afterburner flag present but libfdk_aac unavailable - will be ignored");
     }
 
     // aac_coder is best-effort; no validation error even if not honored.
@@ -207,37 +203,39 @@ mod tests {
     #[test]
     fn test_threads_validation() {
         let mut s = base_settings();
-        
+
         // Valid cases
         s.threads = ThreadSetting::Auto;
         assert!(validate_encoder_settings(&s).is_ok());
-        
+
         s.threads = ThreadSetting::Off;
         assert!(validate_encoder_settings(&s).is_ok());
-        
+
         s.threads = ThreadSetting::Fixed(1);
         assert!(validate_encoder_settings(&s).is_ok());
-        
+
         s.threads = ThreadSetting::Fixed(4);
         assert!(validate_encoder_settings(&s).is_ok());
-        
+
         s.threads = ThreadSetting::Fixed(1024);
         assert!(validate_encoder_settings(&s).is_ok());
-        
+
         // Invalid cases - below range
         s.threads = ThreadSetting::Fixed(0);
         let err = validate_encoder_settings(&s).expect_err("expected rejection for thread count 0");
         assert!(err.to_string().contains("Invalid threads value: 0"));
         assert!(err.to_string().contains("1..=1024"));
-        
+
         // Invalid cases - above range
         s.threads = ThreadSetting::Fixed(1025);
-        let err = validate_encoder_settings(&s).expect_err("expected rejection for thread count 1025");
+        let err =
+            validate_encoder_settings(&s).expect_err("expected rejection for thread count 1025");
         assert!(err.to_string().contains("Invalid threads value: 1025"));
         assert!(err.to_string().contains("1..=1024"));
-        
+
         s.threads = ThreadSetting::Fixed(2000);
-        let err = validate_encoder_settings(&s).expect_err("expected rejection for thread count 2000");
+        let err =
+            validate_encoder_settings(&s).expect_err("expected rejection for thread count 2000");
         assert!(err.to_string().contains("Invalid threads value: 2000"));
         assert!(err.to_string().contains("1..=1024"));
     }
@@ -255,20 +253,18 @@ mod tests {
         // Test the validate_threads function directly
         assert!(validate_threads(ThreadSetting::Auto).is_ok());
         assert!(validate_threads(ThreadSetting::Off).is_ok());
-        
+
         // Test boundary values
         assert!(validate_threads(ThreadSetting::Fixed(1)).is_ok());
         assert!(validate_threads(ThreadSetting::Fixed(1024)).is_ok());
-        
+
         // Test invalid values
         assert!(validate_threads(ThreadSetting::Fixed(0)).is_err());
         assert!(validate_threads(ThreadSetting::Fixed(1025)).is_err());
-        
+
         // Verify error message format
         let err = validate_threads(ThreadSetting::Fixed(0)).expect_err("expected error");
         assert!(err.to_string().contains("Invalid threads value: 0"));
         assert!(err.to_string().contains("(allowed 1..=1024)"));
     }
 }
-
-

@@ -1,5 +1,5 @@
 //! Metadata handling for audiobook files
-//! 
+//!
 //! This module provides functionality to read and write metadata
 //! from/to audio files using the Lofty crate.
 
@@ -70,9 +70,6 @@ pub use writer::write_metadata;
 
 // Re-export ffmpeg-next bridge functions for native metadata and cover art embedding
 pub use ffmpeg_bridge::{
-    add_cover_art_stream_pre_header,
-    write_cover_art_packet_post_header, 
-    set_container_metadata,
-    validate_metadata_compatibility,
-    CoverFormat,
+    add_cover_art_stream_pre_header, set_container_metadata, validate_metadata_compatibility,
+    write_cover_art_packet_post_header, CoverFormat,
 };

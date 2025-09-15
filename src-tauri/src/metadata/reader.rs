@@ -10,25 +10,26 @@ use std::path::Path;
 /// Reads metadata from an audio file
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
-    
+
     if !path.exists() {
-        return Err(AppError::FileValidation(
-            format!("File not found: {}", path.display())
-        ));
+        return Err(AppError::FileValidation(format!(
+            "File not found: {}",
+            path.display()
+        )));
     }
-    
-    let tagged_file = Probe::open(path)?
-        .read()?;
-    
-    let tag = tagged_file.primary_tag()
+
+    let tagged_file = Probe::open(path)?.read()?;
+
+    let tag = tagged_file
+        .primary_tag()
         .or_else(|| tagged_file.first_tag());
-    
+
     let mut metadata = AudiobookMetadata::new();
-    
+
     if let Some(tag) = tag {
         extract_tag_data(tag, &mut metadata);
     }
-    
+
     Ok(metadata)
 }
 
@@ -42,10 +43,10 @@ fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
     }
     metadata.date = tag.year();
     metadata.genre = tag.genre().map(|s| s.to_string());
-    
+
     // Extract description from comment
     metadata.description = tag.comment().map(|s| s.to_string());
-    
+
     // Extract cover art
     let pictures = tag.pictures();
     if let Some(picture) = pictures.first() {
@@ -70,7 +71,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
         let file_path = temp_dir.path().join("empty.txt");
         fs::write(&file_path, b"").expect("write empty file");
-        
+
         let result = read_metadata(&file_path);
         assert!(matches!(result, Err(AppError::Metadata(_))));
     }

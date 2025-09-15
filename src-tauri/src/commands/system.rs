@@ -15,5 +15,3 @@ pub fn echo(input: String) -> Result<String> {
 }
 
 // Removed get_ffmpeg_version command during nuclear transition (ffmpeg-next only).
-
-

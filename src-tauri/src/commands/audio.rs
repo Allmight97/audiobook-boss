@@ -1,9 +1,9 @@
-use crate::errors::{AppError, Result};
-use crate::audio::{self, AudioSettings};
-use crate::audio::settings_encoder::{EncoderSettings, validate_encoder_settings};
-use crate::audio::{ChannelConfig, SampleRateConfig};
-use std::path::{Path, PathBuf};
 use crate::audio::file_list::FileListInfo;
+use crate::audio::settings_encoder::{validate_encoder_settings, EncoderSettings};
+use crate::audio::{self, AudioSettings};
+use crate::audio::{ChannelConfig, SampleRateConfig};
+use crate::errors::{AppError, Result};
+use std::path::{Path, PathBuf};
 // removed duplicate PathBuf import
 
 /// Validates that all provided file paths exist and are files
@@ -137,9 +137,10 @@ pub async fn process_audiobook_files_v2(
 
     // Set processing state
     {
-        let mut is_processing = state.is_processing.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire processing lock".to_string())
-        })?;
+        let mut is_processing = state
+            .is_processing
+            .lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
         *is_processing = true;
 
         let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
@@ -156,14 +157,17 @@ pub async fn process_audiobook_files_v2(
     let (message, preview_path_opt, preview_seconds_used) = {
         let session = audio::session::ProcessingSession::new();
         let settings_for_path = settings_v1.clone();
-        let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings_v1);
+        let mut context =
+            audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings_v1);
         // Attach v2 encoder settings to context for downstream mapping
         context.encoder_settings_v2 = Some(payload.settings.clone());
 
         // Resolve preview seconds
         let mut preview_seconds_resolved: Option<f64> = None;
         if let Some(sec) = preview_seconds.or_else(|| {
-            std::env::var("ABB_PREVIEW_SECONDS").ok().and_then(|s| s.parse::<f64>().ok())
+            std::env::var("ABB_PREVIEW_SECONDS")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
         }) {
             if sec.is_finite() && sec > 0.0 {
                 context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
@@ -172,10 +176,14 @@ pub async fn process_audiobook_files_v2(
             }
         }
         let is_preview = context.preview.is_some();
-        let msg = audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await?;
+        let msg =
+            audio::processor::process_audiobook_with_context(context, file_info.files, metadata)
+                .await?;
         let preview_path = if is_preview {
             let final_output = &settings_for_path.output_path;
-            let parent = final_output.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let parent = final_output
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."));
             let stem = final_output
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -190,13 +198,18 @@ pub async fn process_audiobook_files_v2(
 
     // Reset processing state
     {
-        let mut is_processing = state.is_processing.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire processing lock".to_string())
-        })?;
+        let mut is_processing = state
+            .is_processing
+            .lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
         *is_processing = false;
     }
 
-    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt, preview_actual_seconds: preview_seconds_used })
+    Ok(ProcessCommandResult {
+        message,
+        preview_file_path: preview_path_opt,
+        preview_actual_seconds: preview_seconds_used,
+    })
 }
 
 /// Processes multiple audio files into a single M4B audiobook
@@ -220,9 +233,10 @@ pub async fn process_audiobook_files(
 ) -> Result<ProcessCommandResult> {
     // Set processing state
     {
-        let mut is_processing = state.is_processing.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire processing lock".to_string())
-        })?;
+        let mut is_processing = state
+            .is_processing
+            .lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
         *is_processing = true;
 
         let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
@@ -241,11 +255,14 @@ pub async fn process_audiobook_files(
         let session = audio::session::ProcessingSession::new();
         // Clone settings for deriving preview path later (original moved into context)
         let settings_for_path = settings.clone();
-        let mut context = audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
+        let mut context =
+            audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
         // Resolve preview seconds from payload or environment fallback
         let mut preview_seconds_resolved: Option<f64> = None;
         if let Some(sec) = preview_seconds.or_else(|| {
-            std::env::var("ABB_PREVIEW_SECONDS").ok().and_then(|s| s.parse::<f64>().ok())
+            std::env::var("ABB_PREVIEW_SECONDS")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
         }) {
             if sec.is_finite() && sec > 0.0 {
                 context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
@@ -254,11 +271,15 @@ pub async fn process_audiobook_files(
             }
         }
         let is_preview = context.preview.is_some();
-        let msg = audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await?;
+        let msg =
+            audio::processor::process_audiobook_with_context(context, file_info.files, metadata)
+                .await?;
         let preview_path = if is_preview {
             // Derive preview path deterministically based on output settings
             let final_output = &settings_for_path.output_path;
-            let parent = final_output.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let parent = final_output
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."));
             let stem = final_output
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -273,26 +294,30 @@ pub async fn process_audiobook_files(
 
     // Reset processing state
     {
-        let mut is_processing = state.is_processing.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire processing lock".to_string())
-        })?;
+        let mut is_processing = state
+            .is_processing
+            .lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
         *is_processing = false;
     }
 
-    Ok(ProcessCommandResult { message, preview_file_path: preview_path_opt, preview_actual_seconds: preview_seconds_used })
+    Ok(ProcessCommandResult {
+        message,
+        preview_file_path: preview_path_opt,
+        preview_actual_seconds: preview_seconds_used,
+    })
 }
 
 /// Cancels the current audio processing operation
 /// Sets the cancellation flag in the shared processing state
 #[tauri::command]
 pub fn cancel_processing(state: tauri::State<crate::ProcessingState>) -> Result<String> {
-    let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
-        AppError::InvalidInput("Failed to acquire cancellation lock".to_string())
-    })?;
+    let mut is_cancelled = state
+        .is_cancelled
+        .lock()
+        .map_err(|_| AppError::InvalidInput("Failed to acquire cancellation lock".to_string()))?;
     *is_cancelled = true;
     Ok("Processing cancellation requested".to_string())
 }
 
 // Removed legacy merge_audio_files command and shell-based implementation during nuclear cleanup.
-
-

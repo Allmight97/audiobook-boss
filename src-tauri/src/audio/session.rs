@@ -1,5 +1,5 @@
 //! Session management for audio processing operations
-//! 
+//!
 //! Provides a wrapper around ProcessingState with unique session identification
 //! and convenience methods for state management.
 
@@ -7,7 +7,7 @@ use crate::ProcessingState;
 use uuid::Uuid;
 
 /// A unique processing session that wraps ProcessingState
-/// 
+///
 /// Each session has a unique UUID identifier and provides
 /// convenience methods for checking processing status.
 #[derive(Debug)]
