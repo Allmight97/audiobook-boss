@@ -107,5 +107,3 @@ This file guides AI coding agents working on Audiobook Boss. For the philosophy 
 - `cargo fmt --all -- --check`
 - `tsc --noEmit`
 - `npm run build`
-
-References: [agents.md](https://agents.md/) — an open, community spec for guiding coding agents.
