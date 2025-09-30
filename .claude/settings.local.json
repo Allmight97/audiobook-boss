@@ -31,7 +31,9 @@
       "Bash(cargo doc:*)",
       "Bash(true)",
       "Bash(npm run dev:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "mcp__exa__get_code_context_exa",
+      "mcp__exa__web_search_exa"
     ],
     "deny": []
   }
