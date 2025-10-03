@@ -388,7 +388,9 @@ build_output_dir() {
   local artist="$1"
   local safe_artist=$(sanitize_name "$artist")
   local dir="$OUTPUT_DIR/$safe_artist"
-  ensure_dir "$dir"
+  if [ "${DRY:-0}" != "1" ]; then
+    ensure_dir "$dir"
+  fi
   echo "$dir"
 }
 
@@ -580,11 +582,15 @@ process_merge_task() {
 
   if [ "${ORDER_DEBUG}" = "1" ]; then
     local debug_list_file="${out_dir}/${safe_name}.order.txt"
-    : > "$debug_list_file"
-    for p in "${mp3_files[@]}"; do
-      printf "%s\n" "$INPUT_DIR/$p" >> "$debug_list_file"
-    done
-    echo "  [DEBUG] Wrote ordered list to: $debug_list_file"
+    if [ "${DRY:-0}" != "1" ]; then
+      : > "$debug_list_file"
+      for p in "${mp3_files[@]}"; do
+        printf "%s\n" "$INPUT_DIR/$p" >> "$debug_list_file"
+      done
+      echo "  [DEBUG] Wrote ordered list to: $debug_list_file"
+    else
+      echo "  [DRY][DEBUG] Would write ordered list to: $debug_list_file"
+    fi
   fi
 
   local chapter_metadata=$(mktemp)
@@ -878,6 +884,9 @@ for task in "${WORKLIST[@]}"; do
       out_dir=$(build_output_dir "$safe_artist")
       output_file="${out_dir}/${base}.m4b"
 
+      local -a preview
+      preview=($(preview_args))
+
       if [ "${DRY:-0}" != "1" ]; then
         echo "Converting: $input_file"
         echo "  Duration: $duration_str | Channels: $ch | Encoder: $file_enc_desc"
@@ -885,8 +894,6 @@ for task in "${WORKLIST[@]}"; do
         echo "  Progress: (watch 'size' and 'speed' below)"
 
         (
-          local -a preview
-          preview=($(preview_args))
           execute_ffmpeg \
             -i "$input_file" \
             ${preview[@]+"${preview[@]}"} \
