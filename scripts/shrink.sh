@@ -2,7 +2,8 @@
 # Enhanced audiobook encoder Prototype encoding Engine.
 # This script is used by the developer on their personal MacBook to process their personal audiobook library and is being actively used to test various audio encoders, encoding profiles, and settings that will inform decisions for the encoding engine for this application.
 # This script is not intended to act in any way, shape, or form as a drop-in replacement for any functions within the Audiobook Boss application unless explicitly agreed upon between the developer and any human or AI agent collaborators. 
-#
+#FYI: MacOS Synlink created /Users/jstar/Projects/audiobook-boss/scripts/shrink.sh '/Volumes/DATA/downloads/Book Shrink/shrink.sh' and made shrink.sh executable from within this repo moving forward. Confirmed symlink is locked and works as normal.
+
 # Usage: ./shrink.sh [-I DIR] [-O DIR]
 # Toggles: e.g. PREVIEW=1 DRY=1 ORDER_DEBUG=1 ENCODER=auto|fdk|apple FDK_VBR=4 BITRATE=59k CHANNELS=1 PROBESIZE=5M ANALYZE_DURATION=5M STATS_PERIOD=2 JOBS=1 MERGE_MODE=auto|separate|flatten
 #
