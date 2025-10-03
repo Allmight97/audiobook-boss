@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI Agents: The user has zero clue the purpose of this script as of Late 2025.
+TODO # Review with Ai agent, decide if we can reuse this vs start fresh.
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
