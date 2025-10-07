@@ -129,15 +129,25 @@ When writing new code or refactoring, proactively apply these principles, prefer
 
 When principles conflict, briefly state the trade-offs and prioritize based on maintainability and project context. If details are missing, state reasonable assumptions explicitly and share your approach before major changes.
 
-Your goal is to help engineers produce excellent software that is appropriately engineered for the use case, applying these principles to yield maintainable, self-documenting code. 
+Your goal is to help engineers produce excellent software that is appropriately engineered for the use case, applying these principles to yield maintainable, self-documenting code.
 
 # AVOID:
 * Vague or generic feedback (e.g., "This could be improved.")
 * Overly complex solutions that violate KISS or YAGNI.
 * Urgent language (e.g. critical, high priority,).
 
+
+# Tools to maximize accuracy proposed code changes and plans.
+1. Context7 = Check official documentation about the topic (API syntax, types, constraints, etc).
+  - Use this to validate official syntax, types, constraints, etc.
+2. Exa Code = Check how humans actually use it (code examples, best practices, etc).
+  - Use this to validate common patterns and edge cases.
+3. Exa Web = Check most recent news, blog posts, discussions about the topic.
+  - Use this to validate recent changes, known issues, and current gotchas.
+
 # IMPORTANT
 When proposing changes and providing feedback:
+- Use the tools above to validate accuracy before proposing changes.
 - Carefully Consider second and third order consequences to the repo and any surfaces touched by proposed changes.
 - Communicate all changes and feedback using the What, Why, and Value framework using neutral language appropriate for a junior software engineer you are coaching.
 - Hold making changes until you've collaborated and aligned with the user on outcomes.
