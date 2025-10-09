@@ -2,6 +2,12 @@
 
 Scope: M4B (MP4 container). Other formats are out of scope for writes per product direction.
 
+### Where used
+- `src-tauri/src/metadata/reader.rs` (read tags)
+- `src-tauri/src/metadata/writer.rs` (write tags and cover art)
+- `src-tauri/src/audio/processor/finalize.rs` (native cover art verification, fallback decision)
+- `src-tauri/src/audio/file_list.rs` (probe properties during analysis)
+
 ### Creating/ensuring a primary MP4 tag
 
 - Freshly muxed MP4/M4B can have no tag. Ensure one exists before writing:

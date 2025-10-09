@@ -2,6 +2,12 @@
 
 Product scope: macOS-only shipping for now. Linux/Windows considerations are noted as future work.
 
+### Where used
+- `src-tauri/src/audio/path_validation.rs` (validation and canonicalization)
+- `src-tauri/src/audio/file_list.rs` (analysis step uses shared validation)
+- `src-tauri/src/audio/processor/prepare.rs` (revalidation before processing)
+- Finalize/move patterns referenced across processor finalize steps
+
 ### Validation and canonicalization (used in this repo)
 
 - Reject CR/LF/NUL in paths before any FS calls.

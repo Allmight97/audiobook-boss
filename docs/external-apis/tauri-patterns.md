@@ -1,5 +1,11 @@
 ## Tauri v2 IPC and event patterns (frontend <-> Rust)
 
+### Where used
+- `src-tauri/src/audio/progress/reporter.rs` (emit `processing-progress`)
+- `src/types/events.ts` (event names and payload types)
+- `src/ui/statusPanel` (progress listener and UI rendering)
+- `src/main.ts` (test commands using `invoke`)
+
 ### Event listen/unlisten lifecycle
 
 - Install listeners on demand (e.g., when processing starts) and unlisten when returning to idle.
