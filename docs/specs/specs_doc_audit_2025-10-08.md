@@ -4,22 +4,22 @@ Goal: reduce noise for agents/humans by keeping only “need-to-know” docs ali
 
 ## Criteria
 - Keep: directly informs current code or the three goals.
-- Archive: historical or superseded; move to `docs/ARCHIVE/` in a follow-up.
+- Archive: historical or superseded; move to `docs/IGNORE/ARCHIVE/` in a follow-up.
 - Merge: combine overlapping docs into a single, clearer reference.
 
 ## Inventory and recommendation
 
 - `docs/specs/cargo-testing-guide.md`
-  - Summary: basic Cargo test tips; some paths/types outdated.
-  - Action: Merge into `docs/specs/test-coverage.md` as an appendix; Archive original.
+  - Summary: basic Cargo test tips (outdated; superseded by `test-coverage.md`).
+  - Action: Removed (content folded into `docs/specs/test-coverage.md` and `AGENTS.md`).
 
 - `docs/specs/coding_guidelines.md`
-  - Summary: expansive standards; partially diverges from current constraints.
-  - Action: Keep but add banner pointing to root `AGENTS.md` as operational source-of-truth; prune sections in a later pass.
+  - Summary: expansive standards; partially diverged from current constraints.
+  - Action: Removed. `AGENTS.md` is the single source of truth for coding standards.
 
 - `docs/specs/development.md`
-  - Summary: stack overview; mentions shell ffmpeg in historical context.
-  - Action: Update to ffmpeg-next only; Keep.
+  - Summary: legacy stack overview that referenced shell ffmpeg workflows.
+  - Action: Removed. Refer to `README.md` and `AGENTS.md` for current overview/workflows.
 
 - `docs/specs/requirements_stories.md`
   - Summary: MVP stories; still useful context for UI flows.
@@ -28,10 +28,6 @@ Goal: reduce noise for agents/humans by keeping only “need-to-know” docs ali
 - `docs/specs/UI_mock/*`
   - Summary: static UI mockups; useful for design intent.
   - Action: Keep; add a README noting these are illustrative and not bound to implementation.
-
-- `docs/specs/db.json`
-  - Summary: API mapping cheatsheet (mixed accuracy).
-  - Action: Archive; replace with links to `docs/external-apis/*.md` which are maintained.
 
 - `docs/external-apis/*.md`
   - Summary: curated API notes for ffmpeg-next/lofty/tauri.
