@@ -33,23 +33,23 @@
    - `complete_processing` (move temp → final path, cleanup temp dir, emit completion).
    - Preview mode: writes `<stem>.preview.m4b` and skips metrics summary.
 
-## Media Pipeline (`audio/media_pipeline.rs`)
-- `MediaProcessingPlan` (output path, AudioSettings, input paths, total duration, optional encoder v2).
-- `MediaProcessor` trait; only implementation is `FfmpegNextProcessor`.
-- `execute` flow:
-  1. Initialize ffmpeg (once).
-  2. `encoder::setup_encoder` → returns output context, encoder, stream index, time base, target sample rate. Maps v2 settings:
-     - `EncoderType::AacAt` → `aac_at` if available else `aac`.
-     - HE-AAC profiles via `profile` opt (ffmpeg constants).
-     - `aac_coder` option; logs if unsupported.
-     - Threads (`ThreadSetting::Auto|Off|Fixed`).
-     - Afterburner logged (ignored unless future FDK).
-     - Legacy env `ABB_DISABLE_TWOOLOOP` fallback if no v2 settings.
-  3. Build `FramePipelineCtx` for progress/resample state.
-  4. For each input file: `streams::setup_decoder_and_resampler` (ffmpeg contexts, logs format) → `frame_pipeline::process_input_packets`.
-  5. Accumulation & encoding: `buffer::SampleAccumulator` ensures frame size, clamps samples; `frame_pipeline::process_decoded_frames` handles fast-path vs resample, sets PTS, regards preview early-stop and cancellation.
-  6. `encoder::finalize_encoding_after_preview` flushes encoder, writes trailer.
-  7. Cleanup guard removes path on success.
+## Media Pipeline (legacy) — do not add new logic
+- `audio/media_pipeline.rs` remains only for historical context during the refactor.
+- All new/updated logic must live in `audio/processor/{prepare.rs,execute.rs,finalize.rs,encoder.rs,streams.rs,frame_pipeline.rs}`.
+
+### Active execution flow (processor modules)
+1. Initialize ffmpeg (once).
+2. `encoder::create_audio_encoder` sets up encoder/output context and applies v2 settings where supported:
+   - Prefer `aac_at` on macOS when available; otherwise `aac`.
+   - HE-AAC profiles via encoder profile option.
+   - Optional `aac_coder` (twoloop/fast) for native AAC.
+   - Threads: `Auto|Off|Fixed`.
+3. Build per-run context (time base, target sample rate, progress emitter).
+4. For each input file:
+   - `streams::setup_decoder_and_resampler` prepares decode/resample contexts.
+   - `frame_pipeline::process_input_packets` decodes, accumulates frames, sets PTS, and emits converting progress.
+5. Accumulation & sanitization: `buffer::SampleAccumulator` clamps/validates samples before encode.
+6. Finalize: `encoder::finalize_encoding_after_preview` drains encoder and writes trailer; finalize stage moves temp → final path and writes metadata if needed.
 
 ## Progress & Metrics
 - `audio::progress::ProgressEmitter` – emits `processing-progress` events (Analyzing, Converting, WritingMetadata, Completed, Cancelled).

@@ -1,5 +1,7 @@
 # Encoding Engine Brief (new_encoder branch)
 
+Last reviewed: 2025-10-11
+
 ## Current Focus
 - Branch: `new_encoder`
 - Goal: ship advanced AAC encoder controls while keeping single ffmpeg-next engine.

@@ -31,3 +31,7 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     - docs/external-apis/lofty.md (added)
     - docs/external-apis/tauri-patterns.md (added)
     - Official FFmpeg docs: ffmpeg.org/ffmpeg-codecs.html#aac-1
+
+[ ] TODO: Review `docs/planning_mapping/encoder-enhancement-plan.md`
+    - Scope: confirm user-installed FDK exposure (no bundling), UI gating by availability or explicit path, and alignment with ffmpeg-next-only policy.
+    - Outcome: either trim and keep the plan with accurate constraints, or archive/delete and fold keepers into `encoding-engine-brief.md` and `frontend-ipc-outline.md`.

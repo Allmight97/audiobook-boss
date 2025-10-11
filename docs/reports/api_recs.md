@@ -1,13 +1,13 @@
 # API Documentation Audit & Recommendations
 
-*Date: 2025-01-17*
+*Date: 2025-10-11 (updated)*
 *Scope: Tauri commands, events, and frontend API surfaces*
 
 ---
 
 ## Executive Summary
 
-The external API documentation in `docs/external-apis/` is substantially accurate and well-maintained, capturing the core API surfaces effectively. However, several gaps were identified between the documentation and current implementation, particularly around the v2 encoder API and some UI integration details that have evolved since the documentation was written.
+The external API documentation in `docs/external-apis/` is substantially accurate and well-maintained, capturing the core API surfaces effectively. However, several gaps were identified between the documentation and current implementation, particularly around the v2 encoder API and some UI integration details that have evolved since the documentation was written. This update reflects recent documentation cleanup (removed `docs/specs/coding_guidelines.md`, removed `docs/specs/development.md`, archived `docs/specs/db.json`) and re-points recommendations to living sources of truth.
 
 This report provides a comprehensive comparison between documented APIs and the actual implementation, with specific focus on the legacy v1 to v2 transition and recommendations for resolving legacy components.
 
@@ -153,7 +153,7 @@ const PROGRESS_CLEANUP: f32 = 98.0;
 const PROGRESS_COMPLETE: f32 = 100.0;
 ```
 
-**Recommendation:** Update `tauri-patterns.md` with explicit mapping table.
+TODO: Update `tauri-patterns.md` with explicit mapping table (align with `src-tauri/src/audio/constants.rs`).
 
 ### UI Integration Gaps
 
@@ -195,11 +195,11 @@ const PROGRESS_COMPLETE: f32 = 100.0;
    - Timeline for v1 deprecation
 
 ### Priority 2: Enhanced Documentation
-
-1. **UI Integration Documentation**
-   - Encoder panel component architecture
-   - Cover art loading and management
-   - Output path and preview generation
+TODO:
+1. **UI Integration Documentation** (point to concise planning docs rather than large audits)
+  - Encoder panel component architecture → `docs/planning_mapping/frontend-ipc-outline.md`
+  - Cover art loading and management → `src/ui/coverArt.ts`
+  - Output path and preview generation → `src/ui/outputPanel.ts`
 
 2. **Platform-Specific Behavior**
    - macOS AAC encoder detection
@@ -304,7 +304,7 @@ cargo test process_audiobook_files_v2
 | Phase | Duration | Actions | Success Criteria |
 |-------|----------|---------|------------------|
 | Deprecation | 1 week | Add warnings, update docs | Warnings visible in logs |
-| Frontend Migration | 2 weeks | Update UI to use v2 only | No v1 calls in production |
+TODO:| Frontend Migration | 2 weeks | Update UI to use v2 only; trim `frontend-ipc-outline.md` | No v1 calls in production; doc matches code |
 | Code Cleanup | 1 week | Remove v1 implementations | v1 functions removed |
 | Type Cleanup | 3 days | Remove v1 types | Cleaner boundary contracts |
 

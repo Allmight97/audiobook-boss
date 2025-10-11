@@ -1,4 +1,4 @@
-# Frontend & IPC Outline (TypeScript)
+# Frontend & IPC Quick Reference (TypeScript)
 
 ## Entry Point & IPC
 - `src/main.ts`
@@ -6,7 +6,7 @@
   - Exposes `window.testCommands` for manual testing (validate files/settings, process audiobook, metadata ops).
   - Advanced encoder panel init guarded (no-op if DOM missing).
 
-## File & Settings Sources
+## File & Settings Sources (where to look)
 - `src/ui/fileImport.ts` & `src/ui/fileList/*`
   - Manage drag/drop, list rendering, sorting.
   - `currentFileList` consumed by `StatusPanel` when launching processing.
@@ -17,11 +17,9 @@
   - Provides `getCurrentAudioSettings()` returning legacy `AudioSettings` (bitrate, channel config `'Mono'|'Stereo'`, sample rate `'auto'|{ explicit }`, output path string).
 
 - Encoder panel
-  - `src/ui/encoderPanel/*`
-    - `featureFlags.ts` (currently disables VBR + FDK controls).
-    - `dom.ts` caches advanced panel elements.
-    - `logic.ts` disables placeholders when flags false; no state wiring yet.
-  - `src/types/encoder.ts` (legacy planning doc) defines `EncoderSettingsV2` (flavor, profile, VBR placeholders, afterburner) – currently unused by `StatusPanel`, but informs future UI design.
+  - `src/ui/encoderPanel/*` (feature flags, dom caching, logic)
+  - Provide `window.EncoderSettingsProvider(): EncoderSettings | null` from panel init
+  - Avoid using legacy `src/types/encoder.ts`; canonical types live in `src/types/audio.ts`
 
 ## Type Contracts
 - `src/types/audio.ts`
@@ -35,16 +33,7 @@
 1. On “Process” click → `startProcessing()`.
 2. Validates `currentFileList` and `getCurrentAudioSettings()`; updates UI state.
 3. Gathers metadata from form (via `getCurrentMetadata()` helper within file).
-4. Builds v2 payload:
-   ```ts
-   const v2Payload = {
-     inputFiles: validFilePaths,
-     outputDir: (document.getElementById('output-dir-text') as HTMLInputElement)?.value ?? '',
-     settings: (window as any).EncoderSettingsProvider?.() ?? {}
-   };
-   ```
-   - Fallback: imports `defaultEncoderSettings()` if provider absent.
-   - Coerces HE-AAC v2 to stereo (disables mono option in UI when triggered).
+4. Builds v2 payload using types from `src/types/audio.ts`; prefer provider result, else fallback to `defaultEncoderSettings()`.
 5. Invokes `process_audiobook_files_v2` with payload + metadata + optional preview seconds (`previewSeconds` argument or `ABB_PREVIEW_SECONDS`).
 6. Starts progress listener: `listen(EVENTS.PROGRESS, ...)` updates UI, handles completion/cancellation.
 7. Preview button triggers same flow with `previewSeconds: 30` and opens resulting file via `@tauri-apps/plugin-opener`.
@@ -58,13 +47,10 @@
 - Metadata form (within OutputPanel/StatusPanel) feeds `getCurrentMetadata()` (StatusPanel) to send to backend.
 - Output path preview uses sanitized metadata fields + user patterns (title/year vs author/title).
 
-## Script Influence
-- External script `shrink.sh` demonstrates toggles the UI may need:
-  - Encoder selection (auto/fdk/apple) aligning with `EncoderSettings.encoderType`.
-  - Quality controls (FDK VBR levels, Apple CVBR bitrate) → future UI sliders/dropdowns.
-  - Channel override & thread counts → already partially wired via `EncoderSettings` fallback.
-  - Preview/DRY-run toggles → inspiration for advanced debug UI or CLI integration.
-  - Metadata + chapter handling → confirm planned UI for chapter import (currently not exposed).
+## Patterns & References
+- Events & IPC patterns: see `docs/external-apis/tauri-patterns.md`
+- Progress event contract: `src/types/events.ts`
+- Encoder settings types: `src/types/audio.ts`
 
 ## Future Engineering Tasks
 1. Wire advanced encoder panel to provide `window.EncoderSettingsProvider` returning full `EncoderSettings` payload (including `aac_coder`, `threads`, future `afterburner`).
