@@ -18,6 +18,11 @@ This index connects API docs to the primary code locations where they are applie
 - UI listeners: `src/ui/statusPanel`
 - Invocations: `src/main.ts`
 
+### tauri-commands.md
+- Command surfaces: `src-tauri/src/commands/*`
+- UI integrations: `src/ui/{fileImport,statusPanel,coverArt}`
+- QA harness: `src/main.ts::window.testCommands`
+
 ### tauri-ts-boundaries.md
 - Types: `src/types/events.ts`
 - Frontend invocations: `src/main.ts`
