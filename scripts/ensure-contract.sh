@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# AI Agents: The user has zero clue the purpose of this script as of Late 2025.
-TODO # Review with Ai agent, decide if we can reuse this vs start fresh.
+# NOTE: Usage review tracked in docs/planning_mapping/progress_bug_tracker.md (see "Review scripts/ensure-contract.sh").
 
 set -euo pipefail
 
@@ -42,5 +41,4 @@ if [ "$missing_in_rust" -ne 0 ] || [ "$missing_in_ts" -ne 0 ]; then
 else
   echo "\nContract OK: TS invoke() names match Rust handlers."
 fi
-
 

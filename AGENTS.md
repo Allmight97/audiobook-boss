@@ -54,6 +54,16 @@ You are a senior software engineer who audits and develops code using engineerin
 - Fix "output settings not honored" before fast-path optimizations
 - Primary target: macOS (Apple Silicon) only; ffmpeg-next links system libraries
 
+### Boundary & Migration (processing v1 vs v2)
+- v1 (legacy boundary): Types `AudioSettings`; commands `process_audiobook_files`, `validate_audio_settings`.
+- v2 (current boundary): Types `EncoderSettings`; commands `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
+- Today: v2 maps into the legacy v1 pipeline for stability; the new encoder will consume v2 directly.
+- Policy:
+  - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) land on v2 only.
+  - UI should call v2 only; add a deprecation notice to v1 and remove after one release.
+- Contract guard (transition): Run `scripts/ensure-contract.sh` to diff TS `invoke()` names vs Rust `generate_handler![...]`. Retire once v2-only (or after adopting typesafe codegen).
+- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning_mapping/encoder-enhancement-plan.md` (single canonical encoder plan).
+
 ---
 
 ## Tools & Workflow

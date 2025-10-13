@@ -153,8 +153,6 @@ const PROGRESS_CLEANUP: f32 = 98.0;
 const PROGRESS_COMPLETE: f32 = 100.0;
 ```
 
-TODO: Update `tauri-patterns.md` with explicit mapping table (align with `src-tauri/src/audio/constants.rs`).
-
 ### UI Integration Gaps
 
 **Undocumented Surfaces:**
@@ -195,9 +193,9 @@ TODO: Update `tauri-patterns.md` with explicit mapping table (align with `src-ta
    - Timeline for v1 deprecation
 
 ### Priority 2: Enhanced Documentation
-TODO:
+
 1. **UI Integration Documentation** (point to concise planning docs rather than large audits)
-  - Encoder panel component architecture → `docs/planning_mapping/frontend-ipc-outline.md`
+  - Encoder panel and IPC (v2-only) → `docs/planning_mapping/encoder-enhancement-plan.md`
   - Cover art loading and management → `src/ui/coverArt.ts`
   - Output path and preview generation → `src/ui/outputPanel.ts`
 
@@ -304,7 +302,7 @@ cargo test process_audiobook_files_v2
 | Phase | Duration | Actions | Success Criteria |
 |-------|----------|---------|------------------|
 | Deprecation | 1 week | Add warnings, update docs | Warnings visible in logs |
-TODO:| Frontend Migration | 2 weeks | Update UI to use v2 only; trim `frontend-ipc-outline.md` | No v1 calls in production; doc matches code |
+| Frontend Migration | 2 weeks | Update UI to use v2 only; adopt `encoder-enhancement-plan.md` (v2-only); remove deprecated outline | No v1 calls in production; doc matches code |
 | Code Cleanup | 1 week | Remove v1 implementations | v1 functions removed |
 | Type Cleanup | 3 days | Remove v1 types | Cleaner boundary contracts |
 

@@ -58,8 +58,7 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
   clearCoverArt: () => clearCoverArt(),
   
-  // File movement test functions
-  // TODO: Connect these once moveFile and sortFiles are implemented in fileList module
+  // File movement test functions (tracked in progress_bug_tracker: "Wire window.testCommands.testMoveFile/testSortFiles")
   testMoveFile: (index: number, direction: 'up' | 'down') => {
     console.log(`Moving file at index ${index} ${direction}`);
     // Will be connected to: moveFile(index, direction)

@@ -11,11 +11,27 @@
   - Advanced diagnostics (write ffmpeg command, chapter order) gated behind debug mode.
 - **Surfaces**: `src/types/encoder.ts`, `src/ui/encoderPanel/*`, `src/ui/fileList/*`, `src-tauri/src/commands/audio.rs`, `src-tauri/src/audio/processor/*`, `src-tauri/tests/*`.
 
+## Boundary & Migration (v1 → v2)
+- v1 (legacy): `AudioSettings`; commands: `process_audiobook_files`, `validate_audio_settings`.
+- v2 (current): `EncoderSettings`; commands: `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
+- Current bridge: v2 maps into legacy v1 pipeline for stability; the new encoder will consume v2 directly.
+- Policy: all new encoder features (FDK detection, `aac_at`, `aac_coder`, afterburner, threads) are v2-only; UI should invoke v2 only; deprecate v1 and remove after one release.
+- Contract guard during transition: run `scripts/ensure-contract.sh` to diff TS `invoke()` names vs Rust `generate_handler![...]`. Retire once v2-only (or after typesafe codegen adoption).
+
 ## Baseline Readings
 - `src/ui/encoderPanel/logic.ts` currently feature-gates VBR/FDK controls, providing scaffolding for availability-driven toggles.
 - `src/types/encoder.ts` models `EncoderFlavor`, reserved VBR fields, and defaults to `aac_at` on macOS.
 - `src-tauri/src/audio/settings_encoder.rs` validates encoder settings and probes encoder availability (`is_encoder_available_by_name`).
 - `src-tauri/src/audio/processor/encoder.rs` maps v2 settings to ffmpeg-next encoder options, logging ignored fields.
+
+## System Overview & Pipeline Map (consolidated)
+- UI collects files + v2 encoder settings → `process_audiobook_files_v2` (Tauri) → `ProcessingContext`.
+- `MediaProcessingPlan` passes `encoder_settings_v2` into ffmpeg-next processor stages: `prepare` → `execute` → `finalize`.
+- Stages:
+  1. prepare: validate paths, compute total duration, temp workspace; emit Analyzing 0–10%.
+  2. execute: select encoder (prefer `aac_at` on macOS, else native `aac`, future FDK if available); setup streams/resampler; accumulate frames; set PTS in 1/rate time base; emit Converting 10–80% (clamped at 79%).
+  3. finalize: write metadata (native cover art, Lofty fallback), move temp→final; emit Writing 80–95%, Cleanup 95–98%, Completed 100%.
+- Safety: `buffer::SampleAccumulator` clamps/repairs samples; debug-only frame contract validator enforces format/layout/rate/samples/PTS.
 
 ## Feature Plan
 
@@ -131,6 +147,11 @@ if request.skip_optimized && should_skip_optimized(file, plan.settings.channels.
 - **Backend**: enrich plan-only response with ffmpeg command, chapter order, and output paths.
 - **Frontend**: add “Export debug plan” button (debug builds only) to write artifacts via Tauri FS API.
 
+## Frontend IPC (v2-only quick reference)
+- Entry: `src/main.ts` initializes UI; `StatusPanel` builds v2 payload (from `window.EncoderSettingsProvider()` or `defaultEncoderSettings()`) and invokes `process_audiobook_files_v2`.
+- Events: frontend listens to `processing-progress` via `@tauri-apps/api/event`; stages: analyzing, converting, writing, completed, failed, cancelled.
+- Contracts: centralized in `src/types/audio.ts` (encoder settings) and `src/types/events.ts` (progress event).
+
 ## Testing Strategy
 - Rust: extend `settings_encoder.rs` tests for new request fields and skip logic; add integration tests for preview/plan-only flows (`src-tauri/tests/preview_30s_integration.rs`).
 - TypeScript: add encoder panel state tests (availability gating, bitrate presets) using Vitest.
@@ -147,5 +168,10 @@ if request.skip_optimized && should_skip_optimized(file, plan.settings.channels.
 - `cargo test`
 - `tsc --noEmit`
 - `npm run build`
+
+## References
+- Encoder/progress patterns: `docs/external-apis/ffmpeg-next.md`
+- Tauri command/event surfaces: `docs/external-apis/tauri-commands.md`, `docs/external-apis/tauri-patterns.md`, `docs/external-apis/tauri-ts-boundaries.md`
+- v1→v2 migration context: `AGENTS.md` and `docs/reports/api_recs.md`
 
 

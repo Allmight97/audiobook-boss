@@ -39,3 +39,9 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     - Scope: confirm user-installed FDK exposure (no bundling), UI gating by availability or explicit path, and alignment with ffmpeg-next-only policy.
     - Outcome: either trim and keep the plan with accurate constraints, or archive/delete and fold keepers into `encoding-engine-brief.md` and `frontend-ipc-outline.md`.
     - STATUS: Pre-work for encoder v2; outstanding.
+
+[ ] TODO: Review `scripts/ensure-contract.sh` to decide whether to retain, refresh, or replace.
+    - STATUS: Script produces TS↔Rust command diffs but lacks documented workflow.
+
+[ ] FEATURE: Wire `window.testCommands.testMoveFile/testSortFiles` to actual ordering controls or remove the harness stubs.
+    - CONTEXT: Placeholders remain in `src/main.ts`; confirm desired UX before implementing.
