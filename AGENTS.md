@@ -47,6 +47,8 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ### Current State & Constraints
 - ffmpeg-next migration complete (remove any shell-based artifacts when found)
+- Encoder v2 settings currently map through the legacy v1 pipeline to maintain stability until the new encoder lands
+- FFmpeg-next integration patterns live in `docs/external-apis/ffmpeg-next.md`; review before touching encoder or progress emission logic
 - New logic belongs in `audio/processor/{encoder.rs,streams.rs,frame_pipeline.rs}`, not `media_pipeline.rs`
 - Finite/clamp sanitization centralized in `audio/buffer.rs`
 - Fix "output settings not honored" before fast-path optimizations
@@ -54,23 +56,22 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ---
 
-## Workflow
+## Tools & Workflow
 
 ### Before Proposing Changes
-1. **Research & Validate** (use tools to ensure accuracy):
-   - **Context7** → Verify official APIs, types, parameters, return values
-     - Query pattern: `[library] [specific API/module]`
-     - Example: `"ffmpeg-next encoder configuration options"`
-   - **Exa Code** → Learn real-world patterns, common idioms, edge cases
-     - Query pattern: `[technology] [task/pattern]`
-     - Example: `"ffmpeg-next AAC encoder examples"`
-   - **Exa Web** → Check recent changes, known issues, platform concerns
-     - Query pattern: `[technology] [version/platform] [concern]`
-     - Example: `"ffmpeg Apple AAC encoder macOS 2024"`
-   
-   **Tool Selection Quick Ref**: "What APIs exist?" → Context7 • "How do I use it?" → Exa Code • "What's changed?" → Exa Web
-   
-   **Efficiency**: Use single tool if query clearly maps to one category. Sequential (Context7 → Exa Code → Exa Web) for comprehensive planning. Skip tools you don't need.
+1. **Research & Validate** (use tools to ensure accuracy): choose your starting point based on familiarity—if you already know the API surface, begin with Exa Code; if you need terminology or release context, scan Exa Web first so you know what to ask for.
+     - **Exa Code** → Primary stop for ready-to-use patterns, idioms, and edge cases
+       - Query pattern: `[technology] [task/pattern]`
+       - Example: `"tauri listen event rust emit example"`
+     - **Exa Web** → Use when you need official docs, release notes, tutorials, or to gather vocabulary for sharper Exa Code queries
+       - Query pattern: `[technology] [version/platform] [concern/topic]`
+       - Example: `"tauri specta typesafe commands blog"`
+     - **Context7** → **Reach only after both Exa tools fail to surface the detail you need**; target the exact crate/module to confirm signatures, deprecations, or other low-level behaviour
+       - Query pattern: `[library] [specific API/module]`
+       - Example: `"tauri invoke_handler command access control"`
+     **Tool Selection Quick Ref**: Implementation patterns → Exa Code • Docs/ecosystem signals → Exa Web • Confirm low-level contracts (fallback) → Context7
+
+     **Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
 
 2. **Analyze Impact**: Consider second and third-order consequences across affected surfaces
 
