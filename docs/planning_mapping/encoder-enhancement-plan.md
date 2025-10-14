@@ -12,6 +12,7 @@
 - **Surfaces**: `src/types/encoder.ts`, `src/ui/encoderPanel/*`, `src/ui/fileList/*`, `src-tauri/src/commands/audio.rs`, `src-tauri/src/audio/processor/*`, `src-tauri/tests/*`.
 
 ## Boundary & Migration (v1 → v2)
+Dev note: Goal is to remove v1 and v2 mapping completely and have v2 be the only boundary.
 - v1 (legacy): `AudioSettings`; commands: `process_audiobook_files`, `validate_audio_settings`.
 - v2 (current): `EncoderSettings`; commands: `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
 - Current bridge: v2 maps into legacy v1 pipeline for stability; the new encoder will consume v2 directly.
