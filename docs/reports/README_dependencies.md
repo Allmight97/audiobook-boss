@@ -175,7 +175,7 @@ cargo fmt --all -- --check
 ## Best Practices
 
 ### ✅ Do
-- Keep `Cargo.lock` committed for applications
+- Keep `src-tauri/Cargo.lock` committed (application backend lockfile)
 - Use `cargo outdated` regularly
 - Update dependencies incrementally
 - Test after updates
@@ -183,7 +183,7 @@ cargo fmt --all -- --check
 
 ### ❌ Don't
 - Edit `Cargo.lock` manually
-- Delete `Cargo.lock`
+- Delete `src-tauri/Cargo.lock`
 - Update all dependencies at once without testing
 - Add dependencies without research
 - Ignore security updates
@@ -195,12 +195,13 @@ cargo fmt --all -- --check
 2. **Version conflicts**: Check `cargo tree --duplicates` for conflicting versions
 3. **Feature flag issues**: Review feature flags in `Cargo.toml`
 
-### Recovery Commands
+### Recovery Commands (Rust backend in `src-tauri/`)
 ```bash
-# Reset to last working state
-git checkout HEAD -- Cargo.lock
+# Reset backend lockfile to last working state
+git checkout HEAD -- src-tauri/Cargo.lock
 
 # Clean and rebuild
+cd src-tauri
 cargo clean
 cargo build
 
