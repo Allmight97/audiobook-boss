@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use audiobook_boss_lib::audio::context::ProgressContextBuilder;
+use audiobook_boss_lib::audio::processor::selection::get_engine_description;
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
@@ -20,19 +21,20 @@ fn ensure_media() -> Option<PathBuf> {
 
 #[test]
 fn test_engine_is_single_and_available() {
-    // Post-nuclear: single ffmpeg-next engine always present; no feature flags.
-    // If a reintroduced feature flag appears, this test should be updated accordingly.
-    // Single-engine architecture - no feature flags needed.
-    assert!(true);
+    // After the nuclear transition, engine selection should report ffmpeg-next only.
+    let description = get_engine_description();
+    assert!(
+        description.contains("FfmpegNextProcessor"),
+        "Engine description should mention FfmpegNextProcessor, got: {description}"
+    );
 }
 
 #[test]
 fn test_media_file_availability() {
     // Test that the media file is available for testing
     let media = ensure_media();
-    if media.is_some() {
+    if let Some(path) = media {
         println!("Test media file found: {}", TEST_MEDIA_FILE);
-        let path = media.unwrap();
         assert!(path.exists(), "Media file should exist");
         assert!(path.is_file(), "Media file should be a regular file");
     } else {
@@ -66,7 +68,12 @@ fn test_progress_context_builder_usage() {
         .eta(10.0)
         .build();
     assert_eq!(ctx.progress, 5.0);
-    assert_eq!(ctx.message.as_ref().unwrap(), "testing");
+    assert_eq!(
+        ctx.message
+            .as_ref()
+            .expect("progress context should capture message"),
+        "testing"
+    );
     assert_eq!(
         ctx.stage,
         audiobook_boss_lib::audio::ProcessingStage::Analyzing
@@ -80,7 +87,7 @@ fn test_ffmpeg_next_dependency_available() {
 
     // Simple test to ensure the ffmpeg-next crate is accessible
     // We don't initialize ffmpeg here to avoid global state issues in tests
-    let version_info = format!("ffmpeg-next crate available for testing");
+    let version_info = "ffmpeg-next crate available for testing".to_string();
     println!("✓ {}", version_info);
 
     // This test passing means the dependency is properly linked
@@ -93,5 +100,13 @@ fn test_compilation_status_report() {
     println!("Test media file path: {}", TEST_MEDIA_FILE);
     println!("Media file exists: {}", ensure_media().is_some());
     println!("✓ Single-engine ffmpeg-next architecture active (no feature flags)");
-    assert!(true);
+    let media_path = PathBuf::from(TEST_MEDIA_FILE);
+    assert_eq!(
+        media_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default(),
+        "mp3",
+        "Expected demo media to be an mp3 file"
+    );
 }

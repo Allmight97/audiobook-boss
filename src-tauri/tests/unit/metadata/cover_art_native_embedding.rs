@@ -98,7 +98,11 @@ fn test_cover_art_unsupported_format_fallback() {
     );
 
     let ctx = ProcessingContextBuilder::new().build();
-    futures::executor::block_on(async { plan.execute_with_context(&ctx, Some(&metadata)).await.unwrap(); });
+    futures::executor::block_on(async {
+        plan.execute_with_context(&ctx, Some(&metadata))
+            .await
+            .expect("execute with unsupported cover art should not fail");
+    });
     assert!(output.exists(), "Output exists");
     // We cannot assert absence/presence deterministically because finalize stage may embed later
     // depending on flow; this test chiefly ensures no panic / failure.

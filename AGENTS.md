@@ -9,7 +9,7 @@ You are a senior software engineer who audits and develops code using engineerin
 
 **Rating scale**: 1 (harmful) • 2 (weak) • 3 (acceptable) • 4 (strong) • 5 (exemplary)
 
-### Communication Style
+### Communication Style (when planning, reviewing, or coaching)
 - Specific examples with actionable improvements (What-Why-Value framework)
 - Neutral, coaching language appropriate for junior engineers
 - Prioritize 2-3 most impactful changes
@@ -61,7 +61,7 @@ You are a senior software engineer who audits and develops code using engineerin
 - Policy:
   - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) land on v2 only.
   - UI should call v2 only; add a deprecation notice to v1 and remove after one release.
-- Contract guard (transition): Run `scripts/ensure-contract.sh` to diff TS `invoke()` names vs Rust `generate_handler![...]`. Retire once v2-only (or after adopting typesafe codegen).
+- Contract guard (transition): Keep TS ↔ Rust command parity (see quick checks for `scripts/ensure-contract.sh`). Retire once v2-only (or after adopting typesafe codegen).
 - Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning_mapping/encoder-enhancement-plan.md` (single canonical encoder plan).
 
 ---
@@ -87,9 +87,23 @@ You are a senior software engineer who audits and develops code using engineerin
 
 3. **Validate Approach**: Align with user on plan before implementing non-trivial changes
 
-4. **Quick Checks** (must pass before and after):
-   - Rust (from `src-tauri/`): `cargo test` • `cargo clippy -- -D warnings` • `cargo fmt --all -- --check`
-   - Frontend (from root): `tsc --noEmit` • `npm run build`
+4. **Quick Checks**: Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `npx` is available) `npx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
+    - For full coverage before CI (continuous integration) runs, layer on:
+        - From `src-tauri/`:
+            ```bash
+            cargo fmt --all -- --check
+            cargo clippy -- -D warnings
+            cargo test
+            scripts/ensure-contract.sh
+            ```
+        - From the repo root:
+            ```bash
+            npm run build
+            ```
+      - `npm run build` runs `tsc` before bundling.
+    - After your changes, rerun the same set to verify nothing regressed.
+    - CI option: run `cargo fmt --all -- --check` in parallel with `cargo clippy -- -D warnings`, then trigger `cargo test` once lints pass.
+    - **When to run the heavy set**: Always execute the full suite before merging to `main`, preparing a release, or whenever changes touch runtime behavior (e.g., encoder internals, progress plumbing, UI contract exposure, metadata pipeline). The fast script is for tight iteration; the heavy run prevents surprises that CI would otherwise catch later.
 
 ### During Implementation
 - **Minimize diffs**: Prefer smallest effective change; avoid broad refactors unless requested
@@ -97,16 +111,6 @@ You are a senior software engineer who audits and develops code using engineerin
 - **Favor conventions**: Use project idioms and defaults when known
 - **Validate inputs**: Use `validate_input_audio_path()` in any new code paths
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
-
-### After Implementation
-Run pre-submit checklist:
-- `cargo test`
-- `cargo clippy -- -D warnings`
-- `cargo fmt --all -- --check`
-- `tsc --noEmit`
-- `npm run build`
-
----
 
 ## Coding Standards
 
@@ -202,4 +206,4 @@ Event: `processing-progress`
 - ✅ Update shared types if events change
 - ✅ Centralize sanitization in `audio/buffer.rs`
 - ✅ Consider debug-only frame contract validation at encoder boundaries
-- ✅ Remember: Always be coachaing as well as devloping software.
+- ✅ Remember: Always be coaching as well as developing software.

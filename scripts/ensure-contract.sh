@@ -16,7 +16,11 @@ fi
 echo
 echo "== Collecting Rust registered command names (from generate_handler!) =="
 handler_block=$(awk '/generate_handler!\[/, /\]/{print}' "$ROOT_DIR/src-tauri/src/lib.rs" || true)
-rust_cmds=$(echo "$handler_block" | rg -o "[A-Za-z0-9_]+" | tail -n +2 | sort -u || true)
+rust_cmds=$(echo "$handler_block" \
+  | sed 's,//.*$,,' \
+  | rg -o "commands::[A-Za-z0-9_]+" \
+  | sed 's/commands:://' \
+  | sort -u || true)
 if [ -z "${rust_cmds}" ]; then
   echo "No commands found in generate_handler! block"
 else
@@ -31,13 +35,17 @@ echo
 echo "== Diff (Rust minus TS) =="
 comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds") || true
 
-# Fail if any diff present
+# Fail only if TS references commands missing in Rust
 missing_in_rust=$(comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds") | wc -l | tr -d ' ')
 missing_in_ts=$(comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds") | wc -l | tr -d ' ')
 
-if [ "$missing_in_rust" -ne 0 ] || [ "$missing_in_ts" -ne 0 ]; then
-  echo "\nContract mismatch detected. Please reconcile TS invoke() names and Rust handler registrations." 1>&2
+if [ "$missing_in_rust" -ne 0 ]; then
+  echo "\nContract mismatch detected: TS invoke() names missing in Rust handler registrations." 1>&2
   exit 1
+fi
+
+if [ "$missing_in_ts" -ne 0 ]; then
+  echo "\nNote: Rust registers additional commands not yet invoked from TS." 1>&2
 else
   echo "\nContract OK: TS invoke() names match Rust handlers."
 fi

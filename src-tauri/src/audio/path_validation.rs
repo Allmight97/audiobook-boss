@@ -106,68 +106,79 @@ mod tests {
     #[test]
     fn test_rejects_nonexistent_path() {
         let bogus = std::path::PathBuf::from("/this/path/does/not/exist.mp3");
-        let err = validate_input_audio_path(&bogus).unwrap_err();
+        let err = validate_input_audio_path(&bogus)
+            .expect_err("non-existent path should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("Cannot read file metadata"));
     }
 
     #[test]
     fn test_rejects_directory_path() {
-        let dir = tempdir().unwrap();
-        let err = validate_input_audio_path(dir.path()).unwrap_err();
+        let dir = tempdir().expect("create temp dir");
+        let err = validate_input_audio_path(dir.path())
+            .expect_err("directory path should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("not a regular file"));
     }
 
     #[test]
     fn test_rejects_invalid_extension() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let path = dir.path().join("file.txt");
-        File::create(&path).unwrap();
-        let err = validate_input_audio_path(&path).unwrap_err();
+        File::create(&path).expect("create temp file");
+        let err = validate_input_audio_path(&path)
+            .expect_err("invalid extensions should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("Unsupported audio format") || msg.contains("no extension"));
     }
 
     #[test]
     fn test_accepts_supported_extension_and_canonicalizes() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let path = dir.path().join("audio.mp3");
-        File::create(&path).unwrap();
-        let canon = validate_input_audio_path(&path).unwrap();
+        File::create(&path).expect("create temp file");
+        let canon =
+            validate_input_audio_path(&path).expect("supported extensions should pass validation");
         assert!(canon.is_absolute());
     }
 
     #[test]
     fn test_symlink_is_accepted_and_resolved() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let target = dir.path().join("real.m4a");
-        File::create(&target).unwrap();
+        File::create(&target).expect("create symlink target");
         let link = dir.path().join("link.m4a");
-        symlink(&target, &link).unwrap();
-        let resolved = validate_input_audio_path(&link).unwrap();
+        symlink(&target, &link).expect("create symlink");
+        let resolved = validate_input_audio_path(&link)
+            .expect("symlinked files should be accepted and canonicalized");
         // Canonical path should point to the target
-        assert_eq!(resolved, target.canonicalize().unwrap());
+        assert_eq!(
+            resolved,
+            target
+                .canonicalize()
+                .expect("canonicalize symlink target should succeed")
+        );
     }
 
     #[test]
     fn test_rejects_cr_lf_nul_in_path() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let path = dir.path().join("bad\nname.mp3");
         // Try creating the file; even if OS disallows, our function should reject prior to metadata.
         let _ = File::create(&path);
-        let err = validate_input_audio_path(&path).unwrap_err();
+        let err = validate_input_audio_path(&path)
+            .expect_err("paths with invalid characters should fail validation");
         assert!(err.to_string().contains("invalid characters"));
     }
 
     #[test]
     fn test_accepts_all_supported_extensions() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let extensions = ["mp3", "m4a", "m4b", "aac", "wav", "flac"];
 
         for ext in extensions {
             let path = dir.path().join(format!("test.{}", ext));
-            File::create(&path).unwrap();
+            File::create(&path).expect("create temp file for supported extension");
             let result = validate_input_audio_path(&path);
             assert!(result.is_ok(), "Extension {} should be supported", ext);
         }
@@ -176,37 +187,39 @@ mod tests {
     #[test]
     fn test_rejects_empty_path() {
         let empty_path = std::path::PathBuf::new();
-        let err = validate_input_audio_path(&empty_path).unwrap_err();
+        let err =
+            validate_input_audio_path(&empty_path).expect_err("empty path should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("Cannot read file metadata") || msg.contains("no extension"));
     }
 
     #[test]
     fn test_accepts_unicode_in_path() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let path = dir.path().join("测试文件.mp3");
-        File::create(&path).unwrap();
+        File::create(&path).expect("create unicode-named file");
         let result = validate_input_audio_path(&path);
         assert!(result.is_ok(), "Unicode in path should be accepted");
     }
 
     #[test]
     fn test_case_insensitive_extension() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let path = dir.path().join("test.MP3");
-        File::create(&path).unwrap();
+        File::create(&path).expect("create uppercase extension file");
         let result = validate_input_audio_path(&path);
         assert!(result.is_ok(), "Uppercase extension should be accepted");
     }
 
     #[test]
     fn test_broken_symlink_rejected() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("create temp dir");
         let target = dir.path().join("nonexistent.mp3");
         let link = dir.path().join("broken_link.mp3");
-        symlink(&target, &link).unwrap();
+        symlink(&target, &link).expect("create symlink to nonexistent file");
 
-        let err = validate_input_audio_path(&link).unwrap_err();
+        let err =
+            validate_input_audio_path(&link).expect_err("broken symlink should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("Cannot read file metadata") || msg.contains("canonicalize"));
     }

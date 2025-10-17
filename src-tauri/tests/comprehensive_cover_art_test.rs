@@ -188,10 +188,18 @@ fn test_ffmpeg_bridge_functions_directly() {
         "✓ Metadata validation completed with {} warnings",
         warnings.len()
     );
+    assert!(
+        warnings.is_empty(),
+        "Valid metadata should not emit compatibility warnings: {warnings:?}"
+    );
 
     // Test cover art format detection
     println!("Testing cover art format detection...");
-    let jpeg_format = ffmpeg_detect_cover_art_format(&metadata.cover_art.as_ref().unwrap());
+    let jpeg_bytes = metadata
+        .cover_art
+        .as_ref()
+        .expect("metadata must include cover art for detection");
+    let jpeg_format = ffmpeg_detect_cover_art_format(jpeg_bytes);
     assert!(jpeg_format.is_some(), "Should detect JPEG format");
     println!("✓ JPEG format detection working");
 
@@ -237,6 +245,10 @@ fn test_unsupported_format_detection() {
     let warnings = ffmpeg_validate_metadata_compatibility(&unsupported_metadata);
     // Note: The validation function currently doesn't warn about format,
     // but the format detection itself handles this
+    assert!(
+        warnings.is_empty(),
+        "Unsupported format currently yields no metadata warnings: {warnings:?}"
+    );
     println!("✓ Metadata validation completed for unsupported format");
 
     println!("Unsupported format detection test passed!");

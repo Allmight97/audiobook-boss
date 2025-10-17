@@ -435,22 +435,21 @@ mod integration_tests {
             let files = vec![media_path];
             let sample_rate_result = detect_input_sample_rate(&files);
 
-            if sample_rate_result.is_ok() {
-                let sample_rate = sample_rate_result.expect("sample rate ok");
-                eprintln!("Detected sample rate: {sample_rate} Hz");
-                assert!(sample_rate > 0, "Sample rate should be positive");
+            match sample_rate_result {
+                Ok(sample_rate) => {
+                    eprintln!("Detected sample rate: {sample_rate} Hz");
+                    assert!(sample_rate > 0, "Sample rate should be positive");
 
-                // Document typical sample rates
-                let common_rates = [22050, 32000, 44100, 48000];
-                eprintln!(
-                    "Sample rate {sample_rate} is common: {}",
-                    common_rates.contains(&sample_rate)
-                );
-            } else {
-                eprintln!(
-                    "Could not detect sample rate from test media: {}",
-                    sample_rate_result.expect_err("expected sample rate error")
-                );
+                    // Document typical sample rates
+                    let common_rates = [22050, 32000, 44100, 48000];
+                    eprintln!(
+                        "Sample rate {sample_rate} is common: {}",
+                        common_rates.contains(&sample_rate)
+                    );
+                }
+                Err(err) => {
+                    eprintln!("Could not detect sample rate from test media: {err}");
+                }
             }
         }
     }

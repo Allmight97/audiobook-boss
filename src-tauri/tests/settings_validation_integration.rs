@@ -37,7 +37,7 @@ fn create_test_audio_file(temp_dir: &TempDir, filename: &str) -> std::io::Result
         0x80, 0x80, 0x80, 0x80, // Audio data (silence)
     ];
 
-    std::fs::write(&test_file_path, &wav_data)?;
+    std::fs::write(&test_file_path, wav_data)?;
     Ok(test_file_path)
 }
 
