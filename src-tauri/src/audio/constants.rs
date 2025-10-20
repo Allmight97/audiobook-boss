@@ -1,5 +1,5 @@
 //! Constants for audio processing operations
-//! 
+//!
 //! This module contains all magic numbers and constants used throughout
 //! the audio processing pipeline, grouped by functional area.
 
@@ -12,7 +12,8 @@ pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
 pub const PROGRESS_ANALYZING_END: f32 = 10.0;
 
-/// Progress percentage range for the converting stage (10-80%)
+/// Progress percentage range for the converting stage (10-80%); reserves 80-95 for metadata updates.
+/// See `src/types/events.ts` for the frontend contract.
 pub const PROGRESS_CONVERTING_START: f32 = 10.0;
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0; // Max to avoid reaching 80% prematurely
 pub const PROGRESS_CONVERTING_RANGE: f32 = 70.0; // Range from start to end (80.0 - 10.0)
@@ -46,8 +47,6 @@ pub const ANALYSIS_PROGRESS_MULTIPLIER: f64 = 1.4;
 // Time formatting constants
 /// Seconds per minute for time calculations
 pub const SECONDS_PER_MINUTE: f64 = 60.0;
-
-
 
 // Default values
 /// Default bitrate in kbps

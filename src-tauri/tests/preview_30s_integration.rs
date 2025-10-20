@@ -1,9 +1,6 @@
 //! Integration tests for 30s preview generation
 
-use std::path::PathBuf;
-
 use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
-use tauri::ipc::InvokeResponse;
 
 fn temp_output_dir() -> tempfile::TempDir {
     tempfile::TempDir::new().expect("temp dir")
@@ -21,14 +18,20 @@ fn preview_path_derivation_does_not_panic() {
     };
 
     // Derive expected preview path
-    let parent = out.parent().unwrap();
-    let stem = out.file_stem().and_then(|s| s.to_str()).unwrap();
+    let parent = out
+        .parent()
+        .expect("preview output should have a parent directory");
+    let stem = out
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .expect("preview output should have a valid UTF-8 stem");
     let expected = parent.join(format!("{}.preview.m4b", stem));
 
     // Confirm name derives as expected by reusing the same logic
     assert!(expected.display().to_string().ends_with(".preview.m4b"));
-    assert!(expected.parent().unwrap().exists());
+    assert!(expected
+        .parent()
+        .expect("preview path should have a parent directory")
+        .exists());
     drop(settings); // avoid unused warnings
 }
-
-

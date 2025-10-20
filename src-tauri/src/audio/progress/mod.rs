@@ -5,12 +5,7 @@ pub mod reporter;
 
 // Re-export everything from reporter
 pub use reporter::{
-    ProgressEmitter,
-    ProgressEvent,
-    ProgressReporter,
-    converting_percentage_from_seconds,
+    converting_percentage_from_seconds, ProgressEmitter, ProgressEvent, ProgressReporter,
 };
 
 // Runtime uses encoder PTS/duration for progress
-
-

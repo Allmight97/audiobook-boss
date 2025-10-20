@@ -44,8 +44,6 @@
 //!
 //! NOTE: Orchestrator moved to mod.rs in Phase 5.
 
-
-
 // Imports
 use std::path::{Path, PathBuf};
 
@@ -68,22 +66,27 @@ fn derive_preview_output_path(final_output: &Path) -> PathBuf {
 }
 
 /// Checks if native cover art embedding was successful by examining the output file
-/// 
+///
 /// This function uses Lofty to probe the file and check for existing cover art,
 /// which helps determine if the native FFmpeg embedding worked correctly.
 fn check_native_cover_art_success(file_path: &Path) -> Result<bool> {
     use lofty::prelude::*;
     use lofty::probe::Probe;
-    
+
     match Probe::open(file_path) {
         Ok(probe) => {
             match probe.read() {
                 Ok(tagged_file) => {
                     // Check if any tag contains pictures/cover art
-                    let has_cover = tagged_file.tags().iter().any(|tag| !tag.pictures().is_empty());
-                    log::debug!("Native cover art check: {} (file: {})", 
-                              if has_cover { "found" } else { "not found" }, 
-                              file_path.display());
+                    let has_cover = tagged_file
+                        .tags()
+                        .iter()
+                        .any(|tag| !tag.pictures().is_empty());
+                    log::debug!(
+                        "Native cover art check: {} (file: {})",
+                        if has_cover { "found" } else { "not found" },
+                        file_path.display()
+                    );
                     Ok(has_cover)
                 }
                 Err(e) => {
@@ -114,7 +117,10 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
     }
     match std::fs::rename(&temp_output, final_path) {
         Ok(()) => {
-            log::info!("finalize_move method=rename status=ok dest={}", final_path.display());
+            log::info!(
+                "finalize_move method=rename status=ok dest={}",
+                final_path.display()
+            );
             Ok(final_path.to_path_buf())
         }
         Err(rename_err) => {
@@ -138,7 +144,10 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
             if let Err(e) = std::fs::remove_file(&temp_output) {
                 log::warn!("finalize_move temp removal failed: {}", e);
             }
-            log::info!("finalize_move method=copy-replace status=ok dest={}", final_path.display());
+            log::info!(
+                "finalize_move method=copy-replace status=ok dest={}",
+                final_path.display()
+            );
             Ok(final_path.to_path_buf())
         }
     }
@@ -177,17 +186,23 @@ pub(crate) fn write_metadata_stage(
         let ui = crate::audio::progress::ProgressEmitter::new(context.window.clone());
         ui.emit_metadata_start("Writing metadata...");
         reporter.set_stage(ProcessingStage::WritingMetadata);
-        
-        log::info!("Starting finalize stage metadata writing for: {}", merged_output.display());
-        
+
+        log::info!(
+            "Starting finalize stage metadata writing for: {}",
+            merged_output.display()
+        );
+
         // Write basic metadata tags
         write_metadata(merged_output, &metadata)?;
         log::info!("✓ Basic metadata tags written successfully");
-        
+
         // Handle cover art with fallback detection
         if let Some(cover) = metadata.cover_art.as_ref() {
-            log::info!("Attempting Lofty cover art embedding as fallback - {} bytes", cover.len());
-            
+            log::info!(
+                "Attempting Lofty cover art embedding as fallback - {} bytes",
+                cover.len()
+            );
+
             // Check if native embedding succeeded by examining the file
             match check_native_cover_art_success(merged_output) {
                 Ok(true) => {
@@ -217,13 +232,13 @@ pub(crate) fn write_metadata_stage(
         } else {
             log::debug!("No cover art data to write in finalize stage");
         }
-        
+
         if context.is_cancelled() {
             return Err(AppError::InvalidInput(
                 "Processing was cancelled".to_string(),
             ));
         }
-        
+
         log::info!("✓ Finalize stage metadata writing completed successfully");
     } else {
         log::debug!("No metadata provided for finalize stage");
@@ -240,29 +255,32 @@ pub(crate) fn complete_processing(
 ) -> Result<String> {
     log::info!("🚀 Starting complete_processing stage");
     log::info!("Temporary file: {}", merged_output.display());
-    log::info!("Final output path: {}", context.settings.output_path.display());
-    
+    log::info!(
+        "Final output path: {}",
+        context.settings.output_path.display()
+    );
+
     let ui = crate::audio::progress::ProgressEmitter::new(context.window.clone());
     ui.emit_cleanup("Cleaning up...");
-    
+
     log::info!("Moving temporary file to final location...");
     let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
     log::info!("✓ File moved successfully to: {}", final_output.display());
-    
+
     if context.is_cancelled() {
         log::warn!("Processing was cancelled during completion");
         return Err(AppError::InvalidInput(
             "Processing was cancelled".to_string(),
         ));
     }
-    
+
     log::info!("Cleaning up temporary directory...");
     cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
     log::info!("✓ Temporary directory cleaned up successfully");
-    
+
     reporter.complete();
     ui.emit_complete("Processing complete");
-    
+
     let success_message = format!("Successfully created audiobook: {}", final_output.display());
     log::info!("🎉 {}", success_message);
     Ok(success_message)
@@ -290,7 +308,11 @@ pub(crate) async fn finalize_processing(
         // Overwrite any existing preview file
         if preview_path.exists() {
             if let Err(e) = std::fs::remove_file(&preview_path) {
-                log::warn!("Failed to remove existing preview file ({}): {}", preview_path.display(), e);
+                log::warn!(
+                    "Failed to remove existing preview file ({}): {}",
+                    preview_path.display(),
+                    e
+                );
             }
         }
         let moved = move_to_final_location(merged_output.clone(), &preview_path)?;

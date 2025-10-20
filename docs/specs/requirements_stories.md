@@ -129,7 +129,7 @@ Scenario: Validate before processing
 - And shows clear error messages for any issues
 
 ## Technical Architecture
-The application's architecture is based on the tech stack defined in the [development specifications](development.md). The key components are:
+The application's architecture follows the stack described in the repo's [README](../../README.md) and the operational guidance in [AGENTS.md](../../AGENTS.md). The key components are:
 
 - **Core Framework**: A Tauri-based desktop application with a Rust backend and a webview frontend.
 - **Backend**: Pure Rust handles the application logic. FFmpeg is used via sub-processes for all audio processing, managed by the Tokio async runtime. The `lofty` crate handles audio metadata.

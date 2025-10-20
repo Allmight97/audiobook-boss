@@ -15,9 +15,9 @@ pub fn validate_audio_settings(settings: &AudioSettings) -> Result<()> {
 /// Validates bitrate is within acceptable range
 fn validate_bitrate(bitrate: u32) -> Result<()> {
     if !(32..=128).contains(&bitrate) {
-        return Err(AppError::InvalidInput(
-            format!("Bitrate must be between 32-128 kbps, got: {bitrate}")
-        ));
+        return Err(AppError::InvalidInput(format!(
+            "Bitrate must be between 32-128 kbps, got: {bitrate}"
+        )));
     }
     Ok(())
 }
@@ -34,9 +34,9 @@ fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
 fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
     let valid_rates = [22050, 32000, 44100, 48000];
     if !valid_rates.contains(&sample_rate) {
-        return Err(AppError::InvalidInput(
-            format!("Unsupported sample rate: {sample_rate}. Valid rates: {valid_rates:?}")
-        ));
+        return Err(AppError::InvalidInput(format!(
+            "Unsupported sample rate: {sample_rate}. Valid rates: {valid_rates:?}"
+        )));
     }
     Ok(())
 }
@@ -44,19 +44,21 @@ fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
 /// Validates output directory is writable by creating and removing a temp file
 fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()> {
     let dir = dir_path.as_ref();
-    
+
     if !dir.exists() {
-        return Err(AppError::FileValidation(
-            format!("Output directory does not exist: {}", dir.display())
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Output directory does not exist: {}",
+            dir.display()
+        )));
     }
-    
+
     if !dir.is_dir() {
-        return Err(AppError::FileValidation(
-            format!("Output path is not a directory: {}", dir.display())
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Output path is not a directory: {}",
+            dir.display()
+        )));
     }
-    
+
     // Probe write permission by creating and removing a temp file
     let temp_file = dir.join(".audiobook_boss_write_test");
     match std::fs::write(&temp_file, b"test") {
@@ -65,29 +67,29 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
             let _ = std::fs::remove_file(&temp_file);
             Ok(())
         }
-        Err(e) => Err(AppError::FileValidation(
-            format!("Output directory not writable: {e}")
-        ))
+        Err(e) => Err(AppError::FileValidation(format!(
+            "Output directory not writable: {e}"
+        ))),
     }
 }
 
 /// Validates output path is writable
 fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
-    
+
     // Validate parent directory exists and is writable
     if let Some(parent) = path.parent() {
         validate_output_directory_writable(parent)?;
     }
-    
+
     // Check file extension
     match path.extension().and_then(|s| s.to_str()) {
         Some("m4b") => Ok(()),
-        Some(ext) => Err(AppError::InvalidInput(
-            format!("Output must be .m4b file, got: .{ext}")
-        )),
+        Some(ext) => Err(AppError::InvalidInput(format!(
+            "Output must be .m4b file, got: .{ext}"
+        ))),
         None => Err(AppError::InvalidInput(
-            "Output file must have .m4b extension".to_string()
+            "Output file must have .m4b extension".to_string(),
         )),
     }
 }
@@ -141,7 +143,7 @@ impl ChannelConfig {
             ChannelConfig::Stereo => 2,
         }
     }
-    
+
     // Removed: ffmpeg_layout() (CLI-oriented helper not used at runtime)
 }
 
@@ -150,7 +152,7 @@ impl SampleRateConfig {
     pub fn requires_detection(&self) -> bool {
         matches!(self, SampleRateConfig::Auto)
     }
-    
+
     /// Returns the sample rate value if explicit, None if auto
     pub fn explicit_rate(&self) -> Option<u32> {
         match self {
@@ -228,13 +230,16 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
         let result = validate_output_directory_writable(temp_dir.path());
         assert!(result.is_ok(), "Temp directory should be writable");
-        
+
         // Test with file instead of directory
         let temp_file = temp_dir.path().join("not_a_dir.txt");
         std::fs::write(&temp_file, b"test").expect("create temp file");
         let result = validate_output_directory_writable(&temp_file);
         assert!(result.is_err(), "File should not be valid as directory");
-        assert!(result.expect_err("expected not directory error").to_string().contains("not a directory"));
+        assert!(result
+            .expect_err("expected not directory error")
+            .to_string()
+            .contains("not a directory"));
     }
 
     #[cfg(unix)]
@@ -242,17 +247,24 @@ mod tests {
     fn test_read_only_output_directory() {
         use std::fs::Permissions;
         use std::os::unix::fs::PermissionsExt;
-        
+
         let temp_dir = TempDir::new().expect("create temp dir");
-        
+
         // Make directory read-only
         let readonly_perms = Permissions::from_mode(0o444);
-        std::fs::set_permissions(temp_dir.path(), readonly_perms).expect("set readonly permissions");
-        
+        std::fs::set_permissions(temp_dir.path(), readonly_perms)
+            .expect("set readonly permissions");
+
         let result = validate_output_directory_writable(temp_dir.path());
-        assert!(result.is_err(), "Read-only directory should fail write test");
-        assert!(result.expect_err("expected write permission error").to_string().contains("not writable"));
-        
+        assert!(
+            result.is_err(),
+            "Read-only directory should fail write test"
+        );
+        assert!(result
+            .expect_err("expected write permission error")
+            .to_string()
+            .contains("not writable"));
+
         // Restore permissions for cleanup
         let normal_perms = Permissions::from_mode(0o755);
         std::fs::set_permissions(temp_dir.path(), normal_perms).expect("restore permissions");
@@ -270,12 +282,12 @@ mod tests {
         let auto_config = SampleRateConfig::Auto;
         assert!(auto_config.requires_detection());
         assert_eq!(auto_config.explicit_rate(), None);
-        
+
         // Test Explicit configuration
         let explicit_config = SampleRateConfig::Explicit(44100);
         assert!(!explicit_config.requires_detection());
         assert_eq!(explicit_config.explicit_rate(), Some(44100));
-        
+
         // Test different explicit rates
         let rates = [22050, 32000, 44100, 48000];
         for rate in rates {

@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 docs/model_tests/*
+target/rust-analyzer/
+target/rust-analyzer/flycheck0/stdout
+target/rust-analyzer/flycheck0/stderr
+
+# Ignore only the root Cargo.lock; keep src-tauri/Cargo.lock committed
+/Cargo.lock

@@ -69,7 +69,10 @@ impl CleanupGuard {
 
     /// Disables cleanup for debugging purposes
     pub fn disable_cleanup(&mut self) {
-        debug!("Session {}: Cleanup disabled for debugging", self.session_id);
+        debug!(
+            "Session {}: Cleanup disabled for debugging",
+            self.session_id
+        );
         self.enabled = false;
     }
 
@@ -136,13 +139,10 @@ impl Drop for CleanupGuard {
         if let Err(e) = self.perform_cleanup(&paths) {
             error!(
                 "Session {}: Cleanup failed during drop: {}",
-                self.session_id,
-                e
+                self.session_id, e
             );
         }
     }
 }
 
 // ProcessGuard removed.
-
-

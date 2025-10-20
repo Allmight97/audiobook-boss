@@ -4,7 +4,7 @@
 //! after the nuclear transition from dual-engine to ffmpeg-next only.
 //!
 //! ## Processing Engine
-//! 
+//!
 //! - **Single Engine**: Uses `FfmpegNextProcessor` - Rust FFmpeg bindings
 //!
 //! ## Engine Characteristics
@@ -26,7 +26,9 @@ pub type DefaultProcessor = FfmpegNextProcessor;
 /// Returns a description of the currently selected engine for logging and diagnostics.
 ///
 /// After the nuclear transition, this always returns the same engine description.
-pub fn get_engine_description() -> &'static str { "FfmpegNextProcessor (single-engine)" }
+pub fn get_engine_description() -> &'static str {
+    "FfmpegNextProcessor (single-engine)"
+}
 
 /// Creates an instance of the default media processor.
 ///

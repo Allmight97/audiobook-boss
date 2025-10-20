@@ -7,12 +7,12 @@ use self::constants::{DEFAULT_BITRATE, DEFAULT_OUTPUT_EXTENSION, DEFAULT_SAMPLE_
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub mod buffer;
 pub mod cleanup;
 pub mod constants;
 pub mod context;
 pub mod file_list;
 pub mod media_pipeline;
-pub mod buffer;
 pub mod metrics;
 pub mod path_validation;
 pub mod processor;
@@ -156,7 +156,7 @@ pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
 pub use context::ProcessingContext;
 
 // Builders and progress context always available after cleanup
-pub use context::{ProcessingContextBuilder, ProgressContextBuilder, ProgressContext};
+pub use context::{ProcessingContextBuilder, ProgressContext, ProgressContextBuilder};
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;

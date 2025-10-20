@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod metadata_integration_tests {
-    use crate::metadata::AudiobookMetadata;
     use crate::metadata::ffmpeg_bridge;
+    use crate::metadata::AudiobookMetadata;
 
     #[test]
     fn test_metadata_to_ffmpeg_conversion() {
@@ -24,10 +24,13 @@ mod metadata_integration_tests {
         let dict_result = ffmpeg_bridge::metadata_to_ffmpeg_dict(&metadata);
         assert!(dict_result.is_ok(), "Metadata conversion should succeed");
 
-        let dict = dict_result.unwrap();
+        let dict = dict_result.expect("metadata conversion should succeed");
         assert!(dict.get("title").is_some(), "Title should be present");
         assert!(dict.get("artist").is_some(), "Artist should be present");
-        assert!(dict.get("media_type").is_some(), "Media type should be set for audiobooks");
+        assert!(
+            dict.get("media_type").is_some(),
+            "Media type should be set for audiobooks"
+        );
     }
 
     #[test]
@@ -40,14 +43,17 @@ mod metadata_integration_tests {
         };
 
         let warnings = ffmpeg_bridge::validate_metadata_compatibility(&metadata);
-        assert!(warnings.len() >= 2, "Should warn about track and cover art size");
+        assert!(
+            warnings.len() >= 2,
+            "Should warn about track and cover art size"
+        );
     }
 
-    #[test] 
+    #[test]
     fn test_cover_art_embedding_placeholder() {
         // Test that cover art embedding doesn't fail (even though it's not fully implemented yet)
-        let cover_data = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG header
-        
+        let cover_data = [0xFF, 0xD8, 0xFF, 0xE0]; // JPEG header
+
         // This will be a no-op until we complete the ffmpeg-next cover art implementation
         // But it should not fail
         // Note: We can't easily test the actual embedding without a real output context
@@ -61,8 +67,14 @@ mod metadata_integration_tests {
         // Test that twoloop enhancement is mentioned in logs
         // This is primarily a documentation/tracking test
         // The actual twoloop implementation test would require ffmpeg-next context
-        println!("Twoloop enhancement: Improves AAC quality through better psychoacoustic analysis");
-        println!("Implementation: Set aac_coder=twoloop on encoder context");
-        assert!(true); // This test mainly documents the twoloop feature
+        let description =
+            "Twoloop enhancement: Improves AAC quality through better psychoacoustic analysis";
+        println!("{description}");
+        let implementation = "Implementation: Set aac_coder=twoloop on encoder context";
+        println!("{implementation}");
+        assert!(
+            implementation.contains("twoloop"),
+            "Implementation summary should mention twoloop"
+        );
     }
 }

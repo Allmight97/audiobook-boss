@@ -31,7 +31,9 @@ impl SampleAccumulator {
             sample_rate,
             channel_layout,
             format,
-            buffers: (0..channels).map(|_| Vec::with_capacity(frame_size * 2)).collect(),
+            buffers: (0..channels)
+                .map(|_| Vec::with_capacity(frame_size * 2))
+                .collect(),
         }
     }
 
@@ -39,11 +41,15 @@ impl SampleAccumulator {
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
         let in_samples = frame.samples();
-        if in_samples == 0 { return ready; }
+        if in_samples == 0 {
+            return ready;
+        }
         unsafe {
             for ch in 0..self.channels {
                 let plane = frame.data(ch);
-                if plane.is_empty() { continue; }
+                if plane.is_empty() {
+                    continue;
+                }
                 let available_floats = plane.len() / 4; // bytes -> f32 count
                 let copy_len = available_floats.min(in_samples);
                 if copy_len < in_samples {
@@ -52,22 +58,23 @@ impl SampleAccumulator {
                         ch, copy_len, in_samples
                     );
                 }
-                let slice = std::slice::from_raw_parts(
-                    plane.as_ptr() as *const f32,
-                    copy_len,
-                );
+                let slice = std::slice::from_raw_parts(plane.as_ptr() as *const f32, copy_len);
                 self.buffers[ch].extend_from_slice(slice);
             }
         }
-    while self.frame_size > 0 && self.buffers[0].len() >= self.frame_size {
-            if let Some(f) = self.drain_one(false) { ready.push(f); }
+        while self.frame_size > 0 && self.buffers[0].len() >= self.frame_size {
+            if let Some(f) = self.drain_one(false) {
+                ready.push(f);
+            }
         }
         ready
     }
 
     /// Flush tail (pad to full frame if pad=true) returning optional final frame.
     pub fn flush_tail(&mut self, pad: bool) -> Option<ff::frame::Audio> {
-        if self.buffers[0].is_empty() { return None; }
+        if self.buffers[0].is_empty() {
+            return None;
+        }
         if pad && self.buffers[0].len() < self.frame_size {
             let missing = self.frame_size - self.buffers[0].len();
             for ch in 0..self.channels {
@@ -79,22 +86,29 @@ impl SampleAccumulator {
 
     fn drain_one(&mut self, allow_short: bool) -> Option<ff::frame::Audio> {
         let available = self.buffers[0].len();
-        if available == 0 { return None; }
-        if !allow_short && available < self.frame_size { return None; }
+        if available == 0 {
+            return None;
+        }
+        if !allow_short && available < self.frame_size {
+            return None;
+        }
         let take = available.min(self.frame_size);
         let mut frame = ff::frame::Audio::empty();
         frame.set_format(self.format);
         frame.set_channel_layout(self.channel_layout);
         frame.set_rate(self.sample_rate);
         frame.set_samples(take);
-        unsafe { frame.alloc(self.format, take, self.channel_layout); }
+        unsafe {
+            frame.alloc(self.format, take, self.channel_layout);
+        }
         let mut total_repairs = 0usize;
         for ch in 0..self.channels {
             let plane = frame.data_mut(ch);
-            if plane.is_empty() { continue; }
-            let dst: &mut [f32] = unsafe {
-                std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take)
-            };
+            if plane.is_empty() {
+                continue;
+            }
+            let dst: &mut [f32] =
+                unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take) };
             let src = &self.buffers[ch][..take];
             let mut repaired = 0usize;
             for i in 0..take {
@@ -115,7 +129,11 @@ impl SampleAccumulator {
             self.buffers[ch].drain(..take);
         }
         if total_repairs > 0 {
-            log::warn!("Accumulator sanitized {} samples before encoding (frame_size={})", total_repairs, take);
+            log::warn!(
+                "Accumulator sanitized {} samples before encoding (frame_size={})",
+                total_repairs,
+                take
+            );
         }
         Some(frame)
     }
@@ -138,7 +156,9 @@ mod tests {
         f.set_channel_layout(ff::channel_layout::ChannelLayout::MONO);
         f.set_rate(44100);
         f.set_samples(2048);
-        unsafe { f.alloc(f.format(), 2048, f.channel_layout()); }
+        unsafe {
+            f.alloc(f.format(), 2048, f.channel_layout());
+        }
         let produced = acc.push_frame(&f);
         assert_eq!(produced.len(), 2);
         assert!(acc.flush_tail(true).is_none());

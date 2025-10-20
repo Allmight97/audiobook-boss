@@ -7,27 +7,26 @@ pub mod commands;
 mod errors;
 mod metadata;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
-pub use metadata::AudiobookMetadata;
 pub use metadata::ffmpeg_bridge::{
-    set_container_metadata as ffmpeg_set_container_metadata,
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
-    write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     detect_cover_art_format as ffmpeg_detect_cover_art_format,
+    set_container_metadata as ffmpeg_set_container_metadata,
     validate_metadata_compatibility as ffmpeg_validate_metadata_compatibility,
+    write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     CoverFormat as FfmpegCoverFormat,
 };
 pub use metadata::writer::{
-    write_cover_art as lofty_write_cover_art,
-    write_metadata as lofty_write_metadata,
+    write_cover_art as lofty_write_cover_art, write_metadata as lofty_write_metadata,
 };
+pub use metadata::AudiobookMetadata;
 pub mod audio;
 
 #[cfg(test)]
 pub mod tests_integration;
 pub mod tests_metadata_integration; // formerly feature-gated
 
-use std::sync::{Arc, Mutex};
 use audio::ProcessingProgress;
+use std::sync::{Arc, Mutex};
 
 /// Shared state for tracking processing status and cancellation
 #[derive(Default, Debug)]
@@ -40,13 +39,12 @@ pub struct ProcessingState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logging with INFO level for production
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .init();
-    
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     log::info!("Starting Audiobook Boss application");
-    
+
     let processing_state = ProcessingState::default();
-    
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

@@ -2,6 +2,13 @@
 
 This guide captures the integration patterns we use with `ffmpeg-next` for audiobook processing. It complements official references and anchors the exact contracts we rely on in this codebase.
 
+### Where used
+- `src-tauri/src/audio/processor/encoder.rs` (encoder selection and options)
+- `src-tauri/src/audio/processor/frame_pipeline.rs` (frame sizing, PTS handling)
+- `src-tauri/src/audio/processor/streams.rs` (stream setup)
+- `src-tauri/src/audio/buffer.rs` and `src-tauri/src/audio/frame_accumulator.rs` (sanitization and frame construction)
+- `src-tauri/src/metadata/ffmpeg_bridge.rs` (container metadata mapping)
+
 ### Core audio timestamp contract
 
 - Set encoder time base to 1 / sample_rate.
@@ -71,5 +78,20 @@ Safety: Accumulator constructs exactly-sized frames for the encoder and sanitize
 - FFmpeg-next (Rust): [docs.rs – ffmpeg-next](https://docs.rs/ffmpeg-next/latest/ffmpeg_next/)
 - FFmpeg (timestamps/time base): [FFmpeg docs – muxing/demuxing and timestamps](https://ffmpeg.org/)
 - FFmpeg AAC encoder options (aac_coder): [FFmpeg docs – aac encoder options](https://ffmpeg.org/ffmpeg-codecs.html#aac-1)
+
+### Apple AAC (aac_at) selection — Status
+
+Status: Planning. The current implementation prefers FFmpeg’s `aac_at` encoder on macOS when it is present in the local FFmpeg build. We detect availability by querying the encoder registry (ffmpeg-next → `avcodec_find_encoder_by_name("aac_at")`) and gate by OS.
+
+Not implemented: a low-level hardware capability probe via AudioToolbox (e.g., QA1663-style hardware encoder checks) and dynamic switching based on those results. These enhancements are in planning. Until then, selection is based solely on the presence of `aac_at` in FFmpeg.
+
+Code touchpoints:
+- `src-tauri/src/audio/settings_encoder.rs`
+- `src-tauri/src/audio/processor/encoder.rs`
+- `src/types/audio.ts`, `src/types/encoder.ts`
+
+Constraints:
+- ffmpeg-next only (no shell FFmpeg)
+- macOS (Apple Silicon) is the target platform
 
 

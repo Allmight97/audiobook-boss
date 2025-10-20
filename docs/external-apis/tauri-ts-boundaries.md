@@ -1,5 +1,11 @@
 ## TypeScript boundaries for Tauri commands and events
 
+### Where used
+- `src/types/events.ts` (EVENTS and ProcessingProgressEvent)
+- `src/main.ts` (invoke wrappers in window.testCommands)
+- `src/ui/statusPanel` (events → UI state transitions)
+- `src-tauri/src/commands/*` (Rust commands for audio and metadata)
+
 ### Centralized event types
 
 - Define event names and payload interfaces in one module to prevent string/value drift.

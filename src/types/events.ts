@@ -165,7 +165,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * - ProcessingStage::Completed → "completed"
  * - ProcessingStage::Failed(_) → "failed"
  * 
- * Percentage Ranges:
+ * Percentage Ranges (matches `audio::constants`):
  * - 0-10%: Initial validation and setup
  * - 10-80%: Audio conversion (mapped from encoder timestamps and total duration)
  * - 80-95%: Metadata writing
