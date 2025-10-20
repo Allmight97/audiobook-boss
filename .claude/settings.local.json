@@ -39,7 +39,9 @@
       "Bash(tmux new-session:*)",
       "Bash(tmux send-keys:*)",
       "Bash(tmux capture-pane:*)",
-      "Bash(tmux kill-session:*)"
+      "Bash(tmux kill-session:*)",
+      "Bash(git log:*)",
+      "Read(//tmp/**)"
     ],
     "deny": []
   },
