@@ -68,46 +68,50 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ## Tools & Workflow
 
-### Before Proposing Changes
-1. **Research & Validate** (use tools to ensure accuracy): choose your starting point based on familiarity—if you already know the API surface, begin with Exa Code; if you need terminology or release context, scan Exa Web first so you know what to ask for.
-     - **Exa Code** → Primary stop for ready-to-use patterns, idioms, and edge cases
-       - Query pattern: `[technology] [task/pattern]`
-       - Example: `"tauri listen event rust emit example"`
-     - **Exa Web** → Use when you need official docs, release notes, tutorials, or to gather vocabulary for sharper Exa Code queries
-       - Query pattern: `[technology] [version/platform] [concern/topic]`
-       - Example: `"tauri specta typesafe commands blog"`
-     - **Context7** → **Reach only after both Exa tools fail to surface the detail you need**; target the exact crate/module to confirm signatures, deprecations, or other low-level behaviour
-       - Query pattern: `[library] [specific API/module]`
-       - Example: `"tauri invoke_handler command access control"`
-     **Tool Selection Quick Ref**: Implementation patterns → Exa Code • Docs/ecosystem signals → Exa Web • Confirm low-level contracts (fallback) → Context7 (as needed)
+### Core Practices (apply throughout)
+- **Analyze Impact**: Scale depth to blast radius. Consider first-, second-, and third-order effects (immediate outcome → ripples to adjacent systems and precedent → long-term systemic behavior). Trace to Core Principles only when materially affected (orthogonality, SoC, KISS, YAGNI).
+- **Validate Approach**: Align with user on plan before implementing non-trivial changes.
+- **Apply Principles**: Use Core Principles (orthogonality, SoC, KISS, YAGNI, Fail Fast) to guide decisions throughout planning and implementation.
 
-     **Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
+### Research & Validate
+Choose your starting point based on familiarity—if you already know the API surface, begin with Exa Code; if you need terminology or release context, scan Exa Web first so you know what to ask for.
 
-2. **Analyze Impact**: Carefully consider (and report) first, second, and third-order impacts across affected surfaces.
+- **Exa Code** → Primary stop for ready-to-use patterns, idioms, and edge cases
+  - Query pattern: `[technology] [task/pattern]`
+  - Example: `"tauri listen event rust emit example"`
+- **Exa Web** → Use when you need official docs, release notes, tutorials, or to gather vocabulary for sharper Exa Code queries
+  - Query pattern: `[technology] [version/platform] [concern/topic]`
+  - Example: `"tauri specta typesafe commands blog"`
+- **Context7** → **Reach only after both Exa tools fail to surface the detail you need**; target the exact crate/module to confirm signatures, deprecations, or other low-level behaviour
+  - Query pattern: `[library] [specific API/module]`
+  - Example: `"tauri invoke_handler command access control"`
 
-3. **Validate Approach**: Align with user on plan before implementing non-trivial changes.
+**Tool Selection Quick Ref**: Implementation patterns → Exa Code • Docs/ecosystem signals → Exa Web • Confirm low-level contracts (fallback) → Context7 (as needed)
 
-4. **Quick Checks**: Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `npx` is available) `npx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
-    - For full coverage before CI (continuous integration) runs, layer on:
-        - From `src-tauri/`:
-            ```bash
-            cargo fmt --all -- --check
-            cargo clippy -- -D warnings
-            cargo test
-            scripts/ensure-contract.sh
-            ```
-        - From the repo root:
-            ```bash
-            npm run build
-            ```
-      - `npm run build` runs `tsc` before bundling.
-    - After your changes, rerun the same set to verify nothing regressed.
-    - CI option: run `cargo fmt --all -- --check` in parallel with `cargo clippy -- -D warnings`, then trigger `cargo test` once lints pass.
-    - **When to run the heavy set**: Always execute the full suite before merging to `main`, preparing a release, or whenever changes touch runtime behavior (e.g., encoder internals, progress plumbing, UI contract exposure, metadata pipeline). The fast script is for tight iteration; the heavy run prevents surprises that CI would otherwise catch later.
+**Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
+
+### Quality Gates
+**Quick Checks** (before committing): Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `npx` is available) `npx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
+
+- For full coverage before CI (continuous integration) runs, layer on:
+    - From `src-tauri/`:
+        ```bash
+        cargo fmt --all -- --check
+        cargo clippy -- -D warnings
+        cargo test
+        scripts/ensure-contract.sh
+        ```
+    - From the repo root:
+        ```bash
+        npm run build
+        ```
+  - `npm run build` runs `tsc` before bundling.
+- After your changes, rerun the same set to verify nothing regressed.
+- CI option: run `cargo fmt --all -- --check` in parallel with `cargo clippy -- -D warnings`, then trigger `cargo test` once lints pass.
+- **When to run the heavy set**: Always execute the full suite before merging to `main`, preparing a release, or whenever changes touch runtime behavior (e.g., encoder internals, progress plumbing, UI contract exposure, metadata pipeline). The fast script is for tight iteration; the heavy run prevents surprises that CI would otherwise catch later.
 
 ### During Implementation
 - **Minimize diffs**: Prefer smallest effective change; avoid broad refactors unless requested
-- **Apply principles**: Proactively use design/practice principles; explain decisions
 - **Favor conventions**: Use project idioms and defaults when known
 - **Validate inputs**: Use `validate_input_audio_path()` in any new code paths
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
