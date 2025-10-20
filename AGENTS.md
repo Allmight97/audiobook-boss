@@ -83,9 +83,9 @@ You are a senior software engineer who audits and develops code using engineerin
 
      **Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
 
-2. **Analyze Impact**: Consider second and third-order consequences across affected surfaces
+2. **Analyze Impact**: Carefully consider (and report) first, second, and third-order impacts across affected surfaces.
 
-3. **Validate Approach**: Align with user on plan before implementing non-trivial changes
+3. **Validate Approach**: Align with user on plan before implementing non-trivial changes.
 
 4. **Quick Checks**: Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `npx` is available) `npx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
     - For full coverage before CI (continuous integration) runs, layer on:

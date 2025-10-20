@@ -33,7 +33,13 @@
       "Bash(npm run dev:*)",
       "Bash(npm run build:*)",
       "mcp__exa__get_code_context_exa",
-      "mcp__exa__web_search_exa"
+      "mcp__exa__web_search_exa",
+      "Bash(cargo fmt:*)",
+      "Bash(tmux list-sessions:*)",
+      "Bash(tmux new-session:*)",
+      "Bash(tmux send-keys:*)",
+      "Bash(tmux capture-pane:*)",
+      "Bash(tmux kill-session:*)"
     ],
     "deny": []
   },

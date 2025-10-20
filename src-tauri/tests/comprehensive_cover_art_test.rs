@@ -243,13 +243,16 @@ fn test_unsupported_format_detection() {
     };
 
     let warnings = ffmpeg_validate_metadata_compatibility(&unsupported_metadata);
-    // Note: The validation function currently doesn't warn about format,
-    // but the format detection itself handles this
+    // The validation function should warn about unsupported formats
     assert!(
-        warnings.is_empty(),
-        "Unsupported format currently yields no metadata warnings: {warnings:?}"
+        !warnings.is_empty(),
+        "Expected warnings about unsupported cover art format, but got none"
     );
-    println!("✓ Metadata validation completed for unsupported format");
+    assert!(
+        warnings.iter().any(|w| w.to_lowercase().contains("format") || w.to_lowercase().contains("supported")),
+        "Expected at least one warning about format compatibility, got: {warnings:?}"
+    );
+    println!("✓ Metadata validation correctly warns about unsupported format (warnings: {})", warnings.len());
 
     println!("Unsupported format detection test passed!");
 }
