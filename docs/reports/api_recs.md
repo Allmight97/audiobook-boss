@@ -195,7 +195,7 @@ const PROGRESS_COMPLETE: f32 = 100.0;
 ### Priority 2: Enhanced Documentation
 
 1. **UI Integration Documentation** (point to concise planning docs rather than large audits)
-  - Encoder panel and IPC (v2-only) → `docs/planning_mapping/encoder-enhancement-plan.md`
+  - Encoder panel and IPC (v2-only) → `docs/planning/encoder-enhancement-plan.md`
   - Cover art loading and management → `src/ui/coverArt.ts`
   - Output path and preview generation → `src/ui/outputPanel.ts`
 

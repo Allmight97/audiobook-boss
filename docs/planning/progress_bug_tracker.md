@@ -31,13 +31,13 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     - docs/external-apis/tauri-patterns.md (added)
     - Official FFmpeg docs: ffmpeg.org/ffmpeg-codecs.html#aac-1
 
-- [ ] TODO: Review `docs/planning_mapping/encoder-enhancement-plan.md` to finalize features, ui, and implementation details with Ai agent.
+- [ ] TODO: Review `docs/planning/encoder-enhancement-plan.md` to finalize features, ui, and implementation details with Ai agent.
     - Scope: confirm user-installed FDK exposure (no bundling), UI gating by availability or explicit path, and alignment with ffmpeg-next-only policy.
     - Outcome: either trim and keep the plan with accurate constraints, or archive/delete and fold keepers into `encoding-engine-brief.md` and `frontend-ipc-outline.md`.
     - STATUS: Pre-work for encoder v2; outstanding.
    - [ ] FEATURE: Give users ability to choose FDK-AAC or AAC-AT (Apple's AudioToolbox) if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
         - Action: Adjust output settings UI to accommdate features
-        - STATUS: Fold into encoder v2 implementation; depends on encoder detection + UI gating. See @encoder-enhancement-plan.md
+        - STATUS: Fold into encoder v2 implementation; depends on encoder detection + UI gating. See `docs/planning/encoder-enhancement-plan.md`.
 
 [ ] TODO: Review `scripts/ensure-contract.sh` to decide whether to retain, refresh, or replace.
     - STATUS: Script produces TS↔Rust command diffs but lacks documented workflow.

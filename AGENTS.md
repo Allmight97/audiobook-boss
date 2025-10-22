@@ -62,7 +62,7 @@ You are a senior software engineer who audits and develops code using engineerin
   - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) land on v2 only.
   - UI should call v2 only; add a deprecation notice to v1 and remove after one release.
 - Contract guard (transition): Keep TS ↔ Rust command parity (see quick checks for `scripts/ensure-contract.sh`). Retire once v2-only (or after adopting typesafe codegen).
-- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning_mapping/encoder-enhancement-plan.md` (single canonical encoder plan).
+- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning/encoder-enhancement-plan.md` (single canonical encoder plan).
 
 ---
 

@@ -15,7 +15,7 @@
 - `src/types/encoder.ts` defines an older `EncoderSettingsV2` shape (flavor, VBR placeholders) that no longer matches the command contract. Retaining both type systems risks divergence.
 
 ### Documentation baseline
-- `docs/planning_mapping/encoder-enhancement-plan.md` proposes several UI/backend changes but still references `MediaProcessingPlan`, `ProcessRequestV2`, and other shapes that diverge from the current code. It also suggests skip heuristics and plan-only flows without defining validation/UX behavior.
+- `docs/planning/encoder-enhancement-plan.md` proposes several UI/backend changes but still references `MediaProcessingPlan`, `ProcessRequestV2`, and other shapes that diverge from the current code. It also suggests skip heuristics and plan-only flows without defining validation/UX behavior.
 - External API docs (`docs/external-apis/ffmpeg-next.md`, `lofty.md`) remain relevant for ffmpeg-next patterns and metadata handling; they do not cover new command surfaces such as encoder discovery.
 
 ## 2. Identified Risks, Questions, & Second-Order Effects
@@ -70,7 +70,7 @@
    - **Second-order:** Evaluate interactions with plan-only (should still report chosen threads) and ensure defaults remain platform-appropriate.
 
 6. **Documentation & tooling updates**
-   - Refresh `docs/planning_mapping/encoder-enhancement-plan.md` to align terminology (replace `ProcessRequestV2`, `MediaProcessingPlan` references).
+   - Refresh `docs/planning/encoder-enhancement-plan.md` to align terminology (replace `ProcessRequestV2`, `MediaProcessingPlan` references).
    - Extend `docs/external-apis/ffmpeg-next.md` with availability command usage patterns and plan-only flow constraints.
    - Update `docs/external-apis/tauri-commands.md` with the new command signature and payload fields.
    - **Tests/Checks:** Run `scripts/quick-checks.sh` after implementation; ensure doc changes match reality to prevent future drift.
@@ -86,4 +86,3 @@
 - Address outstanding questions with the repo owner to confirm priorities (AAC-AT vs FDK defaults, plan-only UX expectations).
 - Sequence work items to land incrementally (types + UI wiring → availability command → payload extensions → heuristics/threads).
 - Schedule contract & regression tests after each milestone to maintain pipeline stability during the v2 migration.
-

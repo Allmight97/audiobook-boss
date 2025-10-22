@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NOTE: Usage review tracked in docs/planning_mapping/progress_bug_tracker.md (see "Review scripts/ensure-contract.sh").
+# NOTE: Usage review tracked in docs/planning/progress_bug_tracker.md (see "Review scripts/ensure-contract.sh").
 
 set -euo pipefail
 
@@ -49,4 +49,3 @@ if [ "$missing_in_ts" -ne 0 ]; then
 else
   echo "\nContract OK: TS invoke() names match Rust handlers."
 fi
-
