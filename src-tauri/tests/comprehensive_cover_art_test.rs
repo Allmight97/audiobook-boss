@@ -249,10 +249,15 @@ fn test_unsupported_format_detection() {
         "Expected warnings about unsupported cover art format, but got none"
     );
     assert!(
-        warnings.iter().any(|w| w.to_lowercase().contains("format") || w.to_lowercase().contains("supported")),
+        warnings
+            .iter()
+            .any(|w| w.to_lowercase().contains("format") || w.to_lowercase().contains("supported")),
         "Expected at least one warning about format compatibility, got: {warnings:?}"
     );
-    println!("✓ Metadata validation correctly warns about unsupported format (warnings: {})", warnings.len());
+    println!(
+        "✓ Metadata validation correctly warns about unsupported format (warnings: {})",
+        warnings.len()
+    );
 
     println!("Unsupported format detection test passed!");
 }
