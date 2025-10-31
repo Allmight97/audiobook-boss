@@ -41,7 +41,9 @@
       "Bash(tmux capture-pane:*)",
       "Bash(tmux kill-session:*)",
       "Bash(git log:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr merge:*)"
     ],
     "deny": []
   },

@@ -96,16 +96,16 @@ build_apple_flags() {
 SCRIPT_PATH="${0:A}"
 SCRIPT_DIR="${SCRIPT_PATH:h}"
 INPUT_DIR="."
-OUTPUT_DIR="$SCRIPT_DIR"
+OUTPUT_DIR=""
 
 while getopts ":I:O:h" opt; do
   case "$opt" in
     I) INPUT_DIR="$OPTARG" ;;
     O) OUTPUT_DIR="$OPTARG" ;;
     h)
-      echo "Usage: $0 [-I INPUT_DIR] [-O OUTPUT_DIR]"
-      echo "  -I DIR        Process audio files located in DIR"
-      echo "  -O DIR        Write outputs under DIR (default: script directory)"
+  echo "Usage: $0 [-I INPUT_DIR] [-O OUTPUT_DIR]"
+  echo "  -I DIR        Process audio files located in DIR"
+  echo "  -O DIR        Write outputs under DIR (default: same as input directory)"
       echo "  BITRATE=59k   Override Apple CVBR target (and fallback bitrate)"
       echo "  ENCODER=auto|fdk|apple selects encoder (default auto)"
       echo "    FDK forces HE-AAC (aac_he); Apple CVBR lets ffmpeg pick profile"
@@ -123,6 +123,11 @@ while getopts ":I:O:h" opt; do
   esac
 done
 shift $((OPTIND - 1))
+
+# Default OUTPUT_DIR to INPUT_DIR if not specified
+if [ -z "$OUTPUT_DIR" ]; then
+  OUTPUT_DIR="$INPUT_DIR"
+fi
 
 INPUT_DIR="${INPUT_DIR/#\~/$HOME}"
 OUTPUT_DIR="${OUTPUT_DIR/#\~/$HOME}"
@@ -424,19 +429,48 @@ build_worklist() {
     fi
   done
 
-  local root_has_files=0
+  # Collect root directory files, separating MP3 from M4B/M4A
+  local -a root_mp3_files=()
+  local -a root_other_files=()
   local file
   local matches=(*.m4b *.mp3 *.m4a *.M4B *.MP3 *.M4A)
   if [ ${#matches[@]} -gt 0 ]; then
     for file in ${matches[@]}; do
       [[ -e "$file" ]] || continue
       case "$file" in
-        *.mp3|*.MP3) root_has_files=1 ;;
+        *.mp3|*.MP3)
+          root_mp3_files+=("$file")
+          ;;
+        *)
+          root_other_files+=("$file")
+          ;;
       esac
-      WORKLIST+=("file:${file}")
-      ((++FILE_TASK_COUNT))
     done
   fi
+  
+  # Sort MP3 files for consistent ordering
+  root_mp3_files=("${(@on)root_mp3_files}")
+  
+  # If 2+ MP3 files in root, create merge task; otherwise process individually
+  if [ ${#root_mp3_files[@]} -ge 2 ]; then
+    WORK_MERGE_FILES["."]="${(F)root_mp3_files}"
+    WORKLIST+=("merge:.")
+    ((++MERGE_TASK_COUNT))
+  elif [ ${#root_mp3_files[@]} -eq 1 ]; then
+    # Single MP3 file: process individually (backward compatibility)
+    WORKLIST+=("file:${root_mp3_files[1]}")
+    ((++FILE_TASK_COUNT))
+  fi
+  
+  # Process M4B/M4A files individually
+  local root_has_files=0
+  if [ ${#root_mp3_files[@]} -gt 0 ] || [ ${#root_other_files[@]} -gt 0 ]; then
+    root_has_files=1
+  fi
+  for file in "${root_other_files[@]}"; do
+    WORKLIST+=("file:${file}")
+    ((++FILE_TASK_COUNT))
+  done
 
   local flatten=0
   if [ "$root_has_files" -eq 0 ] && [ "$MERGE_MODE" != "separate" ] && [ ${#eligible_subdirs[@]} -gt 0 ]; then
