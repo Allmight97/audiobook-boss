@@ -8,6 +8,8 @@ Converting: 23.3% (8310.0s / 35740.1s) - when I'm only loading 1 file?
     - ACTION: INvestigate - does this impact the app at all front or back end? And does the message imply FFMPEG is doing something it shouldn't be or is "starting FFmpeg merge" simply a placeholder message?
 [ ] FEATURE: Add ability to process multiple files loaded into the file list as separate jobs (single audiobook per file), outputing to different directories custom to each file.  E.G. I have 4 books that need shrunk all different books by the same author frome the same series. All books should save to the same parent directory that matches the author name, but each book should save to a different directory if I choose the option to save to a different directory.
     - STATUS: Backlog after encoder v2 rollout; requires orchestration + UI design.
+[ ] FEATURE: Support nested chapter directories when importing (auto-flatten into one merge task).
+    - ACTION: Encoder pipeline should recursively gather audio files under the selected root, warn when structure is flattened, and surface guidance in UI/docs.
 [ ] FEATURE: Add ability to load cover art from URL.
     - ACTION: Work with agent to design and implement this feature. Perhaps a simply load URL button?
 [X] BUG: Loaded cover art is replaced with whatever was imported from the input file the moment I click on another file in the file list.
