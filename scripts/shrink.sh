@@ -662,7 +662,7 @@ process_merge_task() {
     if [ "$preview_per_file_ms" -le 0 ]; then
       preview_per_file_ms=$preview_total_ms
     fi
-    if [ "$preview_min_ms" -gt 0 ] && [ $(( preview_min_ms * count )) -le "$preview_total_ms" ]; then
+    if [ "$preview_min_ms" -gt 0 ] && [ "$preview_per_file_ms" -lt "$preview_min_ms" ]; then
       preview_per_file_ms="$preview_min_ms"
     fi
   fi
