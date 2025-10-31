@@ -37,6 +37,8 @@ STATS_PERIOD="${STATS_PERIOD:-2}"
 JOBS="${JOBS:-2}"
 MERGE_MODE="${MERGE_MODE:-auto}" # auto|separate|flatten
 FFMPEG_ENCODERS_CACHE=""
+PREVIEW_TOTAL_SECONDS="${PREVIEW_TOTAL_SECONDS:-60}"          # total preview duration cap
+PREVIEW_MIN_SEGMENT_SECONDS="${PREVIEW_MIN_SEGMENT_SECONDS:-5}" # minimum per-file excerpt
 
 resolve_channels() {
   case "${CHANNELS:-}" in
@@ -191,7 +193,11 @@ print_quoted() {
 
 preview_args() {
   if [ "${PREVIEW:-0}" = "1" ]; then
-    echo "-t 30"
+    local total="${PREVIEW_TOTAL_SECONDS:-30}"
+    if ! [[ "$total" = <-> ]] || [ "$total" -le 0 ]; then
+      total=30
+    fi
+    echo "-t $total"
   fi
 }
 
@@ -615,32 +621,60 @@ process_merge_task() {
     return
   fi
 
-  if [ "${ORDER_DEBUG}" = "1" ]; then
-    local debug_list_file="${out_dir}/${safe_name}.order.txt"
-    if [ "${DRY:-0}" != "1" ]; then
-      : > "$debug_list_file"
-      for p in "${mp3_files[@]}"; do
-        printf "%s\n" "$INPUT_DIR/$p" >> "$debug_list_file"
-      done
-      echo "  [DEBUG] Wrote ordered list to: $debug_list_file"
-    else
-      echo "  [DRY][DEBUG] Would write ordered list to: $debug_list_file"
-    fi
+  local order_file="${out_dir}/${safe_name}.order.txt"
+  local want_order_report=0
+  if [ "${PREVIEW:-0}" = "1" ] || [ "${ORDER_DEBUG}" = "1" ]; then
+    want_order_report=1
   fi
 
   local chapter_metadata=$(mktemp)
   TEMP_FILES+=("$chapter_metadata")
   local current_time=0
+  local preview_mode=0
+  local preview_total_ms=0
+  local preview_min_ms=0
+  local preview_per_file_ms=0
+
+  if [ "${PREVIEW:-0}" = "1" ]; then
+    preview_mode=1
+    if [[ "${PREVIEW_TOTAL_SECONDS:-}" = <-> ]]; then
+      preview_total_ms=$(( PREVIEW_TOTAL_SECONDS * 1000 ))
+    else
+      preview_total_ms=$(( 30 * 1000 ))
+    fi
+    if [ "$preview_total_ms" -le 0 ]; then
+      preview_total_ms=$(( 30 * 1000 ))
+    fi
+    if [[ "${PREVIEW_MIN_SEGMENT_SECONDS:-}" = <-> ]]; then
+      preview_min_ms=$(( PREVIEW_MIN_SEGMENT_SECONDS * 1000 ))
+    else
+      preview_min_ms=$(( 5 * 1000 ))
+    fi
+    if [ "$preview_min_ms" -le 0 ]; then
+      preview_min_ms=$(( 5 * 1000 ))
+    fi
+    local count=${#mp3_files[@]}
+    if [ "$count" -le 0 ]; then
+      preview_per_file_ms=0
+    else
+      preview_per_file_ms=$(( preview_total_ms / count ))
+    fi
+    if [ "$preview_per_file_ms" -le 0 ]; then
+      preview_per_file_ms=$preview_total_ms
+    fi
+    if [ "$preview_min_ms" -gt 0 ] && [ $(( preview_min_ms * count )) -le "$preview_total_ms" ]; then
+      preview_per_file_ms="$preview_min_ms"
+    fi
+  fi
 
   echo ";FFMETADATA1" > "$chapter_metadata"
 
   local filter_inputs=""
   local ff_inputs=()
   local idx=0
+  local -a ordered_paths=()
   for mp3_file in "${mp3_files[@]}"; do
-    ff_inputs+=( -i "$mp3_file" )
-    filter_inputs+="[${idx}:a:0]"
-    idx=$((idx + 1))
+    ordered_paths+=("$INPUT_DIR/$mp3_file")
 
     local duration=$(get_metadata "$mp3_file" "duration")
     local duration_ms=0
@@ -666,21 +700,64 @@ process_merge_task() {
       fi
     fi
 
+    local clip_duration_ms="$duration_ms"
+    if [ "$clip_duration_ms" -le 0 ] && [ "$preview_mode" -eq 1 ] && [ "$preview_per_file_ms" -gt 0 ]; then
+      clip_duration_ms="$preview_per_file_ms"
+    fi
+    if [ "$preview_mode" -eq 1 ] && [ "$preview_per_file_ms" -gt 0 ] && [ "$duration_ms" -gt 0 ]; then
+      if [ "$clip_duration_ms" -gt "$preview_per_file_ms" ]; then
+        clip_duration_ms="$preview_per_file_ms"
+      fi
+    fi
+
     local title_base="$(basename "$mp3_file")"
     title_base="${title_base%.*}"
     local chapter_title=$(sanitize_name "$title_base")
+    if [ "$preview_mode" -eq 1 ] && [ "$clip_duration_ms" -gt 0 ]; then
+      local clip_total_s=$(( clip_duration_ms / 1000 ))
+      local clip_ms_rem=$(( clip_duration_ms % 1000 ))
+      local clip_h=$(( clip_total_s / 3600 ))
+      local clip_m=$(( (clip_total_s % 3600) / 60 ))
+      local clip_s=$(( clip_total_s % 60 ))
+      local trim_seconds=""
+      printf -v trim_seconds '%02d:%02d:%02d.%03d' "$clip_h" "$clip_m" "$clip_s" "$clip_ms_rem"
+      ff_inputs+=(-t "$trim_seconds")
+    fi
+    ff_inputs+=( -i "$mp3_file" )
+    filter_inputs+="[${idx}:a:0]"
+    idx=$((idx + 1))
+
     echo "" >> "$chapter_metadata"
     echo "[CHAPTER]" >> "$chapter_metadata"
     echo "TIMEBASE=1/1000" >> "$chapter_metadata"
     echo "START=${current_time}" >> "$chapter_metadata"
-    echo "END=$((current_time + duration_ms))" >> "$chapter_metadata"
+    echo "END=$((current_time + clip_duration_ms))" >> "$chapter_metadata"
     echo "title=$chapter_title" >> "$chapter_metadata"
 
-    current_time=$((current_time + duration_ms))
+    current_time=$((current_time + clip_duration_ms))
   done
 
-  local -a time_args_local
-  time_args_local=($(preview_args))
+  local -a time_args_local=()
+  if [ "$preview_mode" -ne 1 ]; then
+    time_args_local=($(preview_args))
+  fi
+
+  if [ "$want_order_report" -eq 1 ]; then
+    if [ "${DRY:-0}" != "1" ]; then
+      { printf "%s\n" "${ordered_paths[@]}"; } > "$order_file"
+      if [ "${PREVIEW:-0}" = "1" ]; then
+        echo "  [PREVIEW] Wrote order report to: $order_file"
+      else
+        echo "  [DEBUG] Wrote ordered list to: $order_file"
+      fi
+    else
+      if [ "${PREVIEW:-0}" = "1" ]; then
+        echo "  [DRY][PREVIEW] Would write order report to: $order_file"
+      else
+        echo "  [DRY][DEBUG] Would write ordered list to: $order_file"
+      fi
+    fi
+  fi
 
   # Determine channel count for merged output
   # Use CHANNELS override if set, otherwise detect from first MP3
