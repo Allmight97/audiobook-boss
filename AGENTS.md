@@ -36,7 +36,7 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ### Critical Flows
 - **Import**: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-- **Processing**: `process_audiobook_files` (v2) → `MediaProcessor::execute` → progress events
+- **Processing**: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events
 - **Metadata**: Lofty read → custom model → Lofty write (with native cover art)
 
 ### Integration Touchpoints
@@ -55,7 +55,7 @@ You are a senior software engineer who audits and develops code using engineerin
 - Primary target: macOS (Apple Silicon) only; ffmpeg-next links system libraries
 
 ### Boundary & Migration (processing v1 vs v2)
-- v1 (legacy boundary): Types `AudioSettings`; commands `process_audiobook_files`, `validate_audio_settings`.
+- v1 (legacy boundary): Types `AudioSettings`; legacy commands have been removed from the IPC surface.
 - v2 (current boundary): Types `EncoderSettings`; commands `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
 - Today: v2 maps into the legacy v1 pipeline for stability; the new encoder will consume v2 directly.
 - Policy:

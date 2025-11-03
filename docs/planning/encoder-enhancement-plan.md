@@ -13,7 +13,7 @@
 
 ## Boundary & Migration (v1 → v2)
 Dev note: Goal is to remove v1 and v2 mapping completely and have v2 be the only boundary.
-- v1 (legacy): `AudioSettings`; commands: `process_audiobook_files`, `validate_audio_settings`.
+- v1 (legacy): `AudioSettings`; legacy commands have been removed from the IPC surface.
 - v2 (current): `EncoderSettings`; commands: `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
 - Current bridge: v2 maps into legacy v1 pipeline for stability; the new encoder will consume v2 directly.
 - Policy: all new encoder features (FDK detection, `aac_at`, `aac_coder`, afterburner, threads) are v2-only; UI should invoke v2 only; deprecate v1 and remove after one release.
@@ -174,5 +174,4 @@ if request.skip_optimized && should_skip_optimized(file, plan.settings.channels.
 - Encoder/progress patterns: `docs/external-apis/ffmpeg-next.md`
 - Tauri command/event surfaces: `docs/external-apis/tauri-commands.md`, `docs/external-apis/tauri-patterns.md`, `docs/external-apis/tauri-ts-boundaries.md`
 - v1→v2 migration context: `AGENTS.md` and `docs/reports/api_recs.md`
-
 

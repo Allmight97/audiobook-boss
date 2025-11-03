@@ -46,8 +46,10 @@ This report provides a comprehensive comparison between documented APIs and the 
 
 | v1 Endpoint | Status | v2 Equivalent | Complexity Gap |
 |------------|--------|---------------|-----------------|
-| `process_audiobook_files` | Active but superseded | `process_audiobook_files_v2` | Minimal mapping layer |
-| `validate_audio_settings` | Active but limited | `validate_encoder_settings_cmd` | Significant feature mismatch |
+| `process_audiobook_files` | Removed (Nov 2025) | `process_audiobook_files_v2` | N/A |
+| `validate_audio_settings` | Removed (Nov 2025) | `validate_encoder_settings_cmd` | N/A |
+
+Legacy findings below are retained for historical context prior to removal.
 
 **Key Issues with v1 Legacy:**
 1. **Limited Encoder Control**: v1 only supports basic bitrate and channel config
@@ -222,14 +224,14 @@ const PROGRESS_COMPLETE: f32 = 100.0;
 
 ### Immediate Actions
 
-1. **Tag Legacy Code**
+1. **Tag Legacy Code** *(Completed Nov 2025: command removed)*
 ```rust
 // Add to src-tauri/src/commands/audio.rs
 #[deprecated(note = "Use process_audiobook_files_v2 instead")]
 pub async fn process_audiobook_files(...) -> Result<ProcessCommandResult>
 ```
 
-2. **Update Frontend Warnings**
+2. **Update Frontend Warnings** *(Completed Nov 2025: legacy harness entries removed)*
 ```typescript
 // Add to src/ui/statusPanel/logic.ts
 console.warn("Using legacy v1 API - migrate to process_audiobook_files_v2");
@@ -237,7 +239,7 @@ console.warn("Using legacy v1 API - migrate to process_audiobook_files_v2");
 
 ### Medium-term Cleanup
 
-1. ** consolidate v1/v2 mapping**
+1. ** consolidate v1/v2 mapping** *(Completed Nov 2025)*
 ```rust
 // Remove function and inline its logic into process_audiobook_files_v2
 fn derive_v1_settings_from_v2(payload: &ProcessV2Payload) -> Result<AudioSettings>
