@@ -50,7 +50,7 @@ pub(crate) async fn execute_processing(
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
         workflow.total_duration(),
-        context.settings.bitrate
+        context.effective_bitrate_kbps()
     );
 
     let merged_output = merge_audio_files_with_context(

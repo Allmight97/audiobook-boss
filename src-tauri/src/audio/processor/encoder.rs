@@ -104,10 +104,14 @@ fn resolve_target_audio_params(
     use crate::audio::SampleRateConfig;
     use crate::errors::AppError;
 
+    let channel_count = plan
+        .encoder_settings_v2
+        .as_ref()
+        .map(|enc| enc.channels as i32)
+        .unwrap_or_else(|| plan.settings.channels.channel_count() as i32);
+
     match &plan.settings.sample_rate {
-        SampleRateConfig::Explicit(rate) => {
-            Ok((*rate, plan.settings.channels.channel_count() as i32))
-        }
+        SampleRateConfig::Explicit(rate) => Ok((*rate, channel_count)),
         SampleRateConfig::Auto => {
             let first = plan
                 .input_file_paths
@@ -125,10 +129,7 @@ fn resolve_target_audio_params(
                 .audio()
                 .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
             // Pass through sample rate; channels always come from UI settings
-            Ok((
-                decoder.rate(),
-                plan.settings.channels.channel_count() as i32,
-            ))
+            Ok((decoder.rate(), channel_count))
         }
     }
 }
@@ -174,7 +175,13 @@ pub(crate) fn create_audio_encoder(
         .audio()
         .map_err(|e| AppError::General(format!("Open encoder failed: {e}")))?;
     // Bitrate/rate/channels
-    opened.set_bit_rate(((plan.settings.bitrate as i64) * 1000) as usize);
+    let effective_bitrate_kbps = plan
+        .encoder_settings_v2
+        .as_ref()
+        .map(|enc| enc.bitrate_kbps as usize)
+        .unwrap_or(plan.settings.bitrate as usize);
+    let target_bit_rate = effective_bitrate_kbps * 1000;
+    opened.set_bit_rate(target_bit_rate);
     opened.set_rate(target_sample_rate as i32);
     opened.set_channel_layout(channel_layout);
     opened.set_format(sample_format);
@@ -410,14 +417,20 @@ pub(crate) fn setup_encoder(
         }
     }
 
+    let logged_bitrate = plan
+        .encoder_settings_v2
+        .as_ref()
+        .map(|enc| enc.bitrate_kbps as u32)
+        .unwrap_or(plan.settings.bitrate);
+
     log::info!(
-        "encoder_setup resolved: rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k settings={:?}",
+        "encoder_setup resolved: rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k encoder_settings_v2={:?}",
         target_sample_rate,
         target_channels,
         enc_ctx.format(),
         enc_ctx.frame_size(),
-        plan.settings.bitrate,
-        plan.settings
+        logged_bitrate,
+        plan.encoder_settings_v2
     );
 
     Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
