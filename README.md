@@ -24,12 +24,12 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 ## Critical Data Flows
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-2. Processing Pipeline: `process_audiobook_files` (or v2) → `MediaProcessor::execute` → progress events via Tauri window
+2. Processing Pipeline: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events via Tauri window
 3. Metadata Flow: Lofty read → custom `AudiobookMetadata` → Lofty write (and native embedding when available)
 
 ## Commands & Integration Points
 - Tauri Commands module: `src-tauri/src/commands/`
-  - `validate_files`, `analyze_audio_files`, `validate_audio_settings`, `process_audiobook_files`, `process_audiobook_files_v2`, `cancel_processing`, plus metadata read/write commands
+- `validate_files`, `analyze_audio_files`, `process_audiobook_files_v2`, `validate_encoder_settings_cmd`, `cancel_processing`, plus metadata read/write commands
 - Processing Runtime
   - Engine selection is trivial: `FfmpegNextProcessor` only (see `audio/processor/selection.rs`)
   - ffmpeg-next initialized once per process (`ff::init()`)
@@ -124,4 +124,3 @@ cargo test path_validation
   - 'main' (https://github.com/Allmight97/audiobook-boss.git) is the current stable branch.
   - 'feat/new_encoder' (https://github.com/Allmight97/audiobook-boss.git) is the current work-in-progress audio processing pipeline update that will support Apple AAC (aac_at) and HE-AAC v1/v2 and libfdk_aac (external call to local FDK binary only) encoders. And expose new 'advanced' settings panel for the user to configure more encoder and profile options.
 - Primary development target: macOS (Apple Silicon). Out of scope: Intel Macs, Linux, Windows.
-

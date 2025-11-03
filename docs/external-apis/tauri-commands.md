@@ -9,9 +9,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `ping`, `echo` | `src-tauri/src/commands/system.rs` | Console smoke tests via `window.testCommands` |
 | `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and console harness |
 | `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport` |
-| `validate_audio_settings` | `src-tauri/src/commands/audio.rs` → `audio::validate_audio_settings` | Diagnostics through `window.testCommands`; UI does inline validation |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
-| `process_audiobook_files` | `src-tauri/src/commands/audio.rs` → `audio::processor::process_audiobook_with_context` | Legacy console fallback; superseded by v2 payload |
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` | StatusPanel cancel button |
 | `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` | File list metadata pane, cover-art thumbnail refresh |
@@ -64,7 +62,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Frontend harness for QA
 
-- `window.testCommands` in `src/main.ts` mirrors each command for manual QA and automated console testing; production UI flows depend on the modules listed above rather than the harness itself.
+- `window.testCommands` in `src/main.ts` exposes select commands for manual QA (ping/echo/validation/metadata); production UI flows depend on the modules listed above rather than the harness itself.
 
 ### Notes on scope
 

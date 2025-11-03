@@ -6,10 +6,8 @@
 //! DO NOT MODIFY THESE TESTS - they document how the system works now.
 //! Any changes should only be made if the current behavior is incorrect.
 
-use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
-use crate::commands::{
-    analyze_audio_files, read_audio_metadata, validate_audio_settings, validate_files,
-};
+use crate::audio::{self, AudioSettings, ChannelConfig, SampleRateConfig};
+use crate::commands::{analyze_audio_files, read_audio_metadata, validate_files};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::path::PathBuf;
@@ -108,14 +106,10 @@ mod integration_tests {
         );
 
         // Step 3: Validate processing settings
-        let settings_validation = validate_audio_settings(settings.clone());
+        let settings_validation = audio::validate_audio_settings(&settings);
         assert!(
             settings_validation.is_ok(),
             "Settings validation should succeed"
-        );
-        assert_eq!(
-            settings_validation.expect("settings ok"),
-            "Settings are valid"
         );
 
         // Step 4: Read metadata from input file
@@ -279,7 +273,7 @@ mod integration_tests {
 
         // Invalid bitrate
         invalid_settings.bitrate = 256; // Too high
-        let settings_result = validate_audio_settings(invalid_settings.clone());
+        let settings_result = audio::validate_audio_settings(&invalid_settings);
         assert!(settings_result.is_err(), "Should fail for invalid bitrate");
         assert!(settings_result
             .expect_err("expected bitrate error")
@@ -289,7 +283,7 @@ mod integration_tests {
         // Invalid output extension
         invalid_settings.bitrate = 64; // Fix bitrate
         invalid_settings.output_path = temp_dir.path().join("test.mp3"); // Wrong extension
-        let settings_result = validate_audio_settings(invalid_settings);
+        let settings_result = audio::validate_audio_settings(&invalid_settings);
         assert!(
             settings_result.is_err(),
             "Should fail for wrong file extension"

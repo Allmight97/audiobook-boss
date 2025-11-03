@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AudiobookMetadata } from "./types/metadata";
-import type { FileListInfo, AudioSettings } from "./types/audio";
+import type { FileListInfo } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import { displayFileList, currentFileList, clearAllFiles, toggleFileSort } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
@@ -25,10 +25,6 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   
   // Audio processing commands
   analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { filePaths: filePaths }),
-  validateAudioSettings: (settings: AudioSettings) => invoke('validate_audio_settings', { settings }),
-  processAudiobook: (filePaths: string[], settings: AudioSettings, metadata?: AudiobookMetadata) => 
-    invoke('process_audiobook_files', { filePaths: filePaths, settings, metadata }),
-
   // UI test functions
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
   getCurrentFileList: () => currentFileList,
@@ -81,8 +77,6 @@ console.log('  window.testCommands.readMetadata(filePath)');
 console.log('  window.testCommands.writeMetadata(filePath, metadata)');
 console.log('  window.testCommands.writeCoverArt(filePath, coverData)');
 console.log('  window.testCommands.analyzeAudioFiles(filePaths)');
-console.log('  window.testCommands.validateAudioSettings(settings)');
-console.log('  window.testCommands.processAudiobook(filePaths, settings, metadata?)');
 console.log('  window.testCommands.testDisplayList(fileListInfo)');
 console.log('  window.testCommands.getCurrentFileList()');
 console.log('  window.testCommands.clearFiles()');
