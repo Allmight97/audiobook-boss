@@ -156,9 +156,14 @@ pub async fn process_audiobook_files_v2(
     // Process the audiobook with progress events
     let (message, preview_path_opt, preview_seconds_used) = {
         let session = audio::session::ProcessingSession::new();
-        let settings_for_path = settings_v1.clone();
-        let mut context =
-            audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings_v1);
+        let final_output_path = settings_v1.output_path.clone();
+        let output_config = audio::OutputConfig::new(final_output_path.clone());
+        let mut context = audio::ProcessingContext::new(
+            window,
+            std::sync::Arc::new(session),
+            settings_v1,
+            output_config,
+        );
         // Attach v2 encoder settings to context for downstream mapping
         context.encoder_settings_v2 = Some(payload.settings.clone());
 
@@ -180,7 +185,7 @@ pub async fn process_audiobook_files_v2(
             audio::processor::process_audiobook_with_context(context, file_info.files, metadata)
                 .await?;
         let preview_path = if is_preview {
-            let final_output = &settings_for_path.output_path;
+            let final_output = &final_output_path;
             let parent = final_output
                 .parent()
                 .unwrap_or_else(|| std::path::Path::new("."));
@@ -253,10 +258,14 @@ pub async fn process_audiobook_files(
     let (message, preview_path_opt, preview_seconds_used) = {
         // Single engine path: ffmpeg-next context based processing
         let session = audio::session::ProcessingSession::new();
-        // Clone settings for deriving preview path later (original moved into context)
-        let settings_for_path = settings.clone();
-        let mut context =
-            audio::ProcessingContext::new(window, std::sync::Arc::new(session), settings);
+        let final_output_path = settings.output_path.clone();
+        let output_config = audio::OutputConfig::new(final_output_path.clone());
+        let mut context = audio::ProcessingContext::new(
+            window,
+            std::sync::Arc::new(session),
+            settings,
+            output_config,
+        );
         // Resolve preview seconds from payload or environment fallback
         let mut preview_seconds_resolved: Option<f64> = None;
         if let Some(sec) = preview_seconds.or_else(|| {
@@ -276,7 +285,7 @@ pub async fn process_audiobook_files(
                 .await?;
         let preview_path = if is_preview {
             // Derive preview path deterministically based on output settings
-            let final_output = &settings_for_path.output_path;
+            let final_output = &final_output_path;
             let parent = final_output
                 .parent()
                 .unwrap_or_else(|| std::path::Path::new("."));

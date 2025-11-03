@@ -1,11 +1,20 @@
 //! Tests native ffmpeg-next cover art embedding
 //! Ensures that when cover art is provided, a stream is added pre-header and packet written.
 
-use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig, media_pipeline::MediaProcessingPlan};
-use audiobook_boss_lib::audio::context::ProcessingContextBuilder;
+use audiobook_boss_lib::audio::{
+    AudioSettings,
+    ChannelConfig,
+    OutputConfig,
+    SampleRateConfig,
+    context::ProcessingContext,
+    media_pipeline::MediaProcessingPlan,
+    session::ProcessingSession,
+};
 use audiobook_boss_lib::metadata::AudiobookMetadata;
 use tempfile::TempDir;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::{test::mock_app, WebviewUrl, WebviewWindowBuilder};
 
 // Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
 const MINIMAL_JPEG: &[u8] = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9"; // SOI + APP0 + EOI
@@ -42,13 +51,24 @@ fn test_native_cover_art_embedding_end_to_end() {
 
     let plan = MediaProcessingPlan::new(
         output.clone(),
-        settings,
+        settings.clone(),
         vec![input.clone()],
         1.0,
     );
 
-    // Build a minimal processing context (window and session mocks handled by builder default semantics)
-    let ctx = ProcessingContextBuilder::new().build();
+    // Build a minimal processing context backed by a mock window/session
+    let app = mock_app();
+    let webview = WebviewWindowBuilder::new(
+        &app,
+        "cover-art-test",
+        WebviewUrl::App("index.html".into()),
+    )
+    .build()
+    .expect("create mock webview window");
+    let window = webview.as_ref().window();
+    let session = Arc::new(ProcessingSession::new());
+    let output_config = OutputConfig::new(settings.output_path.clone());
+    let ctx = ProcessingContext::new(window, session, settings, output_config);
 
     // Execute with context (async). We use a minimal executor via futures::executor.
     futures::executor::block_on(async {
@@ -92,12 +112,23 @@ fn test_cover_art_unsupported_format_fallback() {
 
     let plan = MediaProcessingPlan::new(
         output.clone(),
-        settings,
+        settings.clone(),
         vec![input.clone()],
         1.0,
     );
 
-    let ctx = ProcessingContextBuilder::new().build();
+    let app = mock_app();
+    let webview = WebviewWindowBuilder::new(
+        &app,
+        "cover-art-fallback",
+        WebviewUrl::App("index.html".into()),
+    )
+    .build()
+    .expect("create mock webview window");
+    let window = webview.as_ref().window();
+    let session = Arc::new(ProcessingSession::new());
+    let output_config = OutputConfig::new(settings.output_path.clone());
+    let ctx = ProcessingContext::new(window, session, settings, output_config);
     futures::executor::block_on(async {
         plan.execute_with_context(&ctx, Some(&metadata))
             .await

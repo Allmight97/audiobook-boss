@@ -10,6 +10,7 @@ use super::AudioSettings;
 use crate::audio::ProcessingStage;
 use crate::errors::Result;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Window;
 
@@ -18,6 +19,32 @@ use tauri::Window;
 pub struct PreviewConfig {
     /// Number of seconds to encode before early-stop
     pub seconds: f64,
+}
+
+/// Output configuration derived from user input
+#[derive(Debug, Clone)]
+pub struct OutputConfig {
+    /// Final destination for the processed audiobook
+    final_path: PathBuf,
+}
+
+impl OutputConfig {
+    /// Creates a new output configuration
+    pub fn new<P: Into<PathBuf>>(final_path: P) -> Self {
+        Self {
+            final_path: final_path.into(),
+        }
+    }
+
+    /// Returns a reference to the final output path
+    pub fn final_path(&self) -> &Path {
+        &self.final_path
+    }
+
+    /// Consumes the config and returns the final path
+    pub fn into_final_path(self) -> PathBuf {
+        self.final_path
+    }
 }
 
 /// Groups core processing dependencies together
@@ -32,19 +59,27 @@ pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
     /// Audio processing settings
     pub settings: AudioSettings,
+    /// Output configuration
+    pub output: OutputConfig,
     /// Optional advanced encoder settings (v2) carried through the pipeline
     pub encoder_settings_v2: Option<EncoderSettings>,
-    /// Optional preview configuration (when present, processing should early‑stop)
+    /// Optional preview configuration (when present, processing should early-stop)
     pub preview: Option<PreviewConfig>,
 }
 
 impl ProcessingContext {
     /// Creates a new ProcessingContext with the given components
-    pub fn new(window: Window, session: Arc<ProcessingSession>, settings: AudioSettings) -> Self {
+    pub fn new(
+        window: Window,
+        session: Arc<ProcessingSession>,
+        settings: AudioSettings,
+        output: OutputConfig,
+    ) -> Self {
         Self {
             window,
             session,
             settings,
+            output,
             encoder_settings_v2: None,
             preview: None,
         }
@@ -114,6 +149,7 @@ pub struct ProcessingContextBuilder {
     window: Option<Window>,
     session: Option<Arc<ProcessingSession>>,
     settings: Option<AudioSettings>,
+    output: Option<OutputConfig>,
 }
 
 impl ProcessingContextBuilder {
@@ -123,6 +159,7 @@ impl ProcessingContextBuilder {
             window: None,
             session: None,
             settings: None,
+            output: None,
         }
     }
 
@@ -144,6 +181,12 @@ impl ProcessingContextBuilder {
         self
     }
 
+    /// Sets the output configuration
+    pub fn output(mut self, output: OutputConfig) -> Self {
+        self.output = Some(output);
+        self
+    }
+
     /// Builds the ProcessingContext
     ///
     /// # Errors
@@ -155,16 +198,26 @@ impl ProcessingContextBuilder {
                     .to_string(),
             )
         })?;
-        let session = self.session
-            .ok_or_else(|| crate::errors::AppError::InvalidInput(
-                "Failed to build ProcessingContext: Processing session is required for state management".to_string()
-            ))?;
-        let settings = self.settings
-            .ok_or_else(|| crate::errors::AppError::InvalidInput(
-                "Failed to build ProcessingContext: Audio settings are required for processing configuration".to_string()
-            ))?;
+        let session = self.session.ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Processing session is required for state management"
+                    .to_string(),
+            )
+        })?;
+        let settings = self.settings.ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Audio settings are required for processing configuration"
+                    .to_string(),
+            )
+        })?;
+        let output = self.output.ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Output configuration is required for finalization"
+                    .to_string(),
+            )
+        })?;
 
-        Ok(ProcessingContext::new(window, session, settings))
+        Ok(ProcessingContext::new(window, session, settings, output))
     }
 }
 

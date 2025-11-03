@@ -257,14 +257,14 @@ pub(crate) fn complete_processing(
     log::info!("Temporary file: {}", merged_output.display());
     log::info!(
         "Final output path: {}",
-        context.settings.output_path.display()
+        context.output.final_path().display()
     );
 
     let ui = crate::audio::progress::ProgressEmitter::new(context.window.clone());
     ui.emit_cleanup("Cleaning up...");
 
     log::info!("Moving temporary file to final location...");
-    let final_output = move_to_final_location(merged_output, &context.settings.output_path)?;
+    let final_output = move_to_final_location(merged_output, context.output.final_path())?;
     log::info!("✓ File moved successfully to: {}", final_output.display());
 
     if context.is_cancelled() {
@@ -298,7 +298,7 @@ pub(crate) async fn finalize_processing(
 
     // If preview mode is enabled, move to preview-named path with overwrite policy
     if let Some(preview_cfg) = context.preview.as_ref() {
-        let preview_path = derive_preview_output_path(&context.settings.output_path);
+        let preview_path = derive_preview_output_path(context.output.final_path());
         log::info!(
             "Preview finalize: seconds={:.3} dest={}",
             preview_cfg.seconds,
