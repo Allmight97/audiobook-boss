@@ -1,4 +1,13 @@
-// Encoder v2 types (frontend) — VBR/FDK reserved and disabled in this phase
+// UI-only encoder v2 types (frontend)
+//
+// Important:
+// - This file models richer UI state for future encoder options.
+// - The canonical Tauri boundary type is `EncoderSettings` in `src/types/audio.ts`.
+// - When invoking backend commands, map this UI shape to the boundary type to
+//   avoid contract drift with Rust (`src-tauri/src/audio/settings_encoder.rs`).
+// - Do not serialize this shape directly across the IPC boundary.
+//
+// VBR/FDK fields remain reserved/disabled in this phase.
 // FEATURE_TOGGLE:VBR  VBR_DISABLED_MARKER
 // FEATURE_TOGGLE:FDK  FDK_PLACEHOLDER
 
@@ -30,5 +39,4 @@ export const defaultEncoderSettingsV2 = (isMac: boolean): EncoderSettingsV2 => (
   fdkAfterburner: false,
   optimizeLcLowBitrate: true,
 });
-
 
