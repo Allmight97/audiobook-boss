@@ -62,7 +62,7 @@ You are a senior software engineer who audits and develops code using engineerin
   - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) are v2-only.
   - UI must call v2 commands only.
 - Contract guard (transition): Keep TS ↔ Rust command parity (see quick checks for `scripts/ensure-contract.sh`). Retire once v2-only (or after adopting typesafe codegen).
-- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning/encoder-enhancement-plan.md` (single canonical encoder plan).
+- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/planning/encoder-enhancement-plan.md` (single canonical encoder plan).
 
 ---
 
@@ -203,6 +203,7 @@ Event: `processing-progress`
 - ❌ Skip input validation in new code paths
 - ❌ Add new logic to `media_pipeline.rs`
 - ❌ Make TS/Rust boundaries loose or implicit
+- ❌ Create new docs unless requested by the owner or approved as part of an implementation plan (minimize doc noise)
 
 ### What TO Do
 - ✅ Validate plan with owner before non-trivial changes

@@ -5,7 +5,7 @@
 - [ ] TODO: Review `docs/planning/encoder-enhancement-plan.md` to finalize features, ui, and implementation details with Ai agent.
     - Scope: confirm user-installed FDK exposure (no bundling), UI gating by availability or explicit path, and alignment with ffmpeg-next-only policy.
     - Outcome: either trim and keep the plan with accurate constraints, or archive/delete and fold keepers into `encoding-engine-brief.md` and `frontend-ipc-outline.md`.
-    - STATUS: Pre-work for encoder v2; outstanding. Align desired behavior with Ai agent.
+    - STATUS: Encoder v2 migration complete (PRs A-E merged). Plan needs type reference fixes and feature status clarification. Ready for feature implementation planning.
 
 - [ ] TODO: Review `scripts/ensure-contract.sh` to decide whether to retain, refresh, or replace.
      - STATUS: Planning to do with Ai agent. Script produces TS↔Rust command diffs but lacks documented workflow. Not even sure if this is relevent.
@@ -35,8 +35,8 @@
     - STATUS: Backlog after encoder v2 rollout; requires orchestration + UI design.
 
 - [ ] FEATURE: Give users ability to choose FDK-AAC or AAC-AT (Apple's AudioToolbox) if they have it installed on their local hardware (we cannot legally ship FDK-AAC with the app!)
-        - Action: Adjust output settings UI to accommdate features. Fold into encoder v2 implementation; depends on encoder detection + UI gating. See `docs/planning/encoder-enhancement-plan.md`.
-        - STATUS: Planning - scripts/shrink.sh is a working prototype of how this logic might work if the user has FDK-AAC installed on their local Apple hardware. Windows and linux users will need to install FDK-AAC or use native AAC encoder.
+        - Action: Adjust output settings UI to accommodate features. Depends on encoder detection + UI gating. See `docs/planning/encoder-enhancement-plan.md`.
+        - STATUS: Planned - encoder v2 infrastructure complete. Backend has `is_encoder_available_by_name()` helper; needs `list_available_encoders` command + UI integration. scripts/shrink.sh is a working prototype of how this logic might work if the user has FDK-AAC installed on their local Apple hardware. Windows and linux users will need to install FDK-AAC or use native AAC encoder.
 
 - [ ] FEATURE: Wire `window.testCommands.testMoveFile/testSortFiles` to actual ordering controls or remove the harness stubs.
     - CONTEXT: Placeholders remain in `src/main.ts`; confirm desired UX before implementing.

@@ -36,7 +36,9 @@ Dev note: v1 commands have been removed from the IPC surface. The codebase is v2
 
 ## Feature Plan
 
-### 1. Encoder Discovery & UI Feedback
+**Status Note**: Features below are planned enhancements. Architecture foundation (v2 API, encoder setup, adapter pattern) is complete. Implementation status marked per feature.
+
+### 1. Encoder Discovery & UI Feedback (Planned)
 - **Backend**: expose encoder availability via a lightweight command.
 
 ```rust
@@ -76,7 +78,7 @@ if (!availability.aac_at && dom.encoderSelect) {
 // ... existing code ...
 ```
 
-### 2. Bitrate & Quality Presets (CVBR / HE Profiles / Future VBR)
+### 2. Bitrate & Quality Presets (CVBR / HE Profiles / Future VBR) (Planned)
 - **Types**: surface curated presets using the backend whitelist.
 
 ```startLine:endLine:src/types/encoder.ts
@@ -91,26 +93,14 @@ export const BITRATE_PRESETS: Array<{ label: string; value: EncoderSettingsV2['b
 
 - **UI**: bind select/slider to update `EncoderSettingsV2.bitrateKbps`; update profile hints (LC vs HE) to match script-driven quality levels.
 
-### 3. Preview & Dry-Run Workflow
-- **Command Input**: extend v2 process payload.
-
-```rust
-// ... existing code ...
-#[derive(Debug, Deserialize)]
-pub struct ProcessRequestV2 {
-    // existing fields
-    #[serde(default)]
-    pub preview_seconds: Option<u16>,
-    #[serde(default)]
-    pub plan_only: bool,
-}
-// ... existing code ...
-```
-
+### 3. Preview & Dry-Run Workflow (Partially Implemented)
+- **Command Input**: `preview_seconds` already exists as optional parameter to `process_audiobook_files_v2` command.
+- **Current State**: Preview backend implemented (30s hardcoded in statusPanel; can be triggered via options parameter).
+- **Planned**: Extend `ProcessV2Payload` to support `plan_only` flag for dry-run mode.
 - **Pipeline**: if `plan_only`, short-circuit after building `MediaProcessingPlan` and return a plan summary (input count, encoder choice, expected runtime).
 - **Frontend**: add toggles mirroring `PREVIEW` / `DRY` script flags; show plan modal or console summary.
 
-### 4. Skip Already Optimized Files
+### 4. Skip Already Optimized Files (Planned)
 - **Backend**: add guard in prepare stage.
 
 ```rust
@@ -132,19 +122,19 @@ if request.skip_optimized && should_skip_optimized(file, plan.settings.channels.
 
 - **UI**: checkbox with tooltip explaining heuristic sourced from `shrink.sh`.
 
-### 5. Merge Modes & Chapter Metadata Preview
+### 5. Merge Modes & Chapter Metadata Preview (Planned)
 - **Frontend**: add merge mode selector with preview of resulting chapter order.
 - **Backend**: extend `MediaProcessingPlan` to carry merge strategy; generate ffmetadata chapters before encoding (similar to script logic).
 
-### 6. Metadata Inspection Panel
+### 6. Metadata Inspection Panel (Planned)
 - **Frontend**: reuse `analyze_audio_files` results to show duration, sample rate, bitrate, codec in the file list.
 - **Backend**: ensure analyzer returns structured numeric fields (currently stored in `AudioFile`).
 
-### 7. Concurrency Controls
+### 7. Concurrency Controls (Planned)
 - **UI**: expose thread setting options tied to `ThreadSetting` (Auto, Single, Fixed N).
 - **Backend**: plumb through existing `EncoderSettings.threads`; ensure validation errors surface clearly.
 
-### 8. Debug Artifacts (Opt-in)
+### 8. Debug Artifacts (Opt-in) (Planned)
 - **Backend**: enrich plan-only response with ffmpeg command, chapter order, and output paths.
 - **Frontend**: add “Export debug plan” button (debug builds only) to write artifacts via Tauri FS API.
 
@@ -173,5 +163,5 @@ if request.skip_optimized && should_skip_optimized(file, plan.settings.channels.
 ## References
 - Encoder/progress patterns: `docs/external-apis/ffmpeg-next.md`
 - Tauri command/event surfaces: `docs/external-apis/tauri-commands.md`, `docs/external-apis/tauri-patterns.md`, `docs/external-apis/tauri-ts-boundaries.md`
-- v1→v2 migration context: `AGENTS.md` and `docs/reports/api_recs.md`
+- v1→v2 migration context: `AGENTS.md`
 

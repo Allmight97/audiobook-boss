@@ -95,3 +95,23 @@ Constraints:
 - macOS (Apple Silicon) is the target platform
 
 
+
+### Frame contract & guards (recap)
+
+- Encoder frame validity
+  - Sample format: planar F32; channels/layout must match encoder configuration.
+  - `nb_samples > 0`; if encoder reports `frame_size == 0` (variable), accumulate to a canonical size (1024) for consistency before sending.
+  - All planes must be allocated with sufficient capacity before use (resampler writes into pre-allocated frames; it will not auto-alloc).
+  - Samples must be finite and clamped to [-1.0, 1.0] before encoding (sanitization centralized in `audio/buffer.rs`).
+
+- PTS/time base
+  - Encoder time base is 1 / sample_rate; set `frame.pts = running_pts` and advance `running_pts += frame.samples()` for each encoded frame.
+  - Rescale packet timestamps from encoder time base to output stream time base before writing.
+
+- Fast-path safety
+  - Only skip resampling if decoded frames already match encoder format, layout, and sample rate; otherwise resample first.
+
+- Debug-only validator (development builds)
+  - Assert planes allocated and perform a light finite-sample spot check prior to `avcodec_send_frame`.
+  - Log a single fallback notice when using canonical accumulation for `frame_size == 0`.
+
