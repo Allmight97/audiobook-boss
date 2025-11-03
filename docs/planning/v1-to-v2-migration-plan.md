@@ -38,7 +38,8 @@ Scope:
 
 Acceptance:
 - All outputs continue to land at the same location.
-- Tests and quick checks pass; progress/events unchanged.
+- Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
+- Tests pass; progress/events unchanged.
 
 ### PR B — Consume v2 in encoder setup
 Scope:
@@ -48,14 +49,18 @@ Scope:
 Acceptance:
 - Feature parity for current flows (same output quality/format, stable progress emissions).
 - v1 commands still compile but are unused.
+- Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 
 ### PR C — Remove v1 commands and boundary types
 Scope:
 - Remove `process_audiobook_files`, `validate_audio_settings` and any v1 IPC payloads.
 - Update `window.testCommands`, docs, and ensure no v1 references.
+- Clean up unused imports and code artifacts left from PR A/B refactoring (e.g., unused `SampleRateConfig` imports in command handlers that no longer construct v1 settings explicitly).
 
 Acceptance:
-- Repo builds with only v2; ensure-contract and quick checks pass.
+- Repo builds with only v2.
+- Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass (catches unused imports, formatting issues, and contract mismatches).
+- Ensure-contract validation passes.
 
 ### PR D — Unify front‑end encoder types
 Scope:
@@ -66,6 +71,7 @@ Scope:
 Acceptance:
 - No direct serialization of UI‑only type across IPC.
 - UI provider (if present) returns boundary type.
+- Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 
 ### PR E — Cleanup and docs (v2‑only)
 Scope:
@@ -73,7 +79,8 @@ Scope:
 - Confirm event contract docs match runtime (already aligned in prior PR).
 
 Acceptance:
-- Docs match code; quick checks pass.
+- Docs match code.
+- Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 
 ## Contracts and Compatibility
 - Events: `processing-progress` remains unchanged. Stage ranges are 0–10 / 10–79 / 90–95 / 95–100.
