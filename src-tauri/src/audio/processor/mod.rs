@@ -99,7 +99,8 @@ pub async fn process_audiobook_with_context(
     for file in &files {
         if file.is_valid {
             if let Some(duration) = file.duration {
-                let estimated_bytes = (duration * context.settings.bitrate as f64 * 125.0) as usize;
+                let estimated_bytes =
+                    (duration * context.effective_bitrate_kbps() as f64 * 125.0) as usize;
                 metrics.update_file_processed(Duration::from_secs_f64(duration), estimated_bytes);
             }
         }

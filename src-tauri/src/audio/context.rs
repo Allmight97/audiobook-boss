@@ -142,6 +142,22 @@ impl ProcessingContext {
             self.session.id()
         ))
     }
+
+    /// Returns the effective bitrate in kbps (v2-aware)
+    pub fn effective_bitrate_kbps(&self) -> u32 {
+        self.encoder_settings_v2
+            .as_ref()
+            .map(|enc| enc.bitrate_kbps as u32)
+            .unwrap_or(self.settings.bitrate)
+    }
+
+    /// Returns the effective channel count (v2-aware)
+    pub fn effective_channel_count(&self) -> u8 {
+        self.encoder_settings_v2
+            .as_ref()
+            .map(|enc| enc.channels)
+            .unwrap_or_else(|| self.settings.channels.channel_count())
+    }
 }
 
 /// Builder pattern for ProcessingContext

@@ -1,7 +1,7 @@
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::{validate_encoder_settings, EncoderSettings};
+use crate::audio::ChannelConfig;
 use crate::audio::{self, AudioSettings};
-use crate::audio::{ChannelConfig, SampleRateConfig};
 use crate::errors::{AppError, Result};
 use std::path::{Path, PathBuf};
 // removed duplicate PathBuf import
@@ -70,46 +70,6 @@ pub struct ProcessV2Payload {
     pub settings: EncoderSettings,
 }
 
-fn derive_v1_settings_from_v2(payload: &ProcessV2Payload) -> Result<AudioSettings> {
-    // Map EncoderSettings -> current v1 AudioSettings (Phase 2: plumbing only)
-    let channels = match payload.settings.channels {
-        1 => ChannelConfig::Mono,
-        2 => ChannelConfig::Stereo,
-        other => {
-            return Err(AppError::InvalidInput(format!(
-                "Unsupported channel count: {} (allowed: 1 or 2)",
-                other
-            )))
-        }
-    };
-
-    let output_dir = Path::new(&payload.output_dir);
-    if !output_dir.exists() {
-        return Err(AppError::FileValidation(format!(
-            "Output directory does not exist: {}",
-            output_dir.display()
-        )));
-    }
-    if !output_dir.is_dir() {
-        return Err(AppError::FileValidation(format!(
-            "Output path is not a directory: {}",
-            output_dir.display()
-        )));
-    }
-    // Temporary deterministic filename; UI can override in Phase 4
-    let output_path: PathBuf = output_dir.join("audiobook.m4b");
-
-    let v1 = AudioSettings {
-        bitrate: payload.settings.bitrate_kbps as u32,
-        channels,
-        sample_rate: SampleRateConfig::Auto,
-        output_path,
-    };
-    // Reuse existing v1 validation
-    audio::validate_audio_settings(&v1)?;
-    Ok(v1)
-}
-
 /// Processes files using v2 payload (EncoderSettings + v2 shape). For now, routes
 /// through the same pipeline by mapping to v1 AudioSettings. No behavior change.
 #[tauri::command]
@@ -132,8 +92,26 @@ pub async fn process_audiobook_files_v2(
         payload.settings.threads
     );
 
-    // Map to v1 settings for current pipeline
-    let settings_v1 = derive_v1_settings_from_v2(&payload)?;
+    // Validate output directory and construct final path
+    let output_path = validate_and_resolve_output_path(&payload.output_dir)?;
+
+    // Minimal AudioSettings kept for legacy validation paths (bitrate/channel/sample rate)
+    let mut settings_v1 = audio::AudioSettings::audiobook_preset();
+    settings_v1.bitrate = payload.settings.bitrate_kbps as u32;
+    settings_v1.channels = match payload.settings.channels {
+        1 => ChannelConfig::Mono,
+        2 => ChannelConfig::Stereo,
+        other => {
+            return Err(AppError::InvalidInput(format!(
+                "Unsupported channel count: {} (allowed: 1 or 2)",
+                other
+            )))
+        }
+    };
+    settings_v1.output_path = output_path.clone();
+
+    // Reuse existing validation to ensure path/bitrate configuration is acceptable
+    audio::validate_audio_settings(&settings_v1)?;
 
     // Set processing state
     {
@@ -156,7 +134,7 @@ pub async fn process_audiobook_files_v2(
     // Process the audiobook with progress events
     let (message, preview_path_opt, preview_seconds_used) = {
         let session = audio::session::ProcessingSession::new();
-        let final_output_path = settings_v1.output_path.clone();
+        let final_output_path = output_path.clone();
         let output_config = audio::OutputConfig::new(final_output_path.clone());
         let mut context = audio::ProcessingContext::new(
             window,
@@ -225,6 +203,24 @@ pub struct ProcessCommandResult {
     pub message: String,
     pub preview_file_path: Option<String>,
     pub preview_actual_seconds: Option<f64>,
+}
+
+fn validate_and_resolve_output_path(output_dir: &str) -> Result<PathBuf> {
+    let dir = Path::new(output_dir);
+    if !dir.exists() {
+        return Err(AppError::FileValidation(format!(
+            "Output directory does not exist: {}",
+            dir.display()
+        )));
+    }
+    if !dir.is_dir() {
+        return Err(AppError::FileValidation(format!(
+            "Output path is not a directory: {}",
+            dir.display()
+        )));
+    }
+
+    Ok(dir.join("audiobook.m4b"))
 }
 
 #[tauri::command]
