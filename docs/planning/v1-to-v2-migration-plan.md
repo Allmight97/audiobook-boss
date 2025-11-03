@@ -30,7 +30,7 @@ Branch baseline: `new_encoder`
 
 ## Phased Execution
 
-### PR A — Output config extraction (no behavior change)
+### PR A — Output config extraction (no behavior change) ✅ - merged
 Scope:
 - Introduce an output config owned by processing context (derived from v2 payload: `outputDir` + deterministic filename).
 - Replace reads of v1 `settings.output_path` with the new output config.
@@ -41,7 +41,7 @@ Acceptance:
 - Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 - Tests pass; progress/events unchanged.
 
-### PR B — Consume v2 in encoder setup
+### PR B — Consume v2 in encoder setup ✅ - merged
 Scope:
 - Replace usage of v1 `AudioSettings` with v2 `EncoderSettings` in encoder setup (bitrate, channels, threads, coder, afterburner, encoder selection).
 - Remove `derive_v1_settings_from_v2` and the v2→v1 mapping path.
@@ -51,7 +51,7 @@ Acceptance:
 - v1 commands still compile but are unused.
 - Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 
-### PR C — Remove v1 commands and boundary types
+### PR C — Remove v1 commands and boundary types ✅ - merged
 Scope:
 - Remove `process_audiobook_files`, `validate_audio_settings` and any v1 IPC payloads.
 - Update `window.testCommands`, docs, and ensure no v1 references.
