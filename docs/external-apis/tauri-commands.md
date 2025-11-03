@@ -19,9 +19,48 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::writer::write_cover_art` | Console/testing only |
 | `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
 
+### Command payloads & returns
+
+- `analyze_audio_files`
+  - Args: `{ filePaths: string[] }`
+  - Returns: `FileListInfo` (`src/types/audio.ts:15`)
+
+- `process_audiobook_files_v2`
+  - Args: `{ payload, metadata?, previewSeconds? }`
+    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings }`
+    - `settings: EncoderSettings` (`src/types/audio.ts:62`)
+    - `metadata?: AudiobookMetadata` (`src/types/metadata.ts`)
+    - `previewSeconds?: number` (optional short preview)
+  - Returns: `{ message: string; previewFilePath?: string; previewActualSeconds?: number }` (`src-tauri/src/commands/audio.rs:215`)
+  - Notes:
+    - `he_aac_v2` requires `channels: 2` (stereo)
+    - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
+
+- `cancel_processing`
+  - Args: none
+  - Returns: `string` confirmation
+
+- `read_audio_metadata`
+  - Args: `{ filePath: string }`
+  - Returns: `AudiobookMetadata`
+
+- `write_audio_metadata`
+  - Args: `{ filePath: string; metadata: AudiobookMetadata }`
+  - Returns: `void`
+
+- `load_cover_art_file`
+  - Args: `{ filePath: string }`
+  - Returns: `number[]` (bytes); basic header validation for JPG/PNG/WebP
+
+### Contract sources
+
+- Command and data types: `src/types/audio.ts`, `src/types/metadata.ts`
+- Event contracts: `src/types/events.ts`
+
 ### Backend → frontend events
 
 - `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`.
+  - Emission throttling (~200ms) originates in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 
 ### Frontend harness for QA
 

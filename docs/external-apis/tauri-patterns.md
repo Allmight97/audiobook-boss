@@ -23,6 +23,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 
 - Backend throttles progress emits to ~200ms to reduce UI load.
 - Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
+  - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 
 ### Progress stage mapping
 
@@ -31,8 +32,8 @@ Progress percentages emitted from Rust follow the constants in `src-tauri/src/au
 | Stage (ProcessingStage / ProgressEvent.stage) | Percentage range | Notes |
 | --- | --- | --- |
 | analyzing | 0–10% | Validation, temp-workspace setup |
-| converting | 10–80% | Encoder-driven progress derived from total duration |
-| writing | 80–95% | Metadata write and container finalize |
+| converting | 10–79% | Encoder-driven progress (clamped) derived from total duration |
+| writing | 90–95% | Metadata write and container finalize |
 | completed | 95–100% | Final move/cleanup (95–98%), completion (100%) |
 | failed | 0% | Emitted with error message on failure |
 | cancelled | 0% | Special-case stage emitted by `emit_cancelled` |
@@ -58,4 +59,3 @@ window.addEventListener('beforeunload', () => { if (cancelUnlisten) cancelUnlist
 - Tauri v2 API: `@tauri-apps/api` – events and core invoke
   - Events: `@tauri-apps/api/event`
   - Commands: `@tauri-apps/api/core`
-

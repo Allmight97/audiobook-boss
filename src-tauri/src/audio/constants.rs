@@ -12,13 +12,13 @@ pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
 pub const PROGRESS_ANALYZING_END: f32 = 10.0;
 
-/// Progress percentage range for the converting stage (10-80%); reserves 80-95 for metadata updates.
+/// Progress percentage range for the converting stage (10–79%); metadata stage starts at 90%.
 /// See `src/types/events.ts` for the frontend contract.
 pub const PROGRESS_CONVERTING_START: f32 = 10.0;
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0; // Max to avoid reaching 80% prematurely
 pub const PROGRESS_CONVERTING_RANGE: f32 = 70.0; // Range from start to end (80.0 - 10.0)
 
-/// Progress percentage range for metadata writing (80-95%)
+/// Progress percentage range for metadata writing (90–95%)
 pub const PROGRESS_METADATA_START: f32 = 90.0;
 
 /// Progress percentage for final steps (95-100%)
