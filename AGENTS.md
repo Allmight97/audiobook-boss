@@ -47,7 +47,7 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ### Current State & Constraints
 - ffmpeg-next migration complete (remove any shell-based artifacts when found)
-- Encoder v2 settings currently map through the legacy v1 pipeline to maintain stability until the new encoder lands
+- Encoder setup consumes v2 `EncoderSettings` directly; command handler retains minimal v2→v1 mapping for legacy validation paths only
 - FFmpeg-next integration patterns live in `docs/external-apis/ffmpeg-next.md`; review before touching encoder or progress emission logic
 - New logic belongs in `audio/processor/{encoder.rs,streams.rs,frame_pipeline.rs}`, not `media_pipeline.rs`
 - Finite/clamp sanitization centralized in `audio/buffer.rs`
@@ -57,10 +57,10 @@ You are a senior software engineer who audits and develops code using engineerin
 ### Boundary & Migration (processing v1 vs v2)
 - v1 (legacy boundary): Types `AudioSettings`; legacy commands have been removed from the IPC surface.
 - v2 (current boundary): Types `EncoderSettings`; commands `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
-- Today: v2 maps into the legacy v1 pipeline for stability; the new encoder will consume v2 directly.
+- Today: Encoder setup consumes v2 `EncoderSettings` directly. Command handler retains minimal v2→v1 mapping for legacy validation paths only (technical debt).
 - Policy:
-  - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) land on v2 only.
-  - UI should call v2 only; add a deprecation notice to v1 and remove after one release.
+  - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) are v2-only.
+  - UI must call v2 commands only.
 - Contract guard (transition): Keep TS ↔ Rust command parity (see quick checks for `scripts/ensure-contract.sh`). Retire once v2-only (or after adopting typesafe codegen).
 - Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/reports/api_recs.md` (v1→v2 migration plan), `docs/planning/encoder-enhancement-plan.md` (single canonical encoder plan).
 

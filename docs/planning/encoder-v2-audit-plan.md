@@ -1,18 +1,20 @@
 # Encoder v2 & UI Alignment Audit (2025-??)
 
+**Note**: This document reflects the state prior to PR D completion. As of Nov 2025, v1 commands have been removed. Encoder setup consumes v2 `EncoderSettings` directly; command handler retains minimal v2→v1 mapping for legacy validation paths only.
+
 ## 1. Repository State Review
 
 ### Backend pipeline (Rust)
-- `src-tauri/src/commands/audio.rs::process_audiobook_files_v2` still maps the v2 payload (`ProcessV2Payload`) into legacy `AudioSettings`, pushing the new `EncoderSettings` onto `ProcessingContext` only for downstream awareness.
-- `src-tauri/src/audio/processor/encoder.rs` consumes `ProcessingContext.encoder_settings_v2` to tweak ffmpeg-next encoder configuration (profile flags, `aac_coder`, thread hints) but otherwise assumes legacy bitrate/channel/sample-rate decisions.
+- `src-tauri/src/commands/audio.rs::process_audiobook_files_v2` retains minimal v2→v1 mapping for legacy validation paths (technical debt). Encoder settings are passed via `ProcessingContext.encoder_settings_v2`.
+- `src-tauri/src/audio/processor/encoder.rs` consumes `ProcessingContext.encoder_settings_v2` directly for encoder configuration (profile flags, `aac_coder`, thread hints, bitrate, channels, encoder selection).
 - `src-tauri/src/audio/settings_encoder.rs` owns validation, availability checks, and encoder name resolution; UI-constrained options must match the enums/whitelists exposed here.
 - Discovery helpers (e.g., `is_encoder_available_by_name`) are synchronous and expect ffmpeg to be initialized. There is no dedicated Tauri command exposing availability yet.
 
 ### Frontend surfaces (TypeScript)
 - `src/types/audio.ts::EncoderSettings` mirrors the Rust shape (encoderType, bitrateKbps, channels, optional aacCoder/afterburner/thread settings). `defaultEncoderSettings()` chooses AAC-AT on macOS, HE-AAC v1 elsewhere.
-- `src/ui/statusPanel/logic.ts` invokes `process_audiobook_files_v2`, currently passing defaults with no encoder-specific UI wiring.
+- `src/ui/statusPanel/logic.ts` invokes `process_audiobook_files_v2`, using `toBoundaryEncoderSettings` adapter to normalize UI types to boundary shape.
+- `src/types/encoder.ts` defines `EncoderSettingsV2` (UI-only) and `toBoundaryEncoderSettings` adapter; boundary type is `src/types/audio.ts::EncoderSettings`.
 - `src/ui/encoderPanel/*` only disables hidden knobs via feature flags; it does **not** read/write the shared `EncoderSettings` payload.
-- `src/types/encoder.ts` defines an older `EncoderSettingsV2` shape (flavor, VBR placeholders) that no longer matches the command contract. Retaining both type systems risks divergence.
 
 ### Documentation baseline
 - `docs/planning/encoder-enhancement-plan.md` proposes several UI/backend changes but still references `MediaProcessingPlan`, `ProcessRequestV2`, and other shapes that diverge from the current code. It also suggests skip heuristics and plan-only flows without defining validation/UX behavior.

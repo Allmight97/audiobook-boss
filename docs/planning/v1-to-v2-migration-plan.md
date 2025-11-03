@@ -1,6 +1,6 @@
 # v1 → v2 Migration Plan
 
-Status: Draft (ready for implementation)
+Status: Completed (PRs A-D merged, PR E in progress)
 Branch baseline: `new_encoder`
 
 ## Goals
@@ -14,9 +14,10 @@ Branch baseline: `new_encoder`
 - No feature expansion in this plan (encoder features/UI come after migration).
 
 ## Current State (Summary)
-- v2 is used in the UI (`StatusPanel`) and validated in Rust, but mapped to v1 `AudioSettings` to run through the legacy pipeline.
-- v1 commands still exist; v1 types appear at the IPC boundary in some places.
-- UI has a parallel encoder type (`src/types/encoder.ts`) for future controls; boundary type resides in `src/types/audio.ts`.
+- v2 is the only IPC boundary (`process_audiobook_files_v2`, `validate_encoder_settings_cmd`).
+- v1 commands removed from IPC surface; encoder setup consumes v2 `EncoderSettings` directly.
+- Command handler retains minimal v2→v1 mapping for legacy validation paths (technical debt).
+- UI adapter (`toBoundaryEncoderSettings`) normalizes UI types to boundary `EncoderSettings` shape.
 
 ## Risks and Impacts
 - First‑order: IPC surface changes (removing v1) could break older callers (QA harness). Mitigated by sequential PRs and doc updates.
@@ -51,6 +52,8 @@ Acceptance:
 - v1 commands still compile but are unused.
 - Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass.
 
+**Note**: Encoder setup consumes v2 directly (`plan.encoder_settings_v2`). Command handler retains minimal v2→v1 mapping for legacy validation paths (intentional technical debt for stability).
+
 ### PR C — Remove v1 commands and boundary types ✅ - merged
 Scope:
 - Remove `process_audiobook_files`, `validate_audio_settings` and any v1 IPC payloads.
@@ -62,7 +65,7 @@ Acceptance:
 - Run `scripts/quick-checks.sh` to verify fmt, clippy, contract, and TypeScript checks all pass (catches unused imports, formatting issues, and contract mismatches).
 - Ensure-contract validation passes.
 
-### PR D — Unify front‑end encoder types
+### PR D — Unify front‑end encoder types ✅ - merged
 Scope:
 - Keep `src/types/audio.ts::EncoderSettings` as the boundary type.
 - Treat `src/types/encoder.ts` as UI‑only; provide an adapter `toBoundaryEncoderSettings(ui: EncoderSettingsV2): EncoderSettings` if necessary.

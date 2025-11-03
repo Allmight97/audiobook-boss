@@ -12,12 +12,12 @@
 - **Surfaces**: `src/types/encoder.ts`, `src/ui/encoderPanel/*`, `src/ui/fileList/*`, `src-tauri/src/commands/audio.rs`, `src-tauri/src/audio/processor/*`, `src-tauri/tests/*`.
 
 ## Boundary & Migration (v1 → v2)
-Dev note: Goal is to remove v1 and v2 mapping completely and have v2 be the only boundary.
+Dev note: v1 commands have been removed from the IPC surface. The codebase is v2-only at the command boundary.
 - v1 (legacy): `AudioSettings`; legacy commands have been removed from the IPC surface.
 - v2 (current): `EncoderSettings`; commands: `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
-- Current bridge: v2 maps into legacy v1 pipeline for stability; the new encoder will consume v2 directly.
-- Policy: all new encoder features (FDK detection, `aac_at`, `aac_coder`, afterburner, threads) are v2-only; UI should invoke v2 only; deprecate v1 and remove after one release.
-- Contract guard during transition: run `scripts/ensure-contract.sh` to diff TS `invoke()` names vs Rust `generate_handler![...]`. Retire once v2-only (or after typesafe codegen adoption).
+- Current state: Encoder setup consumes v2 `EncoderSettings` directly. Command handler retains minimal v2→v1 mapping for legacy validation paths only (technical debt).
+- Policy: all new encoder features (FDK detection, `aac_at`, `aac_coder`, afterburner, threads) are v2-only; UI must invoke v2 only.
+- Contract guard: run `scripts/ensure-contract.sh` to diff TS `invoke()` names vs Rust `generate_handler![...]`. Retire once v2-only (or after typesafe codegen adoption).
 
 ## Baseline Readings
 - `src/ui/encoderPanel/logic.ts` currently feature-gates VBR/FDK controls, providing scaffolding for availability-driven toggles.

@@ -46,8 +46,10 @@ This report provides a comprehensive comparison between documented APIs and the 
 
 | v1 Endpoint | Status | v2 Equivalent | Complexity Gap |
 |------------|--------|---------------|-----------------|
-| `process_audiobook_files` | Removed (Nov 2025) | `process_audiobook_files_v2` | N/A |
-| `validate_audio_settings` | Removed (Nov 2025) | `validate_encoder_settings_cmd` | N/A |
+| `process_audiobook_files` | Removed | `process_audiobook_files_v2` | N/A |
+| `validate_audio_settings` | Removed | `validate_encoder_settings_cmd` | N/A |
+
+**Current State**: v1 endpoints have been removed from the IPC surface. The codebase is v2-only at the command boundary. Encoder setup consumes v2 `EncoderSettings` directly; command handler retains minimal v2→v1 mapping for legacy validation paths only (technical debt).
 
 Legacy findings below are retained for historical context prior to removal.
 
@@ -87,30 +89,7 @@ interface EncoderSettings {
 - Quality controls (AAC coder, afterburner)
 - Constrained, validation-friendly bitrate options
 
-### Migration Path Recommendations
-
-**Phase 1: Documented Deprecation (Immediate)**
-1. Update command documentation to mark v1 as deprecated
-2. Add deprecation warnings in v1 command implementations
-3. Update UI to show v2 as primary option
-
-**Phase 2: Frontend Migration (Short-term)**
-1. Migrate `src/ui/statusPanel/logic.ts` to exclusively use v2
-2. Remove v1 references from UI components
-3. Add v2 validation in encoder panel
-
-**Phase 3: Code Cleanup (Medium-term)**
-```rust
-// Remove these from src-tauri/src/commands/audio.rs:
-// - process_audiobook_files (v1)
-// - validate_audio_settings (v1)
-// - derive_v1_settings_from_v2 helper function
-```
-
-**Phase 4: Type Cleanup (Medium-term)**
-1. Remove v1 types from `src/types/audio.ts`
-2. Simplify boundary contracts
-3. Update integration tests
+**Migration Status**: Complete. v1 endpoints removed. UI uses v2 exclusively via `process_audiobook_files_v2` and `validate_encoder_settings_cmd`.
 
 ---
 
@@ -222,41 +201,16 @@ const PROGRESS_COMPLETE: f32 = 100.0;
 
 ## 5. Code Cleanup Recommendations
 
-### Immediate Actions
+### Current State
 
-1. **Tag Legacy Code** *(Completed Nov 2025: command removed)*
-```rust
-// Add to src-tauri/src/commands/audio.rs
-#[deprecated(note = "Use process_audiobook_files_v2 instead")]
-pub async fn process_audiobook_files(...) -> Result<ProcessCommandResult>
-```
+**v1 Removal**: Complete. v1 commands removed from IPC surface. v1 types (`AudioSettings`) remain only for internal legacy validation paths in command handler (technical debt).
 
-2. **Update Frontend Warnings** *(Completed Nov 2025: legacy harness entries removed)*
-```typescript
-// Add to src/ui/statusPanel/logic.ts
-console.warn("Using legacy v1 API - migrate to process_audiobook_files_v2");
-```
-
-### Medium-term Cleanup
-
-1. ** consolidate v1/v2 mapping** *(Completed Nov 2025)*
-```rust
-// Remove function and inline its logic into process_audiobook_files_v2
-fn derive_v1_settings_from_v2(payload: &ProcessV2Payload) -> Result<AudioSettings>
-```
-
-2. **Remove v1 Types from Boundaries**
-```typescript
-// Remove from src/types/audio.ts
-interface AudioSettings  // v1 only
-export const AudioPresets = { ... }  // v1 only
-```
-
-### Long-term Improvements
-
-1. **Simplify Pipeline Architecture**
-2. **Unify Progress Reporting**
-3. **Consolidate Validation Logic**
+**Remaining Work**:
+1. Remove v2→v1 mapping from command handler (future PR)
+2. Consider removing v1 types from boundaries once mapping is removed
+3. Simplify pipeline architecture
+4. Unify progress reporting
+5. Consolidate validation logic
 
 ---
 
@@ -280,46 +234,27 @@ tsc --noEmit
 
 3. **Integration Tests**
 ```bash
-# Test both v1 and v2 endpoints
-cargo test process_audiobook_files
+# Test v2 endpoint
 cargo test process_audiobook_files_v2
 ```
 
-### Migration Validation
+### Validation
 
-1. **Parallel Testing**
-   - Run v1 and v2 on same inputs
-   - Compare output quality and performance
-   - Verify feature parity
-
-2. **Regression Testing**
+1. **Regression Testing**
    - Test all encoder settings combinations
    - Validate platform-specific behaviors
    - Check error handling consistency
-
----
-
-## 7. Implementation Timeline
-
-| Phase | Duration | Actions | Success Criteria |
-|-------|----------|---------|------------------|
-| Deprecation | 1 week | Add warnings, update docs | Warnings visible in logs |
-| Frontend Migration | 2 weeks | Update UI to use v2 only; adopt `encoder-enhancement-plan.md` (v2-only); remove deprecated outline | No v1 calls in production; doc matches code |
-| Code Cleanup | 1 week | Remove v1 implementations | v1 functions removed |
-| Type Cleanup | 3 days | Remove v1 types | Cleaner boundary contracts |
+   - Verify adapter handles UI types correctly
 
 ---
 
 ## 8. Conclusion
 
-The API documentation is in excellent shape with strong architecture and clear mapping to code location. The primary gaps are:
+The API documentation is in excellent shape with strong architecture and clear mapping to code location. The v1→v2 migration is complete; v1 endpoints have been removed from the IPC surface. The primary remaining gaps are:
 1. Incomplete documentation of the advanced v2 encoder features
-2. Missing migration guidance from v1 to v2
-3. Some UI integration details need documentation
+2. Some UI integration details need documentation
 
-The legacy v1 endpoints represent a maintenance burden and should be deprecated and removed following the phased approach outlined above. The v2 API provides significantly more capability and better alignment with modern audiobook processing needs.
-
-By addressing these documentation gaps and executing the migration plan, the project will achieve:
+The codebase now uses v2 exclusively at the command boundary, providing:
 - Clearer API boundaries
 - Reduced maintenance burden
 - Better feature discoverability
