@@ -11,6 +11,10 @@ import { openPath as openExternal } from '@tauri-apps/plugin-opener';
 import { ProcessingProgressEvent, EVENTS, STAGES } from '../../types/events';
 import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
+import type { EncoderSettings } from '../../types/audio';
+import { defaultEncoderSettings } from '../../types/audio';
+import { toBoundaryEncoderSettings } from '../../types/encoder';
+import type { EncoderSettingsLike } from '../../types/encoder';
 import { AudiobookMetadata } from '../../types/metadata';
 import * as dom from './dom';
 import { getCurrentCoverArt } from '../coverArt';
@@ -22,6 +26,12 @@ interface ProcessingStatus {
     currentFile?: string;
     etaSeconds?: number;
 }
+
+type WindowWithEncoderProvider = Window & {
+    EncoderSettingsProvider?: () => EncoderSettingsLike;
+};
+
+const SUPPORTED_ENCODER_BITRATES = new Set([56, 64, 72, 80, 88, 96]);
 
 export class StatusPanel {
     private cancelUnlisten?: () => void;
@@ -138,34 +148,54 @@ export class StatusPanel {
             const metadata = this.getCurrentMetadata();
 
             // Call backend processing command (v2 payload)
-            const v2Payload = {
-                inputFiles: filePaths,
-                outputDir: (document.getElementById('output-dir-text') as HTMLInputElement)?.value || '',
-                settings: (window as any).EncoderSettingsProvider?.() ?? ({} as any)
-            };
-            // Fallback: if provider not set, derive minimal v2 settings from UI
-            if (!v2Payload.settings || !v2Payload.settings.encoderType) {
-                const { defaultEncoderSettings } = await import('../../types/audio');
-                const def = defaultEncoderSettings();
-                v2Payload.settings = {
-                    encoderType: def.encoderType,
-                    bitrateKbps: ([56, 64, 72, 80, 88, 96] as number[]).includes(settings.bitrate) ? settings.bitrate as 56|64|72|80|88|96 : 64,
-                    channels: settings.channels === 'Mono' ? 1 : 2,
-                    threads: { mode: 'auto' as const }
-                } as any;
-            }
+            const fallbackEncoderDefaults = (() => {
+                const defaults = defaultEncoderSettings();
+                const bitrate = SUPPORTED_ENCODER_BITRATES.has(settings.bitrate)
+                    ? (settings.bitrate as EncoderSettings['bitrateKbps'])
+                    : defaults.bitrateKbps;
+                const channels: EncoderSettings['channels'] = settings.channels === 'Stereo' ? 2 : 1;
+                return {
+                    ...defaults,
+                    bitrateKbps: bitrate,
+                    channels,
+                } satisfies EncoderSettings;
+            })();
+
+            const windowWithProvider = window as WindowWithEncoderProvider;
+            const providerResult: EncoderSettingsLike = typeof windowWithProvider.EncoderSettingsProvider === 'function'
+                ? windowWithProvider.EncoderSettingsProvider()
+                : undefined;
+
+            let boundaryEncoderSettings = toBoundaryEncoderSettings(providerResult, fallbackEncoderDefaults);
 
             // Enforce HE-AAC v2 stereo-only: coerce to stereo and update UI control when applicable
-            if (v2Payload.settings && v2Payload.settings.encoderType === 'he_aac_v2' && v2Payload.settings.channels !== 2) {
-                v2Payload.settings.channels = 2;
+            if (boundaryEncoderSettings.encoderType === 'he_aac_v2') {
+                const coercedChannels = boundaryEncoderSettings.channels !== 2;
+                let updatedUi = false;
+                if (coercedChannels) {
+                    boundaryEncoderSettings = {
+                        ...boundaryEncoderSettings,
+                        channels: 2,
+                    };
+                    updatedUi = true;
+                }
                 const chSelect = document.getElementById('output-channels') as HTMLSelectElement | null;
-                if (chSelect) {
+                if (chSelect && (settings.channels !== 'Stereo' || coercedChannels)) {
                     const monoOption = Array.from(chSelect.options).find(o => o.value.toLowerCase() === 'mono');
                     if (monoOption) monoOption.disabled = true;
                     chSelect.value = 'stereo';
+                    updatedUi = true;
                 }
-                console.info('HE-AAC v2 requires stereo; channels coerced to 2');
+                if (updatedUi) {
+                    console.info('HE-AAC v2 requires stereo; channels coerced to 2');
+                }
             }
+
+            const v2Payload = {
+                inputFiles: filePaths,
+                outputDir: (document.getElementById('output-dir-text') as HTMLInputElement)?.value || '',
+                settings: boundaryEncoderSettings,
+            };
 
             const result = await invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files_v2', {
                 payload: v2Payload,

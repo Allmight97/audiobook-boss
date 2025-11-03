@@ -11,6 +11,9 @@
 // FEATURE_TOGGLE:VBR  VBR_DISABLED_MARKER
 // FEATURE_TOGGLE:FDK  FDK_PLACEHOLDER
 
+import type { EncoderSettings, EncoderType, ThreadSetting } from './audio';
+import { defaultEncoderSettings } from './audio';
+
 export type EncoderFlavor = 'auto' | 'aac_at' | 'external_fdk' | 'native_aac';
 export type AacProfile = 'lc' | 'he' | 'he_v2';
 
@@ -40,3 +43,145 @@ export const defaultEncoderSettingsV2 = (isMac: boolean): EncoderSettingsV2 => (
   optimizeLcLowBitrate: true,
 });
 
+const VALID_ENCODER_BITRATES: ReadonlyArray<EncoderSettings['bitrateKbps']> = [
+  56,
+  64,
+  72,
+  80,
+  88,
+  96,
+];
+
+export type EncoderSettingsLike = Partial<EncoderSettingsV2> | EncoderSettings | null | undefined;
+
+const isBoundaryEncoderSettings = (value: unknown): value is EncoderSettings => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.encoderType === 'string' &&
+    typeof candidate.bitrateKbps === 'number' &&
+    typeof candidate.channels === 'number'
+  );
+};
+
+const sanitizeBitrate = (
+  value: unknown,
+  fallback: EncoderSettings['bitrateKbps'],
+): EncoderSettings['bitrateKbps'] => {
+  if (typeof value === 'number' && VALID_ENCODER_BITRATES.includes(value as EncoderSettings['bitrateKbps'])) {
+    return value as EncoderSettings['bitrateKbps'];
+  }
+  return fallback;
+};
+
+const sanitizeChannels = (
+  encoderType: EncoderType,
+  value: unknown,
+  fallback: EncoderSettings['channels'],
+): EncoderSettings['channels'] => {
+  if (encoderType === 'he_aac_v2') {
+    return 2;
+  }
+  if (value === 1 || value === 2) {
+    return value;
+  }
+  return fallback;
+};
+
+const sanitizeThreads = (value: ThreadSetting | undefined, fallback: ThreadSetting): ThreadSetting => {
+  if (!value) {
+    return fallback;
+  }
+  switch (value.mode) {
+    case 'auto':
+    case 'off':
+      return value;
+    case 'fixed': {
+      const numeric = Number(value.value);
+      if (!Number.isFinite(numeric)) {
+        return fallback;
+      }
+      const clamped = Math.max(1, Math.min(1024, Math.round(numeric)));
+      return { mode: 'fixed', value: clamped };
+    }
+    default:
+      return fallback;
+  }
+};
+
+const resolveEncoderType = (
+  flavor: EncoderFlavor | undefined,
+  profile: AacProfile | undefined,
+  fallback: EncoderType,
+): EncoderType => {
+  switch (flavor) {
+    case 'aac_at':
+      return 'aac_at';
+    case 'external_fdk':
+    case 'native_aac':
+      if (profile === 'he_v2') {
+        return 'he_aac_v2';
+      }
+      return 'he_aac_v1';
+    case 'auto':
+    default:
+      if (profile === 'he_v2') {
+        return 'he_aac_v2';
+      }
+      if (profile === 'he') {
+        return fallback === 'aac_at' ? 'he_aac_v1' : fallback;
+      }
+      return fallback;
+  }
+};
+
+const normalizeBoundary = (
+  candidate: EncoderSettings,
+  base: EncoderSettings,
+): EncoderSettings => {
+  const encoderType = candidate.encoderType;
+  const bitrateKbps = sanitizeBitrate(candidate.bitrateKbps, base.bitrateKbps);
+  const channels = sanitizeChannels(encoderType, candidate.channels, base.channels);
+  const threads = sanitizeThreads(candidate.threads, base.threads);
+  const aacCoder = encoderType === 'aac_at' ? undefined : candidate.aacCoder ?? base.aacCoder;
+  const afterburner = encoderType === 'aac_at' ? undefined : candidate.afterburner ?? base.afterburner;
+
+  return {
+    encoderType,
+    bitrateKbps,
+    channels,
+    aacCoder,
+    afterburner,
+    threads,
+  };
+};
+
+export const toBoundaryEncoderSettings = (
+  source: EncoderSettingsLike,
+  defaults: EncoderSettings = defaultEncoderSettings(),
+): EncoderSettings => {
+  const base = normalizeBoundary(defaults, defaultEncoderSettings());
+
+  if (isBoundaryEncoderSettings(source)) {
+    return normalizeBoundary(source, base);
+  }
+
+  const ui = (source ?? {}) as Partial<EncoderSettingsV2>;
+  const encoderType = resolveEncoderType(ui.flavor, ui.profile, base.encoderType);
+  const bitrateKbps = sanitizeBitrate(ui.bitrateKbps, base.bitrateKbps);
+  const channels = sanitizeChannels(encoderType, ui.channels, base.channels);
+  const threads = sanitizeThreads(base.threads, base.threads);
+  const aacCoder = encoderType === 'aac_at' ? undefined : base.aacCoder;
+  const afterburner = encoderType === 'aac_at' ? undefined : ui.fdkAfterburner ?? base.afterburner;
+
+  return {
+    encoderType,
+    bitrateKbps,
+    channels,
+    aacCoder,
+    afterburner,
+    threads,
+  };
+};
