@@ -5,7 +5,7 @@
 - [ ] TODO: Review `docs/planning/encoder-enhancement-plan.md` to finalize features, ui, and implementation details with Ai agent.
     - Scope: confirm user-installed FDK exposure (no bundling), UI gating by availability or explicit path, and alignment with ffmpeg-next-only policy.
     - Outcome: either trim and keep the plan with accurate constraints, or archive/delete and fold keepers into `encoding-engine-brief.md` and `frontend-ipc-outline.md`.
-    - STATUS: Encoder v2 migration complete (PRs A-E merged). Plan needs type reference fixes and feature status clarification. Ready for feature implementation planning.
+    - STATUS: Encoder v2 migration complete (PRs A-E merged. AGENTS: see PR merge history for details as needed). Plan needs type reference fixes and feature status clarification. Ready for feature implementation planning.
 
 - [ ] TODO: Review `scripts/ensure-contract.sh` to decide whether to retain, refresh, or replace.
      - STATUS: Planning to do with Ai agent. Script produces TS↔Rust command diffs but lacks documented workflow. Not even sure if this is relevent.
