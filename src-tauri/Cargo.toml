@@ -15,12 +15,12 @@ name = "audiobook_boss_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.5.2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-dialog = "2"
+tauri = { version = "2.9.3", features = [] }
+tauri-plugin-opener = "2.5.2"
+tauri-plugin-dialog = "2.4.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lofty = "0.22"
@@ -42,5 +42,5 @@ default = []
 
 [dev-dependencies]
 tempfile = "3"
-tauri = { version = "2", features = ["test"] }
+tauri = { version = "2.9.3", features = ["test"] }
 futures = "0.3"

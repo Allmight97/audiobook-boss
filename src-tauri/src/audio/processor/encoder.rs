@@ -665,8 +665,11 @@ mod tests {
                     encoder_type: EncoderType::HeAacV1,
                     ..base_encoder_settings
                 });
-                create_audio_encoder(&plan, 44_100, encoder_channels, false)
-                    .map_err(|e2| AppError::General(format!("aac_at failed ({e}); native AAC fallback failed ({e2})")))
+                create_audio_encoder(&plan, 44_100, encoder_channels, false).map_err(|e2| {
+                    AppError::General(format!(
+                        "aac_at failed ({e}); native AAC fallback failed ({e2})"
+                    ))
+                })
             } else {
                 Err(e)
             }
