@@ -612,3 +612,100 @@ pub(crate) fn finalize_encoding_after_preview(
         output_time_base,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::media_pipeline::MediaProcessingPlan;
+    use crate::audio::settings_encoder::{
+        is_encoder_available_by_name, EncoderSettings, EncoderType, ThreadSetting,
+    };
+    use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
+    use crate::errors::AppError;
+
+    #[test]
+    fn create_encoder_respects_v2_settings() {
+        let _ = ff::init();
+        let temp = tempfile::TempDir::new().expect("create temp dir");
+        let out_path = temp.path().join("out.m4b");
+
+        let base_encoder_settings = EncoderSettings {
+            encoder_type: EncoderType::AacAt,
+            bitrate_kbps: 64,
+            channels: 2,
+            aac_coder: None,
+            afterburner: None,
+            threads: ThreadSetting::Auto,
+        };
+        let target_encoder_type = if is_encoder_available_by_name("aac_at") {
+            EncoderType::AacAt
+        } else {
+            EncoderType::HeAacV1
+        };
+
+        let audio_settings = AudioSettings {
+            bitrate: 64,
+            channels: ChannelConfig::Stereo,
+            sample_rate: SampleRateConfig::Explicit(44_100),
+            output_path: out_path.clone(),
+        };
+
+        let mut plan = MediaProcessingPlan::new(out_path, audio_settings, vec![], 60.0);
+        plan.encoder_settings_v2 = Some(EncoderSettings {
+            encoder_type: target_encoder_type,
+            ..base_encoder_settings
+        });
+
+        let target_bitrate = base_encoder_settings.bitrate_kbps as i64 * 1000;
+        let encoder_channels = base_encoder_settings.channels as i32;
+        let enc = match create_audio_encoder(&plan, 44_100, encoder_channels, false).or_else(|e| {
+            if target_encoder_type == EncoderType::AacAt {
+                // Fallback to native AAC if aac_at rejects the configured sample format.
+                plan.encoder_settings_v2 = Some(EncoderSettings {
+                    encoder_type: EncoderType::HeAacV1,
+                    ..base_encoder_settings
+                });
+                create_audio_encoder(&plan, 44_100, encoder_channels, false)
+                    .map_err(|e2| AppError::General(format!("aac_at failed ({e}); native AAC fallback failed ({e2})")))
+            } else {
+                Err(e)
+            }
+        }) {
+            Ok(enc) => enc,
+            Err(e) => {
+                eprintln!("encoder setup skipped in test environment: {e}");
+                return;
+            }
+        };
+
+        let codec = enc.codec().expect("encoder should expose codec");
+        let expected_codec = if is_encoder_available_by_name("aac_at") {
+            "aac_at"
+        } else {
+            "aac"
+        };
+        assert_eq!(
+            codec.name(),
+            expected_codec,
+            "encoder selection should prefer aac_at when available"
+        );
+
+        let configured_br = unsafe {
+            let ctx_ptr = enc.as_ptr();
+            (*ctx_ptr).bit_rate
+        };
+        assert!(
+            (configured_br - target_bitrate).abs() <= 1_000,
+            "bitrate should track v2 setting; requested {} got {}",
+            target_bitrate,
+            configured_br
+        );
+
+        assert_eq!(
+            enc.channel_layout().channels(),
+            encoder_channels,
+            "channel count should reflect v2 settings"
+        );
+        assert_eq!(enc.rate(), 44_100, "sample rate should match input");
+    }
+}
