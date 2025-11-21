@@ -140,6 +140,11 @@ Choose your starting point based on familiarity—if you already know the API su
 - Group: std | third-party | local
 - No wildcard re-exports
 
+### Frontend Testability
+- **Unique IDs**: All interactive elements (inputs, buttons, drop zones) MUST have a unique `id` or `data-testid`.
+- **Semantic HTML**: Use proper HTML5 elements (button, input, select) to ensure accessibility and agent-readability.
+- **Agent-Ready**: Consider how an automated agent would "see" and interact with your UI component.
+
 ---
 
 ## Security & Validation
