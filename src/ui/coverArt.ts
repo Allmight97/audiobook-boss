@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { bridge } from "../lib/bridge";
 
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
@@ -13,15 +12,15 @@ let hasCustomCoverArt: boolean = false;
 export function initCoverArt(): void {
     const loadButton = document.getElementById('load-cover-art') as HTMLButtonElement;
     const clearButton = document.getElementById('clear-cover-art') as HTMLButtonElement;
-    
+
     if (loadButton) {
         loadButton.addEventListener('click', handleLoadCoverArt);
     }
-    
+
     if (clearButton) {
         clearButton.addEventListener('click', handleClearCoverArt);
     }
-    
+
     // Update button visibility based on initial state
     updateClearButtonVisibility();
 }
@@ -53,7 +52,7 @@ function updateClearButtonVisibility(): void {
 async function handleLoadCoverArt(): Promise<void> {
     try {
         // Open file dialog for image selection
-        const selectedFile = await open({
+        const selectedFile = await bridge.open({
             multiple: false,
             directory: false,
             title: 'Select Cover Art Image',
@@ -68,8 +67,8 @@ async function handleLoadCoverArt(): Promise<void> {
         }
 
         // Load image data from backend
-        const imageData = await invoke<number[]>('load_cover_art_file', { 
-            filePath: selectedFile 
+        const imageData = await bridge.invoke<number[]>('load_cover_art_file', {
+            filePath: selectedFile
         });
 
         // Update global state
@@ -81,7 +80,7 @@ async function handleLoadCoverArt(): Promise<void> {
 
         // Update metadata form if needed
         updateMetadataWithCoverArt(imageData);
-        
+
         // Update Clear button visibility
         updateClearButtonVisibility();
 
@@ -100,7 +99,7 @@ async function handleLoadCoverArt(): Promise<void> {
 function displayCoverArt(coverArtBytes: number[] | null): void {
     const coverImg = document.getElementById('cover-art-img') as HTMLImageElement;
     const placeholderText = document.querySelector('.cover-art-area .placeholder-text') as HTMLElement;
-    
+
     if (!coverImg || !placeholderText) {
         console.warn('Cover art display elements not found');
         return;
@@ -110,21 +109,21 @@ function displayCoverArt(coverArtBytes: number[] | null): void {
         // Convert byte array to Uint8Array and then to base64
         const uint8Array = new Uint8Array(coverArtBytes);
         const base64String = btoa(String.fromCharCode(...uint8Array));
-        
+
         // Determine image format based on file signature
         let mimeType = 'image/jpeg'; // default
         if (coverArtBytes.length >= 8) {
             if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
                 mimeType = 'image/png';
-            } else if (coverArtBytes.length >= 12 && 
-                      coverArtBytes[0] === 0x52 && coverArtBytes[1] === 0x49) {
+            } else if (coverArtBytes.length >= 12 &&
+                coverArtBytes[0] === 0x52 && coverArtBytes[1] === 0x49) {
                 mimeType = 'image/webp';
             }
         }
-        
+
         // Create data URL
         const dataUrl = `data:${mimeType};base64,${base64String}`;
-        
+
         // Show image and hide placeholder
         coverImg.src = dataUrl;
         coverImg.classList.remove('hidden');
@@ -154,7 +153,7 @@ function showCoverArtError(message: string): void {
     // For now, just log to console
     // Could add a visual error display in the future
     console.error('Cover Art Error:', message);
-    
+
     // Could show a temporary error message in the UI
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
@@ -170,9 +169,9 @@ function showCoverArtError(message: string): void {
         z-index: 1000;
         max-width: 300px;
     `;
-    
+
     document.body.appendChild(errorDiv);
-    
+
     // Remove after 5 seconds
     setTimeout(() => {
         if (errorDiv.parentNode) {

@@ -1,6 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
+import { bridge } from '../lib/bridge';
 import { FileListInfo } from '../types/audio';
 import { displayFileList } from './fileList';
 
@@ -18,16 +16,16 @@ function setupDragDropHandlers(): void {
     if (!dragDropArea) return;
 
     // Listen for the Tauri file drop event
-    listen<string[]>('tauri://file-drop', async (event) => {
+    bridge.listen<string[]>('tauri://file-drop', async (event) => {
         dragDropArea?.classList.remove('drag-over');
         await handleFileDrop(event.payload);
     });
 
-    listen('tauri://file-drop-hover', () => {
+    bridge.listen('tauri://file-drop-hover', () => {
         dragDropArea?.classList.add('drag-over');
     });
 
-    listen('tauri://file-drop-cancelled', () => {
+    bridge.listen('tauri://file-drop-cancelled', () => {
         dragDropArea?.classList.remove('drag-over');
     });
 }
@@ -49,7 +47,7 @@ async function handleFileDrop(paths: string[]): Promise<void> {
 
 async function handleClickToSelect(): Promise<void> {
     try {
-        const selected = await open({
+        const selected = await bridge.open({
             multiple: true,
             directory: false,
             filters: [{
@@ -57,21 +55,21 @@ async function handleClickToSelect(): Promise<void> {
                 extensions: ['mp3', 'm4a', 'm4b', 'aac']
             }]
         });
-        
+
         if (Array.isArray(selected) && selected.length > 0) {
             await processFilePaths(selected);
         } else if (typeof selected === 'string') {
             await processFilePaths([selected]);
         }
     } catch (error) {
-        showError(`Failed to open file dialog: ${error}`);
+        showError(`Failed to bridge.open file dialog: ${error}`);
     }
 }
 
 function filterSupportedFiles(paths: string[]): string[] {
     const supportedFormats = ['.mp3', '.m4a', '.m4b', '.aac'];
-    return paths.filter(path => 
-        supportedFormats.some(format => 
+    return paths.filter(path =>
+        supportedFormats.some(format =>
             path.toLowerCase().endsWith(format)
         )
     );
@@ -82,8 +80,8 @@ async function processFilePaths(filePaths: string[]): Promise<void> {
 
 
     try {
-        const fileListInfo: FileListInfo = await invoke('analyze_audio_files', { 
-            filePaths: filePaths 
+        const fileListInfo: FileListInfo = await bridge.invoke('analyze_audio_files', {
+            filePaths: filePaths
         });
         displayFileList(fileListInfo);
         clearError();

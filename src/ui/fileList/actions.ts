@@ -1,24 +1,24 @@
 import { AudioFile, FileListInfo, formatFileSize } from '../../types/audio';
-import { invoke } from '@tauri-apps/api/core';
+import { bridge } from '../../lib/bridge';
 import { onFileListChange } from '../outputPanel';
 import { setCoverArt, getHasCustomCoverArt, clearCoverArt } from '../coverArt';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { 
-    currentFileList, 
-    selectedFileIndex, 
-    setCurrentFileList, 
-    setSelectedIndex, 
-    getSortAscending, 
-    setSortAscending 
+import {
+    currentFileList,
+    selectedFileIndex,
+    setCurrentFileList,
+    setSelectedIndex,
+    getSortAscending,
+    setSortAscending
 } from './state';
-import { 
+import {
     createFileListItem,
     updateFileListDOM,
     updateTotalStats,
     updateSelection,
     updateSortButtonText,
     updateButtonVisibility,
-    showEmptyState 
+    showEmptyState
 } from './dom';
 import { initFileListEvents } from './events';
 
@@ -43,7 +43,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
     updateTotalStats();
     initFileListEvents();
     onFileListChange();
-    
+
     // Centralized button updates
     updateButtonVisibility();
     updateSortButtonText(getSortAscending());
@@ -67,17 +67,17 @@ export function removeFile(index: number): void {
     currentFileList.files.splice(index, 1);
     currentFileList.validCount = currentFileList.files.filter(f => f.isValid).length;
     currentFileList.invalidCount = currentFileList.files.length - currentFileList.validCount;
-    
+
     recalculateTotals();
     updateFileListDOM();
-    
+
     if (selectedFileIndex === index) {
         setSelectedIndex(-1);
         clearFileProperties();
     } else if (selectedFileIndex > index) {
         setSelectedIndex(selectedFileIndex - 1);
     }
-    
+
     onFileListChange();
 }
 
@@ -101,7 +101,7 @@ export function updateFileProperties(file: AudioFile): void {
         if (sampleRateEl) sampleRateEl.textContent = file.sampleRate ? `${file.sampleRate} Hz` : 'N/A';
         if (channelsEl) channelsEl.textContent = file.channels ? `${file.channels} ch` : 'N/A';
         if (fileSizeEl) fileSizeEl.textContent = file.size ? formatFileSize(file.size) : 'N/A';
-        
+
         // Still load metadata for the metadata form
         loadFileMetadata(file.path);
     } else {
@@ -115,7 +115,7 @@ export function updateFileProperties(file: AudioFile): void {
 
 async function loadFileMetadata(filePath: string): Promise<void> {
     try {
-        const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath });
+        const metadata = await bridge.invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath });
         populateMetadataForm(metadata);
     } catch (error) {
         console.warn('Failed to load metadata:', error);
@@ -157,7 +157,7 @@ async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
             setCoverArt(null);
             return;
         }
-        const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { filePath: firstValid.path });
+        const metadata = await bridge.invoke<AudiobookMetadata>('read_audio_metadata', { filePath: firstValid.path });
         setCoverArt(metadata.cover_art || null);
     } catch (error) {
         // Non-fatal: just reset to placeholder if metadata cannot be read
@@ -169,19 +169,19 @@ async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 // Move file up in the list
 export function moveFileUp(index: number): void {
     if (!currentFileList || index <= 0 || index >= currentFileList.files.length) return;
-    
+
     // Swap with previous file
     const temp = currentFileList.files[index];
     currentFileList.files[index] = currentFileList.files[index - 1];
     currentFileList.files[index - 1] = temp;
-    
+
     // Update selected index if needed
     if (selectedFileIndex === index) {
         setSelectedIndex(index - 1);
     } else if (selectedFileIndex === index - 1) {
         setSelectedIndex(index);
     }
-    
+
     updateFileListDOM();
     onFileListChange();
 }
@@ -189,19 +189,19 @@ export function moveFileUp(index: number): void {
 // Move file down in the list
 export function moveFileDown(index: number): void {
     if (!currentFileList || index < 0 || index >= currentFileList.files.length - 1) return;
-    
+
     // Swap with next file
     const temp = currentFileList.files[index];
     currentFileList.files[index] = currentFileList.files[index + 1];
     currentFileList.files[index + 1] = temp;
-    
+
     // Update selected index if needed
     if (selectedFileIndex === index) {
         setSelectedIndex(index + 1);
     } else if (selectedFileIndex === index + 1) {
         setSelectedIndex(index);
     }
-    
+
     updateFileListDOM();
     onFileListChange();
 }
@@ -240,46 +240,46 @@ export function clearFileProperties(): void {
 
 export function toggleFileSort(): void {
     if (!currentFileList || currentFileList.files.length <= 1) return;
-    
+
     setSortAscending(!getSortAscending());
-    
+
     // Sort files by name
     currentFileList.files.sort((a, b) => {
         const nameA = a.path.split(/[\\\/]/).pop() || a.path;
         const nameB = b.path.split(/[\\\/]/).pop() || b.path;
-        
+
         if (getSortAscending()) {
             return nameA.localeCompare(nameB);
         } else {
             return nameB.localeCompare(nameA);
         }
     });
-    
+
     // Reset selected index as files have been reordered
     setSelectedIndex(-1);
     clearFileProperties();
-    
+
     // Update the sort button text
     updateSortButtonText(getSortAscending());
-    
+
     // Ensure button visibility is updated after reordering
     updateButtonVisibility();
-    
+
     updateFileListDOM();
     onFileListChange();
 }
 
 export function clearAllFiles(): void {
     if (!currentFileList) return;
-    
+
     currentFileList.files = [];
     currentFileList.validCount = 0;
     currentFileList.invalidCount = 0;
     currentFileList.totalDuration = 0;
     currentFileList.totalSize = 0;
-    
+
     showEmptyState();
-    
+
     setSelectedIndex(-1);
     clearFileProperties();
     updateTotalStats();

@@ -167,6 +167,9 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`
 - Useful subsets: `cargo test path_validation` (name-filtered)
 - Manual UI testing via `window.testCommands` in `src/main.ts`
 
+### Mock Maintenance
+- When changing Rust command signatures, you MUST update the corresponding mock in `src/lib/mocks.ts` to keep the browser dev environment functional.
+
 ### Event Contract Verification
 Event: `processing-progress`
 - Rust: `src-tauri/src/audio/progress/reporter.rs::ProgressEvent`

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { bridge } from "./lib/bridge";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
@@ -10,21 +10,21 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
 
 // Expose test functions for console access
 (window as any).testCommands = {
-  ping: () => invoke('ping'),
-  echo: (input: string) => invoke('echo', { input }),
-  validateFiles: (paths: string[]) => invoke('validate_files', { filePaths: paths }),
+  ping: () => bridge.invoke('ping'),
+  echo: (input: string) => bridge.invoke('echo', { input }),
+  validateFiles: (paths: string[]) => bridge.invoke('validate_files', { filePaths: paths }),
   // Removed getFFmpegVersion and mergeAudioFiles test commands after nuclear cleanup
-  
+
   // Metadata commands
-  readMetadata: (filePath: string) => invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath }),
-  writeMetadata: (filePath: string, metadata: AudiobookMetadata) => 
-    invoke('write_audio_metadata', { filePath: filePath, metadata }),
-  writeCoverArt: (filePath: string, coverData: number[]) => 
-    invoke('write_cover_art', { filePath: filePath, coverData: coverData }),
-  loadCoverArtFile: (filePath: string) => invoke('load_cover_art_file', { filePath }),
-  
+  readMetadata: (filePath: string) => bridge.invoke<AudiobookMetadata>('read_audio_metadata', { filePath: filePath }),
+  writeMetadata: (filePath: string, metadata: AudiobookMetadata) =>
+    bridge.invoke('write_audio_metadata', { filePath: filePath, metadata }),
+  writeCoverArt: (filePath: string, coverData: number[]) =>
+    bridge.invoke('write_cover_art', { filePath: filePath, coverData: coverData }),
+  loadCoverArtFile: (filePath: string) => bridge.invoke('load_cover_art_file', { filePath }),
+
   // Audio processing commands
-  analyzeAudioFiles: (filePaths: string[]) => invoke<FileListInfo>('analyze_audio_files', { filePaths: filePaths }),
+  analyzeAudioFiles: (filePaths: string[]) => bridge.invoke<FileListInfo>('analyze_audio_files', { filePaths: filePaths }),
   // UI test functions
   testDisplayList: (fileListInfo: FileListInfo) => displayFileList(fileListInfo),
   getCurrentFileList: () => currentFileList,
@@ -40,20 +40,20 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
     }
     return 'StatusPanel not initialized';
   },
-  
+
   // Output panel test functions
   getCurrentAudioSettings: () => getCurrentAudioSettings(),
   triggerFileListChange: () => onFileListChange(),
   triggerMetadataChange: () => onMetadataChange(),
-  
+
   // Status panel test functions
-  cancelProcessing: () => invoke('cancel_processing'),
-  
+  cancelProcessing: () => bridge.invoke('cancel_processing'),
+
   // Cover art test functions
   getCurrentCoverArt: () => getCurrentCoverArt(),
   setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
   clearCoverArt: () => clearCoverArt(),
-  
+
   // File movement test functions (tracked in progress_bug_tracker: "Wire window.testCommands.testMoveFile/testSortFiles")
   testMoveFile: (index: number, direction: 'up' | 'down') => {
     console.log(`Moving file at index ${index} ${direction}`);

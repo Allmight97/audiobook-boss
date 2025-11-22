@@ -5,9 +5,7 @@
  * processing coordination, and state management.
  */
 
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import { openPath as openExternal } from '@tauri-apps/plugin-opener';
+import { bridge } from '../../lib/bridge';
 import { ProcessingProgressEvent, EVENTS, STAGES } from '../../types/events';
 import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
@@ -44,7 +42,7 @@ export class StatusPanel {
             percentage: 0,
             message: 'Ready to process audiobook'
         };
-        
+
         this.initializeElements();
         this.setupEventHandlers();
 
@@ -66,7 +64,7 @@ export class StatusPanel {
 
         // Set initial UI state
         this.updateUI();
-        
+
         // Initialize art thumbnail to placeholder
         dom.resetArtThumbnail();
     }
@@ -98,7 +96,7 @@ export class StatusPanel {
         try {
             console.log('StatusPanel: Starting processing...');
             console.log('Current file list:', currentFileList);
-            
+
             // Validate inputs
             if (!currentFileList || !currentFileList.files || currentFileList.files.length === 0) {
                 console.log('StatusPanel: No files found');
@@ -113,7 +111,7 @@ export class StatusPanel {
             }
 
             console.log('StatusPanel: Files validated, getting audio settings...');
-            
+
             // Get audio settings
             let settings;
             try {
@@ -197,7 +195,7 @@ export class StatusPanel {
                 settings: boundaryEncoderSettings,
             };
 
-            const result = await invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files_v2', {
+            const result = await bridge.invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files_v2', {
                 payload: v2Payload,
                 metadata: Object.keys(metadata).length > 0 ? metadata : null,
                 previewSeconds: options?.previewSeconds
@@ -208,7 +206,7 @@ export class StatusPanel {
                 const seconds = typeof result.previewActualSeconds === 'number' ? result.previewActualSeconds.toFixed(3) : '≈30';
                 console.log(`Preview file created at: ${result.previewFilePath} (${seconds}s)`);
                 try {
-                    await openExternal(result.previewFilePath);
+                    await bridge.openExternal(result.previewFilePath);
                 } catch (e) {
                     console.warn('Failed to open preview file automatically:', e);
                 }
@@ -234,7 +232,7 @@ export class StatusPanel {
             this.cancelUnlisten();
         }
 
-        this.cancelUnlisten = await listen(EVENTS.PROGRESS, (event) => {
+        this.cancelUnlisten = await bridge.listen(EVENTS.PROGRESS, (event) => {
             const progress = event.payload as ProcessingProgressEvent;
             this.updateProgress(progress);
         });
@@ -310,7 +308,7 @@ export class StatusPanel {
 
     private async handleCancel(): Promise<void> {
         try {
-            await invoke('cancel_processing');
+            await bridge.invoke('cancel_processing');
             // Do not set final cancelled state here; wait for backend event
             this.updateStatus({
                 stage: this.currentStatus.stage,
@@ -325,7 +323,7 @@ export class StatusPanel {
 
     private resetToIdle(): void {
         this.isProcessing = false;
-        
+
         if (this.cancelUnlisten) {
             this.cancelUnlisten();
             this.cancelUnlisten = undefined;
@@ -344,7 +342,7 @@ export class StatusPanel {
     private convertBytesToDataUrl(bytes: number[]): string {
         // Convert number array to Uint8Array
         const uint8Array = new Uint8Array(bytes);
-        
+
         // Detect image format from magic bytes
         let mimeType = 'image/jpeg'; // default fallback
         if (uint8Array.length >= 4) {
@@ -361,14 +359,14 @@ export class StatusPanel {
                 mimeType = 'image/webp';
             }
         }
-        
+
         // Convert to base64
         let binary = '';
         uint8Array.forEach(byte => {
             binary += String.fromCharCode(byte);
         });
         const base64 = btoa(binary);
-        
+
         return `data:${mimeType};base64,${base64}`;
     }
 
@@ -387,10 +385,10 @@ export class StatusPanel {
 
         try {
             // Load metadata with cover art
-            const metadata = await invoke<AudiobookMetadata>('read_audio_metadata', { 
-                filePath: firstValidFile.path 
+            const metadata = await bridge.invoke<AudiobookMetadata>('read_audio_metadata', {
+                filePath: firstValidFile.path
             });
-            
+
             // Check for cover art data (backend returns as cover_art field with number array)
             if (metadata.cover_art && metadata.cover_art.length > 0) {
                 const dataUrl = this.convertBytesToDataUrl(metadata.cover_art);
@@ -412,7 +410,7 @@ export class StatusPanel {
         };
 
         const metadata: Partial<AudiobookMetadata> = {};
-        
+
         const title = getElementValue('meta-title');
         const author = getElementValue('meta-author');
         const album = getElementValue('meta-album');
@@ -437,7 +435,7 @@ export class StatusPanel {
             metadata.album = album ? `${album} (${series})` : series;
         }
         if (description) metadata.description = description;
-        
+
         // Include cover art if user has selected any
         const coverBytes = getCurrentCoverArt();
         if (coverBytes && coverBytes.length > 0) {

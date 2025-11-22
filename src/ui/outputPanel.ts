@@ -1,5 +1,5 @@
 // import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { bridge } from "../lib/bridge";
 import type { AudioSettings, ChannelConfig, SampleRateConfig } from "../types/audio";
 import type { AudiobookMetadata } from "../types/metadata";
 import { currentFileList } from "./fileList";
@@ -123,7 +123,7 @@ function handleChannelsChange(event: Event): void {
  */
 async function handleDirectoryBrowse(): Promise<void> {
   try {
-    const selectedPath = await open({
+    const selectedPath = await bridge.open({
       directory: true,
       multiple: false,
       title: 'Select Output Directory'
@@ -265,7 +265,7 @@ function getCurrentMetadata(): AudiobookMetadata {
   };
 
   const coverArt = getCurrentCoverArt();
-  
+
   return {
     title: getElementValue('meta-title'),
     author: getElementValue('meta-author'),
