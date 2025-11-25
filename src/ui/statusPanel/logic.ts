@@ -193,6 +193,7 @@ export class StatusPanel {
                 inputFiles: filePaths,
                 outputDir: (document.getElementById('output-dir-text') as HTMLInputElement)?.value || '',
                 settings: boundaryEncoderSettings,
+                sampleRate: settings.sampleRate,
             };
 
             const result = await bridge.invoke<{ message: string; previewFilePath?: string; previewActualSeconds?: number }>('process_audiobook_files_v2', {

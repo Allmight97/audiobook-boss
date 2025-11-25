@@ -2,10 +2,26 @@
 
 ## ACTIVE PRIORITIES (Start Here)
 
-- [ ] **BUG (P1): Output settings not honored.**
+- [ ] **BUG (P1-A): Processing fails silently - output path contract mismatch** [BLOCKER]
 
-  - Context: User reports settings (bitrate, etc.) are ignored. Code review shows plumbing is in place (`commands/audio.rs` -> `execute.rs` -> `encoder.rs`), but runtime behavior fails.
-  - Action: Verify via `RUST_LOG=debug` to see if `encoder_settings_v2` is dropped or overwritten.
+  - Context: Frontend sends full file path (e.g., `/path/Author/Title.m4b`), but backend expects directory and constructs own filename. Validation fails because `.m4b` path isn't a directory.
+  - Root cause: `outputPanel.ts:202-211` returns full path; `audio.rs:199-215` expects directory.
+  - Action: Backend should accept full file path and create parent directories as needed.
+  - See: `docs/planning/p1-settings-contract-fix.md`
+
+- [ ] **BUG (P1-B): Bitrate range mismatch - settings silently ignored**
+
+  - Context: UI offers 32, 48, 128 kbps but type system and validation only accepts 56-96 kbps.
+  - Root cause: `SUPPORTED_ENCODER_BITRATES` in `logic.ts:32`, `encoder.ts:46`, `settings_encoder.rs:60` all use `[56, 64, 72, 80, 88, 96]`. Frontend sanitizes invalid values to 64k before backend ever sees them.
+  - Action: Expand range to 48-128 kbps across all locations. Single source of truth in Rust.
+  - See: `docs/planning/p1-settings-contract-fix.md`
+
+- [ ] **BUG (P1-C): Sample rate not passed to backend**
+
+  - Context: UI collects explicit sample rate (e.g., 44100) but it never reaches encoder.
+  - Root cause: `audio.rs:90` uses `AudioSettings::audiobook_preset()` which defaults to `SampleRateConfig::Auto`. Frontend's sample rate setting is discarded.
+  - Action: Parse and map sample rate from frontend payload in `process_audiobook_files_v2`.
+  - See: `docs/planning/p1-settings-contract-fix.md`
 
 - [ ] **Fast Path Optimization (P2)**
   - Context: Currently disabled (`ABB_DISABLE_FASTPATH=1`) due to AAC errors.
