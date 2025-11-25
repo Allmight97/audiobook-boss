@@ -109,6 +109,7 @@ Choose your starting point based on familiarity—if you already know the API su
 - After your changes, rerun the same set to verify nothing regressed.
 - CI option: run `cargo fmt --all -- --check` in parallel with `cargo clippy -- -D warnings`, then trigger `cargo test` once lints pass.
 - **When to run the heavy set**: Always execute the full suite before merging to `main`, preparing a release, or whenever changes touch runtime behavior (e.g., encoder internals, progress plumbing, UI contract exposure, metadata pipeline). The fast script is for tight iteration; the heavy run prevents surprises that CI would otherwise catch later.
+- **Coverage tracking**: Run `./scripts/coverage.sh` when working on test improvements or before major releases. Not required for routine commits.
 
 ### During Implementation
 - **Minimize diffs**: Prefer smallest effective change; avoid broad refactors unless requested
@@ -203,6 +204,19 @@ npm run test:coverage  # Run with coverage report
 - Tauri APIs are auto-mocked (see `src/test/setup.ts`)
 - Import `vi` from 'vitest' for mocking
 
+**VS Code Coverage Visualization:**
+1. Install **Coverage Gutters** extension (ryanluker.vscode-coverage-gutters)
+2. Install **Vitest** extension (vitest.explorer) for TypeScript test running
+3. Run `./scripts/coverage.sh` to generate LCOV files
+4. Click **"Watch"** in VS Code status bar
+5. Open source files to see green (covered) / red (uncovered) line gutters
+6. Settings pre-configured in `.vscode/settings.json`
+
+**Test Writing Priorities:**
+- Critical paths: commands, audio processing core, progress reporting, buffer management
+- Add tests when fixing bugs or adding features
+- Use inline `#[cfg(test)]` for private utility functions
+
 ### Mock Maintenance
 - When changing Rust command signatures, you MUST update the corresponding mock in `src/lib/mocks.ts` to keep the browser dev environment functional.
 - Test mocks in `src/test/setup.ts` provide isolated Tauri API stubs for vitest.
@@ -235,10 +249,9 @@ Event: `processing-progress`
 - Build: `npm run app:build`
 
 ### Testing
-- Rust tests: `cd src-tauri && cargo test`
-- Rust subset: `cargo test path_validation` (name-filtered)
-- TypeScript tests: `npm run test`
-- Coverage reports: `./scripts/coverage.sh` (outputs HTML to `coverage/`)
+See "Testing & Verification" section for detailed guidance.
+- Quick iteration: `npm run test` (TypeScript), `cargo test <filter>` (Rust)
+- Coverage: `./scripts/coverage.sh` (outputs HTML to `coverage/`)
 
 ---
 
