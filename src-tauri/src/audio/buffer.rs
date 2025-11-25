@@ -109,10 +109,8 @@ impl SampleAccumulator {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
                     // F32 planar: each channel in separate plane
-                    // We need ch for both frame.data(ch) and buffers[ch]
-                    #[allow(clippy::needless_range_loop)]
                     unsafe {
-                        for ch in 0..self.channels {
+                        for (ch, buffer) in buffers.iter_mut().enumerate() {
                             let plane = frame.data(ch);
                             if plane.is_empty() {
                                 continue;
@@ -127,7 +125,7 @@ impl SampleAccumulator {
                             }
                             let slice =
                                 std::slice::from_raw_parts(plane.as_ptr() as *const f32, copy_len);
-                            buffers[ch].extend_from_slice(slice);
+                            buffer.extend_from_slice(slice);
                         }
                     }
                 }
@@ -276,16 +274,14 @@ impl SampleAccumulator {
         }
 
         let mut total_repairs = 0usize;
-        // We need ch for both frame.data_mut(ch) and buffers[ch]
-        #[allow(clippy::needless_range_loop)]
-        for ch in 0..channels {
+        for (ch, buffer) in buffers.iter_mut().enumerate() {
             let plane = frame.data_mut(ch);
             if plane.is_empty() {
                 continue;
             }
             let dst: &mut [f32] =
                 unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take) };
-            let src = &buffers[ch][..take];
+            let src = &buffer[..take];
 
             // Sanitize float samples: clamp to [-1.0, 1.0], fix NaN/Inf
             let mut repaired = 0usize;
@@ -304,7 +300,7 @@ impl SampleAccumulator {
                 dst[i] = v;
             }
             total_repairs += repaired;
-            buffers[ch].drain(..take);
+            buffer.drain(..take);
         }
 
         if total_repairs > 0 {

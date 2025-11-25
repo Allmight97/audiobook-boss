@@ -43,7 +43,11 @@
       "Bash(git log:*)",
       "Read(//tmp/**)",
       "Bash(gh pr view:*)",
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix(buffer): explicit format matching + test coverage infrastructure\n\nAddresses memory safety concern from Gemini review on PR #28:\n- Replace implicit planar/packed branching with explicit format matching\n- Only F32(Planar) and I16(Packed) supported; others panic at construction\n- Add 3 #[should_panic] tests for unsupported format rejection\n\nTest coverage infrastructure:\n- Add vitest for TypeScript (npm run test, npm run test:coverage)\n- Add scripts/coverage.sh for unified Rust/TS coverage reports\n- Add src/test/setup.ts with Tauri API mocks\n- Add sample test file src/lib/bridge.test.ts\n- Update AGENTS.md with coverage documentation\n\nThis PR supersedes #28.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   },
