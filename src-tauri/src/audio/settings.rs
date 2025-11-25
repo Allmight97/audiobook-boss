@@ -12,11 +12,11 @@ pub fn validate_audio_settings(settings: &AudioSettings) -> Result<()> {
     Ok(())
 }
 
-/// Validates bitrate is within acceptable range
+/// Validates bitrate is within acceptable range (48-128 kbps)
 fn validate_bitrate(bitrate: u32) -> Result<()> {
-    if !(32..=128).contains(&bitrate) {
+    if !(48..=128).contains(&bitrate) {
         return Err(AppError::InvalidInput(format!(
-            "Bitrate must be between 32-128 kbps, got: {bitrate}"
+            "Bitrate must be between 48-128 kbps, got: {bitrate}"
         )));
     }
     Ok(())
@@ -169,13 +169,14 @@ mod tests {
 
     #[test]
     fn test_validate_bitrate_valid() {
+        assert!(validate_bitrate(48).is_ok());
         assert!(validate_bitrate(64).is_ok());
-        assert!(validate_bitrate(32).is_ok());
         assert!(validate_bitrate(128).is_ok());
     }
 
     #[test]
     fn test_validate_bitrate_invalid() {
+        assert!(validate_bitrate(32).is_err()); // below minimum (48)
         assert!(validate_bitrate(16).is_err());
         assert!(validate_bitrate(256).is_err());
     }

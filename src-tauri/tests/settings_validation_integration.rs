@@ -64,14 +64,14 @@ fn test_validate_bitrate_edge_cases() {
     let output_path = temp_dir.path().join("output.m4b");
 
     let settings_min = AudioSettings {
-        bitrate: 32,
+        bitrate: 48,
         channels: ChannelConfig::Mono,
         sample_rate: SampleRateConfig::Auto,
         output_path: output_path.clone(),
     };
     assert!(
         validate_audio_settings(&settings_min).is_ok(),
-        "Minimum bitrate should be valid"
+        "Minimum bitrate (48 kbps) should be valid"
     );
 
     // Test maximum valid bitrate
@@ -101,7 +101,7 @@ fn test_validate_bitrate_edge_cases() {
     assert!(result_low
         .expect_err("expected error")
         .to_string()
-        .contains("32-128"));
+        .contains("48-128"));
 
     // Test invalid high bitrate
     let settings_high = AudioSettings {
@@ -118,7 +118,7 @@ fn test_validate_bitrate_edge_cases() {
     assert!(result_high
         .expect_err("expected error")
         .to_string()
-        .contains("32-128"));
+        .contains("48-128"));
 }
 
 #[test]
@@ -307,9 +307,9 @@ fn test_settings_application_integration() {
 
     // Test different settings configurations
     let test_cases = vec![
-        // Low quality mono
+        // Low bandwidth mono (minimum bitrate)
         AudioSettings {
-            bitrate: 32,
+            bitrate: 48,
             channels: ChannelConfig::Mono,
             sample_rate: SampleRateConfig::Explicit(22050),
             output_path: temp_dir.path().join("output_low.m4b"),
@@ -478,8 +478,8 @@ fn test_media_processing_plan_settings_preservation() {
 fn test_settings_validation_matrix() {
     let temp_dir = TempDir::new().expect("create temp dir");
 
-    // Test matrix of valid combinations
-    let bitrates = [32, 64, 96, 128];
+    // Test matrix of valid combinations (48-128 kbps range)
+    let bitrates = [48, 64, 96, 128];
     let channels = [ChannelConfig::Mono, ChannelConfig::Stereo];
     let sample_rates = [
         SampleRateConfig::Auto,
