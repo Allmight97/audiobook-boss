@@ -58,7 +58,7 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   testMoveFile: (index: number, direction: 'up' | 'down') => {
     if (direction === 'up') {
       moveFileUp(index);
-    } else {
+    } else if (direction === 'down') {
       moveFileDown(index);
     }
   },
