@@ -205,8 +205,9 @@ npm run test:coverage  # Run with coverage report
 - Import `vi` from 'vitest' for mocking
 
 **VS Code Coverage Visualization:**
-1. Install **Coverage Gutters** extension (ryanluker.vscode-coverage-gutters)
-2. Install **Vitest** extension (vitest.explorer) for TypeScript test running
+ (FYI for Agents - no action needed here)
+1. Install **Coverage Gutters** extension - DONE
+2. Install **Vitest** extension - DONE
 3. Run `./scripts/coverage.sh` to generate LCOV files
 4. Click **"Watch"** in VS Code status bar
 5. Open source files to see green (covered) / red (uncovered) line gutters
