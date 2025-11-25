@@ -59,6 +59,8 @@ pub struct ProcessV2Payload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,
+    /// Sample rate from frontend (optional, defaults to Auto)
+    pub sample_rate: Option<audio::SampleRateConfig>,
 }
 
 /// Processes files using v2 payload (EncoderSettings + v2 shape). For now, routes
@@ -74,17 +76,19 @@ pub async fn process_audiobook_files_v2(
     // Validate encoder settings (v2)
     validate_encoder_settings(&payload.settings)?;
     log::info!(
-        "encoder_v2 summary: encoder={:?} bitrate={}k channels={} aac_coder={:?} afterburner={:?} threads={:?}",
+        "encoder_v2 summary: encoder={:?} bitrate={}k channels={} sample_rate={:?} aac_coder={:?} afterburner={:?} threads={:?}",
         payload.settings.encoder_type,
         payload.settings.bitrate_kbps,
         payload.settings.channels,
+        payload.sample_rate,
         payload.settings.aac_coder,
         payload.settings.afterburner,
         payload.settings.threads
     );
 
-    // Validate output directory and construct final path
-    let output_path = validate_and_resolve_output_path(&payload.output_dir)?;
+    // Validate output path and create parent directories if needed
+    // Note: Frontend sends full file path in output_dir field (legacy naming)
+    let output_path = validate_and_prepare_output_path(&payload.output_dir)?;
 
     // Minimal AudioSettings kept for legacy validation paths (bitrate/channel/sample rate)
     let mut settings_v1 = audio::AudioSettings::audiobook_preset();
@@ -99,6 +103,10 @@ pub async fn process_audiobook_files_v2(
             )))
         }
     };
+    // Map sample rate from frontend payload (defaults to Auto if not provided)
+    if let Some(sample_rate) = payload.sample_rate {
+        settings_v1.sample_rate = sample_rate;
+    }
     settings_v1.output_path = output_path.clone();
 
     // Reuse existing validation to ensure path/bitrate configuration is acceptable
@@ -196,22 +204,55 @@ pub struct ProcessCommandResult {
     pub preview_actual_seconds: Option<f64>,
 }
 
-fn validate_and_resolve_output_path(output_dir: &str) -> Result<PathBuf> {
-    let dir = Path::new(output_dir);
-    if !dir.exists() {
-        return Err(AppError::FileValidation(format!(
-            "Output directory does not exist: {}",
-            dir.display()
-        )));
-    }
-    if !dir.is_dir() {
-        return Err(AppError::FileValidation(format!(
-            "Output path is not a directory: {}",
-            dir.display()
-        )));
+/// Validates and prepares the output path for the audiobook file.
+///
+/// Accepts a full file path (e.g., `/path/to/Author/2024-Title/Book.m4b`).
+/// Creates parent directories if they don't exist.
+///
+/// # Contract
+/// - Frontend sends the complete output file path (including filename)
+/// - Backend validates extension and creates parent directories as needed
+fn validate_and_prepare_output_path(output_path: &str) -> Result<PathBuf> {
+    let path = Path::new(output_path);
+
+    // Validate the path has a filename
+    if path.file_name().is_none() {
+        return Err(AppError::InvalidInput(
+            "Output path must include a filename".to_string(),
+        ));
     }
 
-    Ok(dir.join("audiobook.m4b"))
+    // Validate extension is .m4b
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("m4b") => {}
+        Some(ext) => {
+            return Err(AppError::InvalidInput(format!(
+                "Output file must have .m4b extension, got: .{}",
+                ext
+            )));
+        }
+        None => {
+            return Err(AppError::InvalidInput(
+                "Output file must have .m4b extension".to_string(),
+            ));
+        }
+    }
+
+    // Get parent directory and create if needed
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            log::info!("Creating output directory: {}", parent.display());
+            std::fs::create_dir_all(parent).map_err(|e| {
+                AppError::FileValidation(format!(
+                    "Failed to create output directory '{}': {}",
+                    parent.display(),
+                    e
+                ))
+            })?;
+        }
+    }
+
+    Ok(path.to_path_buf())
 }
 
 /// Cancels the current audio processing operation
