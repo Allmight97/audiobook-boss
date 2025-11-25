@@ -45,7 +45,7 @@ pub enum ThreadSetting {
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
-    /// Allowed: 56|64|72|80|88|96 (kbps)
+    /// Allowed: 48|56|64|72|80|88|96|112|128 (kbps)
     pub bitrate_kbps: u16,
     /// Allowed: 1|2
     pub channels: u8,
@@ -57,7 +57,7 @@ pub struct EncoderSettings {
 }
 
 /// Whitelist of supported encoder bitrates for speech-oriented output
-pub const VALID_ENCODER_BITRATES: &[u16] = &[56, 64, 72, 80, 88, 96];
+pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 112, 128];
 
 /// Valid range for thread count when using Fixed thread setting
 pub const VALID_THREAD_COUNT_RANGE: std::ops::RangeInclusive<u16> = 1..=1024;
@@ -183,8 +183,12 @@ mod tests {
             s.bitrate_kbps = br;
             assert!(validate_encoder_settings(&s).is_ok());
         }
+        // Test invalid bitrates (outside expanded 48-128 range)
         let mut s = base_settings();
-        s.bitrate_kbps = 48; // not in whitelist
+        s.bitrate_kbps = 32; // below minimum
+        assert!(validate_encoder_settings(&s).is_err());
+
+        s.bitrate_kbps = 192; // above maximum
         assert!(validate_encoder_settings(&s).is_err());
     }
 

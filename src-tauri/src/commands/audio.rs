@@ -88,7 +88,7 @@ pub async fn process_audiobook_files_v2(
 
     // Validate output path and create parent directories if needed
     // Note: Frontend sends full file path in output_dir field (legacy naming)
-    let output_path = validate_and_prepare_output_path(&payload.output_dir)?;
+    let output_path = prepare_output_path(&payload.output_dir)?;
 
     // Minimal AudioSettings kept for legacy validation paths (bitrate/channel/sample rate)
     let mut settings_v1 = audio::AudioSettings::audiobook_preset();
@@ -204,15 +204,16 @@ pub struct ProcessCommandResult {
     pub preview_actual_seconds: Option<f64>,
 }
 
-/// Validates and prepares the output path for the audiobook file.
+/// Prepares the output path for the audiobook file.
 ///
 /// Accepts a full file path (e.g., `/path/to/Author/2024-Title/Book.m4b`).
 /// Creates parent directories if they don't exist.
 ///
 /// # Contract
 /// - Frontend sends the complete output file path (including filename)
-/// - Backend validates extension and creates parent directories as needed
-fn validate_and_prepare_output_path(output_path: &str) -> Result<PathBuf> {
+/// - Creates parent directories as needed
+/// - Extension validation is deferred to `validate_audio_settings`
+fn prepare_output_path(output_path: &str) -> Result<PathBuf> {
     let path = Path::new(output_path);
 
     // Validate the path has a filename
@@ -222,23 +223,7 @@ fn validate_and_prepare_output_path(output_path: &str) -> Result<PathBuf> {
         ));
     }
 
-    // Validate extension is .m4b
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("m4b") => {}
-        Some(ext) => {
-            return Err(AppError::InvalidInput(format!(
-                "Output file must have .m4b extension, got: .{}",
-                ext
-            )));
-        }
-        None => {
-            return Err(AppError::InvalidInput(
-                "Output file must have .m4b extension".to_string(),
-            ));
-        }
-    }
-
-    // Get parent directory and create if needed
+    // Create parent directory if needed (extension validated later by validate_audio_settings)
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
             log::info!("Creating output directory: {}", parent.display());

@@ -116,14 +116,14 @@ Two PRs to minimize risk and enable incremental verification:
 **File:** `src-tauri/src/commands/audio.rs`
 
 **Changes:**
-1. Rename `validate_and_resolve_output_path` to `validate_and_prepare_output_path`
+1. Rename `validate_and_resolve_output_path` to `prepare_output_path`
 2. Accept full file path (not directory)
 3. Validate parent directory exists OR create it
 4. Return the provided path directly (don't append filename)
 
 **Code sketch:**
 ```rust
-fn validate_and_prepare_output_path(output_path: &str) -> Result<PathBuf> {
+fn prepare_output_path(output_path: &str) -> Result<PathBuf> {
     let path = Path::new(output_path);
 
     // Validate extension

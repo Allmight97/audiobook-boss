@@ -11,8 +11,8 @@
 // FEATURE_TOGGLE:VBR  VBR_DISABLED_MARKER
 // FEATURE_TOGGLE:FDK  FDK_PLACEHOLDER
 
-import type { EncoderSettings, EncoderType, ThreadSetting } from './audio';
-import { defaultEncoderSettings } from './audio';
+import type { EncoderSettings, EncoderType, ThreadSetting, BitrateKbps } from './audio';
+import { defaultEncoderSettings, VALID_ENCODER_BITRATES } from './audio';
 
 export type EncoderFlavor = 'auto' | 'aac_at' | 'external_fdk' | 'native_aac';
 export type AacProfile = 'lc' | 'he' | 'he_v2';
@@ -24,7 +24,7 @@ export interface VbrSetting {
 
 export interface EncoderSettingsV2 {
   flavor: EncoderFlavor;
-  bitrateKbps: 64 | 72 | 80 | 88 | 96;
+  bitrateKbps: BitrateKbps;
   channels: 1 | 2;
   profile?: AacProfile;                 // hidden/ignored for native
   vbr?: VbrSetting;                     // Reserved; disabled now; backend ignores
@@ -43,14 +43,7 @@ export const defaultEncoderSettingsV2 = (isMac: boolean): EncoderSettingsV2 => (
   optimizeLcLowBitrate: true,
 });
 
-const VALID_ENCODER_BITRATES: ReadonlyArray<EncoderSettings['bitrateKbps']> = [
-  56,
-  64,
-  72,
-  80,
-  88,
-  96,
-];
+// VALID_ENCODER_BITRATES imported from audio.ts (single source of truth)
 
 export type EncoderSettingsLike = Partial<EncoderSettingsV2> | EncoderSettings | null | undefined;
 

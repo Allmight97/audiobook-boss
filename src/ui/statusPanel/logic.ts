@@ -10,7 +10,7 @@ import { ProcessingProgressEvent, EVENTS, STAGES } from '../../types/events';
 import { currentFileList } from '../fileList';
 import { getCurrentAudioSettings } from '../outputPanel';
 import type { EncoderSettings } from '../../types/audio';
-import { defaultEncoderSettings } from '../../types/audio';
+import { defaultEncoderSettings, VALID_ENCODER_BITRATES } from '../../types/audio';
 import { toBoundaryEncoderSettings } from '../../types/encoder';
 import type { EncoderSettingsLike } from '../../types/encoder';
 import { AudiobookMetadata } from '../../types/metadata';
@@ -29,7 +29,9 @@ type WindowWithEncoderProvider = Window & {
     EncoderSettingsProvider?: () => EncoderSettingsLike;
 };
 
-const SUPPORTED_ENCODER_BITRATES = new Set([56, 64, 72, 80, 88, 96]);
+// Derived from centralized VALID_ENCODER_BITRATES (audio.ts)
+// Typed as Set<number> to allow membership check with any numeric bitrate
+const SUPPORTED_ENCODER_BITRATES: Set<number> = new Set(VALID_ENCODER_BITRATES);
 
 export class StatusPanel {
     private cancelUnlisten?: () => void;

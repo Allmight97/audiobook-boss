@@ -124,10 +124,10 @@ impl AudioSettings {
     }
 
     /// Returns a low bandwidth preset for minimal file size / slower networks.
-    /// 32 kbps mono @ 22.05 kHz still preserves intelligibility for speech.
+    /// 48 kbps mono @ 22.05 kHz still preserves intelligibility for speech.
     pub fn low_bandwidth_preset() -> Self {
         Self {
-            bitrate: 32,
+            bitrate: 48,
             channels: ChannelConfig::Mono,
             sample_rate: SampleRateConfig::Explicit(22050),
             output_path: std::path::PathBuf::from("output.m4b"),

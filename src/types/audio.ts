@@ -66,9 +66,14 @@ export type ThreadSetting =
   | { mode: 'off' }
   | { mode: 'fixed'; value: number };
 
+// Single source of truth for valid encoder bitrates (kbps)
+// Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs
+export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 112, 128] as const;
+export type BitrateKbps = typeof VALID_ENCODER_BITRATES[number];
+
 export interface EncoderSettings {
   encoderType: EncoderType;           // default: 'aac_at' on macOS
-  bitrateKbps: 56 | 64 | 72 | 80 | 88 | 96;
+  bitrateKbps: BitrateKbps;
   channels: 1 | 2;                    // if he_aac_v2 → coerced to 2
   aacCoder?: AacCoder;                // ignored for aac_at
   afterburner?: boolean;              // ignored for aac_at
@@ -109,9 +114,9 @@ export const AudioPresets = {
   }),
   
   lowBandwidth: (): AudioSettings => ({
-    bitrate: 32,
+    bitrate: 48,
     channels: 'Mono',
-    sampleRate: { explicit: 16000 },
+    sampleRate: { explicit: 22050 },
     outputPath: 'audiobook_low.m4b'
   })
 };
