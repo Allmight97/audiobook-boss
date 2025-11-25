@@ -186,7 +186,7 @@ fn test_audio_settings_presets() {
 
     // Test low bandwidth preset
     let low = AudioSettings::low_bandwidth_preset();
-    assert_eq!(low.bitrate, 32);
+    assert_eq!(low.bitrate, 48);
     assert!(matches!(low.channels, ChannelConfig::Mono));
     assert!(matches!(low.sample_rate, SampleRateConfig::Explicit(22050)));
 
