@@ -167,8 +167,45 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`
 - Useful subsets: `cargo test path_validation` (name-filtered)
 - Manual UI testing via `window.testCommands` in `src/main.ts`
 
+### Test Coverage
+Coverage goal: **90%** for critical paths (commands, audio processing, progress reporting).
+
+**Generate coverage reports:**
+```bash
+# Both Rust and TypeScript coverage
+./scripts/coverage.sh
+
+# Rust only (requires cargo-tarpaulin)
+./scripts/coverage.sh rust
+
+# TypeScript only (requires npm install)
+./scripts/coverage.sh ts
+```
+
+**Output locations:**
+- Rust: `coverage/rust/tarpaulin-report.html`
+- TypeScript: `coverage/typescript/index.html`
+
+**Requirements:**
+- Rust coverage: `cargo install cargo-tarpaulin`
+- TypeScript coverage: `npm install` (installs vitest + coverage-v8)
+
+**TypeScript test commands:**
+```bash
+npm run test           # Run tests once
+npm run test:watch     # Watch mode (re-run on changes)
+npm run test:coverage  # Run with coverage report
+```
+
+**Writing TypeScript tests:**
+- Place tests in `src/**/*.test.ts` or `src/**/*.spec.ts`
+- Tests use jsdom environment (DOM available)
+- Tauri APIs are auto-mocked (see `src/test/setup.ts`)
+- Import `vi` from 'vitest' for mocking
+
 ### Mock Maintenance
 - When changing Rust command signatures, you MUST update the corresponding mock in `src/lib/mocks.ts` to keep the browser dev environment functional.
+- Test mocks in `src/test/setup.ts` provide isolated Tauri API stubs for vitest.
 
 ### Event Contract Verification
 Event: `processing-progress`
@@ -198,8 +235,10 @@ Event: `processing-progress`
 - Build: `npm run app:build`
 
 ### Testing
-- From `src-tauri/`: `cargo test` • `cargo clippy -- -D warnings`
-- Name-filtered: `cargo test path_validation`
+- Rust tests: `cd src-tauri && cargo test`
+- Rust subset: `cargo test path_validation` (name-filtered)
+- TypeScript tests: `npm run test`
+- Coverage reports: `./scripts/coverage.sh` (outputs HTML to `coverage/`)
 
 ---
 

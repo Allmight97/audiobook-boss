@@ -1,13 +1,23 @@
 //! Sample accumulation to build exact encoder-sized frames without truncation.
 //! Phase 1 refactor: isolates frame sizing logic from main pipeline.
 //! Phase 2: format-aware storage for both F32 planar and S16 packed formats.
+//!
+//! ## Supported Formats
+//! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
+//! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
+//!
+//! Other formats will panic at construction time to prevent silent data corruption.
 
 use ffmpeg_next as ff;
 use log;
 
 /// Storage abstraction for different sample formats.
-/// F32 planar uses separate buffers per channel with float samples.
-/// S16 packed uses a single buffer with interleaved i16 samples.
+///
+/// Only supports formats actually used by our encoders:
+/// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
+/// - `S16Packed`: Single interleaved buffer with i16 samples (AAC-AT)
+///
+/// Attempting to use other formats will panic at `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
     S16Packed(Vec<i16>), // Interleaved: [L0, R0, L1, R1, ...]
@@ -38,34 +48,34 @@ impl SampleAccumulator {
             frame_size = 1024; // AAC-LC typical frame size
         }
 
-        // Calculate format properties
-        let (bytes_per_sample, is_planar) = match format {
-            ff::format::Sample::I16(sample_type) => {
-                let planar = matches!(sample_type, ff::format::sample::Type::Planar);
-                (2, planar)
-            }
-            ff::format::Sample::I32(sample_type) => {
-                let planar = matches!(sample_type, ff::format::sample::Type::Planar);
-                (4, planar)
-            }
-            ff::format::Sample::F32(sample_type) => {
-                let planar = matches!(sample_type, ff::format::sample::Type::Planar);
-                (4, planar)
-            }
-            ff::format::Sample::F64(sample_type) => {
-                let planar = matches!(sample_type, ff::format::sample::Type::Planar);
-                (8, planar)
-            }
-            ff::format::Sample::U8(sample_type) => {
-                let planar = matches!(sample_type, ff::format::sample::Type::Planar);
-                (1, planar)
-            }
-            _ => {
-                log::warn!(
-                    "Unknown sample format {:?}, defaulting to 4 bytes/sample planar",
-                    format
+        // Explicit format matching - only support formats actually used by our encoders.
+        // This prevents silent data corruption from format/storage mismatches.
+        // See: Gemini review on PR #28 regarding memory safety concern.
+        let (bytes_per_sample, is_planar, storage) = match format {
+            ff::format::Sample::F32(ff::format::sample::Type::Planar) => {
+                // Native AAC encoder uses F32 planar
+                let storage = SampleStorage::F32Planar(
+                    (0..channels)
+                        .map(|_| Vec::with_capacity(frame_size * 2))
+                        .collect(),
                 );
-                (4, true)
+                (4, true, storage)
+            }
+            ff::format::Sample::I16(ff::format::sample::Type::Packed) => {
+                // AAC-AT (macOS AudioToolbox) uses S16 packed/interleaved
+                let storage =
+                    SampleStorage::S16Packed(Vec::with_capacity(frame_size * channels * 2));
+                (2, false, storage)
+            }
+            unsupported => {
+                // Fail fast: unsupported formats would cause silent data corruption
+                // if we tried to use F32Planar storage for I32 data, for example.
+                panic!(
+                    "SampleAccumulator: unsupported format {:?}. \
+                     Only F32(Planar) and I16(Packed) are supported. \
+                     Add explicit support if a new encoder requires a different format.",
+                    unsupported
+                );
             }
         };
 
@@ -73,18 +83,6 @@ impl SampleAccumulator {
             "SampleAccumulator: format={:?} bytes_per_sample={} is_planar={} channels={} frame_size={}",
             format, bytes_per_sample, is_planar, channels, frame_size
         );
-
-        // Create appropriate storage based on format
-        let storage = if is_planar {
-            SampleStorage::F32Planar(
-                (0..channels)
-                    .map(|_| Vec::with_capacity(frame_size * 2))
-                    .collect(),
-            )
-        } else {
-            // Packed/interleaved: single buffer, samples * channels
-            SampleStorage::S16Packed(Vec::with_capacity(frame_size * channels * 2))
-        };
 
         Self {
             channels,
@@ -503,5 +501,46 @@ mod tests {
                 "Tail should be padded to full frame size"
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "unsupported format")]
+    fn accumulator_rejects_unsupported_i32_planar() {
+        // Verify that unsupported formats panic at construction time
+        // rather than silently corrupting data at runtime.
+        // This addresses the memory safety concern from Gemini's PR #28 review.
+        let _acc = SampleAccumulator::new(
+            1,
+            1024,
+            44100,
+            ff::channel_layout::ChannelLayout::MONO,
+            ff::format::Sample::I32(ff::format::sample::Type::Planar),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "unsupported format")]
+    fn accumulator_rejects_unsupported_f32_packed() {
+        // F32 packed is not supported (we only support F32 planar)
+        let _acc = SampleAccumulator::new(
+            1,
+            1024,
+            44100,
+            ff::channel_layout::ChannelLayout::MONO,
+            ff::format::Sample::F32(ff::format::sample::Type::Packed),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "unsupported format")]
+    fn accumulator_rejects_unsupported_i16_planar() {
+        // I16 planar is not supported (we only support I16 packed)
+        let _acc = SampleAccumulator::new(
+            1,
+            1024,
+            44100,
+            ff::channel_layout::ChannelLayout::MONO,
+            ff::format::Sample::I16(ff::format::sample::Type::Planar),
+        );
     }
 }
