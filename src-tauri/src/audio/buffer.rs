@@ -253,7 +253,7 @@ impl SampleAccumulator {
         format: ff::format::Sample,
         channel_layout: ff::channel_layout::ChannelLayout,
         sample_rate: u32,
-        channels: usize,
+        _channels: usize,
     ) -> Option<ff::frame::Audio> {
         let available = buffers[0].len();
         if available == 0 {
