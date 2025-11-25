@@ -2,7 +2,7 @@ import { bridge } from "./lib/bridge";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { FileListInfo } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import { displayFileList, currentFileList, clearAllFiles, toggleFileSort } from "./ui/fileList";
+import { displayFileList, currentFileList, clearAllFiles, toggleFileSort, moveFileUp, moveFileDown } from "./ui/fileList";
 import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataChange } from "./ui/outputPanel";
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
 import { initEncoderPanel } from "./ui/encoderPanel";
@@ -54,17 +54,15 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
   setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
   clearCoverArt: () => clearCoverArt(),
 
-  // File movement test functions (tracked in progress_bug_tracker: "Wire window.testCommands.testMoveFile/testSortFiles")
+  // File movement test functions
   testMoveFile: (index: number, direction: 'up' | 'down') => {
-    console.log(`Moving file at index ${index} ${direction}`);
-    // Will be connected to: moveFile(index, direction)
-    console.warn('moveFile function not yet implemented in fileList module');
+    if (direction === 'up') {
+      moveFileUp(index);
+    } else if (direction === 'down') {
+      moveFileDown(index);
+    }
   },
-  testSortFiles: () => {
-    console.log('Toggling file sort order');
-    // Will be connected to: sortFiles() or toggleSortOrder()
-    console.warn('sortFiles function not yet implemented in fileList module');
-  }
+  testSortFiles: () => toggleFileSort()
 };
 
 // Log when ready
