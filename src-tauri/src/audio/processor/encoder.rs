@@ -167,7 +167,14 @@ pub(crate) fn create_audio_encoder(
     };
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
-    let sample_format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+    // AAC-AT (macOS AudioToolbox) only supports s16/u8, not float planar.
+    // Native AAC encoder prefers float planar for better precision during encoding.
+    let sample_format = if resolved_encoder_name == "aac_at" {
+        log::debug!("Using S16 sample format for AAC-AT encoder");
+        ff::format::Sample::I16(ff::format::sample::Type::Packed)
+    } else {
+        ff::format::Sample::F32(ff::format::sample::Type::Planar)
+    };
     let time_base = ff::Rational(1, target_sample_rate as i32);
 
     let mut opened = ff::codec::context::Context::new()
@@ -486,25 +493,30 @@ pub(crate) fn encode_and_write_frame(
     {
         // Validate structural contract
         debug_validate_frame_contract(frame, encoder);
-        // Validate sample values (finite and in range) in debug builds
-        for ch in 0..encoder.channel_layout().channels() as usize {
-            let plane = frame.data(ch);
-            let len_f32 = plane.len() / 4;
-            let src: &[f32] =
-                unsafe { std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32) };
-            for &v in src.iter().take(frame.samples()) {
-                debug_assert!(v.is_finite(), "Non-finite sample encountered");
-                debug_assert!((-1.0..=1.0).contains(&v), "Sample out of range [-1,1]");
+        // Validate sample values in debug builds (only for F32 format)
+        if matches!(frame.format(), ff::format::Sample::F32(_)) {
+            for ch in 0..encoder.channel_layout().channels() as usize {
+                let plane = frame.data(ch);
+                let len_f32 = plane.len() / 4;
+                let src: &[f32] =
+                    unsafe { std::slice::from_raw_parts(plane.as_ptr() as *const f32, len_f32) };
+                for &v in src.iter().take(frame.samples()) {
+                    debug_assert!(v.is_finite(), "Non-finite sample encountered");
+                    debug_assert!((-1.0..=1.0).contains(&v), "Sample out of range [-1,1]");
+                }
             }
         }
     }
 
     // Optional encode-stage sanitation (default ON, can be disabled via ABB_DISABLE_ENCODE_SANITIZE)
+    // Only applies to F32 format; S16 format (used by AAC-AT) doesn't need float sanitation
     let disable_encode_sanitize = std::env::var("ABB_DISABLE_ENCODE_SANITIZE")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    if !disable_encode_sanitize {
+    let is_f32_format = matches!(frame.format(), ff::format::Sample::F32(_));
+
+    if !disable_encode_sanitize && is_f32_format {
         // Clamp to [-1,1] and replace non-finite values; preserve frame metadata
         let mut clean = ff::frame::Audio::empty();
         clean.set_format(frame.format());
