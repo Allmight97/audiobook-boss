@@ -53,6 +53,11 @@
   - CONTEXT: Placeholders remain in `src/main.ts`; confirm desired UX before implementing.
   - STATUS: Planning to do with Ai agent - fisrt step is to validate the current behavior and desired behavior. What is outcome this feature aims to achieve?
 
+- [ ] UI Update: **Description field resize handle** — Two rows is tight for a synopsis. A subtle resize grip or auto-expand behavior when clicking into it would give users room when they need it without burning vertical space by default.
+
+- [ ] FEATURE: **Status panel encoder badge** — When processing, showing a small pill like "HE-AAC @ 64k" in the status bar would give quick confirmation of what settings are being used without scrolling back up.
+
+
 # COMPLETED / DONE
 
 - [x] TODO: 100% remove shellFFMpeg from codebase such that codebase is only using ffmpeg-next.

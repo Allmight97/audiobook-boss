@@ -34,7 +34,7 @@
 - `npm run test` to ensure Vitest remains healthy after any TypeScript touchpoints.
 - Manual sanity test: run `ABB_DISABLE_FASTPATH=1 npm run tauri dev`, trigger a processing run, and confirm neither the accumulator nor output-path logic produces new warnings.
 
-*A copy of this plan will be saved to `docs/planning/audit-remediation-plan.md` once approved.*
+*A copy of this plan will be saved to `docs/planning/audit-remediation-plan.md` once approved.*s
 
 ### To-dos
 
