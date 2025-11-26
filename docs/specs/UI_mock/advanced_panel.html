@@ -1,579 +1,730 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>ABB – Advanced Output Panel Mock</title>
-		<!-- Reuse app styles for visual parity (relative to docs/specs/UI_mock/) -->
-		<link rel="stylesheet" href="../../../src/styles.css" />
-		<!-- Tailwind for utility classes used in app markup -->
-		<script src="https://cdn.tailwindcss.com"></script>
-		<script>
-			tailwind.config = {
-				theme: {
-					extend: {
-						fontFamily: { sans: ["Inter", "sans-serif"] },
-					},
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>ABB – Advanced Output Panel Mock</title>
+	<!-- Reuse app styles for visual parity (relative to docs/specs/UI_mock/) -->
+	<link rel="stylesheet" href="../../../src/styles.css" />
+	<!-- Tailwind for utility classes used in app markup -->
+	<script src="https://cdn.tailwindcss.com"></script>
+	<script>
+		tailwind.config = {
+			theme: {
+				extend: {
+					fontFamily: { sans: ["Inter", "sans-serif"] },
 				},
-			};
-		</script>
-		<style>
-			/* Mock-local styles for the advanced panel. In implementation, move to src/styles.css */
-			.advanced-toggle {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.5rem;
-			}
+			},
+		};
+	</script>
+	<style>
+		/* Mock-local styles for the advanced panel. In implementation, move to src/styles.css */
+		.advanced-toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.advanced-panel {
+			max-height: 0;
+			overflow: hidden;
+			opacity: 0;
+			transition: max-height 0.25s ease, opacity 0.2s ease;
+			border: 1px solid var(--border-primary);
+			border-radius: 0.5rem;
+			background-color: var(--bg-panel);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.advanced-panel.open {
+			max-height: 1200px;
+			/* large enough to reveal content */
+			opacity: 1;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
 			.advanced-panel {
-				max-height: 0;
-				overflow: hidden;
-				opacity: 0;
-				transition: max-height 0.25s ease, opacity 0.2s ease;
-				border: 1px solid var(--border-primary);
-				border-radius: 0.5rem;
-				background-color: var(--bg-panel);
-				box-shadow: var(--shadow-sm);
+				transition: none;
 			}
-			.advanced-panel.open {
-				max-height: 1200px; /* large enough to reveal content */
-				opacity: 1;
-			}
-			@media (prefers-reduced-motion: reduce) {
-				.advanced-panel { transition: none; }
-			}
-			.kbd {
-				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-				background: rgba(0,0,0,0.06);
-				border: 1px solid var(--border-secondary);
-				border-bottom-width: 2px;
-				border-radius: 0.25rem;
-				padding: 0 0.25rem;
-				font-size: 0.8em;
-			}
-			.pill {
-				display: inline-block;
-				padding: 0.15rem 0.5rem;
-				border-radius: 9999px;
-				border: 1px solid var(--border-secondary);
-				color: var(--text-muted);
-				font-size: 0.75rem;
-			}
-			.divider {
-				height: 1px;
-				background: var(--border-primary);
-				margin: 0.5rem 0 1rem 0;
-			}
-			.btn-link {
-				background: none;
-				border: none;
-				color: var(--accent-primary);
-				cursor: pointer;
-				padding: 0;
-			}
-		</style>
-	</head>
-	<body class="p-0">
-		<!-- NOTE: We deliberately do NOT load /src/main.ts here to keep this a static mock -->
-		<h1 class="text-2xl font-bold p-4 text-center text-gray-800 bg-white border-b border-gray-200">
-			Audiobook Boss
-		</h1>
+		}
 
-		<div class="main-container">
-			<!-- Left: Input panel -->
-			<div class="panel input-panel">
-				<h2 class="text-lg font-semibold mb-3 text-gray-700">Input Audio Files</h2>
-				<div class="drag-drop-area mb-4">
-					<p class="text-gray-500 text-sm">Drag & Drop files here or Click to Select</p>
-					<p class="text-xs text-gray-400 mt-1">Supports: mp3, m4a, m4b, aac</p>
+		.kbd {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+			background: rgba(0, 0, 0, 0.06);
+			border: 1px solid var(--border-secondary);
+			border-bottom-width: 2px;
+			border-radius: 0.25rem;
+			padding: 0 0.25rem;
+			font-size: 0.8em;
+		}
+
+		.pill {
+			display: inline-block;
+			padding: 0.15rem 0.5rem;
+			border-radius: 9999px;
+			border: 1px solid var(--border-secondary);
+			color: var(--text-muted);
+			font-size: 0.75rem;
+		}
+
+		.divider {
+			height: 1px;
+			background: var(--border-primary);
+			margin: 0.5rem 0 1rem 0;
+		}
+
+		.btn-link {
+			background: none;
+			border: none;
+			color: var(--accent-primary);
+			cursor: pointer;
+			padding: 0;
+		}
+	</style>
+</head>
+
+<body class="p-0">
+	<!-- NOTE: We deliberately do NOT load /src/main.ts here to keep this a static mock -->
+	<h1 class="text-2xl font-bold p-4 text-center text-gray-800 bg-white border-b border-gray-200">
+		Audiobook Boss
+	</h1>
+
+	<div class="main-container">
+		<!-- Left: Input panel -->
+		<div class="panel input-panel">
+			<h2 class="text-lg font-semibold mb-3 text-gray-700">Input Audio Files</h2>
+			<div class="drag-drop-area mb-4">
+				<p class="text-gray-500 text-sm">Drag & Drop files here or Click to Select</p>
+				<p class="text-xs text-gray-400 mt-1">Supports: mp3, m4a, m4b, aac</p>
+			</div>
+			<div id="file-import-error" class="error-message mb-4" style="display: none;"></div>
+			<div class="flex items-center justify-between mb-1">
+				<h3 class="text-md font-medium text-gray-600">File Order:</h3>
+				<div class="flex gap-2">
+					<button id="sort-toggle-btn" class="button-secondary text-xs px-2 py-1">Sort: A-Z</button>
+					<button id="clear-files-btn" class="button-secondary text-xs px-2 py-1" style="display: none;">Clear
+						Files</button>
 				</div>
-				<div id="file-import-error" class="error-message mb-4" style="display: none;"></div>
-				<div class="flex items-center justify-between mb-1">
-					<h3 class="text-md font-medium text-gray-600">File Order:</h3>
-					<div class="flex gap-2">
-						<button id="sort-toggle-btn" class="button-secondary text-xs px-2 py-1">Sort: A-Z</button>
-						<button id="clear-files-btn" class="button-secondary text-xs px-2 py-1" style="display: none;">Clear Files</button>
+			</div>
+			<div class="file-list-placeholder mb-4">File List Area (Drag to Reorder)</div>
+
+			<div class="pt-4 border-t border-gray-200 mt-auto">
+				<h3 class="text-md font-medium mb-2 text-gray-600">Selected File Properties</h3>
+				<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-2">
+					<span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">---
+						kb/s</span>
+					<span class="property-label">Sample Rate:</span><span class="property-value"
+						id="prop-samplerate">--- Hz</span>
+					<span class="property-label">Channels:</span><span class="property-value"
+						id="prop-channels">---</span>
+					<span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">---
+						MB</span>
+					<span class="property-label">Combined Size:</span><span class="property-value"
+						id="prop-combinedsize">--- MB</span>
+				</div>
+				<p class="text-xs text-gray-500 italic">(Properties shown for single selected file. Combined size shows
+					total.)</p>
+			</div>
+
+			<div class="mt-4 pt-4 border-t border-gray-200 opacity-50">
+				<h3 class="text-md font-medium mb-1 text-gray-600">Folder Monitoring (Future)</h3>
+				<div class="text-sm text-gray-500 mb-2">Monitored Folder: N/A</div>
+				<button class="button-secondary text-sm w-full" disabled>Change Watched Folder</button>
+			</div>
+		</div>
+
+		<!-- Right: Metadata + Output -->
+		<div class="panel metadata-output-panel">
+			<h2 class="text-lg font-semibold mb-3 text-gray-700">Metadata & Output</h2>
+			<div class="grid grid-cols-3 gap-x-4 mb-4">
+				<div class="col-span-1 flex flex-col">
+					<label for="load-cover-art" class="block text-sm font-medium text-gray-700 mb-1">Cover Art</label>
+					<div class="cover-art-area mb-2">
+						<div class="placeholder-text">Drag Image Here</div>
+						<img src="" alt="Book Cover Art" id="cover-art-img" class="hidden" />
 					</div>
+					<button id="load-cover-art" class="button-secondary text-sm w-full">Load Cover Art</button>
+					<button id="clear-cover-art" class="button-secondary text-sm w-full mt-2"
+						style="display: none;">Clear Cover Art</button>
 				</div>
-				<div class="file-list-placeholder mb-4">File List Area (Drag to Reorder)</div>
-
-				<div class="pt-4 border-t border-gray-200 mt-auto">
-					<h3 class="text-md font-medium mb-2 text-gray-600">Selected File Properties</h3>
-					<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-2">
-						<span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">--- kb/s</span>
-						<span class="property-label">Sample Rate:</span><span class="property-value" id="prop-samplerate">--- Hz</span>
-						<span class="property-label">Channels:</span><span class="property-value" id="prop-channels">---</span>
-						<span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">--- MB</span>
-						<span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize">--- MB</span>
+				<div class="col-span-2">
+					<!-- Golden UI Fields -->
+					<div class="grid grid-cols-2 gap-x-4 gap-y-3">
+						<div class="col-span-2">
+							<label for="meta-title">Book Title</label>
+							<input type="text" id="meta-title" placeholder="The Name of the Wind" />
+						</div>
+						<div>
+							<label for="meta-author">Author</label>
+							<input type="text" id="meta-author" placeholder="Patrick Rothfuss" />
+						</div>
+						<div>
+							<label for="meta-narrator">Narrator</label>
+							<input type="text" id="meta-narrator" placeholder="Nick Podehl" />
+						</div>
+						<div>
+							<label for="meta-series">Series</label>
+							<input type="text" id="meta-series" placeholder="The Kingkiller Chronicle" />
+						</div>
+						<div class="grid grid-cols-2 gap-2">
+							<div>
+								<label for="meta-series-part">Book #</label>
+								<input type="text" id="meta-series-part" placeholder="1" />
+							</div>
+							<div>
+								<label for="meta-year">Year</label>
+								<input type="text" id="meta-year" placeholder="2007" />
+							</div>
+						</div>
+						<div class="col-span-2">
+							<label for="meta-genre">Genre</label>
+							<input type="text" id="meta-genre" placeholder="Fantasy" />
+						</div>
 					</div>
-					<p class="text-xs text-gray-500 italic">(Properties shown for single selected file. Combined size shows total.)</p>
-				</div>
-
-				<div class="mt-4 pt-4 border-t border-gray-200 opacity-50">
-					<h3 class="text-md font-medium mb-1 text-gray-600">Folder Monitoring (Future)</h3>
-					<div class="text-sm text-gray-500 mb-2">Monitored Folder: N/A</div>
-					<button class="button-secondary text-sm w-full" disabled>Change Watched Folder</button>
+					<div class="mt-3">
+						<label for="meta-description">Description</label>
+						<textarea id="meta-description" rows="4" placeholder="Enter book description..."></textarea>
+					</div>
 				</div>
 			</div>
 
-			<!-- Right: Metadata + Output -->
-			<div class="panel metadata-output-panel">
-				<h2 class="text-lg font-semibold mb-3 text-gray-700">Metadata & Output</h2>
-				<div class="grid grid-cols-3 gap-x-4 mb-4">
-					<div class="col-span-1 flex flex-col">
-						<label for="load-cover-art" class="block text-sm font-medium text-gray-700 mb-1">Cover Art</label>
-						<div class="cover-art-area mb-2">
-							<div class="placeholder-text">Drag Image Here</div>
-							<img src="" alt="Book Cover Art" id="cover-art-img" class="hidden" />
-						</div>
-						<button id="load-cover-art" class="button-secondary text-sm w-full">Load Cover Art</button>
-						<button id="clear-cover-art" class="button-secondary text-sm w-full mt-2" style="display: none;">Clear Cover Art</button>
-					</div>
-					<div class="col-span-2">
-						<div class="grid grid-cols-2 gap-x-4 gap-y-3">
-							<div>
-								<label for="meta-title">Title</label>
-								<input type="text" id="meta-title" placeholder="Book Title" />
-							</div>
-							<div>
-								<label for="meta-author">Author (ALBUMARTIST)</label>
-								<input type="text" id="meta-author" placeholder="Author Name" />
-							</div>
-							<div>
-								<label for="meta-album">Album (ALBUM)</label>
-								<input type="text" id="meta-album" placeholder="Usually Same as Title" />
-							</div>
-							<div>
-								<label for="meta-narrator">Narrator (STYLE)</label>
-								<input type="text" id="meta-narrator" placeholder="Narrator Name" />
-							</div>
-							<div>
-								<label for="meta-year">Year (YYYY)</label>
-								<input type="text" id="meta-year" placeholder="Year" />
-							</div>
-							<div>
-								<label for="meta-genre">Genre(s) (semicolon sep.)</label>
-								<input type="text" id="meta-genre" placeholder="Fiction; Thriller" />
-							</div>
-							<div>
-								<label for="meta-series">Series (MOOD)</label>
-								<input type="text" id="meta-series" placeholder="Series Name" />
-							</div>
-							<div>
-								<label for="meta-series-pos">Series Pos. (TRACK)</label>
-								<input type="text" id="meta-series-pos" placeholder="e.g., 1 or 01" />
-							</div>
-							<div class="col-span-2">
-								<label for="meta-series-sort">Series Sort (ALBUMSORT)</label>
-								<input type="text" id="meta-series-sort" placeholder="e.g., Series Name 01" />
-							</div>
-						</div>
-						<div class="mt-3">
-							<label for="meta-description">Description (COMMENT)</label>
-							<textarea id="meta-description" rows="4" placeholder="Enter book description..."></textarea>
-						</div>
+			<!-- Tag Verification Accordion -->
+			<div class="pt-2 border-t border-gray-200 mb-4">
+				<div class="flex items-center justify-between">
+					<button id="tag-verification-toggle" class="button-secondary advanced-toggle" aria-expanded="false"
+						aria-controls="tag-verification-panel">
+						<span id="tag-toggle-icon" aria-hidden="true">▶</span>
+						<span>Tag Verification (Preview)</span>
+					</button>
+				</div>
+				<div id="tag-verification-panel" class="advanced-panel mt-3">
+					<div class="p-3">
+						<table class="w-full text-sm text-left">
+							<thead>
+								<tr class="border-b border-gray-200">
+									<th class="py-1 font-medium text-gray-600">Tag</th>
+									<th class="py-1 font-medium text-gray-600">Value</th>
+									<th class="py-1 font-medium text-gray-600">Source</th>
+								</tr>
+							</thead>
+							<tbody id="tag-preview-body" class="text-gray-700">
+								<!-- Rows populated by JS -->
+							</tbody>
+						</table>
 					</div>
 				</div>
+			</div>
 
-				<h3 class="text-md font-medium mb-2 text-gray-600 pt-4 border-t border-gray-200">Output Settings</h3>
-				<div class="grid grid-cols-3 gap-x-4 mb-4">
-					<div>
-						<label for="output-bitrate">Bitrate (kbps)</label>
-												<select id="output-bitrate">
-													<option value="64" selected>64k (Efficient)</option>
-													<option value="72">72k</option>
-													<option value="80">80k (Balanced)</option>
-													<option value="88">88k</option>
-													<option value="96">96k (High-Quality)</option>
-												</select>
-						<p class="text-xs text-gray-500 mt-1 italic">Re-encodes only if source > 64k, unless explicitly selected.</p>
-					</div>
-					<div>
-						<label for="output-samplerate">Sample Rate (Hz)</label>
-						<select id="output-samplerate">
-							<option value="auto" selected>Auto (Pass-through)</option>
-							<option value="22050">22050</option>
-							<option value="32000">32000</option>
-							<option value="44100">44100</option>
-							<option value="48000">48000</option>
-						</select>
-						<p class="text-xs text-gray-500 mt-1 italic">Resamples only if specific value selected.</p>
-					</div>
-					<div>
-						<label for="output-channels">Channels</label>
-						<select id="output-channels">
-							<option value="mono" selected>Mono (Default)</option>
-							<option value="stereo">Stereo</option>
-						</select>
-					</div>
+			<h3 class="text-md font-medium mb-2 text-gray-600 pt-4 border-t border-gray-200">Output Settings</h3>
+			<div class="grid grid-cols-3 gap-x-4 mb-4">
+				<div>
+					<label for="output-bitrate">Bitrate (kbps)</label>
+					<select id="output-bitrate">
+						<option value="64" selected>64k (Efficient)</option>
+						<option value="72">72k</option>
+						<option value="80">80k (Balanced)</option>
+						<option value="88">88k</option>
+						<option value="96">96k (High-Quality)</option>
+					</select>
+					<p class="text-xs text-gray-500 mt-1 italic">Re-encodes only if source > 64k, unless explicitly
+						selected.</p>
 				</div>
-				<div class="mb-4">
-					<label for="output-dir-text">Output Directory</label>
-					<div class="output-dir-flex">
-						<input type="text" id="output-dir-text" placeholder="/path/to/calculated/output/location" readonly />
-						<button id="output-dir-browse" class="button-secondary">Browse...</button>
-					</div>
-					<label for="output-subdir-pattern" class="checkbox-label">
-						<input type="checkbox" id="output-subdir-pattern" checked />
-						Use Default Subdirectory Pattern ([Author]/[Series]/[Year-Title]/)
+				<div>
+					<label for="output-samplerate">Sample Rate (Hz)</label>
+					<select id="output-samplerate">
+						<option value="auto" selected>Auto (Pass-through)</option>
+						<option value="22050">22050</option>
+						<option value="32000">32000</option>
+						<option value="44100">44100</option>
+						<option value="48000">48000</option>
+					</select>
+					<p class="text-xs text-gray-500 mt-1 italic">Resamples only if specific value selected.</p>
+				</div>
+				<div>
+					<label for="output-channels">Channels</label>
+					<select id="output-channels">
+						<option value="mono" selected>Mono (Default)</option>
+						<option value="stereo">Stereo</option>
+					</select>
+				</div>
+			</div>
+			<div class="mb-4">
+				<label for="output-dir-text">Output Directory</label>
+				<div class="output-dir-flex">
+					<input type="text" id="output-dir-text" placeholder="/path/to/calculated/output/location"
+						readonly />
+					<button id="output-dir-browse" class="button-secondary">Browse...</button>
+				</div>
+				<label for="output-subdir-pattern" class="checkbox-label">
+					<input type="checkbox" id="output-subdir-pattern" checked />
+					Use Default Subdirectory Pattern ([Author]/[Series]/[Year-Title]/)
+				</label>
+			</div>
+
+			<div class="mb-4">
+				<label class="block text-sm font-medium text-gray-700 mb-1">Output Filename Pattern</label>
+				<div class="radio-group">
+					<label>
+						<input type="radio" name="filename_pattern" value="title_year" checked />
+						Book Title (Year).m4b
+					</label>
+					<label>
+						<input type="radio" name="filename_pattern" value="author_title" />
+						Author - Book Title.m4b
 					</label>
 				</div>
+			</div>
 
-				<div class="mb-4">
-					<label class="block text-sm font-medium text-gray-700 mb-1">Output Filename Pattern</label>
-					<div class="radio-group">
-						<label>
-							<input type="radio" name="filename_pattern" value="title_year" checked />
-							Book Title (Year).m4b
-						</label>
-						<label>
-							<input type="radio" name="filename_pattern" value="author_title" />
-							Author - Book Title.m4b
-						</label>
-					</div>
+
+
+			<!-- Advanced toggle + panel (mock) -->
+			<div class="pt-2 border-t border-gray-200">
+				<div class="flex items-center justify-between">
+					<button id="advanced-settings-toggle" class="button-secondary advanced-toggle" aria-expanded="false"
+						aria-controls="advanced-settings-panel">
+						<span id="advanced-toggle-icon" aria-hidden="true">▶</span>
+						<span>Advanced settings</span>
+					</button>
+					<span class="text-xs text-gray-500">Press <span class="kbd">A</span> to toggle</span>
 				</div>
 
-				<!-- Advanced toggle + panel (mock) -->
-				<div class="pt-2 border-t border-gray-200">
-					<div class="flex items-center justify-between">
-									<button id="advanced-settings-toggle" class="button-secondary advanced-toggle" aria-expanded="false" aria-controls="advanced-settings-panel">
-										<span id="advanced-toggle-icon" aria-hidden="true">▶</span>
-										<span>Advanced settings</span>
-									</button>
-						<span class="text-xs text-gray-500">Press <span class="kbd">A</span> to toggle</span>
-					</div>
+				<div id="advanced-settings-panel" class="advanced-panel mt-3">
+					<div class="p-3">
+						<div class="grid grid-cols-3 gap-4">
+							<!-- Encoder selection -->
+							<div class="col-span-1">
+								<label for="adv-encoder">Encoder</label>
+								<select id="adv-encoder">
+									<option value="native_aac">Native AAC</option>
+									<option value="aac_at">Apple AAC (aac_at)</option>
+									<option value="external_fdk">Fraunhofer FDK AAC (libfdk-aac)</option>
+								</select>
+								<p class="text-xs text-gray-500 mt-1">Select encoder implementation.</p>
+							</div>
 
-								<div id="advanced-settings-panel" class="advanced-panel mt-3">
-									<div class="p-3">
-										<div class="grid grid-cols-3 gap-4">
-											<!-- Encoder selection -->
-											<div class="col-span-1">
-												<label for="adv-encoder">Encoder</label>
-												<select id="adv-encoder">
-													<option value="native_aac">Native AAC</option>
-													<option value="aac_at">Apple AAC (aac_at)</option>
-													<option value="external_fdk">Fraunhofer FDK AAC (libfdk-aac)</option>
-												</select>
-												<p class="text-xs text-gray-500 mt-1">Select encoder implementation.</p>
-											</div>
+							<!-- Profile (shown for aac_at and external_fdk) -->
+							<div class="col-span-1" id="adv-profile-container" style="display: none;">
+								<label for="adv-profile">Profile</label>
+								<select id="adv-profile">
+									<option value="lc">LC (Low Quality)</option>
+									<option value="he">HE (v1 - mono only)</option>
+									<option value="he_v2">HE (v2 - best with stereo)</option>
+								</select>
+								<p id="adv-profile-note" class="text-xs text-gray-500 mt-1" style="display:none;">HE-AAC
+									v2 requires stereo; for mono use HE v1.</p>
+							</div>
 
-											<!-- Profile (shown for aac_at and external_fdk) -->
-											<div class="col-span-1" id="adv-profile-container" style="display: none;">
-												<label for="adv-profile">Profile</label>
-												<select id="adv-profile">
-													<option value="lc">LC (Low Quality)</option>
-													<option value="he">HE (v1 - mono only)</option>
-													<option value="he_v2">HE (v2 - best with stereo)</option>
-												</select>
-												<p id="adv-profile-note" class="text-xs text-gray-500 mt-1" style="display:none;">HE-AAC v2 requires stereo; for mono use HE v1.</p>
-											</div>
-
-											<!-- aac_at VBR controls -->
-											<div class="col-span-1" id="adv-aacat-vbr-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-aacat-vbr-enabled" disabled /> Use VBR (disabled)</label>
-												<div class="mt-1" id="adv-aacat-vbr-quality-wrap" style="display:none;">
-													<label for="adv-aacat-vbr-quality" class="text-sm">Quality</label>
-													<input type="range" id="adv-aacat-vbr-quality" min="0" max="14" step="1" value="9" disabled />
-													<p class="text-xs text-gray-500 mt-1">VBR is reserved for future; disabled in this build.</p>
-												</div>
-											</div>
-
-											<!-- FDK VBR controls -->
-											<div class="col-span-1" id="adv-fdk-vbr-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-vbr-enabled" disabled /> Use VBR (disabled)</label>
-												<div class="mt-1" id="adv-fdk-vbr-level-wrap" style="display:none;">
-													<label for="adv-fdk-vbr-level" class="text-sm">Level</label>
-													<select id="adv-fdk-vbr-level" disabled>
-														<option value="1">1</option>
-														<option value="2">2</option>
-														<option value="3">3</option>
-														<option value="4">4</option>
-														<option value="5">5</option>
-													</select>
-													<p class="text-xs text-gray-500 mt-1">FDK and VBR are future-only; controls disabled.</p>
-												</div>
-											</div>
-
-											<!-- FDK Afterburner -->
-											<div class="col-span-1" id="adv-fdk-afterburner-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-fdk-afterburner" checked disabled /> Afterburner (disabled)</label>
-												<p class="text-xs text-gray-500 mt-1">FDK features are placeholders; not available in this build.</p>
-											</div>
-
-											<!-- External FFmpeg path + Detect (FDK only) -->
-											<div class="col-span-2" id="adv-ffmpeg-path-container" style="display: none;">
-												<label for="adv-ffmpeg-path">Local Path to libfdk_aac</label>
-												<div class="output-dir-flex">
-													<input type="text" id="adv-ffmpeg-path" placeholder="/usr/local/bin/ffmpeg" readonly />
-													<button id="adv-ffmpeg-browse" class="button-secondary" disabled>Browse…</button>
-													<button id="adv-ffmpeg-detect" class="button-secondary" style="margin-left: 0.5rem;" disabled>Detect</button>
-												</div>
-												<div class="mt-1">
-													<span id="adv-fdk-status" class="pill">FDK: disabled (future)</span>
-												</div>
-											</div>
-
-											<!-- Native AAC helper -->
-											<div class="col-span-2" id="adv-native-helper-container" style="display: none;">
-												<label class="checkbox-label"><input type="checkbox" id="adv-native-optimize-lc" /> Optimize LC at ≤64 kbps (32 kHz)</label>
-											</div>
-										</div>
-									</div>
+							<!-- aac_at VBR controls -->
+							<div class="col-span-1" id="adv-aacat-vbr-container" style="display: none;">
+								<label class="checkbox-label"><input type="checkbox" id="adv-aacat-vbr-enabled"
+										disabled /> Use VBR (disabled)</label>
+								<div class="mt-1" id="adv-aacat-vbr-quality-wrap" style="display:none;">
+									<label for="adv-aacat-vbr-quality" class="text-sm">Quality</label>
+									<input type="range" id="adv-aacat-vbr-quality" min="0" max="14" step="1" value="9"
+										disabled />
+									<p class="text-xs text-gray-500 mt-1">VBR is reserved for future; disabled in this
+										build.</p>
 								</div>
-				</div>
+							</div>
 
-				<div class="pt-4 border-t border-gray-200 text-sm mb-4">
-					<span class="property-label">Estimated Output Size: </span>
-					<span class="property-value" id="output-estimated-size">~ --- MB</span>
-				</div>
+							<!-- FDK VBR controls -->
+							<div class="col-span-1" id="adv-fdk-vbr-container" style="display: none;">
+								<label class="checkbox-label"><input type="checkbox" id="adv-fdk-vbr-enabled"
+										disabled /> Use VBR (disabled)</label>
+								<div class="mt-1" id="adv-fdk-vbr-level-wrap" style="display:none;">
+									<label for="adv-fdk-vbr-level" class="text-sm">Level</label>
+									<select id="adv-fdk-vbr-level" disabled>
+										<option value="1">1</option>
+										<option value="2">2</option>
+										<option value="3">3</option>
+										<option value="4">4</option>
+										<option value="5">5</option>
+									</select>
+									<p class="text-xs text-gray-500 mt-1">FDK and VBR are future-only; controls
+										disabled.</p>
+								</div>
+							</div>
 
-				<div class="mt-auto pt-4 border-t border-gray-200 flex justify-end">
-					<button id="preview-button" class="button-secondary">Preview (30s)</button>
+							<!-- FDK Afterburner -->
+							<div class="col-span-1" id="adv-fdk-afterburner-container" style="display: none;">
+								<label class="checkbox-label"><input type="checkbox" id="adv-fdk-afterburner" checked
+										disabled /> Afterburner (disabled)</label>
+								<p class="text-xs text-gray-500 mt-1">FDK features are placeholders; not available in
+									this build.</p>
+							</div>
+
+							<!-- External FFmpeg path + Detect (FDK only) -->
+							<div class="col-span-2" id="adv-ffmpeg-path-container" style="display: none;">
+								<label for="adv-ffmpeg-path">Local Path to libfdk_aac</label>
+								<div class="output-dir-flex">
+									<input type="text" id="adv-ffmpeg-path" placeholder="/usr/local/bin/ffmpeg"
+										readonly />
+									<button id="adv-ffmpeg-browse" class="button-secondary" disabled>Browse…</button>
+									<button id="adv-ffmpeg-detect" class="button-secondary" style="margin-left: 0.5rem;"
+										disabled>Detect</button>
+								</div>
+								<div class="mt-1">
+									<span id="adv-fdk-status" class="pill">FDK: disabled (future)</span>
+								</div>
+							</div>
+
+							<!-- Native AAC helper -->
+							<div class="col-span-2" id="adv-native-helper-container" style="display: none;">
+								<label class="checkbox-label"><input type="checkbox" id="adv-native-optimize-lc" />
+									Optimize LC at ≤64 kbps (32 kHz)</label>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
-		</div>
 
-		<div class="panel status-panel">
-			<div class="status-panel-content">
-				<div class="art-thumbnail"><span>Art</span></div>
-				<div class="progress-details">
-					<div class="flex justify-between mb-1">
-						<span class="text-sm font-medium text-gray-700">Progress: <span id="hours-processed" class="property-value">--.-- / --.-- hours</span> (<span id="percentage-processed" class="property-value">--%</span>)</span>
-						<span id="status-text" class="text-sm font-medium text-gray-700 font-semibold">Idle</span>
-					</div>
-					<div class="progress-bar-bg">
-						<div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
-					</div>
-					<div id="step-text" class="text-xs text-gray-500 mt-1">Current Step: Waiting for files...</div>
-				</div>
-				<div class="flex-shrink-0">
-					<button id="process-button" class="button-primary">Process Audiobook</button>
-				</div>
+			<div class="pt-4 border-t border-gray-200 text-sm mb-4">
+				<span class="property-label">Estimated Output Size: </span>
+				<span class="property-value" id="output-estimated-size">~ --- MB</span>
+			</div>
+
+			<div class="mt-auto pt-4 border-t border-gray-200 flex justify-end">
+				<button id="preview-button" class="button-secondary">Preview (30s)</button>
 			</div>
 		</div>
+	</div>
 
-		<script>
-			// Minimal mock logic for advanced toggle and contextual advanced controls
-			(function () {
-				const LS_KEY_OPEN = 'abb.mock.advanced.open';
-				const LS_KEY_STATE = 'abb.mock.advanced.state';
+	<div class="panel status-panel">
+		<div class="status-panel-content">
+			<div class="art-thumbnail"><span>Art</span></div>
+			<div class="progress-details">
+				<div class="flex justify-between mb-1">
+					<span class="text-sm font-medium text-gray-700">Progress: <span id="hours-processed"
+							class="property-value">--.-- / --.-- hours</span> (<span id="percentage-processed"
+							class="property-value">--%</span>)</span>
+					<span id="status-text" class="text-sm font-medium text-gray-700 font-semibold">Idle</span>
+				</div>
+				<div class="progress-bar-bg">
+					<div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+				</div>
+				<div id="step-text" class="text-xs text-gray-500 mt-1">Current Step: Waiting for files...</div>
+			</div>
+			<div class="flex-shrink-0">
+				<button id="process-button" class="button-primary">Process Audiobook</button>
+			</div>
+		</div>
+	</div>
 
-				const $ = (sel) => document.querySelector(sel);
-				const toggleBtn = $('#advanced-settings-toggle');
-				const panel = $('#advanced-settings-panel');
-				const icon = $('#advanced-toggle-icon');
+	<script>
+		// Minimal mock logic for advanced toggle and contextual advanced controls
+		(function () {
+			const LS_KEY_OPEN = 'abb.mock.advanced.open';
+			const LS_KEY_STATE = 'abb.mock.advanced.state';
 
-				const encoder = $('#adv-encoder');
-				const profileContainer = $('#adv-profile-container');
-				const profileSelect = $('#adv-profile');
-				const profileNote = $('#adv-profile-note');
+			const $ = (sel) => document.querySelector(sel);
+			const toggleBtn = $('#advanced-settings-toggle');
+			const panel = $('#advanced-settings-panel');
+			const icon = $('#advanced-toggle-icon');
 
-				const aacAtVbrContainer = $('#adv-aacat-vbr-container');
-				const aacAtVbrEnabled = $('#adv-aacat-vbr-enabled');
-				const aacAtVbrQualityWrap = $('#adv-aacat-vbr-quality-wrap');
-				const aacAtVbrQuality = $('#adv-aacat-vbr-quality');
+			// Tag Verification Elements
+			const tagToggleBtn = $('#tag-verification-toggle');
+			const tagPanel = $('#tag-verification-panel');
+			const tagIcon = $('#tag-toggle-icon');
+			const tagBody = $('#tag-preview-body');
 
-				const fdkVbrContainer = $('#adv-fdk-vbr-container');
-				const fdkVbrEnabled = $('#adv-fdk-vbr-enabled');
-				const fdkVbrLevelWrap = $('#adv-fdk-vbr-level-wrap');
-				const fdkVbrLevel = $('#adv-fdk-vbr-level');
+			// Inputs
+			const inputs = {
+				title: $('#meta-title'),
+				author: $('#meta-author'),
+				narrator: $('#meta-narrator'),
+				series: $('#meta-series'),
+				part: $('#meta-series-part'),
+				year: $('#meta-year'),
+				genre: $('#meta-genre'),
+				desc: $('#meta-description')
+			};
 
-				const fdkAfterburnerContainer = $('#adv-fdk-afterburner-container');
-				const fdkAfterburner = $('#adv-fdk-afterburner');
+			const encoder = $('#adv-encoder');
+			const profileContainer = $('#adv-profile-container');
+			const profileSelect = $('#adv-profile');
+			const profileNote = $('#adv-profile-note');
 
-				const ffmpegPathContainer = $('#adv-ffmpeg-path-container');
-				const ffmpegPathInput = $('#adv-ffmpeg-path');
-				const ffmpegBrowse = $('#adv-ffmpeg-browse');
-				const ffmpegDetect = $('#adv-ffmpeg-detect');
-				const fdkStatus = $('#adv-fdk-status');
+			const aacAtVbrContainer = $('#adv-aacat-vbr-container');
+			const aacAtVbrEnabled = $('#adv-aacat-vbr-enabled');
+			const aacAtVbrQualityWrap = $('#adv-aacat-vbr-quality-wrap');
+			const aacAtVbrQuality = $('#adv-aacat-vbr-quality');
 
-				const nativeHelperContainer = $('#adv-native-helper-container');
-				const nativeOptimizeLC = $('#adv-native-optimize-lc');
+			const fdkVbrContainer = $('#adv-fdk-vbr-container');
+			const fdkVbrEnabled = $('#adv-fdk-vbr-enabled');
+			const fdkVbrLevelWrap = $('#adv-fdk-vbr-level-wrap');
+			const fdkVbrLevel = $('#adv-fdk-vbr-level');
 
-				const outputBitrate = $('#output-bitrate');
-				const outputChannels = $('#output-channels');
+			const fdkAfterburnerContainer = $('#adv-fdk-afterburner-container');
+			const fdkAfterburner = $('#adv-fdk-afterburner');
 
-				function loadOpenState() { try { return localStorage.getItem(LS_KEY_OPEN) === 'true'; } catch { return false; } }
-				function saveOpenState(val) { try { localStorage.setItem(LS_KEY_OPEN, String(val)); } catch {} }
+			const ffmpegPathContainer = $('#adv-ffmpeg-path-container');
+			const ffmpegPathInput = $('#adv-ffmpeg-path');
+			const ffmpegBrowse = $('#adv-ffmpeg-browse');
+			const ffmpegDetect = $('#adv-ffmpeg-detect');
+			const fdkStatus = $('#adv-fdk-status');
 
-				function loadState() {
-					try {
-						const raw = localStorage.getItem(LS_KEY_STATE);
-						return raw ? JSON.parse(raw) : {};
-					} catch { return {}; }
-				}
-				function saveState() {
-					const state = {
-						encoder: encoder?.value,
-						profile: profileSelect?.value,
-						channels: outputChannels?.value,
-					};
-					try { localStorage.setItem(LS_KEY_STATE, JSON.stringify(state)); } catch {}
-				}
+			const nativeHelperContainer = $('#adv-native-helper-container');
+			const nativeOptimizeLC = $('#adv-native-optimize-lc');
 
-				function setOpen(open) {
-					if (!panel || !toggleBtn) return;
-					toggleBtn.setAttribute('aria-expanded', String(open));
-					panel.classList.toggle('open', open);
-					if (icon) icon.textContent = open ? '▼' : '▶';
-					saveOpenState(open);
-				}
+			const outputBitrate = $('#output-bitrate');
+			const outputChannels = $('#output-channels');
 
-				function toggleOpen() { setOpen(!(toggleBtn.getAttribute('aria-expanded') === 'true')); }
+			function loadOpenState() { try { return localStorage.getItem(LS_KEY_OPEN) === 'true'; } catch { return false; } }
+			function saveOpenState(val) { try { localStorage.setItem(LS_KEY_OPEN, String(val)); } catch { } }
 
-				function handleKey(e) {
-					if (e.key?.toLowerCase() === 'a') toggleOpen();
-					if (e.key === 'Escape' && toggleBtn.getAttribute('aria-expanded') === 'true') { setOpen(false); toggleBtn.focus(); }
-				}
+			function loadState() {
+				try {
+					const raw = localStorage.getItem(LS_KEY_STATE);
+					return raw ? JSON.parse(raw) : {};
+				} catch { return {}; }
+			}
+			function saveState() {
+				const state = {
+					encoder: encoder?.value,
+					profile: profileSelect?.value,
+					channels: outputChannels?.value,
+				};
+				try { localStorage.setItem(LS_KEY_STATE, JSON.stringify(state)); } catch { }
+			}
 
-				function bind() {
-					if (toggleBtn) toggleBtn.addEventListener('click', toggleOpen);
-					document.addEventListener('keydown', handleKey);
+			function setOpen(open) {
+				if (!panel || !toggleBtn) return;
+				toggleBtn.setAttribute('aria-expanded', String(open));
+				panel.classList.toggle('open', open);
+				if (icon) icon.textContent = open ? '▼' : '▶';
+				saveOpenState(open);
+			}
 
-					encoder && encoder.addEventListener('change', () => { onEncoderChange(); saveState(); });
-					profileSelect && profileSelect.addEventListener('change', () => { onProfileChange(); saveState(); });
-					outputChannels && outputChannels.addEventListener('change', saveState);
-					aacAtVbrEnabled && aacAtVbrEnabled.addEventListener('change', onVbrTogglesChange);
-					aacAtVbrQuality && aacAtVbrQuality.addEventListener('input', noop);
-					fdkVbrEnabled && fdkVbrEnabled.addEventListener('change', onVbrTogglesChange);
-					fdkVbrLevel && fdkVbrLevel.addEventListener('change', noop);
-					fdkAfterburner && fdkAfterburner.addEventListener('change', noop);
-					outputBitrate && outputBitrate.addEventListener('change', onBitrateChange);
-					ffmpegBrowse && ffmpegBrowse.addEventListener('click', () => {
-						const val = prompt('Enter path to ffmpeg (mock):', ffmpegPathInput?.value || '');
-						if (val != null && ffmpegPathInput) ffmpegPathInput.value = val;
-					});
-					ffmpegDetect && ffmpegDetect.addEventListener('click', onDetectFdk);
-				}
+			function toggleOpen() { setOpen(!(toggleBtn.getAttribute('aria-expanded') === 'true')); }
 
-				function noop() {}
+			function setTagOpen(open) {
+				if (!tagPanel || !tagToggleBtn) return;
+				tagToggleBtn.setAttribute('aria-expanded', String(open));
+				tagPanel.classList.toggle('open', open);
+				if (tagIcon) tagIcon.textContent = open ? '▼' : '▶';
+			}
+			function toggleTagOpen() { setTagOpen(!(tagToggleBtn.getAttribute('aria-expanded') === 'true')); }
 
-				function updateAdvancedVisibility() {
-					const enc = encoder?.value;
-					const isNative = enc === 'native_aac';
-					const isAt = enc === 'aac_at';
-					const isFdk = enc === 'external_fdk';
 
-					if (profileContainer) profileContainer.style.display = (isAt || isFdk) ? 'block' : 'none';
-					if (aacAtVbrContainer) aacAtVbrContainer.style.display = isAt ? 'block' : 'none';
-					if (!isAt && aacAtVbrEnabled) { aacAtVbrEnabled.checked = false; aacAtVbrQualityWrap && (aacAtVbrQualityWrap.style.display = 'none'); }
+			function handleKey(e) {
+				if (e.key?.toLowerCase() === 'a') toggleOpen();
+				if (e.key === 'Escape' && toggleBtn.getAttribute('aria-expanded') === 'true') { setOpen(false); toggleBtn.focus(); }
+			}
 
-					if (fdkVbrContainer) fdkVbrContainer.style.display = isFdk ? 'block' : 'none';
-					if (fdkAfterburnerContainer) fdkAfterburnerContainer.style.display = isFdk ? 'block' : 'none';
-					if (ffmpegPathContainer) ffmpegPathContainer.style.display = isFdk ? 'block' : 'none';
-					if (!isFdk && fdkVbrEnabled) { fdkVbrEnabled.checked = false; fdkVbrLevelWrap && (fdkVbrLevelWrap.style.display = 'none'); }
+			// --- Tag Logic ---
+			function padPart(part) {
+				if (!part) return '';
+				const num = parseInt(part, 10);
+				if (isNaN(num)) return part;
+				return num < 10 ? `0${num}` : `${num}`;
+			}
 
-					if (nativeHelperContainer) nativeHelperContainer.style.display = isNative ? 'block' : 'none';
+			function updateTagPreview() {
+				if (!tagBody) return;
 
-					onVbrTogglesChange();
-					onProfileChange();
-					onBitrateChange();
-				}
+				const title = inputs.title?.value || '';
+				const author = inputs.author?.value || '';
+				const narrator = inputs.narrator?.value || '';
+				const series = inputs.series?.value || '';
+				const part = inputs.part?.value || '';
+				const year = inputs.year?.value || '';
+				const genre = inputs.genre?.value || '';
 
-				function onEncoderChange() {
-					if (!profileSelect || !encoder) { updateAdvancedVisibility(); return; }
-					if (encoder.value === 'native_aac') {
-						profileSelect.value = 'lc';
-					} else if (encoder.value === 'aac_at') {
-						// Default Apple AAC profile to HE (v1)
-						profileSelect.value = 'he';
-					}
-					updateAdvancedVisibility();
-					saveState();
-				}
+				// Logic
+				const album = title; // Album maps to Title
+				const albumArtist = author; // Album Artist maps to Author
+				const artist = author; // Artist maps to Author
+				const composer = narrator; // Composer maps to Narrator
 
-				function onProfileChange() {
-					if (!profileSelect || !outputChannels) return;
-					const isHev2 = profileSelect.value === 'he_v2';
-					if (profileNote) profileNote.style.display = isHev2 ? 'block' : 'none';
-					if (isHev2) {
-						outputChannels.value = 'stereo';
-						outputChannels.disabled = true;
-					} else {
-						outputChannels.disabled = false;
-						// When leaving HE v2, revert to mono per spec
-						outputChannels.value = 'mono';
-					}
-					saveState();
-				}
-
-				function showVbrNote(show) {
-					const container = outputBitrate?.parentElement;
-					if (!container) return;
-					let note = container.querySelector('#adv-vbr-note');
-					if (show) {
-						if (!note) {
-							note = document.createElement('p');
-							note.id = 'adv-vbr-note';
-							note.className = 'text-xs text-gray-500 mt-1';
-							note.textContent = 'Bitrate ignored in VBR mode.';
-							container.appendChild(note);
-						}
-					} else if (note) {
-						note.remove();
-					}
+				// Plex Hack
+				let tsoa = '';
+				if (series) {
+					const paddedPart = padPart(part);
+					tsoa = `${series} ${paddedPart} - ${title}`;
 				}
 
-				function onVbrTogglesChange() {
-					const vbrOn = (aacAtVbrEnabled && aacAtVbrEnabled.checked) || (fdkVbrEnabled && fdkVbrEnabled.checked);
-					if (outputBitrate) outputBitrate.disabled = !!vbrOn;
-					showVbrNote(!!vbrOn);
-					if (aacAtVbrQualityWrap) aacAtVbrQualityWrap.style.display = (aacAtVbrEnabled && aacAtVbrEnabled.checked) ? 'block' : 'none';
-					if (fdkVbrLevelWrap) fdkVbrLevelWrap.style.display = (fdkVbrEnabled && fdkVbrEnabled.checked) ? 'block' : 'none';
-				}
+				const tags = [
+					{ tag: 'Title', value: title, source: 'Book Title' },
+					{ tag: 'Album', value: album, source: 'Book Title' },
+					{ tag: 'Artist', value: artist, source: 'Author' },
+					{ tag: 'Album Artist', value: albumArtist, source: 'Author' },
+					{ tag: 'Composer', value: composer, source: 'Narrator' },
+					{ tag: 'MVNM (Series)', value: series, source: 'Series' },
+					{ tag: 'MVIN (Part)', value: part, source: 'Book #' },
+					{ tag: 'TSOA (Sort)', value: tsoa, source: 'Auto-Generated (Plex Hack)' },
+					{ tag: 'TYER (Year)', value: year, source: 'Year' },
+					{ tag: 'TCON (Genre)', value: genre, source: 'Genre' }
+				];
 
-				function onBitrateChange() {
-					if (!outputBitrate) return;
-					const isNative = encoder && encoder.value === 'native_aac';
-					const val = parseInt(outputBitrate.value, 10);
-					const atOrBelow64 = !isNaN(val) && val <= 64;
-					const container = outputBitrate.parentElement;
-					if (!container) return;
-					let chip = container.querySelector('#adv-native-chip');
-					if (isNative && atOrBelow64) {
-						if (nativeOptimizeLC) nativeOptimizeLC.checked = true;
-						if (!chip) {
-							chip = document.createElement('p');
-							chip.id = 'adv-native-chip';
-							chip.className = 'text-xs text-gray-500 mt-1';
-							chip.textContent = 'Using 32 kHz to reduce artifacts. Turn off in Advanced.';
-							container.appendChild(chip);
-						}
-					} else {
-						if (nativeOptimizeLC) nativeOptimizeLC.checked = false;
-						if (chip) chip.remove();
-					}
-				}
+				tagBody.innerHTML = tags.map(t => `
+						<tr class="border-b border-gray-100 last:border-0">
+							<td class="py-1 font-mono text-xs text-gray-500">${t.tag}</td>
+							<td class="py-1 font-medium text-gray-800">${t.value || '<span class="text-gray-300 italic">empty</span>'}</td>
+							<td class="py-1 text-xs text-gray-400">${t.source}</td>
+						</tr>
+					`).join('');
+			}
 
-				function onDetectFdk() {
-					if (!fdkStatus) return;
-					const detected = fdkStatus.textContent?.includes('unknown') || fdkStatus.textContent?.includes('not');
-					fdkStatus.textContent = detected ? 'FDK: detected' : 'FDK: not detected';
-				}
+			function bind() {
+				if (toggleBtn) toggleBtn.addEventListener('click', toggleOpen);
+				if (tagToggleBtn) tagToggleBtn.addEventListener('click', toggleTagOpen);
+				document.addEventListener('keydown', handleKey);
 
-				// Init
-					document.addEventListener('DOMContentLoaded', () => {
-					setOpen(loadOpenState());
-						// Initialize from saved state with fallback to platform defaults
-						const state = loadState();
-						const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
-						if (encoder) encoder.value = state.encoder || (isMac ? 'aac_at' : 'native_aac');
-						if (profileSelect) {
-							if (state.profile) {
-								profileSelect.value = state.profile;
-							} else {
-								// Apply reasonable defaults when no saved profile exists
-								if (encoder?.value === 'aac_at') profileSelect.value = 'he';
-								if (encoder?.value === 'native_aac') profileSelect.value = 'lc';
-							}
-						}
-						if (outputChannels) outputChannels.value = state.channels || 'mono';
-						updateAdvancedVisibility();
-						// Ensure profile rules enforce channels if needed
-						onProfileChange();
-					bind();
+				// Bind inputs for tag preview
+				Object.values(inputs).forEach(input => {
+					if (input) input.addEventListener('input', updateTagPreview);
 				});
-			})();
-		</script>
-	</body>
-	</html>
 
+				encoder && encoder.addEventListener('change', () => { onEncoderChange(); saveState(); });
+				profileSelect && profileSelect.addEventListener('change', () => { onProfileChange(); saveState(); });
+				outputChannels && outputChannels.addEventListener('change', saveState);
+				aacAtVbrEnabled && aacAtVbrEnabled.addEventListener('change', onVbrTogglesChange);
+				aacAtVbrQuality && aacAtVbrQuality.addEventListener('input', noop);
+				fdkVbrEnabled && fdkVbrEnabled.addEventListener('change', onVbrTogglesChange);
+				fdkVbrLevel && fdkVbrLevel.addEventListener('change', noop);
+				fdkAfterburner && fdkAfterburner.addEventListener('change', noop);
+				outputBitrate && outputBitrate.addEventListener('change', onBitrateChange);
+				ffmpegBrowse && ffmpegBrowse.addEventListener('click', () => {
+					const val = prompt('Enter path to ffmpeg (mock):', ffmpegPathInput?.value || '');
+					if (val != null && ffmpegPathInput) ffmpegPathInput.value = val;
+				});
+				ffmpegDetect && ffmpegDetect.addEventListener('click', onDetectFdk);
+			}
+
+			function noop() { }
+
+			function updateAdvancedVisibility() {
+				const enc = encoder?.value;
+				const isNative = enc === 'native_aac';
+				const isAt = enc === 'aac_at';
+				const isFdk = enc === 'external_fdk';
+
+				if (profileContainer) profileContainer.style.display = (isAt || isFdk) ? 'block' : 'none';
+				if (aacAtVbrContainer) aacAtVbrContainer.style.display = isAt ? 'block' : 'none';
+				if (!isAt && aacAtVbrEnabled) { aacAtVbrEnabled.checked = false; aacAtVbrQualityWrap && (aacAtVbrQualityWrap.style.display = 'none'); }
+
+				if (fdkVbrContainer) fdkVbrContainer.style.display = isFdk ? 'block' : 'none';
+				if (fdkAfterburnerContainer) fdkAfterburnerContainer.style.display = isFdk ? 'block' : 'none';
+				if (ffmpegPathContainer) ffmpegPathContainer.style.display = isFdk ? 'block' : 'none';
+				if (!isFdk && fdkVbrEnabled) { fdkVbrEnabled.checked = false; fdkVbrLevelWrap && (fdkVbrLevelWrap.style.display = 'none'); }
+
+				if (nativeHelperContainer) nativeHelperContainer.style.display = isNative ? 'block' : 'none';
+
+				onVbrTogglesChange();
+				onProfileChange();
+				onBitrateChange();
+			}
+
+			function onEncoderChange() {
+				if (!profileSelect || !encoder) { updateAdvancedVisibility(); return; }
+				if (encoder.value === 'native_aac') {
+					profileSelect.value = 'lc';
+				} else if (encoder.value === 'aac_at') {
+					// Default Apple AAC profile to HE (v1)
+					profileSelect.value = 'he';
+				}
+				updateAdvancedVisibility();
+				saveState();
+			}
+
+			function onProfileChange() {
+				if (!profileSelect || !outputChannels) return;
+				const isHev2 = profileSelect.value === 'he_v2';
+				if (profileNote) profileNote.style.display = isHev2 ? 'block' : 'none';
+				if (isHev2) {
+					outputChannels.value = 'stereo';
+					outputChannels.disabled = true;
+				} else {
+					outputChannels.disabled = false;
+					// When leaving HE v2, revert to mono per spec
+					outputChannels.value = 'mono';
+				}
+				saveState();
+			}
+
+			function showVbrNote(show) {
+				const container = outputBitrate?.parentElement;
+				if (!container) return;
+				let note = container.querySelector('#adv-vbr-note');
+				if (show) {
+					if (!note) {
+						note = document.createElement('p');
+						note.id = 'adv-vbr-note';
+						note.className = 'text-xs text-gray-500 mt-1';
+						note.textContent = 'Bitrate ignored in VBR mode.';
+						container.appendChild(note);
+					}
+				} else if (note) {
+					note.remove();
+				}
+			}
+
+			function onVbrTogglesChange() {
+				const vbrOn = (aacAtVbrEnabled && aacAtVbrEnabled.checked) || (fdkVbrEnabled && fdkVbrEnabled.checked);
+				if (outputBitrate) outputBitrate.disabled = !!vbrOn;
+				showVbrNote(!!vbrOn);
+				if (aacAtVbrQualityWrap) aacAtVbrQualityWrap.style.display = (aacAtVbrEnabled && aacAtVbrEnabled.checked) ? 'block' : 'none';
+				if (fdkVbrLevelWrap) fdkVbrLevelWrap.style.display = (fdkVbrEnabled && fdkVbrEnabled.checked) ? 'block' : 'none';
+			}
+
+			function onBitrateChange() {
+				if (!outputBitrate) return;
+				const isNative = encoder && encoder.value === 'native_aac';
+				const val = parseInt(outputBitrate.value, 10);
+				const atOrBelow64 = !isNaN(val) && val <= 64;
+				const container = outputBitrate.parentElement;
+				if (!container) return;
+				let chip = container.querySelector('#adv-native-chip');
+				if (isNative && atOrBelow64) {
+					if (nativeOptimizeLC) nativeOptimizeLC.checked = true;
+					if (!chip) {
+						chip = document.createElement('p');
+						chip.id = 'adv-native-chip';
+						chip.className = 'text-xs text-gray-500 mt-1';
+						chip.textContent = 'Using 32 kHz to reduce artifacts. Turn off in Advanced.';
+						container.appendChild(chip);
+					}
+				} else {
+					if (nativeOptimizeLC) nativeOptimizeLC.checked = false;
+					if (chip) chip.remove();
+				}
+			}
+
+			function onDetectFdk() {
+				if (!fdkStatus) return;
+				const detected = fdkStatus.textContent?.includes('unknown') || fdkStatus.textContent?.includes('not');
+				fdkStatus.textContent = detected ? 'FDK: detected' : 'FDK: not detected';
+			}
+
+			// Init
+			document.addEventListener('DOMContentLoaded', () => {
+				setOpen(loadOpenState());
+				// Open Tag Verification by default for demo
+				setTagOpen(true);
+
+				// Initialize from saved state with fallback to platform defaults
+				const state = loadState();
+				const isMac = /Macintosh|Mac OS X/.test(navigator.userAgent);
+				if (encoder) encoder.value = state.encoder || (isMac ? 'aac_at' : 'native_aac');
+				if (profileSelect) {
+					if (state.profile) {
+						profileSelect.value = state.profile;
+					} else {
+						// Apply reasonable defaults when no saved profile exists
+						if (encoder?.value === 'aac_at') profileSelect.value = 'he';
+						if (encoder?.value === 'native_aac') profileSelect.value = 'lc';
+					}
+				}
+				if (outputChannels) outputChannels.value = state.channels || 'mono';
+				updateAdvancedVisibility();
+				// Ensure profile rules enforce channels if needed
+				onProfileChange();
+				bind();
+				updateTagPreview(); // Initial preview
+			});
+		})();
+	</script>
+</body>
+
+</html>
