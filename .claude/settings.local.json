@@ -51,7 +51,9 @@
       "Bash(cat:*)",
       "Bash(./scripts/quick-checks.sh:*)",
       "Bash(gh api:*)",
-      "Bash(gh pr comment:*)"
+      "Bash(gh pr comment:*)",
+      "Bash(gh issue list:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": []
   },
