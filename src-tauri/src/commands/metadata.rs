@@ -75,7 +75,7 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     validate_image_format(&image_data, &extension)?;
 
     // Optimize cover art: resize, flatten transparency, convert to JPEG
-    let optimized = optimize_cover_art(image_data)?;
+    let optimized = optimize_cover_art(&image_data)?;
 
     Ok(optimized)
 }
@@ -136,13 +136,13 @@ const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
 ///
 /// This standardizes all cover art for consistent metadata embedding and reduces
 /// file sizes for large images while maintaining good visual quality.
-pub fn optimize_cover_art(bytes: Vec<u8>) -> Result<Vec<u8>> {
+pub fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
     use image::codecs::jpeg::JpegEncoder;
     use image::ImageReader;
     use std::io::Cursor;
 
     // Set up reader with resource limits to prevent DoS attacks from large images
-    let mut reader = ImageReader::new(Cursor::new(&bytes))
+    let mut reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| AppError::ImageProcessing(format!("Failed to detect image format: {}", e)))?;
 
