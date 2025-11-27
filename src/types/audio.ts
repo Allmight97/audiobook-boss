@@ -68,7 +68,7 @@ export type ThreadSetting =
 
 // Single source of truth for valid encoder bitrates (kbps)
 // Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs
-export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 112, 128] as const;
+export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128] as const;
 export type BitrateKbps = typeof VALID_ENCODER_BITRATES[number];
 
 export interface EncoderSettings {

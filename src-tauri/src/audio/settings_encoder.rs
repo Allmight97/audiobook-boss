@@ -57,7 +57,7 @@ pub struct EncoderSettings {
 }
 
 /// Whitelist of supported encoder bitrates for speech-oriented output
-pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 112, 128];
+pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128];
 
 /// Valid range for thread count when using Fixed thread setting
 pub const VALID_THREAD_COUNT_RANGE: std::ops::RangeInclusive<u16> = 1..=1024;
