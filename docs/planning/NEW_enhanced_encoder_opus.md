@@ -80,7 +80,22 @@ pub fn resolve_encoder(settings: &EncoderSettings, availability: &EncoderAvailab
 }
 ```
 
-### 1.3 FDK HE-AAC Configuration
+### 1.3 New Tauri Command: `list_available_encoders` (from Codex)
+**File**: `src-tauri/src/commands/audio.rs`
+
+```rust
+#[tauri::command]
+pub fn list_available_encoders(custom_fdk_path: Option<String>) -> EncoderAvailability {
+    detect_available_encoders(custom_fdk_path.as_deref())
+}
+```
+
+This lets the UI query encoder availability on startup to:
+- Disable unavailable encoder options in dropdown
+- Show availability indicators (checkmarks/warnings)
+- Validate custom FDK path before processing
+
+### 1.4 FDK HE-AAC Configuration
 **File**: `src-tauri/src/audio/processor/encoder.rs`
 
 Wire up FDK-specific FFmpeg options (from `shrink.sh` defaults):
@@ -95,7 +110,7 @@ fn configure_fdk_encoder(ctx: &mut EncoderContext, settings: &EncoderSettings) {
 }
 ```
 
-### 1.4 Apple AAC CVBR Configuration
+### 1.5 Apple AAC CVBR Configuration
 **File**: `src-tauri/src/audio/processor/encoder.rs`
 
 ```rust
@@ -108,7 +123,7 @@ fn configure_apple_encoder(ctx: &mut EncoderContext, settings: &EncoderSettings)
 }
 ```
 
-### 1.5 Opus Encoder Configuration
+### 1.6 Opus Encoder Configuration
 **File**: `src-tauri/src/audio/processor/encoder.rs`
 
 ```rust
@@ -123,13 +138,30 @@ fn configure_opus_encoder(ctx: &mut EncoderContext, settings: &EncoderSettings) 
 }
 ```
 
-### 1.6 Defaults (from shrink.sh)
+### 1.7 Defaults (from shrink.sh)
 | Encoder | Profile | Bitrate Mode | Default Bitrate | Extra |
 |---------|---------|--------------|-----------------|-------|
-| FDK | HE-AAC | VBR 3 | ~60kbps | afterburner=1 |
-| Apple | AAC | CVBR | 64kbps | - |
+| FDK | HE-AAC v1 (`aac_he`) | VBR 3 | ~60kbps | afterburner=1 |
+| Apple | AAC-LC (auto) | CVBR | 64kbps | - |
 | Native | AAC-LC | CBR | 64kbps | twoloop coder |
 | Opus | - | VBR | 48kbps | compression=10 |
+
+**Important**: FDK uses HE-AAC v1 (not v2) because v1 supports both mono AND stereo, while v2 is stereo-only. This ensures safe "preserve source channels" behavior.
+
+### 1.8 Channel Handling (NEW)
+**Current app behavior**: Forces mono output regardless of input
+**New behavior**: Preserve source channels by default (matches `shrink.sh`)
+
+| Input Channels | Default Output | User Override Available |
+|----------------|----------------|------------------------|
+| Stereo | Stereo | Can force mono |
+| Mono | Mono | Can force stereo |
+
+**UI Change**: Channel selector default changes from "Mono" → "Auto (preserve source)"
+- Options: **Auto** | Mono | Stereo
+- Auto = no `-ac` flag passed, source channels preserved
+
+**Profile safety**: HE-AAC v1 (`aac_he`) works for both mono and stereo. HE-AAC v2 should only be offered if user explicitly wants it AND source is stereo (or warn if mono).
 
 ---
 
@@ -308,10 +340,16 @@ Show user which encoders are available:
 4. Add encoder availability indicator (checkmarks/warnings)
 5. Conditional visibility (VBR/afterburner only for FDK)
 
-**Phase 1.5: Testing & PR**
+**Phase 1.5: Documentation (from Codex)**
+1. Add `docs/planning/enhanced-encoder-mapping.md` explaining:
+   - How `shrink.sh`/`opus.sh` toggles map to new UI/backend controls
+   - How to point the app at a locally installed libfdk build
+   - FDK licensing constraints (can't bundle, user must provide)
+
+**Phase 1.6: Testing & PR**
 1. Unit tests for encoder detection
 2. Run `scripts/quick-checks.sh`
-3. Manual test with real files
+3. Manual test: `ABB_DISABLE_FASTPATH=1 RUST_LOG=debug npm run tauri dev`
 4. Create PR: `feature/enhanced-encoder` → `new_encoder`
 
 ---
@@ -384,15 +422,19 @@ Show user which encoders are available:
 ## PR 1 Checklist: Enhanced Encoder
 - [ ] All encoder types working (Auto, FDK, Apple, Native, Opus)
 - [ ] Auto-detection selects best available (FDK > Apple > Native)
+- [ ] `list_available_encoders` command returns correct availability
 - [ ] Custom FFmpeg path works for FDK
+- [ ] FDK uses HE-AAC v1 profile (`aac_he`) - works for mono AND stereo
 - [ ] VBR levels 1-5 configurable for FDK
 - [ ] Afterburner toggle works for FDK
 - [ ] Apple aac_at uses CVBR mode
 - [ ] Opus uses VBR with compression_level 10
+- [ ] **Channel handling**: Default is "Auto (preserve source)" - no forced mono
 - [ ] UI shows encoder availability (checkmarks/warnings)
 - [ ] Conditional visibility (VBR/afterburner only for FDK)
+- [ ] Docs: `docs/planning/enhanced-encoder-mapping.md` created
 - [ ] `scripts/quick-checks.sh` passes
-- [ ] Manual test with real audiobook files
+- [ ] Manual test with real audiobook files (stereo + mono sources)
 
 ## PR 2 Checklist: Adaptive Preview
 - [ ] Preview duration options work (15s, 45s, 60s)
