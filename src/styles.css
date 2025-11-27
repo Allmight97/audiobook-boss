@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* CSS Custom Properties for Theme Support */
 :root {
 	/* Light theme colors (default) */
@@ -661,3 +663,272 @@ textarea:hover:not(:focus) {
 .text-gray-600 {
 	color: var(--text-muted);
 }
+
+/* ===== NEW UI STYLES (PR2) ===== */
+
+/* Main container - 2-column grid */
+.main-container {
+	display: grid;
+	grid-template-columns: 1fr 1.5fr;
+	gap: 1rem;
+	padding: 0.75rem;
+	min-height: calc(100vh - 120px);
+	overflow: hidden;
+}
+
+/* Input panel min-width */
+.input-panel {
+	min-width: 280px;
+	width: auto;
+}
+
+/* Compact panel padding */
+.panel {
+	padding: 0.75rem;
+}
+
+/* Header bar styling */
+.header-bar {
+	background-color: var(--bg-panel);
+	color: var(--text-primary);
+	border-bottom: 1px solid var(--border-primary);
+}
+
+/* Section header with inline info */
+.section-header {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+
+.section-header h3 {
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--text-secondary);
+	margin: 0;
+}
+
+.section-header .inline-info {
+	font-size: 0.75rem;
+	color: var(--text-muted);
+}
+
+/* Section divider */
+.section-divider {
+	border-top: 1px solid var(--border-primary);
+	padding-top: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+/* Section titles and subtitles */
+.section-title {
+	color: var(--text-secondary);
+}
+
+.section-subtitle {
+	color: var(--text-muted);
+}
+
+/* Muted text helper */
+.muted-text {
+	color: var(--text-muted);
+}
+
+/* Cover art - compact size */
+.cover-art-area {
+	aspect-ratio: 1 / 1;
+	width: 100%;
+	max-width: 120px;
+	padding-top: 0; /* Override old padding-top: 100% */
+}
+
+/* 4-column grid */
+.grid-cols-4 {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.col-span-3 {
+	grid-column: span 3 / span 3;
+}
+
+.col-span-4 {
+	grid-column: span 4 / span 4;
+}
+
+/* Advanced panel accordion */
+.advanced-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.advanced-panel {
+	max-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.5rem;
+	background-color: var(--bg-panel);
+}
+
+.advanced-panel.open {
+	max-height: 800px;
+	opacity: 1;
+}
+
+/* Two-column tag grid */
+.tag-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.75rem;
+	background: var(--bg-input);
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	padding: 0.5rem;
+}
+
+.tag-column {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.tag-row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	font-size: 0.7rem;
+	line-height: 1.4;
+}
+
+.tag-name {
+	font-family: ui-monospace, monospace;
+	color: var(--text-muted);
+	white-space: nowrap;
+	min-width: 70px;
+}
+
+.tag-value {
+	color: var(--text-primary);
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tag-value.empty {
+	opacity: 0.4;
+}
+
+/* Split button */
+.split-button {
+	display: inline-flex;
+	position: relative;
+}
+
+.split-main {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-right: none;
+}
+
+.split-caret {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	padding: 0.25rem 0.35rem;
+	font-size: 0.6rem;
+}
+
+.split-dropdown {
+	position: absolute;
+	right: 0;
+	top: 100%;
+	margin-top: 2px;
+	background: var(--bg-panel);
+	border: 1px solid var(--border-secondary);
+	border-radius: 0.375rem;
+	overflow: hidden;
+	z-index: 10;
+	min-width: 100px;
+	display: none;
+	box-shadow: var(--shadow-md);
+}
+
+.split-option {
+	display: block;
+	width: 100%;
+	padding: 0.35rem 0.5rem;
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+	background: none;
+	border: none;
+	text-align: left;
+	cursor: pointer;
+}
+
+.split-option:hover {
+	background: var(--bg-input);
+	color: var(--text-primary);
+}
+
+/* Compact form elements */
+label {
+	font-size: 0.75rem;
+	margin-bottom: 0.15rem;
+}
+
+input[type="text"],
+select,
+textarea {
+	padding: 0.35rem 0.5rem;
+	font-size: 0.8125rem;
+	border: 1px solid var(--border-primary);
+	border-style: solid;
+}
+
+/* Compact status panel */
+.status-panel {
+	padding: 0.5rem 0.75rem;
+	margin: 0 0.75rem 0.75rem;
+}
+
+.art-thumbnail {
+	width: 40px;
+	height: 40px;
+}
+
+.progress-bar-bg {
+	height: 6px;
+}
+
+/* Gap utilities */
+.gap-0\.5 {
+	gap: 0.125rem;
+}
+
+.gap-1\.5 {
+	gap: 0.375rem;
+}
+
+.gap-y-0\.5 {
+	row-gap: 0.125rem;
+}
+
+.gap-y-1\.5 {
+	row-gap: 0.375rem;
+}
+
+/* Margin utilities */
+.mb-0\.5 {
+	margin-bottom: 0.125rem;
+}
+
+.mt-0\.5 {
+	margin-top: 0.125rem;
+}
+
+/* Note: Standard Tailwind utilities (.flex, .items-center, .w-full, .hidden, etc.)
+   are provided by the npm-based Tailwind build and should NOT be redefined here.
+   Only keep custom/escaped utilities that Tailwind might not generate. */

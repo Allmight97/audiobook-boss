@@ -7,6 +7,7 @@ import { initOutputPanel, getCurrentAudioSettings, onFileListChange, onMetadataC
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
 import { initEncoderPanel } from "./ui/encoderPanel";
 import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./ui/coverArt";
+import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -62,7 +63,10 @@ import { initCoverArt, getCurrentCoverArt, setCoverArt, clearCoverArt } from "./
       moveFileDown(index);
     }
   },
-  testSortFiles: () => toggleFileSort()
+  testSortFiles: () => toggleFileSort(),
+
+  // Tag preview test functions
+  updateTagPreview: () => updateTagPreview(),
 };
 
 // Log when ready
@@ -88,6 +92,7 @@ console.log('  window.testCommands.setCoverArt(coverArtBytes)');
 console.log('  window.testCommands.clearCoverArt()');
 console.log('  window.testCommands.testMoveFile(index, direction)');
 console.log('  window.testCommands.testSortFiles()');
+console.log('  window.testCommands.updateTagPreview()');
 
 // Initialize UI components when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -97,8 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initCoverArt();
   // Initialize Advanced Encoder panel (no-op if panel not present)
   initEncoderPanel();
+  // Initialize tag preview grid
+  initTagPreview();
   console.log('File import system initialized');
   console.log('Output panel initialized');
   console.log('Status panel initialized');
   console.log('Cover art system initialized');
+  console.log('Tag preview initialized');
 });
