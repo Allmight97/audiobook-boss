@@ -476,3 +476,71 @@ Given the app will be packaged for macOS/Windows/Linux distribution, offline cap
 | Codex    | Auto-loaded cover art bypasses optimization | Added optimization in `read_audio_metadata`                  |
 | Codex    | Encoder panel module structure wrong        | Corrected to `src/ui/encoderPanel/*` + provider registration |
 | Codex    | Metadata contract missing                   | Added backend + TS tasks for MVNM/MVIN/TSOA persistence      |
+
+---
+
+## Post-Implementation Test Coverage
+
+Tests to be added after PR1 and PR2 are merged into `new_encoder` branch. This section captures recommended test coverage for all new functionality.
+
+### PR1: Backend Foundation Tests (Rust)
+
+#### Cover Art Optimization (`src-tauri/src/commands/metadata.rs`)
+
+| Test | Description | Priority |
+|------|-------------|----------|
+| `test_optimize_large_image_resizes` | 2000×2000 PNG → verify output ≤ 800×800, aspect ratio preserved | High |
+| `test_optimize_small_image_no_upscale` | 400×400 JPEG → verify dimensions unchanged | High |
+| `test_optimize_png_transparency_flattens` | PNG with alpha → verify white background, no transparency in output | High |
+| `test_optimize_jpeg_passthrough` | Valid JPEG → verify still produces valid JPEG output | Medium |
+| `test_optimize_invalid_bytes_errors` | Random bytes → verify `AppError::ImageProcessing` returned | High |
+| `test_optimize_empty_bytes_errors` | Empty `Vec<u8>` → verify appropriate error | Medium |
+| `test_optimize_idempotent` | Optimize twice → verify output identical (no quality degradation) | Medium |
+| `test_optimize_large_file_memory` | 10MB+ image → verify no OOM, reasonable performance | Low |
+
+**Test file location**: `src-tauri/tests/unit/commands/cover_art_optimization.rs`
+
+#### Bitrate Validation (`src-tauri/src/audio/settings_encoder.rs`)
+
+| Test | Description | Priority |
+|------|-------------|----------|
+| `test_new_bitrates_104_120_valid` | Verify 104 and 120 pass `validate_bitrate()` | High |
+| `test_bitrate_whitelist_complete` | Verify all 11 values (48-128 step 8) are valid | Medium |
+
+**Note**: Existing `test_validate_bitrate_whitelist` already loops through `VALID_ENCODER_BITRATES`, so new values are automatically covered once added.
+
+### PR2: UI Replacement Tests
+
+#### TypeScript Unit Tests (`src/**/*.test.ts`)
+
+| Test | Description | Priority |
+|------|-------------|----------|
+| `test_calculateTSOA_with_series` | `("Series Name", "3", "Book Title")` → `"Series Name 03 - Book Title"` | High |
+| `test_calculateTSOA_without_series` | `("", "1", "Title")` → `""` (empty) | High |
+| `test_calculateTSOA_pads_single_digit` | Part "5" → "05" | High |
+| `test_calculateTSOA_handles_non_numeric` | Part "abc" → "00" fallback | Medium |
+| `test_updateTagPreview_populates_grid` | Mock form values → verify preview grid updates | Medium |
+| `test_bitrate_dropdown_has_11_options` | Verify dropdown contains all 11 bitrate values | Low |
+| `test_preview_duration_state_updates` | Click 45s option → verify state is 45 | Medium |
+
+**Test file location**: `src/ui/tagPreview.test.ts`, `src/ui/outputPanel.test.ts`
+
+#### Integration/E2E Considerations
+
+| Scenario | Description | Priority |
+|----------|-------------|----------|
+| Cover art load → display | Load large PNG via dialog → verify optimized display | High |
+| Metadata round-trip | Load file → edit metadata → save → reload → verify | High |
+| Processing with new bitrate | Process with 104k → verify output metadata | Medium |
+
+### Test Implementation Order
+
+1. **After PR1+PR2 merged**: Add Rust unit tests for `optimize_cover_art()` (highest impact)
+2. **Same PR or follow-up**: Add TypeScript tests for TSOA calculation
+3. **Optional**: Add integration tests for cover art round-trip
+
+### Test Infrastructure Notes
+
+- Rust tests: Use `tempfile` crate for temp directories, existing test fixtures in `src-tauri/tests/`
+- TypeScript tests: Use vitest (already configured), Tauri mocks in `src/test/setup.ts`
+- Coverage target: 90% for new `optimize_cover_art()` function per AGENTS.md guidelines
