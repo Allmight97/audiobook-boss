@@ -2,7 +2,6 @@
 // FEATURE_TOGGLE:VBR  VBR_DISABLED_MARKER
 // FEATURE_TOGGLE:FDK  FDK_PLACEHOLDER
 
-export const ENABLE_VBR = false;
-export const ENABLE_FDK = false;
-
-
+export const ENABLE_VBR = true;
+export const ENABLE_FDK = true;
+export const ENABLE_OPUS = true;

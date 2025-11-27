@@ -1,5 +1,8 @@
 use crate::audio::file_list::FileListInfo;
-use crate::audio::settings_encoder::{validate_encoder_settings, EncoderSettings};
+use crate::audio::settings_encoder::{
+    detect_available_encoders, validate_encoder_settings, ChannelConfig as EncoderChannelConfig,
+    EncoderAvailability, EncoderSettings,
+};
 use crate::audio::{self, ChannelConfig};
 use crate::errors::{AppError, Result};
 use std::path::{Path, PathBuf};
@@ -53,6 +56,12 @@ pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String
     Ok("Encoder settings are valid".to_string())
 }
 
+/// Lists runtime encoder availability so the UI can surface guidance.
+#[tauri::command]
+pub fn list_available_encoders() -> EncoderAvailability {
+    detect_available_encoders()
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessV2Payload {
@@ -76,12 +85,12 @@ pub async fn process_audiobook_files_v2(
     // Validate encoder settings (v2)
     validate_encoder_settings(&payload.settings)?;
     log::info!(
-        "encoder_v2 summary: encoder={:?} bitrate={}k channels={} sample_rate={:?} aac_coder={:?} afterburner={:?} threads={:?}",
+        "encoder_v2 summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
         payload.settings.encoder_type,
         payload.settings.bitrate_kbps,
+        payload.settings.bitrate_mode,
         payload.settings.channels,
         payload.sample_rate,
-        payload.settings.aac_coder,
         payload.settings.afterburner,
         payload.settings.threads
     );
@@ -94,14 +103,9 @@ pub async fn process_audiobook_files_v2(
     let mut settings_v1 = audio::AudioSettings::audiobook_preset();
     settings_v1.bitrate = payload.settings.bitrate_kbps as u32;
     settings_v1.channels = match payload.settings.channels {
-        1 => ChannelConfig::Mono,
-        2 => ChannelConfig::Stereo,
-        other => {
-            return Err(AppError::InvalidInput(format!(
-                "Unsupported channel count: {} (allowed: 1 or 2)",
-                other
-            )))
-        }
+        EncoderChannelConfig::Mono => ChannelConfig::Mono,
+        EncoderChannelConfig::Stereo => ChannelConfig::Stereo,
+        EncoderChannelConfig::Auto => ChannelConfig::Mono, // legacy validation only; actual encoder honors auto via v2 settings
     };
     // Map sample rate from frontend payload (defaults to Auto if not provided)
     if let Some(sample_rate) = payload.sample_rate {
