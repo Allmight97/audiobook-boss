@@ -37,6 +37,7 @@ export class StatusPanel {
     private cancelUnlisten?: () => void;
     private isProcessing: boolean = false;
     private currentStatus: ProcessingStatus;
+    private previewDuration: number = 30;
 
     constructor() {
         this.currentStatus = {
@@ -74,12 +75,53 @@ export class StatusPanel {
     private setupEventHandlers(): void {
         const processButton = dom.getProcessButton();
         const previewButton = document.getElementById('preview-button') as HTMLButtonElement | null;
+        const previewDropdownToggle = document.getElementById('preview-dropdown-toggle') as HTMLButtonElement | null;
+        const previewDropdown = document.getElementById('preview-dropdown') as HTMLDivElement | null;
+        const advancedToggle = document.getElementById('advanced-settings-toggle') as HTMLButtonElement | null;
+
         if (processButton) {
             processButton.addEventListener('click', this.handleProcessButtonClick.bind(this));
         }
+
         if (previewButton) {
             previewButton.addEventListener('click', async () => {
-                await this.startProcessing({ previewSeconds: 30 });
+                await this.startProcessing({ previewSeconds: this.previewDuration });
+            });
+        }
+
+        // Preview duration dropdown
+        if (previewDropdownToggle && previewDropdown) {
+            previewDropdownToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                previewDropdown.style.display = previewDropdown.style.display === 'none' ? 'block' : 'none';
+            });
+
+            // Handle duration options
+            previewDropdown.querySelectorAll('.split-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    const duration = parseInt((opt as HTMLElement).dataset.duration || '30', 10);
+                    this.previewDuration = duration;
+                    previewDropdown.style.display = 'none';
+                    // Optionally trigger preview with new duration
+                    this.startProcessing({ previewSeconds: duration });
+                });
+            });
+
+            // Close dropdown on outside click
+            document.addEventListener('click', () => {
+                previewDropdown.style.display = 'none';
+            });
+        }
+
+        // Advanced settings accordion
+        if (advancedToggle) {
+            advancedToggle.addEventListener('click', () => {
+                const panel = document.getElementById('advanced-settings-panel');
+                const icon = document.getElementById('advanced-toggle-icon');
+                if (panel) {
+                    panel.classList.toggle('open');
+                    if (icon) icon.textContent = panel.classList.contains('open') ? '▼' : '▶';
+                }
             });
         }
     }
@@ -416,16 +458,18 @@ export class StatusPanel {
 
         const title = getElementValue('meta-title');
         const author = getElementValue('meta-author');
-        const album = getElementValue('meta-album');
         const narrator = getElementValue('meta-narrator');
         const year = getElementValue('meta-year');
         const genre = getElementValue('meta-genre');
         const series = getElementValue('meta-series');
+        const seriesPart = getElementValue('meta-series-part');
         const description = getElementValue('meta-description');
 
-        if (title) metadata.title = title;
+        if (title) {
+            metadata.title = title;
+            metadata.album = title; // Album derived from title
+        }
         if (author) metadata.artist = author; // Map author -> artist for backend
-        if (album) metadata.album = album;
         if (narrator) metadata.composer = narrator; // Map narrator -> composer for backend
         if (year) {
             const yearNum = parseInt(year);
@@ -433,9 +477,11 @@ export class StatusPanel {
         }
         if (genre) metadata.genre = genre;
         if (series) {
-            // TEMP: Handle series metadata properly later — for now, append to album.
-            // If album already has value, append " (series)"; otherwise, use series as album.
-            metadata.album = album ? `${album} (${series})` : series;
+            // TODO: Persist MVNM (series name) when backend supports it
+            // For now, append to album if series is provided
+            if (metadata.album) {
+                metadata.album = `${metadata.album} (${series}${seriesPart ? ' ' + seriesPart : ''})`;
+            }
         }
         if (description) metadata.description = description;
 

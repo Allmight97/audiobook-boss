@@ -266,10 +266,11 @@ function getCurrentMetadata(): AudiobookMetadata {
 
   const coverArt = getCurrentCoverArt();
 
+  const title = getElementValue('meta-title');
   return {
-    title: getElementValue('meta-title'),
+    title: title,
     author: getElementValue('meta-author'),
-    album: getElementValue('meta-album'),
+    album: title,  // Album derived from title (no separate input)
     narrator: getElementValue('meta-narrator'),
     year: parseInt(getElementValue('meta-year')) || undefined,
     genre: getElementValue('meta-genre'),
@@ -283,7 +284,7 @@ function getCurrentMetadata(): AudiobookMetadata {
  * Updates the estimated output size display
  */
 function updateEstimatedSize(): void {
-  const sizeElement = document.getElementById('output-estimated-size');
+  const sizeElement = document.getElementById('estimated-size');
   if (!sizeElement) return;
 
   const fileList = currentFileList;
