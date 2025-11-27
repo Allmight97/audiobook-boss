@@ -52,7 +52,8 @@ fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
     if let Some(picture) = pictures.first() {
         let raw_data = picture.data().to_vec();
         // Optimize cover art: resize to max 800×800, flatten transparency, JPEG 85%
-        match crate::commands::metadata::optimize_cover_art(raw_data) {
+        // Clone before passing to optimize so we can use original on failure without re-allocating
+        match crate::commands::metadata::optimize_cover_art(raw_data.clone()) {
             Ok(optimized) => metadata.cover_art = Some(optimized),
             Err(e) => {
                 // Log warning but don't fail - use raw data as fallback
@@ -60,7 +61,7 @@ fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
                     "Failed to optimize auto-loaded cover art: {}. Using original.",
                     e
                 );
-                metadata.cover_art = Some(picture.data().to_vec());
+                metadata.cover_art = Some(raw_data);
             }
         }
     }

@@ -129,30 +129,36 @@ const COVER_ART_MAX_DIMENSION: u32 = 800;
 /// JPEG quality for cover art (0-100)
 const COVER_ART_JPEG_QUALITY: u8 = 85;
 
+/// Maximum input image dimension allowed (DoS prevention)
+const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
+
 /// Optimizes cover art: resize to max 800×800, flatten transparency, encode as JPEG 85%
 ///
 /// This standardizes all cover art for consistent metadata embedding and reduces
 /// file sizes for large images while maintaining good visual quality.
 pub fn optimize_cover_art(bytes: Vec<u8>) -> Result<Vec<u8>> {
     use image::codecs::jpeg::JpegEncoder;
-    use image::imageops::FilterType;
     use image::ImageReader;
     use std::io::Cursor;
 
-    // Decode image from bytes
-    let img = ImageReader::new(Cursor::new(&bytes))
+    // Set up reader with resource limits to prevent DoS attacks from large images
+    let mut reader = ImageReader::new(Cursor::new(&bytes))
         .with_guessed_format()
-        .map_err(|e| AppError::ImageProcessing(format!("Failed to detect image format: {}", e)))?
+        .map_err(|e| AppError::ImageProcessing(format!("Failed to detect image format: {}", e)))?;
+
+    // Limit max dimensions to prevent memory exhaustion from malicious images
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(COVER_ART_MAX_INPUT_DIMENSION);
+    limits.max_image_height = Some(COVER_ART_MAX_INPUT_DIMENSION);
+    reader.limits(limits);
+
+    let img = reader
         .decode()
         .map_err(|e| AppError::ImageProcessing(format!("Failed to decode image: {}", e)))?;
 
-    // Resize if needed (fit within max dimensions, preserve aspect ratio)
+    // Resize if needed using thumbnail() which preserves aspect ratio
     let img = if img.width() > COVER_ART_MAX_DIMENSION || img.height() > COVER_ART_MAX_DIMENSION {
-        img.resize(
-            COVER_ART_MAX_DIMENSION,
-            COVER_ART_MAX_DIMENSION,
-            FilterType::Lanczos3,
-        )
+        img.thumbnail(COVER_ART_MAX_DIMENSION, COVER_ART_MAX_DIMENSION)
     } else {
         img
     };
@@ -174,33 +180,25 @@ pub fn optimize_cover_art(bytes: Vec<u8>) -> Result<Vec<u8>> {
 fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImage {
     use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
 
-    match img {
-        DynamicImage::ImageRgba8(rgba) => {
-            let (width, height) = rgba.dimensions();
-            let mut rgb: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-            for (x, y, pixel) in rgba.enumerate_pixels() {
-                let Rgba([r, g, b, a]) = *pixel;
-                let alpha = a as f32 / 255.0;
-                let new_r = (r as f32 * alpha + 255.0 * (1.0 - alpha)) as u8;
-                let new_g = (g as f32 * alpha + 255.0 * (1.0 - alpha)) as u8;
-                let new_b = (b as f32 * alpha + 255.0 * (1.0 - alpha)) as u8;
-                rgb.put_pixel(x, y, Rgb([new_r, new_g, new_b]));
-            }
-            DynamicImage::ImageRgb8(rgb)
-        }
-        DynamicImage::ImageRgba16(rgba) => {
-            let (width, height) = rgba.dimensions();
-            let mut rgb: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-            for (x, y, pixel) in rgba.enumerate_pixels() {
-                let alpha = pixel[3] as f32 / 65535.0;
-                let new_r = ((pixel[0] as f32 / 257.0) * alpha + 255.0 * (1.0 - alpha)) as u8;
-                let new_g = ((pixel[1] as f32 / 257.0) * alpha + 255.0 * (1.0 - alpha)) as u8;
-                let new_b = ((pixel[2] as f32 / 257.0) * alpha + 255.0 * (1.0 - alpha)) as u8;
-                rgb.put_pixel(x, y, Rgb([new_r, new_g, new_b]));
-            }
-            DynamicImage::ImageRgb8(rgb)
-        }
-        // For non-RGBA images, just convert to RGB8
-        _ => DynamicImage::ImageRgb8(img.to_rgb8()),
+    // If no alpha channel, just convert to RGB8
+    if !img.color().has_alpha() {
+        return DynamicImage::ImageRgb8(img.to_rgb8());
     }
+
+    // Convert to RGBA8 first to handle all alpha formats uniformly
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let mut rgb_img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
+
+    for (x, y, pixel) in rgba.enumerate_pixels() {
+        let Rgba([r, g, b, a]) = *pixel;
+        let alpha = a as f32 / 255.0;
+        let bg_channel = 255.0 * (1.0 - alpha);
+        let new_r = (r as f32 * alpha + bg_channel) as u8;
+        let new_g = (g as f32 * alpha + bg_channel) as u8;
+        let new_b = (b as f32 * alpha + bg_channel) as u8;
+        rgb_img.put_pixel(x, y, Rgb([new_r, new_g, new_b]));
+    }
+
+    DynamicImage::ImageRgb8(rgb_img)
 }
