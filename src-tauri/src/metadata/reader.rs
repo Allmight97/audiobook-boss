@@ -47,10 +47,22 @@ fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
     // Extract description from comment
     metadata.description = tag.comment().map(|s| s.to_string());
 
-    // Extract cover art
+    // Extract cover art and optimize it
     let pictures = tag.pictures();
     if let Some(picture) = pictures.first() {
-        metadata.cover_art = Some(picture.data().to_vec());
+        let raw_data = picture.data().to_vec();
+        // Optimize cover art: resize to max 800×800, flatten transparency, JPEG 85%
+        match crate::commands::metadata::optimize_cover_art(raw_data) {
+            Ok(optimized) => metadata.cover_art = Some(optimized),
+            Err(e) => {
+                // Log warning but don't fail - use raw data as fallback
+                log::warn!(
+                    "Failed to optimize auto-loaded cover art: {}. Using original.",
+                    e
+                );
+                metadata.cover_art = Some(picture.data().to_vec());
+            }
+        }
     }
 }
 

@@ -31,6 +31,7 @@ uuid = { version = "1.11", features = ["v4"] }
 log = "0.4"
 env_logger = "0.11"
 ffmpeg-next = "8.0"
+image = "0.25"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

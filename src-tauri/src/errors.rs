@@ -26,6 +26,9 @@ pub enum AppError {
 
     #[error("Operation failed: {0}")]
     General(String),
+
+    #[error("Image processing error: {0}")]
+    ImageProcessing(String),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
