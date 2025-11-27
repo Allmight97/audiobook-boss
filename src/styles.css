@@ -929,50 +929,6 @@ textarea {
 	margin-top: 0.125rem;
 }
 
-/* Padding utilities */
-.p-2 {
-	padding: 0.5rem;
-}
-
-/* Flex utilities */
-.flex {
-	display: flex;
-}
-
-.flex-col {
-	flex-direction: column;
-}
-
-.items-center {
-	align-items: center;
-}
-
-.justify-between {
-	justify-content: space-between;
-}
-
-.justify-end {
-	justify-content: flex-end;
-}
-
-.gap-2 {
-	gap: 0.5rem;
-}
-
-.gap-3 {
-	gap: 0.75rem;
-}
-
-/* Width utilities */
-.w-full {
-	width: 100%;
-}
-
-/* Display utilities */
-.hidden {
-	display: none;
-}
-
-.block {
-	display: block;
-}
+/* Note: Standard Tailwind utilities (.flex, .items-center, .w-full, .hidden, etc.)
+   are provided by the npm-based Tailwind build and should NOT be redefined here.
+   Only keep custom/escaped utilities that Tailwind might not generate. */

@@ -1,6 +1,7 @@
 import { ENABLE_FDK, ENABLE_VBR } from './featureFlags';
 import { queryDom } from './dom';
 import type { EncoderSettingsLike, EncoderFlavor, AacProfile, EncoderSettingsV2 } from '../../types/encoder';
+import { VALID_ENCODER_BITRATES } from '../../types/audio';
 
 type WindowWithEncoderProvider = Window & {
   EncoderSettingsProvider?: () => EncoderSettingsLike;
@@ -38,7 +39,7 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
   // Read bitrate from output-bitrate select
   const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement | null;
   const bitrateValue = parseInt(bitrateSelect?.value ?? '64', 10);
-  const bitrateKbps = ([48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128].includes(bitrateValue)
+  const bitrateKbps = ([...VALID_ENCODER_BITRATES].includes(bitrateValue as typeof VALID_ENCODER_BITRATES[number])
     ? bitrateValue
     : 64) as EncoderSettingsV2['bitrateKbps'];
 
