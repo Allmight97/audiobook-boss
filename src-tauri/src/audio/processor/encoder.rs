@@ -34,10 +34,10 @@ fn resolve_plan_encoder_settings<'a>(
         let resolved = settings_encoder::resolve_encoder_type(settings, availability);
         (Cow::Borrowed(settings), resolved)
     } else {
-        let default_encoder_type = if availability.aac_at_available {
-            EncoderType::AacAt
-        } else if availability.fdk_available {
+        let default_encoder_type = if availability.fdk_available {
             EncoderType::FdkHeAac
+        } else if availability.aac_at_available {
+            EncoderType::AacAt
         } else {
             EncoderType::NativeAac
         };
