@@ -1,4 +1,4 @@
-import { ENABLE_FDK, ENABLE_OPUS } from "./featureFlags";
+import { ENABLE_FDK } from "./featureFlags";
 import { queryDom } from "./dom";
 import { loadState, saveState } from "./state";
 import type {
@@ -16,7 +16,6 @@ type WindowWithEncoderProvider = Window & {
 type EncoderAvailability = {
   fdk_available: boolean;
   aac_at_available: boolean;
-  opus_available: boolean;
   native_aac_available: boolean;
 };
 
@@ -50,7 +49,7 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
     [...VALID_ENCODER_BITRATES].includes(
       bitrateValue as (typeof VALID_ENCODER_BITRATES)[number]
     )
-      ? bitrateValue
+    ? bitrateValue
       : 64
   ) as EncoderSettingsV2["bitrateKbps"];
 
@@ -194,11 +193,6 @@ const updateAvailabilityHint = (): void => {
       ? "Apple AAC available."
       : "Apple AAC not detected (install on macOS)."
   );
-  parts.push(
-    cachedAvailability.opus_available
-      ? "Opus ready."
-      : "Opus encoder not detected."
-  );
   dom.encoderAvailabilityHint.textContent = parts.join(" ");
 };
 
@@ -212,9 +206,6 @@ const syncAdvancedVisibility = (): void => {
   }
   if (dom.fdkAfterburner) {
     dom.fdkAfterburner.disabled = !ENABLE_FDK;
-  }
-  if (dom.opusHint) {
-    dom.opusHint.style.display = flavor === "opus" ? "block" : "none";
   }
   if (dom.encoderNote) {
     dom.encoderNote.textContent = getEncoderNote(flavor);
@@ -231,8 +222,6 @@ const getEncoderNote = (flavor: EncoderFlavor): string => {
       return "FDK HE-AAC delivers ~60 kbps VBR with afterburner for speech.";
     case "native_aac":
       return "Native AAC uses CBR twoloop mode for compatibility.";
-    case "opus":
-      return "Opus excels for Audiobookshelf streaming; stick to Auto channels.";
     case "auto":
     default:
       return "Auto selects FDK when available, otherwise Apple AAC or native AAC.";
@@ -279,9 +268,6 @@ const disableDisallowedEncoders = (): void => {
         break;
       case "aac_at":
         option.disabled = availability ? !availability.aac_at_available : false;
-        break;
-      case "opus":
-        option.disabled = !ENABLE_OPUS || !availability?.opus_available;
         break;
       case "native_aac":
         option.disabled = availability

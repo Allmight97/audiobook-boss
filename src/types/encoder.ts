@@ -25,8 +25,7 @@ export type EncoderFlavor =
   | "auto"
   | "aac_at"
   | "fdk_he_aac"
-  | "native_aac"
-  | "opus";
+  | "native_aac";
 type VbrLevel = Extract<BitrateMode, { mode: "vbr" }>["level"];
 
 export interface VbrSetting {
@@ -67,7 +66,6 @@ const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode => {
   switch (encoderType) {
     case "fdk_he_aac":
     case "auto":
-    case "opus":
       return { mode: "vbr", level: 3 };
     case "aac_at":
       return { mode: "cvbr" };
@@ -185,8 +183,6 @@ const resolveEncoderType = (
       return "fdk_he_aac";
     case "native_aac":
       return "native_aac";
-    case "opus":
-      return "opus";
     default:
       return fallback;
   }

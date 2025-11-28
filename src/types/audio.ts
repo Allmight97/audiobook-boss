@@ -63,8 +63,7 @@ export type EncoderType =
   | "auto"
   | "fdk_he_aac"
   | "aac_at"
-  | "native_aac"
-  | "opus";
+  | "native_aac";
 export type BitrateMode =
   | { mode: "cbr" }
   | { mode: "cvbr" }

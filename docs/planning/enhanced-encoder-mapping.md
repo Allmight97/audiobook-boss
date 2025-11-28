@@ -1,6 +1,6 @@
 # Enhanced Encoder Mapping Guide
 
-This note captures how the shrink.sh / opus.sh defaults map into the production encoder engine. It is intended for anyone maintaining the UI <-> Rust bridge or helping users install the required codecs (especially Fraunhofer FDK).
+This note captures how the shrink.sh defaults map into the production encoder engine. It is intended for anyone maintaining the UI <-> Rust bridge or helping users install the required codecs (especially Fraunhofer FDK).
 
 ## Encoder presets and defaults
 
@@ -10,12 +10,10 @@ This note captures how the shrink.sh / opus.sh defaults map into the production 
 | Apple AAC (aac_at)  | `aac_at`              | CVBR (target = UI bitrate)               | Auto               | Uses `aac_at_mode=cvbr`, S16 sample format.                                      |
 | FDK HE-AAC          | `fdk_he_aac`          | VBR (level slider, default 3)            | Auto               | Forces HE-AAC v1 profile and afterburner toggle.                                 |
 | Native AAC (FFmpeg) | `native_aac`          | CBR                                      | Auto               | Twoloop coder enabled unless `ABB_DISABLE_TWOOLOOP=1`.                           |
-| Opus (libopus)      | `opus`                | VBR (level slider exposed for info only) | Auto               | `compression_level=10`, `application=audio`. Target bitrate uses main dropdown.  |
-
-- **Bitrate dropdown** feeds `bitrateKbps` for every encoder. For CVBR/CBR modes the selected value is the target bitrate. For VBR (FDK/Opus) it is used as an approximate bound and for UI messaging.
+- **Bitrate dropdown** feeds `bitrateKbps` for every encoder. For CVBR/CBR modes the selected value is the target bitrate. For VBR (FDK) it is used as an approximate bound and for UI messaging.
 - **Channels dropdown** now offers `Auto` (preserve source), `Force Mono`, `Force Stereo`. Only the legacy validation path still requires 1/2; the runtime encoder honors Auto by probing the first input’s channel layout.
 - **FDK controls** (quality slider + afterburner) are only visible when the encoder select is set to Fraunhofer. The slider writes `vbr.level` (1..5). Afterburner toggles the `afterburner` boolean sent to Rust.
-- **Encoder availability hint** displays the result of `list_available_encoders` and disables unsupported options so the user understands why FDK/Apple/Opus might not be selectable.
+- **Encoder availability hint** displays the result of `list_available_encoders` and disables unsupported options so the user understands why FDK/Apple might not be selectable.
 
 ## Command / type mapping
 
@@ -58,8 +56,6 @@ Apple does not ship FDK, so the user must install an FFmpeg build that includes 
 
 3. **Verification**  
    Run `ffmpeg -hide_banner -encoders | grep fdk` and confirm `AAC (Advanced Audio Coding) (codec aac)` lists `libfdk_aac`. The UI’s availability check (`list_available_encoders`) should now report “FDK detected”.
-
-Opus support ships with the default Homebrew FFmpeg builds. If `list_available_encoders` reports `opus_available: false`, the user likely has an outdated binary and should reinstall with `brew install ffmpeg` (or rebuild with `--enable-libopus`).
 
 ## Troubleshooting checklist
 

@@ -13,9 +13,7 @@ const DEFAULT_FDK_VBR_LEVEL: u8 = 3;
 
 fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
     match encoder_type {
-        EncoderType::FdkHeAac | EncoderType::Auto | EncoderType::Opus => {
-            BitrateMode::Vbr(DEFAULT_FDK_VBR_LEVEL)
-        }
+        EncoderType::FdkHeAac | EncoderType::Auto => BitrateMode::Vbr(DEFAULT_FDK_VBR_LEVEL),
         EncoderType::AacAt => BitrateMode::Cvbr,
         EncoderType::NativeAac => BitrateMode::Cbr,
     }
@@ -40,10 +38,6 @@ fn resolve_plan_encoder_settings<'a>(
             EncoderType::AacAt
         } else if availability.fdk_available {
             EncoderType::FdkHeAac
-        } else if availability.native_aac_available {
-            EncoderType::NativeAac
-        } else if availability.opus_available {
-            EncoderType::Opus
         } else {
             EncoderType::NativeAac
         };
@@ -234,8 +228,6 @@ pub(crate) fn create_audio_encoder(
     let codec = if codec_name == "aac" {
         ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
-    } else if codec_name == "libopus" {
-        find_encoder_by_name("libopus")?
     } else {
         find_encoder_by_name(codec_name)?
     };
@@ -277,7 +269,6 @@ pub(crate) fn create_audio_encoder(
         EncoderType::FdkHeAac => configure_fdk_encoder(&mut opened, encoder_settings)?,
         EncoderType::AacAt => configure_aac_at_encoder(&mut opened)?,
         EncoderType::NativeAac | EncoderType::Auto => configure_native_aac_encoder(&mut opened)?,
-        EncoderType::Opus => configure_opus_encoder(&mut opened, encoder_settings)?,
     }
 
     configure_threads(&mut opened, encoder_settings.threads);
@@ -399,51 +390,6 @@ fn configure_native_aac_encoder(ctx: &mut ff::codec::context::Context) -> Result
     Ok(())
 }
 
-fn configure_opus_encoder(
-    ctx: &mut ff::codec::context::Context,
-    _settings: &EncoderSettings,
-) -> Result<()> {
-    use crate::errors::AppError;
-    use std::ffi::CString;
-
-    unsafe {
-        let av_ctx = ctx.as_mut_ptr();
-        // compression_level 10
-        let comp_key = CString::new("compression_level").expect("compression_level key");
-        let _ = ffmpeg_next::sys::av_opt_set_int(
-            av_ctx as *mut std::ffi::c_void,
-            comp_key.as_ptr(),
-            10,
-            0,
-        );
-
-        // application audio
-        let app_key = CString::new("application").expect("application key");
-        let app_val = CString::new("audio").expect("audio value");
-        let rc = ffmpeg_next::sys::av_opt_set(
-            av_ctx as *mut std::ffi::c_void,
-            app_key.as_ptr(),
-            app_val.as_ptr(),
-            0,
-        );
-        if rc < 0 {
-            return Err(AppError::General(format!(
-                "Failed to set opus application mode: FFmpeg error code {}",
-                rc
-            )));
-        }
-
-        let vbr_key = CString::new("vbr").expect("vbr key");
-        let vbr_val = CString::new("on").expect("on value");
-        let _ = ffmpeg_next::sys::av_opt_set(
-            av_ctx as *mut std::ffi::c_void,
-            vbr_key.as_ptr(),
-            vbr_val.as_ptr(),
-            0,
-        );
-    }
-    Ok(())
-}
 /// Sets up the output encoder context and stream with metadata support.
 /// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
 #[allow(clippy::too_many_lines)]
@@ -478,10 +424,7 @@ pub(crate) fn setup_encoder(
         }
     }
 
-    let stream_codec_id = match resolved_encoder_type {
-        EncoderType::Opus => ff::codec::Id::OPUS,
-        _ => ff::codec::Id::AAC,
-    };
+    let stream_codec_id = ff::codec::Id::AAC;
     let codec = ff::encoder::find(stream_codec_id)
         .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 

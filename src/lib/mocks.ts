@@ -87,7 +87,6 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
       return {
         fdk_available: false,
         aac_at_available: true,
-        opus_available: true,
         native_aac_available: true,
       } as unknown as T;
 

@@ -4,4 +4,3 @@
 
 export const ENABLE_VBR = true;
 export const ENABLE_FDK = true;
-export const ENABLE_OPUS = true;

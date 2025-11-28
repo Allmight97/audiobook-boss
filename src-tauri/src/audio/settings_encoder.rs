@@ -19,8 +19,6 @@ pub enum EncoderType {
     AacAt,
     /// Native FFmpeg AAC encoder (aac)
     NativeAac,
-    /// libopus encoder
-    Opus,
 }
 
 impl fmt::Display for EncoderType {
@@ -30,7 +28,6 @@ impl fmt::Display for EncoderType {
             EncoderType::FdkHeAac => "fdk_he_aac",
             EncoderType::AacAt => "aac_at",
             EncoderType::NativeAac => "native_aac",
-            EncoderType::Opus => "opus",
         };
         write!(f, "{}", label)
     }
@@ -138,7 +135,6 @@ fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> 
         EncoderType::FdkHeAac => matches!(mode, BitrateMode::Vbr(_)),
         EncoderType::AacAt => matches!(mode, BitrateMode::Cvbr),
         EncoderType::NativeAac => matches!(mode, BitrateMode::Cbr),
-        EncoderType::Opus => matches!(mode, BitrateMode::Vbr(_)),
     };
     if allowed {
         Ok(())
@@ -192,7 +188,6 @@ pub fn is_encoder_available_by_name(name: &str) -> bool {
 pub struct EncoderAvailability {
     pub fdk_available: bool,
     pub aac_at_available: bool,
-    pub opus_available: bool,
     pub native_aac_available: bool,
 }
 
@@ -200,7 +195,6 @@ pub fn detect_available_encoders() -> EncoderAvailability {
     EncoderAvailability {
         fdk_available: is_encoder_available_by_name("libfdk_aac"),
         aac_at_available: cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at"),
-        opus_available: is_encoder_available_by_name("libopus"),
         native_aac_available: is_encoder_available_by_name("aac"),
     }
 }
@@ -216,17 +210,12 @@ pub fn resolve_encoder_type(
                 EncoderType::FdkHeAac
             } else if availability.aac_at_available {
                 EncoderType::AacAt
-            } else if availability.native_aac_available {
-                EncoderType::NativeAac
-            } else if availability.opus_available {
-                EncoderType::Opus
             } else {
                 EncoderType::NativeAac
             }
         }
         EncoderType::FdkHeAac if availability.fdk_available => EncoderType::FdkHeAac,
         EncoderType::AacAt if availability.aac_at_available => EncoderType::AacAt,
-        EncoderType::Opus if availability.opus_available => EncoderType::Opus,
         EncoderType::NativeAac if availability.native_aac_available => EncoderType::NativeAac,
         fallback => {
             log::warn!(
@@ -250,7 +239,6 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
         EncoderType::Auto | EncoderType::NativeAac => "aac",
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
-        EncoderType::Opus => "libopus",
     }
 }
 
@@ -320,7 +308,8 @@ mod tests {
         s.bitrate_mode = BitrateMode::Vbr(3);
         assert!(validate_encoder_settings(&s).is_err());
 
-        s.encoder_type = EncoderType::Opus;
+        // Auto remains VBR-only
+        s.encoder_type = EncoderType::Auto;
         s.bitrate_mode = BitrateMode::Vbr(3);
         assert!(validate_encoder_settings(&s).is_ok());
         s.bitrate_mode = BitrateMode::Cvbr;
@@ -402,8 +391,7 @@ mod tests {
         assert!(
             availability.native_aac_available
                 || availability.aac_at_available
-                || availability.fdk_available
-                || availability.opus_available,
+                || availability.fdk_available,
             "At least one encoder should be available in the environment"
         );
     }
@@ -413,7 +401,6 @@ mod tests {
         let availability = EncoderAvailability {
             fdk_available: true,
             aac_at_available: true,
-            opus_available: true,
             native_aac_available: true,
         };
         let resolved = resolve_encoder_type(
@@ -428,7 +415,6 @@ mod tests {
         let availability_no_fdk = EncoderAvailability {
             fdk_available: false,
             aac_at_available: true,
-            opus_available: true,
             native_aac_available: true,
         };
         let resolved = resolve_encoder_type(
@@ -443,7 +429,6 @@ mod tests {
         let availability_none = EncoderAvailability {
             fdk_available: false,
             aac_at_available: false,
-            opus_available: false,
             native_aac_available: true,
         };
         let resolved = resolve_encoder_type(

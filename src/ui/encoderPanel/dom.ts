@@ -9,7 +9,6 @@ export interface EncoderDomCache {
   fdkStatus?: HTMLElement | null;
   encoderAvailabilityHint?: HTMLElement | null;
   encoderNote?: HTMLElement | null;
-  opusHint?: HTMLElement | null;
 }
 
 export const queryDom = (): EncoderDomCache => ({
@@ -33,5 +32,4 @@ export const queryDom = (): EncoderDomCache => ({
   fdkStatus: document.getElementById("adv-fdk-status"),
   encoderAvailabilityHint: document.getElementById("encoder-availability-hint"),
   encoderNote: document.getElementById("adv-encoder-note"),
-  opusHint: document.getElementById("adv-opus-hint"),
 });

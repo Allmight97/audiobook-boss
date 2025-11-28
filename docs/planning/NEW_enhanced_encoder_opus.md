@@ -2,13 +2,13 @@
 
 ## Overview
 
-Replace the current encoder with a production-ready engine based on `shrink.sh` patterns, adding FDK HE-AAC, Apple AAC CVBR, and Opus encoders with an enhanced multi-file adaptive preview system.
+Replace the current encoder with a production-ready engine based on `shrink.sh` patterns, adding FDK HE-AAC and Apple AAC CVBR encoders with an enhanced multi-file adaptive preview system.
 
 ## Scope Summary - Split into 2 PRs
 
 ### PR 1: Encoder Engine + UI
 
-1. **Encoder Types**: FDK VBR + afterburner, Apple CVBR, Native AAC, Opus
+1. **Encoder Types**: FDK VBR + afterburner, Apple CVBR, Native AAC
 2. **Detection**: Auto-detect available encoders via ffmpeg-next runtime probes (document how to install FFmpeg with libfdk_aac)
 3. **UI Updates**: Encoder selection, VBR controls, feature flag enablement
 4. **Target**: `feature/enhanced-encoder` → `new_encoder`
@@ -36,7 +36,6 @@ pub enum EncoderType {
     FdkHeAac,       // NEW: libfdk_aac HE-AAC with VBR + afterburner
     AacAt,          // Existing: Apple AudioToolbox CVBR
     NativeAac,      // RENAMED from HeAacV1: FFmpeg native AAC
-    Opus,           // NEW: libopus for Audiobookshelf compatibility
 }
 ```
 
@@ -83,7 +82,6 @@ pub struct EncoderSettings {
 pub struct EncoderAvailability {
     pub fdk_available: bool,
     pub aac_at_available: bool,
-    pub opus_available: bool,
     pub native_aac_available: bool,  // Always true (FFmpeg built-in)
 }
 
@@ -91,7 +89,6 @@ pub fn detect_available_encoders() -> EncoderAvailability {
     // Use avcodec_find_encoder_by_name() for each encoder:
     // - "libfdk_aac" → fdk_available
     // - "aac_at" → aac_at_available (macOS only)
-    // - "libopus" → opus_available
     // - "aac" → native_aac_available (always true)
 }
 
@@ -163,36 +160,19 @@ fn configure_apple_encoder(ctx: &mut EncoderContext, settings: &EncoderSettings)
 }
 ```
 
-### 1.7 Opus Encoder Configuration
-
-**File**: `src-tauri/src/audio/processor/encoder.rs`
-
-```rust
-// libopus with VBR (from opus.sh patterns)
-// Default: 48kbps, compression_level 10, application audio
-fn configure_opus_encoder(ctx: &mut EncoderContext, settings: &EncoderSettings) {
-    // -c:a libopus
-    // -b:a {bitrate}
-    // -vbr on
-    // -compression_level 10
-    // -application audio
-}
-```
-
-### 1.8 Defaults (from shrink.sh)
+### 1.7 Defaults (from shrink.sh)
 
 | Encoder | Profile              | Bitrate Mode | Default Bitrate | Extra          |
 | ------- | -------------------- | ------------ | --------------- | -------------- |
 | FDK     | HE-AAC v1 (`aac_he`) | VBR 3        | ~60kbps         | afterburner=1  |
 | Apple   | AAC-LC (auto)        | CVBR         | 64kbps          | -              |
 | Native  | AAC-LC               | CBR          | 64kbps          | twoloop coder  |
-| Opus    | -                    | VBR          | 48kbps          | compression=10 |
 
 **Important**: FDK uses HE-AAC v1 (not v2) because v1 supports both mono AND stereo, while v2 is stereo-only. This ensures safe "preserve source channels" behavior.
 
-### 1.9 HE-AAC v2 Removal (final decision)
+### 1.8 HE-AAC v2 Removal (final decision)
 
-**Decision**: remove HE-AAC v2 everywhere (Rust enums, TypeScript types, UI, mocks, tests, IPC payloads). Audiobook targets do not benefit from Parametric Stereo, so v1 + Opus cover all use cases.
+**Decision**: remove HE-AAC v2 everywhere (Rust enums, TypeScript types, UI, mocks, tests, IPC payloads). Audiobook targets do not benefit from Parametric Stereo, so HE-AAC v1 plus the remaining AAC encoders cover the intended use cases.
 
 **Cleanup tasks**:
 
@@ -335,8 +315,7 @@ export type EncoderType =
   | "auto"
   | "fdk_he_aac"
   | "aac_at"
-  | "native_aac"
-  | "opus";
+  | "native_aac";
 
 export type BitrateMode =
   | { mode: "cbr" }
@@ -360,7 +339,6 @@ export interface EncoderSettingsV2 {
 ```typescript
 export const ENABLE_VBR = true; // Was false
 export const ENABLE_FDK = true; // Was false
-export const ENABLE_OPUS = true; // NEW
 ```
 
 ### 3.3 Encoder Panel UI Changes
@@ -369,8 +347,8 @@ export const ENABLE_OPUS = true; // NEW
 
 **Basic Settings Section:**
 
-- Encoder dropdown: Auto | FDK HE-AAC | Apple AAC | Native AAC | Opus
-- Bitrate selector (existing, maybe expand range for Opus)
+- Encoder dropdown: Auto | FDK HE-AAC | Apple AAC | Native AAC
+- Bitrate selector (existing)
 - Channels selector (existing)
 
 **Advanced Settings Accordion:**
@@ -397,7 +375,7 @@ Show user which encoders are available:
 
 **Phase 1.1: Rust Encoder Types & Detection**
 
-1. Update `EncoderType` enum (add Auto, FdkHeAac, Opus; rename HeAacV1→NativeAac)
+1. Update `EncoderType` enum (add Auto, FdkHeAac; rename HeAacV1→NativeAac)
 2. Add `BitrateMode` enum (Cbr, Vbr, Cvbr)
 3. Update `EncoderSettings` struct with new fields
 4. Add `EncoderAvailability` struct and detection function
@@ -407,7 +385,6 @@ Show user which encoders are available:
 
 1. Wire up FDK libfdk_aac: profile, vbr level, afterburner via FFmpeg options
 2. Wire up Apple aac_at: CVBR mode configuration
-3. Add Opus libopus: vbr, compression_level, application mode
 4. Update `resolve_encoder()` for auto-detection fallback chain
 
 **Phase 1.3: TypeScript Types & Bridge**
@@ -419,7 +396,7 @@ Show user which encoders are available:
 
 **Phase 1.4: UI Updates**
 
-1. Enable feature flags (VBR, FDK, OPUS)
+1. Enable feature flags (VBR, FDK)
 2. Update `index.html` - encoder dropdown, VBR slider, afterburner toggle, availability/help text
 3. Update `encoderPanel/logic.ts` - read new settings
 4. Add encoder availability indicator (checkmarks/warnings)
@@ -428,7 +405,7 @@ Show user which encoders are available:
 **Phase 1.5: Documentation (from Codex)**
 
 1. Add `docs/planning/enhanced-encoder-mapping.md` explaining:
-   - How `shrink.sh`/`opus.sh` toggles map to new UI/backend controls
+   - How `shrink.sh` toggles map to new UI/backend controls
    - How to point the app at a locally installed libfdk build
    - FDK licensing constraints (can't bundle, user must provide)
 
@@ -485,7 +462,7 @@ Show user which encoders are available:
 
 - `src/types/encoder.ts` - UI types (EncoderType, BitrateMode)
 - `src/types/audio.ts` - Boundary types
-- `src/ui/encoderPanel/featureFlags.ts` - Enable VBR, FDK, OPUS flags
+- `src/ui/encoderPanel/featureFlags.ts` - Enable VBR, FDK flags
 - `src/ui/encoderPanel/logic.ts` - Settings reading
 - `src/ui/encoderPanel/dom.ts` - DOM cache for new elements
 - `index.html` - Encoder dropdown, VBR slider, afterburner toggle, availability/help text
@@ -516,14 +493,13 @@ Show user which encoders are available:
 
 ## PR 1 Checklist: Enhanced Encoder
 
-- [ ] All encoder types working (Auto, FDK, Apple, Native, Opus)
+- [ ] All encoder types working (Auto, FDK, Apple, Native)
 - [ ] Auto-detection selects best available (FDK > Apple > Native)
 - [ ] `list_available_encoders` command returns correct availability via `avcodec_find_encoder_by_name()`
 - [ ] FDK uses HE-AAC v1 profile (`aac_he`) - works for mono AND stereo
 - [ ] VBR levels 1-5 configurable for FDK
 - [ ] Afterburner toggle works for FDK
 - [ ] Apple aac_at uses CVBR mode
-- [ ] Opus uses VBR with compression_level 10
 - [ ] **Channel handling**: `ChannelConfig` enum with Auto/Mono/Stereo; default is Auto (preserve source)
 - [ ] UI shows encoder availability (checkmarks/warnings; helpful message if FDK unavailable)
 - [ ] Conditional visibility (VBR/afterburner only for FDK)
