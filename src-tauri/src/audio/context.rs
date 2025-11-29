@@ -155,7 +155,7 @@ impl ProcessingContext {
     pub fn effective_channel_count(&self) -> u8 {
         self.encoder_settings_v2
             .as_ref()
-            .map(|enc| enc.channels)
+            .and_then(|enc| enc.channels.forced_channels())
             .unwrap_or_else(|| self.settings.channels.channel_count())
     }
 }

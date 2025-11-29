@@ -31,7 +31,6 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
     - `previewSeconds?: number` (optional short preview)
   - Returns: `{ message: string; previewFilePath?: string; previewActualSeconds?: number }` (`src-tauri/src/commands/audio.rs:215`)
   - Notes:
-    - `he_aac_v2` requires `channels: 2` (stereo)
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
 
 - `cancel_processing`

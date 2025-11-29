@@ -27,9 +27,9 @@ export interface AudioSettings {
   outputPath: string;
 }
 
-export type SampleRateConfig = 'auto' | { explicit: number };
+export type SampleRateConfig = "auto" | { explicit: number };
 
-export type ChannelConfig = 'Mono' | 'Stereo';
+export type ChannelConfig = "Mono" | "Stereo";
 
 export interface ProcessingProgress {
   stage: ProcessingStage;
@@ -40,12 +40,12 @@ export interface ProcessingProgress {
   etaSeconds?: number;
 }
 
-export type ProcessingStage = 
-  | 'Analyzing'
-  | 'Converting' 
-  | 'Merging'
-  | 'WritingMetadata'
-  | 'Completed'
+export type ProcessingStage =
+  | "Analyzing"
+  | "Converting"
+  | "Merging"
+  | "WritingMetadata"
+  | "Completed"
   | { Failed: string };
 
 // Preview command typing helpers (Tauri boundary)
@@ -58,98 +58,114 @@ export interface ProcessCommandResult {
   previewFilePath?: string;
 }
 
-// Encoder v2 types (Phase 1)
-export type EncoderType = 'aac_at' | 'he_aac_v1' | 'he_aac_v2';
-export type AacCoder = 'twoloop' | 'fast';
+// Encoder v2 types (Enhanced engine)
+export type EncoderType =
+  | "auto"
+  | "fdk_he_aac"
+  | "aac_at"
+  | "native_aac";
+export type BitrateMode =
+  | { mode: "cbr" }
+  | { mode: "cvbr" }
+  | { mode: "vbr"; level: 1 | 2 | 3 | 4 | 5 };
 export type ThreadSetting =
-  | { mode: 'auto' }
-  | { mode: 'off' }
-  | { mode: 'fixed'; value: number };
+  | { mode: "auto" }
+  | { mode: "off" }
+  | { mode: "fixed"; value: number };
+export type EncoderChannelConfig = "auto" | 1 | 2;
 
 // Single source of truth for valid encoder bitrates (kbps)
 // Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs
-export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128] as const;
-export type BitrateKbps = typeof VALID_ENCODER_BITRATES[number];
+export const VALID_ENCODER_BITRATES = [
+  48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128,
+] as const;
+export type BitrateKbps = (typeof VALID_ENCODER_BITRATES)[number];
 
 export interface EncoderSettings {
-  encoderType: EncoderType;           // default: 'aac_at' on macOS
+  encoderType: EncoderType; // default: Apple on macOS, native otherwise
   bitrateKbps: BitrateKbps;
-  channels: 1 | 2;                    // if he_aac_v2 → coerced to 2
-  aacCoder?: AacCoder;                // ignored for aac_at
-  afterburner?: boolean;              // ignored for aac_at
-  threads: ThreadSetting;             // best-effort for aac_at
+  bitrateMode: BitrateMode;
+  channels: EncoderChannelConfig;
+  afterburner: boolean;
+  threads: ThreadSetting;
 }
 
 // Platform-aware default encoder settings
 export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
-  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent);
-  const encoderType: EncoderType = isMac ? 'aac_at' : 'he_aac_v1';
+  const isMac =
+    typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
+  const encoderType: EncoderType = isMac ? "aac_at" : "native_aac";
+  const bitrateMode: BitrateMode =
+    encoderType === "aac_at" ? { mode: "cvbr" } : { mode: "cbr" };
   return {
     encoderType,
     bitrateKbps: 64,
-    channels: 1,
-    aacCoder: 'twoloop',
+    bitrateMode,
+    channels: "auto",
     afterburner: false,
-    threads: { mode: 'auto' }
+    threads: { mode: "auto" },
   };
 };
 
 // Default encoder settings (delegates to platform-aware helper)
-export const defaultEncoderSettings = (): EncoderSettings => getDefaultEncoderSettingsForPlatform();
+export const defaultEncoderSettings = (): EncoderSettings =>
+  getDefaultEncoderSettingsForPlatform();
 
 // Audio settings presets
 export const AudioPresets = {
   audiobook: (): AudioSettings => ({
     bitrate: 64,
-    channels: 'Mono',
+    channels: "Mono",
     sampleRate: { explicit: 22050 },
-    outputPath: 'audiobook.m4b'
+    outputPath: "audiobook.m4b",
   }),
-  
+
   highQuality: (): AudioSettings => ({
     bitrate: 128,
-    channels: 'Stereo', 
+    channels: "Stereo",
     sampleRate: { explicit: 44100 },
-    outputPath: 'audiobook_hq.m4b'
+    outputPath: "audiobook_hq.m4b",
   }),
-  
+
   lowBandwidth: (): AudioSettings => ({
     bitrate: 48,
-    channels: 'Mono',
+    channels: "Mono",
     sampleRate: { explicit: 22050 },
-    outputPath: 'audiobook_low.m4b'
-  })
+    outputPath: "audiobook_low.m4b",
+  }),
 };
 
 // Utility functions
 export const formatDuration = (seconds: number | undefined): string => {
   if (seconds == null || isNaN(seconds)) {
-    return '---';
+    return "---";
   }
-  
+
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
 };
 
 export const formatFileSize = (bytes: number | undefined): string => {
   if (bytes == null || isNaN(bytes)) {
-    return '---';
+    return "---";
   }
-  
-  const units = ['B', 'KB', 'MB', 'GB'];
+
+  const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;
-  
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024;
     unitIndex++;
   }
-  
+
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 };

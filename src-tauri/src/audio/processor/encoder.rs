@@ -1,7 +1,60 @@
 //! Encoder setup and packet writing utilities (behavior-preserving extraction)
 
+use crate::audio::settings_encoder::{
+    self, BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderAvailability, EncoderSettings,
+    EncoderType, ThreadSetting,
+};
+use crate::audio::ChannelConfig as LegacyChannelConfig;
 use crate::errors::Result;
 use ffmpeg_next as ff;
+use std::borrow::Cow;
+
+const DEFAULT_FDK_VBR_LEVEL: u8 = 3;
+
+fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
+    match encoder_type {
+        EncoderType::FdkHeAac | EncoderType::Auto => BitrateMode::Vbr(DEFAULT_FDK_VBR_LEVEL),
+        EncoderType::AacAt => BitrateMode::Cvbr,
+        EncoderType::NativeAac => BitrateMode::Cbr,
+    }
+}
+
+fn legacy_channel_to_encoder(ch: LegacyChannelConfig) -> EncoderChannelConfig {
+    match ch {
+        LegacyChannelConfig::Mono => EncoderChannelConfig::Mono,
+        LegacyChannelConfig::Stereo => EncoderChannelConfig::Stereo,
+    }
+}
+
+fn resolve_plan_encoder_settings<'a>(
+    plan: &'a crate::audio::media_pipeline::MediaProcessingPlan,
+    availability: &EncoderAvailability,
+) -> (Cow<'a, EncoderSettings>, EncoderType) {
+    if let Some(settings) = &plan.encoder_settings_v2 {
+        let resolved = settings_encoder::resolve_encoder_type(settings, availability);
+        (Cow::Borrowed(settings), resolved)
+    } else {
+        let default_encoder_type = if availability.fdk_available {
+            EncoderType::FdkHeAac
+        } else if availability.aac_at_available {
+            EncoderType::AacAt
+        } else {
+            EncoderType::NativeAac
+        };
+        let synthesized = EncoderSettings {
+            encoder_type: default_encoder_type,
+            bitrate_kbps: plan.settings.bitrate as u16,
+            bitrate_mode: default_bitrate_mode_for(default_encoder_type),
+            channels: legacy_channel_to_encoder(plan.settings.channels.clone()),
+            afterburner: matches!(default_encoder_type, EncoderType::FdkHeAac),
+            threads: ThreadSetting::Auto,
+        };
+        if let Err(err) = settings_encoder::validate_encoder_settings(&synthesized) {
+            log::warn!("synthesized encoder settings failed validation: {}", err);
+        }
+        (Cow::Owned(synthesized), default_encoder_type)
+    }
+}
 
 /// Finds encoder by name using FFmpeg's encoder registry
 fn find_encoder_by_name(name: &str) -> Result<ff::Codec> {
@@ -102,78 +155,89 @@ fn resolve_target_audio_params(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
 ) -> Result<(u32, i32)> {
     use crate::audio::SampleRateConfig;
-    use crate::errors::AppError;
 
-    let channel_count = plan
+    let needs_probe_for_rate = matches!(plan.settings.sample_rate, SampleRateConfig::Auto);
+    let needs_probe_for_channels = plan
         .encoder_settings_v2
         .as_ref()
-        .map(|enc| enc.channels as i32)
-        .unwrap_or_else(|| plan.settings.channels.channel_count() as i32);
+        .map(|enc| matches!(enc.channels, EncoderChannelConfig::Auto))
+        .unwrap_or(false);
 
-    match &plan.settings.sample_rate {
-        SampleRateConfig::Explicit(rate) => Ok((*rate, channel_count)),
-        SampleRateConfig::Auto => {
-            let first = plan
-                .input_file_paths
-                .first()
-                .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-            let ictx = ff::format::input(&first)
-                .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-            let stream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
-                AppError::InvalidInput("No audio stream in first input".to_string())
-            })?;
-            let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
-                .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
-            let decoder = codec_ctx
-                .decoder()
-                .audio()
-                .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
-            // Pass through sample rate; channels always come from UI settings
-            Ok((decoder.rate(), channel_count))
-        }
-    }
+    let probe = if needs_probe_for_rate || needs_probe_for_channels {
+        Some(probe_first_input(plan)?)
+    } else {
+        None
+    };
+
+    let sampled_rate = probe.map(|(rate, _)| rate);
+    let sampled_channels = probe.map(|(_, ch)| ch);
+
+    let target_sample_rate = match plan.settings.sample_rate {
+        SampleRateConfig::Explicit(rate) => rate,
+        SampleRateConfig::Auto => sampled_rate.expect("input probe to provide sample rate"),
+    };
+
+    let plan_channel_fallback = plan.settings.channels.channel_count() as i32;
+    let target_channels = plan
+        .encoder_settings_v2
+        .as_ref()
+        .and_then(|enc| enc.channels.forced_channels().map(|c| c as i32))
+        .or(sampled_channels)
+        .unwrap_or(plan_channel_fallback);
+
+    Ok((target_sample_rate, target_channels))
+}
+
+fn probe_first_input(
+    plan: &crate::audio::media_pipeline::MediaProcessingPlan,
+) -> Result<(u32, i32)> {
+    use crate::errors::AppError;
+
+    let first = plan
+        .input_file_paths
+        .first()
+        .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
+    let ictx = ff::format::input(&first)
+        .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+    let stream = ictx
+        .streams()
+        .best(ff::media::Type::Audio)
+        .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
+    let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
+        .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
+    let decoder = codec_ctx
+        .decoder()
+        .audio()
+        .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
+    let channels = decoder.channel_layout().channels() as i32;
+    Ok((decoder.rate(), channels.max(1)))
 }
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
 pub(crate) fn create_audio_encoder(
-    plan: &crate::audio::media_pipeline::MediaProcessingPlan,
+    encoder_settings: &EncoderSettings,
+    resolved_encoder: EncoderType,
     target_sample_rate: u32,
     target_channels: i32,
     requires_global_header: bool,
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     use crate::errors::AppError;
 
-    // Encoder selection: prefer aac_at on macOS when requested and available; else native aac
-    let resolved_encoder_name: &str = {
-        if let Some(v2) = &plan.encoder_settings_v2 {
-            match v2.encoder_type {
-                crate::audio::settings_encoder::EncoderType::AacAt => {
-                    crate::audio::settings_encoder::resolve_encoder_name(
-                        crate::audio::settings_encoder::EncoderType::AacAt,
-                    )
-                }
-                _ => "aac",
-            }
-        } else {
-            "aac"
-        }
-    };
-    let codec = if resolved_encoder_name == "aac" {
+    let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
+    let codec = if codec_name == "aac" {
         ff::encoder::find(ff::codec::Id::AAC)
             .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
     } else {
-        find_encoder_by_name(resolved_encoder_name)?
+        find_encoder_by_name(codec_name)?
     };
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
-    // AAC-AT (macOS AudioToolbox) only supports s16/u8, not float planar.
-    // Native AAC encoder prefers float planar for better precision during encoding.
-    let sample_format = if resolved_encoder_name == "aac_at" {
-        log::debug!("Using S16 sample format for AAC-AT encoder");
-        ff::format::Sample::I16(ff::format::sample::Type::Packed)
-    } else {
-        ff::format::Sample::F32(ff::format::sample::Type::Planar)
+    let sample_format = match resolved_encoder {
+        EncoderType::FdkHeAac | EncoderType::AacAt => {
+            ff::format::Sample::I16(ff::format::sample::Type::Packed)
+        }
+        _ => ff::format::Sample::F32(ff::format::sample::Type::Planar),
     };
     let time_base = ff::Rational(1, target_sample_rate as i32);
 
@@ -181,131 +245,38 @@ pub(crate) fn create_audio_encoder(
         .encoder()
         .audio()
         .map_err(|e| AppError::General(format!("Open encoder failed: {e}")))?;
-    // Bitrate/rate/channels
-    let effective_bitrate_kbps = plan
-        .encoder_settings_v2
-        .as_ref()
-        .map(|enc| enc.bitrate_kbps as usize)
-        .unwrap_or(plan.settings.bitrate as usize);
-    let target_bit_rate = effective_bitrate_kbps * 1000;
+
+    let target_bit_rate = encoder_settings.bitrate_kbps as usize * 1000;
     opened.set_bit_rate(target_bit_rate);
     opened.set_rate(target_sample_rate as i32);
     opened.set_channel_layout(channel_layout);
     opened.set_format(sample_format);
     opened.set_time_base(time_base);
 
-    match try_configure_variable_frame_size(&mut opened) {
-        Ok(()) => log::info!("AAC encoder configured for variable frame sizes"),
-        Err(e) => log::warn!(
-            "Could not configure variable frame sizes ({}), may have frame size issues",
-            e
-        ),
-    }
-
-    // Option mapping from v2 settings (profile, coder, threads)
-    if let Some(v2) = &plan.encoder_settings_v2 {
-        // HE-AAC profiles (best-effort, native AAC)
-        if matches!(
-            v2.encoder_type,
-            crate::audio::settings_encoder::EncoderType::HeAacV1
-                | crate::audio::settings_encoder::EncoderType::HeAacV2
-        ) {
-            unsafe {
-                use std::ffi::CString;
-                let av_ctx = opened.as_mut_ptr();
-                let key = CString::new("profile").expect("profile key should be valid");
-                // Values from FFmpeg headers
-                let value = match v2.encoder_type {
-                    crate::audio::settings_encoder::EncoderType::HeAacV1 => {
-                        ffmpeg_next::sys::FF_PROFILE_AAC_HE
-                    }
-                    crate::audio::settings_encoder::EncoderType::HeAacV2 => {
-                        ffmpeg_next::sys::FF_PROFILE_AAC_HE_V2
-                    }
-                    _ => ffmpeg_next::sys::FF_PROFILE_AAC_LOW,
-                } as i64;
-                let _ = ffmpeg_next::sys::av_opt_set_int(
-                    av_ctx as *mut std::ffi::c_void,
-                    key.as_ptr(),
-                    value,
-                    0,
-                );
-            }
-        }
-
-        // aac_coder only for native aac
-        if resolved_encoder_name == "aac" {
-            if let Some(coder) = v2.aac_coder {
-                unsafe {
-                    use std::ffi::CString;
-                    let av_ctx = opened.as_mut_ptr();
-                    let key = CString::new("aac_coder").expect("aac_coder key should be valid");
-                    let val_str = match coder {
-                        crate::audio::settings_encoder::AacCoder::Twoloop => "twoloop",
-                        crate::audio::settings_encoder::AacCoder::Fast => "fast",
-                    };
-                    let value = CString::new(val_str).expect("aac_coder value should be valid");
-                    let rc = ffmpeg_next::sys::av_opt_set(
-                        av_ctx as *mut std::ffi::c_void,
-                        key.as_ptr(),
-                        value.as_ptr(),
-                        0,
-                    );
-                    if rc < 0 {
-                        log::debug!("Failed to set aac_coder={} rc={}", val_str, rc);
-                    }
-                }
-            }
-        }
-
-        // Threads mapping: Auto=0, Off=1, Fixed(n)=n
-        let threads_value = match v2.threads {
-            crate::audio::settings_encoder::ThreadSetting::Auto => 0,
-            crate::audio::settings_encoder::ThreadSetting::Off => 1,
-            crate::audio::settings_encoder::ThreadSetting::Fixed(n) => n as i32,
-        };
-        if threads_value > 0 {
-            // ffmpeg-next exposes set_threading on context via builder flags; use low-level opt if not available
-            unsafe {
-                use std::ffi::CString;
-                let av_ctx = opened.as_mut_ptr();
-                let key = CString::new("threads").expect("threads key should be valid");
-                let _ = ffmpeg_next::sys::av_opt_set_int(
-                    av_ctx as *mut std::ffi::c_void,
-                    key.as_ptr(),
-                    threads_value as i64,
-                    0,
-                );
-            }
-        }
-
-        // Afterburner: FDK-only; log ignored for native or aac_at
-        if v2.afterburner.unwrap_or(false) {
-            log::info!("afterburner requested but non-FDK encoder in use - option ignored");
-        }
-    } else {
-        // Legacy twoloop behavior behind env flag for native AAC
-        let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
-        if disable_twoloop {
-            log::info!("Twoloop AAC enhancement disabled via environment override");
-        } else {
-            match try_enable_twoloop_aac(&mut opened) {
-                Ok(()) => log::info!(
-                    "Twoloop AAC enhancement enabled successfully - expect improved audio quality"
-                ),
-                Err(e) => log::warn!(
-                    "Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC",
-                    e
-                ),
-            }
+    if matches!(
+        resolved_encoder,
+        EncoderType::FdkHeAac | EncoderType::AacAt | EncoderType::NativeAac
+    ) {
+        if let Err(e) = try_configure_variable_frame_size(&mut opened) {
+            log::warn!(
+                "Could not configure variable frame sizes ({}), may have frame size issues",
+                e
+            );
         }
     }
+
+    match resolved_encoder {
+        EncoderType::FdkHeAac => configure_fdk_encoder(&mut opened, encoder_settings)?,
+        EncoderType::AacAt => configure_aac_at_encoder(&mut opened)?,
+        EncoderType::NativeAac | EncoderType::Auto => configure_native_aac_encoder(&mut opened)?,
+    }
+
+    configure_threads(&mut opened, encoder_settings.threads);
 
     if requires_global_header {
         opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
     }
+
     let enc_ctx = opened
         .open_as(codec)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
@@ -313,8 +284,115 @@ pub(crate) fn create_audio_encoder(
     Ok(enc_ctx)
 }
 
+fn configure_threads(ctx: &mut ff::codec::context::Context, threads: ThreadSetting) {
+    let threads_value = match threads {
+        ThreadSetting::Auto => 0,
+        ThreadSetting::Off => 1,
+        ThreadSetting::Fixed(n) => n as i32,
+    };
+    if threads_value > 0 {
+        unsafe {
+            use std::ffi::CString;
+            let av_ctx = ctx.as_mut_ptr();
+            let key = CString::new("threads").expect("threads key should be valid");
+            let _ = ffmpeg_next::sys::av_opt_set_int(
+                av_ctx as *mut std::ffi::c_void,
+                key.as_ptr(),
+                threads_value as i64,
+                0,
+            );
+        }
+    }
+}
+
+fn configure_fdk_encoder(
+    ctx: &mut ff::codec::context::Context,
+    settings: &EncoderSettings,
+) -> Result<()> {
+    use crate::errors::AppError;
+    use std::ffi::CString;
+
+    unsafe {
+        let av_ctx = ctx.as_mut_ptr();
+        let profile_key = CString::new("profile").expect("profile key");
+        let _ = ffmpeg_next::sys::av_opt_set_int(
+            av_ctx as *mut std::ffi::c_void,
+            profile_key.as_ptr(),
+            ffmpeg_next::sys::FF_PROFILE_AAC_HE as i64,
+            0,
+        );
+
+        if let BitrateMode::Vbr(level) = settings.bitrate_mode {
+            let vbr_key = CString::new("vbr").expect("vbr key");
+            let _ = ffmpeg_next::sys::av_opt_set_int(
+                av_ctx as *mut std::ffi::c_void,
+                vbr_key.as_ptr(),
+                level as i64,
+                0,
+            );
+        } else {
+            return Err(AppError::InvalidInput(
+                "FDK encoder requires VBR bitrate mode".to_string(),
+            ));
+        }
+
+        let afterburner_key = CString::new("afterburner").expect("afterburner key");
+        let _ = ffmpeg_next::sys::av_opt_set_int(
+            av_ctx as *mut std::ffi::c_void,
+            afterburner_key.as_ptr(),
+            if settings.afterburner { 1 } else { 0 },
+            0,
+        );
+    }
+    Ok(())
+}
+
+fn configure_aac_at_encoder(ctx: &mut ff::codec::context::Context) -> Result<()> {
+    use crate::errors::AppError;
+    use std::ffi::CString;
+
+    unsafe {
+        let av_ctx = ctx.as_mut_ptr();
+        let key = CString::new("aac_at_mode").expect("aac_at_mode key");
+        let value = CString::new("cvbr").expect("cvbr value");
+        let rc = ffmpeg_next::sys::av_opt_set(
+            av_ctx as *mut std::ffi::c_void,
+            key.as_ptr(),
+            value.as_ptr(),
+            0,
+        );
+        if rc < 0 {
+            return Err(AppError::General(format!(
+                "Failed to set aac_at_mode: FFmpeg error code {}",
+                rc
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn configure_native_aac_encoder(ctx: &mut ff::codec::context::Context) -> Result<()> {
+    let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if disable_twoloop {
+        log::info!("Twoloop AAC enhancement disabled via environment override");
+        return Ok(());
+    }
+
+    match try_enable_twoloop_aac(ctx) {
+        Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully"),
+        Err(e) => log::warn!(
+            "Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC",
+            e
+        ),
+    }
+    Ok(())
+}
+
 /// Sets up the output encoder context and stream with metadata support.
 /// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
+#[allow(clippy::too_many_lines)]
 pub(crate) fn setup_encoder(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
@@ -329,6 +407,10 @@ pub(crate) fn setup_encoder(
 
     let (target_sample_rate, target_channels) = resolve_target_audio_params(plan)?;
 
+    let availability = settings_encoder::detect_available_encoders();
+    let (effective_settings, resolved_encoder_type) =
+        resolve_plan_encoder_settings(plan, &availability);
+
     let mut octx = ff::format::output(&plan.output_path)
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
@@ -342,8 +424,9 @@ pub(crate) fn setup_encoder(
         }
     }
 
-    let codec = ff::encoder::find(ff::codec::Id::AAC)
-        .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?;
+    let stream_codec_id = ff::codec::Id::AAC;
+    let codec = ff::encoder::find(stream_codec_id)
+        .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 
     let requires_global_header = octx
         .format()
@@ -355,7 +438,8 @@ pub(crate) fn setup_encoder(
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
     let enc_ctx = create_audio_encoder(
-        plan,
+        effective_settings.as_ref(),
+        resolved_encoder_type,
         target_sample_rate,
         target_channels,
         requires_global_header,
@@ -431,7 +515,8 @@ pub(crate) fn setup_encoder(
         .unwrap_or(plan.settings.bitrate);
 
     log::info!(
-        "encoder_setup resolved: rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k encoder_settings_v2={:?}",
+        "encoder_setup resolved: encoder={:?} rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k requested_v2={:?}",
+        resolved_encoder_type,
         target_sample_rate,
         target_channels,
         enc_ctx.format(),
@@ -629,11 +714,8 @@ pub(crate) fn finalize_encoding_after_preview(
 mod tests {
     use super::*;
     use crate::audio::media_pipeline::MediaProcessingPlan;
-    use crate::audio::settings_encoder::{
-        is_encoder_available_by_name, EncoderSettings, EncoderType, ThreadSetting,
-    };
+    use crate::audio::settings_encoder::{EncoderSettings, EncoderType, ThreadSetting};
     use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
-    use crate::errors::AppError;
 
     #[test]
     fn create_encoder_respects_v2_settings() {
@@ -644,16 +726,16 @@ mod tests {
         let base_encoder_settings = EncoderSettings {
             encoder_type: EncoderType::AacAt,
             bitrate_kbps: 64,
-            channels: 2,
-            aac_coder: None,
-            afterburner: None,
+            bitrate_mode: BitrateMode::Cvbr,
+            channels: EncoderChannelConfig::Stereo,
+            afterburner: false,
             threads: ThreadSetting::Auto,
         };
-        let target_encoder_type = if is_encoder_available_by_name("aac_at") {
-            EncoderType::AacAt
-        } else {
-            EncoderType::HeAacV1
-        };
+        let availability = settings_encoder::detect_available_encoders();
+        if !availability.aac_at_available && !availability.native_aac_available {
+            eprintln!("Skipping encoder test - no AAC encoder available in environment");
+            return;
+        }
 
         let audio_settings = AudioSettings {
             bitrate: 64,
@@ -663,29 +745,22 @@ mod tests {
         };
 
         let mut plan = MediaProcessingPlan::new(out_path, audio_settings, vec![], 60.0);
-        plan.encoder_settings_v2 = Some(EncoderSettings {
-            encoder_type: target_encoder_type,
-            ..base_encoder_settings
-        });
-
-        let target_bitrate = base_encoder_settings.bitrate_kbps as i64 * 1000;
-        let encoder_channels = base_encoder_settings.channels as i32;
-        let enc = match create_audio_encoder(&plan, 44_100, encoder_channels, false).or_else(|e| {
-            if target_encoder_type == EncoderType::AacAt {
-                // Fallback to native AAC if aac_at rejects the configured sample format.
-                plan.encoder_settings_v2 = Some(EncoderSettings {
-                    encoder_type: EncoderType::HeAacV1,
-                    ..base_encoder_settings
-                });
-                create_audio_encoder(&plan, 44_100, encoder_channels, false).map_err(|e2| {
-                    AppError::General(format!(
-                        "aac_at failed ({e}); native AAC fallback failed ({e2})"
-                    ))
-                })
-            } else {
-                Err(e)
-            }
-        }) {
+        plan.encoder_settings_v2 = Some(base_encoder_settings.clone());
+        let (effective_settings, resolved_type) =
+            resolve_plan_encoder_settings(&plan, &availability);
+        let encoder_channels = effective_settings
+            .channels
+            .forced_channels()
+            .unwrap_or(plan.settings.channels.channel_count())
+            as i32;
+        let target_bitrate = effective_settings.bitrate_kbps as i64 * 1000;
+        let enc = match create_audio_encoder(
+            effective_settings.as_ref(),
+            resolved_type,
+            44_100,
+            encoder_channels,
+            false,
+        ) {
             Ok(enc) => enc,
             Err(e) => {
                 eprintln!("encoder setup skipped in test environment: {e}");
@@ -694,15 +769,11 @@ mod tests {
         };
 
         let codec = enc.codec().expect("encoder should expose codec");
-        let expected_codec = if is_encoder_available_by_name("aac_at") {
-            "aac_at"
-        } else {
-            "aac"
-        };
+        let expected_codec = settings_encoder::resolve_encoder_name(resolved_type);
         assert_eq!(
             codec.name(),
             expected_codec,
-            "encoder selection should prefer aac_at when available"
+            "encoder selection should honor resolved encoder type"
         );
 
         let configured_br = unsafe {
