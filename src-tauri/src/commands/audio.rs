@@ -156,8 +156,8 @@ pub async fn process_audiobook_files_v2(
                 .and_then(|s| s.parse::<f64>().ok())
         }) {
             if sec.is_finite() && sec > 0.0 {
-                context.preview = Some(crate::audio::context::PreviewConfig { seconds: sec });
-                log::info!("Preview requested (v2): seconds={:.3}", sec);
+                context.preview = Some(crate::audio::context::PreviewConfig::new(sec));
+                log::info!("Preview requested (v2): total_seconds={:.3}", sec);
                 preview_seconds_resolved = Some(sec);
             }
         }
