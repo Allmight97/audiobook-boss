@@ -48,6 +48,9 @@ pub mod streams;
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
 pub use prepare::detect_input_sample_rate;
 
+// Adaptive preview types (PR2)
+pub use frame_pipeline::{sanitize_chapter_title, ChapterMarker, PreviewAction, PreviewState};
+
 // Single-engine architecture: only ffmpeg-next processor supported
 
 /// Internal workflow state passed between staged phases of processing.
