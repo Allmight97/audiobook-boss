@@ -81,17 +81,24 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 };
 
 export const initializeEncoderPanelLogic = (): void => {
+  console.log("🔧 EncoderPanel: Initializing...");
   const dom = queryDom();
-  if (!dom.root) return; // Panel not present in this view; no-op
+  if (!dom.root) {
+    console.log("🔧 EncoderPanel: Root element not found, skipping init");
+    return; // Panel not present in this view; no-op
+  }
+  console.log("🔧 EncoderPanel: DOM elements found, applying persisted state...");
 
   applyPersistedState();
   hydrateAvailability().finally(() => {
+    console.log("🔧 EncoderPanel: Availability hydrated, syncing visibility...");
     syncAdvancedVisibility();
     persistState();
   });
   attachEventListeners();
   (window as WindowWithEncoderProvider).EncoderSettingsProvider =
     getEncoderSettingsFromDom;
+  console.log("🔧 EncoderPanel: Initialization complete");
 };
 
 const applyPersistedState = (): void => {
@@ -163,10 +170,12 @@ const persistState = (): void => {
 };
 
 const hydrateAvailability = async (): Promise<void> => {
+  console.log("🔧 EncoderPanel: Fetching encoder availability...");
   try {
     cachedAvailability = await bridge.invoke<EncoderAvailability>(
       "list_available_encoders"
     );
+    console.log("🔧 EncoderPanel: Availability received:", cachedAvailability);
   } catch (error) {
     console.warn("Failed to load encoder availability", error);
     cachedAvailability = null;
@@ -259,20 +268,27 @@ const enforceBitrateModeCompatibility = (flavor: EncoderFlavor): void => {
 const disableDisallowedEncoders = (): void => {
   const dom = queryDom();
   const select = dom.encoderSelect;
-  if (!select) return;
+  if (!select) {
+    console.log("🔧 EncoderPanel: disableDisallowedEncoders - select not found");
+    return;
+  }
   const availability = cachedAvailability;
+  console.log("🔧 EncoderPanel: disableDisallowedEncoders - availability:", availability, "ENABLE_FDK:", ENABLE_FDK);
   Array.from(select.options).forEach((option) => {
     switch (option.value) {
       case "fdk_he_aac":
         option.disabled = !ENABLE_FDK || !availability?.fdk_available;
+        console.log(`🔧 EncoderPanel: fdk_he_aac disabled=${option.disabled} (ENABLE_FDK=${ENABLE_FDK}, fdk_available=${availability?.fdk_available})`);
         break;
       case "aac_at":
         option.disabled = availability ? !availability.aac_at_available : false;
+        console.log(`🔧 EncoderPanel: aac_at disabled=${option.disabled}`);
         break;
       case "native_aac":
         option.disabled = availability
           ? !availability.native_aac_available
           : false;
+        console.log(`🔧 EncoderPanel: native_aac disabled=${option.disabled}`);
         break;
       default:
         option.disabled = false;

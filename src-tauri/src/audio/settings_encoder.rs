@@ -172,14 +172,23 @@ fn ensure_ffmpeg_initialized() {
 pub fn is_encoder_available_by_name(name: &str) -> bool {
     use std::ffi::CString;
     ensure_ffmpeg_initialized();
-    unsafe {
+    let result = unsafe {
         let c_name = match CString::new(name) {
             Ok(s) => s,
-            Err(_) => return false,
+            Err(_) => {
+                log::warn!("🔍 Encoder check '{}': invalid C string", name);
+                return false;
+            }
         };
         let ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c_name.as_ptr());
         !ptr.is_null()
-    }
+    };
+    log::debug!(
+        "🔍 Encoder check '{}': {}",
+        name,
+        if result { "FOUND" } else { "NOT FOUND" }
+    );
+    result
 }
 
 /// Runtime detection of available encoders.
@@ -192,10 +201,20 @@ pub struct EncoderAvailability {
 }
 
 pub fn detect_available_encoders() -> EncoderAvailability {
+    log::info!("🔍 Detecting available encoders...");
+    let fdk = is_encoder_available_by_name("libfdk_aac");
+    let aac_at = cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at");
+    let native_aac = is_encoder_available_by_name("aac");
+    log::info!(
+        "🔍 Encoder detection results: fdk={}, aac_at={}, native_aac={}",
+        fdk,
+        aac_at,
+        native_aac
+    );
     EncoderAvailability {
-        fdk_available: is_encoder_available_by_name("libfdk_aac"),
-        aac_at_available: cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at"),
-        native_aac_available: is_encoder_available_by_name("aac"),
+        fdk_available: fdk,
+        aac_at_available: aac_at,
+        native_aac_available: native_aac,
     }
 }
 

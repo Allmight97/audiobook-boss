@@ -59,7 +59,10 @@ pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String
 /// Lists runtime encoder availability so the UI can surface guidance.
 #[tauri::command]
 pub fn list_available_encoders() -> EncoderAvailability {
-    detect_available_encoders()
+    log::info!("🔍 list_available_encoders command invoked");
+    let result = detect_available_encoders();
+    log::info!("🔍 Returning encoder availability: {:?}", result);
+    result
 }
 
 #[derive(serde::Deserialize)]
