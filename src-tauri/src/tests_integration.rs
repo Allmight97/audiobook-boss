@@ -294,12 +294,16 @@ mod integration_tests {
             .contains(".m4b"));
 
         // Test metadata reading from invalid file
+        // Path validation now catches this earlier with "Cannot read file metadata"
         let metadata_result = read_audio_metadata("nonexistent.mp3".to_string());
         assert!(metadata_result.is_err(), "Should fail for nonexistent file");
-        assert!(metadata_result
+        let err_msg = metadata_result
             .expect_err("expected file not found")
-            .to_string()
-            .contains("File not found"));
+            .to_string();
+        assert!(
+            err_msg.contains("Cannot read file metadata") || err_msg.contains("File not found"),
+            "Expected path validation error, got: {err_msg}"
+        );
     }
 
     /// Test that captures current file validation logic
