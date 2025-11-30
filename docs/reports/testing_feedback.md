@@ -290,3 +290,259 @@ When running `RUST_LOG=debug npm run tauri dev`:
 ---
 
 *Analysis by Claude agent - ready for next debug session*
+
+---
+
+# Agent Investigation Session 2 (2025-11-30)
+
+## Key Finding 1: Browser Console Required
+
+The terminal only shows **Rust logs**. All frontend debug logs (`[EncoderPanel]` prefixed) go to the **browser console** (Cmd+Option+I). The existing analysis correctly notes this but it's critical - we need browser console output to diagnose frontend issues.
+
+## Key Finding 2: Encoder Disabling Logic Analysis
+
+Reviewed `disableDisallowedEncoders()` in `logic.ts:354-387`. The logic is **correct**:
+
+```typescript
+case "aac_at":
+  option.disabled = availability ? !availability.aac_at_available : false;
+```
+
+With `availability = { aac_at_available: true }`, this evaluates to `!true = false` (enabled).
+
+**Root Cause Hypothesis**: There's a timing or state issue - either:
+1. `syncEncoderUI()` being called before `cachedAvailability` is populated
+2. Bridge invoke not returning data to frontend correctly
+3. Some other code re-disabling options after initialization
+
+## Key Finding 3: Processing Failure Evidence
+
+Terminal shows **NO** `encoder_v2 summary:` log from `process_audiobook_files_v2`. This log appears at line 91 of `commands/audio.rs` and should fire immediately upon command invocation. Its absence means:
+
+- **The Rust command is never invoked** - failure is in frontend before `bridge.invoke()`
+- This is a **frontend error**, not a backend processing issue
+
+## Key Finding 4: Suspected Failure Point
+
+In `startProcessing()` (statusPanel/logic.ts:165-303), the payload construction relies on:
+1. `EncoderSettingsProvider` function returning valid DOM-read settings
+2. `toBoundaryEncoderSettings()` converting UI state to boundary type
+3. `outputDir` being populated from `#output-dir-text` input
+
+If any of these throw or return invalid data, processing fails silently (caught in generic catch block).
+
+---
+
+## Recommended Debug Actions
+
+| Priority | Action | What to Look For |
+|----------|--------|------------------|
+| **1** | Open browser console (Cmd+Opt+I) | Red errors, `[EncoderPanel]` logs |
+| **2** | Add `console.log` before bridge.invoke | Verify payload shape |
+| **3** | Check `#output-dir-text` value | Empty output path = likely failure |
+| **4** | Verify `EncoderSettingsProvider()` works | Call in console: `window.EncoderSettingsProvider()` |
+
+---
+
+## Files Reviewed
+
+| File | Relevance |
+|------|-----------|
+| `src/ui/encoderPanel/logic.ts` | Encoder UI sync logic |
+| `src/ui/encoderPanel/dom.ts` | DOM element cache |
+| `src/ui/encoderPanel/featureFlags.ts` | ENABLE_FDK = true (correct) |
+| `src/ui/statusPanel/logic.ts` | Processing initiation |
+| `src/types/encoder.ts` | Boundary conversion logic |
+| `src-tauri/src/commands/audio.rs` | Backend command |
+
+---
+
+*Investigation by Claude agent - awaiting browser console output for definitive diagnosis*
+
+---
+
+# Browser DevTools Debug Session (2025-11-30)
+
+## Test Environment
+- `npm run dev` → http://localhost:1420/
+- Chrome DevTools connected
+- Browser mode (mocks active, not Tauri)
+
+## Key Findings
+
+### 1. Frontend Logic is CORRECT
+When mock returns `fdk_available: true`, all encoder options enable correctly:
+```json
+{
+  "options": [
+    {"value": "auto", "disabled": false},
+    {"value": "fdk_he_aac", "disabled": false},
+    {"value": "aac_at", "disabled": false},
+    {"value": "native_aac", "disabled": false}
+  ],
+  "hint": "FDK detected ✓",
+  "bitrateMode": "vbr",
+  "profile": "HE-AAC v1"
+}
+```
+
+### 2. Processing Flow Works
+- Files validated correctly (2 files, 35 MB combined)
+- `EncoderSettingsProvider()` returns valid settings
+- Processing fails with expected error: "Output directory not selected"
+- **Not a frontend bug** - validation is working
+
+### 3. Mock Was Incorrect
+Original mock returned `fdk_available: false`, which caused FDK option to be disabled. Fixed in `src/lib/mocks.ts`.
+
+### 4. Console Log Flow (Healthy)
+```
+[EncoderPanel] Initializing encoder panel...
+[Bridge Mock] Invoke: list_available_encoders
+[EncoderPanel] Encoder availability: {fdk_available: true, ...}
+[EncoderPanel] Encoder panel ready
+```
+
+## Root Cause Hypothesis for Tauri Mode
+
+Since frontend logic works correctly in browser mode, the issue in Tauri mode is likely:
+
+1. **IPC Timing Issue**: The `list_available_encoders` invoke may be returning before the Rust side is fully initialized
+2. **Serialization Mismatch**: Field names in Rust `EncoderAvailability` may not match TS expectations
+3. **Race Condition**: Some other code path calling `syncEncoderUI()` before availability is populated
+
+## Recommended Next Steps
+
+1. **Run `RUST_LOG=debug npm run tauri dev`** and open browser console (Cmd+Opt+I in app window)
+2. Look for `[EncoderPanel] Encoder availability:` log - check if object has correct field values
+3. If availability shows all true but options still disabled, add debug log to `disableDisallowedEncoders()`
+4. Check if there's a second call to `syncEncoderUI()` after the first one
+
+## Mock Fix Applied
+```typescript
+// src/lib/mocks.ts - line 88
+fdk_available: true,  // was: false
+```
+
+---
+
+*Browser debug session by Claude agent*
+
+---
+
+# ROOT CAUSE FOUND & FIXED (2025-11-30)
+
+## The Bug: Field Name Mismatch (snake_case vs camelCase)
+
+**Rust/Tauri sends (camelCase):**
+```json
+{
+  "fdkAvailable": true,
+  "aacAtAvailable": true,
+  "nativeAacAvailable": true
+}
+```
+
+**TypeScript expected (snake_case):**
+```typescript
+type EncoderAvailability = {
+  fdk_available: boolean;      // undefined!
+  aac_at_available: boolean;   // undefined!
+  native_aac_available: boolean; // undefined!
+};
+```
+
+Result: `availability.fdk_available` was `undefined`, and `!undefined` = `true` (disabled).
+
+## Fix Applied
+
+Updated `src/ui/encoderPanel/logic.ts` to use camelCase field names:
+- `fdk_available` → `fdkAvailable`
+- `aac_at_available` → `aacAtAvailable`
+- `native_aac_available` → `nativeAacAvailable`
+
+Also updated `src/lib/mocks.ts` for consistency.
+
+## Why This Happened
+
+Tauri uses serde for serialization. By default, serde converts Rust snake_case field names to JavaScript camelCase. The TypeScript type wasn't updated to match.
+
+## Verification
+
+- TypeScript compiles: `npx tsc --noEmit` ✅
+- Reload Tauri app to test encoder dropdowns
+
+---
+
+*Root cause identified and fixed by Claude agent*
+
+---
+
+# Second Serialization Fix: BitrateMode (2025-11-30)
+
+## The Bug
+
+Processing failed with: `missing field 'value'`
+
+**TypeScript sent:**
+```json
+{ "mode": "vbr", "level": 3 }
+```
+
+**Rust expected (due to `#[serde(content = "value")]`):**
+```json
+{ "mode": "vbr", "value": 3 }
+```
+
+## Fix Applied
+
+Updated `src/types/audio.ts` and all usages in `src/types/encoder.ts` and `src/ui/encoderPanel/logic.ts`:
+- `{ mode: "vbr", level: N }` → `{ mode: "vbr", value: N }`
+
+## Lesson Learned
+
+Rust serde attributes control JSON field names:
+- `#[serde(rename_all = "camelCase")]` → converts struct fields to camelCase
+- `#[serde(tag = "mode", content = "value")]` → for enums, uses "mode" as discriminant and "value" for payload
+
+TypeScript types must match these serialization conventions exactly.
+
+---
+
+*Second serialization fix by Claude agent*
+
+---
+
+# Third Serialization Fix: ChannelConfig (2025-11-30)
+
+## The Bug
+
+**TypeScript sent** (numbers for mono/stereo):
+```typescript
+export type EncoderChannelConfig = "auto" | 1 | 2;
+```
+
+**Rust expected** (strings):
+```rust
+#[serde(rename_all = "snake_case")]
+pub enum ChannelConfig { Auto, Mono, Stereo }
+// Serializes as: "auto", "mono", "stereo"
+```
+
+Would have failed when user selected Mono or Stereo from dropdown.
+
+## Fix Applied
+
+Updated `src/types/audio.ts`:
+```typescript
+export type EncoderChannelConfig = "auto" | "mono" | "stereo";
+```
+
+Also updated all usages in:
+- `src/ui/encoderPanel/logic.ts` (DOM value conversion)
+- `src/ui/statusPanel/logic.ts` (legacy settings mapping)
+- `src/types/encoder.ts` (validation and sanitization)
+
+---
+
+*Third serialization fix by Claude agent*

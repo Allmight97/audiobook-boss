@@ -85,9 +85,9 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
 
     case "list_available_encoders":
       return {
-        fdk_available: false,
-        aac_at_available: true,
-        native_aac_available: true,
+        fdkAvailable: true,
+        aacAtAvailable: true,
+        nativeAacAvailable: true,
       } as unknown as T;
 
     case "process_audiobook_files_v2":

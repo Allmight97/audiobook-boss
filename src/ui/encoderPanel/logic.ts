@@ -20,9 +20,9 @@ type WindowWithEncoderProvider = Window & {
 };
 
 type EncoderAvailability = {
-  fdk_available: boolean;
-  aac_at_available: boolean;
-  native_aac_available: boolean;
+  fdkAvailable: boolean;
+  aacAtAvailable: boolean;
+  nativeAacAvailable: boolean;
 };
 
 type VbrLevel = 1 | 2 | 3 | 4 | 5;
@@ -67,8 +67,8 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 /** Resolves effective encoder when "auto" is selected */
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
   if (flavor !== "auto") return flavor;
-  if (cachedAvailability?.fdk_available && ENABLE_FDK) return "fdk_he_aac";
-  if (cachedAvailability?.aac_at_available) return "aac_at";
+  if (cachedAvailability?.fdkAvailable && ENABLE_FDK) return "fdk_he_aac";
+  if (cachedAvailability?.aacAtAvailable) return "aac_at";
   return "native_aac";
 };
 
@@ -84,7 +84,11 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 
   const channelsValue = dom.channelsSelect?.value ?? "auto";
   const channels: EncoderSettingsV2["channels"] =
-    channelsValue === "stereo" ? 2 : channelsValue === "mono" ? 1 : "auto";
+    channelsValue === "stereo"
+      ? "stereo"
+      : channelsValue === "mono"
+        ? "mono"
+        : "auto";
 
   // Read bitrate from bitrate select (for CVBR/CBR)
   const bitrateValue = parseInt(dom.bitrateSelect?.value ?? "64", 10);
@@ -106,7 +110,7 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
       ? { mode: "cbr" as const }
       : bitrateModeValue === "cvbr"
         ? { mode: "cvbr" as const }
-        : { mode: "vbr" as const, level: vbrLevel };
+        : { mode: "vbr" as const, value: vbrLevel };
 
   const effectiveEncoder = resolveEffectiveEncoder(flavor);
   const vbr =
@@ -159,7 +163,11 @@ const applyPersistedState = (): void => {
   }
   if (state.channels && dom.channelsSelect) {
     dom.channelsSelect.value =
-      state.channels === 2 ? "stereo" : state.channels === 1 ? "mono" : "auto";
+      state.channels === "stereo"
+        ? "stereo"
+        : state.channels === "mono"
+          ? "mono"
+          : "auto";
   }
   if (state.bitrateKbps && dom.bitrateSelect) {
     dom.bitrateSelect.value = String(state.bitrateKbps);
@@ -236,9 +244,9 @@ const updateAvailabilityHint = (): void => {
   }
 
   // Single concise line showing what's available
-  if (cachedAvailability.fdk_available && ENABLE_FDK) {
+  if (cachedAvailability.fdkAvailable && ENABLE_FDK) {
     dom.encoderAvailabilityHint.textContent = "FDK detected ✓";
-  } else if (cachedAvailability.aac_at_available) {
+  } else if (cachedAvailability.aacAtAvailable) {
     dom.encoderAvailabilityHint.textContent = "Apple AAC available";
   } else {
     dom.encoderAvailabilityHint.textContent = "Using native encoder";
@@ -362,14 +370,14 @@ const disableDisallowedEncoders = (): void => {
   Array.from(select.options).forEach((option) => {
     switch (option.value) {
       case "fdk_he_aac":
-        option.disabled = !ENABLE_FDK || !availability?.fdk_available;
+        option.disabled = !ENABLE_FDK || !availability?.fdkAvailable;
         break;
       case "aac_at":
-        option.disabled = availability ? !availability.aac_at_available : false;
+        option.disabled = availability ? !availability.aacAtAvailable : false;
         break;
       case "native_aac":
         option.disabled = availability
-          ? !availability.native_aac_available
+          ? !availability.nativeAacAvailable
           : false;
         break;
       default:
