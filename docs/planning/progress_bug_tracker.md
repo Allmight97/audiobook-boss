@@ -129,3 +129,67 @@
 
 - [x] FIX: Why does terminal output say "Starting FFmpeg merge" - Total duration: 35740.08s, Bitrate: 56k... when only loading 1 file?
   - STATUS: Investigated. This is a display artifact of the "merge" pipeline design (treating 1 file as a merge of 1). Harmless.
+
+---
+
+# MIGRATION TO GITHUB ISSUES (2025-11-30)
+
+## Analysis Summary
+
+This tracker should be deprecated in favor of GitHub Issues for better visibility and tracking. Below is the migration analysis comparing items here against existing GH issues.
+
+## Tracker Items vs Existing GH Issues
+
+| Tracker Item | Status | Existing GH Issue? | Recommended Action |
+|--------------|--------|-------------------|-------------------|
+| **P1-A: Output path contract mismatch** [BLOCKER] | Open | **NO** | Create new issue (priority:high, bug) |
+| **P1-B: Bitrate range mismatch** | Open | **NO** | Create new issue (priority:high, bug) |
+| **P1-C: Sample rate not passed to backend** | Open | **NO** | Create new issue (priority:high, bug) |
+| **P2: Fast Path Optimization** | Open | **NO** | Create new issue (blocked by P1s) |
+| Multi-file batch processing | Backlog | **NO** | Create new (priority:low, enhancement) |
+| Nested chapter auto-flatten | Backlog | **NO** | Create new (priority:low, enhancement) |
+| Cover art from URL | Backlog | **NO** | Create new (priority:low, enhancement) |
+| FDK-AAC / AAC-AT encoder choice | Planned | Overlaps **#40** | Update #40 or create separate issue |
+| testMoveFile/testSortFiles stubs | Backlog | **NO** | Create new or delete stubs from code |
+| Description field resize | Backlog | **NO** | Create new (priority:low, UI polish) |
+| Status panel encoder badge | Backlog | **NO** | Create new (priority:low, UI polish) |
+| DEBUG logging docs | Answered | **NO** | Update AGENTS.md only (no issue needed) |
+| *All completed items* | Done | N/A | Skip - already done |
+
+## Issue Count Summary
+
+| Category | Count |
+|----------|-------|
+| New critical issues needed (P1 bugs) | 3 |
+| New medium issues needed (P2) | 1 |
+| New feature/backlog issues | 6-7 |
+| Updates to existing issues | 1 (#40) |
+| Doc update only (no issue) | 1 |
+
+## Recommended Approach
+
+**Option A (Preferred)**: Create one consolidated "P1 Settings Contract" umbrella issue covering P1-A/B/C since they're related "settings not honored" bugs, plus separate issues for other items.
+
+**Before creating issues**: Verify each P1 item is still reproducible - some may have been fixed during encoder v2 work.
+
+## Existing GH Issues Reference (as of 2025-11-30)
+
+For context, these issues already exist:
+- #31: Performance - integer arithmetic optimization (low)
+- #32: Simplify load_cover_art_file (tech-debt, low)
+- #35: Cover art EXIF orientation bug (bug, medium)
+- #37: Replace window.EncoderSettingsProvider (tech-debt, low)
+- #38: Series/Book # inputs never reach metadata (bug, medium)
+- #40: Opus encoder investigation (blocked)
+- #42: Adaptive preview hardening (medium)
+- #44: Encoder panel perf improvements (performance, medium)
+- #45: Remove redundant vbr property (tech-debt, low)
+- #46: Visible sample rate/channel info in UI (low)
+- #47: Preview auto-open fails (bug, low)
+
+## Next Steps
+
+1. Verify P1 bugs are still present
+2. Create consolidated P1 issue OR individual issues per preference
+3. Create backlog issues as needed
+4. Delete this file after migration complete
