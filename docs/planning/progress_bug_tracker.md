@@ -129,8 +129,6 @@ This tracker should be deprecated in favor of GitHub Issues for better visibilit
 
 | Category | Count |
 |----------|-------|
-| New critical issues needed (P1 bugs) | 3 |
-| New medium issues needed (P2) | 1 |
 | New feature/backlog issues | 6-7 |
 | Updates to existing issues | 1 (#40) |
 | Doc update only (no issue) | 1 |
