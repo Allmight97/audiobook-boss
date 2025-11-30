@@ -102,7 +102,7 @@ pub async fn process_audiobook_files_v2(
     // Note: Frontend sends full file path in output_dir field (legacy naming)
     let output_path = prepare_output_path(&payload.output_dir)?;
 
-    // Derived processing settings (pipeline carrier) built from v2 inputs
+    // Build pipeline settings from v2 inputs (encoder still uses v2 settings)
     let mut settings_v1 = audio::AudioSettings::audiobook_preset();
     settings_v1.bitrate = payload.settings.bitrate_kbps as u32;
     settings_v1.channels = match payload.settings.channels {
