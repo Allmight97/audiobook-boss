@@ -300,8 +300,8 @@ pub(crate) async fn finalize_processing(
     if let Some(preview_cfg) = context.preview.as_ref() {
         let preview_path = derive_preview_output_path(context.output.final_path());
         log::info!(
-            "Preview finalize: seconds={:.3} dest={}",
-            preview_cfg.seconds,
+            "Preview finalize: total_seconds={:.3} dest={}",
+            preview_cfg.total_seconds,
             preview_path.display()
         );
 

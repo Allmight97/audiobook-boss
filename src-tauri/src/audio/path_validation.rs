@@ -1,4 +1,4 @@
-//! Shared input path validation for audio files
+//! Shared input path validation for audio and image files
 //!
 //! Ensures a provided path is a regular file, has a supported extension,
 //! contains no disallowed characters, and returns a canonical absolute path.
@@ -33,6 +33,40 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     }
 
     // Canonicalize to prevent path traversal and resolve symlinks
+    let canonical = path.canonicalize().map_err(|e| {
+        AppError::FileValidation(format!(
+            "Cannot canonicalize path '{}': {}",
+            path.display(),
+            e
+        ))
+    })?;
+
+    if is_symlink {
+        log::warn!("Symlink resolved to: {}", canonical.display());
+    }
+
+    Ok(canonical)
+}
+
+/// Validate a single input image file path and return its canonical absolute path.
+/// Used for cover art loading to prevent path traversal attacks.
+pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
+    validate_path_characters(path)?;
+    validate_file_existence_and_type(path)?;
+    validate_image_extension(path)?;
+
+    let is_symlink = path
+        .symlink_metadata()
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false);
+
+    if is_symlink {
+        log::warn!(
+            "Input image is a symlink: {} -> resolving to target",
+            path.display()
+        );
+    }
+
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot canonicalize path '{}': {}",
@@ -90,6 +124,23 @@ fn validate_audio_extension(path: &Path) -> Result<()> {
     if !super::constants::ALLOWED_AUDIO_EXTENSIONS.contains(&ext.as_str()) {
         return Err(AppError::InvalidInput(format!(
             "Unsupported audio format: {ext}"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Validates image file extension against whitelist
+fn validate_image_extension(path: &Path) -> Result<()> {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .ok_or_else(|| AppError::InvalidInput("File has no extension".to_string()))?;
+
+    if !super::constants::ALLOWED_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(AppError::InvalidInput(format!(
+            "Unsupported image format: {ext}. Supported formats: jpg, jpeg, png, webp"
         )));
     }
 
@@ -222,5 +273,81 @@ mod tests {
             validate_input_audio_path(&link).expect_err("broken symlink should fail validation");
         let msg = err.to_string();
         assert!(msg.contains("Cannot read file metadata") || msg.contains("canonicalize"));
+    }
+
+    // Image path validation tests
+
+    #[test]
+    fn test_image_rejects_nonexistent_path() {
+        let bogus = std::path::PathBuf::from("/this/path/does/not/exist.jpg");
+        let err = validate_input_image_path(&bogus)
+            .expect_err("non-existent image path should fail validation");
+        let msg = err.to_string();
+        assert!(msg.contains("Cannot read file metadata"));
+    }
+
+    #[test]
+    fn test_image_rejects_invalid_extension() {
+        let dir = tempdir().expect("create temp dir");
+        let path = dir.path().join("file.txt");
+        File::create(&path).expect("create temp file");
+        let err = validate_input_image_path(&path)
+            .expect_err("invalid image extension should fail validation");
+        let msg = err.to_string();
+        assert!(msg.contains("Unsupported image format"));
+    }
+
+    #[test]
+    fn test_image_accepts_supported_extensions() {
+        let dir = tempdir().expect("create temp dir");
+        let extensions = ["jpg", "jpeg", "png", "webp"];
+
+        for ext in extensions {
+            let path = dir.path().join(format!("cover.{}", ext));
+            File::create(&path).expect("create temp image file");
+            let result = validate_input_image_path(&path);
+            assert!(
+                result.is_ok(),
+                "Image extension {} should be supported",
+                ext
+            );
+        }
+    }
+
+    #[test]
+    fn test_image_rejects_audio_extension() {
+        let dir = tempdir().expect("create temp dir");
+        let path = dir.path().join("audio.mp3");
+        File::create(&path).expect("create temp file");
+        let err = validate_input_image_path(&path)
+            .expect_err("audio extension should fail image validation");
+        let msg = err.to_string();
+        assert!(msg.contains("Unsupported image format"));
+    }
+
+    #[test]
+    fn test_image_canonicalizes_path() {
+        let dir = tempdir().expect("create temp dir");
+        let path = dir.path().join("cover.png");
+        File::create(&path).expect("create temp image file");
+        let canon =
+            validate_input_image_path(&path).expect("valid image path should be canonicalized");
+        assert!(canon.is_absolute());
+    }
+
+    #[test]
+    fn test_image_rejects_traversal_attempt() {
+        let dir = tempdir().expect("create temp dir");
+        // Attempt path traversal
+        let traversal = dir.path().join("..").join("..").join("etc").join("passwd");
+        let err = validate_input_image_path(&traversal)
+            .expect_err("traversal path should fail validation");
+        // Should fail on either extension check or file not found
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Unsupported image format")
+                || msg.contains("Cannot read file metadata")
+                || msg.contains("no extension")
+        );
     }
 }

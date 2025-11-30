@@ -87,3 +87,6 @@ pub const MIN_PNG_SIZE: usize = 8;
 
 /// Minimum WebP file size in bytes
 pub const MIN_WEBP_SIZE: usize = 12;
+
+/// Supported image file extensions for cover art (lowercase)
+pub const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];

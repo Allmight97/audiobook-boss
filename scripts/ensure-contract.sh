@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "== Collecting TS invoke() command names =="
-ts_cmds=$(rg -n "invoke\('" "$ROOT_DIR/src" | awk -F"'" '{print $2}' | sort -u || true)
+ts_cmds=$(rg -n "invoke(?:<[^>]+>)?\('" "$ROOT_DIR/src" | awk -F"'" '{print $2}' | sort -u || true)
 if [ -z "${ts_cmds}" ]; then
   echo "No invoke() calls found in src/"
 else

@@ -512,6 +512,35 @@ textarea:hover:not(:focus) {
 	accent-color: var(--accent-primary);
 }
 
+/* Encoder settings panel */
+.profile-display {
+	padding: 0.5rem 0.75rem;
+	background-color: var(--bg-input);
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+}
+
+.encoder-options-section {
+	background-color: var(--bg-input);
+	border: 1px solid var(--border-primary);
+}
+
+.encoder-option-group {
+	padding: 0.25rem 0;
+}
+
+.checkbox-label .option-label {
+	font-weight: 500;
+	margin-right: 0.25rem;
+}
+
+.checkbox-label .option-desc {
+	color: var(--text-secondary);
+	font-size: 0.75rem;
+}
+
 /* Ensure gap for grid layouts */
 .grid {
 	gap: 1rem;

@@ -86,7 +86,7 @@ pub trait MediaProcessor {
 pub struct FfmpegNextProcessor;
 
 // Use shared pipeline context from extracted module
-use crate::audio::processor::frame_pipeline::FramePipelineCtx;
+use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction, PreviewState};
 
 impl FfmpegNextProcessor {
     // resolve_target_audio_params moved to processor::encoder
@@ -102,6 +102,7 @@ impl FfmpegNextProcessor {
     // Processes audio frames (moved to processor::frame_pipeline)
 
     /// Processes a single input file through the decode/resample/encode pipeline
+    /// Returns PreviewAction to signal adaptive preview transitions
     fn process_input_file(
         input_path: &Path,
         encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
@@ -109,7 +110,7 @@ impl FfmpegNextProcessor {
         file_index: usize,
         ctx: &mut FramePipelineCtx,
         accumulator: &mut crate::audio::buffer::SampleAccumulator,
-    ) -> Result<()> {
+    ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
         log::info!(
@@ -124,6 +125,21 @@ impl FfmpegNextProcessor {
             );
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::InvalidInput("Processing was cancelled".into()));
+        }
+
+        // Initialize per-file preview state if adaptive preview is active
+        let file_name = input_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+        if let Some(ref mut ps) = ctx.preview_state {
+            ps.start_new_file(file_index, file_name, *ctx.running_pts);
+            log::info!(
+                "Adaptive preview: starting file {} '{}' at pts={}",
+                file_index + 1,
+                file_name,
+                *ctx.running_pts
+            );
         }
 
         log::info!(
@@ -147,7 +163,7 @@ impl FfmpegNextProcessor {
         );
 
         log::info!("Processing input packets from: {}", input_path.display());
-        crate::audio::processor::frame_pipeline::process_input_packets(
+        let action = crate::audio::processor::frame_pipeline::process_input_packets(
             &mut ictx,
             &mut decoder,
             encoder,
@@ -156,7 +172,10 @@ impl FfmpegNextProcessor {
             ctx,
             accumulator,
         )?;
-        log::info!("✓ Input packets processed successfully");
+        log::info!(
+            "✓ Input packets processed successfully (action={:?})",
+            action
+        );
 
         // Flush decoder for this input
         log::info!("Flushing decoder frames for: {}", input_path.display());
@@ -166,7 +185,7 @@ impl FfmpegNextProcessor {
         log::info!("✓ Decoder frames flushed successfully");
 
         log::info!("✅ Completed processing file: {}", input_path.display());
-        Ok(())
+        Ok(action)
     }
 
     // Removed unused debug-only helpers to comply with CI dead_code policy
@@ -176,6 +195,9 @@ impl FfmpegNextProcessor {
 }
 
 impl MediaProcessor for FfmpegNextProcessor {
+    // EXCEPTION: Orchestration function for media processing pipeline requires cohesive control flow.
+    // Breaking into smaller pieces would fragment related preview/encoding logic unnecessarily.
+    #[allow(clippy::too_many_lines)]
     fn execute<'a>(
         &'a self,
         plan: &'a MediaProcessingPlan,
@@ -217,11 +239,24 @@ impl MediaProcessor for FfmpegNextProcessor {
             let mut input_samples_total: u64 = 0;
             let mut encoded_samples_total: u64 = 0;
             let mut preview_early_stop = false;
+            // Initialize adaptive preview state if preview mode is enabled
+            let file_count = plan.input_file_paths.len();
+            let mut preview_state_storage = context.preview.as_ref().map(|cfg| {
+                let per_file_sec = cfg.per_file_seconds(file_count);
+                log::info!(
+                    "Adaptive preview: {} files × {:.3}s/file = {:.3}s total",
+                    file_count,
+                    per_file_sec,
+                    per_file_sec * file_count as f64
+                );
+                PreviewState::new(file_count, per_file_sec)
+            });
+
             let mut ctx = FramePipelineCtx {
                 context,
                 emitter: &emitter,
                 total_duration: plan.total_duration.max(0.001),
-                total_files: plan.input_file_paths.len(),
+                total_files: file_count,
                 target_sample_rate,
                 output_stream_index: ost_index,
                 output_time_base: ost_time_base,
@@ -232,6 +267,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                 input_samples_total: &mut input_samples_total,
                 encoded_samples_total: &mut encoded_samples_total,
                 early_stop: &mut preview_early_stop,
+                preview_state: preview_state_storage.as_mut(),
             };
 
             // Process each input file
@@ -253,7 +289,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                     plan.input_file_paths.len(),
                     in_path.display()
                 );
-                Self::process_input_file(
+                let action = Self::process_input_file(
                     in_path,
                     &mut enc_ctx,
                     &mut octx,
@@ -266,12 +302,46 @@ impl MediaProcessor for FfmpegNextProcessor {
                     idx + 1,
                     plan.input_file_paths.len()
                 );
-                if *ctx.early_stop {
-                    log::info!("Preview early-stop engaged after file {}; stopping further input processing", idx + 1);
-                    break;
+
+                // Handle adaptive preview actions
+                match action {
+                    PreviewAction::StopAll => {
+                        log::info!(
+                            "Adaptive preview complete after file {}; stopping further input processing",
+                            idx + 1
+                        );
+                        break;
+                    }
+                    PreviewAction::NextFile => {
+                        log::info!(
+                            "Adaptive preview: file {} excerpt complete, continuing to next file",
+                            idx + 1
+                        );
+                        // Continue to next file in loop
+                    }
+                    PreviewAction::Continue => {
+                        // Check legacy early_stop flag for backward compatibility
+                        if *ctx.early_stop {
+                            log::info!(
+                                "Preview early-stop engaged after file {}; stopping further input processing",
+                                idx + 1
+                            );
+                            break;
+                        }
+                    }
                 }
             }
             log::info!("✓ All input files processed successfully");
+
+            // Log preview chapter count for diagnostics
+            if let Some(ref ps) = preview_state_storage {
+                if !ps.chapter_markers.is_empty() {
+                    log::info!(
+                        "Adaptive preview: processed {} file excerpts",
+                        ps.chapter_markers.len()
+                    );
+                }
+            }
 
             // Finalize encoding (same path for full encode or preview early-stop)
             log::info!("🏁 Starting encoding finalization...");

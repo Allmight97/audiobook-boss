@@ -1,29 +1,51 @@
 export interface EncoderDomCache {
   root?: HTMLElement | null;
   encoderSelect?: HTMLSelectElement | null;
-  profileSelect?: HTMLSelectElement | null;
+  bitrateModeSelect?: HTMLSelectElement | null;
   channelsSelect?: HTMLSelectElement | null;
-  aacAtVbrEnabled?: HTMLInputElement | null;
-  aacAtVbrQuality?: HTMLInputElement | null;
-  fdkVbrEnabled?: HTMLInputElement | null;
-  fdkVbrLevel?: HTMLSelectElement | null;
+  qualitySelect?: HTMLSelectElement | null;
+  bitrateSelect?: HTMLSelectElement | null;
+  qualityBitrateLabel?: HTMLElement | null;
+  profileDisplay?: HTMLElement | null;
+  estimatedBitrate?: HTMLElement | null;
+  encoderOptionsSection?: HTMLElement | null;
+  fdkOptions?: HTMLElement | null;
+  nativeOptions?: HTMLElement | null;
+  appleOptions?: HTMLElement | null;
   fdkAfterburner?: HTMLInputElement | null;
-  fdkStatus?: HTMLElement | null;
-  nativeOptimizeLC?: HTMLInputElement | null;
+  nativeTwoloop?: HTMLInputElement | null;
+  encoderAvailabilityHint?: HTMLElement | null;
 }
 
 export const queryDom = (): EncoderDomCache => ({
-  root: document.getElementById('advanced-settings-panel'),
-  encoderSelect: document.getElementById('adv-encoder') as HTMLSelectElement | null,
-  profileSelect: document.getElementById('adv-profile') as HTMLSelectElement | null,
-  channelsSelect: document.getElementById('output-channels') as HTMLSelectElement | null,
-  aacAtVbrEnabled: document.getElementById('adv-aacat-vbr-enabled') as HTMLInputElement | null,
-  aacAtVbrQuality: document.getElementById('adv-aacat-vbr-quality') as HTMLInputElement | null,
-  fdkVbrEnabled: document.getElementById('adv-fdk-vbr-enabled') as HTMLInputElement | null,
-  fdkVbrLevel: document.getElementById('adv-fdk-vbr-level') as HTMLSelectElement | null,
-  fdkAfterburner: document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null,
-  fdkStatus: document.getElementById('adv-fdk-status'),
-  nativeOptimizeLC: document.getElementById('adv-native-optimize-lc') as HTMLInputElement | null,
+  root: document.getElementById("encoder-settings-panel"),
+  encoderSelect: document.getElementById(
+    "adv-encoder"
+  ) as HTMLSelectElement | null,
+  bitrateModeSelect: document.getElementById(
+    "adv-bitrate-mode"
+  ) as HTMLSelectElement | null,
+  channelsSelect: document.getElementById(
+    "output-channels"
+  ) as HTMLSelectElement | null,
+  qualitySelect: document.getElementById(
+    "output-quality"
+  ) as HTMLSelectElement | null,
+  bitrateSelect: document.getElementById(
+    "output-bitrate"
+  ) as HTMLSelectElement | null,
+  qualityBitrateLabel: document.getElementById("quality-bitrate-label"),
+  profileDisplay: document.getElementById("encoder-profile-display"),
+  estimatedBitrate: document.getElementById("estimated-bitrate"),
+  encoderOptionsSection: document.getElementById("encoder-options-section"),
+  fdkOptions: document.getElementById("fdk-options"),
+  nativeOptions: document.getElementById("native-options"),
+  appleOptions: document.getElementById("apple-options"),
+  fdkAfterburner: document.getElementById(
+    "adv-fdk-afterburner"
+  ) as HTMLInputElement | null,
+  nativeTwoloop: document.getElementById(
+    "adv-native-twoloop"
+  ) as HTMLInputElement | null,
+  encoderAvailabilityHint: document.getElementById("encoder-availability-hint"),
 });
-
-
