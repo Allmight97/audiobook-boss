@@ -9,6 +9,12 @@ import type {
 import { VALID_ENCODER_BITRATES } from "../../types/audio";
 import { bridge } from "../../lib/bridge";
 
+/** Debug logging - only active in development builds */
+const DEBUG = import.meta.env.DEV;
+const debugLog = (...args: unknown[]): void => {
+  if (DEBUG) console.log("[EncoderPanel]", ...args);
+};
+
 type WindowWithEncoderProvider = Window & {
   EncoderSettingsProvider?: () => EncoderSettingsLike;
 };
@@ -123,17 +129,21 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 };
 
 export const initializeEncoderPanelLogic = (): void => {
+  debugLog("Initializing encoder panel...");
+
   // Initialize DOM cache
   domCache = queryDom();
   const dom = ensureDomCache();
   if (!dom.root) {
-    return; // Panel not present in this view
+    debugLog("Panel not present in this view, skipping initialization");
+    return;
   }
 
   applyPersistedState();
   hydrateAvailability().finally(() => {
     syncEncoderUI();
     persistState();
+    debugLog("Encoder panel ready");
   });
   attachEventListeners();
   (window as WindowWithEncoderProvider).EncoderSettingsProvider =
@@ -208,6 +218,7 @@ const hydrateAvailability = async (): Promise<void> => {
     cachedAvailability = await bridge.invoke<EncoderAvailability>(
       "list_available_encoders"
     );
+    debugLog("Encoder availability:", cachedAvailability);
   } catch (error) {
     console.warn("Failed to load encoder availability", error);
     cachedAvailability = null;
