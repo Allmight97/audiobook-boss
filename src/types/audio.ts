@@ -67,12 +67,12 @@ export type EncoderType =
 export type BitrateMode =
   | { mode: "cbr" }
   | { mode: "cvbr" }
-  | { mode: "vbr"; level: 1 | 2 | 3 | 4 | 5 };
+  | { mode: "vbr"; value: 1 | 2 | 3 | 4 | 5 };
 export type ThreadSetting =
   | { mode: "auto" }
   | { mode: "off" }
   | { mode: "fixed"; value: number };
-export type EncoderChannelConfig = "auto" | 1 | 2;
+export type EncoderChannelConfig = "auto" | "mono" | "stereo";
 
 // Single source of truth for valid encoder bitrates (kbps)
 // Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs

@@ -1,5 +1,5 @@
 import { ENABLE_FDK } from "./featureFlags";
-import { queryDom } from "./dom";
+import { queryDom, EncoderDomCache } from "./dom";
 import { loadState, saveState } from "./state";
 import type {
   EncoderSettingsLike,
@@ -9,14 +9,20 @@ import type {
 import { VALID_ENCODER_BITRATES } from "../../types/audio";
 import { bridge } from "../../lib/bridge";
 
+/** Debug logging - only active in development builds */
+const DEBUG = import.meta.env.DEV;
+const debugLog = (...args: unknown[]): void => {
+  if (DEBUG) console.log("[EncoderPanel]", ...args);
+};
+
 type WindowWithEncoderProvider = Window & {
   EncoderSettingsProvider?: () => EncoderSettingsLike;
 };
 
 type EncoderAvailability = {
-  fdk_available: boolean;
-  aac_at_available: boolean;
-  native_aac_available: boolean;
+  fdkAvailable: boolean;
+  aacAtAvailable: boolean;
+  nativeAacAvailable: boolean;
 };
 
 type VbrLevel = 1 | 2 | 3 | 4 | 5;
@@ -26,11 +32,51 @@ const clamp = (value: number, min: number, max: number): number =>
 
 let cachedAvailability: EncoderAvailability | null = null;
 
+// DOM cache - initialized once, reused across all functions
+let domCache: EncoderDomCache | null = null;
+
+/** Returns cached DOM references, querying only once per session */
+const ensureDomCache = (): EncoderDomCache => {
+  if (!domCache) {
+    domCache = queryDom();
+  }
+  return domCache;
+};
+
+// Debounce timer for localStorage writes
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+const PERSIST_DEBOUNCE_MS = 300;
+
+/** VBR level to estimated bitrate mapping (from shrink.sh) */
+const VBR_BITRATE_ESTIMATES: Record<VbrLevel, number> = {
+  1: 32,
+  2: 48,
+  3: 60,
+  4: 72,
+  5: 96,
+};
+
+/** Profile display names per encoder */
+const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
+  auto: "HE-AAC v1",
+  fdk_he_aac: "HE-AAC v1",
+  aac_at: "AAC-LC",
+  native_aac: "AAC-LC",
+};
+
+/** Resolves effective encoder when "auto" is selected */
+const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
+  if (flavor !== "auto") return flavor;
+  if (cachedAvailability?.fdkAvailable && ENABLE_FDK) return "fdk_he_aac";
+  if (cachedAvailability?.aacAtAvailable) return "aac_at";
+  return "native_aac";
+};
+
 /**
  * Reads the current encoder settings from the DOM
  */
 const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
-  const dom = queryDom();
+  const dom = ensureDomCache();
   if (!dom.root) return undefined;
 
   const encoderValue = dom.encoderSelect?.value as EncoderFlavor | undefined;
@@ -38,37 +84,43 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 
   const channelsValue = dom.channelsSelect?.value ?? "auto";
   const channels: EncoderSettingsV2["channels"] =
-    channelsValue === "stereo" ? 2 : channelsValue === "mono" ? 1 : "auto";
+    channelsValue === "stereo"
+      ? "stereo"
+      : channelsValue === "mono"
+        ? "mono"
+        : "auto";
 
-  // Read bitrate from output-bitrate select
-  const bitrateSelect = document.getElementById(
-    "output-bitrate"
-  ) as HTMLSelectElement | null;
-  const bitrateValue = parseInt(bitrateSelect?.value ?? "64", 10);
+  // Read bitrate from bitrate select (for CVBR/CBR)
+  const bitrateValue = parseInt(dom.bitrateSelect?.value ?? "64", 10);
   const bitrateKbps = (
     [...VALID_ENCODER_BITRATES].includes(
       bitrateValue as (typeof VALID_ENCODER_BITRATES)[number]
     )
-    ? bitrateValue
+      ? bitrateValue
       : 64
   ) as EncoderSettingsV2["bitrateKbps"];
 
+  // Read VBR level from quality select
+  const qualityValue = parseInt(dom.qualitySelect?.value ?? "3", 10);
+  const vbrLevel = clamp(qualityValue, 1, 5) as VbrLevel;
+
   const bitrateModeValue = dom.bitrateModeSelect?.value ?? "vbr";
-  const vbrLevel = clamp(
-    Number(dom.fdkVbrLevel?.value ?? "3"),
-    1,
-    5
-  ) as VbrLevel;
   const bitrateMode =
     bitrateModeValue === "cbr"
       ? { mode: "cbr" as const }
       : bitrateModeValue === "cvbr"
-      ? { mode: "cvbr" as const }
-      : { mode: "vbr" as const, level: vbrLevel };
+        ? { mode: "cvbr" as const }
+        : { mode: "vbr" as const, value: vbrLevel };
+
+  const effectiveEncoder = resolveEffectiveEncoder(flavor);
   const vbr =
-    flavor === "fdk_he_aac" ? { enabled: true, level: vbrLevel } : undefined;
+    effectiveEncoder === "fdk_he_aac"
+      ? { enabled: true, level: vbrLevel }
+      : undefined;
   const fdkAfterburner =
-    flavor === "fdk_he_aac" ? !!dom.fdkAfterburner?.checked : undefined;
+    effectiveEncoder === "fdk_he_aac"
+      ? !!dom.fdkAfterburner?.checked
+      : undefined;
 
   return {
     flavor,
@@ -81,101 +133,100 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 };
 
 export const initializeEncoderPanelLogic = (): void => {
-  console.log("🔧 EncoderPanel: Initializing...");
-  const dom = queryDom();
+  debugLog("Initializing encoder panel...");
+
+  // Initialize DOM cache
+  domCache = queryDom();
+  const dom = ensureDomCache();
   if (!dom.root) {
-    console.log("🔧 EncoderPanel: Root element not found, skipping init");
-    return; // Panel not present in this view; no-op
+    debugLog("Panel not present in this view, skipping initialization");
+    return;
   }
-  console.log("🔧 EncoderPanel: DOM elements found, applying persisted state...");
 
   applyPersistedState();
   hydrateAvailability().finally(() => {
-    console.log("🔧 EncoderPanel: Availability hydrated, syncing visibility...");
-    syncAdvancedVisibility();
+    syncEncoderUI();
     persistState();
+    debugLog("Encoder panel ready");
   });
   attachEventListeners();
   (window as WindowWithEncoderProvider).EncoderSettingsProvider =
     getEncoderSettingsFromDom;
-  console.log("🔧 EncoderPanel: Initialization complete");
 };
 
 const applyPersistedState = (): void => {
   const state = loadState();
-  const dom = queryDom();
+  const dom = ensureDomCache();
+
   if (state.flavor && dom.encoderSelect) {
     dom.encoderSelect.value = state.flavor;
   }
   if (state.channels && dom.channelsSelect) {
     dom.channelsSelect.value =
-      state.channels === 2 ? "stereo" : state.channels === 1 ? "mono" : "auto";
+      state.channels === "stereo"
+        ? "stereo"
+        : state.channels === "mono"
+          ? "mono"
+          : "auto";
   }
-  if (state.bitrateKbps) {
-    const bitrateSelect = document.getElementById(
-      "output-bitrate"
-    ) as HTMLSelectElement | null;
-    if (bitrateSelect) {
-      bitrateSelect.value = String(state.bitrateKbps);
-    }
+  if (state.bitrateKbps && dom.bitrateSelect) {
+    dom.bitrateSelect.value = String(state.bitrateKbps);
   }
   if (state.bitrateMode && dom.bitrateModeSelect) {
     dom.bitrateModeSelect.value = state.bitrateMode.mode;
   }
-  if (state.vbr?.level && dom.fdkVbrLevel) {
-    dom.fdkVbrLevel.value = String(state.vbr.level);
-    updateFdkVbrLabel(state.vbr.level);
+  if (state.vbr?.level && dom.qualitySelect) {
+    dom.qualitySelect.value = String(state.vbr.level);
   }
-  if (state.fdkAfterburner && dom.fdkAfterburner) {
+  if (state.fdkAfterburner !== undefined && dom.fdkAfterburner) {
     dom.fdkAfterburner.checked = state.fdkAfterburner;
   }
 };
 
 const attachEventListeners = (): void => {
-  const dom = queryDom();
+  const dom = ensureDomCache();
+
   dom.encoderSelect?.addEventListener("change", () => {
-    syncAdvancedVisibility();
+    syncEncoderUI();
     persistState();
   });
   dom.bitrateModeSelect?.addEventListener("change", () => {
-    syncAdvancedVisibility();
+    syncQualityBitrateVisibility();
+    updateEstimatedBitrate();
     persistState();
   });
   dom.channelsSelect?.addEventListener("change", persistState);
-  document
-    .getElementById("output-bitrate")
-    ?.addEventListener("change", persistState);
-  dom.fdkAfterburner?.addEventListener("change", persistState);
-  dom.fdkVbrLevel?.addEventListener("input", () => {
-    const level = clamp(Number(dom.fdkVbrLevel?.value ?? "3"), 1, 5);
-    updateFdkVbrLabel(level);
+  dom.qualitySelect?.addEventListener("change", () => {
+    updateEstimatedBitrate();
     persistState();
   });
+  dom.bitrateSelect?.addEventListener("change", () => {
+    updateEstimatedBitrate();
+    persistState();
+  });
+  dom.fdkAfterburner?.addEventListener("change", persistState);
 };
 
-const updateFdkVbrLabel = (level: number): void => {
-  const dom = queryDom();
-  if (dom.fdkVbrLabel) {
-    dom.fdkVbrLabel.textContent = `Quality ${level} (~${
-      level >= 3 ? 60 : 48 + level * 4
-    } kbps)`;
-  }
-};
-
+/** Debounced state persistence to prevent localStorage thrashing */
 const persistState = (): void => {
-  const settings = getEncoderSettingsFromDom();
-  if (settings) {
-    saveState(settings);
+  if (persistTimer) {
+    clearTimeout(persistTimer);
   }
+  persistTimer = setTimeout(() => {
+    const settings = getEncoderSettingsFromDom();
+    if (settings) {
+      saveState(settings);
+    }
+    persistTimer = null;
+  }, PERSIST_DEBOUNCE_MS);
 };
 
 const hydrateAvailability = async (): Promise<void> => {
-  console.log("🔧 EncoderPanel: Fetching encoder availability...");
   try {
     cachedAvailability = await bridge.invoke<EncoderAvailability>(
       "list_available_encoders"
     );
-    console.log("🔧 EncoderPanel: Availability received:", cachedAvailability);
+    debugLog("Encoder availability:", cachedAvailability);
   } catch (error) {
     console.warn("Failed to load encoder availability", error);
     cachedAvailability = null;
@@ -184,120 +235,162 @@ const hydrateAvailability = async (): Promise<void> => {
 };
 
 const updateAvailabilityHint = (): void => {
-  const dom = queryDom();
+  const dom = ensureDomCache();
   if (!dom.encoderAvailabilityHint) return;
+
   if (!cachedAvailability) {
-    dom.encoderAvailabilityHint.textContent =
-      "Encoder availability unknown (offline).";
+    dom.encoderAvailabilityHint.textContent = "Checking encoder availability…";
     return;
   }
-  const parts: string[] = [];
-  parts.push(
-    cachedAvailability.fdk_available
-      ? "FDK detected."
-      : "FDK missing — install FFmpeg with libfdk_aac."
-  );
-  parts.push(
-    cachedAvailability.aac_at_available
-      ? "Apple AAC available."
-      : "Apple AAC not detected (install on macOS)."
-  );
-  dom.encoderAvailabilityHint.textContent = parts.join(" ");
+
+  // Single concise line showing what's available
+  if (cachedAvailability.fdkAvailable && ENABLE_FDK) {
+    dom.encoderAvailabilityHint.textContent = "FDK detected ✓";
+  } else if (cachedAvailability.aacAtAvailable) {
+    dom.encoderAvailabilityHint.textContent = "Apple AAC available";
+  } else {
+    dom.encoderAvailabilityHint.textContent = "Using native encoder";
+  }
 };
 
-const syncAdvancedVisibility = (): void => {
-  const dom = queryDom();
+/** Main sync function - updates all encoder-dependent UI */
+const syncEncoderUI = (): void => {
+  const dom = ensureDomCache();
   const flavor =
     (dom.encoderSelect?.value as EncoderFlavor | undefined) ?? "auto";
-  const fdkControls = document.getElementById("adv-fdk-controls");
-  if (fdkControls) {
-    fdkControls.style.display = flavor === "fdk_he_aac" ? "grid" : "none";
-  }
-  if (dom.fdkAfterburner) {
-    dom.fdkAfterburner.disabled = !ENABLE_FDK;
-  }
-  if (dom.encoderNote) {
-    dom.encoderNote.textContent = getEncoderNote(flavor);
-  }
-  enforceBitrateModeCompatibility(flavor);
+  const effectiveEncoder = resolveEffectiveEncoder(flavor);
+
+  updateProfileDisplay(effectiveEncoder);
+  enforceBitrateModeCompatibility(effectiveEncoder);
+  syncQualityBitrateVisibility();
+  syncEncoderOptions(effectiveEncoder);
+  updateEstimatedBitrate();
   disableDisallowedEncoders();
 };
 
-const getEncoderNote = (flavor: EncoderFlavor): string => {
-  switch (flavor) {
-    case "aac_at":
-      return "Apple AAC uses CVBR and is ideal for Apple devices.";
-    case "fdk_he_aac":
-      return "FDK HE-AAC delivers ~60 kbps VBR with afterburner for speech.";
-    case "native_aac":
-      return "Native AAC uses CBR twoloop mode for compatibility.";
-    case "auto":
-    default:
-      return "Auto selects FDK when available, otherwise Apple AAC or native AAC.";
+const updateProfileDisplay = (encoder: EncoderFlavor): void => {
+  const dom = ensureDomCache();
+  if (!dom.profileDisplay) return;
+
+  dom.profileDisplay.textContent = ENCODER_PROFILES[encoder] ?? "AAC-LC";
+};
+
+const enforceBitrateModeCompatibility = (encoder: EncoderFlavor): void => {
+  const dom = ensureDomCache();
+  const select = dom.bitrateModeSelect;
+  if (!select) return;
+
+  // Enable all options first
+  select.querySelectorAll("option").forEach((opt) => (opt.disabled = false));
+
+  // Lock to encoder-specific mode
+  if (encoder === "aac_at") {
+    select.value = "cvbr";
+    select.querySelectorAll("option").forEach((opt) => {
+      if (opt.value !== "cvbr") opt.disabled = true;
+    });
+  } else if (encoder === "native_aac") {
+    select.value = "cbr";
+    select.querySelectorAll("option").forEach((opt) => {
+      if (opt.value !== "cbr") opt.disabled = true;
+    });
+  } else {
+    // FDK or auto (resolves to FDK)
+    select.value = "vbr";
+    select.querySelectorAll("option").forEach((opt) => {
+      if (opt.value !== "vbr") opt.disabled = true;
+    });
   }
 };
 
-const enforceBitrateModeCompatibility = (flavor: EncoderFlavor): void => {
-  const dom = queryDom();
-  const select = dom.bitrateModeSelect;
-  if (!select) return;
-  const setValue = (value: string) => {
-    select.value = value;
-  };
-  select
-    .querySelectorAll("option")
-    .forEach((option) => (option.disabled = false));
-  if (flavor === "aac_at") {
-    setValue("cvbr");
-    select.querySelectorAll("option").forEach((option) => {
-      if (option.value !== "cvbr") option.disabled = true;
-    });
-  } else if (flavor === "native_aac") {
-    setValue("cbr");
-    select.querySelectorAll("option").forEach((option) => {
-      if (option.value !== "cbr") option.disabled = true;
-    });
+const syncQualityBitrateVisibility = (): void => {
+  const dom = ensureDomCache();
+  const mode = dom.bitrateModeSelect?.value ?? "vbr";
+
+  const showQuality = mode === "vbr";
+  if (dom.qualitySelect) {
+    dom.qualitySelect.classList.toggle("hidden", !showQuality);
+  }
+  if (dom.bitrateSelect) {
+    dom.bitrateSelect.classList.toggle("hidden", showQuality);
+  }
+  if (dom.qualityBitrateLabel) {
+    dom.qualityBitrateLabel.textContent = showQuality ? "Quality" : "Bitrate";
+  }
+};
+
+const syncEncoderOptions = (encoder: EncoderFlavor): void => {
+  const dom = ensureDomCache();
+
+  // Show/hide encoder-specific option groups
+  if (dom.fdkOptions) {
+    dom.fdkOptions.classList.toggle("hidden", encoder !== "fdk_he_aac");
+  }
+  if (dom.nativeOptions) {
+    dom.nativeOptions.classList.toggle("hidden", encoder !== "native_aac");
+  }
+  if (dom.appleOptions) {
+    dom.appleOptions.classList.toggle("hidden", encoder !== "aac_at");
+  }
+
+  // Enable/disable afterburner based on FDK feature flag
+  if (dom.fdkAfterburner) {
+    dom.fdkAfterburner.disabled = !ENABLE_FDK;
+  }
+};
+
+const updateEstimatedBitrate = (): void => {
+  const dom = ensureDomCache();
+  if (!dom.estimatedBitrate) return;
+
+  const mode = dom.bitrateModeSelect?.value ?? "vbr";
+
+  if (mode === "vbr") {
+    const level = clamp(
+      parseInt(dom.qualitySelect?.value ?? "3", 10),
+      1,
+      5
+    ) as VbrLevel;
+    const estimate = VBR_BITRATE_ESTIMATES[level];
+    dom.estimatedBitrate.textContent = `Est: ~${estimate} kbps`;
   } else {
-    setValue("vbr");
-    select.querySelectorAll("option").forEach((option) => {
-      if (option.value !== "vbr") option.disabled = true;
-    });
+    // CVBR or CBR - show target bitrate
+    const bitrate = dom.bitrateSelect?.value ?? "64";
+    dom.estimatedBitrate.textContent = `Target: ${bitrate} kbps`;
   }
 };
 
 const disableDisallowedEncoders = (): void => {
-  const dom = queryDom();
+  const dom = ensureDomCache();
   const select = dom.encoderSelect;
-  if (!select) {
-    console.log("🔧 EncoderPanel: disableDisallowedEncoders - select not found");
-    return;
-  }
+  if (!select) return;
+
   const availability = cachedAvailability;
-  console.log("🔧 EncoderPanel: disableDisallowedEncoders - availability:", availability, "ENABLE_FDK:", ENABLE_FDK);
+
   Array.from(select.options).forEach((option) => {
     switch (option.value) {
       case "fdk_he_aac":
-        option.disabled = !ENABLE_FDK || !availability?.fdk_available;
-        console.log(`🔧 EncoderPanel: fdk_he_aac disabled=${option.disabled} (ENABLE_FDK=${ENABLE_FDK}, fdk_available=${availability?.fdk_available})`);
+        option.disabled = !ENABLE_FDK || !availability?.fdkAvailable;
         break;
       case "aac_at":
-        option.disabled = availability ? !availability.aac_at_available : false;
-        console.log(`🔧 EncoderPanel: aac_at disabled=${option.disabled}`);
+        option.disabled = availability ? !availability.aacAtAvailable : false;
         break;
       case "native_aac":
         option.disabled = availability
-          ? !availability.native_aac_available
+          ? !availability.nativeAacAvailable
           : false;
-        console.log(`🔧 EncoderPanel: native_aac disabled=${option.disabled}`);
         break;
       default:
         option.disabled = false;
     }
   });
+
+  // Fall back if current selection is disabled
   if (select.selectedOptions[0]?.disabled) {
     const fallback = Array.from(select.options).find((opt) => !opt.disabled);
     if (fallback) {
       select.value = fallback.value;
+      syncEncoderUI(); // Re-sync after fallback
     }
   }
 };

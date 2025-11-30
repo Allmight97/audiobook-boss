@@ -179,143 +179,122 @@
         </div>
 
         <!-- AUDIO ENCODER SETTINGS SECTION -->
-        <div class="section-divider">
+        <div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
           <div class="section-header">
             <h3>Audio Encoder Settings</h3>
-            <span class="inline-info"
-              >(<span id="estimated-size">~ --- MB</span>)</span
-            >
+            <span class="inline-info">
+              (<span id="estimated-size" data-testid="estimated-size">~ --- MB</span>)
+            </span>
           </div>
-          <div class="grid grid-cols-3 gap-x-3 gap-y-2 mb-2">
+
+          <!-- Row 1: Encoder, Profile (display), Bitrate Mode, Quality/Bitrate -->
+          <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
             <div>
-              <label for="output-bitrate">Bitrate (kbps)</label>
-              <select id="output-bitrate">
-                <option value="48">48</option>
-                <option value="56">56</option>
-                <option value="64" selected>64 (Default)</option>
-                <option value="72">72</option>
-                <option value="80">80</option>
-                <option value="88">88</option>
-                <option value="96">96</option>
-                <option value="104">104</option>
-                <option value="112">112</option>
-                <option value="120">120</option>
-                <option value="128">128</option>
+              <label for="adv-encoder">Encoder</label>
+              <select id="adv-encoder" data-testid="encoder-select">
+                <option value="auto" selected>Auto</option>
+                <option value="fdk_he_aac">FDK AAC</option>
+                <option value="aac_at">Apple AAC</option>
+                <option value="native_aac">Native AAC</option>
               </select>
-              <p class="text-xs muted-text mt-0.5 italic">
-                Re-encodes only if source > selected.
+              <p id="encoder-availability-hint" class="text-xs muted-text mt-0.5" data-testid="encoder-availability-hint">
+                Checking…
               </p>
             </div>
             <div>
-              <label for="output-samplerate">Sample Rate (Hz)</label>
-              <select id="output-samplerate">
-                <option value="auto" selected>Auto (Pass-through)</option>
-                <option value="22050">22050</option>
-                <option value="32000">32000</option>
-                <option value="44100">44100</option>
-                <option value="48000">48000</option>
-              </select>
-              <p class="text-xs muted-text mt-0.5 italic">
-                Resamples only if specific value selected.
-              </p>
+              <label>Profile</label>
+              <div id="encoder-profile-display" class="profile-display" data-testid="profile-display">
+                HE-AAC v1
+              </div>
+              <p class="text-xs muted-text mt-0.5 italic">Read-only</p>
             </div>
             <div>
-              <label for="output-channels">Channels</label>
-              <select id="output-channels">
-                <option value="auto" selected>Auto (Preserve source)</option>
-                <option value="mono">Force Mono</option>
-                <option value="stereo">Force Stereo</option>
+              <label for="adv-bitrate-mode">Bitrate Mode</label>
+              <select id="adv-bitrate-mode" data-testid="bitrate-mode-select">
+                <option value="vbr" selected>VBR</option>
+                <option value="cvbr">CVBR</option>
+                <option value="cbr">CBR</option>
               </select>
+            </div>
+            <div>
+              <label for="output-quality" id="quality-bitrate-label">Quality</label>
+              <select id="output-quality" data-testid="quality-select">
+                <option value="1">1 (Smallest)</option>
+                <option value="2">2</option>
+                <option value="3" selected>3 (Recommended)</option>
+                <option value="4">4</option>
+                <option value="5">5 (Largest)</option>
+              </select>
+              <!-- Bitrate dropdown (hidden by default, shown for CVBR/CBR) -->
+              <select id="output-bitrate" class="hidden" data-testid="bitrate-select">
+                <option value="48">48 kbps</option>
+                <option value="56">56 kbps</option>
+                <option value="64" selected>64 kbps</option>
+                <option value="72">72 kbps</option>
+                <option value="80">80 kbps</option>
+                <option value="88">88 kbps</option>
+                <option value="96">96 kbps</option>
+                <option value="104">104 kbps</option>
+                <option value="112">112 kbps</option>
+                <option value="120">120 kbps</option>
+                <option value="128">128 kbps</option>
+              </select>
+              <p id="estimated-bitrate" class="text-xs muted-text mt-0.5" data-testid="estimated-bitrate">
+                Est: ~60 kbps
+              </p>
             </div>
           </div>
 
-          <!-- Advanced settings accordion -->
-          <div class="mb-2">
-            <div class="flex items-center">
-              <button
-                id="advanced-settings-toggle"
-                class="button-secondary advanced-toggle text-xs"
-              >
-                <span id="advanced-toggle-icon">▶</span>
-                <span>Advanced settings</span>
-              </button>
+          <!-- Row 2: Sample Rate, Channels -->
+          <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
+            <div>
+              <label for="output-samplerate">Sample Rate</label>
+              <select id="output-samplerate" data-testid="samplerate-select">
+                <option value="auto" selected>Auto</option>
+                <option value="22050">22050 Hz</option>
+                <option value="32000">32000 Hz</option>
+                <option value="44100">44100 Hz</option>
+                <option value="48000">48000 Hz</option>
+              </select>
             </div>
-            <div id="advanced-settings-panel" class="advanced-panel mt-2">
-              <div class="p-2">
-                <div class="grid grid-cols-3 gap-3">
-                  <div>
-                    <label for="adv-encoder">Encoder</label>
-                    <select id="adv-encoder">
-                      <option value="auto" selected>
-                        Auto (Prefer best available)
-                      </option>
-                      <option value="aac_at">Apple AAC (aac_at)</option>
-                      <option value="fdk_he_aac">Fraunhofer FDK HE-AAC</option>
-                      <option value="native_aac">Native AAC (FFmpeg)</option>
-                    </select>
-                    <p
-                      id="encoder-availability-hint"
-                      class="text-xs muted-text mt-1"
-                    >
-                      Checking encoder availability…
-                    </p>
-                  </div>
-                  <div>
-                    <label for="adv-bitrate-mode">Bitrate Mode</label>
-                    <select id="adv-bitrate-mode">
-                      <option value="cbr">Constant Bitrate (CBR)</option>
-                      <option value="cvbr">Constrained VBR (CVBR)</option>
-                      <option value="vbr">Variable Bitrate (VBR)</option>
-                    </select>
-                    <p
-                      id="adv-bitrate-mode-hint"
-                      class="text-xs muted-text mt-1"
-                    >
-                      Mode availability depends on encoder selection.
-                    </p>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium mb-1"
-                      >Encoder Notes</label
-                    >
-                    <p id="adv-encoder-note" class="text-xs muted-text">
-                      Auto picks FDK when available, otherwise Apple or native
-                      AAC.
-                    </p>
-                  </div>
-                </div>
-                <div
-                  id="adv-fdk-controls"
-                  class="grid grid-cols-3 gap-3 mt-3"
-                  style="display: none"
-                >
-                  <div>
-                    <label for="adv-fdk-vbr-level">FDK Quality</label>
-                    <input
-                      type="range"
-                      id="adv-fdk-vbr-level"
-                      min="1"
-                      max="5"
-                      step="1"
-                      value="3"
-                    />
-                    <p id="adv-fdk-vbr-label" class="text-xs muted-text mt-1">
-                      Quality 3 (~60 kbps)
-                    </p>
-                  </div>
-                  <div class="col-span-1 flex items-end">
-                    <label class="checkbox-label">
-                      <input type="checkbox" id="adv-fdk-afterburner" />
-                      Enable Afterburner
-                    </label>
-                  </div>
-                  <div class="col-span-3">
-                    <p id="adv-fdk-status" class="text-xs muted-text">
-                      FDK availability checking…
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <label for="output-channels">Channels</label>
+              <select id="output-channels" data-testid="channels-select">
+                <option value="auto" selected>Auto</option>
+                <option value="mono">Mono</option>
+                <option value="stereo">Stereo</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <!-- Spacer for alignment -->
+            </div>
+          </div>
+
+          <!-- Encoder-Specific Options Section -->
+          <div id="encoder-options-section" class="encoder-options-section mt-2 p-2 rounded" data-testid="encoder-options-section">
+            <div class="text-xs font-medium mb-2 muted-text">Encoder Options</div>
+
+            <!-- FDK Options -->
+            <div id="fdk-options" class="encoder-option-group" data-testid="fdk-options">
+              <label class="checkbox-label" data-testid="afterburner-toggle">
+                <input type="checkbox" id="adv-fdk-afterburner" checked data-testid="afterburner-checkbox" />
+                <span class="option-label">Afterburner</span>
+                <span class="option-desc">— Better quality, +10% encode time</span>
+              </label>
+            </div>
+
+            <!-- Native AAC Options -->
+            <div id="native-options" class="encoder-option-group hidden" data-testid="native-options">
+              <label class="checkbox-label" data-testid="twoloop-toggle">
+                <input type="checkbox" id="adv-native-twoloop" checked disabled data-testid="twoloop-checkbox" />
+                <span class="option-label">Twoloop</span>
+                <span class="option-desc">— Improves quality at low bitrates (always on)</span>
+              </label>
+            </div>
+
+            <!-- Apple AAC Options (none) -->
+            <div id="apple-options" class="encoder-option-group hidden" data-testid="apple-options">
+              <p class="text-xs muted-text italic">No configurable options — hardware encoder</p>
             </div>
           </div>
         </div>

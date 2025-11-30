@@ -231,10 +231,10 @@ export class StatusPanel {
           : defaults.bitrateKbps;
         const channels: EncoderSettings["channels"] =
           settings.channels === "Stereo"
-            ? 2
+            ? "stereo"
             : settings.channels === "Mono"
-            ? 1
-            : "auto";
+              ? "mono"
+              : "auto";
         return {
           ...defaults,
           bitrateKbps: bitrate,

@@ -26,7 +26,7 @@ export type EncoderFlavor =
   | "aac_at"
   | "fdk_he_aac"
   | "native_aac";
-type VbrLevel = Extract<BitrateMode, { mode: "vbr" }>["level"];
+type VbrLevel = Extract<BitrateMode, { mode: "vbr" }>["value"];
 
 export interface VbrSetting {
   enabled: boolean;
@@ -44,14 +44,14 @@ export interface EncoderSettingsV2 {
 }
 
 export const defaultEncoderSettingsV2 = (
-  isMac: boolean
+  _isMac: boolean
 ): EncoderSettingsV2 => ({
-  flavor: isMac ? "aac_at" : "native_aac",
+  flavor: "auto",
   bitrateKbps: 64,
-  bitrateMode: isMac ? { mode: "cvbr" } : { mode: "cbr" },
+  bitrateMode: { mode: "vbr", value: 3 },
   channels: "auto",
-  vbr: { enabled: false },
-  fdkAfterburner: false,
+  vbr: { enabled: true, level: 3 },
+  fdkAfterburner: true,
 });
 
 // VALID_ENCODER_BITRATES imported from audio.ts (single source of truth)
@@ -66,7 +66,7 @@ const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode => {
   switch (encoderType) {
     case "fdk_he_aac":
     case "auto":
-      return { mode: "vbr", level: 3 };
+      return { mode: "vbr", value: 3 };
     case "aac_at":
       return { mode: "cvbr" };
     case "native_aac":
@@ -87,7 +87,7 @@ const isBoundaryEncoderSettings = (
   return (
     typeof candidate.encoderType === "string" &&
     typeof candidate.bitrateKbps === "number" &&
-    (channels === "auto" || channels === 1 || channels === 2) &&
+    (channels === "auto" || channels === "mono" || channels === "stereo") &&
     typeof bitrateMode === "object" &&
     bitrateMode !== null &&
     typeof (bitrateMode as BitrateMode).mode === "string"
@@ -111,7 +111,7 @@ const sanitizeChannels = (
   value: unknown,
   fallback: EncoderSettings["channels"]
 ): EncoderSettings["channels"] => {
-  if (value === "auto" || value === 1 || value === 2) {
+  if (value === "auto" || value === "mono" || value === "stereo") {
     return value;
   }
   return fallback;
@@ -132,15 +132,15 @@ const sanitizeBitrateMode = (
       return { mode: candidate.mode };
     }
     if (candidate.mode === "vbr") {
-      const numeric = Number((candidate as { level?: number }).level ?? 3);
+      const numeric = Number((candidate as { value?: number }).value ?? 3);
       if (Number.isFinite(numeric)) {
         const clamped = Math.max(
           1,
           Math.min(5, Math.round(numeric))
         ) as VbrLevel;
-        return { mode: "vbr", level: clamped };
+        return { mode: "vbr", value: clamped };
       }
-      return { mode: "vbr", level: 3 };
+      return { mode: "vbr", value: 3 };
     }
   }
   return fallback ?? defaultBitrateModeFor(encoderType);

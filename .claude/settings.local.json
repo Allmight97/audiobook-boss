@@ -53,7 +53,15 @@
       "Bash(gh api:*)",
       "Bash(gh pr comment:*)",
       "Bash(gh issue list:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "SlashCommand(/compounding-engineering:plan_review:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh issue edit:*)"
     ],
     "deny": []
   },
