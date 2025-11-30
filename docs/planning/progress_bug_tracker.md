@@ -57,6 +57,51 @@
 
 - [ ] FEATURE: **Status panel encoder badge** — When processing, showing a small pill like "HE-AAC @ 64k" in the status bar would give quick confirmation of what settings are being used without scrolling back up.
 
+- [ ] TODO: With with AI Agent to Search all repo surfaces for DEBUG logging flags with intent to understand how to use them during development vs removing them from production? How do I manage both on the same repo? 
+    - **Opus agent response: The Mechanism**
+
+       ```
+       const DEBUG = import.meta.env.DEV;
+        const debugLog = (...args: unknown[]) => {
+          if (DEBUG) console.log("[EncoderPanel]", ...args);
+        };
+        ```
+
+        import.meta.env.DEV is a Vite built-in that:
+        - Returns true when running npm run dev or npm run tauri dev
+        - Returns false when building with npm run build or npm run app:build
+
+        **What This Means**
+
+        | Command                          | DEV value | Logs visible?     |
+        |----------------------------------|-----------|-------------------|
+        | npm run tauri dev                | true      | Yes               |
+        | RUST_LOG=debug npm run tauri dev | true      | Yes               |
+        | npm run app:build                | false     | No (code removed) |
+
+        **Tree-Shaking**
+
+        In production builds, Vite sees if (false) console.log(...) and removes the dead code entirely. The debugLog
+        function calls cost zero bytes in your released app.
+
+        **When to Use Which**
+
+        | Log Type        | When                                      | Example                               |
+        |-----------------|-------------------------------------------|---------------------------------------|
+        | debugLog()      | Verbose tracing during development        | "Encoder panel ready"                 |
+        | console.warn()  | Errors/failures that matter in production | "Failed to load encoder availability" |
+        | console.error() | Critical failures                         | Runtime exceptions                    |
+
+        **For Agents**
+        [ ] TODO: Do I need to update @agents.md to accommodate the debug thing?
+
+        When adding debug logs to this repo:
+        1. Import or define DEBUG = import.meta.env.DEV
+        2. Use a prefixed helper like debugLog("[ModuleName]", ...)
+        3. Keep console.warn/error for genuine problems users might see
+
+        The pattern is already established in src/lib/bridge.ts and now src/ui/encoderPanel/logic.ts.
+
 
 # COMPLETED / DONE
 
