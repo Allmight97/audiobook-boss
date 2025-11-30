@@ -1,26 +1,5 @@
 # Bugs and Features Tracker
 
-## ACTIVE PRIORITIES (Start Here)
-
-- [x] **BUG (P1-A): Processing fails silently - output path contract mismatch** [BLOCKER]
-
-  - Resolution: `process_audiobook_files_v2` now accepts full output file paths and creates parent directories via `prepare_output_path`; contract mismatch addressed.
-  - See: `docs/planning/p1-settings-contract-fix.md`
-
-- [x] **BUG (P1-B): Bitrate range mismatch - settings silently ignored**
-
-  - Resolution: `VALID_ENCODER_BITRATES` expanded to 48–128 kbps (TS/Rust aligned); UI and validation now accept offered bitrates.
-  - See: `docs/planning/p1-settings-contract-fix.md`
-
-- [ ] **BUG (P1-C): Sample rate not passed to backend**
-
-  - Status: Partial. `process_audiobook_files_v2` now maps `payload.sample_rate` into legacy validation, but full end-to-end verification is pending (ensure UI sends sample_rate and encoder honors it).
-  - See: `docs/planning/p1-settings-contract-fix.md`
-
-- [ ] **Fast Path Optimization (P2)**
-  - Context: Currently disabled (`ABB_DISABLE_FASTPATH=1`) due to AAC errors.
-  - Pre-requisite: Fix/verify P1 items first.
-
 ## Features (Backlog)
 
 - [ ] FEATURE: Add ability to process multiple files loaded into the file list as separate jobs (single audiobook per file), outputing to different directories custom to each file.
@@ -136,10 +115,6 @@ This tracker should be deprecated in favor of GitHub Issues for better visibilit
 
 | Tracker Item | Status | Existing GH Issue? | Recommended Action |
 |--------------|--------|-------------------|-------------------|
-| **P1-A: Output path contract mismatch** [BLOCKER] | Open | **NO** | Create new issue (priority:high, bug) |
-| **P1-B: Bitrate range mismatch** | Open | **NO** | Create new issue (priority:high, bug) |
-| **P1-C: Sample rate not passed to backend** | Open | **NO** | Create new issue (priority:high, bug) |
-| **P2: Fast Path Optimization** | Open | **NO** | Create new issue (blocked by P1s) |
 | Multi-file batch processing | Backlog | **NO** | Create new (priority:low, enhancement) |
 | Nested chapter auto-flatten | Backlog | **NO** | Create new (priority:low, enhancement) |
 | Cover art from URL | Backlog | **NO** | Create new (priority:low, enhancement) |
