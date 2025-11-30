@@ -102,13 +102,13 @@ pub async fn process_audiobook_files_v2(
     // Note: Frontend sends full file path in output_dir field (legacy naming)
     let output_path = prepare_output_path(&payload.output_dir)?;
 
-    // Minimal AudioSettings kept for legacy validation paths (bitrate/channel/sample rate)
+    // Build pipeline settings from v2 inputs (encoder still uses v2 settings)
     let mut settings_v1 = audio::AudioSettings::audiobook_preset();
     settings_v1.bitrate = payload.settings.bitrate_kbps as u32;
     settings_v1.channels = match payload.settings.channels {
         EncoderChannelConfig::Mono => ChannelConfig::Mono,
         EncoderChannelConfig::Stereo => ChannelConfig::Stereo,
-        EncoderChannelConfig::Auto => ChannelConfig::Mono, // legacy validation only; actual encoder honors auto via v2 settings
+        EncoderChannelConfig::Auto => ChannelConfig::Mono, // pipeline expects concrete channels; encoder honors v2 auto
     };
     // Map sample rate from frontend payload (defaults to Auto if not provided)
     if let Some(sample_rate) = payload.sample_rate {
@@ -116,8 +116,9 @@ pub async fn process_audiobook_files_v2(
     }
     settings_v1.output_path = output_path.clone();
 
-    // Reuse existing validation to ensure path/bitrate configuration is acceptable
-    audio::validate_audio_settings(&settings_v1)?;
+    // Validate derived settings (bitrate/sample_rate/output path) without legacy encoder assumptions
+    audio::settings::validate_sample_rate_config(&settings_v1.sample_rate)?;
+    audio::settings::validate_output_path(&settings_v1.output_path)?;
 
     // Set processing state
     {

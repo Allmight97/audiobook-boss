@@ -23,7 +23,7 @@ fn validate_bitrate(bitrate: u32) -> Result<()> {
 }
 
 /// Validates sample rate configuration
-fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
+pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
     match config {
         SampleRateConfig::Auto => Ok(()), // Auto is always valid
         SampleRateConfig::Explicit(rate) => validate_explicit_sample_rate(*rate),
@@ -74,7 +74,7 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
 }
 
 /// Validates output path is writable
-fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
+pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
 
     // Validate parent directory exists and is writable
