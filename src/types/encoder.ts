@@ -44,14 +44,14 @@ export interface EncoderSettingsV2 {
 }
 
 export const defaultEncoderSettingsV2 = (
-  isMac: boolean
+  _isMac: boolean
 ): EncoderSettingsV2 => ({
-  flavor: isMac ? "aac_at" : "native_aac",
+  flavor: "auto",
   bitrateKbps: 64,
-  bitrateMode: isMac ? { mode: "cvbr" } : { mode: "cbr" },
+  bitrateMode: { mode: "vbr", level: 3 },
   channels: "auto",
-  vbr: { enabled: false },
-  fdkAfterburner: false,
+  vbr: { enabled: true, level: 3 },
+  fdkAfterburner: true,
 });
 
 // VALID_ENCODER_BITRATES imported from audio.ts (single source of truth)
