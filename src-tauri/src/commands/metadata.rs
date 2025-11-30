@@ -1,3 +1,4 @@
+use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
 use crate::errors::{AppError, Result};
 use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
 use std::path::PathBuf;
@@ -6,14 +7,18 @@ use std::path::PathBuf;
 /// Returns metadata as JSON-serializable struct
 #[tauri::command]
 pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
-    read_metadata(&file_path)
+    let path = PathBuf::from(&file_path);
+    let validated_path = validate_input_audio_path(&path)?;
+    read_metadata(validated_path.to_string_lossy().as_ref())
 }
 
 /// Writes metadata to an existing M4B file
 /// Accepts file path and metadata object
 #[tauri::command]
 pub fn write_audio_metadata(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
-    write_metadata(&file_path, &metadata)
+    let path = PathBuf::from(&file_path);
+    let validated_path = validate_input_audio_path(&path)?;
+    write_metadata(validated_path.to_string_lossy().as_ref(), &metadata)
 }
 
 /// Writes cover art to an M4B file
@@ -21,7 +26,9 @@ pub fn write_audio_metadata(file_path: String, metadata: AudiobookMetadata) -> R
 #[tauri::command]
 pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
     use crate::metadata::writer::write_cover_art as write_cover;
-    write_cover(&file_path, &cover_data)
+    let path = PathBuf::from(&file_path);
+    let validated_path = validate_input_audio_path(&path)?;
+    write_cover(validated_path.to_string_lossy().as_ref(), &cover_data)
 }
 
 /// Loads image file from disk and returns as byte array
@@ -31,38 +38,10 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     use std::fs;
 
     let path = PathBuf::from(&file_path);
+    let validated_path = validate_input_image_path(&path)?;
 
-    // Validate file exists
-    if !path.exists() {
-        return Err(AppError::FileValidation(format!(
-            "Image file not found: {file_path}"
-        )));
-    }
-
-    if !path.is_file() {
-        return Err(AppError::FileValidation(format!(
-            "Path is not a file: {file_path}"
-        )));
-    }
-
-    // Validate file extension
-    let extension = path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ext.to_lowercase())
-        .ok_or_else(|| AppError::InvalidInput("File has no extension".to_string()))?;
-
-    match extension.as_str() {
-        "jpg" | "jpeg" | "png" | "webp" => {}
-        _ => {
-            return Err(AppError::InvalidInput(format!(
-                "Unsupported image format: {extension}. Supported formats: jpg, jpeg, png, webp"
-            )))
-        }
-    }
-
-    // Read file contents
-    let image_data = fs::read(&path).map_err(AppError::Io)?;
+    // Read file contents using the validated canonical path
+    let image_data = fs::read(&validated_path).map_err(AppError::Io)?;
 
     // Validate it's not empty
     if image_data.is_empty() {
@@ -70,6 +49,13 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
             "Image file appears to be empty".to_string(),
         ));
     }
+
+    // Get extension from validated path for header validation
+    let extension = validated_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_lowercase())
+        .unwrap_or_default();
 
     // Basic format validation by checking file headers
     validate_image_format(&image_data, &extension)?;
