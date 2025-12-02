@@ -46,7 +46,7 @@ Verify `aac_at` CVBR mode works correctly with the new Dictionary approach.
 
 Verify native FFmpeg AAC with `aac_coder=twoloop` via Dictionary works correctly.
 
-### 3. Split encoder.rs (849 LOC → <400 LOC each)
+### 3. Split encoder.rs (849 LOC to <400 LOC each)
 
 Current file exceeds AGENTS.md complexity limit (400 LOC max).
 
@@ -66,15 +66,48 @@ src-tauri/src/audio/processor/encoder/
 └── tests.rs        (~150 LOC) - All tests (or keep inline)
 ```
 
-**Key files to touch**:
+**Files requiring import updates** (internal callers):
 
-- [`src-tauri/src/audio/processor/encoder.rs`](src-tauri/src/audio/processor/encoder.rs) - Split into module
-- [`src-tauri/src/audio/processor/mod.rs`](src-tauri/src/audio/processor/mod.rs) - Update module declaration
+- [`src-tauri/src/audio/processor/frame_pipeline.rs`](src-tauri/src/audio/processor/frame_pipeline.rs) - Uses `encode_and_write_frame`, `finalize_encoding`
+- [`src-tauri/src/audio/media_pipeline.rs`](src-tauri/src/audio/media_pipeline.rs) - Uses `setup_encoder`
+- [`src-tauri/src/audio/processor/mod.rs`](src-tauri/src/audio/processor/mod.rs) - Module declaration
 
-**Approach**:
+**Implementation steps**:
 
-1. Create `encoder/` directory
-2. Move functions to appropriate submodules
-3. Update visibility and imports
-4. Verify all tests pass
-5. Run quick-checks
+1. Create `encoder/` directory structure
+2. Extract `build_*_options` functions to `encoder/options/*.rs`
+3. Extract common helpers to `encoder/common.rs`
+4. Extract `encode_and_write_frame`, `finalize_encoding` to `encoder/write.rs`
+5. Update imports in `frame_pipeline.rs` and `media_pipeline.rs`
+6. Verify all tests pass
+7. Run quick-checks
+
+### 4. Documentation Updates
+
+Update path references from `encoder.rs` to `encoder/`:
+
+| File | Line | Current | Updated |
+
+|------|------|---------|---------|
+
+| [`AGENTS.md`](AGENTS.md) | 52 | `audio/processor/{encoder.rs,...}` | `audio/processor/{encoder/,...}` |
+
+| [`docs/external-apis/README.md`](docs/external-apis/README.md) | 13 | `processor/{encoder.rs,...}` | `processor/{encoder/,...}` |
+
+| [`docs/external-apis/ffmpeg-next.md`](docs/external-apis/ffmpeg-next.md) | 6, 90 | `processor/encoder.rs` | `processor/encoder/` |
+
+---
+
+## Impact Summary
+
+| Order | Impact | Risk |
+
+|-------|--------|------|
+
+| 1st | Internal file restructure; import updates in 2 Rust files | Low |
+
+| 2nd | Easier future encoder work (Opus, new options) | Positive |
+
+| 3rd | Better maintainability; aligns with 400 LOC limit | Positive |
+
+**No changes to**: External APIs, IPC contracts, UI, command signatures
