@@ -33,6 +33,7 @@ Switched to ffmpeg-next's `open_as_with(codec, options)` API which passes the Di
 - FDK HE-AAC VBR now works correctly (closes #49)
 - Architecture aligns with how FFmpeg CLI handles encoder options
 - Apple and Native AAC paths updated but **not yet tested**
+  - DEV note: Apple AAC encoder works fine per the above session changes. Native AAC encoder doesn't at all process audio, and I'm not surprised because original scripts/shrink.sh didn't account for it at all.
 
 ---
 
