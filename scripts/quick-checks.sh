@@ -51,11 +51,11 @@ fi
 if [[ "${SKIP_TS_CHECK:-0}" == "1" ]]; then
   log_step "Skipping TypeScript typecheck (SKIP_TS_CHECK=1)."
 else
-  if command -v npx >/dev/null 2>&1; then
-    log_step "npx tsc -p tsconfig.json --noEmit"
-    npx tsc -p tsconfig.json --noEmit
+  if command -v bunx >/dev/null 2>&1; then
+    log_step "bunx tsc -p tsconfig.json --noEmit"
+    bunx tsc -p tsconfig.json --noEmit
   else
-    log_step "Skipping TypeScript typecheck (npx not found)."
+    log_step "Skipping TypeScript typecheck (bunx not found)."
   fi
 fi
 

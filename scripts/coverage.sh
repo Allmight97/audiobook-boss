@@ -9,7 +9,7 @@
 #
 # Requirements:
 #   - Rust: cargo-tarpaulin (install: cargo install cargo-tarpaulin)
-#   - TypeScript: vitest (install: npm install)
+#   - TypeScript: vitest (install: bun install)
 #
 # Output:
 #   - coverage/rust/tarpaulin-report.html   (Rust coverage)
@@ -78,20 +78,20 @@ run_rust_coverage() {
 run_typescript_coverage() {
   log_step "Running TypeScript coverage with vitest..."
 
-  if ! require npm; then
-    log_warn "npm not found, skipping TypeScript coverage"
+  if ! require bun; then
+    log_warn "bun not found, skipping TypeScript coverage"
     return 1
   fi
 
   # Check if vitest is installed
-  if ! npm list vitest >/dev/null 2>&1; then
-    log_warn "vitest not installed. Run 'npm install' first."
+  if ! bun pm ls vitest >/dev/null 2>&1; then
+    log_warn "vitest not installed. Run 'bun install' first."
     log_warn "Skipping TypeScript coverage"
     return 1
   fi
 
   # Run vitest with coverage
-  npm run test:coverage 2>&1
+  bun run test:coverage 2>&1
 
   log_step "TypeScript coverage report: $coverage_dir/typescript/index.html"
 }

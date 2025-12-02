@@ -91,7 +91,7 @@ Choose your starting point based on familiarity—if you already know the API su
 **Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
 
 ### Quality Gates
-**Quick Checks** (before committing): Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `npx` is available) `npx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
+**Quick Checks** (before committing): Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `bunx` is available) `bunx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
 
 - For full coverage before CI (continuous integration) runs, layer on:
     - From `src-tauri/`:
@@ -103,9 +103,9 @@ Choose your starting point based on familiarity—if you already know the API su
         ```
     - From the repo root:
         ```bash
-        npm run build
+        bun run build
         ```
-  - `npm run build` runs `tsc` before bundling.
+  - `bun run build` runs `tsc` before bundling.
 - After your changes, rerun the same set to verify nothing regressed.
 - CI option: run `cargo fmt --all -- --check` in parallel with `cargo clippy -- -D warnings`, then trigger `cargo test` once lints pass.
 - **When to run the heavy set**: Always execute the full suite before merging to `main`, preparing a release, or whenever changes touch runtime behavior (e.g., encoder internals, progress plumbing, UI contract exposure, metadata pipeline). The fast script is for tight iteration; the heavy run prevents surprises that CI would otherwise catch later.
@@ -179,7 +179,7 @@ Coverage goal: **90%** for critical paths (commands, audio processing, progress 
 # Rust only (requires cargo-tarpaulin)
 ./scripts/coverage.sh rust
 
-# TypeScript only (requires npm install)
+# TypeScript only (requires bun install)
 ./scripts/coverage.sh ts
 ```
 
@@ -189,13 +189,13 @@ Coverage goal: **90%** for critical paths (commands, audio processing, progress 
 
 **Requirements:**
 - Rust coverage: `cargo install cargo-tarpaulin`
-- TypeScript coverage: `npm install` (installs vitest + coverage-v8)
+- TypeScript coverage: `bun install` (installs vitest + coverage-v8)
 
 **TypeScript test commands:**
 ```bash
-npm run test           # Run tests once
-npm run test:watch     # Watch mode (re-run on changes)
-npm run test:coverage  # Run with coverage report
+bun run test           # Run tests once
+bun run test:watch     # Watch mode (re-run on changes)
+bun run test:coverage  # Run with coverage report
 ```
 
 **Writing TypeScript tests:**
@@ -232,7 +232,7 @@ Event: `processing-progress`
 - Never rename/remove existing fields without updating all listeners
 
 **Verification steps**:
-1. `RUST_LOG=debug npm run tauri dev`
+1. `RUST_LOG=debug bun run tauri dev`
 2. Process short sample
 3. Confirm: stage transitions, percentage progression, UI renders
 4. Then: `cargo test && cargo clippy -- -D warnings`
@@ -242,16 +242,16 @@ Event: `processing-progress`
 ## Build & Run Commands
 
 ### Development
-- Frontend dev: `npm run dev`
-- App dev: `npm run tauri dev`
-- App dev (verbose logs): `RUST_LOG=debug npm run tauri dev`
+- Frontend dev: `bun run dev`
+- App dev: `bun run tauri dev`
+- App dev (verbose logs): `RUST_LOG=debug bun run tauri dev`
 
 ### Production
-- Build: `npm run app:build`
+- Build: `bun run app:build`
 
 ### Testing
 See "Testing & Verification" section for detailed guidance.
-- Quick iteration: `npm run test` (TypeScript), `cargo test <filter>` (Rust)
+- Quick iteration: `bun run test` (TypeScript), `cargo test <filter>` (Rust)
 - Coverage: `./scripts/coverage.sh` (outputs HTML to `coverage/`)
 
 ---
