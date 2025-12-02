@@ -6,10 +6,34 @@ use crate::audio::settings_encoder::{
 };
 use crate::audio::ChannelConfig as LegacyChannelConfig;
 use crate::errors::Result;
+use ff::Dictionary;
 use ffmpeg_next as ff;
 use std::borrow::Cow;
+use std::sync::{Once, OnceLock};
 
 const DEFAULT_FDK_VBR_LEVEL: u8 = 3;
+
+fn encoder_log(message: &str) {
+    static LOG_PATH: OnceLock<Option<String>> = OnceLock::new();
+    static TRUNCATE: Once = Once::new();
+
+    let path = LOG_PATH.get_or_init(|| std::env::var("ABB_LOG_FILE").ok());
+    if let Some(p) = path {
+        TRUNCATE.call_once(|| {
+            let _ = std::fs::remove_file(p);
+        });
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(p)
+        {
+            use std::io::Write;
+            let _ = writeln!(file, "{}", message);
+        }
+    }
+
+    log::debug!("{}", message);
+}
 
 fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
     match encoder_type {
@@ -113,43 +137,6 @@ fn try_configure_variable_frame_size(encoder_ctx: &mut ff::codec::context::Conte
     }
 }
 
-/// Attempts to enable twoloop AAC enhancement for better psychoacoustic analysis.
-fn try_enable_twoloop_aac(encoder_ctx: &mut ff::codec::context::Context) -> Result<()> {
-    use crate::errors::AppError;
-    use std::ffi::CString;
-
-    unsafe {
-        let av_ctx = encoder_ctx.as_mut_ptr();
-        if av_ctx.is_null() {
-            return Err(AppError::General(
-                "Invalid encoder context pointer".to_string(),
-            ));
-        }
-
-        let key = CString::new("aac_coder")
-            .map_err(|e| AppError::General(format!("Failed to create key string: {}", e)))?;
-        let value = CString::new("twoloop")
-            .map_err(|e| AppError::General(format!("Failed to create value string: {}", e)))?;
-
-        let result = ffmpeg_next::sys::av_opt_set(
-            av_ctx as *mut std::ffi::c_void,
-            key.as_ptr(),
-            value.as_ptr(),
-            0,
-        );
-
-        if result < 0 {
-            return Err(AppError::General(format!(
-                "Failed to set aac_coder option: FFmpeg error code {}",
-                result
-            )));
-        }
-
-        log::debug!("Successfully set aac_coder=twoloop on encoder context");
-        Ok(())
-    }
-}
-
 /// Resolves target sample rate and channels from plan settings or first input file.
 fn resolve_target_audio_params(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
@@ -246,8 +233,6 @@ pub(crate) fn create_audio_encoder(
         .audio()
         .map_err(|e| AppError::General(format!("Open encoder failed: {e}")))?;
 
-    let target_bit_rate = encoder_settings.bitrate_kbps as usize * 1000;
-    opened.set_bit_rate(target_bit_rate);
     opened.set_rate(target_sample_rate as i32);
     opened.set_channel_layout(channel_layout);
     opened.set_format(sample_format);
@@ -265,20 +250,39 @@ pub(crate) fn create_audio_encoder(
         }
     }
 
-    match resolved_encoder {
-        EncoderType::FdkHeAac => configure_fdk_encoder(&mut opened, encoder_settings)?,
-        EncoderType::AacAt => configure_aac_at_encoder(&mut opened)?,
-        EncoderType::NativeAac | EncoderType::Auto => configure_native_aac_encoder(&mut opened)?,
-    }
+    // Build encoder-specific options Dictionary
+    // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
+    let opts = match resolved_encoder {
+        EncoderType::FdkHeAac => build_fdk_options(encoder_settings)?,
+        EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
+        EncoderType::NativeAac | EncoderType::Auto => {
+            build_native_options(&mut opened, encoder_settings)
+        }
+    };
 
     configure_threads(&mut opened, encoder_settings.threads);
+
+    let raw_bit_rate = unsafe { (*opened.as_mut_ptr()).bit_rate };
+    encoder_log(&format!(
+        "encoder_config resolved={:?} bitrate_mode={:?} bit_rate_field={} fmt={:?} channels={} rate={} afterburner={} opts={:?}",
+        resolved_encoder,
+        encoder_settings.bitrate_mode,
+        raw_bit_rate,
+        opened.format(),
+        opened.channel_layout().channels(),
+        opened.rate(),
+        encoder_settings.afterburner,
+        opts.iter().collect::<Vec<_>>()
+    ));
 
     if requires_global_header {
         opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
     }
 
+    // Open encoder with codec AND options dictionary
+    // This passes options to avcodec_open2, which correctly handles encoder-private options
     let enc_ctx = opened
-        .open_as(codec)
+        .open_as_with(codec, opts)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
 
     Ok(enc_ctx)
@@ -305,89 +309,98 @@ fn configure_threads(ctx: &mut ff::codec::context::Context, threads: ThreadSetti
     }
 }
 
-fn configure_fdk_encoder(
+/// FDK HE-AAC encoder options (HE-AAC v1 via aac_he profile).
+///
+/// Returns a Dictionary of encoder-private options to pass at codec open time.
+/// - VBR-only: levels 1-5 control quality/bitrate
+/// - Afterburner is optional quality enhancement
+/// - Profile is forced to aac_he (HE-AAC v1 with SBR)
+/// - Does NOT set bit_rate - VBR level controls bitrate
+fn build_fdk_options(settings: &EncoderSettings) -> Result<Dictionary<'static>> {
+    use crate::errors::AppError;
+
+    let mut opts = Dictionary::new();
+
+    // Profile: aac_he (HE-AAC v1 with SBR)
+    opts.set("profile", "aac_he");
+
+    // VBR level (1-5) - this is what controls bitrate for FDK
+    if let BitrateMode::Vbr(level) = settings.bitrate_mode {
+        opts.set("vbr", &level.to_string());
+        log::info!(
+            "FDK encoder: profile=aac_he vbr={} afterburner={}",
+            level,
+            settings.afterburner
+        );
+    } else {
+        return Err(AppError::InvalidInput(
+            "FDK encoder requires VBR bitrate mode".to_string(),
+        ));
+    }
+
+    // Afterburner: optional quality enhancement
+    opts.set("afterburner", if settings.afterburner { "1" } else { "0" });
+
+    Ok(opts)
+}
+
+/// Apple AAC (AudioToolbox) encoder options.
+///
+/// Sets bit_rate on context (required for CVBR) and returns Dictionary with aac_at_mode.
+fn build_apple_options(
     ctx: &mut ff::codec::context::Context,
     settings: &EncoderSettings,
-) -> Result<()> {
-    use crate::errors::AppError;
-    use std::ffi::CString;
-
+) -> Dictionary<'static> {
+    // CVBR requires a target bitrate on the context
+    let target_bit_rate = settings.bitrate_kbps as i64 * 1000;
     unsafe {
-        let av_ctx = ctx.as_mut_ptr();
-        let profile_key = CString::new("profile").expect("profile key");
-        let _ = ffmpeg_next::sys::av_opt_set_int(
-            av_ctx as *mut std::ffi::c_void,
-            profile_key.as_ptr(),
-            ffmpeg_next::sys::FF_PROFILE_AAC_HE as i64,
-            0,
-        );
-
-        if let BitrateMode::Vbr(level) = settings.bitrate_mode {
-            let vbr_key = CString::new("vbr").expect("vbr key");
-            let _ = ffmpeg_next::sys::av_opt_set_int(
-                av_ctx as *mut std::ffi::c_void,
-                vbr_key.as_ptr(),
-                level as i64,
-                0,
-            );
-        } else {
-            return Err(AppError::InvalidInput(
-                "FDK encoder requires VBR bitrate mode".to_string(),
-            ));
-        }
-
-        let afterburner_key = CString::new("afterburner").expect("afterburner key");
-        let _ = ffmpeg_next::sys::av_opt_set_int(
-            av_ctx as *mut std::ffi::c_void,
-            afterburner_key.as_ptr(),
-            if settings.afterburner { 1 } else { 0 },
-            0,
-        );
+        (*ctx.as_mut_ptr()).bit_rate = target_bit_rate;
     }
-    Ok(())
+
+    let mut opts = Dictionary::new();
+    opts.set("aac_at_mode", "cvbr");
+    log::info!(
+        "Apple AAC encoder: mode=cvbr bitrate={}k",
+        settings.bitrate_kbps
+    );
+
+    opts
 }
 
-fn configure_aac_at_encoder(ctx: &mut ff::codec::context::Context) -> Result<()> {
-    use crate::errors::AppError;
-    use std::ffi::CString;
-
+/// Native FFmpeg AAC encoder options.
+///
+/// Sets bit_rate on context (required for CBR) and returns Dictionary with optional twoloop coder.
+fn build_native_options(
+    ctx: &mut ff::codec::context::Context,
+    settings: &EncoderSettings,
+) -> Dictionary<'static> {
+    // CBR requires a target bitrate on the context
+    let target_bit_rate = settings.bitrate_kbps as i64 * 1000;
     unsafe {
-        let av_ctx = ctx.as_mut_ptr();
-        let key = CString::new("aac_at_mode").expect("aac_at_mode key");
-        let value = CString::new("cvbr").expect("cvbr value");
-        let rc = ffmpeg_next::sys::av_opt_set(
-            av_ctx as *mut std::ffi::c_void,
-            key.as_ptr(),
-            value.as_ptr(),
-            0,
-        );
-        if rc < 0 {
-            return Err(AppError::General(format!(
-                "Failed to set aac_at_mode: FFmpeg error code {}",
-                rc
-            )));
-        }
+        (*ctx.as_mut_ptr()).bit_rate = target_bit_rate;
     }
-    Ok(())
-}
 
-fn configure_native_aac_encoder(ctx: &mut ff::codec::context::Context) -> Result<()> {
+    let mut opts = Dictionary::new();
+
     let disable_twoloop = std::env::var("ABB_DISABLE_TWOOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
-    if disable_twoloop {
-        log::info!("Twoloop AAC enhancement disabled via environment override");
-        return Ok(());
+
+    if !disable_twoloop {
+        // twoloop provides better psychoacoustic analysis
+        opts.set("aac_coder", "twoloop");
+        log::info!(
+            "Native AAC encoder: bitrate={}k coder=twoloop",
+            settings.bitrate_kbps
+        );
+    } else {
+        log::info!(
+            "Native AAC encoder: bitrate={}k (twoloop disabled)",
+            settings.bitrate_kbps
+        );
     }
 
-    match try_enable_twoloop_aac(ctx) {
-        Ok(()) => log::info!("Twoloop AAC enhancement enabled successfully"),
-        Err(e) => log::warn!(
-            "Twoloop AAC enhancement unavailable ({}), falling back to standard AAC-LC",
-            e
-        ),
-    }
-    Ok(())
+    opts
 }
 
 /// Sets up the output encoder context and stream with metadata support.
@@ -716,6 +729,44 @@ mod tests {
     use crate::audio::media_pipeline::MediaProcessingPlan;
     use crate::audio::settings_encoder::{EncoderSettings, EncoderType, ThreadSetting};
     use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
+
+    fn fdk_settings() -> EncoderSettings {
+        EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: EncoderChannelConfig::Stereo,
+            afterburner: true,
+            threads: ThreadSetting::Auto,
+        }
+    }
+
+    #[test]
+    fn fdk_options_contain_vbr_and_profile() {
+        let settings = fdk_settings();
+        let opts = build_fdk_options(&settings).expect("build fdk options");
+
+        // Collect options for verification
+        let opts_vec: Vec<(&str, &str)> = opts.iter().collect();
+
+        // Verify FDK options contain the expected keys
+        assert!(
+            opts_vec
+                .iter()
+                .any(|(k, v)| *k == "profile" && *v == "aac_he"),
+            "FDK options should include profile=aac_he"
+        );
+        assert!(
+            opts_vec.iter().any(|(k, v)| *k == "vbr" && *v == "3"),
+            "FDK options should include vbr=3 for VBR level 3"
+        );
+        assert!(
+            opts_vec
+                .iter()
+                .any(|(k, v)| *k == "afterburner" && *v == "1"),
+            "FDK options should include afterburner=1 when enabled"
+        );
+    }
 
     #[test]
     fn create_encoder_respects_v2_settings() {
