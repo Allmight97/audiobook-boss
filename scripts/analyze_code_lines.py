@@ -57,7 +57,7 @@ def main() -> None:
 
     print(f"Modules over {THRESHOLD} lines (scanned: {', '.join(str(p) for p in BASE_DIRS)})")
     print("=" * 72)
-    print(f"{'Module':<50} {'Lines':>7}  Over {THRESHOLD}?")
+    print(f"{'Module':<50} {'Lines':>7}  Over?")
     print("-" * 72)
 
     over_count = 0
