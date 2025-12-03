@@ -14,8 +14,7 @@ mod context;
 pub mod options;
 mod write;
 
-#[cfg(test)]
-mod tests;
+// Tests moved to src-tauri/tests/contract/encoder.rs
 
 // Re-export public API (crate-internal)
 // Note: create_audio_encoder and finalize_encoding are internal to this module
