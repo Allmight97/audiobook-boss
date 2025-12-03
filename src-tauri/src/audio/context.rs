@@ -1,3 +1,4 @@
+// REFACTOR: Module exceeds 400 LOC (508). Consider splitting before adding new code.
 //! Context structures for reducing parameter passing in audio processing
 //!
 //! This module provides ProcessingContext and ProgressContext structures

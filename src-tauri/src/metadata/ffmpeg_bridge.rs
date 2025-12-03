@@ -1,3 +1,4 @@
+// REFACTOR: Module exceeds 400 LOC (607). Consider splitting before adding new code.
 //! FFmpeg-Next metadata integration bridge
 //!
 //! This module provides conversion and integration between our AudiobookMetadata

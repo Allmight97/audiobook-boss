@@ -1,3 +1,4 @@
+// REFACTOR: Module exceeds 400 LOC (553). Consider splitting before adding new code.
 //! Frame processing pipeline (behavior-preserving extraction)
 
 use crate::errors::Result;

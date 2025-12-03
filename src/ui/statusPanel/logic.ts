@@ -1,3 +1,4 @@
+// REFACTOR: Module exceeds 400 LOC (569). Consider splitting before adding new code.
 /**
  * StatusPanel business logic and state management
  *
@@ -233,8 +234,8 @@ export class StatusPanel {
           settings.channels === "Stereo"
             ? "stereo"
             : settings.channels === "Mono"
-              ? "mono"
-              : "auto";
+            ? "mono"
+            : "auto";
         return {
           ...defaults,
           bitrateKbps: bitrate,
