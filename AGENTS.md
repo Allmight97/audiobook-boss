@@ -136,6 +136,7 @@ Choose your starting point based on familiarity—if you already know the API su
 - File ≤ 400 LOC; function ≤ 55 LOC; ≤ 7 params; ≤ 4 nesting depth
 - Prefer guard clauses; enforce orthogonality and single responsibility
 - If exceeding for protocol/adapter/generated code: `// EXCEPTION: [reason]`
+- Run `python3 scripts/analyze_code_lines.py` to list modules exceeding 400 lines
 
 ### Imports & Organization
 - Group: std | third-party | local
