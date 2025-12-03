@@ -1,6 +1,7 @@
 use audiobook_boss_lib::audio::buffer::SampleAccumulator;
 use audiobook_boss_lib::audio::processor::encoder::encode_and_write_frame;
 use ffmpeg_next as ff;
+use tempfile;
 
 #[test]
 fn fastpath_enabled_processes_matching_frame() {
@@ -9,7 +10,9 @@ fn fastpath_enabled_processes_matching_frame() {
 
     // Build a minimal encoder/output context
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
-    let mut octx = ff::format::output(&"/tmp/test_fastpath.m4b").expect("create output");
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let mut octx = ff::format::output(&temp_dir.path().join("test_fastpath.m4b"))
+        .expect("create output");
     let mut ost = octx.add_stream(codec).expect("add stream");
     let time_base = ff::Rational(1, 44_100);
 
@@ -21,7 +24,7 @@ fn fastpath_enabled_processes_matching_frame() {
     enc_ctx.set_channel_layout(ff::channel_layout::ChannelLayout::STEREO);
     enc_ctx.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
     enc_ctx.set_time_base(time_base);
-    let enc = enc_ctx.open_as(codec).expect("open encoder");
+    let mut enc = enc_ctx.open_as(codec).expect("open encoder");
 
     ost.set_time_base(enc.time_base());
     ost.set_parameters(&enc);
@@ -54,15 +57,7 @@ fn fastpath_enabled_processes_matching_frame() {
 
     for mut full in acc.push_frame(&frame) {
         full.set_pts(Some(0));
-        let mut encoder = enc.clone();
-        let mut octx_clone = octx.clone();
-        encode_and_write_frame(
-            &mut encoder,
-            &full,
-            &mut octx_clone,
-            ost.index(),
-            ost.time_base(),
-        )
-        .expect("encode frame");
+        encode_and_write_frame(&mut enc, &full, &mut octx, ost.index(), ost.time_base())
+            .expect("encode frame");
     }
 }
