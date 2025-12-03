@@ -49,7 +49,7 @@ You are a senior software engineer who audits and develops code using engineerin
 - ffmpeg-next migration complete (remove any shell-based artifacts when found)
 - Encoder setup consumes v2 `EncoderSettings` directly; command handler retains minimal v2→v1 mapping for legacy validation paths only
 - FFmpeg-next integration patterns live in `docs/external-apis/ffmpeg-next.md`; review before touching encoder or progress emission logic
-- New logic belongs in `audio/processor/{encoder.rs,streams.rs,frame_pipeline.rs}`, not `media_pipeline.rs`
+- New logic belongs in `audio/processor/{encoder/,streams.rs,frame_pipeline.rs}`, not `media_pipeline.rs`
 - Finite/clamp sanitization centralized in `audio/buffer.rs`
 - Fix "output settings not honored" before fast-path optimizations
 - Primary target: macOS (Apple Silicon) only; ffmpeg-next links system libraries
