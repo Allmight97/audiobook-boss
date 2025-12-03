@@ -3,7 +3,7 @@
 This guide captures the integration patterns we use with `ffmpeg-next` for audiobook processing. It complements official references and anchors the exact contracts we rely on in this codebase.
 
 ### Where used
-- `src-tauri/src/audio/processor/encoder.rs` (encoder selection and options)
+- `src-tauri/src/audio/processor/encoder/` (encoder selection and options)
 - `src-tauri/src/audio/processor/frame_pipeline.rs` (frame sizing, PTS handling)
 - `src-tauri/src/audio/processor/streams.rs` (stream setup)
 - `src-tauri/src/audio/buffer.rs` and `src-tauri/src/audio/frame_accumulator.rs` (sanitization and frame construction)
@@ -87,7 +87,7 @@ Not implemented: a low-level hardware capability probe via AudioToolbox (e.g., Q
 
 Code touchpoints:
 - `src-tauri/src/audio/settings_encoder.rs`
-- `src-tauri/src/audio/processor/encoder.rs`
+- `src-tauri/src/audio/processor/encoder/`
 - `src/types/audio.ts`, `src/types/encoder.ts`
 
 Constraints:

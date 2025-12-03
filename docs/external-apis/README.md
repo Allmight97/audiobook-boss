@@ -10,7 +10,7 @@ This index connects API docs to the primary code locations where they are applie
 - Listen to `processing-progress` (see `tauri-patterns.md`), update UI.
 
 ### ffmpeg-next.md
-- Code: `src-tauri/src/audio/processor/{encoder.rs,frame_pipeline.rs,streams.rs}`
+- Code: `src-tauri/src/audio/processor/{encoder/,frame_pipeline.rs,streams.rs}`
 - Support: `src-tauri/src/audio/{buffer.rs,frame_accumulator.rs}`
 - Metadata mapping: `src-tauri/src/metadata/ffmpeg_bridge.rs`
 
