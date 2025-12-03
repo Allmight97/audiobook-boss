@@ -7,7 +7,7 @@ use ffmpeg_next as ff;
 /// Native FFmpeg AAC encoder options.
 ///
 /// Sets bit_rate on context (required for CBR) and returns Dictionary with optional twoloop coder.
-pub(crate) fn build_native_options(
+pub(in crate::audio::processor::encoder) fn build_native_options(
     ctx: &mut ff::codec::context::Context,
     settings: &EncoderSettings,
 ) -> Dictionary<'static> {

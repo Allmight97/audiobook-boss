@@ -13,7 +13,9 @@ use ffmpeg_next as ff;
 /// - Afterburner is optional quality enhancement
 /// - Profile is forced to aac_he (HE-AAC v1 with SBR)
 /// - Does NOT set bit_rate - VBR level controls bitrate
-pub(crate) fn build_fdk_options(settings: &EncoderSettings) -> Result<Dictionary<'static>> {
+pub(in crate::audio::processor::encoder) fn build_fdk_options(
+    settings: &EncoderSettings,
+) -> Result<Dictionary<'static>> {
     use crate::errors::AppError;
 
     let mut opts = Dictionary::new();

@@ -7,7 +7,7 @@ use ffmpeg_next as ff;
 /// Apple AAC (AudioToolbox) encoder options.
 ///
 /// Sets bit_rate on context (required for CVBR) and returns Dictionary with aac_at_mode.
-pub(crate) fn build_apple_options(
+pub(in crate::audio::processor::encoder) fn build_apple_options(
     ctx: &mut ff::codec::context::Context,
     settings: &EncoderSettings,
 ) -> Dictionary<'static> {

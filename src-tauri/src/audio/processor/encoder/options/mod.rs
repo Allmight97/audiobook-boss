@@ -7,6 +7,6 @@ mod apple;
 mod fdk;
 mod native;
 
-pub(crate) use apple::build_apple_options;
-pub(crate) use fdk::build_fdk_options;
-pub(crate) use native::build_native_options;
+pub(in crate::audio::processor::encoder) use apple::build_apple_options;
+pub(in crate::audio::processor::encoder) use fdk::build_fdk_options;
+pub(in crate::audio::processor::encoder) use native::build_native_options;
