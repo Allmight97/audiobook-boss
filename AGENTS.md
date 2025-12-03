@@ -163,8 +163,9 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`
 ## Testing & Verification
 
 ### Automated Testing
-- Prefer external tests in `src-tauri/tests/` (public APIs)
-- Inline tests okay for private/`pub(crate)` items
+- Rust layout: `src-tauri/tests/unit` (private helpers/logic), `contract` (module APIs), `integration` (cross-module/FFI flows), `e2e` (rare smoke). Inline `#[cfg(test)]` only for tiny private helpers.
+- TS layout: colocated `*.test.ts` for small units; larger contract/integration under `src/tests/{unit,contract,integration}`.
+- Prefer external tests in `src-tauri/tests/` for public surfaces.
 - Useful subsets: `cargo test path_validation` (name-filtered)
 - Manual UI testing via `window.testCommands` in `src/main.ts`
 

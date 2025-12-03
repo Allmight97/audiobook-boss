@@ -1,4 +1,4 @@
-//! Encoder unit tests.
+//! Encoder contract tests (moved from module-local).
 
 use crate::audio::media_pipeline::MediaProcessingPlan;
 use crate::audio::settings_encoder::{self, ChannelConfig as EncoderChannelConfig};
@@ -7,11 +7,11 @@ use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
 use ffmpeg_next as ff;
 use std::ffi::CString;
 
-use super::common::{
+use crate::audio::processor::encoder::common::{
     configure_threads, resolve_plan_encoder_settings, try_configure_variable_frame_size,
 };
-use super::context::create_audio_encoder;
-use super::options::build_fdk_options;
+use crate::audio::processor::encoder::context::create_audio_encoder;
+use crate::audio::processor::encoder::options::build_fdk_options;
 
 fn fdk_settings() -> EncoderSettings {
     EncoderSettings {
