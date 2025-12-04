@@ -104,28 +104,35 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 /// When a field is None, the corresponding tag is removed from the file.
 /// This allows users to clear fields by leaving them empty in the UI.
 pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
-    // NOTE: We do NOT call tag.clear() to preserve unknown atoms and cover art.
-    // Instead, we explicitly set or remove each field based on whether it has a value.
     let tag_type = tag.tag_type();
 
-    // Basic metadata - Title (©nam)
+    update_title_and_album(tag, metadata);
+    update_author_and_narrator(tag, metadata);
+    update_date_genre_description(tag, metadata);
+    update_series(tag, metadata, tag_type);
+    update_series_part(tag, metadata, tag_type);
+    update_album_sort(tag, metadata);
+
+    Ok(())
+}
+
+fn update_title_and_album(tag: &mut Tag, metadata: &AudiobookMetadata) {
     if let Some(title) = &metadata.title {
         tag.set_title(title.clone());
     } else {
         tag.remove_title();
     }
 
-    // Album (©alb) - typically same as title for audiobooks
     if let Some(album) = &metadata.album {
         tag.set_album(album.clone());
     } else {
         tag.remove_album();
     }
+}
 
-    // Author → Artist (©ART) + AlbumArtist (aART)
+fn update_author_and_narrator(tag: &mut Tag, metadata: &AudiobookMetadata) {
     if let Some(author) = &metadata.artist {
         tag.set_artist(author.clone());
-        // Also set AlbumArtist for library grouping
         tag.insert(TagItem::new(
             ItemKey::AlbumArtist,
             ItemValue::Text(author.clone()),
@@ -135,7 +142,6 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
         tag.remove_key(&ItemKey::AlbumArtist);
     }
 
-    // Narrator → Composer (©wrt) - NOT AlbumArtist!
     if let Some(narrator) = &metadata.composer {
         tag.insert(TagItem::new(
             ItemKey::Composer,
@@ -144,22 +150,21 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
     } else {
         tag.remove_key(&ItemKey::Composer);
     }
+}
 
-    // Year (©day)
+fn update_date_genre_description(tag: &mut Tag, metadata: &AudiobookMetadata) {
     if let Some(year) = metadata.date {
         tag.set_year(year);
     } else {
         tag.remove_year();
     }
 
-    // Genre (©gen)
     if let Some(genre) = &metadata.genre {
         tag.set_genre(genre.clone());
     } else {
         tag.remove_genre();
     }
 
-    // Description (desc) - long synopsis (no comment mirroring)
     if let Some(description) = &metadata.description {
         tag.insert(TagItem::new(
             ItemKey::Description,
@@ -168,30 +173,27 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
     } else {
         tag.remove_key(&ItemKey::Description);
     }
+}
 
-    // Series → Movement (©mvn/MVNM)
+fn update_series(tag: &mut Tag, metadata: &AudiobookMetadata, tag_type: TagType) {
     if let Some(series) = &metadata.series {
         tag.insert(TagItem::new(
             ItemKey::Movement,
             ItemValue::Text(series.clone()),
         ));
-        // Also set ShowName for compatibility with some players
         tag.insert(TagItem::new(
             ItemKey::ShowName,
             ItemValue::Text(series.clone()),
         ));
 
-        // Mirror to format-specific freeform fields to improve compatibility with external editors
         match tag_type {
             TagType::Id3v2 => {
-                // Mp3tag uses TXXX:SERIES for series
                 tag.insert(TagItem::new(
                     ItemKey::Unknown("SERIES".to_string()),
                     ItemValue::Text(series.clone()),
                 ));
             }
             TagType::Mp4Ilst => {
-                // Apple-style freeform atom used by MP3tag on MP4/M4B
                 tag.insert(TagItem::new(
                     ItemKey::Unknown("----:com.apple.iTunes:SERIES".to_string()),
                     ItemValue::Text(series.clone()),
@@ -209,22 +211,17 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
         tag.remove_key(&ItemKey::Movement);
         tag.remove_key(&ItemKey::ShowName);
         match tag_type {
-            TagType::Id3v2 => {
-                tag.remove_key(&ItemKey::Unknown("SERIES".to_string()));
-            }
-            TagType::Mp4Ilst => {
-                tag.remove_key(&ItemKey::Unknown(
-                    "----:com.apple.iTunes:SERIES".to_string(),
-                ));
-            }
-            TagType::VorbisComments => {
-                tag.remove_key(&ItemKey::Unknown("SERIES".to_string()));
-            }
+            TagType::Id3v2 => tag.remove_key(&ItemKey::Unknown("SERIES".to_string())),
+            TagType::Mp4Ilst => tag.remove_key(&ItemKey::Unknown(
+                "----:com.apple.iTunes:SERIES".to_string(),
+            )),
+            TagType::VorbisComments => tag.remove_key(&ItemKey::Unknown("SERIES".to_string())),
             _ => {}
         }
     }
+}
 
-    // Book # → MovementNumber (©mvi/MVIN)
+fn update_series_part(tag: &mut Tag, metadata: &AudiobookMetadata, tag_type: TagType) {
     if let Some(series_part) = &metadata.series_part {
         tag.insert(TagItem::new(
             ItemKey::MovementNumber,
@@ -233,7 +230,6 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
 
         match tag_type {
             TagType::Id3v2 => {
-                // Mp3tag uses TXXX:SERIES-PART for book number
                 tag.insert(TagItem::new(
                     ItemKey::Unknown("SERIES-PART".to_string()),
                     ItemValue::Text(series_part.clone()),
@@ -256,22 +252,17 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
     } else {
         tag.remove_key(&ItemKey::MovementNumber);
         match tag_type {
-            TagType::Id3v2 => {
-                tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string()));
-            }
-            TagType::Mp4Ilst => {
-                tag.remove_key(&ItemKey::Unknown(
-                    "----:com.apple.iTunes:SERIES-PART".to_string(),
-                ));
-            }
-            TagType::VorbisComments => {
-                tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string()));
-            }
+            TagType::Id3v2 => tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string())),
+            TagType::Mp4Ilst => tag.remove_key(&ItemKey::Unknown(
+                "----:com.apple.iTunes:SERIES-PART".to_string(),
+            )),
+            TagType::VorbisComments => tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string())),
             _ => {}
         }
     }
+}
 
-    // TSOA → AlbumTitleSortOrder (soal) for library sorting
+fn update_album_sort(tag: &mut Tag, metadata: &AudiobookMetadata) {
     if let Some(album_sort) = &metadata.album_sort {
         tag.insert(TagItem::new(
             ItemKey::AlbumTitleSortOrder,
@@ -280,8 +271,6 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
     } else {
         tag.remove_key(&ItemKey::AlbumTitleSortOrder);
     }
-
-    Ok(())
 }
 
 fn apply_cover_art(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
