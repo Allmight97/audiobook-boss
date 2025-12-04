@@ -24,6 +24,7 @@ import {
   getCurrentCoverArt,
   setCoverArt,
   clearCoverArt,
+  isCoverArtRemovalRequested,
 } from "./ui/coverArt";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 
@@ -227,7 +228,7 @@ function initMetadataSaveHandler(): void {
 /**
  * Collects metadata from the form fields and returns an AudiobookMetadata object
  */
-function collectMetadataFromForm(): AudiobookMetadata {
+export function collectMetadataFromForm(): AudiobookMetadata {
   const getElementValue = (id: string): string => {
     const element = document.getElementById(id) as
       | HTMLInputElement
@@ -264,7 +265,9 @@ function collectMetadataFromForm(): AudiobookMetadata {
 
   // Include cover art if present
   const coverBytes = getCurrentCoverArt();
-  if (coverBytes && coverBytes.length > 0) {
+  if (isCoverArtRemovalRequested()) {
+    metadata.cover_art = [];
+  } else if (coverBytes && coverBytes.length > 0) {
     metadata.cover_art = coverBytes;
   }
 

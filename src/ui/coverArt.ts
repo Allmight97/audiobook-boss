@@ -4,6 +4,8 @@ import { bridge } from "../lib/bridge";
 let currentCoverArt: number[] | null = null;
 // Tracks whether the user manually loaded custom cover art (preserved across file selection)
 let hasCustomCoverArt: boolean = false;
+// Tracks whether the user explicitly requested cover art removal in this session
+let coverArtRemovalRequested: boolean = false;
 
 /**
  * Initializes the cover art functionality
@@ -30,7 +32,7 @@ export function initCoverArt(): void {
  * Clears the current cover art and updates UI
  */
 function handleClearCoverArt(): void {
-    clearCoverArt();
+    clearCoverArt({ markRemoval: true });
     updateClearButtonVisibility();
     console.log('Cover art cleared');
 }
@@ -74,6 +76,7 @@ async function handleLoadCoverArt(): Promise<void> {
         // Update global state
         currentCoverArt = imageData;
         hasCustomCoverArt = true;
+        coverArtRemovalRequested = false;
 
         // Display the loaded cover art
         displayCoverArt(imageData);
@@ -196,11 +199,22 @@ export function getHasCustomCoverArt(): boolean {
 }
 
 /**
+ * Returns whether the user explicitly requested cover art removal
+ */
+export function isCoverArtRemovalRequested(): boolean {
+    return coverArtRemovalRequested;
+}
+
+/**
  * Sets cover art data (used by other modules)
  * Updates display and state
  */
 export function setCoverArt(coverArtBytes: number[] | null): void {
     currentCoverArt = coverArtBytes;
+    // Loading art (from disk or user selection) cancels any removal request
+    if (coverArtBytes && coverArtBytes.length > 0) {
+        coverArtRemovalRequested = false;
+    }
     displayCoverArt(coverArtBytes);
     // Ensure the Clear button visibility stays in sync when cover art
     // is set from any source (metadata load, manual clear, etc.)
@@ -211,11 +225,13 @@ export function setCoverArt(coverArtBytes: number[] | null): void {
  * Clears the current cover art
  * Resets display to placeholder state
  */
-export function clearCoverArt(): void {
+export function clearCoverArt(options?: { markRemoval?: boolean }): void {
+    const markRemoval = options?.markRemoval ?? false;
     currentCoverArt = null;
     displayCoverArt(null);
     delete (window as any).currentCoverArt;
     // Hide the Clear button when no cover art is present
     updateClearButtonVisibility();
+    coverArtRemovalRequested = markRemoval;
     hasCustomCoverArt = false;
 }

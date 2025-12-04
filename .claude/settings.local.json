@@ -61,7 +61,9 @@
       "Bash(gh issue view:*)",
       "Bash(gh issue create:*)",
       "Bash(gh pr edit:*)",
-      "Bash(gh issue edit:*)"
+      "Bash(gh issue edit:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr list:*)"
     ],
     "deny": []
   },

@@ -44,7 +44,10 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 
     // Handle cover art: only replace if new cover is provided
     if let Some(cover_data) = &metadata.cover_art {
-        if !cover_data.is_empty() {
+        if cover_data.is_empty() {
+            tag.remove_picture_type(PictureType::CoverFront);
+            log::debug!("Cover art removed per request");
+        } else {
             // Remove existing cover art before adding new one
             tag.remove_picture_type(PictureType::CoverFront);
 
@@ -77,7 +80,7 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 ///
 /// When a field is None, the corresponding tag is removed from the file.
 /// This allows users to clear fields by leaving them empty in the UI.
-fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
+pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     // NOTE: We do NOT call tag.clear() to preserve unknown atoms and cover art.
     // Instead, we explicitly set or remove each field based on whether it has a value.
 
@@ -132,23 +135,12 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         tag.remove_genre();
     }
 
-    // Comment (©cmt) - distinct from description
-    if let Some(comment) = &metadata.comment {
-        tag.set_comment(comment.clone());
-    } else {
-        tag.remove_comment();
-    }
-
-    // Description (desc) - long synopsis
+    // Description (desc) - long synopsis (no comment mirroring)
     if let Some(description) = &metadata.description {
         tag.insert(TagItem::new(
             ItemKey::Description,
             ItemValue::Text(description.clone()),
         ));
-        // If comment is empty, also write description to comment for compatibility
-        if metadata.comment.is_none() {
-            tag.set_comment(description.clone());
-        }
     } else {
         tag.remove_key(&ItemKey::Description);
     }
