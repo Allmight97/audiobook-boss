@@ -5,6 +5,7 @@ import { initFileImport } from "./ui/fileImport";
 import {
   displayFileList,
   currentFileList,
+  selectedFileIndex,
   clearAllFiles,
   toggleFileSort,
   moveFileUp,
@@ -172,9 +173,18 @@ function initMetadataSaveHandler(): void {
         return;
       }
 
-      // Get the first valid file (for single-file metadata editing)
-      const firstValidFile = currentFileList.files.find((f) => f.isValid);
-      if (!firstValidFile) {
+      // Get the file to save metadata to. Prioritize the selected file.
+      let fileToSave = null;
+      if (
+        selectedFileIndex > -1 &&
+        currentFileList.files[selectedFileIndex]?.isValid
+      ) {
+        fileToSave = currentFileList.files[selectedFileIndex];
+      } else {
+        fileToSave = currentFileList.files.find((f) => f.isValid);
+      }
+
+      if (!fileToSave) {
         console.log("No valid files to save metadata to");
         return;
       }
@@ -183,9 +193,9 @@ function initMetadataSaveHandler(): void {
       const metadata = collectMetadataFromForm();
 
       try {
-        console.log("Saving metadata to:", firstValidFile.path);
+        console.log("Saving metadata to:", fileToSave.path);
         await bridge.invoke("save_metadata_to_file", {
-          filePath: firstValidFile.path,
+          filePath: fileToSave.path,
           metadata: metadata,
         });
         console.log("Metadata saved successfully");
@@ -195,8 +205,11 @@ function initMetadataSaveHandler(): void {
         if (statusText) {
           const originalText = statusText.textContent;
           statusText.textContent = "Metadata saved!";
+          // Fix race condition: only restore if still showing "Metadata saved!"
           setTimeout(() => {
-            statusText.textContent = originalText;
+            if (statusText.textContent === "Metadata saved!") {
+              statusText.textContent = originalText;
+            }
           }, 2000);
         }
       } catch (error) {
@@ -216,7 +229,9 @@ function initMetadataSaveHandler(): void {
  */
 function collectMetadataFromForm(): AudiobookMetadata {
   const getElementValue = (id: string): string => {
-    const element = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement;
+    const element = document.getElementById(id) as
+      | HTMLInputElement
+      | HTMLTextAreaElement;
     return element?.value?.trim() || "";
   };
 

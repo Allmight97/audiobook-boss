@@ -66,7 +66,7 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
     Ok(())
 }
 
-/// Updates tag data from metadata struct (non-destructive)
+/// Updates tag data from metadata struct
 ///
 /// Maps audiobook fields to tags for Plex/Audiobookshelf compatibility:
 /// - Artist (©ART) + AlbumArtist (aART) = Author
@@ -74,17 +74,25 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 /// - MovementName (©mvn) = Series (also mirrored to freeform SERIES)
 /// - MovementIndex (©mvi) = Book # (also mirrored to freeform SERIES-PART)
 /// - AlbumTitleSortOrder (soal) = TSOA for library sorting
+///
+/// When a field is None, the corresponding tag is removed from the file.
+/// This allows users to clear fields by leaving them empty in the UI.
 fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
-    // NOTE: We do NOT call tag.clear() to preserve existing atoms (cover art, unknown tags)
+    // NOTE: We do NOT call tag.clear() to preserve unknown atoms and cover art.
+    // Instead, we explicitly set or remove each field based on whether it has a value.
 
     // Basic metadata - Title (©nam)
     if let Some(title) = &metadata.title {
         tag.set_title(title.clone());
+    } else {
+        tag.remove_title();
     }
 
     // Album (©alb) - typically same as title for audiobooks
     if let Some(album) = &metadata.album {
         tag.set_album(album.clone());
+    } else {
+        tag.remove_album();
     }
 
     // Author → Artist (©ART) + AlbumArtist (aART)
@@ -95,6 +103,9 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             ItemKey::AlbumArtist,
             ItemValue::Text(author.clone()),
         ));
+    } else {
+        tag.remove_artist();
+        tag.remove_key(&ItemKey::AlbumArtist);
     }
 
     // Narrator → Composer (©wrt) - NOT AlbumArtist!
@@ -103,21 +114,29 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             ItemKey::Composer,
             ItemValue::Text(narrator.clone()),
         ));
+    } else {
+        tag.remove_key(&ItemKey::Composer);
     }
 
     // Year (©day)
     if let Some(year) = metadata.date {
         tag.set_year(year);
+    } else {
+        tag.remove_year();
     }
 
     // Genre (©gen)
     if let Some(genre) = &metadata.genre {
         tag.set_genre(genre.clone());
+    } else {
+        tag.remove_genre();
     }
 
     // Comment (©cmt) - distinct from description
     if let Some(comment) = &metadata.comment {
         tag.set_comment(comment.clone());
+    } else {
+        tag.remove_comment();
     }
 
     // Description (desc) - long synopsis
@@ -130,6 +149,8 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         if metadata.comment.is_none() {
             tag.set_comment(description.clone());
         }
+    } else {
+        tag.remove_key(&ItemKey::Description);
     }
 
     // Series → Movement (©mvn/MVNM)
@@ -143,6 +164,9 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             ItemKey::ShowName,
             ItemValue::Text(series.clone()),
         ));
+    } else {
+        tag.remove_key(&ItemKey::Movement);
+        tag.remove_key(&ItemKey::ShowName);
     }
 
     // Book # → MovementNumber (©mvi/MVIN)
@@ -151,6 +175,8 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             ItemKey::MovementNumber,
             ItemValue::Text(series_part.clone()),
         ));
+    } else {
+        tag.remove_key(&ItemKey::MovementNumber);
     }
 
     // TSOA → AlbumTitleSortOrder (soal) for library sorting
@@ -159,6 +185,8 @@ fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             ItemKey::AlbumTitleSortOrder,
             ItemValue::Text(album_sort.clone()),
         ));
+    } else {
+        tag.remove_key(&ItemKey::AlbumTitleSortOrder);
     }
 
     Ok(())

@@ -36,10 +36,12 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
     let mut metadata_with_tsoa = metadata;
     if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
         if !series.is_empty() && !title.is_empty() {
+            // Handle "1/5" format by extracting the number before '/'
             let series_part = metadata_with_tsoa
                 .series_part
-                .as_ref()
-                .and_then(|p| p.parse::<u32>().ok())
+                .as_deref()
+                .and_then(|p| p.split('/').next())
+                .and_then(|p| p.trim().parse::<u32>().ok())
                 .unwrap_or(0);
 
             // Format: "SERIES PP - TITLE" where PP is zero-padded
