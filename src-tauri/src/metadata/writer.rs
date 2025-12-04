@@ -4,12 +4,15 @@ use super::AudiobookMetadata;
 use crate::errors::{AppError, Result};
 use lofty::file::AudioFile;
 use lofty::picture::{MimeType, Picture, PictureType};
-use lofty::prelude::{Accessor, ItemKey, TagExt, TaggedFileExt};
+use lofty::prelude::{Accessor, ItemKey, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::{ItemValue, Tag, TagItem, TagType};
 use std::path::Path;
 
-/// Writes metadata to an existing M4B file
+/// Writes metadata to an existing audio file (non-destructive)
+///
+/// This function preserves existing cover art and unknown atoms unless
+/// explicitly overwritten by the provided metadata.
 pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata) -> Result<()> {
     let path = file_path.as_ref();
 
@@ -36,41 +39,126 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
         ))
     })?;
 
+    // Update metadata fields (non-destructive - preserves existing atoms)
     update_tag_data(tag, metadata)?;
+
+    // Handle cover art: only replace if new cover is provided
+    if let Some(cover_data) = &metadata.cover_art {
+        if !cover_data.is_empty() {
+            // Remove existing cover art before adding new one
+            tag.remove_picture_type(PictureType::CoverFront);
+
+            let mime_type = detect_image_mime_type(cover_data)?;
+            let picture = Picture::new_unchecked(
+                PictureType::CoverFront,
+                Some(mime_type),
+                None,
+                cover_data.clone(),
+            );
+            tag.push_picture(picture);
+            log::debug!("Cover art updated ({} bytes)", cover_data.len());
+        }
+    }
+    // If metadata.cover_art is None, existing cover art is preserved
+
     tagged_file.save_to_path(path, Default::default())?;
 
     Ok(())
 }
 
-/// Updates tag data from metadata struct
+/// Updates tag data from metadata struct (non-destructive)
+///
+/// Maps audiobook fields to tags for Plex/Audiobookshelf compatibility:
+/// - Artist (©ART) + AlbumArtist (aART) = Author
+/// - Composer (©wrt) = Narrator (also mirrored to freeform NARRATOR)
+/// - MovementName (©mvn) = Series (also mirrored to freeform SERIES)
+/// - MovementIndex (©mvi) = Book # (also mirrored to freeform SERIES-PART)
+/// - AlbumTitleSortOrder (soal) = TSOA for library sorting
 fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
-    // Clear existing metadata
-    tag.clear();
+    // NOTE: We do NOT call tag.clear() to preserve existing atoms (cover art, unknown tags)
 
-    // Set basic metadata
+    // Basic metadata - Title (©nam)
     if let Some(title) = &metadata.title {
         tag.set_title(title.clone());
     }
-    if let Some(author) = &metadata.artist {
-        tag.set_artist(author.clone());
-    }
+
+    // Album (©alb) - typically same as title for audiobooks
     if let Some(album) = &metadata.album {
         tag.set_album(album.clone());
     }
-    if let Some(narrator) = &metadata.composer {
+
+    // Author → Artist (©ART) + AlbumArtist (aART)
+    if let Some(author) = &metadata.artist {
+        tag.set_artist(author.clone());
+        // Also set AlbumArtist for library grouping
         tag.insert(TagItem::new(
             ItemKey::AlbumArtist,
+            ItemValue::Text(author.clone()),
+        ));
+    }
+
+    // Narrator → Composer (©wrt) - NOT AlbumArtist!
+    if let Some(narrator) = &metadata.composer {
+        tag.insert(TagItem::new(
+            ItemKey::Composer,
             ItemValue::Text(narrator.clone()),
         ));
     }
+
+    // Year (©day)
     if let Some(year) = metadata.date {
         tag.set_year(year);
     }
+
+    // Genre (©gen)
     if let Some(genre) = &metadata.genre {
         tag.set_genre(genre.clone());
     }
+
+    // Comment (©cmt) - distinct from description
+    if let Some(comment) = &metadata.comment {
+        tag.set_comment(comment.clone());
+    }
+
+    // Description (desc) - long synopsis
     if let Some(description) = &metadata.description {
-        tag.set_comment(description.clone());
+        tag.insert(TagItem::new(
+            ItemKey::Description,
+            ItemValue::Text(description.clone()),
+        ));
+        // If comment is empty, also write description to comment for compatibility
+        if metadata.comment.is_none() {
+            tag.set_comment(description.clone());
+        }
+    }
+
+    // Series → Movement (©mvn/MVNM)
+    if let Some(series) = &metadata.series {
+        tag.insert(TagItem::new(
+            ItemKey::Movement,
+            ItemValue::Text(series.clone()),
+        ));
+        // Also set ShowName for compatibility with some players
+        tag.insert(TagItem::new(
+            ItemKey::ShowName,
+            ItemValue::Text(series.clone()),
+        ));
+    }
+
+    // Book # → MovementNumber (©mvi/MVIN)
+    if let Some(series_part) = &metadata.series_part {
+        tag.insert(TagItem::new(
+            ItemKey::MovementNumber,
+            ItemValue::Text(series_part.clone()),
+        ));
+    }
+
+    // TSOA → AlbumTitleSortOrder (soal) for library sorting
+    if let Some(album_sort) = &metadata.album_sort {
+        tag.insert(TagItem::new(
+            ItemKey::AlbumTitleSortOrder,
+            ItemValue::Text(album_sort.clone()),
+        ));
     }
 
     Ok(())

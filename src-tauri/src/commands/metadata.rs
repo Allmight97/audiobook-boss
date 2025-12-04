@@ -21,6 +21,47 @@ pub fn write_audio_metadata(file_path: String, metadata: AudiobookMetadata) -> R
     write_metadata(validated_path.to_string_lossy().as_ref(), &metadata)
 }
 
+/// Saves metadata to an audio file with TSOA computation (metadata-only editing)
+///
+/// This command is designed for metadata-only editing (Cmd+S workflow):
+/// 1. Computes TSOA (Album Sort) from series + series_part + title
+/// 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
+/// 3. Handles cover art: preserves existing if not provided, replaces if new art given
+#[tauri::command]
+pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
+    let path = PathBuf::from(&file_path);
+    let validated_path = validate_input_audio_path(&path)?;
+
+    // Compute TSOA (Album Sort) if series and title are present
+    let mut metadata_with_tsoa = metadata;
+    if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
+        if !series.is_empty() && !title.is_empty() {
+            let series_part = metadata_with_tsoa
+                .series_part
+                .as_ref()
+                .and_then(|p| p.parse::<u32>().ok())
+                .unwrap_or(0);
+
+            // Format: "SERIES PP - TITLE" where PP is zero-padded
+            let tsoa = format!("{} {:02} - {}", series, series_part, title);
+            metadata_with_tsoa.album_sort = Some(tsoa);
+            log::debug!(
+                "Computed TSOA: {:?}",
+                metadata_with_tsoa.album_sort.as_ref()
+            );
+        }
+    }
+
+    // Write metadata (non-destructive - preserves existing atoms including cover art if not replaced)
+    write_metadata(
+        validated_path.to_string_lossy().as_ref(),
+        &metadata_with_tsoa,
+    )?;
+
+    log::info!("Metadata saved to: {}", validated_path.display());
+    Ok(())
+}
+
 /// Writes cover art to an M4B file
 /// Accepts file path and base64-encoded image data
 #[tauri::command]

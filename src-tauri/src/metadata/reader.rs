@@ -34,18 +34,58 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 }
 
 /// Extracts data from a tag into the metadata struct
+///
+/// Maps tags according to audiobook conventions for Plex/Audiobookshelf:
+/// - Artist (©ART) = Author
+/// - Composer (©wrt) = Narrator
+/// - MovementName (©mvn/MVNM) = Series
+/// - MovementIndex (©mvi/MVIN) = Book #
 fn extract_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
+    // Basic fields
     metadata.title = tag.title().map(|s| s.to_string());
     metadata.artist = tag.artist().map(|s| s.to_string());
     metadata.album = tag.album().map(|s| s.to_string());
-    if let Some(item) = tag.get(&ItemKey::AlbumArtist) {
-        metadata.composer = Some(item.value().text().unwrap_or("").to_string());
-    }
     metadata.date = tag.year();
     metadata.genre = tag.genre().map(|s| s.to_string());
 
-    // Extract description from comment
-    metadata.description = tag.comment().map(|s| s.to_string());
+    // Narrator from Composer field (©wrt) - NOT AlbumArtist
+    if let Some(item) = tag.get(&ItemKey::Composer) {
+        let value = item.value().text().unwrap_or("").to_string();
+        if !value.is_empty() {
+            metadata.composer = Some(value);
+        }
+    }
+
+    // Series from Movement (©mvn/MVNM)
+    if let Some(item) = tag.get(&ItemKey::Movement) {
+        let value = item.value().text().unwrap_or("").to_string();
+        if !value.is_empty() {
+            metadata.series = Some(value);
+        }
+    }
+
+    // Book # from MovementNumber (©mvi/MVIN)
+    if let Some(item) = tag.get(&ItemKey::MovementNumber) {
+        let value = item.value().text().unwrap_or("").to_string();
+        if !value.is_empty() {
+            metadata.series_part = Some(value);
+        }
+    }
+
+    // Comment (©cmt) - distinct from description
+    metadata.comment = tag.comment().map(|s| s.to_string());
+
+    // Description from dedicated description field, fallback to comment if empty
+    if let Some(item) = tag.get(&ItemKey::Description) {
+        let value = item.value().text().unwrap_or("").to_string();
+        if !value.is_empty() {
+            metadata.description = Some(value);
+        }
+    }
+    // If no description found, use comment as fallback
+    if metadata.description.is_none() && metadata.comment.is_some() {
+        metadata.description = metadata.comment.clone();
+    }
 
     // Extract cover art and optimize it
     let pictures = tag.pictures();

@@ -122,21 +122,44 @@ async function loadFileMetadata(filePath: string): Promise<void> {
     }
 }
 
+/**
+ * Populates the metadata form with values from the backend
+ *
+ * Field mapping from Rust AudiobookMetadata:
+ * - artist → Author
+ * - composer → Narrator
+ * - date → Year
+ * - series → Series
+ * - series_part → Book #
+ */
 function populateMetadataForm(metadata: AudiobookMetadata): void {
     const titleEl = document.getElementById('meta-title') as HTMLInputElement;
     const authorEl = document.getElementById('meta-author') as HTMLInputElement;
-    const albumEl = document.getElementById('meta-album') as HTMLInputElement;
     const narratorEl = document.getElementById('meta-narrator') as HTMLInputElement;
     const yearEl = document.getElementById('meta-year') as HTMLInputElement;
     const genreEl = document.getElementById('meta-genre') as HTMLInputElement;
+    const seriesEl = document.getElementById('meta-series') as HTMLInputElement;
+    const seriesPartEl = document.getElementById('meta-series-part') as HTMLInputElement;
     const descriptionEl = document.getElementById('meta-description') as HTMLTextAreaElement;
 
+    // Clear existing values first to avoid stale data
+    if (titleEl) titleEl.value = '';
+    if (authorEl) authorEl.value = '';
+    if (narratorEl) narratorEl.value = '';
+    if (yearEl) yearEl.value = '';
+    if (genreEl) genreEl.value = '';
+    if (seriesEl) seriesEl.value = '';
+    if (seriesPartEl) seriesPartEl.value = '';
+    if (descriptionEl) descriptionEl.value = '';
+
+    // Populate with new values using correct Rust field names
     if (titleEl && metadata.title) titleEl.value = metadata.title;
-    if (authorEl && metadata.author) authorEl.value = metadata.author;
-    if (albumEl && metadata.album) albumEl.value = metadata.album;
-    if (narratorEl && metadata.narrator) narratorEl.value = metadata.narrator;
-    if (yearEl && metadata.year) yearEl.value = metadata.year.toString();
+    if (authorEl && metadata.artist) authorEl.value = metadata.artist;  // artist = Author
+    if (narratorEl && metadata.composer) narratorEl.value = metadata.composer;  // composer = Narrator
+    if (yearEl && metadata.date) yearEl.value = metadata.date.toString();  // date = Year
     if (genreEl && metadata.genre) genreEl.value = metadata.genre;
+    if (seriesEl && metadata.series) seriesEl.value = metadata.series;
+    if (seriesPartEl && metadata.series_part) seriesPartEl.value = metadata.series_part;
     if (descriptionEl && metadata.description) descriptionEl.value = metadata.description;
 
     // Handle cover art display - preserve user-loaded custom art
@@ -220,18 +243,20 @@ export function clearFileProperties(): void {
     // Clear metadata form
     const titleEl = document.getElementById('meta-title') as HTMLInputElement;
     const authorEl = document.getElementById('meta-author') as HTMLInputElement;
-    const albumEl = document.getElementById('meta-album') as HTMLInputElement;
     const narratorEl = document.getElementById('meta-narrator') as HTMLInputElement;
     const yearEl = document.getElementById('meta-year') as HTMLInputElement;
     const genreEl = document.getElementById('meta-genre') as HTMLInputElement;
+    const seriesEl = document.getElementById('meta-series') as HTMLInputElement;
+    const seriesPartEl = document.getElementById('meta-series-part') as HTMLInputElement;
     const descriptionEl = document.getElementById('meta-description') as HTMLTextAreaElement;
 
     if (titleEl) titleEl.value = '';
     if (authorEl) authorEl.value = '';
-    if (albumEl) albumEl.value = '';
     if (narratorEl) narratorEl.value = '';
     if (yearEl) yearEl.value = '';
     if (genreEl) genreEl.value = '';
+    if (seriesEl) seriesEl.value = '';
+    if (seriesPartEl) seriesPartEl.value = '';
     if (descriptionEl) descriptionEl.value = '';
 
     // Clear cover art display and reset custom-art flag

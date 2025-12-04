@@ -12,28 +12,41 @@ pub mod writer;
 pub mod ffmpeg_bridge;
 
 /// Represents audiobook metadata
+///
+/// Field mapping for Plex/Audiobookshelf compatibility:
+/// - `artist` = Author (also written to AlbumArtist)
+/// - `composer` = Narrator (also mirrored to freeform NARRATOR)
+/// - `series` = Series name (MVNM, mirrored to freeform SERIES)
+/// - `series_part` = Book number in series (MVIN, mirrored to freeform SERIES-PART)
+/// - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiobookMetadata {
-    /// Title of the audiobook
+    /// Title of the audiobook (©nam)
     pub title: Option<String>,
-    /// Author of the book (mapped to artist in containers)
+    /// Author of the book (©ART, also written to aART/AlbumArtist)
     pub artist: Option<String>,
-    /// Album name (book/series name)
+    /// Album name - typically same as title for audiobooks (©alb)
     pub album: Option<String>,
-    /// Composer (often same as author for audiobooks)
+    /// Narrator of the audiobook (©wrt/Composer, mirrored to freeform NARRATOR)
     pub composer: Option<String>,
-    /// Genre of the book
+    /// Genre of the book (©gen)
     pub genre: Option<String>,
-    /// Publication year/date
+    /// Publication year/date (©day)
     pub date: Option<u32>,
     /// Track number (chapter number, total chapters)
     pub track: Option<(u32, Option<u32>)>,
     /// Disk number (rarely used for audiobooks)
     pub disk: Option<(u32, Option<u32>)>,
-    /// Comment field
+    /// Comment field (©cmt) - short note, distinct from description
     pub comment: Option<String>,
-    /// Description or synopsis
+    /// Description or synopsis (desc)
     pub description: Option<String>,
+    /// Series name (©mvn/MVNM, mirrored to freeform SERIES)
+    pub series: Option<String>,
+    /// Book number in series as string to support "1/5" format (©mvi/MVIN, mirrored to freeform SERIES-PART)
+    pub series_part: Option<String>,
+    /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
+    pub album_sort: Option<String>,
     /// Cover art as raw bytes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover_art: Option<Vec<u8>>,
@@ -53,6 +66,9 @@ impl AudiobookMetadata {
             disk: None,
             comment: None,
             description: None,
+            series: None,
+            series_part: None,
+            album_sort: None,
             cover_art: None,
         }
     }
