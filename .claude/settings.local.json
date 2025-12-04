@@ -63,7 +63,8 @@
       "Bash(gh pr edit:*)",
       "Bash(gh issue edit:*)",
       "Bash(gh pr diff:*)",
-      "Bash(gh pr list:*)"
+      "Bash(gh pr list:*)",
+      "Bash(git rev-parse:*)"
     ],
     "deny": []
   },
