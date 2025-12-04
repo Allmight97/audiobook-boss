@@ -6,6 +6,8 @@
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:window:allow-set-accept-first-mouse",
+    "core:window:allow-set-ignore-drag-drop",
     "dialog:allow-open",
     "opener:allow-open-path"
   ]
