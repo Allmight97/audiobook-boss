@@ -225,12 +225,18 @@ export function isProcessingProgressEvent(
 /**
  * Type guard for file drop events
  */
-export function isFileDropEvent(event: unknown): event is { paths: string[], position: { x: number, y: number } } {
-    const e = event as { paths?: unknown };
+type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
+
+export function isFileDropEvent(event: unknown): event is DragDropPayload {
+    const e = event as Partial<DragDropPayload>;
     return (
         typeof e === 'object' &&
         e !== null &&
         Array.isArray(e.paths) &&
-        e.paths.every(item => typeof item === 'string')
+        e.paths.every(item => typeof item === 'string') &&
+        typeof e.position === 'object' &&
+        e.position !== null &&
+        typeof e.position.x === 'number' &&
+        typeof e.position.y === 'number'
     );
 }
