@@ -5,6 +5,7 @@ import { initFileImport } from "./ui/fileImport";
 import {
   displayFileList,
   currentFileList,
+  selectedFileIndex,
   clearAllFiles,
   toggleFileSort,
   moveFileUp,
@@ -23,6 +24,7 @@ import {
   getCurrentCoverArt,
   setCoverArt,
   clearCoverArt,
+  isCoverArtRemovalRequested,
 } from "./ui/coverArt";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 
@@ -135,9 +137,139 @@ document.addEventListener("DOMContentLoaded", () => {
   initEncoderPanel();
   // Initialize tag preview grid
   initTagPreview();
+  // Initialize Cmd+S metadata save handler
+  initMetadataSaveHandler();
   console.log("File import system initialized");
   console.log("Output panel initialized");
   console.log("Status panel initialized");
   console.log("Cover art system initialized");
   console.log("Tag preview initialized");
+  console.log("Metadata save handler initialized (Cmd+S / Ctrl+S)");
 });
+
+/**
+ * Initializes the Cmd+S / Ctrl+S keyboard handler for metadata-only saving
+ *
+ * When triggered:
+ * 1. Collects metadata from the form
+ * 2. Computes TSOA on the backend
+ * 3. Saves metadata to the loaded file(s) without audio processing
+ */
+function initMetadataSaveHandler(): void {
+  document.addEventListener("keydown", async (event) => {
+    // Check for Cmd+S (Mac) or Ctrl+S (Windows/Linux)
+    if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+      event.preventDefault(); // Prevent browser save dialog
+
+      // Check if we have files loaded
+      if (!currentFileList || currentFileList.files.length === 0) {
+        console.log("No files loaded - nothing to save");
+        return;
+      }
+
+      // Check if processing is active
+      const statusPanel = getStatusPanel();
+      if (statusPanel?.isCurrentlyProcessing) {
+        console.log("Processing in progress - cannot save metadata now");
+        return;
+      }
+
+      // Get the file to save metadata to. Prioritize the selected file.
+      let fileToSave = null;
+      if (
+        selectedFileIndex > -1 &&
+        currentFileList.files[selectedFileIndex]?.isValid
+      ) {
+        fileToSave = currentFileList.files[selectedFileIndex];
+      } else {
+        fileToSave = currentFileList.files.find((f) => f.isValid);
+      }
+
+      if (!fileToSave) {
+        console.log("No valid files to save metadata to");
+        return;
+      }
+
+      // Collect metadata from the form
+      const metadata = collectMetadataFromForm();
+
+      try {
+        console.log("Saving metadata to:", fileToSave.path);
+        await bridge.invoke("save_metadata_to_file", {
+          filePath: fileToSave.path,
+          metadata: metadata,
+        });
+        console.log("Metadata saved successfully");
+
+        // Update status text briefly to indicate success
+        const statusText = document.getElementById("status-text");
+        if (statusText) {
+          const originalText = statusText.textContent;
+          statusText.textContent = "Metadata saved!";
+          // Fix race condition: only restore if still showing "Metadata saved!"
+          setTimeout(() => {
+            if (statusText.textContent === "Metadata saved!") {
+              statusText.textContent = originalText;
+            }
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("Failed to save metadata:", error);
+        // Show error to user
+        const statusText = document.getElementById("status-text");
+        if (statusText) {
+          statusText.textContent = "Save failed - see console";
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Collects metadata from the form fields and returns an AudiobookMetadata object
+ */
+export function collectMetadataFromForm(): AudiobookMetadata {
+  const getElementValue = (id: string): string => {
+    const element = document.getElementById(id) as
+      | HTMLInputElement
+      | HTMLTextAreaElement;
+    return element?.value?.trim() || "";
+  };
+
+  const title = getElementValue("meta-title");
+  const author = getElementValue("meta-author");
+  const narrator = getElementValue("meta-narrator");
+  const year = getElementValue("meta-year");
+  const genre = getElementValue("meta-genre");
+  const series = getElementValue("meta-series");
+  const seriesPart = getElementValue("meta-series-part");
+  const description = getElementValue("meta-description");
+
+  const metadata: AudiobookMetadata = {};
+
+  // Map form fields to Rust struct field names
+  if (title) {
+    metadata.title = title;
+    metadata.album = title; // Album = Title for audiobooks
+  }
+  if (author) metadata.artist = author; // artist = Author
+  if (narrator) metadata.composer = narrator; // composer = Narrator
+  if (year) {
+    const yearNum = parseInt(year);
+    if (!isNaN(yearNum)) metadata.date = yearNum; // date = Year
+  }
+  if (genre) metadata.genre = genre;
+  if (series) metadata.series = series;
+  if (seriesPart) metadata.series_part = seriesPart;
+  if (description) metadata.description = description;
+
+  // Include cover art if present
+  const coverBytes = getCurrentCoverArt();
+  if (isCoverArtRemovalRequested()) {
+    metadata.cover_art = [];
+  } else if (coverBytes && coverBytes.length > 0) {
+    metadata.cover_art = coverBytes;
+  }
+
+  return metadata;
+}

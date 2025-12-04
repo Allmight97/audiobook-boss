@@ -1,46 +1,58 @@
 /**
  * TypeScript interfaces for audiobook metadata
+ *
+ * Field mapping for Plex/Audiobookshelf compatibility:
+ * - artist = Author (©ART, also written to aART/AlbumArtist)
+ * - composer = Narrator (©wrt/Composer)
+ * - series = Series name (©mvn/MVNM)
+ * - series_part = Book number in series (©mvi/MVIN)
+ * - album_sort = Computed TSOA for library sorting ("SERIES PP - TITLE")
+ * - date = Publication year (©day)
  */
 
 /**
  * Represents metadata for an audiobook file
- * Updated to match Rust backend AudiobookMetadata structure
+ * Matches Rust backend AudiobookMetadata structure
  */
 export interface AudiobookMetadata {
-  /** Title of the audiobook */
+  /** Title of the audiobook (©nam) */
   title?: string;
-  /** Artist (author) of the book - maps to artist field in backend */
+  /** Author of the book (©ART, also written to aART/AlbumArtist) */
   artist?: string;
-  /** Album name (book/series name) */
+  /** Album name - typically same as title for audiobooks (©alb) */
   album?: string;
-  /** Composer (narrator) of the audiobook - maps to composer field in backend */
+  /** Narrator of the audiobook (©wrt/Composer) */
   composer?: string;
-  /** Genre of the book */
+  /** Genre of the book (©gen) */
   genre?: string;
-  /** Publication date/year - maps to date field in backend */
+  /** Publication year (©day) */
   date?: number;
   /** Track number (chapter number, total chapters) */
   track?: [number, number | null];
   /** Disk number (rarely used for audiobooks) */
   disk?: [number, number | null];
-  /** Comment field */
+  /** Comment field (©cmt) - short note, distinct from description */
   comment?: string;
-  /** Description or synopsis */
+  /** Description or synopsis (desc) */
   description?: string;
-  /** Cover art as base64 encoded string (optional in responses) */
-  coverArt?: string;
-  /** Cover art as raw bytes from backend (snake_case field name) */
+  /** Series name (©mvn/MVNM) */
+  series?: string;
+  /** Book number in series as string to support "1/5" format (©mvi/MVIN) */
+  series_part?: string;
+  /** Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE" */
+  album_sort?: string;
+  /** Cover art as raw bytes from backend */
   cover_art?: number[];
-  
-  // Legacy fields for backward compatibility (deprecated)
+
+  // Legacy fields for backward compatibility (deprecated - do not use in new code)
   /** @deprecated Use artist instead */
   author?: string;
   /** @deprecated Use composer instead */
   narrator?: string;
   /** @deprecated Use date instead */
   year?: number;
-  /** Series name - may be combined with album */
-  series?: string;
+  /** @deprecated Use cover_art instead */
+  coverArt?: string;
 }
 
 /**

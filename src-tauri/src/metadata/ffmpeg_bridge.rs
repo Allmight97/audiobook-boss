@@ -11,12 +11,14 @@ use ffmpeg_next as ff;
 
 /// Converts `AudiobookMetadata` into an ffmpeg-next `Dictionary`.
 ///
-/// Field mapping strategy:
-/// - Standard textual fields (title, artist, album, composer, genre, comment, description)
-///   map directly to container keys of the same name.
-/// - `artist` is also duplicated to `album_artist` (common audiobook convention).
-/// - `date` is written both as `date` and `year` to maximize player compatibility.
-/// - A constant `media_type = 2` (iTunes audiobook) is always set for m4b targets.
+/// Field mapping strategy for Plex/Audiobookshelf compatibility:
+/// - `artist` = Author (also duplicated to `album_artist`)
+/// - `composer` = Narrator
+/// - `show` = Series name (©mvn/MVNM equivalent for ffmpeg)
+/// - `episode_sort` = Book number in series (©mvi/MVIN equivalent)
+/// - `sort_album` = TSOA for library sorting
+/// - `date`/`year` for publication year (dual write for compatibility)
+/// - `media_type = 2` (iTunes audiobook) always set for M4B targets
 ///
 /// Returns a populated `ffmpeg_next::Dictionary` ready to attach to an output
 /// format context via `set_metadata`.
@@ -32,6 +34,7 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set("title", title);
     }
 
+    // Author → artist + album_artist
     if let Some(ref artist) = metadata.artist {
         dict.set("artist", artist);
         dict.set("album_artist", artist); // For audiobooks, artist = album_artist
@@ -41,6 +44,7 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set("album", album);
     }
 
+    // Narrator → composer
     if let Some(ref composer) = metadata.composer {
         dict.set("composer", composer);
     }
@@ -62,8 +66,25 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set("description", description);
     }
 
+    // Series → show (ffmpeg's equivalent for movement name / series)
+    if let Some(ref series) = metadata.series {
+        dict.set("show", series);
+        // Signal series presence
+        dict.set("show_work_and_movement", "1");
+    }
+
+    // Book # → episode_sort (ffmpeg's equivalent for movement index)
+    if let Some(ref series_part) = metadata.series_part {
+        dict.set("episode_sort", series_part);
+    }
+
+    // TSOA → sort_album for library sorting
+    if let Some(ref album_sort) = metadata.album_sort {
+        dict.set("sort_album", album_sort);
+    }
+
     // M4B-specific audiobook metadata
-    dict.set("media_type", "2"); // Audiobook media type for iTunes
+    dict.set("media_type", "2"); // Audiobook media type for iTunes (stik=2)
 
     Ok(dict)
 }
