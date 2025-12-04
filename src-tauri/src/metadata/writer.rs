@@ -106,6 +106,7 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     // NOTE: We do NOT call tag.clear() to preserve unknown atoms and cover art.
     // Instead, we explicitly set or remove each field based on whether it has a value.
+    let tag_type = tag.tag_type();
 
     // Basic metadata - Title (©nam)
     if let Some(title) = &metadata.title {
@@ -179,9 +180,48 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
             ItemKey::ShowName,
             ItemValue::Text(series.clone()),
         ));
+
+        // Mirror to format-specific freeform fields to improve compatibility with external editors
+        match tag_type {
+            TagType::Id3v2 => {
+                // Mp3tag uses TXXX:SERIES for series
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("SERIES".to_string()),
+                    ItemValue::Text(series.clone()),
+                ));
+            }
+            TagType::Mp4Ilst => {
+                // Apple-style freeform atom used by MP3tag on MP4/M4B
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("----:com.apple.iTunes:SERIES".to_string()),
+                    ItemValue::Text(series.clone()),
+                ));
+            }
+            TagType::VorbisComments => {
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("SERIES".to_string()),
+                    ItemValue::Text(series.clone()),
+                ));
+            }
+            _ => {}
+        }
     } else {
         tag.remove_key(&ItemKey::Movement);
         tag.remove_key(&ItemKey::ShowName);
+        match tag_type {
+            TagType::Id3v2 => {
+                tag.remove_key(&ItemKey::Unknown("SERIES".to_string()));
+            }
+            TagType::Mp4Ilst => {
+                tag.remove_key(&ItemKey::Unknown(
+                    "----:com.apple.iTunes:SERIES".to_string(),
+                ));
+            }
+            TagType::VorbisComments => {
+                tag.remove_key(&ItemKey::Unknown("SERIES".to_string()));
+            }
+            _ => {}
+        }
     }
 
     // Book # → MovementNumber (©mvi/MVIN)
@@ -190,8 +230,45 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
             ItemKey::MovementNumber,
             ItemValue::Text(series_part.clone()),
         ));
+
+        match tag_type {
+            TagType::Id3v2 => {
+                // Mp3tag uses TXXX:SERIES-PART for book number
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("SERIES-PART".to_string()),
+                    ItemValue::Text(series_part.clone()),
+                ));
+            }
+            TagType::Mp4Ilst => {
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("----:com.apple.iTunes:SERIES-PART".to_string()),
+                    ItemValue::Text(series_part.clone()),
+                ));
+            }
+            TagType::VorbisComments => {
+                tag.insert(TagItem::new(
+                    ItemKey::Unknown("SERIES-PART".to_string()),
+                    ItemValue::Text(series_part.clone()),
+                ));
+            }
+            _ => {}
+        }
     } else {
         tag.remove_key(&ItemKey::MovementNumber);
+        match tag_type {
+            TagType::Id3v2 => {
+                tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string()));
+            }
+            TagType::Mp4Ilst => {
+                tag.remove_key(&ItemKey::Unknown(
+                    "----:com.apple.iTunes:SERIES-PART".to_string(),
+                ));
+            }
+            TagType::VorbisComments => {
+                tag.remove_key(&ItemKey::Unknown("SERIES-PART".to_string()));
+            }
+            _ => {}
+        }
     }
 
     // TSOA → AlbumTitleSortOrder (soal) for library sorting
