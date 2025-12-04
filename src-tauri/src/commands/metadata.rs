@@ -35,18 +35,9 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
     // Compute TSOA (Album Sort) if series and title are present
     let mut metadata_with_tsoa = metadata;
     if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
-        if !series.is_empty() && !title.is_empty() {
-            // Handle "1/5" format by extracting the number before '/'
-            let series_part = metadata_with_tsoa
-                .series_part
-                .as_deref()
-                .and_then(|p| p.split('/').next())
-                .and_then(|p| p.trim().parse::<u32>().ok())
-                .unwrap_or(0);
-
-            // Format: "SERIES PP - TITLE" where PP is zero-padded
-            let tsoa = format!("{} {:02} - {}", series, series_part, title);
-            metadata_with_tsoa.album_sort = Some(tsoa);
+        metadata_with_tsoa.album_sort =
+            compute_tsoa(series, metadata_with_tsoa.series_part.as_deref(), title);
+        if metadata_with_tsoa.album_sort.is_some() {
             log::debug!(
                 "Computed TSOA: {:?}",
                 metadata_with_tsoa.album_sort.as_ref()
@@ -62,6 +53,27 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
 
     log::info!("Metadata saved to: {}", validated_path.display());
     Ok(())
+}
+
+/// Computes TSOA (Album Sort) from series + part + title.
+/// Returns None if series_part is missing or cannot be parsed to a positive integer.
+pub fn compute_tsoa(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
+    let raw_part = series_part?;
+
+    let part_num = raw_part
+        .split('/')
+        .next()
+        .and_then(|p| p.trim().parse::<u32>().ok())?;
+
+    if part_num == 0 {
+        return None;
+    }
+
+    if series.is_empty() || title.is_empty() {
+        return None;
+    }
+
+    Some(format!("{} {:02} - {}", series, part_num, title))
 }
 
 /// Writes cover art to an M4B file
