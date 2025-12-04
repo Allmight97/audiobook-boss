@@ -9,6 +9,29 @@ use lofty::probe::Probe;
 use lofty::tag::{ItemValue, Tag, TagItem, TagType};
 use std::path::Path;
 
+/// Returns the tag types we should write for the given file based on its extension.
+/// Keeps read/write symmetry so external editors (e.g., Mp3tag) see the same data.
+fn tag_types_for_path(path: &Path) -> &'static [TagType] {
+    let ext = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase());
+
+    match ext.as_deref() {
+        // MPEG audio
+        Some("mp3") => &[TagType::Id3v2, TagType::Id3v1, TagType::Ape],
+        // MP4 family (m4a/m4b/mp4)
+        Some("m4a") | Some("m4b") | Some("mp4") => &[TagType::Mp4Ilst],
+        // FLAC / Ogg / Opus
+        Some("flac") | Some("ogg") | Some("opus") => &[TagType::VorbisComments],
+        // WAV / AIFF metadata blocks
+        Some("wav") => &[TagType::RiffInfo],
+        Some("aif") | Some("aiff") => &[TagType::AiffText],
+        // Fallback to ID3v2 for unknown extensions we still allow
+        _ => &[TagType::Id3v2],
+    }
+}
+
 /// Writes metadata to an existing audio file (non-destructive)
 ///
 /// This function preserves existing cover art and unknown atoms unless
@@ -25,44 +48,44 @@ pub fn write_metadata<P: AsRef<Path>>(file_path: P, metadata: &AudiobookMetadata
 
     let mut tagged_file = Probe::open(path)?.read()?;
 
-    // Ensure a primary tag exists – some freshly muxed MP4/M4B files may have
-    // no tag atoms yet, in which case Lofty returns None. We create an MP4 iTunes
-    // list (MP4ILST) tag so metadata writing does not abort the finalize stage
-    // leaving the temp output un‑moved.
-    if tagged_file.primary_tag().is_none() {
-        log::debug!("No primary tag present – creating new Mp4Ilst tag");
-        tagged_file.insert_tag(Tag::new(TagType::Mp4Ilst));
+    let target_tag_types = tag_types_for_path(path);
+
+    // Ensure a compatible tag exists; create the first matching type if needed.
+    let has_target_tag = tagged_file
+        .tags()
+        .iter()
+        .any(|tag| target_tag_types.contains(&tag.tag_type()));
+
+    if !has_target_tag {
+        let default_tag = *target_tag_types.first().unwrap_or(&TagType::Id3v2);
+        log::debug!(
+            "No target tag present – creating new {:?} tag for {}",
+            default_tag,
+            path.display()
+        );
+        tagged_file.insert_tag(Tag::new(default_tag));
     }
-    let tag = tagged_file.primary_tag_mut().ok_or_else(|| {
-        AppError::Metadata(lofty::error::LoftyError::new(
-            lofty::error::ErrorKind::UnknownFormat,
-        ))
-    })?;
 
-    // Update metadata fields (non-destructive - preserves existing atoms)
-    update_tag_data(tag, metadata)?;
+    let mut updated_any = false;
 
-    // Handle cover art: only replace if new cover is provided
-    if let Some(cover_data) = &metadata.cover_art {
-        if cover_data.is_empty() {
-            tag.remove_picture_type(PictureType::CoverFront);
-            log::debug!("Cover art removed per request");
-        } else {
-            // Remove existing cover art before adding new one
-            tag.remove_picture_type(PictureType::CoverFront);
-
-            let mime_type = detect_image_mime_type(cover_data)?;
-            let picture = Picture::new_unchecked(
-                PictureType::CoverFront,
-                Some(mime_type),
-                None,
-                cover_data.clone(),
-            );
-            tag.push_picture(picture);
-            log::debug!("Cover art updated ({} bytes)", cover_data.len());
+    for tag_type in target_tag_types {
+        if let Some(tag) = tagged_file.tag_mut(*tag_type) {
+            update_tag_data(tag, metadata)?;
+            apply_cover_art(tag, metadata)?;
+            updated_any = true;
         }
     }
-    // If metadata.cover_art is None, existing cover art is preserved
+
+    // Fallback: if we somehow still didn't touch a tag, update the primary tag.
+    if !updated_any {
+        let tag = tagged_file.primary_tag_mut().ok_or_else(|| {
+            AppError::Metadata(lofty::error::LoftyError::new(
+                lofty::error::ErrorKind::UnknownFormat,
+            ))
+        })?;
+        update_tag_data(tag, metadata)?;
+        apply_cover_art(tag, metadata)?;
+    }
 
     tagged_file.save_to_path(path, Default::default())?;
 
@@ -184,6 +207,31 @@ pub fn update_tag_data(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()
     Ok(())
 }
 
+fn apply_cover_art(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
+    if let Some(cover_data) = &metadata.cover_art {
+        if cover_data.is_empty() {
+            tag.remove_picture_type(PictureType::CoverFront);
+            log::debug!("Cover art removed per request");
+        } else {
+            // Remove existing cover art before adding new one
+            tag.remove_picture_type(PictureType::CoverFront);
+
+            let mime_type = detect_image_mime_type(cover_data)?;
+            let picture = Picture::new_unchecked(
+                PictureType::CoverFront,
+                Some(mime_type),
+                None,
+                cover_data.clone(),
+            );
+            tag.push_picture(picture);
+            log::debug!("Cover art updated ({} bytes)", cover_data.len());
+        }
+    }
+
+    // If metadata.cover_art is None, existing cover art is preserved
+    Ok(())
+}
+
 /// Writes cover art to an M4B file
 pub fn write_cover_art<P: AsRef<Path>>(file_path: P, cover_data: &[u8]) -> Result<()> {
     let path = file_path.as_ref();
@@ -259,6 +307,30 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn picks_id3_for_mp3() {
+        let types = tag_types_for_path(std::path::Path::new("sample.MP3"));
+        assert_eq!(types, &[TagType::Id3v2, TagType::Id3v1, TagType::Ape]);
+    }
+
+    #[test]
+    fn picks_mp4_for_m4b() {
+        let types = tag_types_for_path(std::path::Path::new("sample.m4b"));
+        assert_eq!(types, &[TagType::Mp4Ilst]);
+    }
+
+    #[test]
+    fn picks_vorbis_for_flac() {
+        let types = tag_types_for_path(std::path::Path::new("sample.flac"));
+        assert_eq!(types, &[TagType::VorbisComments]);
+    }
+
+    #[test]
+    fn falls_back_to_id3_for_unknown_extension() {
+        let types = tag_types_for_path(std::path::Path::new("sample.xyz"));
+        assert_eq!(types, &[TagType::Id3v2]);
+    }
 
     #[test]
     fn test_write_to_nonexistent_file() {
