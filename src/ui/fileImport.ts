@@ -16,16 +16,19 @@ function setupDragDropHandlers(): void {
     if (!dragDropArea) return;
 
     // Listen for the Tauri file drop event
-    bridge.listen<string[]>('tauri://file-drop', async (event) => {
+    // Payload is now { paths: string[], position: { x, y } }
+    bridge.listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
         dragDropArea?.classList.remove('drag-over');
-        await handleFileDrop(event.payload);
+        if (event.payload && Array.isArray(event.payload.paths)) {
+            await handleFileDrop(event.payload.paths);
+        }
     });
 
-    bridge.listen('tauri://file-drop-hover', () => {
+    bridge.listen('tauri://drag-enter', () => {
         dragDropArea?.classList.add('drag-over');
     });
 
-    bridge.listen('tauri://file-drop-cancelled', () => {
+    bridge.listen('tauri://drag-leave', () => {
         dragDropArea?.classList.remove('drag-over');
     });
 }
