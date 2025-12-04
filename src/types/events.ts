@@ -21,7 +21,7 @@ export const EVENTS = {
 /** Stage name constants to prevent string drift */
 export const STAGES = {
     analyzing: 'analyzing',
-    converting: 'converting', 
+    converting: 'converting',
     writing: 'writing',
     completed: 'completed',
     failed: 'failed',
@@ -47,16 +47,16 @@ export const STAGES = {
 export interface ProcessingProgressEvent {
     /** Processing stage identifier */
     stage: keyof typeof STAGES;
-    
+
     /** Progress percentage (0.0 to 100.0) */
     percentage: number;
-    
+
     /** Human-readable status message */
     message: string;
-    
+
     /** Currently processing file (optional) */
     current_file?: string;
-    
+
     /** Estimated time remaining in seconds (optional) */
     eta_seconds?: number;
 }
@@ -72,14 +72,29 @@ export interface ProcessingProgressEvent {
  * Handler: src/ui/fileImport.ts
  */
 export interface TauriFileDropEvents {
-    /** Files dropped onto the application window */
-    'tauri://file-drop': string[];
-    
-    /** User is hovering files over the drop area */
-    'tauri://file-drop-hover': undefined;
-    
-    /** User cancelled the file drop operation */
-    'tauri://file-drop-cancelled': undefined;
+    /** 
+     * Files dropped onto the application window 
+     * Payload: { paths: string[], position: { x: number, y: number } }
+     */
+    'tauri://drag-drop': { paths: string[], position: { x: number, y: number } };
+
+    /** 
+     * User is hovering files over the drop area (drag enter)
+     * Payload: { paths: string[], position: { x: number, y: number } }
+     */
+    'tauri://drag-enter': { paths: string[], position: { x: number, y: number } };
+
+    /** 
+     * User is hovering files over the drop area (drag over)
+     * Payload: { position: { x: number, y: number } }
+     */
+    'tauri://drag-over': { position: { x: number, y: number } };
+
+    /** 
+     * User cancelled the file drop operation (drag leave)
+     * Payload: null (due to known bug) or { type: 'leave' }
+     */
+    'tauri://drag-leave': unknown;
 }
 
 // ============================================================================
@@ -106,9 +121,9 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * EVENT FLOW DOCUMENTATION
  * 
  * 1. FILE DROP EVENTS:
- *    - User drags files over window → 'tauri://file-drop-hover'
- *    - User drops files → 'tauri://file-drop'
- *    - User cancels drop → 'tauri://file-drop-cancelled'
+ *    - User drags files over window → 'tauri://drag-enter' / 'tauri://drag-over'
+ *    - User drops files → 'tauri://drag-drop'
+ *    - User cancels drop (leaves window) → 'tauri://drag-leave'
  *    
  * 2. PROCESSING EVENTS:
  *    - User clicks "Process Audiobook" → invoke('process_audiobook_files_v2')
@@ -131,9 +146,9 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * CURRENT EVENT LISTENER LOCATIONS:
  * 
  * File: src/ui/fileImport.ts
- * - listen('tauri://file-drop') → handleFileDrop()
- * - listen('tauri://file-drop-hover') → add drag-over CSS class
- * - listen('tauri://file-drop-cancelled') → remove drag-over CSS class
+ * - listen('tauri://drag-drop') → handleFileDrop()
+ * - listen('tauri://drag-enter') → add drag-over CSS class
+ * - listen('tauri://drag-leave') → remove drag-over CSS class
  * 
  * File: src/ui/statusPanel.ts  
  * - listen(EVENTS.PROGRESS) → updateProgress() → updateStatus() → updateUI()
@@ -210,6 +225,18 @@ export function isProcessingProgressEvent(
 /**
  * Type guard for file drop events
  */
-export function isFileDropEvent(event: unknown): event is string[] {
-    return Array.isArray(event) && event.every(item => typeof item === 'string');
+type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
+
+export function isFileDropEvent(event: unknown): event is DragDropPayload {
+    const e = event as Partial<DragDropPayload>;
+    return (
+        typeof e === 'object' &&
+        e !== null &&
+        Array.isArray(e.paths) &&
+        e.paths.every(item => typeof item === 'string') &&
+        typeof e.position === 'object' &&
+        e.position !== null &&
+        typeof e.position.x === 'number' &&
+        typeof e.position.y === 'number'
+    );
 }

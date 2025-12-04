@@ -1,5 +1,6 @@
 import { bridge } from '../lib/bridge';
 import { FileListInfo } from '../types/audio';
+import { EventPayload, isFileDropEvent } from '../types/events';
 import { displayFileList } from './fileList';
 
 let dragDropArea: HTMLElement | null = null;
@@ -16,16 +17,19 @@ function setupDragDropHandlers(): void {
     if (!dragDropArea) return;
 
     // Listen for the Tauri file drop event
-    bridge.listen<string[]>('tauri://file-drop', async (event) => {
+    // Payload is now { paths: string[], position: { x, y } }
+    bridge.listen<EventPayload<'tauri://drag-drop'>>('tauri://drag-drop', async (event) => {
         dragDropArea?.classList.remove('drag-over');
-        await handleFileDrop(event.payload);
+        if (isFileDropEvent(event.payload)) {
+            await handleFileDrop(event.payload.paths);
+        }
     });
 
-    bridge.listen('tauri://file-drop-hover', () => {
+    bridge.listen('tauri://drag-enter', () => {
         dragDropArea?.classList.add('drag-over');
     });
 
-    bridge.listen('tauri://file-drop-cancelled', () => {
+    bridge.listen('tauri://drag-leave', () => {
         dragDropArea?.classList.remove('drag-over');
     });
 }
