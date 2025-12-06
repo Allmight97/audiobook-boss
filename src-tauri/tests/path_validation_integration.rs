@@ -99,11 +99,10 @@ fn test_analyze_audio_files_validates_inputs() {
         if !file.is_valid {
             let error = file.error.as_ref().expect("invalid file should have error");
             assert!(
-                error.contains("Cannot read file metadata") || 
-                error.contains("Path is not a regular file") ||
-                error.contains("Unsupported audio format") ||
-                error.contains("Audio metadata error") || // Lofty metadata errors are also acceptable for invalid content
-                error.contains("failed to fill whole buffer"), // Specific lofty error for empty/invalid files
+                error.contains("Cannot read file metadata")
+                    || error.contains("Path is not a regular file")
+                    || error.contains("Unsupported audio format")
+                    || error.contains("FFmpeg error"),
                 "Error should indicate validation failure: {}",
                 error
             );

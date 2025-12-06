@@ -100,10 +100,15 @@ pub(crate) fn create_audio_encoder(
 
 /// Sets up the output encoder context and stream with metadata support.
 /// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
+///
+/// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
+/// to the output context before the header is written (#66).
 #[allow(clippy::too_many_lines)]
 pub(crate) fn setup_encoder(
     plan: &crate::audio::media_pipeline::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
+    skip_chapter_passthrough: bool,
+    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
 ) -> Result<(
     ff::format::context::Output,
     ff::codec::encoder::audio::Encoder,
@@ -160,12 +165,21 @@ pub(crate) fn setup_encoder(
 
     // Pre-header cover art stream attempt
     let mut cover_art_stream_info: Option<(usize, crate::metadata::CoverFormat)> = None;
-    if let Some(metadata) = metadata {
-        if let Some(ref cover_data) = metadata.cover_art {
+    // Prefer user-provided cover art; otherwise reuse passthrough cover art without reprocessing.
+    let selected_cover = metadata
+        .and_then(|m| m.cover_art.as_ref().map(|data| (data, "user")))
+        .or_else(|| {
+            passthrough
+                .and_then(|p| p.cover_art.as_ref())
+                .map(|data| (data, "passthrough"))
+        });
+
+    match selected_cover {
+        Some((cover_data, source)) => {
             let bytes = cover_data.len();
-            log::info!("cover_art_plan decision=native_attempt bytes={}", bytes);
             log::info!(
-                "Attempting native cover art embedding - {} bytes of cover data",
+                "cover_art_plan decision=native_attempt source={} bytes={}",
+                source,
                 bytes
             );
             cover_art_stream_info =
@@ -174,16 +188,35 @@ pub(crate) fn setup_encoder(
                 log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
             } else {
                 log::warn!(
-                    "cover_art_plan decision=fallback reason=stream_creation_failed bytes={}",
+                    "cover_art_plan decision=failed reason=stream_creation_failed source={} bytes={}",
+                    source,
                     bytes
                 );
-                log::warn!("✗ Native cover art stream creation failed - will fallback to Lofty embedding in finalize stage");
+                log::warn!(
+                    "✗ Native cover art stream creation failed - cover art will not be embedded"
+                );
             }
-        } else {
-            log::info!("cover_art_plan decision=none reason=no_cover_art_data");
+        }
+        None => log::info!("cover_art_plan decision=none reason=no_cover_art_data"),
+    }
+
+    // Chapter passthrough: copy chapters from source inputs (#66)
+    // Skip in preview mode since chapters won't align with shortened output
+    if !skip_chapter_passthrough {
+        if let Some(p) = passthrough {
+            match crate::metadata::passthrough::add_chapters_to_output(&mut octx, &p.chapters) {
+                Ok(count) if count > 0 => {
+                    log::info!("✓ Copied {} chapters from source files", count);
+                }
+                Ok(_) => log::debug!("No chapters found to copy from source files"),
+                Err(e) => log::warn!(
+                    "Could not copy chapters from sources: {} - continuing without chapters",
+                    e
+                ),
+            }
         }
     } else {
-        log::info!("cover_art_plan decision=none reason=no_metadata");
+        log::debug!("Chapter passthrough skipped (preview mode)");
     }
 
     // Header
@@ -191,15 +224,14 @@ pub(crate) fn setup_encoder(
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
 
     // Post-header cover art packet
-    if let Some(metadata) = metadata {
-        if let (Some((stream_index, format)), Some(cover_data)) =
-            (cover_art_stream_info, metadata.cover_art.as_ref())
-        {
+    if let Some((stream_index, format)) = cover_art_stream_info {
+        if let Some((cover_data, source)) = selected_cover {
             log::info!(
-                "Writing cover art packet to stream {} ({:?} format, {} bytes)",
+                "Writing cover art packet to stream {} ({:?} format, {} bytes, source={})",
                 stream_index,
                 format,
-                cover_data.len()
+                cover_data.len(),
+                source
             );
             crate::metadata::write_cover_art_packet_post_header(
                 &mut octx,
@@ -211,8 +243,8 @@ pub(crate) fn setup_encoder(
                 "✓ Native cover art packet written successfully to stream {}",
                 stream_index
             );
-        } else if metadata.cover_art.is_some() {
-            log::warn!("Cover art data present but no stream created - will rely on finalize stage fallback");
+        } else {
+            log::warn!("Cover art stream exists but no cover bytes were available for writing");
         }
     }
 

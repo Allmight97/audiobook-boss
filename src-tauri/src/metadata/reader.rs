@@ -1,23 +1,10 @@
-//! Metadata reading functionality
-
+//! Metadata reading via ffmpeg-next
 use super::AudiobookMetadata;
 use crate::errors::{AppError, Result};
-use lofty::prelude::{Accessor, ItemKey, TaggedFileExt};
-use lofty::probe::Probe;
-use lofty::tag::{Tag, TagType};
+use ffmpeg_next as ff;
 use std::path::Path;
 
-// Preferred tag types when multiple tags exist (highest priority first).
-const TAG_READ_PRIORITY: &[TagType] = &[
-    TagType::Id3v2,
-    TagType::Mp4Ilst,
-    TagType::Ape,
-    TagType::VorbisComments,
-    TagType::RiffInfo,
-    TagType::Id3v1,
-];
-
-/// Reads metadata from an audio file
+/// Reads container-level metadata and attached cover art using ffmpeg-next.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
 
@@ -28,237 +15,75 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         )));
     }
 
-    let tagged_file = Probe::open(path)?.read()?;
+    ff::init().map_err(AppError::Ffmpeg)?;
+
+    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+    let dict = ictx.metadata();
 
     let mut metadata = AudiobookMetadata::new();
 
-    // Merge tags in priority order so that metadata from externally edited tags (e.g., MP3Tag)
-    // is preferred over stale atoms we previously wrote.
-    let tags = tagged_file.tags();
-    for tag_type in TAG_READ_PRIORITY {
-        if let Some(tag) = tags.iter().rev().find(|t| t.tag_type() == *tag_type) {
-            merge_tag_data(tag, &mut metadata);
-        }
-    }
+    metadata.title = dict.get("title").map(str::to_string);
+    metadata.artist = dict.get("artist").map(str::to_string);
+    metadata.album = dict.get("album").map(str::to_string);
+    metadata.composer = dict.get("composer").map(str::to_string);
+    metadata.genre = dict.get("genre").map(str::to_string);
+    metadata.comment = dict.get("comment").map(str::to_string);
+    metadata.description = dict.get("description").map(str::to_string);
+    metadata.album_sort = dict.get("sort_album").map(str::to_string);
 
-    // If nothing was populated (rare), fall back to the primary/first tag.
-    if is_metadata_empty(&metadata) {
-        if let Some(tag) = tagged_file
-            .primary_tag()
-            .or_else(|| tagged_file.first_tag())
-        {
-            merge_tag_data(tag, &mut metadata);
-        }
-    }
+    // Series metadata mapped to ffmpeg's show/episode_sort keys
+    metadata.series = dict.get("show").map(str::to_string);
+    metadata.series_part = dict.get("episode_sort").map(str::to_string);
+
+    // Year/date can be stored under `date` or `year`
+    metadata.date = dict
+        .get("date")
+        .or_else(|| dict.get("year"))
+        .and_then(|v| v.parse::<u32>().ok());
+
+    // Attached picture (cover art)
+    metadata.cover_art = extract_attached_pic(&ictx);
 
     Ok(metadata)
 }
 
-/// Extracts data from a tag into the metadata struct without overwriting
-/// fields already set by higher-priority tags.
-///
-/// Maps tags according to audiobook conventions for Plex/Audiobookshelf:
-/// - Artist (©ART) = Author
-/// - Composer (©wrt) = Narrator
-/// - MovementName (©mvn/MVNM) = Series
-/// - MovementIndex (©mvi/MVIN) = Book #
-pub fn merge_tag_data(tag: &Tag, metadata: &mut AudiobookMetadata) {
-    // Basic fields
-    if metadata.title.is_none() {
-        metadata.title = tag.title().filter(|s| !s.is_empty()).map(|s| s.to_string());
-    }
-    if metadata.artist.is_none() {
-        metadata.artist = tag
-            .artist()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-    }
-    if metadata.album.is_none() {
-        metadata.album = tag.album().filter(|s| !s.is_empty()).map(|s| s.to_string());
-    }
-    if metadata.date.is_none() {
-        metadata.date = tag.year();
-    }
-    if metadata.genre.is_none() {
-        metadata.genre = tag.genre().filter(|s| !s.is_empty()).map(|s| s.to_string());
-    }
+/// Extracts the first attached picture (cover art) from the container streams.
+fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
+    use ff::format::stream::Disposition;
 
-    // Narrator from Composer field (©wrt) - NOT AlbumArtist
-    if metadata.composer.is_none() {
-        if let Some(item) = tag.get(&ItemKey::Composer) {
-            let value = item.value().text().unwrap_or("").trim();
-            if !value.is_empty() {
-                metadata.composer = Some(value.to_string());
-            }
-        }
-    }
-
-    // Series: prefer freeform SERIES atom (MP3tag/external edits) over standard Movement atom
-    if metadata.series.is_none() {
-        // Try freeform SERIES atom first (written by MP3tag and other external tools)
-        if let Some(item) = tag.get(&ItemKey::Unknown(
-            "----:com.apple.iTunes:SERIES".to_string(),
-        )) {
-            let value = item.value().text().unwrap_or("").trim();
-            if !value.is_empty() {
-                metadata.series = Some(value.to_string());
-            }
-        }
-        // Fallback to standard Movement atom (©mvn/MVNM)
-        if metadata.series.is_none() {
-            if let Some(item) = tag.get(&ItemKey::Movement) {
-                let value = item.value().text().unwrap_or("").trim();
-                if !value.is_empty() {
-                    metadata.series = Some(value.to_string());
+    for stream in ictx.streams() {
+        if stream.disposition().contains(Disposition::ATTACHED_PIC) {
+            unsafe {
+                let av_stream = stream.as_ptr();
+                let pic = (*av_stream).attached_pic;
+                if !pic.data.is_null() && pic.size > 0 {
+                    let bytes = std::slice::from_raw_parts(pic.data, pic.size as usize);
+                    return Some(bytes.to_vec());
                 }
             }
         }
     }
-
-    // Book #: prefer freeform SERIES-PART atom over standard MovementNumber atom
-    if metadata.series_part.is_none() {
-        // Try freeform SERIES-PART atom first (written by MP3tag and other external tools)
-        if let Some(item) = tag.get(&ItemKey::Unknown(
-            "----:com.apple.iTunes:SERIES-PART".to_string(),
-        )) {
-            let value = item.value().text().unwrap_or("").trim();
-            if !value.is_empty() {
-                metadata.series_part = Some(value.to_string());
-            }
-        }
-        // Fallback to standard MovementNumber atom (©mvi/MVIN)
-        if metadata.series_part.is_none() {
-            if let Some(item) = tag.get(&ItemKey::MovementNumber) {
-                let value = item.value().text().unwrap_or("").trim();
-                if !value.is_empty() {
-                    metadata.series_part = Some(value.to_string());
-                }
-            }
-        }
-    }
-
-    // Description from dedicated description field (no comment fallback)
-    if metadata.description.is_none() {
-        if let Some(item) = tag.get(&ItemKey::Description) {
-            let value = item.value().text().unwrap_or("").trim();
-            if !value.is_empty() {
-                metadata.description = Some(value.to_string());
-            }
-        }
-    }
-
-    // Album sort order (TSOA/soal) when present
-    if metadata.album_sort.is_none() {
-        if let Some(item) = tag.get(&ItemKey::AlbumTitleSortOrder) {
-            let value = item.value().text().unwrap_or("").trim();
-            if !value.is_empty() {
-                metadata.album_sort = Some(value.to_string());
-            }
-        }
-    }
-
-    // Extract cover art and optimize it
-    if metadata.cover_art.is_none() {
-        let pictures = tag.pictures();
-        if let Some(picture) = pictures.first() {
-            let raw_data = picture.data();
-            // Optimize cover art: resize to max 800×800, flatten transparency, JPEG 85%
-            match crate::commands::metadata::optimize_cover_art(raw_data) {
-                Ok(optimized) => metadata.cover_art = Some(optimized),
-                Err(e) => {
-                    // Log warning but don't fail - use raw data as fallback
-                    log::warn!(
-                        "Failed to optimize auto-loaded cover art: {}. Using original.",
-                        e
-                    );
-                    metadata.cover_art = Some(raw_data.to_vec());
-                }
-            }
-        }
-    }
-}
-
-fn is_metadata_empty(metadata: &AudiobookMetadata) -> bool {
-    metadata.title.is_none()
-        && metadata.artist.is_none()
-        && metadata.album.is_none()
-        && metadata.composer.is_none()
-        && metadata.genre.is_none()
-        && metadata.date.is_none()
-        && metadata.description.is_none()
-        && metadata.series.is_none()
-        && metadata.series_part.is_none()
-        && metadata.album_sort.is_none()
-        && metadata.cover_art.is_none()
+    None
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lofty::tag::{ItemValue, TagItem};
-    use std::fs;
     use tempfile::TempDir;
 
     #[test]
-    fn test_read_nonexistent_file() {
-        let result = read_metadata("nonexistent.m4b");
+    fn read_nonexistent_file_returns_error() {
+        let result = read_metadata("does-not-exist.m4b");
         assert!(matches!(result, Err(AppError::FileValidation(_))));
     }
 
     #[test]
-    fn test_read_metadata_empty_file() {
-        let temp_dir = TempDir::new().expect("create temp dir");
-        let file_path = temp_dir.path().join("empty.txt");
-        fs::write(&file_path, b"").expect("write empty file");
+    fn invalid_file_surfaces_ffmpeg_error() {
+        let temp = TempDir::new().expect("temp dir");
+        let path = temp.path().join("invalid.m4b");
+        std::fs::write(&path, b"not audio").expect("write");
 
-        let result = read_metadata(&file_path);
-        assert!(matches!(result, Err(AppError::Metadata(_))));
-    }
-
-    #[test]
-    fn test_merge_prefers_higher_priority_tag() {
-        let mut mp4_tag = Tag::new(TagType::Mp4Ilst);
-        mp4_tag.set_title("Old Title".to_string());
-        mp4_tag.set_artist("Old Author".to_string());
-
-        let mut id3_tag = Tag::new(TagType::Id3v2);
-        id3_tag.set_title("New Title".to_string());
-        id3_tag.set_artist("New Author".to_string());
-
-        let tags = [mp4_tag, id3_tag];
-        let mut metadata = AudiobookMetadata::new();
-
-        for tag_type in TAG_READ_PRIORITY {
-            if let Some(tag) = tags.iter().find(|t| t.tag_type() == *tag_type) {
-                merge_tag_data(tag, &mut metadata);
-            }
-        }
-
-        assert_eq!(metadata.title.as_deref(), Some("New Title"));
-        assert_eq!(metadata.artist.as_deref(), Some("New Author"));
-    }
-
-    #[test]
-    fn test_merge_fills_missing_fields_from_lower_priority() {
-        let mut id3_tag = Tag::new(TagType::Id3v2);
-        id3_tag.set_title("Title".to_string());
-
-        let mut mp4_tag = Tag::new(TagType::Mp4Ilst);
-        mp4_tag.insert(TagItem::new(
-            ItemKey::Movement,
-            ItemValue::Text("Series".to_string()),
-        ));
-
-        let tags = [id3_tag, mp4_tag];
-        let mut metadata = AudiobookMetadata::new();
-
-        for tag_type in TAG_READ_PRIORITY {
-            if let Some(tag) = tags.iter().find(|t| t.tag_type() == *tag_type) {
-                merge_tag_data(tag, &mut metadata);
-            }
-        }
-
-        assert_eq!(metadata.title.as_deref(), Some("Title"));
-        assert_eq!(metadata.series.as_deref(), Some("Series"));
+        let result = read_metadata(&path);
+        assert!(matches!(result, Err(AppError::Ffmpeg(_))));
     }
 }

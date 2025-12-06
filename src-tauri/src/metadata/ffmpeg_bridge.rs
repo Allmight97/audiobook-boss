@@ -9,23 +9,6 @@ use super::AudiobookMetadata;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
-/// Converts `AudiobookMetadata` into an ffmpeg-next `Dictionary`.
-///
-/// Field mapping strategy for Plex/Audiobookshelf compatibility:
-/// - `artist` = Author (also duplicated to `album_artist`)
-/// - `composer` = Narrator
-/// - `show` = Series name (©mvn/MVNM equivalent for ffmpeg)
-/// - `episode_sort` = Book number in series (©mvi/MVIN equivalent)
-/// - `sort_album` = TSOA for library sorting
-/// - `date`/`year` for publication year (dual write for compatibility)
-/// - `media_type = 2` (iTunes audiobook) always set for M4B targets
-///
-/// Returns a populated `ffmpeg_next::Dictionary` ready to attach to an output
-/// format context via `set_metadata`.
-///
-/// This function intentionally ignores fields currently unsupported by the
-/// native embedding path (track, disk, cover art) – these are validated via
-/// `validate_metadata_compatibility` beforehand so callers can surface warnings.
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
     let mut dict = ff::Dictionary::new();
 
@@ -123,7 +106,7 @@ pub fn add_cover_art_stream_pre_header(
         return None;
     }
     let Some(format) = detect_cover_art_format(cover_data) else {
-        log::warn!("Unsupported cover art format (only JPEG/PNG). Deferring to finalize stage");
+        log::warn!("Unsupported cover art format (only JPEG/PNG). Cover art will be skipped.");
         return None;
     };
 
@@ -133,7 +116,7 @@ pub fn add_cover_art_stream_pre_header(
     };
     let Some(codec) = ff::encoder::find(codec_id) else {
         log::warn!(
-            "Cover art codec {:?} missing in ffmpeg build; fallback to finalize stage",
+            "Cover art codec {:?} missing in ffmpeg build; cover art will be skipped",
             format
         );
         return None;
@@ -145,7 +128,7 @@ pub fn add_cover_art_stream_pre_header(
 
             // Configure stream parameters for cover art
             if let Err(e) = configure_cover_art_stream_parameters(&mut stream, format, cover_data) {
-                log::warn!("Failed to configure cover art stream parameters ({}); fallback to finalize stage", e);
+                log::warn!("Failed to configure cover art stream parameters ({}); cover art will be skipped", e);
                 return None;
             }
 
@@ -164,12 +147,23 @@ pub fn add_cover_art_stream_pre_header(
         }
         Err(e) => {
             log::warn!(
-                "Failed adding cover art stream ({}); fallback to finalize stage",
+                "Failed adding cover art stream ({}); cover art will be skipped",
                 e
             );
             None
         }
     }
+}
+
+fn merge_metadata<'a>(
+    mut existing: ff::Dictionary<'a>,
+    metadata: &AudiobookMetadata,
+) -> Result<ff::Dictionary<'a>> {
+    let overrides = metadata_to_ffmpeg_dict(metadata)?;
+    for (k, v) in overrides.iter() {
+        existing.set(k, v);
+    }
+    Ok(existing)
 }
 
 /// Configures stream parameters for cover art embedding
@@ -387,6 +381,149 @@ pub fn set_container_metadata(
     Ok(())
 }
 
+// Deprecated: replaced by merge_metadata (ffmpeg dict merge)
+
+/// Rewrite metadata (and optional cover) using ffmpeg-next via remux/stream-copy.
+/// - Copies all non-attached_pic streams (audio + chapters handled separately)
+/// - Copies chapters
+/// - If metadata.cover_art is provided, replaces existing attached_pic with the new one
+/// - Sets container metadata from AudiobookMetadata merged with existing tags
+/// - Writes to a temp file and atomically replaces the original
+pub fn rewrite_metadata_with_ffmpeg(
+    input_path: &std::path::Path,
+    metadata: &AudiobookMetadata,
+) -> Result<()> {
+    use crate::errors::AppError;
+
+    ff::init().map_err(AppError::Ffmpeg)?;
+
+    let mut ictx = ff::format::input(input_path).map_err(AppError::Ffmpeg)?;
+
+    let parent = input_path
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_else(|| {
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+        });
+    let ext = input_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("m4b");
+    let temp_path = parent.join(format!(".abb_meta_{}.{}", uuid::Uuid::new_v4(), ext));
+
+    // Ensure temp path is free
+    if temp_path.exists() {
+        std::fs::remove_file(&temp_path).map_err(AppError::Io)?;
+    }
+
+    let mut octx = ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?;
+
+    let stream_len = ictx.streams().len();
+    let mut stream_mapping: Vec<isize> = vec![-1; stream_len];
+    let mut output_time_bases: Vec<Option<ff::Rational>> = vec![None; stream_len];
+
+    // Copy streams (skip attached_pic if replacing cover art)
+    for (index, istream) in ictx.streams().enumerate() {
+        let medium = istream.parameters().medium();
+        if medium == ff::media::Type::Data {
+            log::info!(
+                "Skipping data stream {} (codec: {:?}) during metadata remux",
+                index,
+                istream.parameters().id()
+            );
+            continue;
+        }
+
+        let in_disposition = istream.disposition();
+        let is_attached_pic =
+            in_disposition.contains(ff::format::stream::Disposition::ATTACHED_PIC);
+
+        if is_attached_pic && metadata.cover_art.is_some() {
+            log::info!("Skipping source attached_pic stream in favor of new cover art");
+            continue;
+        }
+
+        let codec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
+            .map_err(AppError::Ffmpeg)?;
+        let mut ostream = octx.add_stream_with(&codec_ctx).map_err(AppError::Ffmpeg)?;
+
+        ostream.set_time_base(istream.time_base());
+        ostream.set_metadata(istream.metadata().to_owned());
+
+        unsafe {
+            let ptr = ostream.as_mut_ptr();
+            (*ptr).disposition = in_disposition.bits();
+            if !(*ptr).codecpar.is_null() {
+                (*(*ptr).codecpar).codec_tag = 0;
+            }
+        }
+
+        stream_mapping[index] = ostream.index() as isize;
+        output_time_bases[ostream.index()] = Some(ostream.time_base());
+    }
+
+    // Copy chapters before header write
+    if ictx.nb_chapters() > 0 {
+        for chapter in ictx.chapters() {
+            let title = chapter.metadata().get("title").map(|s| s.to_string());
+            match octx.add_chapter(
+                chapter.id(),
+                chapter.time_base(),
+                chapter.start(),
+                chapter.end(),
+                title.as_deref().unwrap_or(""),
+            ) {
+                Ok(_out_chapter) => {}
+                Err(e) => {
+                    log::warn!("Failed to add chapter id {}: {}", chapter.id(), e);
+                }
+            }
+        }
+    }
+
+    // Merge container metadata: start from existing then overlay requested values
+    let merged_dict = merge_metadata(ictx.metadata().to_owned(), metadata)?;
+    octx.set_metadata(merged_dict);
+
+    // Add cover art stream if provided
+    let cover = metadata.cover_art.as_ref();
+    let cover_stream_info =
+        cover.and_then(|bytes| add_cover_art_stream_pre_header(&mut octx, bytes));
+
+    octx.write_header().map_err(AppError::Ffmpeg)?;
+
+    if let (Some(bytes), Some((stream_index, format))) = (cover, cover_stream_info) {
+        write_cover_art_packet_post_header(&mut octx, stream_index, bytes, format);
+    }
+
+    // Stream-copy all packets respecting mapping
+    for (input_stream, mut packet) in ictx.packets() {
+        let in_index = input_stream.index();
+        let out_index = *stream_mapping.get(in_index).unwrap_or(&-1);
+        if out_index < 0 {
+            continue;
+        }
+
+        let out_tb = output_time_bases
+            .get(out_index as usize)
+            .and_then(|tb| *tb)
+            .unwrap_or(input_stream.time_base());
+
+        packet.set_stream(out_index as usize);
+        packet.rescale_ts(input_stream.time_base(), out_tb);
+        packet
+            .write_interleaved(&mut octx)
+            .map_err(AppError::Ffmpeg)?;
+    }
+
+    octx.write_trailer().map_err(AppError::Ffmpeg)?;
+
+    // Atomic replace original
+    std::fs::rename(&temp_path, input_path).map_err(AppError::Io)?;
+
+    Ok(())
+}
+
 /// Validates that ffmpeg-next can handle the provided metadata
 /// Returns warnings for unsupported fields
 pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<String> {
@@ -462,7 +599,7 @@ pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<Stri
             None => {
                 // Only warn if the bytes clearly identify a known-but-unsupported image format.
                 // Arbitrary placeholder/random data (e.g. zero-filled buffer used in tests) should not
-                // produce a user-facing warning; we'll silently fall back to Lofty embedding.
+                // produce a user-facing warning.
                 let looks_ascii_upper = cover_data.len() >= 8
                     && cover_data
                         .iter()
@@ -477,7 +614,7 @@ pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<Stri
                     looks_ascii_upper; // obvious non-binary placeholder like "INVALID_IMAGE_DATA"
 
                 if known_unsupported {
-                    warnings.push("Cover art format not supported for native embedding (only JPEG and PNG are supported) - will use Lofty fallback".to_string());
+                    warnings.push("Cover art format not supported for native embedding (only JPEG and PNG are supported) - cover art will be skipped".to_string());
                 } else {
                     log::debug!("Cover art bytes not recognized as JPEG/PNG; proceeding without native embedding warning");
                 }
@@ -492,7 +629,7 @@ pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<Stri
             };
 
             if ff::encoder::find(codec_id).is_none() {
-                warnings.push(format!("FFmpeg codec for {:?} format not available in this build - will use Lofty fallback", format));
+                warnings.push(format!("FFmpeg codec for {:?} format not available in this build - cover art will be skipped", format));
             }
         }
     }

@@ -98,6 +98,37 @@ pub async fn process_audiobook_with_context(
     reporter.set_stage(ProcessingStage::Analyzing);
     let workflow = prepare::validate_and_prepare(&context, &files)?;
 
+    // Extract passthrough metadata (chapters, original cover art) from all valid files.
+    let passthrough_metadata = if context.preview.is_none() {
+        let data = crate::metadata::passthrough::extract_passthrough_metadata(&files);
+        if data.chapters.is_empty() && data.cover_art.is_none() {
+            None
+        } else {
+            Some(data)
+        }
+    } else {
+        None
+    };
+
+    // Merge passthrough cover art when user metadata is absent or missing cover art.
+    let mut effective_metadata = metadata;
+    if let Some(ref passthrough) = passthrough_metadata {
+        if let Some(ref cover) = passthrough.cover_art {
+            match effective_metadata.as_mut() {
+                Some(md) => {
+                    if md.cover_art.is_none() {
+                        md.cover_art = Some(cover.clone());
+                    }
+                }
+                None => {
+                    let mut md = AudiobookMetadata::new();
+                    md.cover_art = Some(cover.clone());
+                    effective_metadata = Some(md);
+                }
+            }
+        }
+    }
+
     // Metrics accumulation (estimates)
     for file in &files {
         if file.is_valid {
@@ -114,15 +145,22 @@ pub async fn process_audiobook_with_context(
         &context,
         &workflow,
         &files,
-        metadata.as_ref(),
+        effective_metadata.as_ref(),
+        passthrough_metadata.as_ref(),
         &mut reporter,
     )
     .await?;
 
     // Stage 3: Finalize
-    let result =
-        finalize::finalize_processing(&context, workflow, merged_output, metadata, &mut reporter)
-            .await?;
+    let result = finalize::finalize_processing(
+        &context,
+        workflow,
+        merged_output,
+        effective_metadata,
+        passthrough_metadata,
+        &mut reporter,
+    )
+    .await?;
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead
     if context.preview.is_some() {

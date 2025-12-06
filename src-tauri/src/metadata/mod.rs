@@ -1,15 +1,16 @@
 //! Metadata handling for audiobook files
 //!
 //! This module provides functionality to read and write metadata
-//! from/to audio files using the Lofty crate.
+//! from/to audio files using ffmpeg-next.
 
 use serde::{Deserialize, Serialize};
 
 pub mod reader;
-pub mod writer;
 
 // FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
 pub mod ffmpeg_bridge;
+// Passthrough helpers for chapter/cover preservation
+pub mod passthrough;
 
 /// Represents audiobook metadata
 ///
@@ -82,7 +83,6 @@ impl Default for AudiobookMetadata {
 
 // Re-export main functions for convenience
 pub use reader::read_metadata;
-pub use writer::write_metadata;
 
 // Re-export ffmpeg-next bridge functions for native metadata and cover art embedding
 pub use ffmpeg_bridge::{

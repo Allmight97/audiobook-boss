@@ -11,6 +11,7 @@ use audiobook_boss_lib::audio::{
     session::ProcessingSession,
 };
 use audiobook_boss_lib::metadata::AudiobookMetadata;
+use ffmpeg_next as ff;
 use tempfile::TempDir;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,6 +32,7 @@ fn create_silent_wav(path: &PathBuf) {
 
 #[test]
 fn test_native_cover_art_embedding_end_to_end() {
+    ff::init().expect("ffmpeg init");
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
@@ -72,22 +74,25 @@ fn test_native_cover_art_embedding_end_to_end() {
 
     // Execute with context (async). We use a minimal executor via futures::executor.
     futures::executor::block_on(async {
-        plan.execute_with_context(&ctx, Some(&metadata)).await.expect("execute");
+        let _ = plan
+            .execute_with_context(&ctx, Some(&metadata), None, None)
+            .await
+            .expect("execute");
     });
 
     assert!(output.exists(), "Output file should exist");
 
-    // Use lofty to validate cover art present
-    let tagged = lofty::Probe::open(&output).and_then(|p| p.read()).expect("lofty read");
-    if let Some(pictures) = tagged.pictures().first() {
-        assert!(pictures.data().len() > 0, "Embedded cover art should have non-zero length");
-    } else {
-        panic!("No embedded cover art found via lofty");
-    }
+    let ictx = ff::format::input(&output).expect("open output");
+    let has_cover = ictx.streams().any(|s| {
+        s.disposition()
+            .contains(ff::format::stream::Disposition::ATTACHED_PIC)
+    });
+    assert!(has_cover, "Embedded cover art should result in attached_pic stream");
 }
 
 #[test]
 fn test_cover_art_unsupported_format_fallback() {
+    ff::init().expect("ffmpeg init");
     let temp = TempDir::new().expect("temp");
     let input = temp.path().join("in.wav");
     create_silent_wav(&input);
@@ -130,11 +135,20 @@ fn test_cover_art_unsupported_format_fallback() {
     let output_config = OutputConfig::new(settings.output_path.clone());
     let ctx = ProcessingContext::new(window, session, settings, output_config);
     futures::executor::block_on(async {
-        plan.execute_with_context(&ctx, Some(&metadata))
+        let _ = plan
+            .execute_with_context(&ctx, Some(&metadata), None, None)
             .await
             .expect("execute with unsupported cover art should not fail");
     });
     assert!(output.exists(), "Output exists");
-    // We cannot assert absence/presence deterministically because finalize stage may embed later
-    // depending on flow; this test chiefly ensures no panic / failure.
+
+    let ictx = ff::format::input(&output).expect("open output");
+    let has_cover = ictx.streams().any(|s| {
+        s.disposition()
+            .contains(ff::format::stream::Disposition::ATTACHED_PIC)
+    });
+    assert!(
+        !has_cover,
+        "Unsupported cover art should be skipped without embedding"
+    );
 }

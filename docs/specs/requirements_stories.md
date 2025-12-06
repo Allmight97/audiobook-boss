@@ -132,6 +132,6 @@ Scenario: Validate before processing
 The application's architecture follows the stack described in the repo's [README](../../README.md) and the operational guidance in [AGENTS.md](../../AGENTS.md). The key components are:
 
 - **Core Framework**: A Tauri-based desktop application with a Rust backend and a webview frontend.
-- **Backend**: Pure Rust handles the application logic. FFmpeg is used via sub-processes for all audio processing, managed by the Tokio async runtime. The `lofty` crate handles audio metadata.
+- **Backend**: Pure Rust handles the application logic. FFmpeg (via ffmpeg-next) is used for all audio processing and metadata, managed by the Tokio async runtime.
 - **Frontend**: The UI is built with vanilla HTML, TypeScript, and styled with Tailwind CSS. Vite serves as the build tool.
 - **Communication**: The frontend and backend communicate using Tauri commands, with data serialized to JSON using `serde`.

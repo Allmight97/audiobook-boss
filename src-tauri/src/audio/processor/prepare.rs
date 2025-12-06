@@ -80,20 +80,27 @@ pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
 
 /// Private helper to retrieve sample rate from a single file.
 fn get_file_sample_rate(path: &Path) -> Result<u32> {
-    use lofty::file::AudioFile as LoftyAudioFile;
-    use lofty::probe::Probe;
+    ffmpeg_next::init().map_err(AppError::Ffmpeg)?;
+    let ictx = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
+    let audio_stream = ictx
+        .streams()
+        .best(ffmpeg_next::media::Type::Audio)
+        .ok_or_else(|| {
+            AppError::InvalidInput(format!(
+                "File {} has no detectable audio stream",
+                path.display()
+            ))
+        })?;
 
-    let tagged_file = Probe::open(path)
-        .map_err(AppError::Metadata)?
-        .read()
-        .map_err(AppError::Metadata)?;
+    let codec_ctx =
+        ffmpeg_next::codec::context::Context::from_parameters(audio_stream.parameters())
+            .map_err(AppError::Ffmpeg)?;
+    let decoder = codec_ctx
+        .decoder()
+        .audio()
+        .map_err(|e| AppError::General(format!("Failed to create audio decoder: {e}")))?;
 
-    tagged_file.properties().sample_rate().ok_or_else(|| {
-        AppError::InvalidInput(format!(
-            "File {} has no sample rate information",
-            path.display()
-        ))
-    })
+    Ok(decoder.rate())
 }
 
 /// Validates processing inputs (files + settings).

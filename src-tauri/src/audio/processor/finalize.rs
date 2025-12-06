@@ -4,12 +4,13 @@
 //! docs/planning/processor_split_plan.md).
 //!
 //! Purpose:
-//!   Will host the metadata writing, final movement to output path,
-//!   cleanup (temporary directory removal), and final reporting logic
-//!   migrated from the former monolithic `audio/processor.rs` in Phase 3.
+//!   Hosts final movement to output path, cleanup (temporary directory removal),
+//!   and final reporting logic migrated from the former monolithic `audio/processor.rs`.
+//!   Metadata is written earlier via ffmpeg-next mux/remux, so `write_metadata_stage`
+//!   is intentionally a no-op.
 //!
-//! Target contents (to be implemented in Phase 3):
-//!   - write_metadata_stage
+//! Target contents:
+//!   - write_metadata_stage (no-op; metadata handled during mux)
 //!   - complete_processing
 //!   - finalize_processing (orchestration combining the above)
 //!   - move_to_final_location
@@ -49,9 +50,9 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
-use crate::audio::{ProcessingStage, ProgressReporter};
+use crate::audio::ProgressReporter;
 use crate::errors::{AppError, Result};
-use crate::metadata::{write_metadata, AudiobookMetadata};
+use crate::metadata::AudiobookMetadata;
 
 use super::ProcessingWorkflow;
 
@@ -65,42 +66,7 @@ fn derive_preview_output_path(final_output: &Path) -> PathBuf {
     parent.join(format!("{}.preview.m4b", stem))
 }
 
-/// Checks if native cover art embedding was successful by examining the output file
-///
-/// This function uses Lofty to probe the file and check for existing cover art,
-/// which helps determine if the native FFmpeg embedding worked correctly.
-fn check_native_cover_art_success(file_path: &Path) -> Result<bool> {
-    use lofty::prelude::*;
-    use lofty::probe::Probe;
-
-    match Probe::open(file_path) {
-        Ok(probe) => {
-            match probe.read() {
-                Ok(tagged_file) => {
-                    // Check if any tag contains pictures/cover art
-                    let has_cover = tagged_file
-                        .tags()
-                        .iter()
-                        .any(|tag| !tag.pictures().is_empty());
-                    log::debug!(
-                        "Native cover art check: {} (file: {})",
-                        if has_cover { "found" } else { "not found" },
-                        file_path.display()
-                    );
-                    Ok(has_cover)
-                }
-                Err(e) => {
-                    log::debug!("Could not read file for cover art check: {}", e);
-                    Err(AppError::Metadata(e))
-                }
-            }
-        }
-        Err(e) => {
-            log::debug!("Could not probe file for cover art check: {}", e);
-            Err(AppError::Metadata(e))
-        }
-    }
-}
+// Note: cover art detection helper removed; metadata writes handled during mux
 
 // NOTE: File movement logic uses filesystem operations rather than FFmpeg output paths.
 // This approach ensures compatibility across different output destinations and provides
@@ -177,72 +143,13 @@ pub(crate) fn cleanup_temp_directory_with_session(
 
 /// Writes metadata if provided (UI emission included)
 pub(crate) fn write_metadata_stage(
-    context: &ProcessingContext,
-    merged_output: &PathBuf,
-    metadata: Option<AudiobookMetadata>,
-    reporter: &mut ProgressReporter,
+    _context: &ProcessingContext,
+    _merged_output: &Path,
+    _metadata: Option<AudiobookMetadata>,
+    _passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
+    _reporter: &mut ProgressReporter,
 ) -> Result<()> {
-    if let Some(metadata) = metadata {
-        let ui = crate::audio::progress::ProgressEmitter::new(context.window.clone());
-        ui.emit_metadata_start("Writing metadata...");
-        reporter.set_stage(ProcessingStage::WritingMetadata);
-
-        log::info!(
-            "Starting finalize stage metadata writing for: {}",
-            merged_output.display()
-        );
-
-        // Write basic metadata tags
-        write_metadata(merged_output, &metadata)?;
-        log::info!("✓ Basic metadata tags written successfully");
-
-        // Handle cover art with fallback detection
-        if let Some(cover) = metadata.cover_art.as_ref() {
-            log::info!(
-                "Attempting Lofty cover art embedding as fallback - {} bytes",
-                cover.len()
-            );
-
-            // Check if native embedding succeeded by examining the file
-            match check_native_cover_art_success(merged_output) {
-                Ok(true) => {
-                    log::info!("✓ Native cover art embedding detected - skipping Lofty fallback");
-                }
-                Ok(false) => {
-                    log::info!("Native cover art not detected - proceeding with Lofty fallback");
-                    match crate::metadata::writer::write_cover_art(merged_output, cover) {
-                        Ok(()) => log::info!("✓ Lofty cover art fallback completed successfully"),
-                        Err(e) => {
-                            log::error!("✗ Lofty cover art fallback failed: {}", e);
-                            return Err(e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Could not verify native cover art status ({}), proceeding with Lofty fallback", e);
-                    match crate::metadata::writer::write_cover_art(merged_output, cover) {
-                        Ok(()) => log::info!("✓ Lofty cover art fallback completed successfully"),
-                        Err(e) => {
-                            log::error!("✗ Lofty cover art fallback failed: {}", e);
-                            return Err(e);
-                        }
-                    }
-                }
-            }
-        } else {
-            log::debug!("No cover art data to write in finalize stage");
-        }
-
-        if context.is_cancelled() {
-            return Err(AppError::InvalidInput(
-                "Processing was cancelled".to_string(),
-            ));
-        }
-
-        log::info!("✓ Finalize stage metadata writing completed successfully");
-    } else {
-        log::debug!("No metadata provided for finalize stage");
-    }
+    log::debug!("Finalize metadata stage skipped; ffmpeg-next handled metadata during mux");
     Ok(())
 }
 
@@ -292,9 +199,11 @@ pub(crate) async fn finalize_processing(
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
     metadata: Option<AudiobookMetadata>,
+    passthrough: Option<crate::metadata::passthrough::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<String> {
-    write_metadata_stage(context, &merged_output, metadata, reporter)?;
+    let passthrough_ref = passthrough.as_ref();
+    write_metadata_stage(context, &merged_output, metadata, passthrough_ref, reporter)?;
 
     // If preview mode is enabled, move to preview-named path with overwrite policy
     if let Some(preview_cfg) = context.preview.as_ref() {

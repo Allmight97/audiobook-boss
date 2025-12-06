@@ -71,7 +71,7 @@ Safety: Accumulator constructs exactly-sized frames for the encoder and sanitize
 
 ### Cover art (native first)
 
-- We attempt to add an attached-pic stream pre-header, then write a post-header image packet with KEY flag and PTS/DTS=0. If this fails or is not detected later, we use Lofty fallback in finalize stage.
+- We add an attached-pic stream pre-header, then write a post-header image packet with KEY flag and PTS/DTS=0. There is no Lofty fallback; ffmpeg-next is the single writer.
 
 ### References
 
@@ -114,4 +114,3 @@ Constraints:
 - Debug-only validator (development builds)
   - Assert planes allocated and perform a light finite-sample spot check prior to `avcodec_send_frame`.
   - Log a single fallback notice when using canonical accumulation for `frame_size == 0`.
-
