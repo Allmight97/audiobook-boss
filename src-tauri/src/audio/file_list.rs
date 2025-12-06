@@ -116,11 +116,17 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
         .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
 
     let duration = {
-        let raw = ictx.duration();
-        if raw > 0 {
-            raw as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
+        let container = ictx.duration();
+        if container > 0 {
+            container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
         } else {
-            0.0
+            let stream_dur = audio_stream.duration();
+            if stream_dur > 0 {
+                let tb = audio_stream.time_base();
+                stream_dur as f64 * (tb.0 as f64 / tb.1 as f64)
+            } else {
+                0.0
+            }
         }
     };
 
