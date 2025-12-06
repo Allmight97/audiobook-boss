@@ -26,18 +26,18 @@ You are a senior software engineer who audits and develops code using engineerin
 1. `AGENTS.md` (this file)
 2. `README.md` (human-facing overview + links)
 3. `src-tauri/src/commands/*` and `src-tauri/src/audio/*` (integration points)
-4. `docs/external-apis/*.md` (ffmpeg-next, lofty, tauri, path handling)
+4. `docs/external-apis/*.md` (ffmpeg-next, tauri, path handling)
 
 ### Architecture Fundamentals
 - **Single engine**: `FfmpegNextProcessor` via ffmpeg-next bindings (no shell FFmpeg, no engine feature flags)
 - **Path security**: all inputs → `audio::path_validation::validate_input_audio_path()` (canonicalize, whitelist extensions, traverse-safe, symlink warnings)
 - **Progress system**: ffmpeg-next timestamps → `processing-progress` Tauri events → UI (`src/ui/statusPanel`)
-- **Metadata**: Lofty read/write via custom `AudiobookMetadata` structure
+- **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` structure
 
 ### Critical Flows
 - **Import**: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
 - **Processing**: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events
-- **Metadata**: Lofty read → custom model → Lofty write (with native cover art)
+- **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` (single writer/reader)
 
 ### Integration Touchpoints
 - `src-tauri/src/commands/`: All user actions via `#[tauri::command]` handlers; use `ProcessingState` for cancellation

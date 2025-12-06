@@ -41,6 +41,7 @@ pub(crate) async fn execute_processing(
     workflow: &ProcessingWorkflow,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
     let mut emitter = ProgressReporter::new(1); // Single logical processing unit
@@ -60,6 +61,7 @@ pub(crate) async fn execute_processing(
         workflow.total_duration(),
         files,
         metadata,
+        passthrough,
     )
     .await?;
 
@@ -80,6 +82,7 @@ pub(crate) async fn merge_audio_files_with_context(
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
 ) -> Result<PathBuf> {
     let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
 
@@ -99,7 +102,9 @@ pub(crate) async fn merge_audio_files_with_context(
     // This abstracts away the feature flag logic and prepares for engine flip
     log::debug!("Using media processor: {}", get_engine_description());
     let processor = create_default_processor();
-    processor.execute(&plan, context, metadata).await?;
+    processor
+        .execute(&plan, context, metadata, passthrough)
+        .await?;
 
     Ok(temp_output)
 }

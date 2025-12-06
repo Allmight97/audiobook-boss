@@ -63,9 +63,12 @@ impl MediaProcessingPlan {
         &self,
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,
+        passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
     ) -> Result<()> {
         let processor = crate::audio::media_pipeline::FfmpegNextProcessor;
-        processor.execute(self, context, metadata).await
+        processor
+            .execute(self, context, metadata, passthrough)
+            .await
     }
 }
 
@@ -79,6 +82,7 @@ pub trait MediaProcessor {
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
         metadata: Option<&'a crate::metadata::AudiobookMetadata>,
+        passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }
 
@@ -203,6 +207,7 @@ impl MediaProcessor for FfmpegNextProcessor {
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
         metadata: Option<&'a crate::metadata::AudiobookMetadata>,
+        passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         use ffmpeg_next as ff;
         use std::sync::Once;
@@ -215,8 +220,15 @@ impl MediaProcessor for FfmpegNextProcessor {
 
         Box::pin(async move {
             // Setup encoder and output context with metadata
+            // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
+            let skip_chapter_passthrough = context.preview.is_some();
             let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) =
-                crate::audio::processor::encoder::setup_encoder(plan, metadata)?;
+                crate::audio::processor::encoder::setup_encoder(
+                    plan,
+                    metadata,
+                    skip_chapter_passthrough,
+                    passthrough,
+                )?;
 
             // Validate metadata compatibility if provided (now active post-legacy purge)
             if let Some(md) = metadata {

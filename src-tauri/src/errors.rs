@@ -12,8 +12,8 @@ pub enum AppError {
     #[error("IO operation failed: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Audio metadata error: {0}")]
-    Metadata(#[from] lofty::error::LoftyError),
+    #[error("FFmpeg error: {0}")]
+    Ffmpeg(#[from] ffmpeg_next::Error),
 
     #[error("Process termination failed: {0}")]
     ProcessTermination(String),

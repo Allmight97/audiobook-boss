@@ -2,8 +2,7 @@
 
 use super::AudioFile;
 use crate::errors::{AppError, Result};
-use lofty::file::AudioFile as LoftyAudioFile;
-use lofty::probe::Probe;
+use ffmpeg_next as ff;
 use std::fs;
 use std::path::Path;
 
@@ -85,10 +84,12 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
     Ok(audio_file)
 }
 
-/// Validates audio format using Lofty and returns comprehensive metadata
+/// Validates audio format using ffmpeg-next and returns comprehensive metadata
 type AudioProperties = (String, f64, Option<u32>, Option<u32>, Option<u32>);
 
 fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
+    ff::init().map_err(AppError::Ffmpeg)?;
+
     // First check if we support the file extension
     let format = match path.extension().and_then(|s| s.to_str()) {
         Some("mp3") => "MP3",
@@ -108,17 +109,26 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
         }
     };
 
-    // Try to read the file with Lofty
-    let tagged_file = match Probe::open(path) {
-        Ok(probe) => match probe.read() {
-            Ok(file) => file,
-            Err(e) => return Err(AppError::Metadata(e)),
-        },
-        Err(e) => return Err(AppError::Metadata(e)),
-    };
+    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+    let audio_stream = ictx
+        .streams()
+        .best(ff::media::Type::Audio)
+        .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
 
-    let properties = tagged_file.properties();
-    let duration = properties.duration().as_secs_f64();
+    let duration = {
+        let container = ictx.duration();
+        if container > 0 {
+            container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
+        } else {
+            let stream_dur = audio_stream.duration();
+            if stream_dur > 0 {
+                let tb = audio_stream.time_base();
+                stream_dur as f64 * (tb.0 as f64 / tb.1 as f64)
+            } else {
+                0.0
+            }
+        }
+    };
 
     // Validate that we got a reasonable duration
     if duration <= 0.0 {
@@ -128,9 +138,19 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     }
 
     // Extract technical metadata
-    let bitrate = properties.audio_bitrate();
-    let sample_rate = properties.sample_rate();
-    let channels = properties.channels().map(|ch| ch as u32);
+    let codec_ctx = ff::codec::context::Context::from_parameters(audio_stream.parameters())
+        .map_err(AppError::Ffmpeg)?;
+    let decoder = codec_ctx
+        .decoder()
+        .audio()
+        .map_err(|e| AppError::General(format!("Failed to create audio decoder: {e}")))?;
+
+    let bitrate = match decoder.bit_rate() {
+        0 => None,
+        v => Some(v as u32),
+    };
+    let sample_rate = Some(decoder.rate());
+    let channels = Some(decoder.channels() as u32);
 
     Ok((format.to_string(), duration, bitrate, sample_rate, channels))
 }
@@ -249,155 +269,6 @@ mod tests {
             println!("  Path display: {}", path.display());
             println!("  Path debug: {path:?}");
             println!();
-        }
-    }
-
-    #[test]
-    fn test_debug_real_mp3_file() {
-        use lofty::file::TaggedFileExt;
-
-        // Test the actual file that's failing
-        let test_mp3 = "/Users/jstar/Projects/audiobook-boss/media/01 - Introduction.mp3";
-
-        if !std::path::Path::new(test_mp3).exists() {
-            println!("Test MP3 file not found, skipping test");
-            return;
-        }
-
-        println!("Testing real MP3 file: {test_mp3}");
-
-        // Test the validate_single_file function directly
-        let result = validate_single_file(std::path::Path::new(test_mp3));
-        println!("validate_single_file result: {result:?}");
-
-        // Test JSON serialization to see field names
-        if let Ok(audio_file) = result {
-            let json =
-                serde_json::to_string_pretty(&audio_file).expect("serialize audio file to json");
-            println!("AudioFile JSON serialization:\n{json}");
-        }
-
-        // Also test get_file_list_info to see full serialization
-        let file_list_result = get_file_list_info(&[test_mp3]);
-        if let Ok(file_list) = file_list_result {
-            let json =
-                serde_json::to_string_pretty(&file_list).expect("serialize file list to json");
-            println!("FileListInfo JSON serialization:\n{json}");
-        }
-
-        // Also test the lofty probe directly
-        match Probe::open(test_mp3) {
-            Ok(probe) => match probe.read() {
-                Ok(tagged_file) => {
-                    let properties = tagged_file.properties();
-                    println!("  Lofty probe SUCCESS:");
-                    println!(
-                        "    Duration: {:?} seconds",
-                        properties.duration().as_secs_f64()
-                    );
-                    println!("    File type: {:?}", tagged_file.file_type());
-                    println!("    Properties: {properties:?}");
-                }
-                Err(e) => {
-                    println!("  Lofty read error: {e}");
-                    println!("  Error debug: {e:?}");
-                }
-            },
-            Err(e) => {
-                println!("  Lofty probe error: {e}");
-                println!("  Error debug: {e:?}");
-            }
-        }
-
-        // Test our format validation specifically
-        match validate_audio_format(std::path::Path::new(test_mp3)) {
-            Ok((format, duration, bitrate, sample_rate, channels)) => {
-                println!("  validate_audio_format SUCCESS: format={format}, duration={duration}, bitrate={bitrate:?}, sample_rate={sample_rate:?}, channels={channels:?}");
-            }
-            Err(e) => {
-                println!("  validate_audio_format ERROR: {e}");
-                println!("  Error debug: {e:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn test_debug_lofty_m4b_errors() {
-        use lofty::probe::Probe;
-
-        // Create temp files with different invalid content to see what Lofty errors we get
-        let temp_dir = TempDir::new().expect("create temp dir");
-
-        // Test 1: Empty file
-        let empty_m4b = temp_dir.path().join("empty.m4b");
-        fs::write(&empty_m4b, b"").expect("write empty file");
-
-        println!("Testing empty M4B file:");
-        match Probe::open(&empty_m4b) {
-            Ok(probe) => match probe.read() {
-                Ok(tagged_file) => {
-                    println!("  Unexpectedly succeeded reading empty file");
-                    let properties = tagged_file.properties();
-                    println!("  Duration: {:?}", properties.duration());
-                }
-                Err(e) => {
-                    println!("  Lofty read error: {e}");
-                    println!("  Error kind: {e:?}");
-                }
-            },
-            Err(e) => {
-                println!("  Lofty probe error: {e}");
-                println!("  Error kind: {e:?}");
-            }
-        }
-
-        // Test 2: Invalid M4B content
-        let invalid_m4b = temp_dir.path().join("invalid.m4b");
-        fs::write(&invalid_m4b, b"This is not a valid M4B file content")
-            .expect("write invalid file");
-
-        println!("\nTesting invalid M4B file:");
-        match Probe::open(&invalid_m4b) {
-            Ok(probe) => match probe.read() {
-                Ok(tagged_file) => {
-                    println!("  Unexpectedly succeeded reading invalid file");
-                    let properties = tagged_file.properties();
-                    println!("  Duration: {:?}", properties.duration());
-                }
-                Err(e) => {
-                    println!("  Lofty read error: {e}");
-                    println!("  Error kind: {e:?}");
-                }
-            },
-            Err(e) => {
-                println!("  Lofty probe error: {e}");
-                println!("  Error kind: {e:?}");
-            }
-        }
-
-        // Test 3: Truncated MP4 header (M4B is MP4-based)
-        let truncated_m4b = temp_dir.path().join("truncated.m4b");
-        // MP4 files start with an ftyp box
-        let mp4_header = b"\x00\x00\x00\x20ftypM4B ";
-        fs::write(&truncated_m4b, mp4_header).expect("write truncated header");
-
-        println!("\nTesting truncated M4B file:");
-        match Probe::open(&truncated_m4b) {
-            Ok(probe) => match probe.read() {
-                Ok(tagged_file) => {
-                    println!("  Unexpectedly succeeded reading truncated file");
-                    let properties = tagged_file.properties();
-                    println!("  Duration: {:?}", properties.duration());
-                }
-                Err(e) => {
-                    println!("  Lofty read error: {e}");
-                    println!("  Error kind: {e:?}");
-                }
-            },
-            Err(e) => {
-                println!("  Lofty probe error: {e}");
-                println!("  Error kind: {e:?}");
-            }
         }
     }
 }

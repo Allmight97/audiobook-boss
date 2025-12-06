@@ -13,8 +13,8 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` | StatusPanel cancel button |
 | `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` | File list metadata pane, cover-art thumbnail refresh |
-| `write_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::writer` | Console/testing only |
-| `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::writer::write_cover_art` | Console/testing only |
+| `write_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
+| `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
 | `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
 
 ### Command payloads & returns

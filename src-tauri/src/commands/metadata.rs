@@ -1,6 +1,6 @@
 use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
 use crate::errors::{AppError, Result};
-use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
+use crate::metadata::{read_metadata, AudiobookMetadata};
 use std::path::PathBuf;
 
 /// Reads metadata from an audio file
@@ -10,15 +10,6 @@ pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_audio_path(&path)?;
     read_metadata(validated_path.to_string_lossy().as_ref())
-}
-
-/// Writes metadata to an existing M4B file
-/// Accepts file path and metadata object
-#[tauri::command]
-pub fn write_audio_metadata(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
-    let path = PathBuf::from(&file_path);
-    let validated_path = validate_input_audio_path(&path)?;
-    write_metadata(validated_path.to_string_lossy().as_ref(), &metadata)
 }
 
 /// Saves metadata to an audio file with TSOA computation (metadata-only editing)
@@ -37,17 +28,11 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
     if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
         metadata_with_tsoa.album_sort =
             compute_tsoa(series, metadata_with_tsoa.series_part.as_deref(), title);
-        if metadata_with_tsoa.album_sort.is_some() {
-            log::debug!(
-                "Computed TSOA: {:?}",
-                metadata_with_tsoa.album_sort.as_ref()
-            );
-        }
     }
 
-    // Write metadata (non-destructive - preserves existing atoms including cover art if not replaced)
-    write_metadata(
-        validated_path.to_string_lossy().as_ref(),
+    // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
+    crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
+        &validated_path,
         &metadata_with_tsoa,
     )?;
 
@@ -80,10 +65,16 @@ pub fn compute_tsoa(series: &str, series_part: Option<&str>, title: &str) -> Opt
 /// Accepts file path and base64-encoded image data
 #[tauri::command]
 pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
-    use crate::metadata::writer::write_cover_art as write_cover;
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_audio_path(&path)?;
-    write_cover(validated_path.to_string_lossy().as_ref(), &cover_data)
+    crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
+        &validated_path,
+        &AudiobookMetadata {
+            cover_art: Some(cover_data),
+            ..Default::default()
+        },
+    )?;
+    Ok(())
 }
 
 /// Loads image file from disk and returns as byte array
@@ -105,64 +96,11 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
         ));
     }
 
-    // Get extension from validated path for header validation
-    let extension = validated_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ext.to_lowercase())
-        .unwrap_or_default();
-
-    // Basic format validation by checking file headers
-    validate_image_format(&image_data, &extension)?;
-
     // Optimize cover art: resize, flatten transparency, convert to JPEG
+    // Format validation is handled by with_guessed_format() in optimize_cover_art (#32)
     let optimized = optimize_cover_art(&image_data)?;
 
     Ok(optimized)
-}
-
-/// Validates image format by checking file headers
-fn validate_image_format(data: &[u8], extension: &str) -> Result<()> {
-    use crate::audio::constants::{
-        JPEG_HEADER, MIN_IMAGE_SIZE, MIN_PNG_SIZE, MIN_WEBP_SIZE, PNG_HEADER,
-    };
-
-    if data.len() < MIN_IMAGE_SIZE {
-        return Err(AppError::InvalidInput(
-            "Image file too small to validate".to_string(),
-        ));
-    }
-
-    match extension {
-        "jpg" | "jpeg" => {
-            if data.len() >= JPEG_HEADER.len() && data[..JPEG_HEADER.len()] == JPEG_HEADER {
-                Ok(())
-            } else {
-                Err(AppError::InvalidInput(
-                    "Invalid JPEG file format".to_string(),
-                ))
-            }
-        }
-        "png" => {
-            if data.len() >= MIN_PNG_SIZE && data[..PNG_HEADER.len()] == PNG_HEADER {
-                Ok(())
-            } else {
-                Err(AppError::InvalidInput(
-                    "Invalid PNG file format".to_string(),
-                ))
-            }
-        }
-        "webp" => {
-            if data.len() >= MIN_WEBP_SIZE && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
-                Ok(())
-            } else {
-                Err(AppError::InvalidInput(
-                    "Invalid WebP file format".to_string(),
-                ))
-            }
-        }
-        _ => Ok(()),
-    }
 }
 
 /// Maximum dimension for cover art (width or height)

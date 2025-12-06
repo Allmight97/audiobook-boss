@@ -2,15 +2,14 @@
 
 ## Overview
 
-- Backend: Rust with `ffmpeg-next` for all audio processing (decode → resample → encode → mux)
+- Backend: Rust with `ffmpeg-next` for all audio processing (decode → resample → encode → mux) and metadata read/write
 - Frontend: TypeScript (vanilla) + Tauri 2
-- Metadata: Lofty for MP4/M4B tag writes and cover art fallback
+- Metadata: ffmpeg-next for MP4/M4B metadata + cover art
 - Audio Processing Engine: Single engine (`FfmpegNextProcessor`); no shell-based FFmpeg and no feature flags (see note end of this doc for updates to audio processing pipeline)
 
 Internal docs:
 
 - `docs/external-apis/ffmpeg-next.md` — audio/PTS/time_base, encoder, progress
-- `docs/external-apis/lofty.md` — MP4/M4B tags, cover art, atomic write options
 - `docs/external-apis/tauri-patterns.md` — event lifecycle & IPC patterns
 - `docs/external-apis/path-handling.md` — macOS-focused path validation and atomic moves
 
@@ -29,7 +28,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
 2. Processing Pipeline: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events via Tauri window
-3. Metadata Flow: Lofty read → custom `AudiobookMetadata` → Lofty write (and native embedding when available)
+3. Metadata Flow: ffmpeg-next read → custom `AudiobookMetadata` → ffmpeg-next write/embeds during mux or metadata-only remux
 
 ## Commands & Integration Points
 
@@ -138,7 +137,7 @@ RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 - Tauri 2: [Tauri v2 Documentation](https://tauri.app/v2/)
 - TypeScript: [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - FFmpeg: [Official FFmpeg Documentation](https://ffmpeg.org/documentation.html)
-- Lofty (metadata): [docs.rs – lofty](https://docs.rs/lofty/latest/lofty/)
+- Metadata via ffmpeg-next (native read/write)
 
 ## Quick Reference
 

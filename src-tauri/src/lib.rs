@@ -15,9 +15,6 @@ pub use metadata::ffmpeg_bridge::{
     write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     CoverFormat as FfmpegCoverFormat,
 };
-pub use metadata::writer::{
-    write_cover_art as lofty_write_cover_art, write_metadata as lofty_write_metadata,
-};
 pub use metadata::AudiobookMetadata;
 pub mod audio;
 
@@ -55,7 +52,6 @@ pub fn run() {
             commands::validate_files,
             // Removed get_ffmpeg_version & merge_audio_files (legacy shell commands) in nuclear cleanup
             commands::read_audio_metadata,
-            commands::write_audio_metadata,
             commands::write_cover_art,
             commands::load_cover_art_file,
             commands::save_metadata_to_file,

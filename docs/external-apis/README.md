@@ -14,11 +14,6 @@ This index connects API docs to the primary code locations where they are applie
 - Support: `src-tauri/src/audio/{buffer.rs,frame_accumulator.rs}`
 - Metadata mapping: `src-tauri/src/metadata/ffmpeg_bridge.rs`
 
-### lofty.md
-- Code: `src-tauri/src/metadata/{reader.rs,writer.rs}`
-- Fallback checks: `src-tauri/src/audio/processor/finalize.rs`
-- Analysis: `src-tauri/src/audio/file_list.rs`
-
 ### tauri-patterns.md
 - Emit: `src-tauri/src/audio/progress/reporter.rs`
 - Types: `src/types/events.ts`
@@ -40,4 +35,3 @@ This index connects API docs to the primary code locations where they are applie
 - Validation: `src-tauri/src/audio/path_validation.rs`
 - Analysis: `src-tauri/src/audio/file_list.rs`
 - Revalidation before processing: `src-tauri/src/audio/processor/prepare.rs`
-
