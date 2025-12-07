@@ -21,7 +21,10 @@ pub struct ProcessingSession {
 impl ProcessingSession {
     /// Creates a new processing session with a unique ID and fresh state
     pub fn new() -> Self {
-        Self::from_shared_state(&ProcessingState::default())
+        Self {
+            id: Uuid::new_v4(),
+            state: ProcessingState::default(),
+        }
     }
 
     /// Creates a new processing session that shares the provided ProcessingState
