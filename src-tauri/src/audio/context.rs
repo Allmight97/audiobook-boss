@@ -7,7 +7,7 @@
 
 use super::session::ProcessingSession;
 use super::settings_encoder::EncoderSettings;
-use super::AudioSettings;
+use super::SampleRateConfig;
 use crate::audio::ProcessingStage;
 use crate::errors::Result;
 use serde::{Deserialize, Serialize};
@@ -85,12 +85,12 @@ pub struct ProcessingContext {
     pub window: Window,
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,
-    /// Audio processing settings
-    pub settings: AudioSettings,
+    /// Encoder settings (v2-only)
+    pub encoder_settings: EncoderSettings,
+    /// Sample rate configuration
+    pub sample_rate: SampleRateConfig,
     /// Output configuration
     pub output: OutputConfig,
-    /// Optional advanced encoder settings (v2) carried through the pipeline
-    pub encoder_settings_v2: Option<EncoderSettings>,
     /// Optional preview configuration (when present, processing should early-stop)
     pub preview: Option<PreviewConfig>,
 }
@@ -100,15 +100,16 @@ impl ProcessingContext {
     pub fn new(
         window: Window,
         session: Arc<ProcessingSession>,
-        settings: AudioSettings,
+        encoder_settings: EncoderSettings,
+        sample_rate: SampleRateConfig,
         output: OutputConfig,
     ) -> Self {
         Self {
             window,
             session,
-            settings,
+            encoder_settings,
+            sample_rate,
             output,
-            encoder_settings_v2: None,
             preview: None,
         }
     }
@@ -173,18 +174,15 @@ impl ProcessingContext {
 
     /// Returns the effective bitrate in kbps (v2-aware)
     pub fn effective_bitrate_kbps(&self) -> u32 {
-        self.encoder_settings_v2
-            .as_ref()
-            .map(|enc| enc.bitrate_kbps as u32)
-            .unwrap_or(self.settings.bitrate)
+        self.encoder_settings.bitrate_kbps as u32
     }
 
     /// Returns the effective channel count (v2-aware)
     pub fn effective_channel_count(&self) -> u8 {
-        self.encoder_settings_v2
-            .as_ref()
-            .and_then(|enc| enc.channels.forced_channels())
-            .unwrap_or_else(|| self.settings.channels.channel_count())
+        self.encoder_settings
+            .channels
+            .forced_channels()
+            .unwrap_or(1)
     }
 }
 
@@ -192,7 +190,8 @@ impl ProcessingContext {
 pub struct ProcessingContextBuilder {
     window: Option<Window>,
     session: Option<Arc<ProcessingSession>>,
-    settings: Option<AudioSettings>,
+    encoder_settings: Option<EncoderSettings>,
+    sample_rate: Option<SampleRateConfig>,
     output: Option<OutputConfig>,
 }
 
@@ -202,7 +201,8 @@ impl ProcessingContextBuilder {
         Self {
             window: None,
             session: None,
-            settings: None,
+            encoder_settings: None,
+            sample_rate: None,
             output: None,
         }
     }
@@ -219,9 +219,15 @@ impl ProcessingContextBuilder {
         self
     }
 
-    /// Sets the audio settings
-    pub fn settings(mut self, settings: AudioSettings) -> Self {
-        self.settings = Some(settings);
+    /// Sets the encoder settings
+    pub fn encoder_settings(mut self, encoder_settings: EncoderSettings) -> Self {
+        self.encoder_settings = Some(encoder_settings);
+        self
+    }
+
+    /// Sets the sample rate configuration
+    pub fn sample_rate(mut self, sample_rate: SampleRateConfig) -> Self {
+        self.sample_rate = Some(sample_rate);
         self
     }
 
@@ -248,9 +254,15 @@ impl ProcessingContextBuilder {
                     .to_string(),
             )
         })?;
-        let settings = self.settings.ok_or_else(|| {
+        let encoder_settings = self.encoder_settings.ok_or_else(|| {
             crate::errors::AppError::InvalidInput(
-                "Failed to build ProcessingContext: Audio settings are required for processing configuration"
+                "Failed to build ProcessingContext: Encoder settings are required for processing configuration"
+                    .to_string(),
+            )
+        })?;
+        let sample_rate = self.sample_rate.ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Failed to build ProcessingContext: Sample rate configuration is required for processing"
                     .to_string(),
             )
         })?;
@@ -261,7 +273,13 @@ impl ProcessingContextBuilder {
             )
         })?;
 
-        Ok(ProcessingContext::new(window, session, settings, output))
+        Ok(ProcessingContext::new(
+            window,
+            session,
+            encoder_settings,
+            sample_rate,
+            output,
+        ))
     }
 }
 

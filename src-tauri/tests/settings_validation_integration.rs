@@ -3,8 +3,11 @@
 //! These tests ensure that audio settings (bitrate, channels, sample rate) are
 //! correctly applied and result in output files with matching properties.
 
-use audiobook_boss_lib::audio::media_pipeline::MediaProcessingPlan;
 use audiobook_boss_lib::audio::processor::detect_input_sample_rate;
+use audiobook_boss_lib::audio::settings_encoder::{
+    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+};
+use audiobook_boss_lib::audio::MediaProcessingPlan;
 use audiobook_boss_lib::audio::{
     validate_audio_settings, AudioSettings, ChannelConfig, SampleRateConfig,
 };
@@ -260,10 +263,20 @@ fn test_media_processing_plan_construction() {
         sample_rate: SampleRateConfig::Explicit(22050),
         output_path: output_file.clone(),
     };
+    let encoder_settings = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: settings.bitrate as u16,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Mono,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
+    };
 
     let plan = MediaProcessingPlan::new(
         output_file,
-        settings,
+        encoder_settings,
+        settings.sample_rate.clone(),
+        1,
         vec![input_file],
         1.0, // 1 second duration
     );
@@ -272,28 +285,15 @@ fn test_media_processing_plan_construction() {
     // Note: build_ffmpeg_command removed in Phase 11 cleanup - behavior now validated via end-to-end processing
 
     // Verify the plan contains our settings
-    assert_eq!(
-        plan.settings.bitrate, 64,
-        "Plan should contain correct bitrate setting"
-    );
-
-    // Check for sample rate setting
-    assert!(
-        matches!(
-            plan.settings.sample_rate,
-            audiobook_boss_lib::audio::SampleRateConfig::Explicit(22050)
-        ),
-        "Plan should contain sample rate setting"
-    );
-
-    // Check for channel setting
-    assert!(
-        matches!(
-            plan.settings.channels,
-            audiobook_boss_lib::audio::ChannelConfig::Mono
-        ),
-        "Plan should contain channel setting"
-    );
+    assert_eq!(plan.encoder_settings.bitrate_kbps, 64);
+    assert!(matches!(
+        plan.sample_rate,
+        audiobook_boss_lib::audio::SampleRateConfig::Explicit(22050)
+    ));
+    assert!(matches!(
+        plan.encoder_settings.channels,
+        EncoderChannelConfig::Mono
+    ));
 }
 
 /// Integration test that verifies settings are applied correctly by the processor
@@ -337,10 +337,24 @@ fn test_settings_application_integration() {
             "Test case {i} settings should be valid"
         );
 
+        let encoder_settings = EncoderSettings {
+            encoder_type: EncoderType::NativeAac,
+            bitrate_kbps: settings.bitrate as u16,
+            bitrate_mode: BitrateMode::Cbr,
+            channels: match settings.channels {
+                ChannelConfig::Mono => EncoderChannelConfig::Mono,
+                ChannelConfig::Stereo => EncoderChannelConfig::Stereo,
+            },
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+        };
+
         // Create processing plan
         let plan = MediaProcessingPlan::new(
             settings.output_path.clone(),
-            settings,
+            encoder_settings.clone(),
+            settings.sample_rate.clone(),
+            encoder_settings.channels.forced_channels().unwrap_or(1),
             vec![input_file.clone()],
             1.0,
         );
@@ -348,7 +362,7 @@ fn test_settings_application_integration() {
         // Verify plan can be created
         // Note: build_ffmpeg_command removed in Phase 11 cleanup
         assert!(
-            plan.settings.bitrate > 0,
+            plan.encoder_settings.bitrate_kbps > 0,
             "Test case {i} should have valid bitrate"
         );
 
@@ -454,22 +468,38 @@ fn test_media_processing_plan_settings_preservation() {
         sample_rate: SampleRateConfig::Explicit(48000),
         output_path: output_file.clone(),
     };
+    let encoder_settings = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: original_settings.bitrate as u16,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Stereo,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
+    };
 
     let plan = MediaProcessingPlan::new(
         output_file.clone(),
-        original_settings.clone(),
+        encoder_settings.clone(),
+        original_settings.sample_rate.clone(),
+        encoder_settings.channels.forced_channels().unwrap_or(2),
         vec![input_file],
         2.5,
     );
 
     // Verify plan preserves all settings
-    assert_eq!(plan.settings.bitrate, original_settings.bitrate);
-    assert!(matches!(plan.settings.channels, ChannelConfig::Stereo));
+    assert_eq!(
+        plan.encoder_settings.bitrate_kbps,
+        original_settings.bitrate as u16
+    );
     assert!(matches!(
-        plan.settings.sample_rate,
+        plan.encoder_settings.channels,
+        EncoderChannelConfig::Stereo
+    ));
+    assert!(matches!(
+        plan.sample_rate,
         SampleRateConfig::Explicit(48000)
     ));
-    assert_eq!(plan.settings.output_path, original_settings.output_path);
+    assert_eq!(plan.output_path, original_settings.output_path);
     assert_eq!(plan.total_duration, 2.5);
 }
 

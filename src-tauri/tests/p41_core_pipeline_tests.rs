@@ -3,8 +3,10 @@
 //! Tests the complete ffmpeg-next audio processing pipeline to verify
 //! P4.1 success criteria are met.
 
-use audiobook_boss_lib::audio::media_pipeline::{FfmpegNextProcessor, MediaProcessingPlan};
-use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::settings_encoder::{
+    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+};
+use audiobook_boss_lib::audio::{FfmpegNextProcessor, MediaProcessingPlan, SampleRateConfig};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -15,16 +17,20 @@ fn test_media_processing_plan_execute_method_exists() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("plan_output.m4b");
 
-    let settings = AudioSettings {
-        bitrate: 64,
-        sample_rate: SampleRateConfig::Explicit(44100),
-        channels: ChannelConfig::Stereo,
-        output_path: output_path.clone(),
+    let encoder = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Stereo,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
     };
 
     let plan = MediaProcessingPlan::new(
         output_path.clone(),
-        settings,
+        encoder,
+        SampleRateConfig::Explicit(44100),
+        2,
         vec![PathBuf::from("dummy.mp3")],
         60.0,
     );
@@ -48,32 +54,48 @@ fn test_media_processing_plan_creation() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("test.m4b");
 
-    // Test various audio settings combinations
+    // Test various encoder settings combinations
     let test_cases = vec![
-        AudioSettings {
-            bitrate: 64,
-            sample_rate: SampleRateConfig::Auto,
-            channels: ChannelConfig::Mono,
-            output_path: output_path.clone(),
-        },
-        AudioSettings {
-            bitrate: 128,
-            sample_rate: SampleRateConfig::Explicit(44100),
-            channels: ChannelConfig::Stereo,
-            output_path: output_path.clone(),
-        },
+        (
+            EncoderSettings {
+                encoder_type: EncoderType::NativeAac,
+                bitrate_kbps: 64,
+                bitrate_mode: BitrateMode::Cbr,
+                channels: EncoderChannelConfig::Mono,
+                afterburner: false,
+                threads: ThreadSetting::Auto,
+            },
+            SampleRateConfig::Auto,
+            1u8,
+        ),
+        (
+            EncoderSettings {
+                encoder_type: EncoderType::NativeAac,
+                bitrate_kbps: 128,
+                bitrate_mode: BitrateMode::Cbr,
+                channels: EncoderChannelConfig::Stereo,
+                afterburner: false,
+                threads: ThreadSetting::Auto,
+            },
+            SampleRateConfig::Explicit(44100),
+            2u8,
+        ),
     ];
 
-    for (i, settings) in test_cases.into_iter().enumerate() {
+    for (i, (encoder, sample_rate, fallback_channels)) in test_cases.into_iter().enumerate() {
         let plan = MediaProcessingPlan::new(
             output_path.clone(),
-            settings.clone(),
+            encoder.clone(),
+            sample_rate.clone(),
+            fallback_channels,
             vec![PathBuf::from(&format!("test{}.mp3", i))],
             30.0 * (i as f64 + 1.0),
         );
 
-        assert_eq!(plan.settings.bitrate, settings.bitrate);
-        assert_eq!(plan.settings.channels, settings.channels);
+        assert_eq!(plan.encoder_settings.bitrate_kbps, encoder.bitrate_kbps);
+        assert_eq!(plan.encoder_settings.channels, encoder.channels);
+        assert_eq!(plan.sample_rate, sample_rate);
+        assert_eq!(plan.fallback_channels, fallback_channels);
         assert_eq!(plan.total_duration, 30.0 * (i as f64 + 1.0));
     }
 }

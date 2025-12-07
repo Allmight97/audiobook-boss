@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::audio::context::ProcessingContext;
-use crate::audio::{AudioFile, AudioSettings, ProcessingStage, ProgressReporter};
+use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 
 use super::ProcessingWorkflow;
@@ -105,8 +105,8 @@ fn get_file_sample_rate(path: &Path) -> Result<u32> {
 
 /// Validates processing inputs (files + settings).
 pub(crate) fn validate_processing_inputs(
+    context: &ProcessingContext,
     files: &[AudioFile],
-    settings: &AudioSettings,
 ) -> Result<()> {
     if files.is_empty() {
         return Err(AppError::InvalidInput("No files to process".to_string()));
@@ -124,7 +124,8 @@ pub(crate) fn validate_processing_inputs(
         let _ = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
     }
 
-    crate::audio::settings::validate_audio_settings(settings)?;
+    crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
+    crate::audio::settings::validate_output_path(context.output.final_path())?;
     Ok(())
 }
 
@@ -149,7 +150,7 @@ pub(crate) fn validate_inputs_with_progress(
     let mut emitter = ProgressReporter::new(1);
     emitter.set_stage(ProcessingStage::Analyzing);
 
-    validate_processing_inputs(files, &context.settings)?;
+    validate_processing_inputs(context, files)?;
 
     if context.is_cancelled() {
         return Err(AppError::InvalidInput(

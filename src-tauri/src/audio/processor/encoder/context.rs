@@ -6,7 +6,7 @@ use ffmpeg_next as ff;
 
 use super::common::{
     configure_threads, encoder_log, find_encoder_by_name, resolve_plan_encoder_settings,
-    resolve_target_audio_params, try_configure_variable_frame_size,
+    try_configure_variable_frame_size,
 };
 use super::options::{build_apple_options, build_fdk_options, build_native_options};
 
@@ -105,7 +105,7 @@ pub(crate) fn create_audio_encoder(
 /// to the output context before the header is written (#66).
 #[allow(clippy::too_many_lines)]
 pub(crate) fn setup_encoder(
-    plan: &crate::audio::media_pipeline::MediaProcessingPlan,
+    plan: &crate::audio::processor::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
@@ -118,7 +118,8 @@ pub(crate) fn setup_encoder(
 )> {
     use crate::errors::AppError;
 
-    let (target_sample_rate, target_channels) = resolve_target_audio_params(plan)?;
+    let (target_sample_rate, target_channels) =
+        crate::audio::processor::engine::resolve_target_audio_params(plan)?;
 
     let availability = settings_encoder::detect_available_encoders();
     let (effective_settings, resolved_encoder_type) =
@@ -248,21 +249,15 @@ pub(crate) fn setup_encoder(
         }
     }
 
-    let logged_bitrate = plan
-        .encoder_settings_v2
-        .as_ref()
-        .map(|enc| enc.bitrate_kbps as u32)
-        .unwrap_or(plan.settings.bitrate);
-
     log::info!(
-        "encoder_setup resolved: encoder={:?} rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k requested_v2={:?}",
+        "encoder_setup resolved: encoder={:?} rate={}Hz channels={} fmt={:?} frame_size={} bitrate={}k requested={:?}",
         resolved_encoder_type,
         target_sample_rate,
         target_channels,
         enc_ctx.format(),
         enc_ctx.frame_size(),
-        logged_bitrate,
-        plan.encoder_settings_v2
+        plan.encoder_settings.bitrate_kbps,
+        plan.encoder_settings
     );
 
     Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))

@@ -1,9 +1,8 @@
+use crate::audio;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::{
-    detect_available_encoders, validate_encoder_settings, ChannelConfig as EncoderChannelConfig,
-    EncoderAvailability, EncoderSettings,
+    detect_available_encoders, validate_encoder_settings, EncoderAvailability, EncoderSettings,
 };
-use crate::audio::{self, ChannelConfig};
 use crate::errors::{AppError, Result};
 use std::path::{Path, PathBuf};
 // removed duplicate PathBuf import
@@ -102,23 +101,12 @@ pub async fn process_audiobook_files_v2(
     // Note: Frontend sends full file path in output_dir field (legacy naming)
     let output_path = prepare_output_path(&payload.output_dir)?;
 
-    // Build pipeline settings from v2 inputs (encoder still uses v2 settings)
-    let mut settings_v1 = audio::AudioSettings::audiobook_preset();
-    settings_v1.bitrate = payload.settings.bitrate_kbps as u32;
-    settings_v1.channels = match payload.settings.channels {
-        EncoderChannelConfig::Mono => ChannelConfig::Mono,
-        EncoderChannelConfig::Stereo => ChannelConfig::Stereo,
-        EncoderChannelConfig::Auto => ChannelConfig::Mono, // pipeline expects concrete channels; encoder honors v2 auto
-    };
     // Map sample rate from frontend payload (defaults to Auto if not provided)
-    if let Some(sample_rate) = payload.sample_rate {
-        settings_v1.sample_rate = sample_rate;
-    }
-    settings_v1.output_path = output_path.clone();
+    let sample_rate = payload.sample_rate.unwrap_or(audio::SampleRateConfig::Auto);
 
     // Validate derived settings (bitrate/sample_rate/output path) without legacy encoder assumptions
-    audio::settings::validate_sample_rate_config(&settings_v1.sample_rate)?;
-    audio::settings::validate_output_path(&settings_v1.output_path)?;
+    audio::settings::validate_sample_rate_config(&sample_rate)?;
+    audio::settings::validate_output_path(&output_path)?;
 
     // Set processing state
     {
@@ -146,11 +134,10 @@ pub async fn process_audiobook_files_v2(
         let mut context = audio::ProcessingContext::new(
             window,
             std::sync::Arc::new(session),
-            settings_v1,
+            payload.settings.clone(),
+            sample_rate,
             output_config,
         );
-        // Attach v2 encoder settings to context for downstream mapping
-        context.encoder_settings_v2 = Some(payload.settings.clone());
 
         // Resolve preview seconds
         let mut preview_seconds_resolved: Option<f64> = None;

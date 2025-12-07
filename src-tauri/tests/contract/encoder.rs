@@ -1,9 +1,9 @@
 //! Encoder contract tests (moved from module-local).
 
-use crate::audio::media_pipeline::MediaProcessingPlan;
+use crate::audio::MediaProcessingPlan;
 use crate::audio::settings_encoder::{self, ChannelConfig as EncoderChannelConfig};
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
-use crate::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
+use crate::audio::SampleRateConfig;
 use ffmpeg_next as ff;
 use std::ffi::CString;
 
@@ -71,20 +71,22 @@ fn create_encoder_respects_v2_settings() {
         return;
     }
 
-    let audio_settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Stereo,
-        sample_rate: SampleRateConfig::Explicit(44_100),
-        output_path: out_path.clone(),
-    };
-
-    let mut plan = MediaProcessingPlan::new(out_path, audio_settings, vec![], 60.0);
-    plan.encoder_settings_v2 = Some(base_encoder_settings.clone());
+    let plan = MediaProcessingPlan::new(
+        out_path,
+        base_encoder_settings.clone(),
+        SampleRateConfig::Explicit(44_100),
+        base_encoder_settings
+            .channels
+            .forced_channels()
+            .unwrap_or(2),
+        vec![],
+        60.0,
+    );
     let (effective_settings, resolved_type) = resolve_plan_encoder_settings(&plan, &availability);
     let encoder_channels = effective_settings
         .channels
         .forced_channels()
-        .unwrap_or(plan.settings.channels.channel_count()) as i32;
+        .unwrap_or(plan.fallback_channels) as i32;
     let target_bitrate = effective_settings.bitrate_kbps as i64 * 1000;
     let enc = match create_audio_encoder(
         effective_settings.as_ref(),

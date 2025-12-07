@@ -1,119 +1,30 @@
-//! Media processing pipeline for FFmpeg operations
-//!
-//! This module provides a unified interface for all FFmpeg operations,
-//! encapsulating command building and execution behind a stable Rust interface.
-//!
-//! The `MediaProcessingPlan` struct holds inputs, outputs, and metadata for
-//! processing operations, following mentor recommendations for abstraction.
+//! ffmpeg-next engine implementation (single-engine path)
 
-use super::context::ProcessingContext;
-use super::AudioSettings;
+use std::path::Path;
+use std::sync::Once;
+
+use ffmpeg_next as ff;
+
+use crate::audio::buffer::SampleAccumulator;
+use crate::audio::cleanup::CleanupGuard;
+use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction, PreviewState};
+use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
+use crate::audio::{ProcessingContext, SampleRateConfig};
 use crate::errors::Result;
-use std::future::Future;
-use std::path::{Path, PathBuf};
-use std::pin::Pin;
 
-/// Media processing plan that encapsulates inputs, outputs, and metadata
-///
-/// This struct follows the mentor's recommendation to use a `MediaProcessingPlan`
-/// to hold all processing parameters in a structured way.
-#[derive(Debug, Clone)]
-pub struct MediaProcessingPlan {
-    /// Output file path
-    pub output_path: PathBuf,
-    /// Audio processing settings
-    pub settings: AudioSettings,
-    /// Input file paths for sample rate detection
-    pub input_file_paths: Vec<PathBuf>,
-    /// Total duration for progress tracking
-    pub total_duration: f64,
-    /// Optional advanced encoder settings (v2) resolved from context
-    pub encoder_settings_v2: Option<crate::audio::settings_encoder::EncoderSettings>,
-}
-
-impl MediaProcessingPlan {
-    /// Creates a new media processing plan
-    pub fn new(
-        output_path: PathBuf,
-        settings: AudioSettings,
-        input_file_paths: Vec<PathBuf>,
-        total_duration: f64,
-    ) -> Self {
-        Self {
-            output_path,
-            settings,
-            input_file_paths,
-            total_duration,
-            encoder_settings_v2: None,
-        }
-    }
-
-    /// Helper function to calculate total duration from AudioFile list
-    /// Handles Option<f64> duration fields properly
-    pub fn calculate_total_duration(files: &[super::AudioFile]) -> f64 {
-        files.iter().filter_map(|f| f.duration).sum()
-    }
-
-    // Legacy test helper build_ffmpeg_command removed (Phase 11 cleanup):
-    // Integration tests no longer inspect synthetic command strings; behavior
-    // is validated via end-to-end processing and sample rate detection tests.
-
-    /// Executes the processing plan with context-based progress tracking
-    pub async fn execute_with_context(
-        &self,
-        context: &ProcessingContext,
-        metadata: Option<&crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
-    ) -> Result<()> {
-        let processor = crate::audio::media_pipeline::FfmpegNextProcessor;
-        processor
-            .execute(self, context, metadata, passthrough)
-            .await
-    }
-}
-
-/// Trait defining a media processor boundary for executing processing plans.
-///
-/// This provides a stable interface for media processing implementations.
-/// Currently uses ffmpeg-next as the single processing engine.
-pub trait MediaProcessor {
-    fn execute<'a>(
-        &'a self,
-        plan: &'a MediaProcessingPlan,
-        context: &'a ProcessingContext,
-        metadata: Option<&'a crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
-}
-
-// Feature-gated processor based on ffmpeg-next bindings
+/// ffmpeg-next based processor
 pub struct FfmpegNextProcessor;
 
-// Use shared pipeline context from extracted module
-use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction, PreviewState};
-
 impl FfmpegNextProcessor {
-    // resolve_target_audio_params moved to processor::encoder
-
-    // Encoder FFI helpers moved to processor::encoder
-
-    // Creates and configures the audio encoder (moved to processor::encoder)
-    // Sets up the output encoder context and stream (moved to processor::encoder)
-    // Processes packets from input stream (moved to processor::frame_pipeline)
-    // Sets up decoder and resampler (moved to processor::streams)
-    // Encodes frame and writes packets (moved to processor::encoder)
-    // Emits progress updates (moved to processor::frame_pipeline)
-    // Processes audio frames (moved to processor::frame_pipeline)
-
     /// Processes a single input file through the decode/resample/encode pipeline
     /// Returns PreviewAction to signal adaptive preview transitions
     fn process_input_file(
         input_path: &Path,
-        encoder: &mut ffmpeg_next::codec::encoder::audio::Encoder,
-        output_context: &mut ffmpeg_next::format::context::Output,
+        encoder: &mut ff::codec::encoder::audio::Encoder,
+        output_context: &mut ff::format::context::Output,
         file_index: usize,
         ctx: &mut FramePipelineCtx,
-        accumulator: &mut crate::audio::buffer::SampleAccumulator,
+        accumulator: &mut SampleAccumulator,
     ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
@@ -181,21 +92,13 @@ impl FfmpegNextProcessor {
             action
         );
 
-        // Flush decoder for this input
-        log::info!("Flushing decoder frames for: {}", input_path.display());
-
-        // Skip the old flush for now - the simple truncation approach should work
+        // Flush decoder for this input (noop currently)
         log::info!("✓ Decoder frames flushed successfully (skipped for simplicity)");
         log::info!("✓ Decoder frames flushed successfully");
 
         log::info!("✅ Completed processing file: {}", input_path.display());
         Ok(action)
     }
-
-    // Removed unused debug-only helpers to comply with CI dead_code policy
-
-    // Finalizes encoding by flushing the encoder and writing the output trailer
-    // finalize_encoding moved to processor::encoder
 }
 
 impl MediaProcessor for FfmpegNextProcessor {
@@ -208,10 +111,7 @@ impl MediaProcessor for FfmpegNextProcessor {
         context: &'a ProcessingContext,
         metadata: Option<&'a crate::metadata::AudiobookMetadata>,
         passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-        use ffmpeg_next as ff;
-        use std::sync::Once;
-
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
         INIT.call_once(|| {
@@ -239,7 +139,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             }
 
             // Ensure partial outputs are removed on failure or cancellation
-            let mut cleanup_guard = crate::audio::cleanup::CleanupGuard::new(context.session.id());
+            let mut cleanup_guard = CleanupGuard::new(context.session.id());
             cleanup_guard.add_path(&plan.output_path);
 
             // Initialize processing state
@@ -287,7 +187,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                 "Starting audio processing for {} input files",
                 plan.input_file_paths.len()
             );
-            let mut accumulator = crate::audio::buffer::SampleAccumulator::new(
+            let mut accumulator = SampleAccumulator::new(
                 enc_ctx.channel_layout().channels() as usize,
                 enc_ctx.frame_size() as usize,
                 enc_ctx.rate(),
@@ -368,7 +268,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Preserve output on success (Phase 11: re-enabled after legacy purge)
             let _ = cleanup_guard.remove_path(&plan.output_path);
 
-            if let Some(_metadata) = metadata {
+            if metadata.is_some() {
                 log::info!("Audio processing completed with metadata integration");
             } else {
                 log::info!("Audio processing completed without metadata");
@@ -377,4 +277,60 @@ impl MediaProcessor for FfmpegNextProcessor {
             Ok(())
         })
     }
+}
+
+/// Helper to determine the target sample rate and channel count based on plan settings and input probe.
+pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
+    let needs_probe_for_rate = matches!(plan.sample_rate, SampleRateConfig::Auto);
+    let needs_probe_for_channels = matches!(
+        plan.encoder_settings.channels,
+        crate::audio::settings_encoder::ChannelConfig::Auto
+    );
+
+    let probe = if needs_probe_for_rate || needs_probe_for_channels {
+        Some(probe_first_input(plan)?)
+    } else {
+        None
+    };
+
+    let sampled_rate = probe.map(|(rate, _)| rate);
+    let sampled_channels = probe.map(|(_, ch)| ch);
+
+    let target_sample_rate = match plan.sample_rate {
+        SampleRateConfig::Explicit(rate) => rate,
+        SampleRateConfig::Auto => sampled_rate.expect("input probe to provide sample rate"),
+    };
+
+    let target_channels = plan
+        .encoder_settings
+        .channels
+        .forced_channels()
+        .map(|c| c as i32)
+        .or(sampled_channels)
+        .unwrap_or(plan.fallback_channels as i32);
+
+    Ok((target_sample_rate, target_channels))
+}
+
+pub(crate) fn probe_first_input(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
+    use crate::errors::AppError;
+
+    let first = plan
+        .input_file_paths
+        .first()
+        .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
+    let ictx = ff::format::input(&first)
+        .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
+    let stream = ictx
+        .streams()
+        .best(ff::media::Type::Audio)
+        .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
+    let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
+        .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
+    let decoder = codec_ctx
+        .decoder()
+        .audio()
+        .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
+    let channels = decoder.channel_layout().channels() as i32;
+    Ok((decoder.rate(), channels.max(1)))
 }

@@ -15,7 +15,7 @@
 //! - Type-safe, memory-efficient processing
 //! - Embedded FFmpeg, no external dependency
 
-use crate::audio::media_pipeline::FfmpegNextProcessor;
+use crate::audio::processor::FfmpegNextProcessor;
 
 /// The default media processor implementation (single-engine state).
 ///
