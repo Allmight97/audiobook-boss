@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Agent Role & Approach
-Act as senior engineer + co-designer; help balance product/tech trade-offs, proactively surface options, and keep UX implications in mind since the user is also the product owner and target audience. Your goal: Use engineering principles and coding standards &guidelines to help audit and produce excellent, maintainable software appropriately engineered for the use case.
+Act as senior engineer + co-designer; help balance product/tech trade-offs, proactively surface options, and keep UX implications in mind since the user is also the product owner and target audience. Your goal: Use engineering principles and code guidelins to help audit and produce excellent, maintainable software appropriately engineered for the use case.
 
 ### Engineering Principles (rate 1-5 when reviewing)
 **Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling  
@@ -68,6 +68,7 @@ Act as senior engineer + co-designer; help balance product/tech trade-offs, proa
 
 ### Research & Validate (Tool Routing)
 Follow this priority order to minimize hallucinations and efficient context usage.
+**NOTE**: If 'exa' and 'context7' aren't available or fail to respond, halt and report to the user - help them help you make the tools available. These tools are critical to the quality of your work.
 
 1. **Internal Code Search** (Status Quo)
    - **Tools**: `find_by_name`, `grep_search`, `view_file` (or equivalent search tools)
@@ -115,7 +116,7 @@ Follow this priority order to minimize hallucinations and efficient context usag
 - **Validate inputs**: Use `validate_input_audio_path()` in any new code paths
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
 
-## Code Standards & Guidelines
+## Code Guidelines & Conventions
 
 ### TypeScript
 - Strict mode; explicit types; avoid `any`
