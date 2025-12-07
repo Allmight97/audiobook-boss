@@ -140,7 +140,7 @@ pub async fn process_audiobook_files_v2(
 
     // Process the audiobook with progress events
     let (message, preview_path_opt, preview_seconds_used) = {
-        let session = audio::session::ProcessingSession::new();
+        let session = audio::session::ProcessingSession::from_shared_state(state.inner());
         let final_output_path = output_path.clone();
         let output_config = audio::OutputConfig::new(final_output_path.clone());
         let mut context = audio::ProcessingContext::new(

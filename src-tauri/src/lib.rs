@@ -26,7 +26,7 @@ use audio::ProcessingProgress;
 use std::sync::{Arc, Mutex};
 
 /// Shared state for tracking processing status and cancellation
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct ProcessingState {
     pub is_processing: Arc<Mutex<bool>>,
     pub is_cancelled: Arc<Mutex<bool>>,
