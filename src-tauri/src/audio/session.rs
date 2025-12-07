@@ -19,11 +19,17 @@ pub struct ProcessingSession {
 }
 
 impl ProcessingSession {
-    /// Creates a new processing session with a unique ID
+    /// Creates a new processing session with a unique ID and fresh state
     pub fn new() -> Self {
+        Self::from_shared_state(&ProcessingState::default())
+    }
+
+    /// Creates a new processing session that shares the provided ProcessingState
+    /// (Arc-backed) so cancel/processing flags set by commands are visible to the pipeline.
+    pub fn from_shared_state(state: &ProcessingState) -> Self {
         Self {
             id: Uuid::new_v4(),
-            state: ProcessingState::default(),
+            state: state.clone(),
         }
     }
 
