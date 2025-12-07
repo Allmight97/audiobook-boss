@@ -94,7 +94,6 @@ impl FfmpegNextProcessor {
 
         // Flush decoder for this input (noop currently)
         log::info!("✓ Decoder frames flushed successfully (skipped for simplicity)");
-        log::info!("✓ Decoder frames flushed successfully");
 
         log::info!("✅ Completed processing file: {}", input_path.display());
         Ok(action)
