@@ -182,8 +182,8 @@ impl ProcessingContext {
         self.encoder_settings
             .channels
             .forced_channels()
-            // Default to stereo when auto and no probe information is available
-            .unwrap_or(2)
+            // Metrics-only; when auto is in use, channel count is resolved during probe/encoder setup.
+            .unwrap_or(0)
     }
 }
 

@@ -75,10 +75,6 @@ fn create_encoder_respects_v2_settings() {
         out_path,
         base_encoder_settings.clone(),
         SampleRateConfig::Explicit(44_100),
-        base_encoder_settings
-            .channels
-            .forced_channels()
-            .unwrap_or(2),
         vec![],
         60.0,
     );

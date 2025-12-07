@@ -87,17 +87,10 @@ pub(crate) async fn merge_audio_files_with_context(
     let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
 
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
-    let fallback_channels = context
-        .encoder_settings
-        .channels
-        .forced_channels()
-        // Prefer stereo when auto and probing fails
-        .unwrap_or(2);
     let plan = MediaProcessingPlan::new(
         temp_output.clone(),
         context.encoder_settings.clone(),
         context.sample_rate.clone(),
-        fallback_channels,
         file_paths,
         total_duration,
     );

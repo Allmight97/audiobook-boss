@@ -16,8 +16,6 @@ pub struct MediaProcessingPlan {
     pub encoder_settings: EncoderSettings,
     /// Sample rate configuration (auto or explicit)
     pub sample_rate: SampleRateConfig,
-    /// Fallback channel count when probing/Auto fails (default mono)
-    pub fallback_channels: u8,
     /// Input file paths for sample rate detection
     pub input_file_paths: Vec<PathBuf>,
     /// Total duration for progress tracking
@@ -30,7 +28,6 @@ impl MediaProcessingPlan {
         output_path: PathBuf,
         encoder_settings: EncoderSettings,
         sample_rate: SampleRateConfig,
-        fallback_channels: u8,
         input_file_paths: Vec<PathBuf>,
         total_duration: f64,
     ) -> Self {
@@ -38,7 +35,6 @@ impl MediaProcessingPlan {
             output_path,
             encoder_settings,
             sample_rate,
-            fallback_channels,
             input_file_paths,
             total_duration,
         }

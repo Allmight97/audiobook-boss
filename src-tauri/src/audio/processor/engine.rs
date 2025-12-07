@@ -295,9 +295,16 @@ pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<
     let sampled_rate = probe.map(|(rate, _)| rate);
     let sampled_channels = probe.map(|(_, ch)| ch);
 
+    use crate::errors::AppError;
+
     let target_sample_rate = match plan.sample_rate {
         SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => sampled_rate.expect("input probe to provide sample rate"),
+        SampleRateConfig::Auto => sampled_rate.ok_or_else(|| {
+            AppError::InvalidInput(
+                "Could not determine sample rate from inputs; please specify an explicit sample rate"
+                    .to_string(),
+            )
+        })?,
     };
 
     let target_channels = plan
@@ -306,7 +313,12 @@ pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<
         .forced_channels()
         .map(|c| c as i32)
         .or(sampled_channels)
-        .unwrap_or(plan.fallback_channels as i32);
+        .ok_or_else(|| {
+            AppError::InvalidInput(
+                "Could not determine channel count from inputs; please specify channels explicitly"
+                    .to_string(),
+            )
+        })?;
 
     Ok((target_sample_rate, target_channels))
 }

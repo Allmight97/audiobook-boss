@@ -30,7 +30,6 @@ fn test_media_processing_plan_execute_method_exists() {
         output_path.clone(),
         encoder,
         SampleRateConfig::Explicit(44100),
-        2,
         vec![PathBuf::from("dummy.mp3")],
         60.0,
     );
@@ -66,7 +65,6 @@ fn test_media_processing_plan_creation() {
                 threads: ThreadSetting::Auto,
             },
             SampleRateConfig::Auto,
-            1u8,
         ),
         (
             EncoderSettings {
@@ -78,16 +76,14 @@ fn test_media_processing_plan_creation() {
                 threads: ThreadSetting::Auto,
             },
             SampleRateConfig::Explicit(44100),
-            2u8,
         ),
     ];
 
-    for (i, (encoder, sample_rate, fallback_channels)) in test_cases.into_iter().enumerate() {
+    for (i, (encoder, sample_rate)) in test_cases.into_iter().enumerate() {
         let plan = MediaProcessingPlan::new(
             output_path.clone(),
             encoder.clone(),
             sample_rate.clone(),
-            fallback_channels,
             vec![PathBuf::from(&format!("test{}.mp3", i))],
             30.0 * (i as f64 + 1.0),
         );
@@ -95,7 +91,6 @@ fn test_media_processing_plan_creation() {
         assert_eq!(plan.encoder_settings.bitrate_kbps, encoder.bitrate_kbps);
         assert_eq!(plan.encoder_settings.channels, encoder.channels);
         assert_eq!(plan.sample_rate, sample_rate);
-        assert_eq!(plan.fallback_channels, fallback_channels);
         assert_eq!(plan.total_duration, 30.0 * (i as f64 + 1.0));
     }
 }

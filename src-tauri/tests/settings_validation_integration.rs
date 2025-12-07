@@ -276,7 +276,6 @@ fn test_media_processing_plan_construction() {
         output_file,
         encoder_settings,
         settings.sample_rate.clone(),
-        1,
         vec![input_file],
         1.0, // 1 second duration
     );
@@ -354,7 +353,6 @@ fn test_settings_application_integration() {
             settings.output_path.clone(),
             encoder_settings.clone(),
             settings.sample_rate.clone(),
-            encoder_settings.channels.forced_channels().unwrap_or(1),
             vec![input_file.clone()],
             1.0,
         );
@@ -481,7 +479,6 @@ fn test_media_processing_plan_settings_preservation() {
         output_file.clone(),
         encoder_settings.clone(),
         original_settings.sample_rate.clone(),
-        encoder_settings.channels.forced_channels().unwrap_or(2),
         vec![input_file],
         2.5,
     );
