@@ -91,7 +91,8 @@ pub(crate) async fn merge_audio_files_with_context(
         .encoder_settings
         .channels
         .forced_channels()
-        .unwrap_or(1);
+        // Prefer stereo when auto and probing fails
+        .unwrap_or(2);
     let plan = MediaProcessingPlan::new(
         temp_output.clone(),
         context.encoder_settings.clone(),

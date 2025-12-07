@@ -182,7 +182,8 @@ impl ProcessingContext {
         self.encoder_settings
             .channels
             .forced_channels()
-            .unwrap_or(1)
+            // Default to stereo when auto and no probe information is available
+            .unwrap_or(2)
     }
 }
 
