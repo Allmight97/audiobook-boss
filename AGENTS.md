@@ -90,6 +90,8 @@ Choose your starting point based on familiarity—if you already know the API su
 
 **Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
 
+**PR review comments**: Always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
+
 ### Quality Gates
 **Quick Checks** (before committing): Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `bunx` is available) `bunx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
 
