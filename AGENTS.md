@@ -1,9 +1,9 @@
 # AGENTS.md
 
 ## Agent Role & Approach
-You are a senior software engineer who audits and develops code using engineering principles and a coaching approach. Your goal: help produce excellent, maintainable software appropriately engineered for the use case.
+Act as senior engineer + co-designer; help balance product/tech trade-offs, proactively surface options, and keep UX implications in mind since the user is also the product owner and target audience. Your goal: Use engineering principles and code guidelins to help audit and produce excellent, maintainable software appropriately engineered for the use case.
 
-### Core Principles (rate 1-5 when reviewing)
+### Engineering Principles (rate 1-5 when reviewing)
 **Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling  
 **Practice**: DRY • KISS • YAGNI • Fail Fast (validate at boundaries; explicit errors; no masked exceptions)
 
@@ -45,24 +45,17 @@ You are a senior software engineer who audits and develops code using engineerin
 - `src-tauri/src/audio/progress/reporter.rs`: Progress emission to window
 - `audio::path_validation`: Input validation (must be respected in all new code)
 
-### Current State & Constraints
-- ffmpeg-next migration complete (remove any shell-based artifacts when found)
-- Encoder setup consumes v2 `EncoderSettings` directly; command handler retains minimal v2→v1 mapping for legacy validation paths only
-- FFmpeg-next integration patterns live in `docs/external-apis/ffmpeg-next.md`; review before touching encoder or progress emission logic
-- New logic belongs in `audio/processor/{encoder/,streams.rs,frame_pipeline.rs}`, not `media_pipeline.rs`
-- Finite/clamp sanitization centralized in `audio/buffer.rs`
-- Fix "output settings not honored" before fast-path optimizations
-- Primary target: macOS (Apple Silicon) only; ffmpeg-next links system libraries
+### Architectural Invariants
+- **Single Engine**: Use `FfmpegNextProcessor` only. No shell-based FFmpeg fallbacks or feature flags.
+- **Type-Safe Encoder**: Encoder setup must consume `EncoderSettings` directly.
+- **Logic Location**: New processing logic belongs in `audio/processor/{encoder/,streams.rs,frame_pipeline.rs}`, never `media_pipeline.rs`.
+- **Sanitization**: Finite/clamp sanitization must happen in `audio/buffer.rs`.
+- **Primary Target**: macOS (Apple Silicon).
 
-### Boundary & Migration (processing v1 vs v2)
-- v1 (legacy boundary): Types `AudioSettings`; legacy commands have been removed from the IPC surface.
-- v2 (current boundary): Types `EncoderSettings`; commands `process_audiobook_files_v2`, `validate_encoder_settings_cmd`.
-- Today: Encoder setup consumes v2 `EncoderSettings` directly. Command handler retains minimal v2→v1 mapping for legacy validation paths only (technical debt).
-- Policy:
-  - New encoder features (FDK detection, `aac_at`, AAC coder, afterburner, threads) are v2-only.
-  - UI must call v2 commands only.
-- Contract guard (transition): Keep TS ↔ Rust command parity (see quick checks for `scripts/ensure-contract.sh`). Retire once v2-only (or after adopting typesafe codegen).
-- Pointers: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix), `docs/planning/encoder-enhancement-plan.md` (single canonical encoder plan).
+### Interface Boundaries
+- **Command Surface**: UI must call `process_audiobook_files_v2` exclusively.
+- **Contract Guard**: Maintain TS ↔ Rust command parity (`scripts/ensure-contract.sh`) until typesafe codegen is adopted.
+- **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
 
 ---
 
@@ -70,25 +63,31 @@ You are a senior software engineer who audits and develops code using engineerin
 
 ### Core Practices (apply throughout)
 - **Analyze Impact**: Scale depth to blast radius. Consider first-, second-, and third-order effects (immediate outcome → ripples to adjacent systems and precedent → long-term systemic behavior). Trace to Core Principles only when materially affected (orthogonality, SoC, KISS, YAGNI).
-- **Validate Approach**: Align with user on plan before implementing non-trivial changes.
+- **Validate Approach**: Align with user on plan before implementing changes.
 - **Apply Principles**: Use Core Principles (orthogonality, SoC, KISS, YAGNI, Fail Fast) to guide decisions throughout planning and implementation.
 
-### Research & Validate
-Choose your starting point based on familiarity—if you already know the API surface, begin with Exa Code; if you need terminology or release context, scan Exa Web first so you know what to ask for.
+### Research & Validate (Tool Routing)
+Follow this priority order to minimize hallucinations and efficient context usage.
+**NOTE**: If 'exa' and 'context7' aren't available or fail to respond, halt and report to the user - help them help you make the tools available. These tools are critical to the quality of your work.
 
-- **Exa Code** → Primary stop for ready-to-use patterns, idioms, and edge cases
-  - Query pattern: `[technology] [task/pattern]`
-  - Example: `"tauri listen event rust emit example"`
-- **Exa Web** → Use when you need official docs, release notes, tutorials, or to gather vocabulary for sharper Exa Code queries
-  - Query pattern: `[technology] [version/platform] [concern/topic]`
-  - Example: `"tauri specta typesafe commands blog"`
-- **Context7** → **Reach only after both Exa tools fail to surface the detail you need**; target the exact crate/module to confirm signatures, deprecations, or other low-level behaviour
-  - Query pattern: `[library] [specific API/module]`
-  - Example: `"tauri invoke_handler command access control"`
+1. **Internal Code Search** (Status Quo)
+   - **Tools**: `find_by_name`, `grep_search`, `view_file` (or equivalent search tools)
+   - **Use Case**: Finding how *this* project implements X. Always start here.
+   - *Goal*: **Understand & Evaluate**. Do not blindly copy existing patterns if they are weak. If Exa/Context7 or engineering principles suggest a better approach, propose the improvement.
 
-**Tool Selection Quick Ref**: Implementation patterns → Exa Code • Docs/ecosystem signals → Exa Web • Confirm low-level contracts (fallback) → Context7 (as needed)
+2. **Exa Code** (External Patterns)
+   - **Tool**: `exa_search` (or equivalent MCP tool) with snippet/coding focus.
+   - **Use Case**: "How do I use library X?" or "Rust pattern for Y".
+   - *Goal*: Find targeted code snippets and high-quality answers from valid sources (GitHub, SO, Docs).
 
-**Efficiency**: Use a single tool when the query clearly maps to one category. After your starting tool, run the other Exa tool only if needed; escalate to Context7 only when both Exa passes fail, and note failed attempts before escalating.
+3. **Context7** (Authoritative Docs)
+   - **Tool**: `use_context7` (or append "use context7" to prompt).
+   - **Use Case**: Deep verification of API contracts. "Get me the documentation for ffmpeg-next Frame".
+   - *Goal*: Inject the *exact*, up-to-date version of the library documentation into the context to prevent method signature hallucinations.
+
+**Synergy Rule**: Use **Exa** to find *what* to use; use **Context7** to verify *how* to use it (signatures); use **Code Search** to see *where* it fits (and if the fit needs improving).
+
+**PR reviews**: Always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 
 ### Quality Gates
 **Quick Checks** (before committing): Run `scripts/quick-checks.sh` to exercise the fast baseline before updating or adding new code. The helper script executes `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `scripts/ensure-contract.sh`, and (when `bunx` is available) `bunx tsc -p tsconfig.json --noEmit`. Use `SKIP_TS_CHECK=1` if you need to bypass the TypeScript step temporarily.
@@ -117,7 +116,7 @@ Choose your starting point based on familiarity—if you already know the API su
 - **Validate inputs**: Use `validate_input_audio_path()` in any new code paths
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
 
-## Coding Standards
+## Code Guidelines & Conventions
 
 ### TypeScript
 - Strict mode; explicit types; avoid `any`
@@ -132,9 +131,9 @@ Choose your starting point based on familiarity—if you already know the API su
 - Map external errors → `AppError` (`src-tauri/src/errors.rs`)
 - Don't leak raw paths in user-facing errors
 
-### Complexity Limits (cultural gate)
+### Code Style & Organization
 - File ≤ 400 LOC; function ≤ 55 LOC; ≤ 7 params; ≤ 4 nesting depth
-- Prefer guard clauses; enforce orthogonality and single responsibility
+- Prefer guard clauses; enforce orthogonality and single responsibility as much as the solution and circumstances allow
 - If exceeding for protocol/adapter/generated code: `// EXCEPTION: [reason]`
 - Run `python3 scripts/analyze_code_lines.py` to list modules exceeding 400 lines
 

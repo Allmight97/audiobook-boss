@@ -34,11 +34,13 @@ use crate::metadata::AudiobookMetadata;
 use std::time::Duration;
 
 // Submodules
+pub mod engine;
 pub mod execute;
 pub mod finalize;
 // Legacy module removed during nuclear cleanup - single-engine architecture achieved
 pub mod encoder;
 pub mod frame_pipeline;
+pub mod plan;
 pub mod prepare;
 pub mod selection;
 pub mod streams;
@@ -46,6 +48,8 @@ pub mod streams;
 // Re-exports (current public / crate API)
 // Underlying items are currently pub(crate); visibility can be expanded if needed
 // Note: process_audiobook_with_context now implemented in this module (Phase 5)
+pub use engine::FfmpegNextProcessor;
+pub use plan::{MediaProcessingPlan, MediaProcessor};
 pub use prepare::detect_input_sample_rate;
 
 // Adaptive preview types (PR2)

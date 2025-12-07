@@ -12,7 +12,6 @@ pub mod cleanup;
 pub mod constants;
 pub mod context;
 pub mod file_list;
-pub mod media_pipeline;
 pub mod metrics;
 pub mod path_validation;
 pub mod processor;
@@ -162,3 +161,6 @@ pub use context::{
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;
+
+// Processor plan and engine surface (single-engine)
+pub use processor::{FfmpegNextProcessor, MediaProcessingPlan, MediaProcessor};

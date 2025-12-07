@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
 use crate::audio::context::ProcessingContext;
-use crate::audio::media_pipeline::{MediaProcessingPlan, MediaProcessor};
+use crate::audio::processor::{MediaProcessingPlan, MediaProcessor};
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 
@@ -87,16 +87,13 @@ pub(crate) async fn merge_audio_files_with_context(
     let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
 
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
-    let settings = &context.settings;
-
-    let mut plan = MediaProcessingPlan::new(
+    let plan = MediaProcessingPlan::new(
         temp_output.clone(),
-        settings.clone(),
+        context.encoder_settings.clone(),
+        context.sample_rate.clone(),
         file_paths,
         total_duration,
     );
-    // Carry v2 encoder settings from context if present
-    plan.encoder_settings_v2 = context.encoder_settings_v2.clone();
 
     // Use centralized engine selection via create_default_processor function
     // This abstracts away the feature flag logic and prepares for engine flip

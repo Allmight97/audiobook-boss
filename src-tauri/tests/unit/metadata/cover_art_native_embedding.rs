@@ -1,14 +1,13 @@
 //! Tests native ffmpeg-next cover art embedding
 //! Ensures that when cover art is provided, a stream is added pre-header and packet written.
 
+use audiobook_boss_lib::audio::settings_encoder::{
+    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType,
+    ThreadSetting,
+};
 use audiobook_boss_lib::audio::{
-    AudioSettings,
-    ChannelConfig,
-    OutputConfig,
-    SampleRateConfig,
-    context::ProcessingContext,
-    media_pipeline::MediaProcessingPlan,
-    session::ProcessingSession,
+    context::ProcessingContext, session::ProcessingSession, OutputConfig, SampleRateConfig,
+    MediaProcessingPlan,
 };
 use audiobook_boss_lib::metadata::AudiobookMetadata;
 use ffmpeg_next as ff;
@@ -38,12 +37,15 @@ fn test_native_cover_art_embedding_end_to_end() {
     create_silent_wav(&input);
     let output = temp.path().join("out.m4b");
 
-    let settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Explicit(22050),
-        output_path: output.clone(),
+    let encoder_settings = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Mono,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
     };
+    let sample_rate = SampleRateConfig::Explicit(22050);
 
     let metadata = AudiobookMetadata {
         title: Some("Test".into()),
@@ -53,7 +55,12 @@ fn test_native_cover_art_embedding_end_to_end() {
 
     let plan = MediaProcessingPlan::new(
         output.clone(),
-        settings.clone(),
+        encoder_settings.clone(),
+        sample_rate.clone(),
+        encoder_settings
+            .channels
+            .forced_channels()
+            .unwrap_or(1),
         vec![input.clone()],
         1.0,
     );
@@ -69,8 +76,14 @@ fn test_native_cover_art_embedding_end_to_end() {
     .expect("create mock webview window");
     let window = webview.as_ref().window();
     let session = Arc::new(ProcessingSession::new());
-    let output_config = OutputConfig::new(settings.output_path.clone());
-    let ctx = ProcessingContext::new(window, session, settings, output_config);
+    let output_config = OutputConfig::new(output.clone());
+    let ctx = ProcessingContext::new(
+        window,
+        session,
+        encoder_settings.clone(),
+        sample_rate.clone(),
+        output_config,
+    );
 
     // Execute with context (async). We use a minimal executor via futures::executor.
     futures::executor::block_on(async {
@@ -102,12 +115,15 @@ fn test_cover_art_unsupported_format_fallback() {
     // Fake GIF header (unsupported) to trigger fallback
     let fake_gif = b"GIF89a".to_vec();
 
-    let settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Explicit(22050),
-        output_path: output.clone(),
+    let encoder_settings = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Mono,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
     };
+    let sample_rate = SampleRateConfig::Explicit(22050);
 
     let metadata = AudiobookMetadata {
         title: Some("Test".into()),
@@ -117,7 +133,12 @@ fn test_cover_art_unsupported_format_fallback() {
 
     let plan = MediaProcessingPlan::new(
         output.clone(),
-        settings.clone(),
+        encoder_settings.clone(),
+        sample_rate.clone(),
+        encoder_settings
+            .channels
+            .forced_channels()
+            .unwrap_or(1),
         vec![input.clone()],
         1.0,
     );
@@ -132,8 +153,14 @@ fn test_cover_art_unsupported_format_fallback() {
     .expect("create mock webview window");
     let window = webview.as_ref().window();
     let session = Arc::new(ProcessingSession::new());
-    let output_config = OutputConfig::new(settings.output_path.clone());
-    let ctx = ProcessingContext::new(window, session, settings, output_config);
+    let output_config = OutputConfig::new(output.clone());
+    let ctx = ProcessingContext::new(
+        window,
+        session,
+        encoder_settings.clone(),
+        sample_rate.clone(),
+        output_config,
+    );
     futures::executor::block_on(async {
         let _ = plan
             .execute_with_context(&ctx, Some(&metadata), None, None)

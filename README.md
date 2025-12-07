@@ -157,5 +157,5 @@ cargo test path_validation
 
 - Repo Branches
   - 'main' (https://github.com/Allmight97/audiobook-boss.git) is the current stable branch.
-  - 'new_encoder' (https://github.com/Allmight97/audiobook-boss.git) is the current work-in-progress audio processing pipeline update that supports Apple AAC (aac_at) and HE-AAC v1/v2 encoders via v2 API (`process_audiobook_files_v2`). v1 commands have been removed; the codebase uses v2 exclusively at the IPC boundary.
+- Audio pipeline uses a single encoder configuration surface (`EncoderSettings` + `SampleRateConfig`) via `process_audiobook_files_v2`. Legacy v1 commands are removed; the IPC boundary is v2-only.
 - Primary development target: macOS (Apple Silicon). Out of scope: Intel Macs, Linux, Windows.

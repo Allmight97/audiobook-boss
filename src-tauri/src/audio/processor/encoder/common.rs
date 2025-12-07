@@ -1,16 +1,12 @@
 //! Common encoder helpers and utilities.
 
 use crate::audio::settings_encoder::{
-    self, BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderAvailability, EncoderSettings,
-    EncoderType, ThreadSetting,
+    self, EncoderAvailability, EncoderSettings, EncoderType, ThreadSetting,
 };
-use crate::audio::ChannelConfig as LegacyChannelConfig;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 use std::borrow::Cow;
 use std::sync::{Once, OnceLock};
-
-pub(super) const DEFAULT_FDK_VBR_LEVEL: u8 = 3;
 
 pub(super) fn encoder_log(message: &str) {
     static LOG_PATH: OnceLock<Option<String>> = OnceLock::new();
@@ -34,49 +30,12 @@ pub(super) fn encoder_log(message: &str) {
     log::debug!("{}", message);
 }
 
-pub(super) fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
-    match encoder_type {
-        EncoderType::FdkHeAac | EncoderType::Auto => BitrateMode::Vbr(DEFAULT_FDK_VBR_LEVEL),
-        EncoderType::AacAt => BitrateMode::Cvbr,
-        EncoderType::NativeAac => BitrateMode::Cbr,
-    }
-}
-
-pub(super) fn legacy_channel_to_encoder(ch: LegacyChannelConfig) -> EncoderChannelConfig {
-    match ch {
-        LegacyChannelConfig::Mono => EncoderChannelConfig::Mono,
-        LegacyChannelConfig::Stereo => EncoderChannelConfig::Stereo,
-    }
-}
-
 pub(super) fn resolve_plan_encoder_settings<'a>(
-    plan: &'a crate::audio::media_pipeline::MediaProcessingPlan,
+    plan: &'a crate::audio::processor::MediaProcessingPlan,
     availability: &EncoderAvailability,
 ) -> (Cow<'a, EncoderSettings>, EncoderType) {
-    if let Some(settings) = &plan.encoder_settings_v2 {
-        let resolved = settings_encoder::resolve_encoder_type(settings, availability);
-        (Cow::Borrowed(settings), resolved)
-    } else {
-        let default_encoder_type = if availability.fdk_available {
-            EncoderType::FdkHeAac
-        } else if availability.aac_at_available {
-            EncoderType::AacAt
-        } else {
-            EncoderType::NativeAac
-        };
-        let synthesized = EncoderSettings {
-            encoder_type: default_encoder_type,
-            bitrate_kbps: plan.settings.bitrate as u16,
-            bitrate_mode: default_bitrate_mode_for(default_encoder_type),
-            channels: legacy_channel_to_encoder(plan.settings.channels.clone()),
-            afterburner: matches!(default_encoder_type, EncoderType::FdkHeAac),
-            threads: ThreadSetting::Auto,
-        };
-        if let Err(err) = settings_encoder::validate_encoder_settings(&synthesized) {
-            log::warn!("synthesized encoder settings failed validation: {}", err);
-        }
-        (Cow::Owned(synthesized), default_encoder_type)
-    }
+    let resolved = settings_encoder::resolve_encoder_type(&plan.encoder_settings, availability);
+    (Cow::Borrowed(&plan.encoder_settings), resolved)
 }
 
 /// Finds encoder by name using FFmpeg's encoder registry
@@ -138,68 +97,7 @@ pub(super) fn try_configure_variable_frame_size(
     }
 }
 
-/// Resolves target sample rate and channels from plan settings or first input file.
-pub(super) fn resolve_target_audio_params(
-    plan: &crate::audio::media_pipeline::MediaProcessingPlan,
-) -> Result<(u32, i32)> {
-    use crate::audio::SampleRateConfig;
-
-    let needs_probe_for_rate = matches!(plan.settings.sample_rate, SampleRateConfig::Auto);
-    let needs_probe_for_channels = plan
-        .encoder_settings_v2
-        .as_ref()
-        .map(|enc| matches!(enc.channels, EncoderChannelConfig::Auto))
-        .unwrap_or(false);
-
-    let probe = if needs_probe_for_rate || needs_probe_for_channels {
-        Some(probe_first_input(plan)?)
-    } else {
-        None
-    };
-
-    let sampled_rate = probe.map(|(rate, _)| rate);
-    let sampled_channels = probe.map(|(_, ch)| ch);
-
-    let target_sample_rate = match plan.settings.sample_rate {
-        SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => sampled_rate.expect("input probe to provide sample rate"),
-    };
-
-    let plan_channel_fallback = plan.settings.channels.channel_count() as i32;
-    let target_channels = plan
-        .encoder_settings_v2
-        .as_ref()
-        .and_then(|enc| enc.channels.forced_channels().map(|c| c as i32))
-        .or(sampled_channels)
-        .unwrap_or(plan_channel_fallback);
-
-    Ok((target_sample_rate, target_channels))
-}
-
-pub(super) fn probe_first_input(
-    plan: &crate::audio::media_pipeline::MediaProcessingPlan,
-) -> Result<(u32, i32)> {
-    use crate::errors::AppError;
-
-    let first = plan
-        .input_file_paths
-        .first()
-        .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-    let ictx = ff::format::input(&first)
-        .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-    let stream = ictx
-        .streams()
-        .best(ff::media::Type::Audio)
-        .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
-    let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
-        .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
-    let decoder = codec_ctx
-        .decoder()
-        .audio()
-        .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
-    let channels = decoder.channel_layout().channels() as i32;
-    Ok((decoder.rate(), channels.max(1)))
-}
+// Target audio params now resolved via engine::resolve_target_audio_params
 
 pub(super) fn configure_threads(ctx: &mut ff::codec::context::Context, threads: ThreadSetting) {
     let threads_value = match threads {
