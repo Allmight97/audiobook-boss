@@ -13,7 +13,7 @@ import {
 } from "./ui/fileList";
 import {
   initOutputPanel,
-  getCurrentAudioSettings,
+  getCurrentOutputConfig,
   onFileListChange,
   onMetadataChange,
 } from "./ui/outputPanel";
@@ -76,7 +76,7 @@ import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
   },
 
   // Output panel test functions
-  getCurrentAudioSettings: () => getCurrentAudioSettings(),
+  getCurrentOutputConfig: () => getCurrentOutputConfig(),
   triggerFileListChange: () => onFileListChange(),
   triggerMetadataChange: () => onMetadataChange(),
 
@@ -115,7 +115,7 @@ console.log("  window.testCommands.analyzeAudioFiles(filePaths)");
 console.log("  window.testCommands.testDisplayList(fileListInfo)");
 console.log("  window.testCommands.getCurrentFileList()");
 console.log("  window.testCommands.clearFiles()");
-console.log("  window.testCommands.getCurrentAudioSettings()");
+console.log("  window.testCommands.getCurrentOutputConfig()");
 console.log("  window.testCommands.triggerFileListChange()");
 console.log("  window.testCommands.triggerMetadataChange()");
 console.log("  window.testCommands.testArtThumbnail()");

@@ -3,7 +3,6 @@
 //! This module handles file list management, audio settings,
 //! progress reporting, and the full merge pipeline.
 
-use self::constants::{DEFAULT_BITRATE, DEFAULT_OUTPUT_EXTENSION, DEFAULT_SAMPLE_RATE};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -72,40 +71,6 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
-/// Audio processing settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioSettings {
-    /// Output bitrate in kbps (32-128)
-    pub bitrate: u32,
-    /// Channel configuration
-    pub channels: ChannelConfig,
-    /// Sample rate configuration
-    pub sample_rate: SampleRateConfig,
-    /// Output file path
-    pub output_path: PathBuf,
-}
-
-/// Channel configuration options
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ChannelConfig {
-    /// Mono (1 channel)
-    Mono,
-    /// Stereo (2 channels)
-    Stereo,
-}
-
-impl Default for AudioSettings {
-    fn default() -> Self {
-        Self {
-            bitrate: DEFAULT_BITRATE,
-            channels: ChannelConfig::Mono,
-            sample_rate: SampleRateConfig::Explicit(DEFAULT_SAMPLE_RATE),
-            output_path: PathBuf::from(format!("output.{DEFAULT_OUTPUT_EXTENSION}")),
-        }
-    }
-}
-
 /// Progress information for audio processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessingProgress {
@@ -141,9 +106,8 @@ pub enum ProcessingStage {
 // Re-export main functions for convenience
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
-pub use settings::validate_audio_settings;
-// New infrastructure - will be used when processor.rs is refactored
 pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
+pub use settings::{validate_output_path, validate_sample_rate_config};
 
 // Core processor API (post-split staged)
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};

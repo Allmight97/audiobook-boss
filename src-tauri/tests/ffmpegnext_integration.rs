@@ -6,7 +6,10 @@ use std::path::PathBuf;
 
 use audiobook_boss_lib::audio::context::ProgressContextBuilder;
 use audiobook_boss_lib::audio::processor::selection::get_engine_description;
-use audiobook_boss_lib::audio::{AudioSettings, ChannelConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::settings_encoder::{
+    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+};
+use audiobook_boss_lib::audio::SampleRateConfig;
 
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
 
@@ -44,18 +47,20 @@ fn test_media_file_availability() {
 }
 
 #[test]
-fn test_audio_settings_creation() {
-    // Test that AudioSettings can be created with FFmpeg-next configurations
-    let settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path: PathBuf::from("/tmp/test.m4b"),
+fn test_encoder_settings_creation() {
+    // Test that EncoderSettings and SampleRateConfig interop remain available
+    let encoder_settings = EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Mono,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
     };
 
-    assert_eq!(settings.bitrate, 64);
-    assert_eq!(settings.channels, ChannelConfig::Mono);
-    assert_eq!(settings.sample_rate, SampleRateConfig::Auto);
+    assert_eq!(encoder_settings.bitrate_kbps, 64);
+    assert_eq!(encoder_settings.channels, EncoderChannelConfig::Mono);
+    assert_eq!(SampleRateConfig::Auto.explicit_rate(), None);
 }
 
 #[test]

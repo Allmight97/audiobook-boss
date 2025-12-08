@@ -6,7 +6,7 @@ This guide captures the integration patterns we use with `ffmpeg-next` for audio
 - `src-tauri/src/audio/processor/encoder/` (encoder selection and options)
 - `src-tauri/src/audio/processor/frame_pipeline.rs` (frame sizing, PTS handling)
 - `src-tauri/src/audio/processor/streams.rs` (stream setup)
-- `src-tauri/src/audio/buffer.rs` and `src-tauri/src/audio/frame_accumulator.rs` (sanitization and frame construction)
+- `src-tauri/src/audio/buffer.rs` (sanitization and frame construction)
 - `src-tauri/src/metadata/ffmpeg_bridge.rs` (container metadata mapping)
 
 ### Core audio timestamp contract
