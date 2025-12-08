@@ -20,11 +20,11 @@ interface OutputPanelState {
 }
 
 let currentState: OutputPanelState = {
-  encoderSettings: { ...defaultEncoderSettings(), channels: "mono" },
+  encoderSettings: { ...defaultEncoderSettings() },
   sampleRate: { explicit: 22050 },
-  outputDirectory: '',
+  outputDirectory: "",
   useSubdirPattern: true,
-  filenamePattern: 'title_year'
+  filenamePattern: "title_year",
 };
 
 /**
@@ -121,7 +121,11 @@ function handleSampleRateChange(event: Event): void {
 function handleChannelsChange(event: Event): void {
   const target = event.target as HTMLSelectElement;
   const channels: EncoderChannelConfig =
-    target.value === 'mono' ? 'mono' : 'stereo';
+    target.value === "mono"
+      ? "mono"
+      : target.value === "stereo"
+      ? "stereo"
+      : "auto";
   currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   updateEstimatedSize();
 }
@@ -187,7 +191,11 @@ function loadInitialState(): void {
 
   if (channelsSelect) {
     const channels: EncoderChannelConfig =
-      channelsSelect.value === 'mono' ? 'mono' : 'stereo';
+      channelsSelect.value === 'mono'
+        ? 'mono'
+        : channelsSelect.value === 'stereo'
+        ? 'stereo'
+        : 'auto';
     currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   }
 }

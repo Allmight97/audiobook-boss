@@ -145,9 +145,6 @@ fn media_processing_plan_preserves_settings() {
     assert_eq!(plan.output_path, output_file);
     assert_eq!(plan.input_file_paths, vec![input_file]);
     assert_eq!(plan.total_duration, total_duration);
-    assert_eq!(
-        plan.encoder_settings.bitrate_kbps,
-        encoder_settings.bitrate_kbps
-    );
+    assert_eq!(plan.encoder_settings, encoder_settings);
     assert_eq!(plan.sample_rate, sample_rate);
 }
