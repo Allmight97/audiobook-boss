@@ -288,6 +288,7 @@ dependencies = [
  "futures",
  "image",
  "log",
+ "num_cpus",
  "serde",
  "serde_json",
  "tauri",

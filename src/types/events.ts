@@ -59,6 +59,9 @@ export interface ProcessingProgressEvent {
 
     /** Estimated time remaining in seconds (optional) */
     eta_seconds?: number;
+
+    /** Job identifier for parallel batch processing (optional, added in issue #71) */
+    job_id?: string;
 }
 
 // ============================================================================

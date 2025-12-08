@@ -19,18 +19,39 @@ pub struct ProgressEvent {
     pub current_file: Option<String>,
     /// Estimated time remaining in seconds
     pub eta_seconds: Option<f64>,
+    /// Job identifier for parallel batch processing (optional for backward compat)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<String>,
 }
 
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
     /// Reference to the Tauri window for event emission
     window: Window,
+    /// Optional job identifier for parallel batch processing
+    job_id: Option<String>,
 }
 
 impl ProgressEmitter {
-    /// Creates a new progress emitter
+    /// Creates a new progress emitter without job tracking (legacy/single-job mode)
     pub fn new(window: Window) -> Self {
-        Self { window }
+        Self {
+            window,
+            job_id: None,
+        }
+    }
+
+    /// Creates a progress emitter with job tracking for parallel processing
+    pub fn with_job_id(window: Window, job_id: String) -> Self {
+        Self {
+            window,
+            job_id: Some(job_id),
+        }
+    }
+
+    /// Returns the job ID if set
+    pub fn job_id(&self) -> Option<&str> {
+        self.job_id.as_deref()
     }
 
     /// Emits analyzing start event
@@ -136,6 +157,7 @@ impl ProgressEmitter {
             message: message.to_string(),
             current_file: None,
             eta_seconds: None,
+            job_id: self.job_id.clone(),
         };
         let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
     }
@@ -174,6 +196,7 @@ impl ProgressEmitter {
             message: message.to_string(),
             current_file,
             eta_seconds,
+            job_id: self.job_id.clone(),
         };
 
         let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);

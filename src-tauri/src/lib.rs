@@ -25,6 +25,9 @@ pub mod tests_metadata_integration; // formerly feature-gated
 use audio::ProcessingProgress;
 use std::sync::{Arc, Mutex};
 
+/// Type alias for managed JobRegistry state
+pub type ManagedJobRegistry = Arc<audio::JobRegistry>;
+
 /// Shared state for tracking processing status and cancellation
 #[derive(Clone, Default, Debug)]
 pub struct ProcessingState {
@@ -42,10 +45,18 @@ pub fn run() {
 
     let processing_state = ProcessingState::default();
 
+    // Initialize job registry with auto-detected concurrency (num_cpus / 2)
+    let job_registry: ManagedJobRegistry = Arc::new(audio::JobRegistry::auto());
+    log::info!(
+        "Job registry initialized: max_concurrent = {}",
+        job_registry.max_concurrent()
+    );
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(processing_state)
+        .manage(job_registry)
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::echo,
@@ -58,6 +69,8 @@ pub fn run() {
             commands::analyze_audio_files,
             commands::validate_encoder_settings_cmd,
             commands::list_available_encoders,
+            commands::get_max_concurrent_jobs,
+            commands::set_max_concurrent_jobs,
             commands::process_audiobook_files_v2,
             commands::cancel_processing
         ])

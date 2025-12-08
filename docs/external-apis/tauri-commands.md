@@ -11,7 +11,9 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport` |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
-| `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` | StatusPanel cancel button |
+| `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` + `JobRegistry` | StatusPanel cancel-all and per-job cancel |
+| `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
+| `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
 | `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` | File list metadata pane, cover-art thumbnail refresh |
 | `write_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
 | `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
@@ -25,17 +27,29 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - `process_audiobook_files_v2`
   - Args: `{ payload, metadata?, previewSeconds? }`
-    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings }`
+    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig }`
     - `settings: EncoderSettings` (`src/types/audio.ts:62`)
     - `metadata?: AudiobookMetadata` (`src/types/metadata.ts`)
     - `previewSeconds?: number` (optional short preview)
-  - Returns: `{ message: string; previewFilePath?: string; previewActualSeconds?: number }` (`src-tauri/src/commands/audio.rs:215`)
+  - Returns: `{ message: string; previewFilePath?: string; previewActualSeconds?: number; jobId: string }` (`src-tauri/src/commands/audio.rs`)
   - Notes:
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
+    - Emits `processing-progress` events with `job_id` (optional in payload for backward compatibility)
 
 - `cancel_processing`
-  - Args: none
+  - Args: `{ job_id?: string }`
+    - With `job_id`: cancels that job
+    - Without: cancels all active jobs
   - Returns: `string` confirmation
+
+- `get_max_concurrent_jobs`
+  - Args: none
+  - Returns: `number` (current cap)
+
+- `set_max_concurrent_jobs`
+  - Args: `{ max_concurrent?: number }`
+    - `null/undefined` → reset to auto (`num_cpus/2`, clamped 1–8)
+  - Returns: `number` (effective cap)
 
 - `read_audio_metadata`
   - Args: `{ filePath: string }`
@@ -56,7 +70,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Backend → frontend events
 
-- `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`.
+- `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`. Payload includes optional `job_id` to support multiple concurrent jobs.
   - Emission throttling (~200ms) originates in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 
 ### Frontend harness for QA

@@ -15,6 +15,8 @@ interface StatusPanelElements {
     stepText: HTMLElement;
     processButton: HTMLButtonElement;
     artThumbnail: HTMLElement;
+    cancelAllButton: HTMLButtonElement;
+    jobList: HTMLElement;
 }
 
 let cachedElements: StatusPanelElements | null = null;
@@ -33,10 +35,12 @@ export function initializeElements(): StatusPanelElements | null {
     const statusText = document.getElementById('status-text') as HTMLElement;
     const stepText = document.getElementById('step-text') as HTMLElement;
     const processButton = document.getElementById('process-button') as HTMLButtonElement;
+    const cancelAllButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
+    const jobList = document.getElementById('job-list') as HTMLElement;
     const artThumbnail = document.querySelector('.art-thumbnail') as HTMLElement;
 
     if (!progressBar || !percentageElement || !statusText || 
-        !stepText || !processButton || !artThumbnail) {
+        !stepText || !processButton || !cancelAllButton || !jobList || !artThumbnail) {
         console.error('StatusPanel DOM: Required DOM elements not found');
         return null;
     }
@@ -47,6 +51,8 @@ export function initializeElements(): StatusPanelElements | null {
         statusText,
         stepText,
         processButton,
+        cancelAllButton,
+        jobList,
         artThumbnail
     };
 
@@ -107,17 +113,14 @@ export function updateStepText(message: string, color?: string): void {
  * Update the process button state and appearance
  * @param isProcessing - Whether processing is currently active
  */
-export function updateProcessButton(isProcessing: boolean): void {
+export function updateProcessButton(_isProcessing: boolean): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
-    if (isProcessing) {
-        elements.processButton.textContent = 'Cancel Processing';
-        elements.processButton.className = 'button-secondary';
-    } else {
-        elements.processButton.textContent = 'Process Audiobook';
-        elements.processButton.className = 'button-primary';
-    }
+    // Keep a consistent "Process" label even when multiple jobs are running
+    // to encourage additional submissions while a cancel-all control handles stops.
+    elements.processButton.textContent = 'Process Audiobook';
+    elements.processButton.className = 'button-primary';
 }
 
 /**
@@ -151,6 +154,14 @@ export function getProcessButton(): HTMLButtonElement | null {
 }
 
 /**
+ * Get the cancel-all button element for event listener attachment
+ */
+export function getCancelAllButton(): HTMLButtonElement | null {
+    const elements = cachedElements || initializeElements();
+    return elements?.cancelAllButton || null;
+}
+
+/**
  * Show error message in step text with error styling
  * @param message - Error message to display
  */
@@ -172,4 +183,42 @@ export function showSuccess(message: string): void {
  */
 export function showInfo(message: string): void {
     updateStepText(message);
+}
+
+/**
+ * Render the active job list with optional per-job cancel affordances
+ */
+export function renderJobList(jobs: Array<{ id: string; label: string; stage: string; percentage: number; onCancel?: (id: string) => void }>): void {
+    const elements = cachedElements || initializeElements();
+    if (!elements) return;
+
+    if (jobs.length === 0) {
+        elements.jobList.textContent = '';
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    jobs.forEach((job) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 mb-1';
+        const label = document.createElement('span');
+        label.textContent = `${job.label} (${job.percentage.toFixed(1)}%)`;
+        label.className = 'flex-1';
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.id = `cancel-${job.id}`;
+        cancelButton.className = 'button-secondary';
+        cancelButton.style.padding = '0.1rem 0.4rem';
+        cancelButton.disabled = job.stage === 'completed' || job.stage === 'failed' || job.stage === 'cancelled';
+        if (job.onCancel && !cancelButton.disabled) {
+          cancelButton.addEventListener('click', () => job.onCancel?.(job.id));
+        }
+        row.appendChild(label);
+        row.appendChild(cancelButton);
+        fragment.appendChild(row);
+    });
+
+    elements.jobList.innerHTML = '';
+    elements.jobList.appendChild(fragment);
 }

@@ -36,6 +36,22 @@ interface ProcessingStatus {
   etaSeconds?: number;
 }
 
+/** Per-job progress tracking for parallel batch processing */
+interface JobProgress {
+  jobId: string;
+  stage: ProcessingStatus["stage"];
+  percentage: number;
+  message: string;
+  lastUpdate: number;
+}
+
+/** Aggregate progress across all active jobs */
+interface AggregateProgress {
+  activeJobs: number;
+  completedJobs: number;
+  overallPercentage: number;
+}
+
 type WindowWithEncoderProvider = Window & {
   EncoderSettingsProvider?: () => EncoderSettingsLike;
 };
@@ -43,12 +59,15 @@ type WindowWithEncoderProvider = Window & {
 // Derived from centralized VALID_ENCODER_BITRATES (audio.ts)
 // Typed as Set<number> to allow membership check with any numeric bitrate
 const SUPPORTED_ENCODER_BITRATES: Set<number> = new Set(VALID_ENCODER_BITRATES);
+const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
 
 export class StatusPanel {
   private cancelUnlisten?: () => void;
   private isProcessing: boolean = false;
   private currentStatus: ProcessingStatus;
   private previewDuration: number = 30;
+  /** Per-job progress tracking for parallel batch processing */
+  private jobProgress: Map<string, JobProgress> = new Map();
 
   constructor() {
     this.currentStatus = {
@@ -59,6 +78,7 @@ export class StatusPanel {
 
     this.initializeElements();
     this.setupEventHandlers();
+    this.initializeMaxConcurrentControl();
 
     // Ensure event listeners are cleaned up if the window unloads
     window.addEventListener("beforeunload", () => {
@@ -99,10 +119,12 @@ export class StatusPanel {
     ) as HTMLButtonElement | null;
 
     if (processButton) {
-      processButton.addEventListener(
-        "click",
-        this.handleProcessButtonClick.bind(this)
-      );
+      processButton.addEventListener("click", () => this.startProcessing());
+    }
+
+    const cancelAllButton = dom.getCancelAllButton();
+    if (cancelAllButton) {
+      cancelAllButton.addEventListener("click", () => this.handleCancelAll());
     }
 
     if (previewButton) {
@@ -153,13 +175,64 @@ export class StatusPanel {
     }
   }
 
-  private async handleProcessButtonClick(): Promise<void> {
-    if (this.isProcessing) {
-      // Cancel processing
-      await this.handleCancel();
-    } else {
-      // Start processing
-      await this.startProcessing();
+  /** Initialize "max concurrent" selector and push selection to backend */
+  private initializeMaxConcurrentControl(): void {
+    const select = document.getElementById(
+      "max-concurrent-select"
+    ) as HTMLSelectElement | null;
+    if (!select) return;
+
+    const saved = this.readMaxConcurrentPreference();
+    select.value = saved;
+
+    select.addEventListener("change", () => {
+      const value = select.value;
+      this.writeMaxConcurrentPreference(value);
+      void this.pushMaxConcurrentToBackend(value);
+    });
+
+    // Push initial selection
+    void this.pushMaxConcurrentToBackend(saved);
+  }
+
+  private readMaxConcurrentPreference(): string {
+    if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
+      return "auto";
+    }
+    try {
+      return localStorage.getItem(MAX_CONCURRENT_STORAGE_KEY) ?? "auto";
+    } catch (_e) {
+      return "auto";
+    }
+  }
+
+  private writeMaxConcurrentPreference(value: string): void {
+    if (typeof localStorage === "undefined" || typeof localStorage.setItem !== "function") {
+      return;
+    }
+    try {
+      localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, value);
+    } catch (_e) {
+      // ignore storage failures in non-browser environments
+    }
+  }
+
+  private async pushMaxConcurrentToBackend(value: string): Promise<void> {
+    try {
+      if (value === "auto") {
+        await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
+      } else {
+        const parsed = parseInt(value, 10);
+        if (!Number.isFinite(parsed)) {
+          return;
+        }
+        await bridge.invoke("set_max_concurrent_jobs", {
+          max_concurrent: parsed,
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to update max concurrency:", error);
+      dom.showInfo("Max concurrency unchanged (see console)");
     }
   }
 
@@ -264,6 +337,7 @@ export class StatusPanel {
         message: string;
         previewFilePath?: string;
         previewActualSeconds?: number;
+        jobId?: string;
       }>("process_audiobook_files_v2", {
         payload: v2Payload,
         metadata: Object.keys(metadata).length > 0 ? metadata : null,
@@ -312,29 +386,170 @@ export class StatusPanel {
   }
 
   public updateProgress(event: ProcessingProgressEvent): void {
-    const status: ProcessingStatus = {
+    const jobId = event.job_id ?? "default";
+    const now = Date.now();
+
+    // Track per-job progress
+    this.jobProgress.set(jobId, {
+      jobId,
       stage: event.stage,
-      percentage: Math.round(event.percentage * 10) / 10, // Round to 1 decimal place
+      percentage: Math.round(event.percentage * 10) / 10,
       message: event.message,
+      lastUpdate: now,
+    });
+
+    this.syncJobListUI();
+
+    // Handle terminal states for this job
+    if (
+      event.stage === STAGES.completed ||
+      event.stage === STAGES.failed ||
+      event.stage === STAGES.cancelled
+    ) {
+      // Remove completed/failed/cancelled jobs after a delay
+      setTimeout(() => {
+        this.jobProgress.delete(jobId);
+        if (this.jobProgress.size === 0) {
+          this.resetToIdle();
+
+          if (event.stage === STAGES.completed) {
+            dom.showSuccess("Audiobook created successfully!");
+          } else if (event.stage === STAGES.failed) {
+            dom.showError(event.message);
+          } else if (event.stage === STAGES.cancelled) {
+            dom.showInfo("Processing was cancelled.");
+          }
+        }
+
+        this.updateAggregateUI();
+        this.syncJobListUI();
+      }, 2000);
+    }
+
+    this.isProcessing = this.jobProgress.size > 0;
+
+    // Calculate aggregate progress
+    const aggregate = this.calculateAggregateProgress();
+
+    // Derive status from aggregate (use most advanced active stage)
+    const status: ProcessingStatus = {
+      stage: this.deriveAggregateStage(),
+      percentage: aggregate.overallPercentage,
+      message: this.deriveAggregateMessage(aggregate),
       currentFile: event.current_file,
       etaSeconds: event.eta_seconds,
     };
 
     this.updateStatus(status);
 
-    // Handle completion or failure
-    if (status.stage === STAGES.completed) {
-      setTimeout(() => {
+    // Handle all-jobs-completed scenario
+    if (this.jobProgress.size === 0 && this.isProcessing) {
+      // All jobs done
+      if (event.stage === STAGES.completed) {
+        setTimeout(() => {
+          this.resetToIdle();
+          dom.showSuccess("Audiobook created successfully!");
+        }, 2000);
+      } else if (event.stage === STAGES.failed) {
         this.resetToIdle();
-        dom.showSuccess("Audiobook created successfully!");
-      }, 2000); // Show success for 2 seconds
-    } else if (status.stage === STAGES.failed) {
-      this.resetToIdle();
-      dom.showError(status.message);
-    } else if (status.stage === STAGES.cancelled) {
-      this.resetToIdle();
-      dom.showInfo("Processing was cancelled.");
+        dom.showError(status.message);
+      } else if (event.stage === STAGES.cancelled) {
+        this.resetToIdle();
+        dom.showInfo("Processing was cancelled.");
+      }
     }
+  }
+
+  /** Calculate aggregate progress across all active jobs */
+  private calculateAggregateProgress(): AggregateProgress {
+    let activeJobs = 0;
+    let completedJobs = 0;
+    let totalPercentage = 0;
+
+    for (const job of this.jobProgress.values()) {
+      if (job.stage === "completed") {
+        completedJobs++;
+        totalPercentage += 100;
+      } else if (job.stage === "failed" || job.stage === "cancelled") {
+        // Don't count failed/cancelled in active or completed
+      } else {
+        activeJobs++;
+        totalPercentage += job.percentage;
+      }
+    }
+
+    const totalJobs = activeJobs + completedJobs;
+    // Simple average across active + completed jobs. This keeps the aggregate legible
+    // without over-weighting long-running jobs; consider a weighted strategy if we
+    // need time/progress proportionality later.
+    const overallPercentage = totalJobs > 0 ? totalPercentage / totalJobs : 0;
+
+    return {
+      activeJobs,
+      completedJobs,
+      overallPercentage: Math.round(overallPercentage * 10) / 10,
+    };
+  }
+
+  /** Render the job list with per-job cancel controls */
+  private syncJobListUI(): void {
+    const jobs = Array.from(this.jobProgress.values())
+      .sort((a, b) => b.lastUpdate - a.lastUpdate)
+      .map((job) => ({
+        id: job.jobId,
+        label: `${job.jobId.slice(0, 8)} • ${job.message}`,
+        stage: job.stage,
+        percentage: job.percentage,
+        onCancel: job.jobId === "default" ? undefined : (id: string) => this.cancelJob(id),
+      }));
+
+    dom.renderJobList(jobs);
+  }
+
+  /** Derive aggregate stage from active jobs */
+  private deriveAggregateStage(): ProcessingStatus["stage"] {
+    const stages = Array.from(this.jobProgress.values()).map((j) => j.stage);
+
+    // Priority: failed > cancelled > converting > analyzing > writing > completed > idle
+    if (stages.includes("failed")) return "failed";
+    if (stages.includes("cancelled")) return "cancelled";
+    if (stages.includes("converting")) return "converting";
+    if (stages.includes("analyzing")) return "analyzing";
+    if (stages.includes("writing")) return "writing";
+    if (stages.includes("completed")) return "completed";
+    return "idle";
+  }
+
+  /** Derive message for aggregate display */
+  private deriveAggregateMessage(aggregate: AggregateProgress): string {
+    if (aggregate.activeJobs > 1) {
+      return `Processing ${aggregate.activeJobs} files (${aggregate.completedJobs} completed)`;
+    } else if (aggregate.activeJobs === 1) {
+      // Return the single job's message
+      const activeJob = Array.from(this.jobProgress.values()).find(
+        (j) =>
+          j.stage !== "completed" &&
+          j.stage !== "failed" &&
+          j.stage !== "cancelled"
+      );
+      return activeJob?.message ?? "Processing...";
+    }
+    return "Ready to process audiobook";
+  }
+
+  /** Update UI with aggregate progress (called after job removal) */
+  private updateAggregateUI(): void {
+    if (this.jobProgress.size === 0 && !this.isProcessing) {
+      return; // No need to update if idle
+    }
+    this.isProcessing = this.jobProgress.size > 0;
+    const aggregate = this.calculateAggregateProgress();
+    const status: ProcessingStatus = {
+      stage: this.deriveAggregateStage(),
+      percentage: aggregate.overallPercentage,
+      message: this.deriveAggregateMessage(aggregate),
+    };
+    this.updateStatus(status);
   }
 
   private updateStatus(status: ProcessingStatus): void {
@@ -379,10 +594,10 @@ export class StatusPanel {
     }
   }
 
-  private async handleCancel(): Promise<void> {
+  private async handleCancelAll(): Promise<void> {
     try {
       await bridge.invoke("cancel_processing");
-      // Do not set final cancelled state here; wait for backend event
+      // Do not set final cancelled state here; wait for backend events
       this.updateStatus({
         stage: this.currentStatus.stage,
         percentage: this.currentStatus.percentage,
@@ -394,13 +609,28 @@ export class StatusPanel {
     }
   }
 
+  private async cancelJob(jobId: string): Promise<void> {
+    try {
+      await bridge.invoke("cancel_processing", { job_id: jobId });
+    } catch (error) {
+      console.error(`Failed to cancel job ${jobId}:`, error);
+      dom.showError(`Failed to cancel job ${jobId}`);
+    }
+  }
+
   private resetToIdle(): void {
     this.isProcessing = false;
+
+    this.jobProgress.clear();
+    dom.renderJobList([]);
 
     if (this.cancelUnlisten) {
       this.cancelUnlisten();
       this.cancelUnlisten = undefined;
     }
+
+    // Clear all job progress tracking
+    this.jobProgress.clear();
 
     this.updateStatus({
       stage: "idle",

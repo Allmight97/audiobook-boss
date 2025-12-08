@@ -45,6 +45,8 @@ const MOCK_METADATA: AudiobookMetadata = {
 // Event Simulation Helpers
 type EventHandler = (event: any) => void;
 const listeners: Map<string, Set<EventHandler>> = new Map();
+let mockJobCounter = 0;
+let mockMaxConcurrent = 2;
 
 export function mockListen(
   event: string,
@@ -90,10 +92,21 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
         nativeAacAvailable: true,
       } as unknown as T;
 
+    case "get_max_concurrent_jobs":
+      return mockMaxConcurrent as unknown as T;
+
+    case "set_max_concurrent_jobs":
+      mockMaxConcurrent = args?.max_concurrent ?? mockMaxConcurrent;
+      return mockMaxConcurrent as unknown as T;
+
     case "process_audiobook_files_v2":
       // Start a simulated progress loop
-      simulateProcessing();
-      return { message: "Processing started (mock)" } as unknown as T;
+      mockJobCounter += 1;
+      simulateProcessing(`mock-job-${mockJobCounter}`);
+      return {
+        message: "Processing started (mock)",
+        jobId: `mock-job-${mockJobCounter}`,
+      } as unknown as T;
 
     case "cancel_processing":
       emitEvent(EVENTS.PROGRESS, {
@@ -102,6 +115,7 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
         message: "Cancelled by user",
         current_file: "",
         eta_seconds: 0,
+        job_id: args?.job_id,
       } as ProcessingProgressEvent);
       return undefined as unknown as T;
 
@@ -138,7 +152,7 @@ export async function mockOpenExternal(path: string): Promise<void> {
 }
 
 // Simulation Logic
-function simulateProcessing() {
+function simulateProcessing(jobId: string) {
   let progress = 0;
   const interval = setInterval(() => {
     progress += 10;
@@ -151,6 +165,7 @@ function simulateProcessing() {
         message: "Processing Complete",
         current_file: "",
         eta_seconds: 0,
+        job_id: jobId,
       } as ProcessingProgressEvent);
     } else {
       emitEvent(EVENTS.PROGRESS, {
@@ -159,6 +174,7 @@ function simulateProcessing() {
         message: `Processing... ${progress}%`,
         current_file: "mock_file.mp3",
         eta_seconds: (100 - progress) / 10,
+        job_id: jobId,
       } as ProcessingProgressEvent);
     }
   }, 500);
