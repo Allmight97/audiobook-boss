@@ -11,7 +11,7 @@ This index connects API docs to the primary code locations where they are applie
 
 ### ffmpeg-next.md
 - Code: `src-tauri/src/audio/processor/{encoder/,frame_pipeline.rs,streams.rs}`
-- Support: `src-tauri/src/audio/{buffer.rs,frame_accumulator.rs}`
+- Support: `src-tauri/src/audio/buffer.rs`
 - Metadata mapping: `src-tauri/src/metadata/ffmpeg_bridge.rs`
 
 ### tauri-patterns.md

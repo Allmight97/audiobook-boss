@@ -6,7 +6,10 @@
 //! DO NOT MODIFY THESE TESTS - they document how the system works now.
 //! Any changes should only be made if the current behavior is incorrect.
 
-use crate::audio::{self, AudioSettings, ChannelConfig, SampleRateConfig};
+use crate::audio::settings_encoder::{
+    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+};
+use crate::audio::{self, SampleRateConfig};
 use crate::commands::{analyze_audio_files, read_audio_metadata, validate_files};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
@@ -16,16 +19,6 @@ use tempfile::TempDir;
 
 /// Test media file path - relative to src-tauri directory
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
-
-/// Creates test audio settings for integration tests
-fn create_test_settings(output_path: PathBuf) -> AudioSettings {
-    AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path,
-    }
-}
 
 /// Creates a mock processing state for testing
 #[allow(dead_code)]
@@ -74,7 +67,15 @@ mod integration_tests {
 
         let temp_dir = TempDir::new().expect("create temp dir");
         let output_path = temp_dir.path().join("test_output.m4b");
-        let settings = create_test_settings(output_path.clone());
+        let encoder_settings = EncoderSettings {
+            encoder_type: EncoderType::NativeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Cbr,
+            channels: EncoderChannelConfig::Mono,
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+        };
+        let sample_rate = SampleRateConfig::Auto;
 
         // Step 1: Validate the input file
         let files = vec![media_path.to_string_lossy().to_string()];
@@ -106,11 +107,10 @@ mod integration_tests {
         );
 
         // Step 3: Validate processing settings
-        let settings_validation = audio::validate_audio_settings(&settings);
-        assert!(
-            settings_validation.is_ok(),
-            "Settings validation should succeed"
-        );
+        audio::settings_encoder::validate_encoder_settings(&encoder_settings)
+            .expect("Encoder settings should validate");
+        audio::validate_sample_rate_config(&sample_rate).expect("Sample rate should validate");
+        audio::validate_output_path(&output_path).expect("Output path should validate");
 
         // Step 4: Read metadata from input file
         let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string());
@@ -269,21 +269,27 @@ mod integration_tests {
 
         // Test settings validation errors
         let temp_dir = TempDir::new().expect("create temp dir");
-        let mut invalid_settings = create_test_settings(temp_dir.path().join("test.m4b"));
+        let mut invalid_encoder = EncoderSettings {
+            encoder_type: EncoderType::NativeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Cbr,
+            channels: EncoderChannelConfig::Mono,
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+        };
 
         // Invalid bitrate
-        invalid_settings.bitrate = 256; // Too high
-        let settings_result = audio::validate_audio_settings(&invalid_settings);
+        invalid_encoder.bitrate_kbps = 200; // unsupported
+        let settings_result = audio::settings_encoder::validate_encoder_settings(&invalid_encoder);
         assert!(settings_result.is_err(), "Should fail for invalid bitrate");
         assert!(settings_result
             .expect_err("expected bitrate error")
             .to_string()
-            .contains("Bitrate must be"));
+            .contains("Unsupported bitrate_kbps"));
 
         // Invalid output extension
-        invalid_settings.bitrate = 64; // Fix bitrate
-        invalid_settings.output_path = temp_dir.path().join("test.mp3"); // Wrong extension
-        let settings_result = audio::validate_audio_settings(&invalid_settings);
+        let invalid_output = temp_dir.path().join("test.mp3"); // Wrong extension
+        let settings_result = audio::validate_output_path(&invalid_output);
         assert!(
             settings_result.is_err(),
             "Should fail for wrong file extension"

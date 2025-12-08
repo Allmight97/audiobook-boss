@@ -45,10 +45,10 @@ try {
 if (window.testCommands) {
     console.log('Test commands available');
     try {
-        const settings = window.testCommands.getCurrentAudioSettings();
-        console.log('Current audio settings:', settings);
+        const settings = window.testCommands.getCurrentOutputConfig();
+        console.log('Current output config:', settings);
     } catch (err) {
-        console.log('Error getting audio settings (expected if no directory selected):', err.message);
+        console.log('Error getting output config (expected if no directory selected):', err.message);
     }
 } else {
     console.log('Test commands not available');

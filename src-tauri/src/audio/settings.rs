@@ -1,26 +1,8 @@
-//! Audio processing settings validation and management
+//! Audio processing settings validation utilities (v2-only)
 
-use super::{AudioSettings, ChannelConfig, SampleRateConfig};
+use super::SampleRateConfig;
 use crate::errors::{AppError, Result};
 use std::path::Path;
-
-/// Validates audio processing settings
-pub fn validate_audio_settings(settings: &AudioSettings) -> Result<()> {
-    validate_bitrate(settings.bitrate)?;
-    validate_sample_rate_config(&settings.sample_rate)?;
-    validate_output_path(&settings.output_path)?;
-    Ok(())
-}
-
-/// Validates bitrate is within acceptable range (48-128 kbps)
-fn validate_bitrate(bitrate: u32) -> Result<()> {
-    if !(48..=128).contains(&bitrate) {
-        return Err(AppError::InvalidInput(format!(
-            "Bitrate must be between 48-128 kbps, got: {bitrate}"
-        )));
-    }
-    Ok(())
-}
 
 /// Validates sample rate configuration
 pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
@@ -94,59 +76,6 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     }
 }
 
-impl AudioSettings {
-    /// Returns the standard audiobook preset.
-    ///
-    /// Chosen for typical spoken-word balance of size vs quality:
-    /// - 64 kbps mono is common for audiobooks
-    /// - Auto sample rate preserves original where possible
-    ///
-    /// Caller is expected to set a specific `output_path` before validation.
-    pub fn audiobook_preset() -> Self {
-        Self {
-            bitrate: 64,
-            channels: ChannelConfig::Mono,
-            sample_rate: SampleRateConfig::Auto,
-            // Placeholder path; tests overwrite. Keep consistent with Default extension (.m4b)
-            output_path: std::path::PathBuf::from("output.m4b"),
-        }
-    }
-
-    /// Returns a higher quality stereo preset suitable for music-heavy or
-    /// ambience-rich audiobooks. Uses 128 kbps stereo @ 44.1 kHz.
-    pub fn high_quality_preset() -> Self {
-        Self {
-            bitrate: 128,
-            channels: ChannelConfig::Stereo,
-            sample_rate: SampleRateConfig::Explicit(44100),
-            output_path: std::path::PathBuf::from("output.m4b"),
-        }
-    }
-
-    /// Returns a low bandwidth preset for minimal file size / slower networks.
-    /// 48 kbps mono @ 22.05 kHz still preserves intelligibility for speech.
-    pub fn low_bandwidth_preset() -> Self {
-        Self {
-            bitrate: 48,
-            channels: ChannelConfig::Mono,
-            sample_rate: SampleRateConfig::Explicit(22050),
-            output_path: std::path::PathBuf::from("output.m4b"),
-        }
-    }
-}
-
-impl ChannelConfig {
-    /// Returns the number of channels
-    pub fn channel_count(&self) -> u8 {
-        match self {
-            ChannelConfig::Mono => 1,
-            ChannelConfig::Stereo => 2,
-        }
-    }
-
-    // Removed: ffmpeg_layout() (CLI-oriented helper not used at runtime)
-}
-
 impl SampleRateConfig {
     /// Returns whether this configuration requires sample rate detection
     pub fn requires_detection(&self) -> bool {
@@ -166,20 +95,6 @@ impl SampleRateConfig {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-
-    #[test]
-    fn test_validate_bitrate_valid() {
-        assert!(validate_bitrate(48).is_ok());
-        assert!(validate_bitrate(64).is_ok());
-        assert!(validate_bitrate(128).is_ok());
-    }
-
-    #[test]
-    fn test_validate_bitrate_invalid() {
-        assert!(validate_bitrate(32).is_err()); // below minimum (48)
-        assert!(validate_bitrate(16).is_err());
-        assert!(validate_bitrate(256).is_err());
-    }
 
     #[test]
     fn test_validate_sample_rate_config_auto() {
@@ -269,12 +184,6 @@ mod tests {
         // Restore permissions for cleanup
         let normal_perms = Permissions::from_mode(0o755);
         std::fs::set_permissions(temp_dir.path(), normal_perms).expect("restore permissions");
-    }
-
-    #[test]
-    fn test_channel_config_methods() {
-        assert_eq!(ChannelConfig::Mono.channel_count(), 1);
-        assert_eq!(ChannelConfig::Stereo.channel_count(), 2);
     }
 
     #[test]

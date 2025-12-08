@@ -1,7 +1,7 @@
 // Integration tests for path validation implementation across all entry points
 // These tests verify that invalid inputs are rejected at all API boundaries
 
-use audiobook_boss_lib::audio::{self, AudioSettings, ChannelConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
 use tempfile::TempDir;
 use std::fs::File;
@@ -76,23 +76,12 @@ fn test_audio_settings_validation() {
     let temp_dir = TempDir::new().expect("create temp dir");
     
     // Test valid settings
-    let valid_settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path: temp_dir.path().join("output.m4b"),
-    };
-    let result = audio::validate_audio_settings(&valid_settings);
-    assert!(result.is_ok(), "Valid settings should pass validation");
+    assert!(audio::validate_sample_rate_config(&SampleRateConfig::Auto).is_ok());
+    let valid_output = temp_dir.path().join("output.m4b");
+    assert!(audio::validate_output_path(&valid_output).is_ok());
     
     // Test invalid output directory (nonexistent parent)
-    let invalid_settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path: "/nonexistent/directory/output.m4b".into(),
-    };
-    let result = audio::validate_audio_settings(&invalid_settings);
+    let result = audio::validate_output_path("/nonexistent/directory/output.m4b");
     assert!(result.is_err(), "Should reject nonexistent output directory");
     assert!(result.expect_err("expected error").to_string().contains("does not exist"));
 }

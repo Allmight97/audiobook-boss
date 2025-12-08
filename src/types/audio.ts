@@ -20,16 +20,14 @@ export interface FileListInfo {
   invalidCount: number;
 }
 
-export interface AudioSettings {
-  bitrate: number;
-  channels: ChannelConfig;
+export type SampleRateConfig = "auto" | { explicit: number };
+
+// Combined UI output configuration used by the UI boundary
+export interface OutputConfig {
+  encoderSettings: EncoderSettings;
   sampleRate: SampleRateConfig;
   outputPath: string;
 }
-
-export type SampleRateConfig = "auto" | { explicit: number };
-
-export type ChannelConfig = "Mono" | "Stereo";
 
 export interface ProcessingProgress {
   stage: ProcessingStage;
@@ -110,30 +108,6 @@ export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
 // Default encoder settings (delegates to platform-aware helper)
 export const defaultEncoderSettings = (): EncoderSettings =>
   getDefaultEncoderSettingsForPlatform();
-
-// Audio settings presets
-export const AudioPresets = {
-  audiobook: (): AudioSettings => ({
-    bitrate: 64,
-    channels: "Mono",
-    sampleRate: { explicit: 22050 },
-    outputPath: "audiobook.m4b",
-  }),
-
-  highQuality: (): AudioSettings => ({
-    bitrate: 128,
-    channels: "Stereo",
-    sampleRate: { explicit: 44100 },
-    outputPath: "audiobook_hq.m4b",
-  }),
-
-  lowBandwidth: (): AudioSettings => ({
-    bitrate: 48,
-    channels: "Mono",
-    sampleRate: { explicit: 22050 },
-    outputPath: "audiobook_low.m4b",
-  }),
-};
 
 // Utility functions
 export const formatDuration = (seconds: number | undefined): string => {

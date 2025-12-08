@@ -1,24 +1,27 @@
 // import { invoke } from "@tauri-apps/api/core";
 import { bridge } from "../lib/bridge";
-import type { AudioSettings, ChannelConfig, SampleRateConfig } from "../types/audio";
+import type {
+  EncoderSettings,
+  EncoderChannelConfig,
+  SampleRateConfig,
+  OutputConfig,
+} from "../types/audio";
 import type { AudiobookMetadata } from "../types/metadata";
 import { currentFileList } from "./fileList";
-import { formatFileSize } from "../types/audio";
+import { formatFileSize, defaultEncoderSettings } from "../types/audio";
 import { getCurrentCoverArt } from "./coverArt";
 
 interface OutputPanelState {
-  bitrate: number;
+  encoderSettings: EncoderSettings;
   sampleRate: SampleRateConfig;
-  channels: ChannelConfig;
   outputDirectory: string;
   useSubdirPattern: boolean;
   filenamePattern: 'title_year' | 'author_title';
 }
 
 let currentState: OutputPanelState = {
-  bitrate: 64,
+  encoderSettings: { ...defaultEncoderSettings(), channels: "mono" },
   sampleRate: { explicit: 22050 },
-  channels: 'Mono',
   outputDirectory: '',
   useSubdirPattern: true,
   filenamePattern: 'title_year'
@@ -95,7 +98,10 @@ function setupPatternHandlers(): void {
  */
 function handleBitrateChange(event: Event): void {
   const target = event.target as HTMLSelectElement;
-  currentState.bitrate = parseInt(target.value);
+  currentState.encoderSettings = {
+    ...currentState.encoderSettings,
+    bitrateKbps: parseInt(target.value) as EncoderSettings["bitrateKbps"],
+  };
   updateEstimatedSize();
 }
 
@@ -114,7 +120,9 @@ function handleSampleRateChange(event: Event): void {
  */
 function handleChannelsChange(event: Event): void {
   const target = event.target as HTMLSelectElement;
-  currentState.channels = target.value === 'mono' ? 'Mono' : 'Stereo';
+  const channels: EncoderChannelConfig =
+    target.value === 'mono' ? 'mono' : 'stereo';
+  currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   updateEstimatedSize();
 }
 
@@ -166,7 +174,10 @@ function loadInitialState(): void {
   const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
 
   if (bitrateSelect) {
-    currentState.bitrate = parseInt(bitrateSelect.value);
+    currentState.encoderSettings = {
+      ...currentState.encoderSettings,
+      bitrateKbps: parseInt(bitrateSelect.value) as EncoderSettings["bitrateKbps"],
+    };
   }
 
   if (sampleRateSelect) {
@@ -175,7 +186,9 @@ function loadInitialState(): void {
   }
 
   if (channelsSelect) {
-    currentState.channels = channelsSelect.value === 'mono' ? 'Mono' : 'Stereo';
+    const channels: EncoderChannelConfig =
+      channelsSelect.value === 'mono' ? 'mono' : 'stereo';
+    currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   }
 }
 
@@ -306,10 +319,12 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
   }
 
   // Base calculation: duration * bitrate / 8 (convert bits to bytes)
-  let sizeBytes = (totalDurationSeconds * currentState.bitrate * 1000) / 8;
+  let sizeBytes =
+    (totalDurationSeconds * currentState.encoderSettings.bitrateKbps * 1000) /
+    8;
 
   // Adjust for stereo (roughly 1.5x mono at same bitrate)
-  if (currentState.channels === 'Stereo') {
+  if (currentState.encoderSettings.channels === 'stereo') {
     sizeBytes *= 1.5;
   }
 
@@ -328,9 +343,9 @@ function showOutputError(message: string): void {
 }
 
 /**
- * Gets current audio settings for processing
+ * Gets current output configuration for processing
  */
-export function getCurrentAudioSettings(): AudioSettings {
+export function getCurrentOutputConfig(): OutputConfig {
   if (!currentState.outputDirectory) {
     throw new Error('Output directory not selected');
   }
@@ -339,8 +354,7 @@ export function getCurrentAudioSettings(): AudioSettings {
   const outputPath = calculateOutputPath(metadata);
 
   return {
-    bitrate: currentState.bitrate,
-    channels: currentState.channels,
+    encoderSettings: currentState.encoderSettings,
     sampleRate: currentState.sampleRate,
     outputPath: outputPath
   };

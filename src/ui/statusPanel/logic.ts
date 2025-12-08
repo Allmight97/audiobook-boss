@@ -9,8 +9,8 @@
 import { bridge } from "../../lib/bridge";
 import { ProcessingProgressEvent, EVENTS, STAGES } from "../../types/events";
 import { currentFileList } from "../fileList";
-import { getCurrentAudioSettings } from "../outputPanel";
-import type { EncoderSettings } from "../../types/audio";
+import { getCurrentOutputConfig } from "../outputPanel";
+import type { EncoderSettings, OutputConfig } from "../../types/audio";
 import {
   defaultEncoderSettings,
   VALID_ENCODER_BITRATES,
@@ -189,13 +189,15 @@ export class StatusPanel {
         return;
       }
 
-      console.log("StatusPanel: Files validated, getting audio settings...");
+      console.log(
+        "StatusPanel: Files validated, getting output configuration..."
+      );
 
-      // Get audio settings
-      let settings;
+      // Get output configuration
+      let outputConfig: OutputConfig;
       try {
-        settings = getCurrentAudioSettings();
-        console.log("StatusPanel: Audio settings retrieved:", settings);
+        outputConfig = getCurrentOutputConfig();
+        console.log("StatusPanel: Output configuration retrieved:", outputConfig);
       } catch (error) {
         console.log("StatusPanel: Settings validation failed:", error);
         dom.showError(`Settings validation failed: ${error}`);
@@ -224,20 +226,17 @@ export class StatusPanel {
       // Get metadata from the form (basic implementation)
       const metadata = this.getCurrentMetadata();
 
-      // Call backend processing command (v2 payload)
+      // Call backend processing command
       const fallbackEncoderDefaults = (() => {
         const defaults = defaultEncoderSettings();
-        const bitrate = SUPPORTED_ENCODER_BITRATES.has(settings.bitrate)
-          ? (settings.bitrate as EncoderSettings["bitrateKbps"])
+        const selected = outputConfig.encoderSettings;
+        const bitrate = SUPPORTED_ENCODER_BITRATES.has(selected.bitrateKbps)
+          ? selected.bitrateKbps
           : defaults.bitrateKbps;
-        const channels: EncoderSettings["channels"] =
-          settings.channels === "Stereo"
-            ? "stereo"
-            : settings.channels === "Mono"
-            ? "mono"
-            : "auto";
+        const channels = selected.channels ?? defaults.channels;
         return {
           ...defaults,
+          ...selected,
           bitrateKbps: bitrate,
           channels,
         } satisfies EncoderSettings;
@@ -256,11 +255,9 @@ export class StatusPanel {
 
       const v2Payload = {
         inputFiles: filePaths,
-        outputDir:
-          (document.getElementById("output-dir-text") as HTMLInputElement)
-            ?.value || "",
+        outputDir: outputConfig.outputPath,
         settings: boundaryEncoderSettings,
-        sampleRate: settings.sampleRate,
+        sampleRate: outputConfig.sampleRate,
       };
 
       const result = await bridge.invoke<{

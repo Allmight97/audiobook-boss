@@ -1,7 +1,7 @@
 // Integration tests for path validation implementation across all entry points
 // These tests verify that invalid inputs are rejected at all API boundaries
 
-use audiobook_boss_lib::audio::{self, AudioSettings, ChannelConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
 use std::fs::File;
 use tempfile::TempDir;
@@ -115,29 +115,25 @@ fn test_analyze_audio_files_validates_inputs() {
 fn test_audio_settings_validation() {
     let temp_dir = TempDir::new().expect("create temp dir");
 
-    // Test valid settings
-    let valid_settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path: temp_dir.path().join("output.m4b"),
-    };
-    let result = audio::validate_audio_settings(&valid_settings);
-    assert!(result.is_ok(), "Valid settings should pass validation");
+    // Test valid sample rate + output path
+    let result = audio::validate_sample_rate_config(&SampleRateConfig::Auto);
+    assert!(result.is_ok(), "Auto sample rate should pass validation");
+
+    let valid_output = temp_dir.path().join("output.m4b");
+    let output_check = audio::validate_output_path(&valid_output);
+    assert!(
+        output_check.is_ok(),
+        "Valid output path should pass validation"
+    );
 
     // Test invalid output directory (nonexistent parent)
-    let invalid_settings = AudioSettings {
-        bitrate: 64,
-        channels: ChannelConfig::Mono,
-        sample_rate: SampleRateConfig::Auto,
-        output_path: "/nonexistent/directory/output.m4b".into(),
-    };
-    let result = audio::validate_audio_settings(&invalid_settings);
+    let invalid_output: std::path::PathBuf = "/nonexistent/directory/output.m4b".into();
+    let output_err = audio::validate_output_path(&invalid_output);
     assert!(
-        result.is_err(),
+        output_err.is_err(),
         "Should reject nonexistent output directory"
     );
-    assert!(result
+    assert!(output_err
         .expect_err("expected error")
         .to_string()
         .contains("does not exist"));

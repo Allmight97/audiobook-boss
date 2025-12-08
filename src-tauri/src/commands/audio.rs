@@ -48,7 +48,7 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
     audio::get_file_list_info(&paths)
 }
 
-/// Validates advanced encoder v2 settings (no side effects)
+/// Validates encoder settings (no side effects)
 #[tauri::command]
 pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
     validate_encoder_settings(&settings)?;
@@ -74,8 +74,7 @@ pub struct ProcessV2Payload {
     pub sample_rate: Option<audio::SampleRateConfig>,
 }
 
-/// Processes files using v2 payload (EncoderSettings + v2 shape). For now, routes
-/// through the same pipeline by mapping to v1 AudioSettings. No behavior change.
+/// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).
 #[tauri::command]
 pub async fn process_audiobook_files_v2(
     window: tauri::Window,
@@ -84,10 +83,10 @@ pub async fn process_audiobook_files_v2(
     metadata: Option<crate::metadata::AudiobookMetadata>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
-    // Validate encoder settings (v2)
+    // Validate encoder settings
     validate_encoder_settings(&payload.settings)?;
     log::info!(
-        "encoder_v2 summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
+        "encoder summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
         payload.settings.encoder_type,
         payload.settings.bitrate_kbps,
         payload.settings.bitrate_mode,
@@ -104,7 +103,7 @@ pub async fn process_audiobook_files_v2(
     // Map sample rate from frontend payload (defaults to Auto if not provided)
     let sample_rate = payload.sample_rate.unwrap_or(audio::SampleRateConfig::Auto);
 
-    // Validate derived settings (bitrate/sample_rate/output path) without legacy encoder assumptions
+    // Validate derived settings (sample_rate/output path) without legacy encoder assumptions
     audio::settings::validate_sample_rate_config(&sample_rate)?;
     audio::settings::validate_output_path(&output_path)?;
 
@@ -148,7 +147,7 @@ pub async fn process_audiobook_files_v2(
         }) {
             if sec.is_finite() && sec > 0.0 {
                 context.preview = Some(crate::audio::context::PreviewConfig::new(sec));
-                log::info!("Preview requested (v2): total_seconds={:.3}", sec);
+                log::info!("Preview requested: total_seconds={:.3}", sec);
                 preview_seconds_resolved = Some(sec);
             }
         }
@@ -207,7 +206,7 @@ pub struct ProcessCommandResult {
 /// # Contract
 /// - Frontend sends the complete output file path (including filename)
 /// - Creates parent directories as needed
-/// - Extension validation is deferred to `validate_audio_settings`
+/// - Extension validation is performed later by `validate_output_path`
 fn prepare_output_path(output_path: &str) -> Result<PathBuf> {
     let path = Path::new(output_path);
 
@@ -218,7 +217,7 @@ fn prepare_output_path(output_path: &str) -> Result<PathBuf> {
         ));
     }
 
-    // Create parent directory if needed (extension validated later by validate_audio_settings)
+    // Create parent directory if needed (extension validated later by validate_output_path)
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
             log::info!("Creating output directory: {}", parent.display());

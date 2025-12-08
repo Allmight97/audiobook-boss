@@ -9,24 +9,25 @@ pub enum SampleRateConfig {
 }
 
 #[derive(Debug, Clone)]
-pub enum ChannelConfig {
+pub enum EncoderChannelConfig {
+    Auto,
     Mono,
     Stereo,
 }
 
 #[derive(Debug, Clone)]
-pub struct AudioSettings {
-    pub bitrate: u32,
-    pub channels: ChannelConfig,
+pub struct EncoderSettings {
+    pub bitrate_kbps: u16,
+    pub channels: EncoderChannelConfig,
     pub sample_rate: SampleRateConfig,
     pub output_path: PathBuf,
 }
 
-impl AudioSettings {
+impl EncoderSettings {
     pub fn audiobook_preset() -> Self {
         Self {
-            bitrate: 64,
-            channels: ChannelConfig::Mono,
+            bitrate_kbps: 64,
+            channels: EncoderChannelConfig::Mono,
             sample_rate: SampleRateConfig::Auto,
             output_path: "audiobook.m4b".into(),
         }
@@ -34,7 +35,7 @@ impl AudioSettings {
 }
 
 fn main() {
-    let settings = AudioSettings::audiobook_preset();
+    let settings = EncoderSettings::audiobook_preset();
     println!("Settings: {:?}", settings);
     
     // Test sample rate handling
