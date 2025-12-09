@@ -151,61 +151,25 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`
 
 ## Testing & Verification
 
-## Automated Testing
-- Rust layout: `src-tauri/tests/unit` (private helpers/logic), `contract` (module APIs), `integration` (cross-module/FFI flows), `e2e` (rare smoke). Inline `#[cfg(test)]` only for tiny private helpers.
-- TS layout: colocated `*.test.ts` for small units; larger contract/integration under `src/tests/{unit,contract,integration}`.
-- Prefer external tests in `src-tauri/tests/` for public surfaces.
-- Useful subsets: `cargo test path_validation` (name-filtered)
+### Strategy: "Clean Source"
+We strictly separate test logic from production code to maintain readability and scalability.
 
-## Test Coverage
-Coverage goal: **90%** for critical paths (commands, audio processing, progress reporting).
+**1. Rust (External Testing)**
+- **Rule**: **No inline tests** (`mod tests`) in `src-tauri/src` except for tiny private helpers.
+- **Location**: `src-tauri/tests/`
+    - `unit/`: functionality of single modules (public API).
+    - `integration/`: cross-module flows.
+    - `contract/`: Tauri command signature verification.
 
-**Generate coverage reports:**
-```bash
-./scripts/coverage.sh           # All (Rust + TypeScript)
-./scripts/coverage.sh rust      # Rust only
-./scripts/coverage.sh ts        # TypeScript only
-```
+**2. TypeScript (Colocated Testing)**
+- **Rule**: Business logic belongs in `.ts` files, not `.tsx`.
+- **Location**: `src/**/*.test.ts` (colocated with source).
+- **Scope**: High coverage for logic (`.ts`), light render checks for UI (`.tsx`).
 
-**Requirements:**
-- Rust coverage: `cargo install cargo-tarpaulin`
-- TypeScript coverage: `bun install` (installs vitest + coverage-v8)
-
-**TypeScript test commands:**
-```bash
-bun run test           # Run tests once
-bun run test:watch     # Watch mode (re-run on changes)
-bun run test:coverage  # Run with coverage report
-```
-
-**Writing TypeScript tests:**
-- Place tests in `src/**/*.test.ts` or `src/**/*.spec.ts`
-- Tests use jsdom environment (DOM available)
-- Tauri APIs are auto-mocked (see `src/test/setup.ts`)
-- Import `vi` from 'vitest' for mocking
-
-**Test Writing Priorities:**
-- Critical paths: commands, audio processing core, progress reporting, buffer management
-- Add tests when fixing bugs or adding features
-
-### Mock Maintenance
-- When changing Rust command signatures, you MUST update the corresponding mock in `src/lib/mocks.ts` to keep the browser dev environment functional.
-- Test mocks in `src/test/setup.ts` provide isolated Tauri API stubs for vitest.
-
-### Event Contract Verification
-Event: `processing-progress`
-- Rust: `src-tauri/src/audio/progress/reporter.rs::ProgressEvent`
-- TS: `src/types/events.ts::ProcessingProgressEvent`
-
-**Backward-compat policy**:
-- Additive fields: optional in TS, defaulted in Rust
-- Never rename/remove existing fields without updating all listeners
-
-**Verification steps**:
-1. `RUST_LOG=debug bun run tauri dev`
-2. Process short sample
-3. Confirm: stage transitions, percentage progression, UI renders
-4. Then: `cargo test && cargo clippy -- -D warnings`
+**3. Quality Gates**
+- `scripts/quick-checks.sh`: Pre-commit.
+- `scripts/ensure-contract.sh`: Verify TS types match Rust commands.
+- **Coverage Goal**: 90% on critical paths (audio processing, commands).
 
 ---
 
