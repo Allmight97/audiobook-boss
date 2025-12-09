@@ -157,9 +157,9 @@ We strictly separate test logic from production code to maintain readability and
 **1. Rust (External Testing)**
 - **Rule**: **No inline tests** (`mod tests`) in `src-tauri/src` except for tiny private helpers.
 - **Location**: `src-tauri/tests/`
-    - `unit/`: functionality of single modules (public API).
-    - `integration/`: cross-module flows.
-    - `contract/`: Tauri command signature verification.
+  - `unit/`: functionality of single modules (public API).
+  - `integration/`: cross-module flows.
+  - `contract/`: Tauri command signature verification.
 
 **2. TypeScript (Colocated Testing)**
 - **Rule**: Business logic belongs in `.ts` files, not `.tsx`.
