@@ -30,7 +30,10 @@ Act as senior engineer + co-designer; help balance product/tech trade-offs, proa
 
 ### Architecture Fundamentals
 - **Single engine**: `FfmpegNextProcessor` via ffmpeg-next bindings (no shell FFmpeg, no engine feature flags)
-- **Concurrency surface**: `JobRegistry` (semaphore-backed) is the source of truth for active jobs; per-job cancellation and max concurrency (default `num_cpus/2`, clamped 1–8) flow through it.
+- **Concurrency surface**: `JobRegistry` (semaphore-backed) is the **exclusive source of truth** for active jobs.
+    - **Parallelism**: Multiple jobs can run concurrently (up to `max_concurrent`).
+    - **Blocking I/O**: CPU-bound encoding tasks MUST be offloaded using `tokio::task::spawn_blocking` or `tokio::task::block_in_place` to prevent async runtime starvation.
+    - **Cancellation**: Managed via `CancellationChecker` (per-job) or global signal.
 - **Path security**: all inputs → `audio::path_validation::validate_input_audio_path()` (canonicalize, whitelist extensions, traverse-safe, symlink warnings)
 - **Progress system**: ffmpeg-next timestamps → `processing-progress` Tauri events → UI (`src/ui/statusPanel`)
 - **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` structure
