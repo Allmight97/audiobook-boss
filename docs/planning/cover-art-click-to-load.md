@@ -232,27 +232,9 @@ pub enum JobType {
 - [ ] Batch mode respects max concurrent jobs
 - [ ] Per-job cancellation works in batch mode
 - [ ] Progress aggregation works for batch jobs
+- [ ] cover art still loads via drag-and-drop and click to file picker
+- [ ] cover art still clears via click to clear overlay
+- Output path still updates and works same as 'main' branch.
+- Preview Audio button still works same as 'main' branch.
 
----
 
-## GitHub Issue Template
-
-```markdown
-## Migrate Mock UI to Production
-
-### Summary
-Implement the refined UI design from `docs/specs/UI_mock/mock_ui.html` across all production surfaces.
-
-### Changes
-- [ ] Archive current UI to `/docs/IGNORE_ARCHIVE/old_ui.html`
-- [ ] Update `index.html` with new layout
-- [ ] Update `src/styles.css` with new styling
-- [ ] Update `src/ui/coverArt.ts` for click-to-load
-- [ ] Update `src/ui/outputPanel.ts` for live path preview
-- [ ] Verify on light/dark themes
-- [ ] Run `scripts/quick-checks.sh`
-
-### Reference
-- Mock UI: `docs/specs/UI_mock/mock_ui.html`
-- Migration Plan: `docs/planning/cover-art-click-to-load.md`
-```
