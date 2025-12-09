@@ -442,22 +442,6 @@ export class StatusPanel {
 
     this.updateStatus(status);
 
-    // Handle all-jobs-completed scenario
-    if (this.jobProgress.size === 0 && this.isProcessing) {
-      // All jobs done
-      if (event.stage === STAGES.completed) {
-        setTimeout(() => {
-          this.resetToIdle();
-          dom.showSuccess("Audiobook created successfully!");
-        }, 2000);
-      } else if (event.stage === STAGES.failed) {
-        this.resetToIdle();
-        dom.showError(status.message);
-      } else if (event.stage === STAGES.cancelled) {
-        this.resetToIdle();
-        dom.showInfo("Processing was cancelled.");
-      }
-    }
   }
 
   /** Calculate aggregate progress across all active jobs */
@@ -621,9 +605,6 @@ export class StatusPanel {
   private resetToIdle(): void {
     this.isProcessing = false;
 
-    this.jobProgress.clear();
-    dom.renderJobList([]);
-
     if (this.cancelUnlisten) {
       this.cancelUnlisten();
       this.cancelUnlisten = undefined;
@@ -631,6 +612,7 @@ export class StatusPanel {
 
     // Clear all job progress tracking
     this.jobProgress.clear();
+    dom.renderJobList([]);
 
     this.updateStatus({
       stage: "idle",

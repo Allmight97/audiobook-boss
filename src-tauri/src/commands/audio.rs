@@ -198,27 +198,23 @@ pub async fn process_audiobook_files_v2(
             audio::processor::process_audiobook_with_context(context, file_info.files, metadata)
                 .await;
 
-        // Handle result
-        match process_result {
-            Ok(msg) => {
-                let preview_path = if is_preview {
-                    let final_output = &final_output_path;
-                    let parent = final_output
-                        .parent()
-                        .unwrap_or_else(|| std::path::Path::new("."));
-                    let stem = final_output
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("output");
-                    let p = parent.join(format!("{}.preview.m4b", stem));
-                    Some(p.display().to_string())
-                } else {
-                    None
-                };
-                Ok((msg, preview_path, preview_seconds_resolved))
-            }
-            Err(e) => Err(e),
-        }
+        process_result.map(|msg| {
+            let preview_path = if is_preview {
+                let final_output = &final_output_path;
+                let parent = final_output
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new("."));
+                let stem = final_output
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("output");
+                let p = parent.join(format!("{}.preview.m4b", stem));
+                Some(p.display().to_string())
+            } else {
+                None
+            };
+            (msg, preview_path, preview_seconds_resolved)
+        })
     };
 
     // Complete or fail the job in registry

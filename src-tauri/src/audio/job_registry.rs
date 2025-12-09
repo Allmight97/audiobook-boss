@@ -43,8 +43,6 @@ impl std::fmt::Display for JobId {
 /// State of a processing job
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JobState {
-    /// Job is waiting for a semaphore permit
-    Queued,
     /// Job is actively processing
     Running,
     /// Job completed successfully
@@ -71,7 +69,7 @@ impl Job {
     pub fn new(id: JobId) -> Self {
         Self {
             id,
-            state: JobState::Queued,
+            state: JobState::Running,
             cancel_flag: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -242,15 +240,10 @@ impl JobRegistry {
             .values()
             .filter(|j| j.state == JobState::Running)
             .count();
-        let queued = jobs
-            .values()
-            .filter(|j| j.state == JobState::Queued)
-            .count();
         let total = jobs.len();
 
         AggregateJobStatus {
             active_jobs: active,
-            queued_jobs: queued,
             total_jobs: total,
             max_concurrent: self.max_concurrent(),
         }
@@ -279,7 +272,7 @@ impl JobRegistry {
     pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let status = self.get_aggregate_status().await;
-        if status.active_jobs > 0 || status.queued_jobs > 0 {
+        if status.active_jobs > 0 {
             return Err(AppError::InvalidInput(
                 "Cannot change max concurrency while jobs are active".to_string(),
             ));
@@ -310,7 +303,7 @@ pub struct CancellationChecker {
 impl CancellationChecker {
     /// Checks if processing should be cancelled (job-specific OR global)
     pub fn is_cancelled(&self) -> bool {
-        self.global_flag.load(Ordering::Relaxed) || self.job_flag.load(Ordering::Relaxed)
+        self.global_flag.load(Ordering::Acquire) || self.job_flag.load(Ordering::Acquire)
     }
 }
 
@@ -319,8 +312,6 @@ impl CancellationChecker {
 pub struct AggregateJobStatus {
     /// Number of actively processing jobs
     pub active_jobs: usize,
-    /// Number of queued jobs waiting for permits
-    pub queued_jobs: usize,
     /// Total jobs in registry
     pub total_jobs: usize,
     /// Maximum concurrent jobs allowed
