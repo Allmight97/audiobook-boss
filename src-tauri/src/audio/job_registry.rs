@@ -478,4 +478,53 @@ mod tests {
         assert!(result.is_err(), "Should not allow update while active");
         assert_eq!(registry.max_concurrent(), 2);
     }
+
+    #[tokio::test]
+    async fn test_stress_concurrent_registration_respects_limit() {
+        use std::sync::atomic::AtomicUsize;
+        use tokio::time::Duration;
+
+        let registry = Arc::new(JobRegistry::new(3));
+        let active = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+
+        let mut handles = Vec::new();
+        for _ in 0..50 {
+            let reg = Arc::clone(&registry);
+            let active = Arc::clone(&active);
+            let peak = Arc::clone(&peak);
+            handles.push(tokio::spawn(async move {
+                let (job_id, permit) = reg.register_job().await.expect("register");
+                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                let mut observed = peak.load(Ordering::SeqCst);
+                while current > observed {
+                    match peak.compare_exchange(
+                        observed,
+                        current,
+                        Ordering::SeqCst,
+                        Ordering::SeqCst,
+                    ) {
+                        Ok(_) => break,
+                        Err(new_obs) => observed = new_obs,
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                active.fetch_sub(1, Ordering::SeqCst);
+                drop(permit);
+                reg.complete_job(job_id).await;
+            }));
+        }
+
+        for handle in handles {
+            handle.await.expect("join");
+        }
+
+        assert!(
+            peak.load(Ordering::SeqCst) <= 3,
+            "max concurrent observed should respect limit"
+        );
+        let status = registry.get_aggregate_status().await;
+        assert_eq!(status.active_jobs, 0);
+        assert_eq!(status.total_jobs, 0);
+    }
 }

@@ -30,6 +30,7 @@ Act as senior engineer + co-designer; help balance product/tech trade-offs, proa
 
 ### Architecture Fundamentals
 - **Single engine**: `FfmpegNextProcessor` via ffmpeg-next bindings (no shell FFmpeg, no engine feature flags)
+- **Concurrency surface**: `JobRegistry` (semaphore-backed) is the source of truth for active jobs; per-job cancellation and max concurrency (default `num_cpus/2`, clamped 1–8) flow through it.
 - **Path security**: all inputs → `audio::path_validation::validate_input_audio_path()` (canonicalize, whitelist extensions, traverse-safe, symlink warnings)
 - **Progress system**: ffmpeg-next timestamps → `processing-progress` Tauri events → UI (`src/ui/statusPanel`)
 - **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` structure
