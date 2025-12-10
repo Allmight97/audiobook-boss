@@ -11,6 +11,20 @@ Align all repository surfaces with the new UI design in `docs/specs/UI_mock/mock
 
 ---
 
+## Engineering Audit Summary (2025-12-10)
+
+**Verdict: READY TO IMPLEMENT**
+
+Key findings from audit:
+- Metadata handling does NOT need to change for batch mode (KISS)
+- Twoloop should be user-configurable (product owner decision)
+- Cover art needs click + drag-drop handlers (not just button)
+- UI selectors should be disabled during processing
+
+See full audit: `docs/reports/issue-81-engineering-audit.md`
+
+---
+
 ## UI Changes Summary
 
 | Component | Current (Production) | New (Mock) |
@@ -106,6 +120,27 @@ h3 { font-size: 0.875rem; font-weight: 500; margin: 0; }
 - Add click handler to `#cover-art-area` → opens file picker
 - Add click handler to clear overlay → clears cover art
 - Implement `.has-image` class toggle
+- **[AUDIT]** Add drag-drop handlers (`dragenter`, `dragover`, `dragleave`, `drop`)
+- **[AUDIT]** Prevent event bubbling to audio file import drop zone
+
+```typescript
+// Implementation pattern for drag-drop (from audit)
+const coverArtArea = document.getElementById('cover-art-area');
+coverArtArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent bubbling to file import
+    coverArtArea.classList.add('drag-over');
+});
+coverArtArea?.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    coverArtArea.classList.remove('drag-over');
+    const file = e.dataTransfer?.files[0];
+    if (file && isImageFile(file)) {
+        await loadCoverArtFromFile(file.path);
+    }
+});
+```
 
 ### [MODIFY] `src/ui/outputPanel.ts`
 - Compute and display live path preview
@@ -115,6 +150,18 @@ h3 { font-size: 0.875rem; font-weight: 500; margin: 0; }
 ### [NEW] `src/ui/jobControls.ts` (if needed)
 - Handle Job Type selector
 - Handle Max Concurrent Jobs selector
+- **[AUDIT]** Disable both selectors while `isProcessing === true`
+- **[AUDIT]** Backend `set_max_concurrent_jobs` requires idle state - frontend must enforce
+
+```typescript
+// Implementation pattern (from audit)
+export function setJobControlsEnabled(enabled: boolean): void {
+    const jobTypeSelect = document.getElementById('job-type-select') as HTMLSelectElement;
+    const maxConcurrentSelect = document.getElementById('max-concurrent-select') as HTMLSelectElement;
+    if (jobTypeSelect) jobTypeSelect.disabled = !enabled;
+    if (maxConcurrentSelect) maxConcurrentSelect.disabled = !enabled;
+}
+```
 
 ---
 
@@ -179,25 +226,46 @@ h3 { font-size: 0.875rem; font-weight: 500; margin: 0; }
 #### Backend: `src-tauri/src/commands/audio.rs` & `settings_encoder.rs`
 
 ```rust
-// Add to EncoderSettings
+// Add to EncoderSettings (settings_encoder.rs)
 pub struct EncoderSettings {
-    // ... existing fields
-    pub twoloop: bool, // NEW (native AAC only)
+    pub encoder_type: EncoderType,
+    pub bitrate_kbps: u16,
+    pub bitrate_mode: BitrateMode,
+    pub channels: ChannelConfig,
+    pub afterburner: bool,
+    pub threads: ThreadSetting,
+    pub twoloop: bool,  // NEW - native AAC only, defaults to true
 }
 
-// Add to ProcessV2Payload
+// Add JobType enum (audio.rs)
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobType {
+    Merge,  // N files → 1 output (current behavior)
+    Batch,  // N files → N outputs (parallel via JobRegistry)
+}
+
+// Add to ProcessV2Payload (audio.rs)
 pub struct ProcessV2Payload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,
     pub sample_rate: Option<audio::SampleRateConfig>,
-    pub job_type: JobType,  // NEW
+    pub job_type: Option<JobType>,  // NEW - defaults to Merge for backward compat
 }
 ```
 
 **Logic changes:**
 1. **Job Type:** Implement fork logic in `process_audiobook_files_v2` (Merge vs Batch).
 2. **Twoloop:** Update `native.rs` to use `settings.twoloop` instead of hardcoded default.
+
+**[AUDIT] Batch Mode Clarification:**
+- **Merge**: User drops chapter files → App merges into 1 audiobook
+- **Batch**: User drops complete audiobooks → App converts each in parallel
+- **Metadata**: Existing flow unchanged - each batch job uses user-provided metadata (KISS)
+- **Output paths**: Frontend generates per-file paths using original filename stem
+
+**[AUDIT] Tech Debt:** Fix env var typo `ABB_DISABLE_TWOOLOOP` → `ABB_DISABLE_TWOLOOP`
 
 #### Frontend: `src/ui/jobControls.ts` & `src/ui/encoderPanel` (new)
 
@@ -227,14 +295,28 @@ pub enum JobType {
 
 ### Testing Checklist (Phase 6)
 
+**Batch Processing:**
 - [ ] Merge mode: multiple files → single .m4b
 - [ ] Batch mode: 3 files → 3 separate .m4b
 - [ ] Batch mode respects max concurrent jobs
 - [ ] Per-job cancellation works in batch mode
 - [ ] Progress aggregation works for batch jobs
-- [ ] cover art still loads via drag-and-drop and click to file picker
-- [ ] cover art still clears via click to clear overlay
-- Output path still updates and works same as 'main' branch.
-- Preview Audio button still works same as 'main' branch.
+
+**Cover Art:**
+- [ ] Click on cover art area opens file picker
+- [ ] Drag-drop image onto cover art area loads it
+- [ ] Clear overlay button removes cover art
+- [ ] Drag-drop doesn't bubble to audio file import
+
+**UI State:**
+- [ ] Job Type selector disabled during processing
+- [ ] Max Concurrent selector disabled during processing
+- [ ] Twoloop checkbox toggles correctly for native AAC
+
+**Regression:**
+- [ ] Output path still updates and works same as 'main' branch
+- [ ] Preview Audio button still works same as 'main' branch
+- [ ] Light/dark theme both render correctly
+- [ ] No console errors
 
 
