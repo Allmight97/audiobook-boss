@@ -9,7 +9,11 @@
       "Bash(git add:*)",
       "Bash(git push:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(gh issue view:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(gh issue edit:*)"
     ],
     "deny": [],
     "ask": []

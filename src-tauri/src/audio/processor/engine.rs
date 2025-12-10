@@ -144,7 +144,13 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Initialize processing state
             let mut running_pts: i64 = 0; // in encoder time_base units
             let mut last_emit = std::time::Instant::now();
-            let emitter = crate::audio::progress::ProgressEmitter::new(context.window.clone());
+            let emitter = match &context.job_id {
+                Some(job_id) => crate::audio::progress::ProgressEmitter::with_job_id(
+                    context.window.clone(),
+                    job_id.clone(),
+                ),
+                None => crate::audio::progress::ProgressEmitter::new(context.window.clone()),
+            };
 
             // Construct context struct to reduce parameter passing
             let mut input_samples_total: u64 = 0;
@@ -186,62 +192,65 @@ impl MediaProcessor for FfmpegNextProcessor {
                 "Starting audio processing for {} input files",
                 plan.input_file_paths.len()
             );
-            let mut accumulator = SampleAccumulator::new(
-                enc_ctx.channel_layout().channels() as usize,
-                enc_ctx.frame_size() as usize,
-                enc_ctx.rate(),
-                enc_ctx.channel_layout(),
-                enc_ctx.format(),
-            );
-            for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
-                log::info!(
-                    "Processing input file {}/{}: {}",
-                    idx + 1,
-                    plan.input_file_paths.len(),
-                    in_path.display()
+            tokio::task::block_in_place(|| -> Result<()> {
+                let mut accumulator = SampleAccumulator::new(
+                    enc_ctx.channel_layout().channels() as usize,
+                    enc_ctx.frame_size() as usize,
+                    enc_ctx.rate(),
+                    enc_ctx.channel_layout(),
+                    enc_ctx.format(),
                 );
-                let action = Self::process_input_file(
-                    in_path,
-                    &mut enc_ctx,
-                    &mut octx,
-                    idx,
-                    &mut ctx,
-                    &mut accumulator,
-                )?;
-                log::info!(
-                    "✓ Completed processing input file {}/{}",
-                    idx + 1,
-                    plan.input_file_paths.len()
-                );
+                for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
+                    log::info!(
+                        "Processing input file {}/{}: {}",
+                        idx + 1,
+                        plan.input_file_paths.len(),
+                        in_path.display()
+                    );
+                    let action = Self::process_input_file(
+                        in_path,
+                        &mut enc_ctx,
+                        &mut octx,
+                        idx,
+                        &mut ctx,
+                        &mut accumulator,
+                    )?;
+                    log::info!(
+                        "✓ Completed processing input file {}/{}",
+                        idx + 1,
+                        plan.input_file_paths.len()
+                    );
 
-                // Handle adaptive preview actions
-                match action {
-                    PreviewAction::StopAll => {
-                        log::info!(
-                            "Adaptive preview complete after file {}; stopping further input processing",
-                            idx + 1
-                        );
-                        break;
-                    }
-                    PreviewAction::NextFile => {
-                        log::info!(
-                            "Adaptive preview: file {} excerpt complete, continuing to next file",
-                            idx + 1
-                        );
-                        // Continue to next file in loop
-                    }
-                    PreviewAction::Continue => {
-                        // Check legacy early_stop flag for backward compatibility
-                        if *ctx.early_stop {
+                    // Handle adaptive preview actions
+                    match action {
+                        PreviewAction::StopAll => {
                             log::info!(
-                                "Preview early-stop engaged after file {}; stopping further input processing",
+                                "Adaptive preview complete after file {}; stopping further input processing",
                                 idx + 1
                             );
                             break;
                         }
+                        PreviewAction::NextFile => {
+                            log::info!(
+                                "Adaptive preview: file {} excerpt complete, continuing to next file",
+                                idx + 1
+                            );
+                            // Continue to next file in loop
+                        }
+                        PreviewAction::Continue => {
+                            // Check legacy early_stop flag for backward compatibility
+                            if *ctx.early_stop {
+                                log::info!(
+                                    "Preview early-stop engaged after file {}; stopping further input processing",
+                                    idx + 1
+                                );
+                                break;
+                            }
+                        }
                     }
                 }
-            }
+                Ok(())
+            })?;
             log::info!("✓ All input files processed successfully");
 
             // Log preview chapter count for diagnostics

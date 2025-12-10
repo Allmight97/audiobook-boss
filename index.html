@@ -488,10 +488,30 @@
           <div id="step-text" class="text-xs muted-text mt-0.5">
             Current Step: Waiting for files...
           </div>
+          <div id="job-list" class="text-xs muted-text mt-1"></div>
+          <div class="text-xs muted-text mt-1 flex items-center gap-2">
+            <label for="max-concurrent-select">Max concurrent conversions</label>
+            <select id="max-concurrent-select" class="w-28">
+              <option value="auto" selected>Auto</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+            </select>
+          </div>
         </div>
-        <button id="process-button" class="button-primary">
-          Process Audiobook
-        </button>
+        <div class="flex gap-2">
+          <button id="process-button" class="button-primary">
+            Process Audiobook
+          </button>
+          <button id="cancel-all-button" class="button-secondary">
+            Cancel All
+          </button>
+        </div>
       </div>
     </div>
   </body>

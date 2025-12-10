@@ -93,6 +93,8 @@ pub struct ProcessingContext {
     pub output: OutputConfig,
     /// Optional preview configuration (when present, processing should early-stop)
     pub preview: Option<PreviewConfig>,
+    /// Optional job identifier for parallel batch processing
+    pub job_id: Option<String>,
 }
 
 impl ProcessingContext {
@@ -111,6 +113,7 @@ impl ProcessingContext {
             sample_rate,
             output,
             preview: None,
+            job_id: None,
         }
     }
 

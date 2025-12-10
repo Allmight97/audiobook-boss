@@ -11,6 +11,7 @@ pub mod cleanup;
 pub mod constants;
 pub mod context;
 pub mod file_list;
+pub mod job_registry;
 pub mod metrics;
 pub mod path_validation;
 pub mod processor;
@@ -107,6 +108,9 @@ pub enum ProcessingStage {
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
 pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
+
+// Job registry for parallel batch processing
+pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
 pub use settings::{validate_output_path, validate_sample_rate_config};
 
 // Core processor API (post-split staged)
