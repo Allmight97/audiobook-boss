@@ -81,6 +81,13 @@ pub async fn set_max_concurrent_jobs(
     registry.update_max_concurrent(desired).await
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum JobType {
+    Merge,
+    Batch,
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessV2Payload {
@@ -89,6 +96,7 @@ pub struct ProcessV2Payload {
     pub settings: EncoderSettings,
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
+    pub job_type: Option<JobType>,
 }
 
 /// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).

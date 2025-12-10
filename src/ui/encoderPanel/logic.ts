@@ -129,6 +129,7 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
     bitrateMode,
     vbr,
     fdkAfterburner,
+    twoloop: dom.nativeTwoloop ? !!dom.nativeTwoloop.checked : true,
   };
 };
 
@@ -181,6 +182,9 @@ const applyPersistedState = (): void => {
   if (state.fdkAfterburner !== undefined && dom.fdkAfterburner) {
     dom.fdkAfterburner.checked = state.fdkAfterburner;
   }
+  if (state.twoloop !== undefined && dom.nativeTwoloop) {
+    dom.nativeTwoloop.checked = state.twoloop;
+  }
 };
 
 const attachEventListeners = (): void => {
@@ -205,6 +209,7 @@ const attachEventListeners = (): void => {
     persistState();
   });
   dom.fdkAfterburner?.addEventListener("change", persistState);
+  dom.nativeTwoloop?.addEventListener("change", persistState);
 };
 
 /** Debounced state persistence to prevent localStorage thrashing */

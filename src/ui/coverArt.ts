@@ -1,4 +1,5 @@
 import { bridge } from "../lib/bridge";
+import { isFileDropEvent, EventPayload } from "../types/events";
 
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
@@ -9,229 +10,232 @@ let coverArtRemovalRequested: boolean = false;
 
 /**
  * Initializes the cover art functionality
- * Sets up event handlers for the Load Cover Art button
  */
 export function initCoverArt(): void {
-    const loadButton = document.getElementById('load-cover-art') as HTMLButtonElement;
-    const clearButton = document.getElementById('clear-cover-art') as HTMLButtonElement;
+    const coverArtArea = document.getElementById("cover-art-area");
+    // const clearButton = document.getElementById("cover-art-clear-btn");
 
-    if (loadButton) {
-        loadButton.addEventListener('click', handleLoadCoverArt);
+    if (coverArtArea) {
+        // Click Handler (Load or Clear via delegation)
+        coverArtArea.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            // If clicked the clear button
+            if (target.closest(".cover-art-clear-btn") || target.id === "cover-art-clear-btn") {
+                e.stopPropagation();
+                handleClearCoverArt();
+                return;
+            }
+            // Otherwise, load cover art
+            handleLoadCoverArt();
+        });
+
+        // Drag Visuals
+        coverArtArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            coverArtArea.classList.add("drag-over");
+        });
+        coverArtArea.addEventListener("dragleave", (e) => {
+            e.preventDefault();
+            coverArtArea.classList.remove("drag-over");
+        });
     }
 
-    if (clearButton) {
-        clearButton.addEventListener('click', handleClearCoverArt);
-    }
+    // Handle Global Drag & Drop (Tauri Event) for Cover Art
+    bridge.listen<EventPayload<"tauri://drag-drop">>(
+        "tauri://drag-drop",
+        async (event) => {
+            if (!isFileDropEvent(event.payload)) return;
+            const { position, paths } = event.payload;
 
-    // Update button visibility based on initial state
+            const area = document.getElementById("cover-art-area");
+            if (!area) return;
+
+            // Remove drag visual
+            area.classList.remove("drag-over");
+
+            // Check bounds
+            const rect = area.getBoundingClientRect();
+            if (
+                position.x >= rect.left &&
+                position.x <= rect.right &&
+                position.y >= rect.top &&
+                position.y <= rect.bottom
+            ) {
+                // Filter for image files
+                const imageFile = paths.find((p) =>
+                    /\.(jpg|jpeg|png|webp)$/i.test(p)
+                );
+
+                if (imageFile) {
+                    await loadCoverArtFile(imageFile);
+                }
+            }
+        }
+    );
+
+    // Initial Visibility Check
     updateClearButtonVisibility();
 }
 
 /**
- * Handles the Clear Cover Art button click
- * Clears the current cover art and updates UI
+ * Handles the Clear Cover Art action
  */
 function handleClearCoverArt(): void {
     clearCoverArt({ markRemoval: true });
-    updateClearButtonVisibility();
-    console.log('Cover art cleared');
+    console.log("Cover art cleared");
 }
 
 /**
- * Updates the visibility of the Clear button based on cover art state
+ * Updates the visibility of the Clear button (now handled via CSS hover, but kept for logic sync)
+ * and toggles .has-image class on the container
  */
 function updateClearButtonVisibility(): void {
-    const clearButton = document.getElementById('clear-cover-art') as HTMLButtonElement;
+    const coverArtArea = document.getElementById("cover-art-area");
+    const clearButton = document.getElementById("cover-art-clear-btn");
+
+    if (coverArtArea) {
+        if (currentCoverArt) {
+            coverArtArea.classList.add("has-image");
+        } else {
+            coverArtArea.classList.remove("has-image");
+        }
+    }
+
+    // Legacy button support (if exists) + overlay button state if needed
     if (clearButton) {
-        clearButton.style.display = currentCoverArt ? 'block' : 'none';
+        // Overlay button display is handled by CSS (.cover-art-area.has-image:hover)
+        // but we can enforce logic here if needed.
     }
 }
 
 /**
- * Handles the Load Cover Art button click
- * Opens file dialog and loads selected image
+ * Handles the Click-to-Load action
  */
 async function handleLoadCoverArt(): Promise<void> {
     try {
-        // Open file dialog for image selection
         const selectedFile = await bridge.open({
             multiple: false,
             directory: false,
-            title: 'Select Cover Art Image',
-            filters: [{
-                name: 'Image Files',
-                extensions: ['jpg', 'jpeg', 'png', 'webp']
-            }]
+            title: "Select Cover Art Image",
+            filters: [
+                {
+                    name: "Image Files",
+                    extensions: ["jpg", "jpeg", "png", "webp"],
+                },
+            ],
         });
 
-        if (!selectedFile || typeof selectedFile !== 'string') {
+        if (!selectedFile || typeof selectedFile !== "string") {
             return; // User cancelled
         }
 
-        // Load image data from backend
-        const imageData = await bridge.invoke<number[]>('load_cover_art_file', {
-            filePath: selectedFile
+        await loadCoverArtFile(selectedFile);
+    } catch (error) {
+        console.error("Failed to open file dialog:", error);
+    }
+}
+
+/**
+ * Loads cover art from a specific file path
+ */
+async function loadCoverArtFile(filePath: string): Promise<void> {
+    try {
+        const imageData = await bridge.invoke<number[]>("load_cover_art_file", {
+            filePath: filePath,
         });
 
-        // Update global state
         currentCoverArt = imageData;
         hasCustomCoverArt = true;
         coverArtRemovalRequested = false;
 
-        // Display the loaded cover art
         displayCoverArt(imageData);
-
-        // Update metadata form if needed
         updateMetadataWithCoverArt(imageData);
-
-        // Update Clear button visibility
         updateClearButtonVisibility();
 
-        console.log('Cover art loaded successfully:', selectedFile);
-
+        console.log("Cover art loaded:", filePath);
     } catch (error) {
-        console.error('Failed to load cover art:', error);
-        showCoverArtError(error instanceof Error ? error.message : 'Unknown error');
+        console.error("Failed to load cover art file:", error);
+        showCoverArtError(error instanceof Error ? error.message : "Unknown error");
     }
 }
 
 /**
  * Displays cover art in the UI
- * Updates both the main cover art area and any thumbnails
  */
-function displayCoverArt(coverArtBytes: number[] | null): void {
-    const coverImg = document.getElementById('cover-art-img') as HTMLImageElement;
-    const placeholderText = document.querySelector('.cover-art-area .placeholder-text') as HTMLElement;
+export function displayCoverArt(coverArtBytes: number[] | null): void {
+    const coverImg = document.getElementById("cover-art-img") as HTMLImageElement;
+    const placeholderText = document.querySelector(
+        ".cover-art-area .placeholder-text"
+    ) as HTMLElement;
+    const coverArtArea = document.getElementById("cover-art-area");
 
-    if (!coverImg || !placeholderText) {
-        console.warn('Cover art display elements not found');
-        return;
-    }
+    if (!coverImg) return;
 
     if (coverArtBytes && coverArtBytes.length > 0) {
-        // Convert byte array to Uint8Array and then to base64
         const uint8Array = new Uint8Array(coverArtBytes);
         const base64String = btoa(String.fromCharCode(...uint8Array));
 
-        // Determine image format based on file signature
-        let mimeType = 'image/jpeg'; // default
+        // Simple mime detection
+        let mimeType = "image/jpeg";
         if (coverArtBytes.length >= 8) {
-            if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
-                mimeType = 'image/png';
-            } else if (coverArtBytes.length >= 12 &&
-                coverArtBytes[0] === 0x52 && coverArtBytes[1] === 0x49) {
-                mimeType = 'image/webp';
-            }
+            if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) mimeType = "image/png";
+            else if (coverArtBytes.length >= 4 && coverArtBytes[0] === 0x52) mimeType = "image/webp";
         }
 
-        // Create data URL
         const dataUrl = `data:${mimeType};base64,${base64String}`;
-
-        // Show image and hide placeholder
         coverImg.src = dataUrl;
-        coverImg.classList.remove('hidden');
-        placeholderText.style.display = 'none';
+        coverImg.classList.remove("hidden");
+        if (placeholderText) placeholderText.style.display = "none";
+        if (coverArtArea) coverArtArea.classList.add("has-image");
     } else {
-        // No cover art - show placeholder and hide image
-        coverImg.classList.add('hidden');
-        coverImg.src = '';
-        placeholderText.style.display = 'block';
+        coverImg.classList.add("hidden");
+        coverImg.src = "";
+        if (placeholderText) placeholderText.style.display = "block";
+        if (coverArtArea) coverArtArea.classList.remove("has-image");
     }
-}
-
-/**
- * Updates metadata form with cover art data
- * Ensures cover art is included in metadata operations
- */
-function updateMetadataWithCoverArt(coverArtBytes: number[]): void {
-    // Store in a way that can be accessed by metadata operations
-    // This will be used when processing or saving metadata
-    (window as any).currentCoverArt = coverArtBytes;
-}
-
-/**
- * Shows an error message for cover art operations
- */
-function showCoverArtError(message: string): void {
-    // For now, just log to console
-    // Could add a visual error display in the future
-    console.error('Cover Art Error:', message);
-
-    // Could show a temporary error message in the UI
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.textContent = `Failed to load cover art: ${message}`;
-    errorDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #ef4444;
-        color: white;
-        padding: 12px;
-        border-radius: 4px;
-        z-index: 1000;
-        max-width: 300px;
-    `;
-
-    document.body.appendChild(errorDiv);
-
-    // Remove after 5 seconds
-    setTimeout(() => {
-        if (errorDiv.parentNode) {
-            errorDiv.parentNode.removeChild(errorDiv);
-        }
-    }, 5000);
-}
-
-/**
- * Gets the currently loaded cover art
- * Returns null if no cover art is loaded
- */
-export function getCurrentCoverArt(): number[] | null {
-    return currentCoverArt;
-}
-
-/**
- * Returns whether a user has manually set custom cover art in this session
- */
-export function getHasCustomCoverArt(): boolean {
-    return hasCustomCoverArt;
-}
-
-/**
- * Returns whether the user explicitly requested cover art removal
- */
-export function isCoverArtRemovalRequested(): boolean {
-    return coverArtRemovalRequested;
-}
-
-/**
- * Sets cover art data (used by other modules)
- * Updates display and state
- */
-export function setCoverArt(coverArtBytes: number[] | null): void {
-    currentCoverArt = coverArtBytes;
-    // Loading art (from disk or user selection) cancels any removal request
-    if (coverArtBytes && coverArtBytes.length > 0) {
-        coverArtRemovalRequested = false;
-    }
-    displayCoverArt(coverArtBytes);
-    // Ensure the Clear button visibility stays in sync when cover art
-    // is set from any source (metadata load, manual clear, etc.)
     updateClearButtonVisibility();
 }
 
 /**
- * Clears the current cover art
- * Resets display to placeholder state
+ * Updates global state for metadata operations
  */
+function updateMetadataWithCoverArt(coverArtBytes: number[]): void {
+    (window as any).currentCoverArt = coverArtBytes;
+}
+
+function showCoverArtError(message: string): void {
+    console.error("Cover Art Error:", message);
+    // (Optional: visual toast)
+}
+
+// Global Exports
+export function getCurrentCoverArt(): number[] | null {
+    return currentCoverArt;
+}
+
+export function getHasCustomCoverArt(): boolean {
+    return hasCustomCoverArt;
+}
+
+export function isCoverArtRemovalRequested(): boolean {
+    return coverArtRemovalRequested;
+}
+
+export function setCoverArt(coverArtBytes: number[] | null): void {
+    currentCoverArt = coverArtBytes;
+    if (coverArtBytes && coverArtBytes.length > 0) {
+        coverArtRemovalRequested = false;
+    }
+    displayCoverArt(coverArtBytes);
+    updateClearButtonVisibility();
+}
+
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {
     const markRemoval = options?.markRemoval ?? false;
     currentCoverArt = null;
     displayCoverArt(null);
     delete (window as any).currentCoverArt;
-    // Hide the Clear button when no cover art is present
-    updateClearButtonVisibility();
     coverArtRemovalRequested = markRemoval;
     hasCustomCoverArt = false;
+    updateClearButtonVisibility();
 }

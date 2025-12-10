@@ -56,6 +56,7 @@ fn test_encoder_settings_creation() {
         channels: EncoderChannelConfig::Mono,
         afterburner: false,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     };
 
     assert_eq!(encoder_settings.bitrate_kbps, 64);

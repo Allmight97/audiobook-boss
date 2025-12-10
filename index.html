@@ -16,9 +16,70 @@
     <div class="main-container">
       <!-- Left: Input panel -->
       <div class="panel input-panel">
-        <h2 class="text-base font-semibold mb-2 section-title">
-          Input Audio Files
-        </h2>
+        <div class="flex flex-col gap-2 mb-2">
+          <div class="flex items-center justify-between">
+            <h3 class="section-title mb-0 whitespace-nowrap mr-2">
+              Input and File Order
+            </h3>
+
+            <!-- Job Controls -->
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1" title="Job Type">
+                <span class="text-xs muted-text whitespace-nowrap"
+                  >Job Type:</span
+                >
+                <select
+                  id="job-type-select"
+                  class="text-xs w-auto px-1 py-0.5"
+                  style="height: 24px"
+                >
+                  <option value="merge" selected>
+                    Merge files to single book
+                  </option>
+                  <option value="batch">Convert each file separately</option>
+                </select>
+              </div>
+
+              <div class="flex items-center gap-1" title="Concurrent Jobs">
+                <span class="text-xs muted-text whitespace-nowrap"
+                  >Number of Jobs:</span
+                >
+                <select
+                  id="max-concurrent-select"
+                  class="text-xs w-14 px-1 py-0.5"
+                  style="height: 24px"
+                >
+                  <option value="auto" selected>Auto</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2">
+            <span
+              class="text-xs muted-text italic mr-auto self-center pl-1"
+              id="file-count-display"
+              >0 files</span
+            >
+            <button
+              id="sort-toggle-btn"
+              class="btn-pill btn-pill-secondary"
+            >
+              Sort: A-Z
+            </button>
+            <button
+              id="clear-files-btn"
+              class="btn-pill btn-pill-secondary"
+              style="display: none"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
         <div id="drop-zone" class="drag-drop-area mb-3">
           <p class="text-sm muted-text">
             Drag & Drop files here or Click to Select
@@ -30,24 +91,7 @@
           class="error-message mb-3"
           style="display: none"
         ></div>
-        <div class="flex items-center justify-between mb-1">
-          <h3 class="text-sm font-medium section-subtitle">File Order:</h3>
-          <div class="flex gap-2">
-            <button
-              id="sort-toggle-btn"
-              class="button-secondary text-xs px-2 py-1"
-            >
-              Sort: A-Z
-            </button>
-            <button
-              id="clear-files-btn"
-              class="button-secondary text-xs px-2 py-1"
-              style="display: none"
-            >
-              Clear Files
-            </button>
-          </div>
-        </div>
+
         <div class="file-list-placeholder mb-3">
           File List Area (Drag to Reorder)
         </div>
@@ -88,35 +132,29 @@
       <div class="panel metadata-output-panel">
         <!-- METADATA SECTION -->
         <div class="section-header">
-          <h3>Metadata</h3>
+          <h3>Metadata Manager</h3>
         </div>
         <div class="grid grid-cols-4 gap-3 mb-3">
           <!-- Cover art - 1:1 ratio maintained, centered -->
           <div class="col-span-1 flex flex-col items-center">
             <span class="text-xs font-medium mb-1">Cover Art</span>
-            <div id="cover-art-area" class="cover-art-area mb-1">
-              <div class="placeholder-text">Drag Image</div>
+            <div
+              id="cover-art-area"
+              class="cover-art-area mb-1"
+              data-testid="cover-art-area"
+            >
+              <div class="placeholder-text">Click or Drag Image</div>
               <img
                 src=""
                 alt="Book Cover Art"
                 id="cover-art-img"
                 class="hidden"
               />
+              <button class="cover-art-clear-btn" id="cover-art-clear-btn">
+                ✕
+              </button>
             </div>
-            <button
-              id="load-cover-art"
-              class="button-secondary text-xs"
-              style="width: 120px"
-            >
-              Load Cover Art
-            </button>
-            <button
-              id="clear-cover-art"
-              class="button-secondary text-xs mt-1"
-              style="width: 120px; display: none"
-            >
-              Clear Cover Art
-            </button>
+            <!-- Removed separate buttons -->
           </div>
 
           <!-- Metadata fields - compact -->
@@ -265,89 +303,142 @@
                 <option value="stereo">Stereo</option>
               </select>
             </div>
-            <div class="col-span-2">
-              <!-- Spacer for alignment -->
+            <div class="col-span-2 flex items-end">
+              <!-- Replaced spacer with inline options -->
             </div>
           </div>
 
           <!-- Encoder-Specific Options Section -->
-          <div id="encoder-options-section" class="encoder-options-section mt-2 p-2 rounded" data-testid="encoder-options-section">
-            <div class="text-xs font-medium mb-2 muted-text">Encoder Options</div>
+            <!-- Inline Encoder Options -->
+            <div class="flex gap-4 items-center h-full">
+              <!-- FDK Options -->
+              <div
+                id="fdk-options"
+                class="encoder-option-group"
+                data-testid="fdk-options"
+              >
+                <label
+                  class="checkbox-label mb-0"
+                  data-testid="afterburner-toggle"
+                  title="Enable Afterburner"
+                >
+                  <input
+                    type="checkbox"
+                    id="adv-fdk-afterburner"
+                    checked
+                    data-testid="afterburner-checkbox"
+                  />
+                  <span class="option-label">Afterburner</span>
+                </label>
+              </div>
 
-            <!-- FDK Options -->
-            <div id="fdk-options" class="encoder-option-group" data-testid="fdk-options">
-              <label class="checkbox-label" data-testid="afterburner-toggle">
-                <input type="checkbox" id="adv-fdk-afterburner" checked data-testid="afterburner-checkbox" />
-                <span class="option-label">Afterburner</span>
-                <span class="option-desc">— Better quality, +10% encode time</span>
-              </label>
+              <!-- Native AAC Options -->
+              <div
+                id="native-options"
+                class="encoder-option-group hidden"
+                data-testid="native-options"
+              >
+                <label
+                  class="checkbox-label mb-0"
+                  data-testid="twoloop-toggle"
+                  title="Enable Twoloop (High Quality)"
+                >
+                  <input
+                    type="checkbox"
+                    id="adv-native-twoloop"
+                    checked
+                    data-testid="twoloop-checkbox"
+                  />
+                  <span class="option-label">Twoloop</span>
+                </label>
+              </div>
             </div>
-
-            <!-- Native AAC Options -->
-            <div id="native-options" class="encoder-option-group hidden" data-testid="native-options">
-              <label class="checkbox-label" data-testid="twoloop-toggle">
-                <input type="checkbox" id="adv-native-twoloop" checked disabled data-testid="twoloop-checkbox" />
-                <span class="option-label">Twoloop</span>
-                <span class="option-desc">— Improves quality at low bitrates (always on)</span>
-              </label>
-            </div>
-
-            <!-- Apple AAC Options (none) -->
-            <div id="apple-options" class="encoder-option-group hidden" data-testid="apple-options">
-              <p class="text-xs muted-text italic">No configurable options — hardware encoder</p>
-            </div>
-          </div>
         </div>
 
         <!-- OUTPUT LOCATION -->
         <div class="section-divider">
           <div class="mb-2">
-            <label for="output-dir-text">Output Directory</label>
-            <div class="output-dir-flex">
-              <input
-                type="text"
-                id="output-dir-text"
-                placeholder="/path/to/calculated/output/location"
-                readonly
-              />
-              <button id="output-dir-browse" class="button-secondary">
-                Browse...
+            <label for="output-dir-text">Output Directory & Preview</label>
+            <!-- Integrated Preview Box -->
+            <div class="output-preview-box mb-1">
+              <div
+                id="output-preview-text"
+                class="output-path-text"
+                title="Full output path preview"
+              >
+                Select output directory...
+              </div>
+              <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft text-xs px-3 py-1 ml-2">
+                Browse
               </button>
             </div>
-            <label class="checkbox-label mt-1">
-              <input type="checkbox" id="output-subdir-pattern" checked />
-              Use Default Subdirectory Pattern ([Author]/[Series]/[Year-Title]/)
-            </label>
+
+            <!-- Hidden input for legacy compatibility / fallback -->
+            <input type="text" id="output-dir-text" class="hidden" readonly />
+            
+            <button
+              type="button"
+              id="path-options-toggle"
+              class="path-options-toggle text-xs flex items-center gap-1 mt-1"
+            >
+              <span class="toggle-arrow">▼</span> Path Options
+            </button>
+
+            <!-- Collapsible Options -->
+            <div id="path-options-panel" class="path-options-panel">
+              <label class="checkbox-label mt-0">
+                <input type="checkbox" id="output-subdir-pattern" checked />
+                Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
+              </label>
+            </div>
           </div>
 
           <div>
-            <label class="block text-xs mb-1">Output Filename Pattern</label>
-            <div class="radio-group">
-              <label
-                ><input
+              <!-- Moved into collapsible panel -->
+              <label class="block text-xs mb-1 font-medium mt-2"
+                >Filename Pattern</label
+              >
+            <div class="radio-group text-xs">
+              <label class="radio-inline">
+                <input
                   type="radio"
                   name="filename_pattern"
                   value="title_year"
                   checked
                 />
-                Book Title (Year).m4b</label
-              >
-              <label
-                ><input
+                Title (Year).m4b
+              </label>
+              <label class="radio-inline">
+                <input
                   type="radio"
                   name="filename_pattern"
                   value="author_title"
                 />
-                Author - Book Title.m4b</label
-              >
+                Author - Title.m4b
+              </label>
             </div>
           </div>
+          </div> <!-- Close path options panel -->
         </div>
 
         <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
         <div class="section-divider">
-          <div class="section-header">
+          <div class="section-header justify-between">
             <h3>Preview Audio and Metadata Tags</h3>
+            <div class="split-button">
+              <button id="preview-button" class="btn-pill btn-pill-secondary split-main" style="padding-right: 0.5rem;">
+                Preview Audio
+              </button>
+              <button id="preview-dropdown-toggle" class="btn-pill btn-pill-secondary split-caret" style="padding-left: 0.25rem;">
+                ▼
+              </button>
+            </div>
+            <div id="preview-dropdown" class="split-dropdown">
+              <button class="split-option" data-duration="15">15 seconds</button>
+              <button class="split-option" data-duration="30">30 seconds</button>
+              <button class="split-option" data-duration="45">45 seconds</button>
+              <button class="split-option" data-duration="60">60 seconds</button>
+            </div>
           </div>
 
           <!-- Two-column tag grid (5 rows each) -->
@@ -428,32 +519,7 @@
             </div>
           </div>
 
-          <div class="flex justify-end items-center" style="position: relative">
-            <div class="split-button">
-              <button id="preview-button" class="button-secondary split-main">
-                Preview Audio</button
-              ><button
-                id="preview-dropdown-toggle"
-                class="button-secondary split-caret"
-              >
-                ▼
-              </button>
-            </div>
-            <div id="preview-dropdown" class="split-dropdown">
-              <button class="split-option" data-duration="15">
-                15 seconds
-              </button>
-              <button class="split-option" data-duration="30">
-                30 seconds
-              </button>
-              <button class="split-option" data-duration="45">
-                45 seconds
-              </button>
-              <button class="split-option" data-duration="60">
-                60 seconds
-              </button>
-            </div>
-          </div>
+          <!-- Preview button moved to header -->
         </div>
       </div>
     </div>
@@ -489,27 +555,16 @@
             Current Step: Waiting for files...
           </div>
           <div id="job-list" class="text-xs muted-text mt-1"></div>
-          <div class="text-xs muted-text mt-1 flex items-center gap-2">
-            <label for="max-concurrent-select">Max concurrent conversions</label>
-            <select id="max-concurrent-select" class="w-28">
-              <option value="auto" selected>Auto</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-              <option value="8">8</option>
-            </select>
+          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
+             <!-- Moved Max Concurrent to Header -->
           </div>
         </div>
         <div class="flex gap-2">
-          <button id="process-button" class="button-primary">
+          <button id="process-button" class="btn-pill btn-pill-primary">
             Process Audiobook
           </button>
-          <button id="cancel-all-button" class="button-secondary">
-            Cancel All
+          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
+            Cancel
           </button>
         </div>
       </div>

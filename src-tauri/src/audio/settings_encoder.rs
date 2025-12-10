@@ -85,6 +85,12 @@ pub struct EncoderSettings {
     /// Applies to FDK encoder only
     pub afterburner: bool,
     pub threads: ThreadSetting,
+    #[serde(default = "default_twoloop")]
+    pub twoloop: bool,
+}
+
+fn default_twoloop() -> bool {
+    true
 }
 
 /// Whitelist of supported encoder bitrates for speech-oriented output
@@ -273,6 +279,7 @@ mod tests {
             channels: ChannelConfig::Auto,
             afterburner: true,
             threads: ThreadSetting::Auto,
+            twoloop: true,
         }
     }
 

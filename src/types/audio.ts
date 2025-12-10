@@ -86,6 +86,19 @@ export interface EncoderSettings {
   channels: EncoderChannelConfig;
   afterburner: boolean;
   threads: ThreadSetting;
+  twoloop: boolean;
+}
+
+// Job Type for batch processing (Issue #81)
+export type JobType = "merge" | "batch";
+
+// Complete processing payload
+export interface ProcessV2Payload {
+  inputFiles: string[];
+  outputDir: string;
+  settings: EncoderSettings;
+  sampleRate?: SampleRateConfig;
+  jobType?: JobType; // Optional pending backend support
 }
 
 // Platform-aware default encoder settings
@@ -102,6 +115,7 @@ export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
     channels: "auto",
     afterburner: false,
     threads: { mode: "auto" },
+    twoloop: true, // Default to true (Native AAC benefits)
   };
 };
 

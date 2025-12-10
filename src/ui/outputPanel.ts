@@ -10,13 +10,22 @@ import type { AudiobookMetadata } from "../types/metadata";
 import { currentFileList } from "./fileList";
 import { formatFileSize, defaultEncoderSettings } from "../types/audio";
 import { getCurrentCoverArt } from "./coverArt";
+import { getJobType } from "./jobControls";
+import {
+  toBoundaryEncoderSettings,
+  EncoderSettingsLike,
+} from "../types/encoder";
+
+type WindowWithEncoderProvider = Window & {
+  EncoderSettingsProvider?: () => EncoderSettingsLike;
+};
 
 interface OutputPanelState {
   encoderSettings: EncoderSettings;
   sampleRate: SampleRateConfig;
   outputDirectory: string;
   useSubdirPattern: boolean;
-  filenamePattern: 'title_year' | 'author_title';
+  filenamePattern: "title_year" | "author_title";
 }
 
 let currentState: OutputPanelState = {
@@ -44,26 +53,48 @@ function setupEventHandlers(): void {
   setupSettingsHandlers();
   setupDirectoryHandlers();
   setupPatternHandlers();
+  setupCollapsiblePanel();
+
+  document.addEventListener("abb:job-type-changed", () => {
+    updateOutputPath();
+  });
+}
+
+function setupCollapsiblePanel(): void {
+  const toggle = document.getElementById("path-options-toggle");
+  const panel = document.getElementById("path-options-panel");
+  if (toggle && panel) {
+    toggle.addEventListener("click", () => {
+      toggle.classList.toggle("expanded");
+      panel.classList.toggle("expanded");
+    });
+  }
 }
 
 /**
  * Sets up audio settings event handlers
  */
 function setupSettingsHandlers(): void {
-  const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;
-  const sampleRateSelect = document.getElementById('output-samplerate') as HTMLSelectElement;
-  const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
+  const bitrateSelect = document.getElementById(
+    "output-bitrate"
+  ) as HTMLSelectElement;
+  const sampleRateSelect = document.getElementById(
+    "output-samplerate"
+  ) as HTMLSelectElement;
+  const channelsSelect = document.getElementById(
+    "output-channels"
+  ) as HTMLSelectElement;
 
   if (bitrateSelect) {
-    bitrateSelect.addEventListener('change', handleBitrateChange);
+    bitrateSelect.addEventListener("change", handleBitrateChange);
   }
 
   if (sampleRateSelect) {
-    sampleRateSelect.addEventListener('change', handleSampleRateChange);
+    sampleRateSelect.addEventListener("change", handleSampleRateChange);
   }
 
   if (channelsSelect) {
-    channelsSelect.addEventListener('change', handleChannelsChange);
+    channelsSelect.addEventListener("change", handleChannelsChange);
   }
 }
 
@@ -71,15 +102,19 @@ function setupSettingsHandlers(): void {
  * Sets up directory selection event handlers
  */
 function setupDirectoryHandlers(): void {
-  const browseButton = document.getElementById('output-dir-browse') as HTMLButtonElement;
-  const subdirCheckbox = document.getElementById('output-subdir-pattern') as HTMLInputElement;
+  const browseButton = document.getElementById(
+    "output-dir-browse"
+  ) as HTMLButtonElement;
+  const subdirCheckbox = document.getElementById(
+    "output-subdir-pattern"
+  ) as HTMLInputElement;
 
   if (browseButton) {
-    browseButton.addEventListener('click', handleDirectoryBrowse);
+    browseButton.addEventListener("click", handleDirectoryBrowse);
   }
 
   if (subdirCheckbox) {
-    subdirCheckbox.addEventListener('change', handleSubdirPatternChange);
+    subdirCheckbox.addEventListener("change", handleSubdirPatternChange);
   }
 }
 
@@ -87,9 +122,11 @@ function setupDirectoryHandlers(): void {
  * Sets up filename pattern event handlers
  */
 function setupPatternHandlers(): void {
-  const patternRadios = document.querySelectorAll('input[name="filename_pattern"]');
-  patternRadios.forEach(radio => {
-    radio.addEventListener('change', handleFilenamePatternChange);
+  const patternRadios = document.querySelectorAll(
+    'input[name="filename_pattern"]'
+  );
+  patternRadios.forEach((radio) => {
+    radio.addEventListener("change", handleFilenamePatternChange);
   });
 }
 
@@ -106,12 +143,13 @@ function handleBitrateChange(event: Event): void {
 }
 
 /**
- * Handles sample rate selection change  
+ * Handles sample rate selection change
  */
 function handleSampleRateChange(event: Event): void {
   const target = event.target as HTMLSelectElement;
   const value = target.value;
-  currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value) };
+  currentState.sampleRate =
+    value === "auto" ? "auto" : { explicit: parseInt(value) };
   updateEstimatedSize();
 }
 
@@ -124,8 +162,8 @@ function handleChannelsChange(event: Event): void {
     target.value === "mono"
       ? "mono"
       : target.value === "stereo"
-      ? "stereo"
-      : "auto";
+        ? "stereo"
+        : "auto";
   currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   updateEstimatedSize();
 }
@@ -138,16 +176,16 @@ async function handleDirectoryBrowse(): Promise<void> {
     const selectedPath = await bridge.open({
       directory: true,
       multiple: false,
-      title: 'Select Output Directory'
+      title: "Select Output Directory",
     });
 
-    if (selectedPath && typeof selectedPath === 'string') {
+    if (selectedPath && typeof selectedPath === "string") {
       currentState.outputDirectory = selectedPath;
       updateOutputPath();
     }
   } catch (error) {
-    console.error('Error selecting directory:', error);
-    showOutputError('Failed to select directory');
+    console.error("Error selecting directory:", error);
+    showOutputError("Failed to select directory");
   }
 }
 
@@ -165,7 +203,7 @@ function handleSubdirPatternChange(event: Event): void {
  */
 function handleFilenamePatternChange(event: Event): void {
   const target = event.target as HTMLInputElement;
-  currentState.filenamePattern = target.value as 'title_year' | 'author_title';
+  currentState.filenamePattern = target.value as "title_year" | "author_title";
   updateOutputPath();
 }
 
@@ -173,55 +211,84 @@ function handleFilenamePatternChange(event: Event): void {
  * Loads initial state from HTML elements
  */
 function loadInitialState(): void {
-  const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;
-  const sampleRateSelect = document.getElementById('output-samplerate') as HTMLSelectElement;
-  const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
+  const bitrateSelect = document.getElementById(
+    "output-bitrate"
+  ) as HTMLSelectElement;
+  const sampleRateSelect = document.getElementById(
+    "output-samplerate"
+  ) as HTMLSelectElement;
+  const channelsSelect = document.getElementById(
+    "output-channels"
+  ) as HTMLSelectElement;
 
   if (bitrateSelect) {
     currentState.encoderSettings = {
       ...currentState.encoderSettings,
-      bitrateKbps: parseInt(bitrateSelect.value) as EncoderSettings["bitrateKbps"],
+      bitrateKbps: parseInt(
+        bitrateSelect.value
+      ) as EncoderSettings["bitrateKbps"],
     };
   }
 
   if (sampleRateSelect) {
     const value = sampleRateSelect.value;
-    currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value) };
+    currentState.sampleRate =
+      value === "auto" ? "auto" : { explicit: parseInt(value) };
   }
 
   if (channelsSelect) {
     const channels: EncoderChannelConfig =
-      channelsSelect.value === 'mono'
-        ? 'mono'
-        : channelsSelect.value === 'stereo'
-        ? 'stereo'
-        : 'auto';
+      channelsSelect.value === "mono"
+        ? "mono"
+        : channelsSelect.value === "stereo"
+          ? "stereo"
+          : "auto";
     currentState.encoderSettings = { ...currentState.encoderSettings, channels };
   }
 }
 
 /**
- * Updates the output path display
+ * Updates the output path PREVIEW display
  */
 function updateOutputPath(): void {
-  const outputPathInput = document.getElementById('output-dir-text') as HTMLInputElement;
-  if (!outputPathInput) return;
+  const previewText = document.getElementById("output-preview-text");
+  const outputPathInput = document.getElementById(
+    "output-dir-text"
+  ) as HTMLInputElement;
 
+  // Basic validation state
   if (!currentState.outputDirectory) {
-    outputPathInput.value = 'Please select output directory...';
+    if (previewText) previewText.textContent = "Select output directory...";
+    if (previewText) previewText.title = "No directory selected";
+    if (outputPathInput) outputPathInput.value = "";
     return;
   }
 
+  // Update hidden input for reference
+  if (outputPathInput) outputPathInput.value = currentState.outputDirectory;
+
+  // Calculate generic preview (using First File or Placeholder)
   const metadata = getCurrentMetadata();
   const calculatedPath = calculateOutputPath(metadata);
-  outputPathInput.value = calculatedPath;
+
+  if (previewText) {
+    previewText.textContent = calculatedPath;
+    previewText.title = calculatedPath; // Tooltip for full path
+  }
 }
 
 /**
- * Calculates the full output path based on current settings
+ * Calculates the full output path based on current settings for PREVIEW
  */
 function calculateOutputPath(metadata: AudiobookMetadata): string {
-  let basePath = currentState.outputDirectory;
+  let basePath = currentState.outputDirectory || "[Output Directory]";
+  const jobType = getJobType();
+
+  if (jobType === "batch") {
+    basePath += "/(Batch Output Folder)";
+    // In batch mode, we might just show a generic pattern hint
+    return `${basePath}/[Author]/[Series]/[Title]/Title (Year).m4b`;
+  }
 
   if (currentState.useSubdirPattern) {
     basePath = buildSubdirectoryPath(basePath, metadata);
@@ -232,13 +299,15 @@ function calculateOutputPath(metadata: AudiobookMetadata): string {
 }
 
 /**
- * Builds subdirectory path using metadata pattern
+ * Builds subdirectory pattern: [Author]/[Series]/[Title]
  */
-function buildSubdirectoryPath(basePath: string, metadata: AudiobookMetadata): string {
-  const author = sanitizeFilename(metadata.author || 'Unknown Author');
-  const series = sanitizeFilename(metadata.series || '');
-  const year = metadata.year || new Date().getFullYear();
-  const title = sanitizeFilename(metadata.title || 'Untitled');
+function buildSubdirectoryPath(
+  basePath: string,
+  metadata: AudiobookMetadata
+): string {
+  const author = sanitizeFilename(metadata.author || "Unknown Author");
+  const series = sanitizeFilename(metadata.series || "");
+  const title = sanitizeFilename(metadata.title || "Untitled");
 
   let subdirPath = `${basePath}/${author}`;
 
@@ -246,7 +315,8 @@ function buildSubdirectoryPath(basePath: string, metadata: AudiobookMetadata): s
     subdirPath += `/${series}`;
   }
 
-  subdirPath += `/${year}-${title}`;
+  subdirPath += `/${title}`;
+
   return subdirPath;
 }
 
@@ -255,8 +325,8 @@ function buildSubdirectoryPath(basePath: string, metadata: AudiobookMetadata): s
  */
 function sanitizeFilename(input: string): string {
   return input
-    .replace(/[,]/g, '_')
-    .replace(/[/\\:*?"<>|]/g, '_')
+    .replace(/[,]/g, "_")
+    .replace(/[/\\:*?"<>|]/g, "_")
     .trim();
 }
 
@@ -264,11 +334,11 @@ function sanitizeFilename(input: string): string {
  * Builds output filename based on pattern selection
  */
 function buildFilename(metadata: AudiobookMetadata): string {
-  const title = sanitizeFilename(metadata.title || 'Untitled');
-  const author = sanitizeFilename(metadata.author || 'Unknown Author');
+  const title = sanitizeFilename(metadata.title || "Untitled");
+  const author = sanitizeFilename(metadata.author || "Unknown Author");
   const year = metadata.year || new Date().getFullYear();
 
-  if (currentState.filenamePattern === 'author_title') {
+  if (currentState.filenamePattern === "author_title") {
     return `${author} - ${title}.m4b`;
   }
 
@@ -279,25 +349,24 @@ function buildFilename(metadata: AudiobookMetadata): string {
  * Gets current metadata from the metadata panel
  */
 function getCurrentMetadata(): AudiobookMetadata {
-  // For now, read from DOM elements until metadata panel is implemented
   const getElementValue = (id: string): string => {
     const element = document.getElementById(id) as HTMLInputElement;
-    return element?.value || '';
+    return element?.value || "";
   };
 
   const coverArt = getCurrentCoverArt();
+  const title = getElementValue("meta-title");
 
-  const title = getElementValue('meta-title');
   return {
     title: title,
-    author: getElementValue('meta-author'),
-    album: title,  // Album derived from title (no separate input)
-    narrator: getElementValue('meta-narrator'),
-    year: parseInt(getElementValue('meta-year')) || undefined,
-    genre: getElementValue('meta-genre'),
-    description: getElementValue('meta-description'),
-    series: getElementValue('meta-series'),
-    cover_art: coverArt ?? undefined  // Convert null to undefined
+    author: getElementValue("meta-author"),
+    album: title,
+    narrator: getElementValue("meta-narrator"),
+    year: parseInt(getElementValue("meta-year")) || undefined,
+    genre: getElementValue("meta-genre"),
+    description: getElementValue("meta-description"),
+    series: getElementValue("meta-series"),
+    cover_art: coverArt ?? undefined,
   };
 }
 
@@ -305,12 +374,12 @@ function getCurrentMetadata(): AudiobookMetadata {
  * Updates the estimated output size display
  */
 function updateEstimatedSize(): void {
-  const sizeElement = document.getElementById('estimated-size');
+  const sizeElement = document.getElementById("estimated-size");
   if (!sizeElement) return;
 
   const fileList = currentFileList;
   if (!fileList || !fileList.files.length) {
-    sizeElement.textContent = '~ --- MB';
+    sizeElement.textContent = "~ --- MB";
     return;
   }
 
@@ -332,7 +401,7 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
     8;
 
   // Adjust for stereo (roughly 1.5x mono at same bitrate)
-  if (currentState.encoderSettings.channels === 'stereo') {
+  if (currentState.encoderSettings.channels === "stereo") {
     sizeBytes *= 1.5;
   }
 
@@ -346,8 +415,7 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
  * Shows an error message in the output panel
  */
 function showOutputError(message: string): void {
-  console.error('Output Panel Error:', message);
-  // Could add visual error display here in the future
+  console.error("Output Panel Error:", message);
 }
 
 /**
@@ -355,16 +423,24 @@ function showOutputError(message: string): void {
  */
 export function getCurrentOutputConfig(): OutputConfig {
   if (!currentState.outputDirectory) {
-    throw new Error('Output directory not selected');
+    throw new Error("Output directory not selected");
   }
 
-  const metadata = getCurrentMetadata();
-  const outputPath = calculateOutputPath(metadata);
+  // Return base directory; backend handles structure generation
+  let encoderSettings = currentState.encoderSettings;
+  const provider = (window as WindowWithEncoderProvider)
+    .EncoderSettingsProvider;
+  if (provider) {
+    const raw = provider();
+    if (raw) {
+      encoderSettings = toBoundaryEncoderSettings(raw);
+    }
+  }
 
   return {
-    encoderSettings: currentState.encoderSettings,
+    encoderSettings,
     sampleRate: currentState.sampleRate,
-    outputPath: outputPath
+    outputPath: currentState.outputDirectory,
   };
 }
 

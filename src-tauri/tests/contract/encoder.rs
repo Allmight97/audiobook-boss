@@ -1,8 +1,8 @@
 //! Encoder contract tests (moved from module-local).
 
-use crate::audio::MediaProcessingPlan;
 use crate::audio::settings_encoder::{self, ChannelConfig as EncoderChannelConfig};
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
+use crate::audio::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
 use ffmpeg_next as ff;
 use std::ffi::CString;
@@ -21,6 +21,7 @@ fn fdk_settings() -> EncoderSettings {
         channels: EncoderChannelConfig::Stereo,
         afterburner: true,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     }
 }
 
@@ -64,6 +65,7 @@ fn create_encoder_respects_v2_settings() {
         channels: EncoderChannelConfig::Stereo,
         afterburner: false,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     };
     let availability = settings_encoder::detect_available_encoders();
     if !availability.aac_at_available && !availability.native_aac_available {
@@ -186,6 +188,7 @@ fn native_defaults_apply_when_only_native_present() {
         channels: EncoderChannelConfig::Mono,
         afterburner: false,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     };
 
     let encoder = match create_audio_encoder(&settings, EncoderType::NativeAac, 48_000, 1, false) {
