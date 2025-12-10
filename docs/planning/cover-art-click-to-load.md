@@ -20,17 +20,26 @@ Align all repository surfaces with the new UI design in `docs/specs/UI_mock/mock
 Key findings from audit:
 
 - Metadata handling does NOT need to change for batch mode (KISS)
-- Twoloop should be user-configurable (product owner decision)
+- Twoloop should be user-configurable (default ON, product owner confirmed)
 - Cover art needs click + drag-drop handlers (not just button)
 - UI selectors should be disabled during processing
 - Batch mode requires explicit job type contract + per-file outputs to avoid collisions
+- Output path contract: users choose a destination folder; app generates paths from metadata-based patterns with collision suffixing
+
+> [!IMPORTANT]
+> **Pre-Implementation Task**: Fix env var typo `ABB_DISABLE_TWOOLOOP` → `ABB_DISABLE_TWOLOOP` in `native.rs` and test files BEFORE adding UI toggle.
+
+**PR Strategy**:
+- **PR A**: Phases 2-4 (UI migration, frontend-only)
+- **PR B**: Phase 6 (backend JobType, twoloop) - separate PR
+- Both PRs resolve Issue #81
 
 ### Issue #81 Contract Updates (authoritative for implementation)
 
 **Backend**
 
 - Add `JobType` enum (`merge`, `batch`) and `job_type: Option<JobType>` to `ProcessV2Payload` (default `merge`).
-- Batch mode fan-out: one job per input file via `JobRegistry`; per-file output naming `<output_dir>/<stem>.m4b` with `-1`, `-2`, … suffix on collision.
+- Treat `output_dir` as destination folder (no manual filename entry). Generate per-job paths from metadata using the default pattern `[Author]/[Series]/[Title]/` + filename `Title (Year).m4b` (configurable in UI) and append `-1`, `-2`, … before `.m4b` on collision. Apply the same collision guard for merge and batch.
 - Metadata: reuse the same payload per job (no schema change).
 - EncoderSettings: add `twoloop: bool` (default `true`, camelCase); respect env override `ABB_DISABLE_TWOLOOP`.
 - Native AAC: set `aac_coder=twoloop` when `twoloop` is true and env override allows.
@@ -38,7 +47,7 @@ Key findings from audit:
 **Frontend**
 
 - Job Type selector (merge/batch) in input header; disable Job Type + Max Concurrent while processing.
-- Output preview: merge shows single path; batch shows directory + stem-based pattern (copy only).
+- Output preview: read-only path built from the chosen folder + metadata-based directory pattern (default `[Author]/[Series]/[Title]/`) and filename pattern (default `Title (Year).m4b`). Batch preview shows the pattern rather than enumerating every file.
 - Native AAC twoloop checkbox (default checked; hide for other encoders).
 - Cover art: click area opens picker; drag/drop with `dragenter/over/leave/drop`, stopPropagation to avoid bubbling to file import; toggle `.has-image` for overlay; clear overlay shown only when image exists.
 - Progress throttling: aggregate/progress UI updates at ~500ms cadence to prevent flooding with 4+ jobs.
@@ -85,7 +94,7 @@ See full audit: `docs/reports/issue-81-engineering-audit.md`
 | **Section Headers**    | Mixed h2/h3, inconsistent sizing                    | All h3, 0.875rem, 500 weight                                |
 | **Cover Art**          | Separate Load/Clear buttons                         | Clickable area + overlay clear                              |
 | **Encoder Options**    | Separate boxed section                              | Inline in Row 2 with Channels                               |
-| **Output Location**    | Dir input + subdirectory checkbox + filename radios | Live path preview + integrated Browse + collapsible options |
+| **Output Location**    | Dir input + subdirectory checkbox + filename radios | Live path preview (folder-based) + integrated Browse + collapsible options |
 | **Preview Button**     | Bottom of metadata tags section                     | In section header row, right-aligned                        |
 | **Button Styles**      | `button-primary/secondary`                          | `btn-pill` family                                           |
 | **Browse Button**      | Secondary gray                                      | Soft primary blue, integrated in path box                   |
@@ -128,10 +137,12 @@ See full audit: `docs/reports/issue-81-engineering-audit.md`
 
 #### Output Location
 
-- Replace directory input with live path preview box
+- Replace directory input with live path preview box (read-only text)
 - Move Browse button inside preview box
 - Add collapsible "Path options" panel
 - Change Browse to `btn-pill-primary-soft`
+- Default directory pattern `[Author]/[Series]/[Title]/` (was `[Author]/[Series]/[Year-Title]/`)
+- Default filename pattern `Title (Year).m4b`; keep radio to switch patterns; no manual typing
 
 #### Metadata Tags Preview
 
@@ -243,9 +254,10 @@ coverArtArea?.addEventListener("drop", async (e) => {
 
 ### [MODIFY] `src/ui/outputPanel.ts`
 
-- Compute and display live path preview
+- Compute and display live path preview (read-only) from selected folder + metadata-based patterns
 - Implement path options toggle
 - Update path preview on metadata/settings change
+- Update subdirectory builder default to `[Author]/[Series]/[Title]/`; keep filename default `Title (Year).m4b`; allow toggles but no freeform filename entry
 
 ### [NEW] `src/ui/jobControls.ts` (if needed)
 
@@ -370,9 +382,23 @@ pub struct ProcessV2Payload {
 - **Merge**: User drops chapter files → App merges into 1 audiobook
 - **Batch**: User drops complete audiobooks → App converts each in parallel
 - **Metadata**: Existing flow unchanged - each batch job uses user-provided metadata (KISS)
-- **Output paths**: Frontend generates per-file paths using original filename stem
+- **Output paths**: User selects destination folder; app builds per-job paths from metadata using `[Author]/[Series]/[Title]/` + `Title (Year).m4b` (or chosen pattern) and applies collision suffixing for merge and batch
+
+> [!NOTE]
+> **Output Path Contract Example**
+> Given metadata: Author="Dennis E. Taylor", Series="FLY BOT SERIES", Title="FLybot testing", Year="2025"
+> Base output dir: `/Users/jstar/Projects/ABB Tests/output/`
+> Result: `/Users/jstar/Projects/ABB Tests/output/Dennis E. Taylor/FLY BOT SERIES/FLybot testing/FLybot testing (2025).m4b`
+>
+> **Goal**: Enable direct writes to Plex/Audiobookshelf libraries without manual folder restructuring.
+> **Constraint**: No manual filename typing in the output field - read-only preview only.
 
 **[AUDIT] Tech Debt:** Fix env var typo `ABB_DISABLE_TWOOLOOP` → `ABB_DISABLE_TWOLOOP`
+
+**[AUDIT] TS Contract Files (must update before `ensure-contract.sh` passes):**
+- `src/types/audio.ts` - add `twoloop: boolean` to `EncoderSettings`
+- `src/types/audio.ts` - add `JobType` type (`'merge' | 'batch'`)
+- Update any payload construction in `src/ui/statusPanel/logic.ts`
 
 #### Frontend: `src/ui/jobControls.ts` & `src/ui/encoderPanel` (new)
 
