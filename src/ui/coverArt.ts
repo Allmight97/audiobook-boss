@@ -13,7 +13,6 @@ let coverArtRemovalRequested: boolean = false;
  */
 export function initCoverArt(): void {
     const coverArtArea = document.getElementById("cover-art-area");
-    // const clearButton = document.getElementById("cover-art-clear-btn");
 
     if (coverArtArea) {
         // Click Handler (Load or Clear via delegation)
@@ -175,11 +174,19 @@ export function displayCoverArt(coverArtBytes: number[] | null): void {
         const uint8Array = new Uint8Array(coverArtBytes);
         const base64String = btoa(String.fromCharCode(...uint8Array));
 
-        // Simple mime detection
+        // MIME type detection from magic bytes
         let mimeType = "image/jpeg";
-        if (coverArtBytes.length >= 8) {
-            if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) mimeType = "image/png";
-            else if (coverArtBytes.length >= 4 && coverArtBytes[0] === 0x52) mimeType = "image/webp";
+        if (coverArtBytes.length >= 12) {
+            if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
+                mimeType = "image/png";
+            } else if (
+                coverArtBytes[0] === 0x52 && coverArtBytes[1] === 0x49 && coverArtBytes[2] === 0x46 && coverArtBytes[3] === 0x46 && // RIFF
+                coverArtBytes[8] === 0x57 && coverArtBytes[9] === 0x45 && coverArtBytes[10] === 0x42 && coverArtBytes[11] === 0x50   // WEBP
+            ) {
+                mimeType = "image/webp";
+            }
+        } else if (coverArtBytes.length >= 2 && coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
+            mimeType = "image/png";
         }
 
         const dataUrl = `data:${mimeType};base64,${base64String}`;

@@ -1,573 +1,440 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Audiobook Boss</title>
-    <link rel="stylesheet" href="src/styles.css" />
-  </head>
 
-  <body class="p-0">
-    <script type="module" src="/src/main.ts"></script>
-    <h1 class="text-xl font-bold py-2 px-4 text-center border-b header-bar">
-      Audiobook Boss
-    </h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audiobook Boss</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
 
-    <div class="main-container">
-      <!-- Left: Input panel -->
-      <div class="panel input-panel">
-        <div class="flex flex-col gap-2 mb-2">
-          <div class="flex items-center justify-between">
-            <h3 class="section-title mb-0 whitespace-nowrap mr-2">
-              Input and File Order
-            </h3>
+<body class="p-0">
+  <script type="module" src="/src/main.ts"></script>
+  <h1 class="text-xl font-bold py-2 px-4 text-center border-b header-bar">
+    Audiobook Boss
+  </h1>
 
-            <!-- Job Controls -->
-            <div class="flex items-center gap-2">
-              <div class="flex items-center gap-1" title="Job Type">
-                <span class="text-xs muted-text whitespace-nowrap"
-                  >Job Type:</span
-                >
-                <select
-                  id="job-type-select"
-                  class="text-xs w-auto px-1 py-0.5"
-                  style="height: 24px"
-                >
-                  <option value="merge" selected>
-                    Merge files to single book
-                  </option>
-                  <option value="batch">Convert each file separately</option>
-                </select>
-              </div>
-
-              <div class="flex items-center gap-1" title="Concurrent Jobs">
-                <span class="text-xs muted-text whitespace-nowrap"
-                  >Number of Jobs:</span
-                >
-                <select
-                  id="max-concurrent-select"
-                  class="text-xs w-14 px-1 py-0.5"
-                  style="height: 24px"
-                >
-                  <option value="auto" selected>Auto</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-2">
-            <span
-              class="text-xs muted-text italic mr-auto self-center pl-1"
-              id="file-count-display"
-              >0 files</span
-            >
-            <button
-              id="sort-toggle-btn"
-              class="btn-pill btn-pill-secondary"
-            >
-              Sort: A-Z
-            </button>
-            <button
-              id="clear-files-btn"
-              class="btn-pill btn-pill-secondary"
-              style="display: none"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-        <div id="drop-zone" class="drag-drop-area mb-3">
-          <p class="text-sm muted-text">
-            Drag & Drop files here or Click to Select
-          </p>
-          <p class="text-xs muted-text mt-1">Supports: mp3, m4a, m4b, aac</p>
-        </div>
-        <div
-          id="file-import-error"
-          class="error-message mb-3"
-          style="display: none"
-        ></div>
-
-        <div class="file-list-placeholder mb-3">
-          File List Area (Drag to Reorder)
-        </div>
-
-        <div class="section-divider mt-auto">
-          <h3 class="text-sm font-medium mb-1 section-subtitle">
-            Selected File Properties
+  <div class="main-container">
+    <!-- Left: Input panel -->
+    <div class="panel input-panel">
+      <div class="flex flex-col gap-2 mb-2">
+        <div class="flex items-center justify-between">
+          <h3 class="section-title mb-0 whitespace-nowrap mr-2">
+            Input and File Order
           </h3>
-          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-            <span class="property-label">Bitrate:</span
-            ><span class="property-value" id="prop-bitrate">--- kb/s</span>
-            <span class="property-label">Sample Rate:</span
-            ><span class="property-value" id="prop-samplerate">--- Hz</span>
-            <span class="property-label">Channels:</span
-            ><span class="property-value" id="prop-channels">---</span>
-            <span class="property-label">File Size:</span
-            ><span class="property-value" id="prop-filesize">--- MB</span>
-            <span class="property-label">Combined Size:</span
-            ><span class="property-value" id="prop-combinedsize">--- MB</span>
-          </div>
-          <p class="text-xs muted-text italic mt-1">
-            (Properties shown for single selected file.)
-          </p>
-        </div>
 
-        <div class="section-divider opacity-50">
-          <h3 class="text-sm font-medium mb-1 section-subtitle">
-            Folder Monitoring (Future)
-          </h3>
-          <div class="text-xs muted-text mb-1">Monitored Folder: N/A</div>
-          <button class="button-secondary text-xs w-full" disabled>
-            Change Watched Folder
-          </button>
-        </div>
-      </div>
-
-      <!-- Right: Metadata + Output -->
-      <div class="panel metadata-output-panel">
-        <!-- METADATA SECTION -->
-        <div class="section-header">
-          <h3>Metadata Manager</h3>
-        </div>
-        <div class="grid grid-cols-4 gap-3 mb-3">
-          <!-- Cover art - 1:1 ratio maintained, centered -->
-          <div class="col-span-1 flex flex-col items-center">
-            <span class="text-xs font-medium mb-1">Cover Art</span>
-            <div
-              id="cover-art-area"
-              class="cover-art-area mb-1"
-              data-testid="cover-art-area"
-            >
-              <div class="placeholder-text">Click or Drag Image</div>
-              <img
-                src=""
-                alt="Book Cover Art"
-                id="cover-art-img"
-                class="hidden"
-              />
-              <button class="cover-art-clear-btn" id="cover-art-clear-btn">
-                ✕
-              </button>
+          <!-- Job Controls -->
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1" title="Job Type">
+              <span class="text-xs muted-text whitespace-nowrap">Job Type:</span>
+              <select id="job-type-select" class="text-xs w-auto px-1 py-0.5" style="height: 24px">
+                <option value="merge" selected>
+                  Merge files to single book
+                </option>
+                <option value="batch">Convert each file separately</option>
+              </select>
             </div>
-            <!-- Removed separate buttons -->
-          </div>
 
-          <!-- Metadata fields - compact -->
-          <div class="col-span-3">
-            <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
-              <div class="col-span-3">
-                <label for="meta-title">Book Title</label>
-                <input
-                  type="text"
-                  id="meta-title"
-                  placeholder="The Name of the Wind"
-                />
-              </div>
-              <div class="col-span-1">
-                <label for="meta-year">Year</label>
-                <input type="text" id="meta-year" placeholder="2007" />
-              </div>
-              <div class="col-span-2">
-                <label for="meta-author">Author</label>
-                <input
-                  type="text"
-                  id="meta-author"
-                  placeholder="Patrick Rothfuss"
-                />
-              </div>
-              <div class="col-span-2">
-                <label for="meta-narrator">Narrator</label>
-                <input
-                  type="text"
-                  id="meta-narrator"
-                  placeholder="Nick Podehl"
-                />
-              </div>
-              <div class="col-span-2">
-                <label for="meta-series">Series</label>
-                <input
-                  type="text"
-                  id="meta-series"
-                  placeholder="The Kingkiller Chronicle"
-                />
-              </div>
-              <div class="col-span-1">
-                <label for="meta-series-part">Book #</label>
-                <input type="text" id="meta-series-part" placeholder="1" />
-              </div>
-              <div class="col-span-1">
-                <label for="meta-genre">Genre</label>
-                <input type="text" id="meta-genre" placeholder="Fantasy" />
-              </div>
-              <div class="col-span-4">
-                <label for="meta-description">Description</label>
-                <textarea
-                  id="meta-description"
-                  rows="2"
-                  placeholder="Enter book description..."
-                ></textarea>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- AUDIO ENCODER SETTINGS SECTION -->
-        <div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
-          <div class="section-header">
-            <h3>Audio Encoder Settings</h3>
-            <span class="inline-info">
-              (<span id="estimated-size" data-testid="estimated-size">~ --- MB</span>)
-            </span>
-          </div>
-
-          <!-- Row 1: Encoder, Profile (display), Bitrate Mode, Quality/Bitrate -->
-          <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
-            <div>
-              <label for="adv-encoder">Encoder</label>
-              <select id="adv-encoder" data-testid="encoder-select">
+            <div class="flex items-center gap-1" title="Concurrent Jobs">
+              <span class="text-xs muted-text whitespace-nowrap">Number of Jobs:</span>
+              <select id="max-concurrent-select" class="text-xs w-14 px-1 py-0.5" style="height: 24px">
                 <option value="auto" selected>Auto</option>
-                <option value="fdk_he_aac">FDK AAC</option>
-                <option value="aac_at">Apple AAC</option>
-                <option value="native_aac">Native AAC</option>
-              </select>
-              <p id="encoder-availability-hint" class="text-xs muted-text mt-0.5" data-testid="encoder-availability-hint">
-                Checking…
-              </p>
-            </div>
-            <div>
-              <label>Profile</label>
-              <div id="encoder-profile-display" class="profile-display" data-testid="profile-display">
-                HE-AAC v1
-              </div>
-              <p class="text-xs muted-text mt-0.5 italic">Read-only</p>
-            </div>
-            <div>
-              <label for="adv-bitrate-mode">Bitrate Mode</label>
-              <select id="adv-bitrate-mode" data-testid="bitrate-mode-select">
-                <option value="vbr" selected>VBR</option>
-                <option value="cvbr">CVBR</option>
-                <option value="cbr">CBR</option>
-              </select>
-            </div>
-            <div>
-              <label for="output-quality" id="quality-bitrate-label">Quality</label>
-              <select id="output-quality" data-testid="quality-select">
-                <option value="1">1 (Smallest)</option>
+                <option value="1">1</option>
                 <option value="2">2</option>
-                <option value="3" selected>3 (Recommended)</option>
+                <option value="3">3</option>
                 <option value="4">4</option>
-                <option value="5">5 (Largest)</option>
               </select>
-              <!-- Bitrate dropdown (hidden by default, shown for CVBR/CBR) -->
-              <select id="output-bitrate" class="hidden" data-testid="bitrate-select">
-                <option value="48">48 kbps</option>
-                <option value="56">56 kbps</option>
-                <option value="64" selected>64 kbps</option>
-                <option value="72">72 kbps</option>
-                <option value="80">80 kbps</option>
-                <option value="88">88 kbps</option>
-                <option value="96">96 kbps</option>
-                <option value="104">104 kbps</option>
-                <option value="112">112 kbps</option>
-                <option value="120">120 kbps</option>
-                <option value="128">128 kbps</option>
-              </select>
-              <p id="estimated-bitrate" class="text-xs muted-text mt-0.5" data-testid="estimated-bitrate">
-                Est: ~60 kbps
-              </p>
             </div>
           </div>
-
-          <!-- Row 2: Sample Rate, Channels -->
-          <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
-            <div>
-              <label for="output-samplerate">Sample Rate</label>
-              <select id="output-samplerate" data-testid="samplerate-select">
-                <option value="auto" selected>Auto</option>
-                <option value="22050">22050 Hz</option>
-                <option value="32000">32000 Hz</option>
-                <option value="44100">44100 Hz</option>
-                <option value="48000">48000 Hz</option>
-              </select>
-            </div>
-            <div>
-              <label for="output-channels">Channels</label>
-              <select id="output-channels" data-testid="channels-select">
-                <option value="auto" selected>Auto</option>
-                <option value="mono">Mono</option>
-                <option value="stereo">Stereo</option>
-              </select>
-            </div>
-            <div class="col-span-2 flex items-end">
-              <!-- Replaced spacer with inline options -->
-            </div>
-          </div>
-
-          <!-- Encoder-Specific Options Section -->
-            <!-- Inline Encoder Options -->
-            <div class="flex gap-4 items-center h-full">
-              <!-- FDK Options -->
-              <div
-                id="fdk-options"
-                class="encoder-option-group"
-                data-testid="fdk-options"
-              >
-                <label
-                  class="checkbox-label mb-0"
-                  data-testid="afterburner-toggle"
-                  title="Enable Afterburner"
-                >
-                  <input
-                    type="checkbox"
-                    id="adv-fdk-afterburner"
-                    checked
-                    data-testid="afterburner-checkbox"
-                  />
-                  <span class="option-label">Afterburner</span>
-                </label>
-              </div>
-
-              <!-- Native AAC Options -->
-              <div
-                id="native-options"
-                class="encoder-option-group hidden"
-                data-testid="native-options"
-              >
-                <label
-                  class="checkbox-label mb-0"
-                  data-testid="twoloop-toggle"
-                  title="Enable Twoloop (High Quality)"
-                >
-                  <input
-                    type="checkbox"
-                    id="adv-native-twoloop"
-                    checked
-                    data-testid="twoloop-checkbox"
-                  />
-                  <span class="option-label">Twoloop</span>
-                </label>
-              </div>
-            </div>
         </div>
 
-        <!-- OUTPUT LOCATION -->
-        <div class="section-divider">
-          <div class="mb-2">
-            <label for="output-dir-text">Output Directory & Preview</label>
-            <!-- Integrated Preview Box -->
-            <div class="output-preview-box mb-1">
-              <div
-                id="output-preview-text"
-                class="output-path-text"
-                title="Full output path preview"
-              >
-                Select output directory...
-              </div>
-              <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft text-xs px-3 py-1 ml-2">
-                Browse
-              </button>
-            </div>
+        <div class="flex items-center justify-end gap-2">
+          <span class="text-xs muted-text italic mr-auto self-center pl-1" id="file-count-display">0 files</span>
+          <button id="sort-toggle-btn" class="btn-pill btn-pill-secondary">
+            Sort: A-Z
+          </button>
+          <button id="clear-files-btn" class="btn-pill btn-pill-secondary" style="display: none">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div id="drop-zone" class="drag-drop-area mb-3">
+        <p class="text-sm muted-text">
+          Drag & Drop files here or Click to Select
+        </p>
+        <p class="text-xs muted-text mt-1">Supports: mp3, m4a, m4b, aac</p>
+      </div>
+      <div id="file-import-error" class="error-message mb-3" style="display: none"></div>
 
-            <!-- Hidden input for legacy compatibility / fallback -->
-            <input type="text" id="output-dir-text" class="hidden" readonly />
-            
-            <button
-              type="button"
-              id="path-options-toggle"
-              class="path-options-toggle text-xs flex items-center gap-1 mt-1"
-            >
-              <span class="toggle-arrow">▼</span> Path Options
+      <div class="file-list-placeholder mb-3">
+        File List Area (Drag to Reorder)
+      </div>
+
+      <div class="section-divider mt-auto">
+        <h3 class="text-sm font-medium mb-1 section-subtitle">
+          Selected File Properties
+        </h3>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+          <span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">--- kb/s</span>
+          <span class="property-label">Sample Rate:</span><span class="property-value" id="prop-samplerate">---
+            Hz</span>
+          <span class="property-label">Channels:</span><span class="property-value" id="prop-channels">---</span>
+          <span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">--- MB</span>
+          <span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize">---
+            MB</span>
+        </div>
+        <p class="text-xs muted-text italic mt-1">
+          (Properties shown for single selected file.)
+        </p>
+      </div>
+
+      <div class="section-divider opacity-50">
+        <h3 class="text-sm font-medium mb-1 section-subtitle">
+          Folder Monitoring (Future)
+        </h3>
+        <div class="text-xs muted-text mb-1">Monitored Folder: N/A</div>
+        <button class="button-secondary text-xs w-full" disabled>
+          Change Watched Folder
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Metadata + Output -->
+    <div class="panel metadata-output-panel">
+      <!-- METADATA SECTION -->
+      <div class="section-header">
+        <h3>Metadata Manager</h3>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-3">
+        <!-- Cover art - 1:1 ratio maintained, centered -->
+        <div class="col-span-1 flex flex-col items-center">
+          <span class="text-xs font-medium mb-1">Cover Art</span>
+          <div id="cover-art-area" class="cover-art-area mb-1" data-testid="cover-art-area">
+            <div class="placeholder-text">Click or Drag Image</div>
+            <img src="" alt="Book Cover Art" id="cover-art-img" class="hidden" />
+            <button class="cover-art-clear-btn" id="cover-art-clear-btn">
+              ✕
             </button>
+          </div>
+          <!-- Removed separate buttons -->
+        </div>
 
-            <!-- Collapsible Options -->
-            <div id="path-options-panel" class="path-options-panel">
-              <label class="checkbox-label mt-0">
-                <input type="checkbox" id="output-subdir-pattern" checked />
-                Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
-              </label>
+        <!-- Metadata fields - compact -->
+        <div class="col-span-3">
+          <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
+            <div class="col-span-3">
+              <label for="meta-title">Book Title</label>
+              <input type="text" id="meta-title" placeholder="The Name of the Wind" />
+            </div>
+            <div class="col-span-1">
+              <label for="meta-year">Year</label>
+              <input type="text" id="meta-year" placeholder="2007" />
+            </div>
+            <div class="col-span-2">
+              <label for="meta-author">Author</label>
+              <input type="text" id="meta-author" placeholder="Patrick Rothfuss" />
+            </div>
+            <div class="col-span-2">
+              <label for="meta-narrator">Narrator</label>
+              <input type="text" id="meta-narrator" placeholder="Nick Podehl" />
+            </div>
+            <div class="col-span-2">
+              <label for="meta-series">Series</label>
+              <input type="text" id="meta-series" placeholder="The Kingkiller Chronicle" />
+            </div>
+            <div class="col-span-1">
+              <label for="meta-series-part">Book #</label>
+              <input type="text" id="meta-series-part" placeholder="1" />
+            </div>
+            <div class="col-span-1">
+              <label for="meta-genre">Genre</label>
+              <input type="text" id="meta-genre" placeholder="Fantasy" />
+            </div>
+            <div class="col-span-4">
+              <label for="meta-description">Description</label>
+              <textarea id="meta-description" rows="2" placeholder="Enter book description..."></textarea>
             </div>
           </div>
+        </div>
+      </div>
 
+      <!-- AUDIO ENCODER SETTINGS SECTION -->
+      <div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
+        <div class="section-header">
+          <h3>Audio Encoder Settings</h3>
+          <span class="inline-info">
+            (<span id="estimated-size" data-testid="estimated-size">~ --- MB</span>)
+          </span>
+        </div>
+
+        <!-- Row 1: Encoder, Profile (display), Bitrate Mode, Quality/Bitrate -->
+        <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
           <div>
-              <!-- Moved into collapsible panel -->
-              <label class="block text-xs mb-1 font-medium mt-2"
-                >Filename Pattern</label
-              >
-            <div class="radio-group text-xs">
-              <label class="radio-inline">
-                <input
-                  type="radio"
-                  name="filename_pattern"
-                  value="title_year"
-                  checked
-                />
-                Title (Year).m4b
-              </label>
-              <label class="radio-inline">
-                <input
-                  type="radio"
-                  name="filename_pattern"
-                  value="author_title"
-                />
-                Author - Title.m4b
-              </label>
-            </div>
+            <label for="adv-encoder">Encoder</label>
+            <select id="adv-encoder" data-testid="encoder-select">
+              <option value="auto" selected>Auto</option>
+              <option value="fdk_he_aac">FDK AAC</option>
+              <option value="aac_at">Apple AAC</option>
+              <option value="native_aac">Native AAC</option>
+            </select>
+            <p id="encoder-availability-hint" class="text-xs muted-text mt-0.5" data-testid="encoder-availability-hint">
+              Checking…
+            </p>
           </div>
-          </div> <!-- Close path options panel -->
+          <div>
+            <label>Profile</label>
+            <div id="encoder-profile-display" class="profile-display" data-testid="profile-display">
+              HE-AAC v1
+            </div>
+            <p class="text-xs muted-text mt-0.5 italic">Read-only</p>
+          </div>
+          <div>
+            <label for="adv-bitrate-mode">Bitrate Mode</label>
+            <select id="adv-bitrate-mode" data-testid="bitrate-mode-select">
+              <option value="vbr" selected>VBR</option>
+              <option value="cvbr">CVBR</option>
+              <option value="cbr">CBR</option>
+            </select>
+          </div>
+          <div>
+            <label for="output-quality" id="quality-bitrate-label">Quality</label>
+            <select id="output-quality" data-testid="quality-select">
+              <option value="1">1 (Smallest)</option>
+              <option value="2">2</option>
+              <option value="3" selected>3 (Recommended)</option>
+              <option value="4">4</option>
+              <option value="5">5 (Largest)</option>
+            </select>
+            <!-- Bitrate dropdown (hidden by default, shown for CVBR/CBR) -->
+            <select id="output-bitrate" class="hidden" data-testid="bitrate-select">
+              <option value="48">48 kbps</option>
+              <option value="56">56 kbps</option>
+              <option value="64" selected>64 kbps</option>
+              <option value="72">72 kbps</option>
+              <option value="80">80 kbps</option>
+              <option value="88">88 kbps</option>
+              <option value="96">96 kbps</option>
+              <option value="104">104 kbps</option>
+              <option value="112">112 kbps</option>
+              <option value="120">120 kbps</option>
+              <option value="128">128 kbps</option>
+            </select>
+            <p id="estimated-bitrate" class="text-xs muted-text mt-0.5" data-testid="estimated-bitrate">
+              Est: ~60 kbps
+            </p>
+          </div>
         </div>
 
-        <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
-        <div class="section-divider">
-          <div class="section-header justify-between">
-            <h3>Preview Audio and Metadata Tags</h3>
-            <div class="split-button">
-              <button id="preview-button" class="btn-pill btn-pill-secondary split-main" style="padding-right: 0.5rem;">
-                Preview Audio
-              </button>
-              <button id="preview-dropdown-toggle" class="btn-pill btn-pill-secondary split-caret" style="padding-left: 0.25rem;">
-                ▼
-              </button>
-            </div>
-            <div id="preview-dropdown" class="split-dropdown">
-              <button class="split-option" data-duration="15">15 seconds</button>
-              <button class="split-option" data-duration="30">30 seconds</button>
-              <button class="split-option" data-duration="45">45 seconds</button>
-              <button class="split-option" data-duration="60">60 seconds</button>
-            </div>
+        <!-- Row 2: Sample Rate, Channels -->
+        <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
+          <div>
+            <label for="output-samplerate">Sample Rate</label>
+            <select id="output-samplerate" data-testid="samplerate-select">
+              <option value="auto" selected>Auto</option>
+              <option value="22050">22050 Hz</option>
+              <option value="32000">32000 Hz</option>
+              <option value="44100">44100 Hz</option>
+              <option value="48000">48000 Hz</option>
+            </select>
+          </div>
+          <div>
+            <label for="output-channels">Channels</label>
+            <select id="output-channels" data-testid="channels-select">
+              <option value="auto" selected>Auto</option>
+              <option value="mono">Mono</option>
+              <option value="stereo">Stereo</option>
+            </select>
+          </div>
+          <div class="col-span-2 flex items-end">
+            <!-- Replaced spacer with inline options -->
+          </div>
+        </div>
+
+        <!-- Encoder-Specific Options Section -->
+        <!-- Inline Encoder Options -->
+        <div class="flex gap-4 items-center h-full">
+          <!-- FDK Options -->
+          <div id="fdk-options" class="encoder-option-group" data-testid="fdk-options">
+            <label class="checkbox-label mb-0" data-testid="afterburner-toggle" title="Enable Afterburner">
+              <input type="checkbox" id="adv-fdk-afterburner" checked data-testid="afterburner-checkbox" />
+              <span class="option-label">Afterburner</span>
+            </label>
           </div>
 
-          <!-- Two-column tag grid (5 rows each) -->
-          <div class="tag-grid mb-2">
-            <!-- Left column: Basic metadata -->
-            <div class="tag-column">
-              <div
-                class="tag-row"
-                title="The audiobook's title. Displayed as track/episode name in most players."
-              >
-                <span class="tag-name">Title (Book Title)</span>
-                <span class="tag-value" data-field="title">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Groups all chapters under one album. Plex and Audiobookshelf use this for the book name."
-              >
-                <span class="tag-name">Album (Book Title)</span>
-                <span class="tag-value" data-field="album">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="The book's author. Shows as primary artist in most players."
-              >
-                <span class="tag-name">Artist (Author)</span>
-                <span class="tag-value" data-field="artist">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Used for library grouping. Keeps all books by an author together."
-              >
-                <span class="tag-name">Album Artist (Author)</span>
-                <span class="tag-value" data-field="albumArtist">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator."
-              >
-                <span class="tag-name">Composer (Narrator)</span>
-                <span class="tag-value" data-field="composer">—</span>
-              </div>
-            </div>
-
-            <!-- Right column: Series & technical tags -->
-            <div class="tag-column">
-              <div
-                class="tag-row"
-                title="Movement Name tag, repurposed for series. Plex and Audiobookshelf read this for series grouping."
-              >
-                <span class="tag-name">MVNM (Series)</span>
-                <span class="tag-value" data-field="series">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Movement Number tag. Tells players which book in the series (1, 2, 3...)."
-              >
-                <span class="tag-name">MVIN (Book #)</span>
-                <span class="tag-value" data-field="part">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Auto-generated sort key. Forces Plex to sort by series, then book number, then title."
-              >
-                <span class="tag-name">TSOA (Title Sort Order)</span>
-                <span class="tag-value" data-field="tsoa">—</span>
-              </div>
-              <div class="tag-row" title="Publication or release year.">
-                <span class="tag-name">TYER (Release Year)</span>
-                <span class="tag-value" data-field="year">—</span>
-              </div>
-              <div
-                class="tag-row"
-                title="Genre tag. Used for library filtering and display."
-              >
-                <span class="tag-name">TCON (Genre)</span>
-                <span class="tag-value" data-field="genre">—</span>
-              </div>
-            </div>
+          <!-- Native AAC Options -->
+          <div id="native-options" class="encoder-option-group hidden" data-testid="native-options">
+            <label class="checkbox-label mb-0" data-testid="twoloop-toggle" title="Enable Twoloop (High Quality)">
+              <input type="checkbox" id="adv-native-twoloop" checked data-testid="twoloop-checkbox" />
+              <span class="option-label">Twoloop</span>
+            </label>
           </div>
-
-          <!-- Preview button moved to header -->
         </div>
       </div>
+
+      <!-- OUTPUT LOCATION -->
+      <div class="section-divider">
+        <div class="mb-2">
+          <label for="output-dir-text">Output Directory & Preview</label>
+          <!-- Integrated Preview Box -->
+          <div class="output-preview-box mb-1">
+            <div id="output-preview-text" class="output-path-text" title="Full output path preview">
+              Select output directory...
+            </div>
+            <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft text-xs px-3 py-1 ml-2">
+              Browse
+            </button>
+          </div>
+
+          <!-- Hidden input for legacy compatibility / fallback -->
+          <input type="text" id="output-dir-text" class="hidden" readonly />
+
+          <button type="button" id="path-options-toggle"
+            class="path-options-toggle text-xs flex items-center gap-1 mt-1">
+            <span class="toggle-arrow">▼</span> Path Options
+          </button>
+
+          <!-- Collapsible Options -->
+          <div id="path-options-panel" class="path-options-panel">
+            <label class="checkbox-label mt-0">
+              <input type="checkbox" id="output-subdir-pattern" checked />
+              Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <!-- Moved into collapsible panel -->
+          <label class="block text-xs mb-1 font-medium mt-2">Filename Pattern</label>
+          <div class="radio-group text-xs">
+            <label class="radio-inline">
+              <input type="radio" name="filename_pattern" value="title_year" checked />
+              Title (Year).m4b
+            </label>
+            <label class="radio-inline">
+              <input type="radio" name="filename_pattern" value="author_title" />
+              Author - Title.m4b
+            </label>
+          </div>
+        </div>
+      </div> <!-- Close Output Location section -->
     </div>
 
-    <!-- Status panel -->
-    <div class="panel status-panel">
-      <div class="status-panel-content">
-        <div class="art-thumbnail">
-          <span>Art</span>
-        </div>
-        <div class="progress-details">
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs"
-              >Progress:
-              <span class="property-value" id="hours-processed"
-                >--.-- / --.-- hours</span
-              >
-              →
-              <span class="property-value" id="percentage-processed"
-                >--%</span
-              ></span
-            >
-            <span id="status-text" class="text-xs font-semibold">Idle</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div
-              id="progress-bar"
-              class="progress-bar-fg"
-              style="width: 0%"
-            ></div>
-          </div>
-          <div id="step-text" class="text-xs muted-text mt-0.5">
-            Current Step: Waiting for files...
-          </div>
-          <div id="job-list" class="text-xs muted-text mt-1"></div>
-          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
-             <!-- Moved Max Concurrent to Header -->
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button id="process-button" class="btn-pill btn-pill-primary">
-            Process Audiobook
+    <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
+    <div class="section-divider">
+      <div class="section-header justify-between">
+        <h3>Preview Audio and Metadata Tags</h3>
+        <div class="split-button">
+          <button id="preview-button" class="btn-pill btn-pill-secondary split-main" style="padding-right: 0.5rem;">
+            Preview Audio
           </button>
-          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
-            Cancel
+          <button id="preview-dropdown-toggle" class="btn-pill btn-pill-secondary split-caret"
+            style="padding-left: 0.25rem;">
+            ▼
           </button>
+        </div>
+        <div id="preview-dropdown" class="split-dropdown">
+          <button class="split-option" data-duration="15">15 seconds</button>
+          <button class="split-option" data-duration="30">30 seconds</button>
+          <button class="split-option" data-duration="45">45 seconds</button>
+          <button class="split-option" data-duration="60">60 seconds</button>
         </div>
       </div>
+
+      <!-- Two-column tag grid (5 rows each) -->
+      <div class="tag-grid mb-2">
+        <!-- Left column: Basic metadata -->
+        <div class="tag-column">
+          <div class="tag-row" title="The audiobook's title. Displayed as track/episode name in most players.">
+            <span class="tag-name">Title (Book Title)</span>
+            <span class="tag-value" data-field="title">—</span>
+          </div>
+          <div class="tag-row"
+            title="Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.">
+            <span class="tag-name">Album (Book Title)</span>
+            <span class="tag-value" data-field="album">—</span>
+          </div>
+          <div class="tag-row" title="The book's author. Shows as primary artist in most players.">
+            <span class="tag-name">Artist (Author)</span>
+            <span class="tag-value" data-field="artist">—</span>
+          </div>
+          <div class="tag-row" title="Used for library grouping. Keeps all books by an author together.">
+            <span class="tag-name">Album Artist (Author)</span>
+            <span class="tag-value" data-field="albumArtist">—</span>
+          </div>
+          <div class="tag-row"
+            title="Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.">
+            <span class="tag-name">Composer (Narrator)</span>
+            <span class="tag-value" data-field="composer">—</span>
+          </div>
+        </div>
+
+        <!-- Right column: Series & technical tags -->
+        <div class="tag-column">
+          <div class="tag-row"
+            title="Movement Name tag, repurposed for series. Plex and Audiobookshelf read this for series grouping.">
+            <span class="tag-name">MVNM (Series)</span>
+            <span class="tag-value" data-field="series">—</span>
+          </div>
+          <div class="tag-row" title="Movement Number tag. Tells players which book in the series (1, 2, 3...).">
+            <span class="tag-name">MVIN (Book #)</span>
+            <span class="tag-value" data-field="part">—</span>
+          </div>
+          <div class="tag-row"
+            title="Auto-generated sort key. Forces Plex to sort by series, then book number, then title.">
+            <span class="tag-name">TSOA (Title Sort Order)</span>
+            <span class="tag-value" data-field="tsoa">—</span>
+          </div>
+          <div class="tag-row" title="Publication or release year.">
+            <span class="tag-name">TYER (Release Year)</span>
+            <span class="tag-value" data-field="year">—</span>
+          </div>
+          <div class="tag-row" title="Genre tag. Used for library filtering and display.">
+            <span class="tag-name">TCON (Genre)</span>
+            <span class="tag-value" data-field="genre">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview button moved to header -->
     </div>
-  </body>
+  </div>
+  </div>
+
+  <!-- Status panel -->
+  <div class="panel status-panel">
+    <div class="status-panel-content">
+      <div class="art-thumbnail">
+        <span>Art</span>
+      </div>
+      <div class="progress-details">
+        <div class="flex justify-between mb-0.5">
+          <span class="text-xs">Progress:
+            <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
+            →
+            <span class="property-value" id="percentage-processed">--%</span></span>
+          <span id="status-text" class="text-xs font-semibold">Idle</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+        </div>
+        <div id="step-text" class="text-xs muted-text mt-0.5">
+          Current Step: Waiting for files...
+        </div>
+        <div id="job-list" class="text-xs muted-text mt-1"></div>
+        <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
+          <!-- Moved Max Concurrent to Header -->
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button id="process-button" class="btn-pill btn-pill-primary">
+          Process Audiobook
+        </button>
+        <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+
 </html>

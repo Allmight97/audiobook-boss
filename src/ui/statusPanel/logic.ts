@@ -60,7 +60,6 @@ type WindowWithEncoderProvider = Window & {
 // Derived from centralized VALID_ENCODER_BITRATES (audio.ts)
 // Typed as Set<number> to allow membership check with any numeric bitrate
 const SUPPORTED_ENCODER_BITRATES: Set<number> = new Set(VALID_ENCODER_BITRATES);
-// const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
 
 export class StatusPanel {
   private cancelUnlisten?: () => void;
@@ -686,8 +685,7 @@ export class StatusPanel {
       // TODO: Persist MVNM (series name) when backend supports it
       // For now, append to album if series is provided
       if (metadata.album) {
-        metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""
-          })`;
+        metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""})`;
       }
     }
     if (description) metadata.description = description;

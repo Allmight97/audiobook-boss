@@ -84,8 +84,8 @@ function writeMaxConcurrentPreference(value: string): void {
     }
     try {
         localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, value);
-    } catch (_e) {
-        // ignore
+    } catch {
+        // localStorage may be unavailable in private browsing; non-critical
     }
 }
 
