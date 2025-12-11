@@ -4,10 +4,13 @@ import type { JobType } from "../types/audio";
 const JOB_TYPE_SELECT_ID = "job-type-select";
 const MAX_CONCURRENT_SELECT_ID = "max-concurrent-select";
 const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
+const JOB_TYPE_INFO_ID = "job-type-info";
+const JOB_TYPE_HELPER_ID = "job-type-helper";
 
 export function initJobControls(): void {
     initializeMaxConcurrentControl();
     initializeJobTypeControl();
+    initializeJobTypeHelper();
 }
 
 function initializeJobTypeControl(): void {
@@ -18,6 +21,30 @@ function initializeJobTypeControl(): void {
     select.addEventListener("change", () => {
         document.dispatchEvent(new Event("abb:job-type-changed"));
     });
+}
+
+function initializeJobTypeHelper(): void {
+    const infoButton = document.getElementById(JOB_TYPE_INFO_ID) as HTMLButtonElement | null;
+    const helper = document.getElementById(JOB_TYPE_HELPER_ID) as HTMLDivElement | null;
+    if (!infoButton || !helper) return;
+
+    const closeHelper = () => {
+        helper.classList.remove("visible");
+        infoButton.setAttribute("aria-expanded", "false");
+    };
+
+    infoButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const nextVisible = !helper.classList.contains("visible");
+        if (nextVisible) {
+            helper.classList.add("visible");
+            infoButton.setAttribute("aria-expanded", "true");
+        } else {
+            closeHelper();
+        }
+    });
+
+    document.addEventListener("click", () => closeHelper());
 }
 
 function initializeMaxConcurrentControl(): void {

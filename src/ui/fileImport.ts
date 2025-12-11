@@ -21,6 +21,15 @@ function setupDragDropHandlers(): void {
     bridge.listen<EventPayload<'tauri://drag-drop'>>('tauri://drag-drop', async (event) => {
         dragDropArea?.classList.remove('drag-over');
         if (isFileDropEvent(event.payload)) {
+            // Ignore drops that target the cover art area to prevent importing images as audio
+            const coverArea = document.getElementById('cover-art-area');
+            if (coverArea) {
+                const rect = coverArea.getBoundingClientRect();
+                const { x, y } = event.payload.position;
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    return;
+                }
+            }
             await handleFileDrop(event.payload.paths);
         }
     });

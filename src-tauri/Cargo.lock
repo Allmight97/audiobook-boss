@@ -283,6 +283,7 @@ name = "audiobook-boss"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "env_logger",
  "ffmpeg-next",
  "futures",

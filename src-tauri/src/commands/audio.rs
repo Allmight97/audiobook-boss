@@ -5,6 +5,7 @@ use crate::audio::settings_encoder::{
     detect_available_encoders, validate_encoder_settings, EncoderAvailability, EncoderSettings,
 };
 use crate::errors::{AppError, Result};
+use chrono::{Datelike, Utc};
 use std::path::{Path, PathBuf};
 // removed duplicate PathBuf import
 
@@ -88,6 +89,13 @@ pub enum JobType {
     Batch,
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FilenamePattern {
+    TitleYear,
+    AuthorTitle,
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessV2Payload {
@@ -97,6 +105,10 @@ pub struct ProcessV2Payload {
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
     pub job_type: Option<JobType>,
+    /// Optional toggle for metadata-based subdirectory generation (default true)
+    pub use_subdir_pattern: Option<bool>,
+    /// Optional filename pattern (default title-year)
+    pub filename_pattern: Option<FilenamePattern>,
 }
 
 /// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).
@@ -128,29 +140,28 @@ pub async fn process_audiobook_files_v2(
         payload.settings.threads
     );
 
-    // Validate output path and create parent directories if needed
-    // Note: Frontend sends full file path in output_dir field (legacy naming)
-    let output_path = prepare_output_path(&payload.output_dir)?;
-
-    // Map sample rate from frontend payload (defaults to Auto if not provided)
     let sample_rate = payload.sample_rate.unwrap_or(audio::SampleRateConfig::Auto);
-
-    // Validate derived settings (sample_rate/output path) without legacy encoder assumptions
     audio::settings::validate_sample_rate_config(&sample_rate)?;
-    audio::settings::validate_output_path(&output_path)?;
 
-    // Register job with the registry (blocks if at capacity)
-    let (job_id, _permit) = registry.register_job().await?;
-    log::info!(
-        "Job {} started for output: {}",
-        job_id,
-        output_path.display()
-    );
+    let use_subdir_pattern = payload.use_subdir_pattern.unwrap_or(true);
+    let filename_pattern = payload
+        .filename_pattern
+        .unwrap_or(FilenamePattern::TitleYear);
+    let base_output_dir = PathBuf::from(&payload.output_dir);
 
-    // Get cancellation checker for this job
-    let cancellation_checker = registry.cancellation_checker(job_id).await;
+    if !base_output_dir.exists() {
+        std::fs::create_dir_all(&base_output_dir).map_err(|e| {
+            AppError::FileValidation(format!(
+                "Failed to create output directory '{}': {}",
+                base_output_dir.display(),
+                e
+            ))
+        })?;
+    }
 
-    // Also update legacy state for backward compatibility with any code that checks it
+    let job_type = payload.job_type.unwrap_or(JobType::Merge);
+
+    // Legacy processing flag: set true for the duration of this command
     {
         let mut is_processing = state
             .is_processing
@@ -164,9 +175,231 @@ pub async fn process_audiobook_files_v2(
         *is_cancelled = false;
     }
 
-    // Validate and get file information
-    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&paths)?;
+    let result = match job_type {
+        JobType::Merge => {
+            let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
+            let file_info = audio::get_file_list_info(&paths)?;
+            let output_path = build_output_path(
+                &base_output_dir,
+                metadata.as_ref(),
+                use_subdir_pattern,
+                filename_pattern,
+                None,
+            )?;
+            let resolved_output = resolve_collision(&output_path)?;
+
+            run_processing_job(
+                window,
+                registry.inner().clone(),
+                payload.settings.clone(),
+                sample_rate.clone(),
+                resolved_output,
+                file_info,
+                metadata,
+                preview_seconds,
+            )
+            .await
+        }
+        JobType::Batch => {
+            if payload.input_files.is_empty() {
+                return Err(AppError::InvalidInput(
+                    "No input files provided for batch processing".to_string(),
+                ));
+            }
+
+            let mut tasks = Vec::new();
+            for input in &payload.input_files {
+                let path = PathBuf::from(input);
+                let output_path = build_output_path(
+                    &base_output_dir,
+                    metadata.as_ref(),
+                    use_subdir_pattern,
+                    filename_pattern,
+                    Some(&path),
+                )?;
+                let resolved_output = resolve_collision(&output_path)?;
+
+                let window_cloned = window.clone();
+                let registry_cloned = registry.inner().clone();
+                let settings_cloned = payload.settings.clone();
+                let sr_cloned = sample_rate.clone();
+                let md_cloned = metadata.clone();
+                let preview_cloned = preview_seconds;
+
+                tasks.push(tokio::spawn(async move {
+                    let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
+                    run_processing_job(
+                        window_cloned,
+                        registry_cloned,
+                        settings_cloned,
+                        sr_cloned,
+                        resolved_output,
+                        file_info,
+                        md_cloned,
+                        preview_cloned,
+                    )
+                    .await
+                }));
+            }
+
+            let mut last_ok: Option<ProcessCommandResult> = None;
+            for task in tasks {
+                match task.await {
+                    Ok(Ok(res)) => last_ok = Some(res),
+                    Ok(Err(e)) => return Err(e),
+                    Err(join_err) => {
+                        return Err(AppError::General(format!(
+                            "Batch task join error: {join_err}"
+                        )))
+                    }
+                }
+            }
+
+            last_ok.ok_or_else(|| {
+                AppError::InvalidInput("Batch processing produced no results".to_string())
+            })
+        }
+    };
+
+    // Reset legacy processing state
+    {
+        let mut is_processing = state
+            .is_processing
+            .lock()
+            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
+        *is_processing = false;
+    }
+
+    result
+}
+
+/// Processes multiple audio files into a single M4B audiobook
+/// Merges files with specified settings and optional metadata
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessCommandResult {
+    pub message: String,
+    pub preview_file_path: Option<String>,
+    pub preview_actual_seconds: Option<f64>,
+    pub job_id: String,
+}
+
+fn sanitize_component(input: &str) -> String {
+    input
+        .replace([','], "_")
+        .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+        .trim()
+        .to_string()
+}
+
+fn default_year() -> i32 {
+    Utc::now().year()
+}
+
+pub(crate) fn build_output_path(
+    base_dir: &Path,
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    use_subdir_pattern: bool,
+    filename_pattern: FilenamePattern,
+    source_path: Option<&Path>,
+) -> Result<PathBuf> {
+    let title = sanitize_component(metadata.and_then(|m| m.title.as_deref()).unwrap_or_else(
+        || {
+            source_path
+                .and_then(|p| p.file_stem().and_then(|s| s.to_str()))
+                .unwrap_or("Untitled")
+        },
+    ));
+    let author = sanitize_component(
+        metadata
+            .and_then(|m| m.artist.as_deref())
+            .unwrap_or("Unknown Author"),
+    );
+    let series = metadata
+        .and_then(|m| m.series.as_deref())
+        .map(sanitize_component);
+    let year = metadata
+        .and_then(|m| m.date.map(|d| d as i32))
+        .unwrap_or_else(default_year);
+
+    let mut dir = base_dir.to_path_buf();
+    if use_subdir_pattern {
+        dir = dir.join(&author);
+        if let Some(series) = &series {
+            if !series.is_empty() {
+                dir = dir.join(series);
+            }
+        }
+        dir = dir.join(&title);
+    }
+
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            AppError::FileValidation(format!(
+                "Failed to create output directory '{}': {}",
+                dir.display(),
+                e
+            ))
+        })?;
+    }
+
+    let filename = match filename_pattern {
+        FilenamePattern::AuthorTitle => format!("{author} - {title}.m4b"),
+        FilenamePattern::TitleYear => format!("{title} ({year}).m4b"),
+    };
+
+    let full_path = dir.join(filename);
+    audio::settings::validate_output_path(&full_path)?;
+    Ok(full_path)
+}
+
+pub(crate) fn resolve_collision(path: &Path) -> Result<PathBuf> {
+    if !path.exists() {
+        return Ok(path.to_path_buf());
+    }
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("m4b");
+
+    for idx in 1..=99 {
+        let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
+        if !candidate.exists() {
+            audio::settings::validate_output_path(&candidate)?;
+            return Ok(candidate);
+        }
+    }
+    Err(AppError::FileValidation(
+        "Could not find collision-free output filename after 99 attempts".to_string(),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_processing_job(
+    window: tauri::Window,
+    registry: crate::ManagedJobRegistry,
+    encoder_settings: EncoderSettings,
+    sample_rate: audio::SampleRateConfig,
+    output_path: PathBuf,
+    file_info: FileListInfo,
+    metadata: Option<crate::metadata::AudiobookMetadata>,
+    preview_seconds: Option<f64>,
+) -> Result<ProcessCommandResult> {
+    // Register job with the registry (blocks if at capacity)
+    let (job_id, _permit) = registry.register_job().await?;
+    log::info!(
+        "Job {} started for output: {}",
+        job_id,
+        output_path.display()
+    );
+
+    // Get cancellation checker for this job
+    let cancellation_checker = registry.cancellation_checker(job_id).await;
+
+    // Validate derived settings (sample_rate/output path)
+    audio::settings::validate_output_path(&output_path)?;
 
     // Process the audiobook with progress events
     let result = {
@@ -178,7 +411,7 @@ pub async fn process_audiobook_files_v2(
         let mut context = audio::ProcessingContext::new(
             window,
             std::sync::Arc::new(session),
-            payload.settings.clone(),
+            encoder_settings.clone(),
             sample_rate,
             output_config,
         );
@@ -237,15 +470,6 @@ pub async fn process_audiobook_files_v2(
         }
     }
 
-    // Reset legacy processing state
-    {
-        let mut is_processing = state
-            .is_processing
-            .lock()
-            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
-        *is_processing = false;
-    }
-
     let (message, preview_path_opt, preview_seconds_used) = result?;
 
     Ok(ProcessCommandResult {
@@ -254,53 +478,6 @@ pub async fn process_audiobook_files_v2(
         preview_actual_seconds: preview_seconds_used,
         job_id: job_id.to_string(),
     })
-}
-
-/// Processes multiple audio files into a single M4B audiobook
-/// Merges files with specified settings and optional metadata
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessCommandResult {
-    pub message: String,
-    pub preview_file_path: Option<String>,
-    pub preview_actual_seconds: Option<f64>,
-    pub job_id: String,
-}
-
-/// Prepares the output path for the audiobook file.
-///
-/// Accepts a full file path (e.g., `/path/to/Author/2024-Title/Book.m4b`).
-/// Creates parent directories if they don't exist.
-///
-/// # Contract
-/// - Frontend sends the complete output file path (including filename)
-/// - Creates parent directories as needed
-/// - Extension validation is performed later by `validate_output_path`
-fn prepare_output_path(output_path: &str) -> Result<PathBuf> {
-    let path = Path::new(output_path);
-
-    // Validate the path has a filename
-    if path.file_name().is_none() {
-        return Err(AppError::InvalidInput(
-            "Output path must include a filename".to_string(),
-        ));
-    }
-
-    // Create parent directory if needed (extension validated later by validate_output_path)
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            log::info!("Creating output directory: {}", parent.display());
-            std::fs::create_dir_all(parent).map_err(|e| {
-                AppError::FileValidation(format!(
-                    "Failed to create output directory '{}': {}",
-                    parent.display(),
-                    e
-                ))
-            })?;
-        }
-    }
-
-    Ok(path.to_path_buf())
 }
 
 /// Cancels all active audio processing operations

@@ -25,7 +25,7 @@
 
           <!-- Job Controls -->
           <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1" title="Job Type">
+            <div class="flex items-center gap-1 relative" title="Job Type">
               <span class="text-xs muted-text whitespace-nowrap">Job Type:</span>
               <select id="job-type-select" class="text-xs w-auto px-1 py-0.5" style="height: 24px">
                 <option value="merge" selected>
@@ -33,6 +33,15 @@
                 </option>
                 <option value="batch">Convert each file separately</option>
               </select>
+              <button id="job-type-info" type="button" class="info-icon" aria-label="About job types"
+                aria-controls="job-type-helper" aria-expanded="false" data-testid="job-type-info">
+                i
+              </button>
+              <div id="job-type-helper" class="info-popover" role="status" aria-live="polite"
+                data-testid="job-type-helper">
+                Merge: combine chapter files into one title. Batch: process each file as its own title in parallel (up
+                to Max Concurrent).
+              </div>
             </div>
 
             <div class="flex items-center gap-1" title="Concurrent Jobs">
@@ -280,8 +289,8 @@
             <div id="output-preview-text" class="output-path-text" title="Full output path preview">
               Select output directory...
             </div>
-            <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft text-xs px-3 py-1 ml-2">
-              Browse
+            <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft">
+              Browse…
             </button>
           </div>
 
@@ -317,124 +326,120 @@
           </div>
         </div>
       </div> <!-- Close Output Location section -->
-    </div>
+      <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
+      <div class="section-divider">
+        <div class="section-header justify-between">
+          <h3>Preview Audio and Metadata Tags</h3>
+          <div class="split-button">
+            <button id="preview-button" class="btn-pill btn-pill-primary split-main">
+              Preview Audio
+            </button>
+            <button id="preview-dropdown-toggle" class="btn-pill btn-pill-primary split-caret">
+              ▼
+            </button>
+            <div id="preview-dropdown" class="split-dropdown">
+              <button class="split-option" data-duration="15">15 seconds</button>
+              <button class="split-option" data-duration="30">30 seconds</button>
+              <button class="split-option" data-duration="45">45 seconds</button>
+              <button class="split-option" data-duration="60">60 seconds</button>
+            </div>
+          </div>
+        </div>
 
-    <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
-    <div class="section-divider">
-      <div class="section-header justify-between">
-        <h3>Preview Audio and Metadata Tags</h3>
-        <div class="split-button">
-          <button id="preview-button" class="btn-pill btn-pill-secondary split-main" style="padding-right: 0.5rem;">
-            Preview Audio
+        <!-- Two-column tag grid (5 rows each) -->
+        <div class="tag-grid mb-2">
+          <!-- Left column: Basic metadata -->
+          <div class="tag-column">
+            <div class="tag-row" title="The audiobook's title. Displayed as track/episode name in most players.">
+              <span class="tag-name">Title (Book Title)</span>
+              <span class="tag-value" data-field="title">—</span>
+            </div>
+            <div class="tag-row"
+              title="Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.">
+              <span class="tag-name">Album (Book Title)</span>
+              <span class="tag-value" data-field="album">—</span>
+            </div>
+            <div class="tag-row" title="The book's author. Shows as primary artist in most players.">
+              <span class="tag-name">Artist (Author)</span>
+              <span class="tag-value" data-field="artist">—</span>
+            </div>
+            <div class="tag-row" title="Used for library grouping. Keeps all books by an author together.">
+              <span class="tag-name">Album Artist (Author)</span>
+              <span class="tag-value" data-field="albumArtist">—</span>
+            </div>
+            <div class="tag-row"
+              title="Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.">
+              <span class="tag-name">Composer (Narrator)</span>
+              <span class="tag-value" data-field="composer">—</span>
+            </div>
+          </div>
+
+          <!-- Right column: Series & technical tags -->
+          <div class="tag-column">
+            <div class="tag-row"
+              title="Movement Name tag, repurposed for series. Plex and Audiobookshelf read this for series grouping.">
+              <span class="tag-name">MVNM (Series)</span>
+              <span class="tag-value" data-field="series">—</span>
+            </div>
+            <div class="tag-row" title="Movement Number tag. Tells players which book in the series (1, 2, 3...).">
+              <span class="tag-name">MVIN (Book #)</span>
+              <span class="tag-value" data-field="part">—</span>
+            </div>
+            <div class="tag-row"
+              title="Auto-generated sort key. Forces Plex to sort by series, then book number, then title.">
+              <span class="tag-name">TSOA (Title Sort Order)</span>
+              <span class="tag-value" data-field="tsoa">—</span>
+            </div>
+            <div class="tag-row" title="Publication or release year.">
+              <span class="tag-name">TYER (Release Year)</span>
+              <span class="tag-value" data-field="year">—</span>
+            </div>
+            <div class="tag-row" title="Genre tag. Used for library filtering and display.">
+              <span class="tag-name">TCON (Genre)</span>
+              <span class="tag-value" data-field="genre">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview button moved to header -->
+      </div> <!-- End of metadata-output-panel -->
+    </div> <!-- End of main-container -->
+
+    <!-- Status panel -->
+    <div class="panel status-panel">
+      <div class="status-panel-content">
+        <div class="art-thumbnail">
+          <span>Art</span>
+        </div>
+        <div class="progress-details">
+          <div class="flex justify-between mb-0.5">
+            <span class="text-xs">Progress:
+              <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
+              →
+              <span class="property-value" id="percentage-processed">--%</span></span>
+            <span id="status-text" class="text-xs font-semibold">Idle</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+          </div>
+          <div id="step-text" class="text-xs muted-text mt-0.5">
+            Current Step: Waiting for files...
+          </div>
+          <div id="job-list" class="text-xs muted-text mt-1"></div>
+          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
+            <!-- Moved Max Concurrent to Header -->
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button id="process-button" class="btn-pill btn-pill-primary">
+            Process Audiobook
           </button>
-          <button id="preview-dropdown-toggle" class="btn-pill btn-pill-secondary split-caret"
-            style="padding-left: 0.25rem;">
-            ▼
+          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
+            Cancel
           </button>
         </div>
-        <div id="preview-dropdown" class="split-dropdown">
-          <button class="split-option" data-duration="15">15 seconds</button>
-          <button class="split-option" data-duration="30">30 seconds</button>
-          <button class="split-option" data-duration="45">45 seconds</button>
-          <button class="split-option" data-duration="60">60 seconds</button>
-        </div>
-      </div>
-
-      <!-- Two-column tag grid (5 rows each) -->
-      <div class="tag-grid mb-2">
-        <!-- Left column: Basic metadata -->
-        <div class="tag-column">
-          <div class="tag-row" title="The audiobook's title. Displayed as track/episode name in most players.">
-            <span class="tag-name">Title (Book Title)</span>
-            <span class="tag-value" data-field="title">—</span>
-          </div>
-          <div class="tag-row"
-            title="Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.">
-            <span class="tag-name">Album (Book Title)</span>
-            <span class="tag-value" data-field="album">—</span>
-          </div>
-          <div class="tag-row" title="The book's author. Shows as primary artist in most players.">
-            <span class="tag-name">Artist (Author)</span>
-            <span class="tag-value" data-field="artist">—</span>
-          </div>
-          <div class="tag-row" title="Used for library grouping. Keeps all books by an author together.">
-            <span class="tag-name">Album Artist (Author)</span>
-            <span class="tag-value" data-field="albumArtist">—</span>
-          </div>
-          <div class="tag-row"
-            title="Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.">
-            <span class="tag-name">Composer (Narrator)</span>
-            <span class="tag-value" data-field="composer">—</span>
-          </div>
-        </div>
-
-        <!-- Right column: Series & technical tags -->
-        <div class="tag-column">
-          <div class="tag-row"
-            title="Movement Name tag, repurposed for series. Plex and Audiobookshelf read this for series grouping.">
-            <span class="tag-name">MVNM (Series)</span>
-            <span class="tag-value" data-field="series">—</span>
-          </div>
-          <div class="tag-row" title="Movement Number tag. Tells players which book in the series (1, 2, 3...).">
-            <span class="tag-name">MVIN (Book #)</span>
-            <span class="tag-value" data-field="part">—</span>
-          </div>
-          <div class="tag-row"
-            title="Auto-generated sort key. Forces Plex to sort by series, then book number, then title.">
-            <span class="tag-name">TSOA (Title Sort Order)</span>
-            <span class="tag-value" data-field="tsoa">—</span>
-          </div>
-          <div class="tag-row" title="Publication or release year.">
-            <span class="tag-name">TYER (Release Year)</span>
-            <span class="tag-value" data-field="year">—</span>
-          </div>
-          <div class="tag-row" title="Genre tag. Used for library filtering and display.">
-            <span class="tag-name">TCON (Genre)</span>
-            <span class="tag-value" data-field="genre">—</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Preview button moved to header -->
-    </div>
-  </div>
-  </div>
-
-  <!-- Status panel -->
-  <div class="panel status-panel">
-    <div class="status-panel-content">
-      <div class="art-thumbnail">
-        <span>Art</span>
-      </div>
-      <div class="progress-details">
-        <div class="flex justify-between mb-0.5">
-          <span class="text-xs">Progress:
-            <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
-            →
-            <span class="property-value" id="percentage-processed">--%</span></span>
-          <span id="status-text" class="text-xs font-semibold">Idle</span>
-        </div>
-        <div class="progress-bar-bg">
-          <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
-        </div>
-        <div id="step-text" class="text-xs muted-text mt-0.5">
-          Current Step: Waiting for files...
-        </div>
-        <div id="job-list" class="text-xs muted-text mt-1"></div>
-        <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
-          <!-- Moved Max Concurrent to Header -->
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button id="process-button" class="btn-pill btn-pill-primary">
-          Process Audiobook
-        </button>
-        <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
-          Cancel
-        </button>
       </div>
     </div>
-  </div>
 </body>
 
 </html>

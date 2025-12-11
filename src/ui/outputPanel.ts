@@ -441,6 +441,8 @@ export function getCurrentOutputConfig(): OutputConfig {
     encoderSettings,
     sampleRate: currentState.sampleRate,
     outputPath: currentState.outputDirectory,
+    useSubdirPattern: currentState.useSubdirPattern,
+    filenamePattern: currentState.filenamePattern,
   };
 }
 

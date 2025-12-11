@@ -68,6 +68,7 @@ export class StatusPanel {
   private previewDuration: number = 30;
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
+  private lastProgressRender = 0;
 
   constructor() {
     this.currentStatus = {
@@ -276,6 +277,8 @@ export class StatusPanel {
         settings: boundaryEncoderSettings,
         sampleRate: outputConfig.sampleRate,
         jobType: getJobType(),
+        useSubdirPattern: outputConfig.useSubdirPattern,
+        filenamePattern: outputConfig.filenamePattern,
       };
 
       const result = await bridge.invoke<{
@@ -333,6 +336,16 @@ export class StatusPanel {
   public updateProgress(event: ProcessingProgressEvent): void {
     const jobId = event.job_id ?? "default";
     const now = Date.now();
+
+    // Throttle non-terminal updates to avoid UI flooding with many jobs
+    const isTerminal =
+      event.stage === STAGES.completed ||
+      event.stage === STAGES.failed ||
+      event.stage === STAGES.cancelled;
+    if (!isTerminal && now - this.lastProgressRender < 500) {
+      return;
+    }
+    this.lastProgressRender = now;
 
     // Track per-job progress
     this.jobProgress.set(jobId, {
