@@ -27,6 +27,7 @@ import {
   isCoverArtRemovalRequested,
 } from "./ui/coverArt";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
+import { initJobControls } from "./ui/jobControls";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -139,6 +140,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initTagPreview();
   // Initialize Cmd+S metadata save handler
   initMetadataSaveHandler();
+  // Initialize Job Controls (Job Type, Max Concurrent)
+  initJobControls();
   console.log("File import system initialized");
   console.log("Output panel initialized");
   console.log("Status panel initialized");

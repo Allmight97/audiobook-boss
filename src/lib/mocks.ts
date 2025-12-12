@@ -32,13 +32,14 @@ const MOCK_FILE_LIST: FileListInfo = {
 
 const MOCK_METADATA: AudiobookMetadata = {
   title: "Mock Audiobook Title",
-  author: "Mock Author",
+  artist: "Mock Author",
   album: "Mock Album",
-  narrator: "Mock Narrator",
-  year: 2023,
+  composer: "Mock Narrator",
+  date: 2023,
   genre: "Audiobook",
   description: "This is a mock description for testing purposes.",
   series: "Mock Series",
+  series_part: "1",
   cover_art: undefined,
 };
 

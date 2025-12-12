@@ -62,26 +62,26 @@ fn test_twoloop_environment_variable_handling() {
     // Test that environment variable parsing works correctly
 
     // Test disabled
-    std::env::set_var("ABB_DISABLE_TWOOLOOP", "1");
-    let disable = std::env::var("ABB_DISABLE_TWOOLOOP")
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
+    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     assert!(disable, "Should detect environment variable as disabled");
 
     // Test enabled (no env var)
-    std::env::remove_var("ABB_DISABLE_TWOOLOOP");
-    let disable = std::env::var("ABB_DISABLE_TWOOLOOP")
+    std::env::remove_var("ABB_DISABLE_TWOLOOP");
+    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     assert!(!disable, "Should default to enabled when env var not set");
 
     // Test alternative true values
-    std::env::set_var("ABB_DISABLE_TWOOLOOP", "true");
-    let disable = std::env::var("ABB_DISABLE_TWOOLOOP")
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "true");
+    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     assert!(disable, "Should detect 'true' as disabled");
 
     // Clean up
-    std::env::remove_var("ABB_DISABLE_TWOOLOOP");
+    std::env::remove_var("ABB_DISABLE_TWOLOOP");
 }

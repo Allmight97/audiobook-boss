@@ -39,7 +39,7 @@ export function initializeElements(): StatusPanelElements | null {
     const jobList = document.getElementById('job-list') as HTMLElement;
     const artThumbnail = document.querySelector('.art-thumbnail') as HTMLElement;
 
-    if (!progressBar || !percentageElement || !statusText || 
+    if (!progressBar || !percentageElement || !statusText ||
         !stepText || !processButton || !cancelAllButton || !jobList || !artThumbnail) {
         console.error('StatusPanel DOM: Required DOM elements not found');
         return null;
@@ -120,7 +120,7 @@ export function updateProcessButton(_isProcessing: boolean): void {
     // Keep a consistent "Process" label even when multiple jobs are running
     // to encourage additional submissions while a cancel-all control handles stops.
     elements.processButton.textContent = 'Process Audiobook';
-    elements.processButton.className = 'button-primary';
+    elements.processButton.className = 'btn-pill btn-pill-primary';
 }
 
 /**
@@ -130,7 +130,7 @@ export function updateProcessButton(_isProcessing: boolean): void {
 export function displayCoverArt(dataUrl: string): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
-    
+
     elements.artThumbnail.innerHTML = `<img src="${dataUrl}" alt="Cover Art" style="width: 100%; height: 100%; object-fit: cover; border-radius: 0.25rem;">`;
 }
 
@@ -140,7 +140,7 @@ export function displayCoverArt(dataUrl: string): void {
 export function resetArtThumbnail(): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
-    
+
     elements.artThumbnail.innerHTML = '<span>Art</span>';
 }
 
@@ -212,7 +212,7 @@ export function renderJobList(jobs: Array<{ id: string; label: string; stage: st
         cancelButton.style.padding = '0.1rem 0.4rem';
         cancelButton.disabled = job.stage === 'completed' || job.stage === 'failed' || job.stage === 'cancelled';
         if (job.onCancel && !cancelButton.disabled) {
-          cancelButton.addEventListener('click', () => job.onCancel?.(job.id));
+            cancelButton.addEventListener('click', () => job.onCancel?.(job.id));
         }
         row.appendChild(label);
         row.appendChild(cancelButton);

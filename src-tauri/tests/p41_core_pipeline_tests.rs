@@ -24,6 +24,7 @@ fn test_media_processing_plan_execute_method_exists() {
         channels: EncoderChannelConfig::Stereo,
         afterburner: false,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     };
 
     let plan = MediaProcessingPlan::new(
@@ -63,6 +64,7 @@ fn test_media_processing_plan_creation() {
                 channels: EncoderChannelConfig::Mono,
                 afterburner: false,
                 threads: ThreadSetting::Auto,
+                twoloop: true,
             },
             SampleRateConfig::Auto,
         ),
@@ -74,6 +76,7 @@ fn test_media_processing_plan_creation() {
                 channels: EncoderChannelConfig::Stereo,
                 afterburner: false,
                 threads: ThreadSetting::Auto,
+                twoloop: true,
             },
             SampleRateConfig::Explicit(44100),
         ),

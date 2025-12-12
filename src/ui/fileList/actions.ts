@@ -1,6 +1,6 @@
 import { AudioFile, FileListInfo, formatFileSize } from '../../types/audio';
 import { bridge } from '../../lib/bridge';
-import { onFileListChange } from '../outputPanel';
+import { onFileListChange, onMetadataChange } from '../outputPanel';
 import { setCoverArt, getHasCustomCoverArt, clearCoverArt } from '../coverArt';
 import type { AudiobookMetadata } from '../../types/metadata';
 import {
@@ -166,6 +166,9 @@ function populateMetadataForm(metadata: AudiobookMetadata): void {
     if (!getHasCustomCoverArt()) {
         setCoverArt(metadata.cover_art || null);
     }
+
+    // Update the output path preview now that metadata has changed
+    onMetadataChange();
 }
 
 async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {

@@ -41,6 +41,7 @@ export interface EncoderSettingsV2 {
   vbr?: VbrSetting;
   fdkAfterburner?: boolean;
   threads?: ThreadSetting;
+  twoloop?: boolean;
 }
 
 export const defaultEncoderSettingsV2 = (
@@ -52,6 +53,7 @@ export const defaultEncoderSettingsV2 = (
   channels: "auto",
   vbr: { enabled: true, level: 3 },
   fdkAfterburner: true,
+  twoloop: true,
 });
 
 // VALID_ENCODER_BITRATES imported from audio.ts (single source of truth)
@@ -211,6 +213,7 @@ const normalizeBoundary = (
     channels,
     afterburner,
     threads,
+    twoloop: candidate.twoloop ?? true,
   };
 };
 
@@ -244,5 +247,6 @@ export const toBoundaryEncoderSettings = (
     channels,
     afterburner,
     threads,
+    twoloop: ui.twoloop ?? true,
   };
 };

@@ -46,6 +46,7 @@ fn baseline_encoder_settings() -> EncoderSettings {
         channels: EncoderChannelConfig::Mono,
         afterburner: false,
         threads: ThreadSetting::Auto,
+        twoloop: true,
     }
 }
 

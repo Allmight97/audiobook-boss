@@ -20,16 +20,17 @@ import type { EncoderSettingsLike } from "../../types/encoder";
 import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
 import { getCurrentCoverArt } from "../coverArt";
+import { getJobType, setJobControlsEnabled } from "../jobControls";
 
 interface ProcessingStatus {
   stage:
-    | "idle"
-    | "analyzing"
-    | "converting"
-    | "writing"
-    | "completed"
-    | "cancelled"
-    | "failed";
+  | "idle"
+  | "analyzing"
+  | "converting"
+  | "writing"
+  | "completed"
+  | "cancelled"
+  | "failed";
   percentage: number;
   message: string;
   currentFile?: string;
@@ -59,7 +60,6 @@ type WindowWithEncoderProvider = Window & {
 // Derived from centralized VALID_ENCODER_BITRATES (audio.ts)
 // Typed as Set<number> to allow membership check with any numeric bitrate
 const SUPPORTED_ENCODER_BITRATES: Set<number> = new Set(VALID_ENCODER_BITRATES);
-const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
 
 export class StatusPanel {
   private cancelUnlisten?: () => void;
@@ -68,6 +68,7 @@ export class StatusPanel {
   private previewDuration: number = 30;
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
+  private lastProgressRender = 0;
 
   constructor() {
     this.currentStatus = {
@@ -78,7 +79,7 @@ export class StatusPanel {
 
     this.initializeElements();
     this.setupEventHandlers();
-    this.initializeMaxConcurrentControl();
+    // initialized in main.ts now: this.initializeMaxConcurrentControl();
 
     // Ensure event listeners are cleaned up if the window unloads
     window.addEventListener("beforeunload", () => {
@@ -175,66 +176,7 @@ export class StatusPanel {
     }
   }
 
-  /** Initialize "max concurrent" selector and push selection to backend */
-  private initializeMaxConcurrentControl(): void {
-    const select = document.getElementById(
-      "max-concurrent-select"
-    ) as HTMLSelectElement | null;
-    if (!select) return;
-
-    const saved = this.readMaxConcurrentPreference();
-    select.value = saved;
-
-    select.addEventListener("change", () => {
-      const value = select.value;
-      this.writeMaxConcurrentPreference(value);
-      void this.pushMaxConcurrentToBackend(value);
-    });
-
-    // Push initial selection
-    void this.pushMaxConcurrentToBackend(saved);
-  }
-
-  private readMaxConcurrentPreference(): string {
-    if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
-      return "auto";
-    }
-    try {
-      return localStorage.getItem(MAX_CONCURRENT_STORAGE_KEY) ?? "auto";
-    } catch (_e) {
-      return "auto";
-    }
-  }
-
-  private writeMaxConcurrentPreference(value: string): void {
-    if (typeof localStorage === "undefined" || typeof localStorage.setItem !== "function") {
-      return;
-    }
-    try {
-      localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, value);
-    } catch (_e) {
-      // ignore storage failures in non-browser environments
-    }
-  }
-
-  private async pushMaxConcurrentToBackend(value: string): Promise<void> {
-    try {
-      if (value === "auto") {
-        await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
-      } else {
-        const parsed = parseInt(value, 10);
-        if (!Number.isFinite(parsed)) {
-          return;
-        }
-        await bridge.invoke("set_max_concurrent_jobs", {
-          max_concurrent: parsed,
-        });
-      }
-    } catch (error) {
-      console.warn("Failed to update max concurrency:", error);
-      dom.showInfo("Max concurrency unchanged (see console)");
-    }
-  }
+  // MaxConcurrent control moved to src/ui/jobControls.ts
 
   public async startProcessing(options?: {
     previewSeconds?: number;
@@ -285,6 +227,9 @@ export class StatusPanel {
         message: "Starting processing...",
       });
 
+      // Disable job controls
+      setJobControlsEnabled(false);
+
       // Update art thumbnail with current file's cover art
       await this.updateArtThumbnail();
 
@@ -331,6 +276,9 @@ export class StatusPanel {
         outputDir: outputConfig.outputPath,
         settings: boundaryEncoderSettings,
         sampleRate: outputConfig.sampleRate,
+        jobType: getJobType(),
+        useSubdirPattern: outputConfig.useSubdirPattern,
+        filenamePattern: outputConfig.filenamePattern,
       };
 
       const result = await bridge.invoke<{
@@ -388,6 +336,16 @@ export class StatusPanel {
   public updateProgress(event: ProcessingProgressEvent): void {
     const jobId = event.job_id ?? "default";
     const now = Date.now();
+
+    // Throttle non-terminal updates to avoid UI flooding with many jobs
+    const isTerminal =
+      event.stage === STAGES.completed ||
+      event.stage === STAGES.failed ||
+      event.stage === STAGES.cancelled;
+    if (!isTerminal && now - this.lastProgressRender < 500) {
+      return;
+    }
+    this.lastProgressRender = now;
 
     // Track per-job progress
     this.jobProgress.set(jobId, {
@@ -620,6 +578,9 @@ export class StatusPanel {
       message: "Ready to process audiobook",
     });
 
+    // Re-enable controls
+    setJobControlsEnabled(true);
+
     // Reset art thumbnail to placeholder
     dom.resetArtThumbnail();
   }
@@ -737,9 +698,7 @@ export class StatusPanel {
       // TODO: Persist MVNM (series name) when backend supports it
       // For now, append to album if series is provided
       if (metadata.album) {
-        metadata.album = `${metadata.album} (${series}${
-          seriesPart ? " " + seriesPart : ""
-        })`;
+        metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""})`;
       }
     }
     if (description) metadata.description = description;

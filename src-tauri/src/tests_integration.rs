@@ -74,6 +74,7 @@ mod integration_tests {
             channels: EncoderChannelConfig::Mono,
             afterburner: false,
             threads: ThreadSetting::Auto,
+            twoloop: true,
         };
         let sample_rate = SampleRateConfig::Auto;
 
@@ -276,6 +277,7 @@ mod integration_tests {
             channels: EncoderChannelConfig::Mono,
             afterburner: false,
             threads: ThreadSetting::Auto,
+            twoloop: true,
         };
 
         // Invalid bitrate

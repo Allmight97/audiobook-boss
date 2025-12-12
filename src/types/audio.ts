@@ -26,7 +26,9 @@ export type SampleRateConfig = "auto" | { explicit: number };
 export interface OutputConfig {
   encoderSettings: EncoderSettings;
   sampleRate: SampleRateConfig;
-  outputPath: string;
+  outputPath: string; // legacy field name; now represents the selected output folder
+  useSubdirPattern: boolean;
+  filenamePattern: FilenamePattern;
 }
 
 export interface ProcessingProgress {
@@ -86,6 +88,22 @@ export interface EncoderSettings {
   channels: EncoderChannelConfig;
   afterburner: boolean;
   threads: ThreadSetting;
+  twoloop: boolean;
+}
+
+// Job Type for batch processing (Issue #81)
+export type JobType = "merge" | "batch";
+export type FilenamePattern = "title_year" | "author_title";
+
+// Complete processing payload
+export interface ProcessV2Payload {
+  inputFiles: string[];
+  outputDir: string;
+  settings: EncoderSettings;
+  sampleRate?: SampleRateConfig;
+  jobType?: JobType; // Optional pending backend support
+  useSubdirPattern?: boolean;
+  filenamePattern?: FilenamePattern;
 }
 
 // Platform-aware default encoder settings
@@ -102,6 +120,7 @@ export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
     channels: "auto",
     afterburner: false,
     threads: { mode: "auto" },
+    twoloop: true, // Default to true (Native AAC benefits)
   };
 };
 
