@@ -1,0 +1,175 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "openai": {
+      "options": {
+        "baseURL": "http://localhost:8317/v1"
+      },
+      "models": {
+        "gpt-5.1": {
+          "name": "GPT 5.1",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-none": {
+          "name": "GPT 5.1 (None)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-low": {
+          "name": "GPT 5.1 (Low)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-medium": {
+          "name": "GPT 5.1 (Medium)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-high": {
+          "name": "GPT 5.1 (High)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex": {
+          "name": "GPT 5.1 Codex",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-low": {
+          "name": "GPT 5.1 Codex (Low)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-medium": {
+          "name": "GPT 5.1 Codex (Medium)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-high": {
+          "name": "GPT 5.1 Codex (High)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-mini": {
+          "name": "GPT 5.1 Codex Mini",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-mini-medium": {
+          "name": "GPT 5.1 Codex Mini (Medium)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-mini-high": {
+          "name": "GPT 5.1 Codex Mini (High)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-max-low": {
+          "name": "GPT 5.1 Codex Max (Low)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-max-medium": {
+          "name": "GPT 5.1 Codex Max (Medium)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-max-high": {
+          "name": "GPT 5.1 Codex Max (High)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gpt-5.1-codex-max-xhigh": {
+          "name": "GPT 5.1 Codex Max (XHigh)",
+          "limit": {
+            "context": 200000,
+            "output": 100000
+          }
+        },
+        "gemini-3-pro-preview": {
+          "name": "Gemini 3 Pro",
+          "limit": {
+            "context": 1000000,
+            "output": 100000
+          }
+        },
+        "gemini-3-pro-image-preview": {
+          "name": "Gemini 3 Pro (Image)",
+          "limit": {
+            "context": 1000000,
+            "output": 100000
+          }
+        },
+        "gemini-2.5-pro": {
+          "name": "Gemini 2.5 Pro",
+          "limit": {
+            "context": 2000000,
+            "output": 100000
+          }
+        },
+        "gemini-2.5-flash": {
+          "name": "Gemini 2.5 Flash",
+          "limit": {
+            "context": 1000000,
+            "output": 100000
+          }
+        },
+        "gemini-2.5-flash-lite": {
+          "name": "Gemini 2.5 Flash Lite",
+          "limit": {
+            "context": 1000000,
+            "output": 100000
+          }
+        }
+      }
+    }
+  },
+  "model": "openai/gpt-5.1-codex-max-high",
+  "agent": {
+    "plan": {
+      "model": "anthropic/claude-opus-4-5-20251101"
+    },
+    "build": {
+      "model": "anthropic/claude-sonnet-4-5-20250929"
+    }
+  }
+}

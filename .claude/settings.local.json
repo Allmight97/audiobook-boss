@@ -68,7 +68,13 @@
       "Bash(mediainfo:*)",
       "Bash(gh label list:*)",
       "Bash(gh issue close:*)",
-      "Bash(gh issue comment:*)"
+      "Bash(gh issue comment:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:opencode.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:localhost)"
     ],
     "deny": []
   },
