@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initFileImport } from "../fileImport";
 
-const invokeMock = vi.fn();
-const listeners: Record<string, (payload: any) => void> = {};
+const { invokeMock, listeners } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  listeners: {} as Record<string, (payload: any) => void>,
+}));
 
 vi.mock("../../lib/bridge", () => ({
   bridge: {

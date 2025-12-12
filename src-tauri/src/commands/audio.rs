@@ -6,6 +6,7 @@ use crate::audio::settings_encoder::{
 };
 use crate::errors::{AppError, Result};
 use chrono::{Datelike, Utc};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 // removed duplicate PathBuf import
 
@@ -208,6 +209,7 @@ pub async fn process_audiobook_files_v2(
             }
 
             let mut tasks = Vec::new();
+            let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
             for input in &payload.input_files {
                 let path = PathBuf::from(input);
                 let output_path = build_output_path(
@@ -217,7 +219,8 @@ pub async fn process_audiobook_files_v2(
                     filename_pattern,
                     Some(&path),
                 )?;
-                let resolved_output = resolve_collision(&output_path)?;
+                let resolved_output = resolve_collision_with_claimed(&output_path, &claimed_paths)?;
+                claimed_paths.insert(resolved_output.clone());
 
                 let window_cloned = window.clone();
                 let registry_cloned = registry.inner().clone();
@@ -367,6 +370,31 @@ pub(crate) fn resolve_collision(path: &Path) -> Result<PathBuf> {
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
         if !candidate.exists() {
+            audio::settings::validate_output_path(&candidate)?;
+            return Ok(candidate);
+        }
+    }
+    Err(AppError::FileValidation(
+        "Could not find collision-free output filename after 99 attempts".to_string(),
+    ))
+}
+
+/// Resolves output filename collisions considering both filesystem state and
+/// paths already claimed within this batch command invocation.
+fn resolve_collision_with_claimed(path: &Path, claimed: &HashSet<PathBuf>) -> Result<PathBuf> {
+    if !path.exists() && !claimed.contains(path) {
+        return Ok(path.to_path_buf());
+    }
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("m4b");
+
+    for idx in 1..=99 {
+        let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
+        if !candidate.exists() && !claimed.contains(&candidate) {
             audio::settings::validate_output_path(&candidate)?;
             return Ok(candidate);
         }

@@ -27,12 +27,11 @@ Key findings from audit:
 - Output path contract: users choose a destination folder; app generates paths from metadata-based patterns with collision suffixing
 
 > [!IMPORTANT]
-> **Pre-Implementation Task**: Fix env var typo `ABB_DISABLE_TWOOLOOP` → `ABB_DISABLE_TWOLOOP` in `native.rs` and test files BEFORE adding UI toggle.
+> **Pre-Implementation Task (done in PR 83)**: Added support for `ABB_DISABLE_TWOLOOP` while keeping `ABB_DISABLE_TWOOLOOP` as a backward‑compatible alias.
 
-**PR Strategy**:
-- **PR A**: Phases 2-4 (UI migration, frontend-only)
-- **PR B**: Phase 6 (backend JobType, twoloop) - separate PR
-- Both PRs resolve Issue #81
+**PR Strategy (planned vs actual)**:
+- **Planned**: PR A for Phases 2‑4 (frontend migration), PR B for Phase 6 (JobType + twoloop backend/contract).
+- **Actual**: PR 83 combined Phases 2‑4 **and** most Phase 6 work. Remaining Phase 6 gaps are now tracked at the end of this doc for a follow‑up PR.
 
 ### Issue #81 Contract Updates (authoritative for implementation)
 
@@ -99,8 +98,8 @@ See full audit: `docs/reports/issue-81-engineering-audit.md`
 | **Button Styles**      | `button-primary/secondary`                          | `btn-pill` family                                           |
 | **Browse Button**      | Secondary gray                                      | Soft primary blue, integrated in path box                   |
 | **Input Panel Header** | "Input Audio Files" h2                              | "Input and File Order" h3 with job controls                 |
-| **Job Type Selector**  | ❌ Not implemented                                  | Merge/Batch dropdown in header row                          |
-| **Jobs Selector**      | ❌ Not wired to UI                                  | Number of Jobs dropdown in header row                       |
+| **Job Type Selector**  | ✅ Implemented in PR 83                             | Merge/Batch dropdown in header row                          |
+| **Jobs Selector**      | ✅ Implemented in PR 83                             | Number of Jobs dropdown in header row                       |
 
 ---
 
@@ -290,168 +289,94 @@ export function setJobControlsEnabled(enabled: boolean): void {
 
 ---
 
-## Testing Checklist
+## Manual UI Validation Checklist (PR 83 pre‑merge)
 
-- [ ] Cover art: click opens picker, clear overlay works
-- [ ] Encoder options: display inline correctly
-- [ ] Output preview: path computes from metadata
-- [ ] Path options: toggle expand/collapse works
-- [ ] Browse button: opens directory picker
-- [ ] Preview Audio: button in header row works
-- [ ] All buttons: consistent pill styling
-- [ ] Light/dark theme: both render correctly
-- [ ] No console errors
+### 0. Setup
+- [ ] Run the app via `bun run tauri dev` on macOS.
+- [ ] Open DevTools console and keep it visible for errors.
+
+### 1. File Import + File List
+- [ ] Drag‑drop supported audio files into the main drop zone → list populates; invalid files show errors.
+- [ ] Click the drop zone → picker accepts `mp3/m4a/m4b/aac` → list populates.
+- [ ] Drop an image file into the main drop zone → shows “No supported audio files dropped…” and imports nothing.
+- [ ] Select different files in the list → properties + metadata form update.
+- [ ] Reorder (move up/down) and sort toggle → order updates without losing selection.
+
+### 2. Metadata + Tag Preview
+- [ ] Edit Title/Author/Series/Year → tag preview grid updates.
+- [ ] Press Cmd+S/Ctrl+S while idle → metadata saves; status text flashes “Metadata saved!”.
+
+### 3. Cover Art
+- [ ] Auto‑loads cover art from first valid file (if present) unless custom art already set.
+- [ ] Click cover art area → picker accepts `jpg/png/webp` → image displays; clear overlay appears on hover.
+- [ ] Click clear overlay → image removed; placeholder returns; next Cmd+S removes art in file.
+- [ ] Drag an image over cover art area → drag‑over visual appears; drop loads image.
+- [ ] Drag audio near cover art area → not treated as cover art; still imports when dropped on main zone.
+
+### 4. Output Panel
+- [ ] Browse… selects output directory → preview box shows full computed path.
+- [ ] Toggle “Use subdirectory pattern” and filename radios → preview updates.
+- [ ] Expand/collapse “Path options” panel → layout stable.
+- [ ] Change metadata fields → preview recomputes live.
+- [ ] Switch Job Type:
+  - Merge → preview shows concrete path.
+  - Batch → preview switches to pattern hint. **Known gap:** hint doesn’t yet reflect user‑chosen filename/subdir options.
+
+### 5. Encoder Panel
+- [ ] Advanced settings accordion open/close works.
+- [ ] Encoder selection restricts bitrate‑mode options correctly (Apple=CVBR only, Native=CBR only, FDK/Auto=VBR only).
+- [ ] Twoloop checkbox visible only for Native AAC, default checked, persists after reload.
+- [ ] Afterburner visible only for FDK; disabled if FDK unavailable.
+
+### 6. Job Controls + Processing
+- [ ] Max Concurrent selector persists across restart and backend accepts changes when idle.
+- [ ] Start processing → Job Type + Max Concurrent selectors disable while running.
+- [ ] Merge mode with multiple files → single output at previewed path.
+- [ ] Batch mode with 2–3 files → multiple outputs; job list shows per‑job IDs; respects max concurrency.
+- [ ] Cancel button cancels running jobs and UI returns to idle.
+- [ ] Preview Audio dropdown durations create previews of roughly selected length.
 
 ---
 
-## Backend API Audit
-
-| UI Feature              | Required Backend                        | Status                |
-| ----------------------- | --------------------------------------- | --------------------- |
-| Cover Art Click-to-Load | `commands::load_cover_art_file`         | ✅ Exists             |
-| Jobs Selector           | `commands::get/set_max_concurrent_jobs` | ✅ Exists             |
-| Browse Directory        | `dialog.open()` (Tauri built-in)        | ✅ Built-in           |
-| Live Path Preview       | Frontend-only computation               | ✅ N/A                |
-| Encoder Options         | No change (same settings)               | ✅ N/A                |
-| **Job Type Selector**   | `ProcessV2Payload.job_type`             | ⚠️ **Gap identified** |
-| **Twoloop Option**      | `EncoderSettings.twoloop`               | ⚠️ **Gap identified** |
-
-> [!WARNING] > **Gap: Job Type Support**
->
-> Current `ProcessV2Payload` has no `job_type` field. Backend (`process_audiobook_files_v2`)
-> always merges all input files into a single output. For "batch single" mode (process each
-> file as a separate .m4b), backend needs new logic.
-
-> [!NOTE] > **Gap: Twoloop Configuration**
->
-> Backend currently enables `aac_coder=twoloop` by default for native AAC but does not expose
-> it in `EncoderSettings`. Mock UI shows it as a toggle.
+## Pre‑merge Actions for PR 83
+1. Run full quality gates:
+   - `scripts/quick-checks.sh`
+   - `scripts/ensure-contract.sh`
+   - `cargo test` (from `src-tauri/`)
+   - `bun run build`
+2. Re‑scan PR head for prior review findings:
+   - Template literal syntax error ✅ fixed in `f8c1e6d`.
+   - WebP magic‑byte detection ✅ fixed in `f8c1e6d`.
+   - Misleading HTML comment ✅ no longer present at head.
+3. Decide polish vs defer:
+   - Batch preview accuracy + disabled‑opacity CSS are safe follow‑ups (see Phase 6 remainder).
+   - Archive correctness for `docs/IGNORE_ARCHIVE/old_ui.html` can be fixed post‑merge unless you want a perfect historical snapshot pre‑merge.
 
 ---
 
-## Phase 6: Job Type & Encoder Support (Backend + Frontend)
+## Phase 6 Remaining Work (Follow‑up PR after PR 83 merges)
 
-### Gap Analysis
+### Goal
+Close the small gaps between the Phase 6 spec and PR 83, without re‑opening broad UI migration diffs.
 
-**Current behavior:**
+### Implementation Steps
+1. **Batch output preview reflects user choices**
+   - Update the batch branch of `calculateOutputPath()` in `src/ui/outputPanel.ts` to:
+     - Respect `currentState.useSubdirPattern` (include/exclude `[Author]/[Series]/[Title]`).
+     - Use `buildFilename(metadata)` so batch preview matches selected filename pattern.
+     - Remove or clarify the artificial `/(Batch Output Folder)` suffix if backend doesn’t create it.
+   - Verify with a focused manual test (Section 4 above).
+2. **Move disabled styling to CSS (Separation of Concerns)**
+   - Remove inline `style.opacity` toggles from `setJobControlsEnabled()` in `src/ui/jobControls.ts`.
+   - Add a CSS rule like `select:disabled { opacity: 0.5; cursor: not-allowed; }` to `src/styles.css`.
+3. **Clean up contract comments**
+   - Update `src/types/audio.ts` comments (JobType/twoloop are no longer “pending backend support”).
+4. **Docs: batch path contract**
+   - Create `docs/planning/batch-processing-paths.md` documenting current `build_output_path` + collision rules and expected UX.
+5. **Optional tech‑debt reduction**
+   - Split `src/ui/statusPanel/logic.ts` if you need to add more logic there in the follow‑up PR.
 
-- `process_audiobook_files_v2` always merges files (❌ no batch mode)
-- `twoloop` is hardcoded on (❌ not user configurable)
-
-**Required changes:**
-
-#### Backend: `src-tauri/src/commands/audio.rs` & `settings_encoder.rs`
-
-```rust
-// Add to EncoderSettings (settings_encoder.rs)
-pub struct EncoderSettings {
-    pub encoder_type: EncoderType,
-    pub bitrate_kbps: u16,
-    pub bitrate_mode: BitrateMode,
-    pub channels: ChannelConfig,
-    pub afterburner: bool,
-    pub threads: ThreadSetting,
-    pub twoloop: bool,  // NEW - native AAC only, defaults to true
-}
-
-// Add JobType enum (audio.rs)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum JobType {
-    Merge,  // N files → 1 output (current behavior)
-    Batch,  // N files → N outputs (parallel via JobRegistry)
-}
-
-// Add to ProcessV2Payload (audio.rs)
-pub struct ProcessV2Payload {
-    pub input_files: Vec<String>,
-    pub output_dir: String,
-    pub settings: EncoderSettings,
-    pub sample_rate: Option<audio::SampleRateConfig>,
-    pub job_type: Option<JobType>,  // NEW - defaults to Merge for backward compat
-}
-```
-
-**Logic changes:**
-
-1. **Job Type:** Implement fork logic in `process_audiobook_files_v2` (Merge vs Batch).
-2. **Twoloop:** Update `native.rs` to use `settings.twoloop` instead of hardcoded default.
-
-**[AUDIT] Batch Mode Clarification:**
-
-- **Merge**: User drops chapter files → App merges into 1 audiobook
-- **Batch**: User drops complete audiobooks → App converts each in parallel
-- **Metadata**: Existing flow unchanged - each batch job uses user-provided metadata (KISS)
-- **Output paths**: User selects destination folder; app builds per-job paths from metadata using `[Author]/[Series]/[Title]/` + `Title (Year).m4b` (or chosen pattern) and applies collision suffixing for merge and batch
-
-> [!NOTE]
-> **Output Path Contract Example**
-> Given metadata: Author="Dennis E. Taylor", Series="FLY BOT SERIES", Title="FLybot testing", Year="2025"
-> Base output dir: `/Users/jstar/Projects/ABB Tests/output/`
-> Result: `/Users/jstar/Projects/ABB Tests/output/Dennis E. Taylor/FLY BOT SERIES/FLybot testing/FLybot testing (2025).m4b`
->
-> **Goal**: Enable direct writes to Plex/Audiobookshelf libraries without manual folder restructuring.
-> **Constraint**: No manual filename typing in the output field - read-only preview only.
-
-**[AUDIT] Tech Debt:** Fix env var typo `ABB_DISABLE_TWOOLOOP` → `ABB_DISABLE_TWOLOOP`
-
-**[AUDIT] TS Contract Files (must update before `ensure-contract.sh` passes):**
-- `src/types/audio.ts` - add `twoloop: boolean` to `EncoderSettings`
-- `src/types/audio.ts` - add `JobType` type (`'merge' | 'batch'`)
-- Update any payload construction in `src/ui/statusPanel/logic.ts`
-
-#### Frontend: `src/ui/jobControls.ts` & `src/ui/encoderPanel` (new)
-
-```typescript
-// Wire #job-type-select to processing payload
-// Wire #twoloop-toggle to encoder settings
-```
-
-#[derive(serde::Deserialize)]
-pub enum JobType { #[serde(rename = "merge")]
-Merge, // Merge all files → 1 output #[serde(rename = "batch")]  
- BatchSingle, // Each file → separate output (uses JobRegistry concurrency)
-}
-
-````
-
-**Logic change in `process_audiobook_files_v2`:**
-- If `job_type == Merge`: current behavior (process all files together)
-- If `job_type == BatchSingle`: spawn N separate jobs via `JobRegistry` (one per input file)
-
-#### Frontend: `src/ui/jobControls.ts` (new)
-
-```typescript
-// Wire #job-type-select to processing payload
-// Wire #max-concurrent-select to set_max_concurrent_jobs command
-````
-
-### Testing Checklist (Phase 6)
-
-**Batch Processing:**
-
-- [ ] Merge mode: multiple files → single .m4b
-- [ ] Batch mode: 3 files → 3 separate .m4b
-- [ ] Batch mode respects max concurrent jobs
-- [ ] Per-job cancellation works in batch mode
-- [ ] Progress aggregation works for batch jobs
-
-**Cover Art:**
-
-- [ ] Click on cover art area opens file picker
-- [ ] Drag-drop image onto cover art area loads it
-- [ ] Clear overlay button removes cover art
-- [ ] Drag-drop doesn't bubble to audio file import
-
-**UI State:**
-
-- [ ] Job Type selector disabled during processing
-- [ ] Max Concurrent selector disabled during processing
-- [ ] Twoloop checkbox toggles correctly for native AAC
-
-**Regression:**
-
-- [ ] Output path still updates and works same as 'main' branch
-- [ ] Preview Audio button still works same as 'main' branch
-- [ ] Light/dark theme both render correctly
-- [ ] No console errors
+### Success Criteria
+- Batch preview matches merge preview logic + selected patterns.
+- `scripts/ensure-contract.sh` stays green.
+- No regressions in the PR 83 manual UI checklist.

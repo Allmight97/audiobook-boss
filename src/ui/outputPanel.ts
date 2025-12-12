@@ -179,8 +179,15 @@ async function handleDirectoryBrowse(): Promise<void> {
       title: "Select Output Directory",
     });
 
-    if (selectedPath && typeof selectedPath === "string") {
-      currentState.outputDirectory = selectedPath;
+    const normalized =
+      typeof selectedPath === "string"
+        ? selectedPath
+        : Array.isArray(selectedPath) && selectedPath.length > 0
+          ? selectedPath[0]
+          : null;
+
+    if (normalized) {
+      currentState.outputDirectory = normalized;
       updateOutputPath();
     }
   } catch (error) {
@@ -305,7 +312,7 @@ function buildSubdirectoryPath(
   basePath: string,
   metadata: AudiobookMetadata
 ): string {
-  const author = sanitizeFilename(metadata.author || "Unknown Author");
+  const author = sanitizeFilename(metadata.artist || "Unknown Author");
   const series = sanitizeFilename(metadata.series || "");
   const title = sanitizeFilename(metadata.title || "Untitled");
 
@@ -335,8 +342,8 @@ function sanitizeFilename(input: string): string {
  */
 function buildFilename(metadata: AudiobookMetadata): string {
   const title = sanitizeFilename(metadata.title || "Untitled");
-  const author = sanitizeFilename(metadata.author || "Unknown Author");
-  const year = metadata.year || new Date().getFullYear();
+  const author = sanitizeFilename(metadata.artist || "Unknown Author");
+  const year = metadata.date || new Date().getFullYear();
 
   if (currentState.filenamePattern === "author_title") {
     return `${author} - ${title}.m4b`;
@@ -359,13 +366,14 @@ function getCurrentMetadata(): AudiobookMetadata {
 
   return {
     title: title,
-    author: getElementValue("meta-author"),
+    artist: getElementValue("meta-author"),
     album: title,
-    narrator: getElementValue("meta-narrator"),
-    year: parseInt(getElementValue("meta-year")) || undefined,
+    composer: getElementValue("meta-narrator"),
+    date: parseInt(getElementValue("meta-year")) || undefined,
     genre: getElementValue("meta-genre"),
     description: getElementValue("meta-description"),
     series: getElementValue("meta-series"),
+    series_part: getElementValue("meta-series-part") || undefined,
     cover_art: coverArt ?? undefined,
   };
 }

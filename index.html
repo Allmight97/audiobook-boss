@@ -114,26 +114,26 @@
       <div class="section-header">
         <h3>Metadata Manager</h3>
       </div>
-      <div class="grid grid-cols-4 gap-3 mb-3">
-        <!-- Cover art - 1:1 ratio maintained, centered -->
-        <div class="col-span-1 flex flex-col items-center">
-          <span class="text-xs font-medium mb-1">Cover Art</span>
-          <div id="cover-art-area" class="cover-art-area mb-1" data-testid="cover-art-area">
-            <div class="placeholder-text">Click or Drag Image</div>
-            <img src="" alt="Book Cover Art" id="cover-art-img" class="hidden" />
-            <button class="cover-art-clear-btn" id="cover-art-clear-btn">
-              ✕
-            </button>
-          </div>
-          <!-- Removed separate buttons -->
-        </div>
+	      <div class="grid grid-cols-4 gap-3 mb-3">
+	        <!-- Cover art - aligned with metadata grid -->
+	        <div class="col-span-1 flex flex-col items-center">
+	          <span class="text-xs font-medium mb-1">Cover Art</span>
+	          <div id="cover-art-area" class="cover-art-area mb-1" data-testid="cover-art-area">
+	            <div class="placeholder-text">Click or Drag Image</div>
+	            <img src="" alt="Book Cover Art" id="cover-art-img" class="hidden" />
+	            <button class="cover-art-clear-btn" id="cover-art-clear-btn">
+	              ✕
+	            </button>
+	          </div>
+	          <!-- Removed separate buttons -->
+	        </div>
 
-        <!-- Metadata fields - compact -->
-        <div class="col-span-3">
-          <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
-            <div class="col-span-3">
-              <label for="meta-title">Book Title</label>
-              <input type="text" id="meta-title" placeholder="The Name of the Wind" />
+	        <!-- Metadata fields - compact -->
+	        <div class="col-span-3">
+	          <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
+	            <div class="col-span-3">
+	              <label for="meta-title">Book Title</label>
+	              <input type="text" id="meta-title" placeholder="The Name of the Wind" />
             </div>
             <div class="col-span-1">
               <label for="meta-year">Year</label>

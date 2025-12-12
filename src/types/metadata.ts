@@ -43,16 +43,6 @@ export interface AudiobookMetadata {
   album_sort?: string;
   /** Cover art as raw bytes from backend */
   cover_art?: number[];
-
-  // Legacy fields for backward compatibility (deprecated - do not use in new code)
-  /** @deprecated Use artist instead */
-  author?: string;
-  /** @deprecated Use composer instead */
-  narrator?: string;
-  /** @deprecated Use date instead */
-  year?: number;
-  /** @deprecated Use cover_art instead */
-  coverArt?: string;
 }
 
 /**
