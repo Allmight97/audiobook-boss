@@ -1,82 +1,169 @@
 # Codex Holistic Technical Audit — `main` @ `62a1103`
 **Date:** 2025-12-12  
 **Scope:** End-to-end repo health (Rust backend, audio/metadata pipeline, Tauri/TS frontend, security, tooling/CI)  
-**Comparison inputs:** `docs/reports/Gemini_main_audit.md`, `docs/reports/OPUS_main_audit.md`  
+**Purpose:** Single source of truth — this report contains the actionable content + hard data needed to act, so the other per-agent audit docs can be deleted without losing context.  
 **Rating scale:** 1 (poor) • 2 (needs work) • 3 (acceptable) • 4 (production ready) • 5 (excellent)
 
-## TL;DR (for a repo owner)
-The core audio/metadata engine is in good shape. The biggest “before production” risks are not codec correctness—they’re guardrails and operational safety:
-- Webview hardening is incomplete (CSP disabled).
-- TS↔Rust contract checking is currently too weak to prevent drift.
-- Some long-running work is still done in ways that can block the async runtime.
-- Maintainability debt is accumulating (large modules and tests living under `src-tauri/src`).
-- CI does not currently run your real quality gates on PRs.
+## TL;DR (repo-owner oriented)
+Your core audio engine is solid; the biggest “pre-production” risks are guardrails and operational safety, not codec math:
+- Webview hardening is incomplete (`csp: null`).
+- TS↔Rust contract checking is not reliably catching drift.
+- Some long-running work still blocks within async boundaries.
+- Maintainability debt is rising (oversized modules + tests mixed into `src-tauri/src`).
+- CI doesn’t currently run the real quality gates on PRs.
 
-## Codex scorecard
+## Verification snapshot (what was checked)
+Ran against this repo state:
+- `scripts/quick-checks.sh` ✅
+- `cd src-tauri && cargo test` ✅
+- `bun run test` (Vitest) ✅
+- `bun test` ❌ (Bun’s native runner; fails because `vitest.config.ts` + `jsdom` aren’t applied)
+- `python3 scripts/analyze_code_lines.py` ✅
+- `scripts/ensure-contract.sh` ✅ (but see “Contract guardrails” — current extraction is incomplete)
+
+## Scorecard
 | Domain | Rating | Notes |
 | --- | ---: | --- |
 | Architecture & boundaries | 4 | Single-engine (`ffmpeg-next`) approach is coherent; clear integration points. |
 | Audio/metadata pipeline correctness | 4 | Good invariants (PTS/time_base, sanitization, mux/remux strategy); tests pass. |
-| File/path security & validation | 5 | Strong input validation, canonicalization, extension allowlists, image DoS limits. |
-| Webview/app security configuration | 3 | CSP is disabled in Tauri config. |
-| Runtime responsiveness (blocking work) | 3 | Some heavy work still blocks in async contexts; impacts UX under load. |
-| TS↔Rust contract guardrails | 2 | Current contract script misses real usage patterns and can match comments. |
-| Maintainability (size, separation) | 3 | Multiple oversized modules; tests mixed into production tree. |
-| Testing health (Rust + TS) | 4 | `cargo test` and `bun run test` pass; there’s a test-command footgun. |
-| Tooling/CI automation | 3 | Local scripts are good; GitHub Actions doesn’t run them as gates. |
+| File/path security & validation | 5 | Canonicalization + allowlists; image DoS limits; good boundary validation. |
+| Webview/app security configuration | 3 | CSP disabled in `src-tauri/tauri.conf.json`. |
+| Runtime responsiveness (blocking work) | 3 | Blocking work exists inside async surfaces. |
+| TS↔Rust contract guardrails | 2 | Current script misses real usage and can match comments. |
+| Maintainability (size, separation) | 3 | Oversized files; tests living in production tree. |
+| Testing health (Rust + TS) | 4 | Rust + Vitest pass; test command footgun exists. |
+| Tooling/CI automation | 3 | Local scripts are good; PR CI doesn’t run them as gates. |
+
+## Supporting evidence (hard data)
+
+### A) Oversized modules (guideline: ≤ 400 LOC)
+Measured via `python3 scripts/analyze_code_lines.py` (scans `src/` and `src-tauri/src/`).
+
+| File | Lines |
+| --- | ---: |
+| `src-tauri/src/metadata/ffmpeg_bridge.rs` | 766 |
+| `src/ui/statusPanel/logic.ts` | 738 |
+| `src-tauri/src/audio/processor/frame_pipeline.rs` | 554 |
+| `src-tauri/src/commands/audio.rs` | 537 |
+| `src-tauri/src/audio/context.rs` | 531 |
+| `src-tauri/src/audio/job_registry.rs` | 530 |
+| `src-tauri/src/tests_integration.rs` | 505 |
+| `src/ui/outputPanel.ts` | 470 |
+| `src-tauri/src/audio/settings_encoder.rs` | 469 |
+| `src-tauri/src/audio/progress/reporter.rs` | 424 |
+| `src/ui/encoderPanel/logic.ts` | 401 |
+
+### B) “Clean Source” separation (tests mixed into production tree)
+Two test-heavy files live under `src-tauri/src/`:
+- `src-tauri/src/tests_integration.rs` (505 LOC)
+- `src-tauri/src/tests_metadata_integration.rs` (80 LOC)
+
+Additionally, there are **13** production modules under `src-tauri/src/` that contain inline `mod tests { ... }` blocks:
+- `src-tauri/src/audio/buffer.rs`
+- `src-tauri/src/audio/context.rs`
+- `src-tauri/src/audio/file_list.rs`
+- `src-tauri/src/audio/job_registry.rs`
+- `src-tauri/src/audio/path_validation.rs`
+- `src-tauri/src/audio/processor/encoder/options/native.rs`
+- `src-tauri/src/audio/processor/frame_pipeline.rs`
+- `src-tauri/src/audio/progress/reporter.rs`
+- `src-tauri/src/audio/settings.rs`
+- `src-tauri/src/audio/settings_encoder.rs`
+- `src-tauri/src/metadata/ffmpeg_bridge.rs`
+- `src-tauri/src/metadata/passthrough.rs`
+- `src-tauri/src/metadata/reader.rs`
+
+### C) TypeScript test runner footgun (Bun vs Vitest)
+Configured runner: Vitest (`package.json` script: `test: "vitest run"`). `bun run test` passes.
+
+But `bun test` uses Bun’s built-in test runner (not Vitest), so it does not apply:
+- `vitest.config.ts` (including `environment: "jsdom"`)
+- `src/test/setup.ts` (Vitest mocks)
+
+Typical failure signatures when using `bun test`:
+- `ReferenceError: window is not defined`
+- `ReferenceError: document is not defined`
+- `TypeError: vi.hoisted is not a function`
+
+### D) Contract guardrails are currently incomplete (proof)
+`scripts/ensure-contract.sh` extracts TS command names using a single-quote pattern:
+- `rg -n "invoke(?:<[^>]+>)?\\('" "$ROOT_DIR/src" ...`
+
+Consequences:
+- It **misses real production calls** that use double quotes and/or `bridge.invoke(...)`, for example:
+  - `src/main.ts` calls `bridge.invoke("save_metadata_to_file", ...)`
+  - `src/ui/jobControls.ts` calls `bridge.invoke("set_max_concurrent_jobs", ...)`
+  - `src/ui/encoderPanel/logic.ts` calls `bridge.invoke("list_available_encoders")`
+- It can also **match documentation/comments**, e.g. `src/types/events.ts` includes `invoke('process_audiobook_files_v2')` inside a comment block.
+
+Net: current output is **incomplete** (misses real usage) and **noisy** (can include non-usage).
 
 ## Items rated below 4 (what to fix next)
 
 ### 1) Webview/app security configuration — 3/5
-**Finding:** `src-tauri/tauri.conf.json` sets `"csp": null` (CSP disabled).  
-**Why you care:** If any HTML injection ever occurs (accidentally or via a dependency), CSP is one of the few last-line “seatbelts” in a webview.  
-**Suggested fix:** Add a restrictive CSP that works with your current frontend (avoid `unsafe-inline` if possible), then explicitly open only what breaks. Keep it strict by default.
+**Evidence:** `src-tauri/tauri.conf.json` has:
+```json
+"security": { "csp": null }
+```
+**Why you care:** CSP is a “seatbelt” for a webview app. If you ever accidentally render unsafe HTML (or a dependency does), CSP can turn “RCE-ish” problems into “blocked by policy”.
+
+**Suggested fix:** Add a restrictive CSP compatible with your current Vite/Tauri setup; only loosen directives when you have a concrete breakage to justify it.
 
 ### 2) TS↔Rust contract guardrails — 2/5
-**Finding:** `scripts/ensure-contract.sh` currently detects `invoke('...')` patterns (single quotes) and can match documentation/comments; the app primarily uses `bridge.invoke("...")` and double quotes.  
-**Why you care:** You can break commands or payload shapes without the guardrail catching it until runtime.  
-**Suggested fix:** Update the contract script to (a) parse `bridge.invoke(...)` and both quote styles, (b) ignore comment blocks, and (c) optionally also enforce that Rust-registered commands are either used or explicitly “debug-only”.
+**Evidence:** `scripts/ensure-contract.sh` does not reliably reflect actual TS command usage (see proof above), and it can match comments.
+
+**Why you care:** You can break command names and payload shapes without the “contract check” failing, and only find out at runtime.
+
+**Suggested fix:** Improve the script to:
+- Extract from `bridge.invoke(...)` and both quote styles.
+- Ignore comment blocks.
+- Keep current “fail only when TS calls missing in Rust” behavior.
 
 ### 3) Runtime responsiveness (blocking work) — 3/5
-**Finding:** The encode loop uses `tokio::task::block_in_place` in the main engine; `load_cover_art_file` is `async` but does synchronous file IO + image decode.  
-**Why you care:** Under parallel jobs, this can make progress updates and cancellation feel laggy (or starve other async work).  
-**Suggested fix:** Move heavy CPU/IO into `tokio::task::spawn_blocking` (keep async for orchestration), and treat blocking boundaries as explicit “adapters”.
+**Evidence:**
+- `src-tauri/src/audio/processor/engine.rs` uses `tokio::task::block_in_place` for the encode loop.
+- `src-tauri/src/commands/metadata.rs` `load_cover_art_file` is `async` but performs synchronous file IO + image decode.
+
+**Why you care:** Under multiple parallel jobs, blocking inside async surfaces can make progress updates and cancellation feel laggy.
+
+**Suggested fix:** Push heavy CPU/IO into `tokio::task::spawn_blocking` (keep async for orchestration). Treat blocking boundaries as explicit adapters.
 
 ### 4) Maintainability (size + test placement) — 3/5
-**Finding:** Several modules exceed the repo’s “keep files small” guideline, and there are significant tests under `src-tauri/src` (e.g. `src-tauri/src/tests_integration.rs`, `src-tauri/src/tests_metadata_integration.rs`) plus many inline `mod tests` blocks.  
-**Why you care:** Bigger files increase change risk and slow down iteration; tests in production paths blur “what ships” vs “what verifies”.  
-**Suggested fix:** Start by splitting the biggest “god files” (notably `src-tauri/src/metadata/ffmpeg_bridge.rs` and `src/ui/statusPanel/logic.ts`) and migrate test modules into `src-tauri/tests/` incrementally as you touch areas.
+**Evidence:** oversized module table + test placement list above.
+
+**Why you care:** Large “god files” increase change risk and slow down iteration. Tests in production paths blur “what ships” vs “what verifies”.
+
+**Suggested fix (incremental, high value first):**
+- Split `src-tauri/src/metadata/ffmpeg_bridge.rs` into focused modules (e.g., dict mapping vs cover art vs remux).
+- Split `src/ui/statusPanel/logic.ts` into state/calculation vs DOM vs orchestration.
+- Move `src-tauri/src/tests_integration.rs` and `src-tauri/src/tests_metadata_integration.rs` into `src-tauri/tests/` and gradually migrate inline test modules as you touch areas.
 
 ### 5) Tooling/CI automation — 3/5
-**Finding:** You have strong local quality gates (`scripts/quick-checks.sh`), but GitHub Actions workflows shown are AI-review oriented rather than running your real checks on PRs.  
-**Why you care:** Breakage can land unnoticed and only be discovered when you try to run the app.  
-**Suggested fix:** Add a PR workflow that runs `scripts/quick-checks.sh`, `cd src-tauri && cargo test`, and `bun run test`.
+**Evidence:** `.github/workflows/` contains AI review workflows, but no workflow that runs your quality gates on PRs.
 
-### 6) TypeScript testing “command footgun” — 3/5
-**Finding:** `bun run test` (Vitest) passes, but `bun test` fails because it uses Bun’s native runner (no jsdom, missing Vitest-specific APIs).  
-**Why you care:** It’s easy to run the “obvious” command and think the test suite is broken.  
-**Suggested fix:** Document “use `bun run test`” prominently (README + AGENTS), and consider avoiding Bun’s default test discovery patterns if this keeps tripping you up.
+**Why you care:** Regressions can land unnoticed until you run the app locally.
 
-## Comparison: Gemini vs OPUS vs Codex
-
-### Where Gemini and OPUS converge (and Codex agrees)
-- **Maintainability debt:** Both flag oversized modules (notably `src-tauri/src/metadata/ffmpeg_bridge.rs` and `src/ui/statusPanel/logic.ts`) as a growing risk.
-- **Clean Source / test placement:** Both call out tests living under `src-tauri/src` (e.g., `tests_integration.rs`) as an architecture/maintainability smell.
-- **Strength of path validation/security at the file boundary:** Both are bullish on `validate_input_audio_path()` and related validation, and I agree.
-
-### Where Gemini and OPUS differ
-- **TypeScript tests:** OPUS rates TS testing as “critical” based on `bun test` failures; Gemini does not call this out and rates testing strategy higher. Codex view: the tests are healthy under the intended runner (`bun run test`), but there’s a real DX footgun because `bun test` fails loudly.
-- **Architecture alignment rating:** OPUS rates architecture alignment higher; Gemini rates it lower due to “Clean Source” violations. Codex view: runtime architecture is solid (single engine, clear boundaries), but Gemini is right that test placement and oversized modules create architectural “drift”.
-- **Concurrency rating:** Gemini is more optimistic than OPUS. Codex view: the JobRegistry design is strong, but long-running blocking work in async contexts keeps this from a “5”.
-
-### Gaps in both Gemini and OPUS reports (Codex additions)
-- **Webview hardening:** Neither report mentions CSP being disabled (`csp: null`). This is a meaningful pre-production security gap.
-- **Contract script blind spots:** Neither report highlights that `scripts/ensure-contract.sh` can miss real command usage (and can match documentation/comments), which reduces its value as a guardrail.
-- **Concrete async blocking hotspots beyond “concurrency is good”:** The main remaining risk is not “wrong concurrency model” but “blocking in async boundaries” for long-running work.
-
-## What I actually verified locally (no code changes)
+**Suggested fix:** Add a PR workflow that runs:
 - `scripts/quick-checks.sh`
 - `cd src-tauri && cargo test`
-- `bun run test` (Vitest)
-- `bun test` (fails; illustrates the test-command footgun described above)
+- `bun run test`
 
+### 6) TypeScript testing “command footgun” — 3/5
+**Evidence:** `bun test` fails while `bun run test` passes (see “TypeScript test runner footgun”).
+
+**Why you care:** It’s easy for you (or an agent) to run the “obvious” command and conclude the suite is broken.
+
+**Suggested fix:** Document “use `bun run test`” in README/AGENTS, and consider adding a `scripts/test.sh` wrapper that runs the correct command so humans don’t have to remember.
+
+## Notes / loose ends worth tracking
+- `src/ui/statusPanel/logic.ts` contains a TODO about MVNM series persistence (`// TODO: Persist MVNM (series name) when backend supports it`).
+- Batch processing uses a legacy `ProcessingState.is_processing` flag; there are early-return error paths in `src-tauri/src/commands/audio.rs` that may skip resetting it (low severity, but can confuse any UI logic that relies on that flag).
+
+## Appendix: commands to rerun the same checks
+```bash
+scripts/quick-checks.sh
+cd src-tauri && cargo test
+bun run test
+python3 scripts/analyze_code_lines.py
+scripts/ensure-contract.sh
+```
