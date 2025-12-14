@@ -37,3 +37,5 @@ target/rust-analyzer/flycheck0/stderr
 .claude/
 **/.claude/
 .claude/settings.local.json
+.claude/settings.local.json
+opencode.json
