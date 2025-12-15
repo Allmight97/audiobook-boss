@@ -10,9 +10,6 @@
 
 <body class="p-0">
   <script type="module" src="/src/main.ts"></script>
-  <h1 class="text-xl font-bold py-2 px-4 text-center border-b header-bar">
-    Audiobook Boss
-  </h1>
 
   <div class="main-container">
     <!-- Left: Input panel -->
@@ -115,9 +112,10 @@
       </div>
     </div>
 
-	    <!-- Right: Metadata + Output -->
-	    <div class="panel metadata-output-panel">
-	      <div class="metadata-output-scroll">
+		    <!-- Right: Metadata + Output + Status -->
+		    <div class="right-column-wrapper">
+		    <div class="panel metadata-output-panel">
+		      <div class="metadata-output-scroll">
 	      <!-- METADATA SECTION -->
 	      <div class="section-header">
 	        <h3>Metadata Manager</h3>
@@ -296,16 +294,15 @@
 	        aria-label="Output and preview"
 	      >
 	      <!-- OUTPUT LOCATION -->
-	      <div>
-	        <div class="section-header">
-	          <h3>Output Path</h3>
-	        </div>
-	        <div class="mb-2">
-	          <label for="output-dir-text">Output Directory & Preview</label>
-	          <!-- Integrated Preview Box -->
-		          <div class="output-preview-box">
-	            <div id="output-preview-text" class="output-path-text" title="Full output path preview">
-	              Select output directory...
+	          <div>
+	            <div class="section-header">
+	              <h3>Output Directory</h3>
+	            </div>
+	            <div class="mb-2">
+	              <!-- Integrated Preview Box -->
+	              <div class="output-preview-box">
+	                <div id="output-preview-text" class="output-path-text" title="Full output path preview">
+	                  Select output directory...
 	            </div>
             <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft">
               Browse…
@@ -426,44 +423,45 @@
 		        <!-- Preview button moved to header -->
 		      </div> <!-- End of Preview Audio and Metadata Tags section -->
 		      </div> <!-- End of Output and preview footer -->
-		    </div> <!-- End of metadata-output-panel -->
-	    </div> <!-- End of main-container -->
+			    </div> <!-- End of metadata-output-panel -->
 
-    <!-- Status panel -->
-    <div class="panel status-panel">
-      <div class="status-panel-content">
-        <div class="art-thumbnail">
-          <span>Art</span>
-        </div>
-        <div class="progress-details">
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs">Progress:
-              <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
-              →
-              <span class="property-value" id="percentage-processed">--%</span></span>
-            <span id="status-text" class="text-xs font-semibold">Idle</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
-          </div>
-          <div id="step-text" class="text-xs muted-text mt-0.5">
-            Current Step: Waiting for files...
-          </div>
-          <div id="job-list" class="text-xs muted-text mt-1"></div>
-          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
-            <!-- Moved Max Concurrent to Header -->
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button id="process-button" class="btn-pill btn-pill-primary">
-            Process Audiobook
-          </button>
-          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+	    <!-- Status panel -->
+	    <div class="panel status-panel">
+	      <div class="status-panel-content">
+	        <div class="art-thumbnail">
+	          <span>Art</span>
+	        </div>
+	        <div class="progress-details">
+	          <div class="flex justify-between mb-0.5">
+	            <span class="text-xs">Progress:
+	              <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
+	              →
+	              <span class="property-value" id="percentage-processed">--%</span></span>
+	            <span id="status-text" class="text-xs font-semibold">Idle</span>
+	          </div>
+	          <div class="progress-bar-bg">
+	            <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+	          </div>
+	          <div id="step-text" class="text-xs muted-text mt-0.5">
+	            Current Step: Waiting for files...
+	          </div>
+	          <div id="job-list" class="text-xs muted-text mt-1"></div>
+	          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
+	            <!-- Moved Max Concurrent to Header -->
+	          </div>
+	        </div>
+	        <div class="flex gap-2">
+	          <button id="process-button" class="btn-pill btn-pill-primary">
+	            Process Audiobook
+	          </button>
+	          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
+	            Cancel
+	          </button>
+	        </div>
+	      </div>
+	    </div>
+		    </div> <!-- End of right-column-wrapper -->
+		    </div> <!-- End of main-container -->
 </body>
 
 </html>

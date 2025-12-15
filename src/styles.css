@@ -81,13 +81,6 @@ body {
   transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
-/* Header styling */
-h1 {
-  background-color: var(--bg-panel);
-  color: var(--text-primary);
-  border-bottom-color: var(--border-primary);
-}
-
 /* Main container - 2-column grid layout */
 .main-container {
   display: grid;
@@ -119,9 +112,20 @@ h1 {
   height: 100%; /* Use full available height */
 }
 
+/* Right column wrapper - contains metadata-output-panel and status-panel */
+.right-column-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 1rem;
+}
+
 /* Metadata/Output panel specific styling */
 .metadata-output-panel {
   overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Metadata panel: scroll main content, keep footer visible */
@@ -892,13 +896,6 @@ textarea:hover:not(:focus) {
   padding: 0.75rem;
 }
 
-/* Header bar styling */
-.header-bar {
-  background-color: var(--bg-panel);
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-primary);
-}
-
 /* Section header with inline info */
 .section-header {
   display: flex;
@@ -1143,7 +1140,6 @@ textarea {
 /* Compact status panel */
 .status-panel {
   padding: 0.5rem 0.75rem;
-  margin: 0 0.75rem 0.75rem;
 }
 
 .art-thumbnail {
