@@ -121,7 +121,19 @@ h1 {
 
 /* Metadata/Output panel specific styling */
 .metadata-output-panel {
+  overflow: hidden;
+}
+
+/* Metadata panel: scroll main content, keep footer visible */
+.metadata-output-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.metadata-footer-pinned {
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 /* Status panel anchored at bottom via app shell layout */
@@ -1252,43 +1264,13 @@ textarea {
   color: var(--accent-primary);
 }
 
-/* Path options toggle button */
-.path-options-toggle {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  transition: all 0.2s;
-}
-
-.path-options-toggle:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.toggle-arrow {
-  display: inline-block;
-  transition: transform 0.2s;
-}
-
-.path-options-toggle.expanded .toggle-arrow {
-  transform: rotate(180deg);
-}
-
-/* Collapsible path options panel */
-.path-options-panel {
-  display: none;
+/* Output options panel (always visible) */
+.output-options-panel {
   background-color: var(--bg-input);
   border: 1px solid var(--border-primary);
   border-radius: 0.375rem;
   padding: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.path-options-panel.expanded {
-  display: block;
+  margin-top: 0.25rem;
 }
 
 .path-option-row {

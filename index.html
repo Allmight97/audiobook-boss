@@ -115,12 +115,13 @@
       </div>
     </div>
 
-    <!-- Right: Metadata + Output -->
-    <div class="panel metadata-output-panel">
-      <!-- METADATA SECTION -->
-      <div class="section-header">
-        <h3>Metadata Manager</h3>
-      </div>
+	    <!-- Right: Metadata + Output -->
+	    <div class="panel metadata-output-panel">
+	      <div class="metadata-output-scroll">
+	      <!-- METADATA SECTION -->
+	      <div class="section-header">
+	        <h3>Metadata Manager</h3>
+	      </div>
 	      <div class="grid grid-cols-4 gap-3 mb-3">
 	        <!-- Cover art - aligned with metadata grid -->
 	        <div class="col-span-1 flex flex-col items-center">
@@ -284,36 +285,37 @@
               <span class="option-label">Twoloop</span>
             </label>
           </div>
-        </div>
-      </div>
+	        </div>
+	      </div>
 
+	      </div>
+
+	      <div
+	        class="section-divider metadata-footer-pinned inspector-footer"
+	        role="region"
+	        aria-label="Output and preview"
+	      >
 	      <!-- OUTPUT LOCATION -->
-	      <div class="section-divider">
+	      <div>
 	        <div class="section-header">
 	          <h3>Output Path</h3>
 	        </div>
 	        <div class="mb-2">
 	          <label for="output-dir-text">Output Directory & Preview</label>
 	          <!-- Integrated Preview Box -->
-	          <div class="output-preview-box mb-1">
-            <div id="output-preview-text" class="output-path-text" title="Full output path preview">
-              Select output directory...
-            </div>
+		          <div class="output-preview-box">
+	            <div id="output-preview-text" class="output-path-text" title="Full output path preview">
+	              Select output directory...
+	            </div>
             <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft">
               Browse…
             </button>
           </div>
 
-          <!-- Hidden input for legacy compatibility / fallback -->
-          <input type="text" id="output-dir-text" class="hidden" readonly />
+	          <!-- Hidden input for legacy compatibility / fallback -->
+	          <input type="text" id="output-dir-text" class="hidden" readonly />
 
-          <button type="button" id="path-options-toggle"
-            class="path-options-toggle text-xs flex items-center gap-1 mt-1">
-            <span class="toggle-arrow">▼</span> Path Options
-	          </button>
-
-	          <!-- Collapsible Options -->
-	          <div id="path-options-panel" class="path-options-panel">
+	          <div class="output-options-panel">
 	            <div class="path-option-row">
 	              <label class="checkbox-label text-xs mt-0">
 	                <input type="checkbox" id="output-subdir-pattern" checked />
@@ -324,6 +326,7 @@
 	              <span class="text-xs muted-text mr-2">Filename:</span>
 	              <label class="radio-inline text-xs">
 	                <input
+	                  id="filename-pattern-title-year"
 	                  type="radio"
 	                  name="filename_pattern"
 	                  value="title_year"
@@ -333,6 +336,7 @@
 	              </label>
 	              <label class="radio-inline text-xs">
 	                <input
+	                  id="filename-pattern-author-title"
 	                  type="radio"
 	                  name="filename_pattern"
 	                  value="author_title"
@@ -343,10 +347,11 @@
 	          </div>
 	        </div>
 	      </div> <!-- Close Output Location section -->
-      <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
-      <div class="section-divider">
-        <div class="section-header justify-between">
-          <h3>Preview Audio and Metadata Tags</h3>
+
+	      <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
+	      <div class="section-divider">
+	        <div class="section-header justify-between">
+	          <h3>Preview Audio and Metadata Tags</h3>
           <div class="split-button">
             <button id="preview-button" class="btn-pill btn-pill-primary split-main">
               Preview Audio
@@ -418,9 +423,11 @@
           </div>
         </div>
 
-        <!-- Preview button moved to header -->
-      </div> <!-- End of metadata-output-panel -->
-    </div> <!-- End of main-container -->
+		        <!-- Preview button moved to header -->
+		      </div> <!-- End of Preview Audio and Metadata Tags section -->
+		      </div> <!-- End of Output and preview footer -->
+		    </div> <!-- End of metadata-output-panel -->
+	    </div> <!-- End of main-container -->
 
     <!-- Status panel -->
     <div class="panel status-panel">
