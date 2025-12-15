@@ -1163,6 +1163,78 @@
 		.mt-0\.5 {
 			margin-top: 0.125rem;
 		}
+
+		/* Inspector Footer Styles */
+		.inspector-footer {
+			background-color: var(--bg-panel);
+			border-top: 1px solid var(--border-primary);
+		}
+
+		.inspector-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 0.5rem;
+			padding-bottom: 0.375rem;
+			border-bottom: 1px solid var(--border-primary);
+		}
+
+		.inspector-context {
+			font-size: 0.75rem;
+			font-weight: 500;
+			color: var(--text-primary);
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.context-empty {
+			color: var(--text-muted);
+			font-style: italic;
+			font-weight: normal;
+		}
+
+		.context-filename {
+			color: var(--text-primary);
+			font-weight: 600;
+			max-width: 180px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.context-position {
+			color: var(--text-muted);
+			font-weight: normal;
+			font-size: 0.7rem;
+			background: var(--bg-input);
+			padding: 0.125rem 0.375rem;
+			border-radius: 0.25rem;
+			border: 1px solid var(--border-primary);
+		}
+
+		.context-multiselect {
+			color: var(--accent-primary);
+			font-weight: 500;
+		}
+
+		/* Scroll-to-file button */
+		.scroll-to-file-btn {
+			background: none;
+			border: none;
+			color: var(--text-muted);
+			font-size: 0.7rem;
+			cursor: pointer;
+			padding: 0.125rem 0.25rem;
+			border-radius: 0.25rem;
+			transition: all 0.15s ease;
+			margin-left: auto;
+		}
+
+		.scroll-to-file-btn:hover {
+			background: var(--bg-hover);
+			color: var(--accent-primary);
+		}
 	</style>
 </head>
 
@@ -1227,25 +1299,23 @@
 			<div id="file-import-error" class="error-message mb-3" style="display: none"></div>
 
 
-			<div class="section-divider mt-auto">
-				<h3 class="text-sm font-medium mb-1 section-subtitle">
-					Selected File Properties
-				</h3>
-				<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-					<span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">---
-						kb/s</span>
-					<span class="property-label">Sample Rate:</span><span class="property-value"
-						id="prop-samplerate">--- Hz</span>
-					<span class="property-label">Channels:</span><span class="property-value"
-						id="prop-channels">---</span>
-					<span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">---
-						MB</span>
-					<span class="property-label">Combined Size:</span><span class="property-value"
-						id="prop-combinedsize">--- MB</span>
+			<!-- Inspector Footer: File Properties with Context Anchor -->
+			<div class="section-divider mt-auto inspector-footer" id="inspector-footer">
+				<!-- Context Anchor Header - prevents "what am I looking at?" confusion -->
+				<div class="inspector-header" id="inspector-header">
+					<span class="inspector-context" id="inspector-context">
+						<!-- Dynamic: shows filename + position OR multi-select state -->
+						<span class="context-empty">No file selected</span>
+					</span>
 				</div>
-				<p class="text-xs muted-text italic mt-1">
-					(Properties shown for single selected file.)
-				</p>
+
+				<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs" id="props-grid">
+					<span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">---</span>
+					<span class="property-label">Sample Rate:</span><span class="property-value" id="prop-samplerate">---</span>
+					<span class="property-label">Channels:</span><span class="property-value" id="prop-channels">---</span>
+					<span class="property-label">File Size:</span><span class="property-value" id="prop-filesize">---</span>
+					<span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize">---</span>
+				</div>
 			</div>
 
 			<div class="section-divider opacity-50">
@@ -1708,58 +1778,167 @@
 			}, 500);
 		});
 
-		// --- MOCK LOGIC FOR COMBINED INPUT ---
+		// --- MOCK LOGIC FOR COMBINED INPUT + INSPECTOR FOOTER ---
+		// NOTE: This is a static mock file for design visualization only.
 		const combinedInput = document.getElementById('combined-input-area');
 		const emptyStateContent = document.querySelector('.empty-state-content');
 		const fileListContent = document.getElementById('file-list-content');
 		const clearBtn = document.getElementById('clear-files-btn');
+		const inspectorContext = document.getElementById('inspector-context');
+
+		// Mock file data (hardcoded for demo)
+		const mockFiles = [
+			{ name: '01 - Prologue.mp3', size: '4.2 MB', bitrate: '128 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+			{ name: '02 - Chapter 1.mp3', size: '12.5 MB', bitrate: '192 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+			{ name: '03 - Chapter 2.mp3', size: '15.1 MB', bitrate: '192 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+			{ name: '04 - Chapter 3.mp3', size: '11.8 MB', bitrate: '192 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+			{ name: '05 - Chapter 4.mp3', size: '9.3 MB', bitrate: '192 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+			{ name: '06 - Chapter 5.mp3', size: '14.7 MB', bitrate: '192 kb/s', sampleRate: '44100 Hz', channels: 'Stereo' },
+		];
+
+		let selectedIndices = new Set();
+
+		function updateInspectorFooter() {
+			const count = selectedIndices.size;
+			const totalSize = Array.from(selectedIndices).reduce((sum, i) => sum + parseFloat(mockFiles[i].size), 0);
+			const combinedSize = mockFiles.reduce((sum, f) => sum + parseFloat(f.size), 0);
+
+			// Clear existing content
+			while (inspectorContext.firstChild) {
+				inspectorContext.removeChild(inspectorContext.firstChild);
+			}
+
+			if (count === 0) {
+				const emptySpan = document.createElement('span');
+				emptySpan.className = 'context-empty';
+				emptySpan.textContent = 'No file selected';
+				inspectorContext.appendChild(emptySpan);
+
+				document.getElementById('prop-bitrate').textContent = '---';
+				document.getElementById('prop-samplerate').textContent = '---';
+				document.getElementById('prop-channels').textContent = '---';
+				document.getElementById('prop-filesize').textContent = '---';
+				document.getElementById('prop-combinedsize').textContent = combinedSize.toFixed(1) + ' MB';
+			} else if (count === 1) {
+				const idx = Array.from(selectedIndices)[0];
+				const file = mockFiles[idx];
+
+				const filenameSpan = document.createElement('span');
+				filenameSpan.className = 'context-filename';
+				filenameSpan.title = file.name;
+				filenameSpan.textContent = file.name;
+
+				const posSpan = document.createElement('span');
+				posSpan.className = 'context-position';
+				posSpan.textContent = (idx + 1) + ' of ' + mockFiles.length;
+
+				const jumpBtn = document.createElement('button');
+				jumpBtn.className = 'scroll-to-file-btn';
+				jumpBtn.title = 'Scroll to file';
+				jumpBtn.textContent = '↑ Jump';
+
+				inspectorContext.appendChild(filenameSpan);
+				inspectorContext.appendChild(posSpan);
+				inspectorContext.appendChild(jumpBtn);
+
+				document.getElementById('prop-bitrate').textContent = file.bitrate;
+				document.getElementById('prop-samplerate').textContent = file.sampleRate;
+				document.getElementById('prop-channels').textContent = file.channels;
+				document.getElementById('prop-filesize').textContent = file.size;
+				document.getElementById('prop-combinedsize').textContent = combinedSize.toFixed(1) + ' MB';
+			} else {
+				const multiSpan = document.createElement('span');
+				multiSpan.className = 'context-multiselect';
+				multiSpan.textContent = count + ' files selected';
+
+				const posSpan = document.createElement('span');
+				posSpan.className = 'context-position';
+				posSpan.textContent = 'Combined';
+
+				inspectorContext.appendChild(multiSpan);
+				inspectorContext.appendChild(posSpan);
+
+				document.getElementById('prop-bitrate').textContent = '(multiple)';
+				document.getElementById('prop-samplerate').textContent = '(multiple)';
+				document.getElementById('prop-channels').textContent = '(multiple)';
+				document.getElementById('prop-filesize').textContent = totalSize.toFixed(1) + ' MB';
+				document.getElementById('prop-combinedsize').textContent = combinedSize.toFixed(1) + ' MB';
+			}
+		}
 
 		function renderMockFiles() {
 			if (!fileListContent) return;
-			fileListContent.innerHTML = `
-            <div class="mock-file-item selected">
-                <span class="font-bold">1.</span>
-                <span class="flex-1 truncate">01 - Prologue.mp3</span>
-                <span class="text-xs opacity-75">4.2MB</span>
-            </div>
-            <div class="mock-file-item">
-                <span class="font-bold">2.</span>
-                <span class="flex-1 truncate">02 - Chapter 1.mp3</span>
-                <span class="text-xs opacity-75">12.5MB</span>
-            </div>
-            <div class="mock-file-item">
-                <span class="font-bold">3.</span>
-                <span class="flex-1 truncate">03 - Chapter 2.mp3</span>
-                <span class="text-xs opacity-75">15.1MB</span>
-            </div>
-            <div class="mock-file-item">
-                <span class="font-bold">4.</span>
-                <span class="flex-1 truncate">04 - Chapter 3.mp3</span>
-                <span class="text-xs opacity-75">11.8MB</span>
-            </div>
-        `;
+			while (fileListContent.firstChild) {
+				fileListContent.removeChild(fileListContent.firstChild);
+			}
+
+			mockFiles.forEach((file, idx) => {
+				const item = document.createElement('div');
+				item.className = 'mock-file-item' + (selectedIndices.has(idx) ? ' selected' : '');
+				item.dataset.index = idx;
+
+				const numSpan = document.createElement('span');
+				numSpan.className = 'font-bold';
+				numSpan.textContent = (idx + 1) + '.';
+
+				const nameSpan = document.createElement('span');
+				nameSpan.className = 'flex-1 truncate';
+				nameSpan.textContent = file.name;
+
+				const sizeSpan = document.createElement('span');
+				sizeSpan.className = 'text-xs opacity-75';
+				sizeSpan.textContent = file.size;
+
+				item.appendChild(numSpan);
+				item.appendChild(nameSpan);
+				item.appendChild(sizeSpan);
+
+				item.addEventListener('click', (e) => {
+					e.stopPropagation();
+					if (e.ctrlKey || e.metaKey) {
+						// Multi-select toggle
+						if (selectedIndices.has(idx)) {
+							selectedIndices.delete(idx);
+						} else {
+							selectedIndices.add(idx);
+						}
+					} else {
+						// Single select
+						selectedIndices.clear();
+						selectedIndices.add(idx);
+					}
+					renderMockFiles();
+					updateInspectorFooter();
+				});
+
+				fileListContent.appendChild(item);
+			});
 		}
 
-		// Toggle state on click for demo purposes
 		combinedInput?.addEventListener('click', (e) => {
-			// If empty, simulate adding files
 			if (combinedInput.classList.contains('empty')) {
 				combinedInput.classList.remove('empty');
 				emptyStateContent?.classList.add('hidden');
 				fileListContent?.classList.remove('hidden');
 				if (clearBtn) clearBtn.style.display = 'inline-block';
+				selectedIndices.add(0);
 				renderMockFiles();
+				updateInspectorFooter();
 			}
 		});
 
-		// Clear button logic
 		clearBtn?.addEventListener('click', (e) => {
-			e.stopPropagation(); // prevent re-triggering the container click
+			e.stopPropagation();
 			combinedInput?.classList.add('empty');
 			emptyStateContent?.classList.remove('hidden');
 			fileListContent?.classList.add('hidden');
 			if (clearBtn) clearBtn.style.display = 'none';
+			selectedIndices.clear();
+			updateInspectorFooter();
 		});
+
+		// Initialize
+		updateInspectorFooter();
 
 	</script>
 </body>
