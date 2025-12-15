@@ -287,12 +287,15 @@
         </div>
       </div>
 
-      <!-- OUTPUT LOCATION -->
-      <div class="section-divider">
-        <div class="mb-2">
-          <label for="output-dir-text">Output Directory & Preview</label>
-          <!-- Integrated Preview Box -->
-          <div class="output-preview-box mb-1">
+	      <!-- OUTPUT LOCATION -->
+	      <div class="section-divider">
+	        <div class="section-header">
+	          <h3>Output Path</h3>
+	        </div>
+	        <div class="mb-2">
+	          <label for="output-dir-text">Output Directory & Preview</label>
+	          <!-- Integrated Preview Box -->
+	          <div class="output-preview-box mb-1">
             <div id="output-preview-text" class="output-path-text" title="Full output path preview">
               Select output directory...
             </div>
@@ -307,32 +310,39 @@
           <button type="button" id="path-options-toggle"
             class="path-options-toggle text-xs flex items-center gap-1 mt-1">
             <span class="toggle-arrow">▼</span> Path Options
-          </button>
+	          </button>
 
-          <!-- Collapsible Options -->
-          <div id="path-options-panel" class="path-options-panel">
-            <label class="checkbox-label mt-0">
-              <input type="checkbox" id="output-subdir-pattern" checked />
-              Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
-            </label>
-          </div>
-        </div>
-
-        <div>
-          <!-- Moved into collapsible panel -->
-          <label class="block text-xs mb-1 font-medium mt-2">Filename Pattern</label>
-          <div class="radio-group text-xs">
-            <label class="radio-inline">
-              <input type="radio" name="filename_pattern" value="title_year" checked />
-              Title (Year).m4b
-            </label>
-            <label class="radio-inline">
-              <input type="radio" name="filename_pattern" value="author_title" />
-              Author - Title.m4b
-            </label>
-          </div>
-        </div>
-      </div> <!-- Close Output Location section -->
+	          <!-- Collapsible Options -->
+	          <div id="path-options-panel" class="path-options-panel">
+	            <div class="path-option-row">
+	              <label class="checkbox-label text-xs mt-0">
+	                <input type="checkbox" id="output-subdir-pattern" checked />
+	                Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
+	              </label>
+	            </div>
+	            <div class="path-option-row">
+	              <span class="text-xs muted-text mr-2">Filename:</span>
+	              <label class="radio-inline text-xs">
+	                <input
+	                  type="radio"
+	                  name="filename_pattern"
+	                  value="title_year"
+	                  checked
+	                />
+	                Title (Year).m4b
+	              </label>
+	              <label class="radio-inline text-xs">
+	                <input
+	                  type="radio"
+	                  name="filename_pattern"
+	                  value="author_title"
+	                />
+	                Author - Title.m4b
+	              </label>
+	            </div>
+	          </div>
+	        </div>
+	      </div> <!-- Close Output Location section -->
       <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
       <div class="section-divider">
         <div class="section-header justify-between">
