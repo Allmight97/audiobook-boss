@@ -18,21 +18,21 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.9.3", features = [] }
+tauri = { version = "2.9.5", features = [] }
 tauri-plugin-opener = "2.5.2"
 tauri-plugin-dialog = "2.4.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "2.0"
-tokio = { version = "1.0", features = ["full"] }
-anyhow = "1.0"
-uuid = { version = "1.19", features = ["v4"] }
-log = "0.4"
-env_logger = "0.11"
-num_cpus = "1.16"
-ffmpeg-next = "8.0"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+thiserror = "2.0.17"
+tokio = { version = "1.48.0", features = ["full"] }
+anyhow = "1.0.100"
+uuid = { version = "1.19.0", features = ["v4"] }
+log = "0.4.29"
+env_logger = "0.11.8"
+num_cpus = "1.17.0"
+ffmpeg-next = "8.0.0"
+image = { version = "0.25.9", default-features = false, features = ["jpeg", "png", "webp"] }
+chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
@@ -43,6 +43,6 @@ custom-protocol = ["tauri/custom-protocol"]
 default = []
 
 [dev-dependencies]
-tempfile = "3"
-tauri = { version = "2.9.3", features = ["test"] }
-futures = "0.3"
+tempfile = "3.23.0"
+tauri = { version = "2.9.5", features = ["test"] }
+futures = "0.3.31"
