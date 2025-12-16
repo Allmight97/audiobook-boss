@@ -15,6 +15,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: oven-sh/setup-bun@v2
       
+      - name: Install FFmpeg
+        run: brew install ffmpeg pkg-config
+      
       - name: Install dependencies
         run: bun install
         
