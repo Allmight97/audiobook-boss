@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Maintain Rust dependencies (monthly because they are stable)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    # Group updates to reduce PR noise if desired, but keeping it simple for now as per plan
+
+  # Maintain Frontend dependencies (weekly because the JS ecosystem moves fast)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Maintain CI/CD action versions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+
+# The "Bun Catch" (Frontend Updates)
+# WARNING
+# Dependabot cannot update bun.lock yet.
+# When you see a PR for a frontend dependency (e.g. react):
+# - Check out the PR branch locally (gh pr checkout <number>).
+# - Run bun install to update the lockfile.
