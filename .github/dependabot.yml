@@ -2,7 +2,7 @@ version: 2
 updates:
   # Maintain Rust dependencies (monthly because they are stable)
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/src-tauri"
     schedule:
       interval: "monthly"
     # Group updates to reduce PR noise if desired, but keeping it simple for now as per plan
