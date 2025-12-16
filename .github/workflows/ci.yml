@@ -33,7 +33,7 @@ jobs:
   quality-gate:
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: oven-sh/setup-bun@v2
       
