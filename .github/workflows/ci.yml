@@ -4,8 +4,30 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'src-tauri/src/**'
+      - 'src-tauri/tests/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'tsconfig.json'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'src-tauri/src/**'
+      - 'src-tauri/tests/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'tsconfig.json'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   quality-gate:
