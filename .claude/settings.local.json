@@ -75,8 +75,7 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:localhost)",
-      "Bash(script-src 'self')",
-      "Bash(python3:*)"
+      "Bash(script-src 'self')"
     ],
     "deny": []
   },
