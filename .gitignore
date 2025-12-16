@@ -35,4 +35,4 @@ target/rust-analyzer/flycheck0/stderr
 
 # Claude AI settings (local development tool configuration)
 .claude/
-**/.claude/
+opencode.json

@@ -53,22 +53,10 @@ function setupEventHandlers(): void {
   setupSettingsHandlers();
   setupDirectoryHandlers();
   setupPatternHandlers();
-  setupCollapsiblePanel();
 
   document.addEventListener("abb:job-type-changed", () => {
     updateOutputPath();
   });
-}
-
-function setupCollapsiblePanel(): void {
-  const toggle = document.getElementById("path-options-toggle");
-  const panel = document.getElementById("path-options-panel");
-  if (toggle && panel) {
-    toggle.addEventListener("click", () => {
-      toggle.classList.toggle("expanded");
-      panel.classList.toggle("expanded");
-    });
-  }
 }
 
 /**

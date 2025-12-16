@@ -10,9 +10,6 @@
 
 <body class="p-0">
   <script type="module" src="/src/main.ts"></script>
-  <h1 class="text-xl font-bold py-2 px-4 text-center border-b header-bar">
-    Audiobook Boss
-  </h1>
 
   <div class="main-container">
     <!-- Left: Input panel -->
@@ -67,22 +64,42 @@
           </button>
         </div>
       </div>
-      <div id="drop-zone" class="drag-drop-area mb-3">
-        <p class="text-sm muted-text">
-          Drag & Drop files here or Click to Select
-        </p>
-        <p class="text-xs muted-text mt-1">Supports: mp3, m4a, m4b, aac</p>
-      </div>
       <div id="file-import-error" class="error-message mb-3" style="display: none"></div>
 
-      <div class="file-list-placeholder mb-3">
-        File List Area (Drag to Reorder)
+      <div class="file-management-container mb-3" role="region" aria-label="File list">
+        <div class="drop-zone-header" 
+             data-has-files="false"
+             role="button"
+             aria-label="Add audio files"
+             tabindex="0">
+          <p class="text-sm muted-text">
+            Drag & Drop files here or Click to Select
+          </p>
+          <p class="text-xs muted-text mt-1">Supports: mp3, m4a, m4b, aac</p>
+        </div>
+        
+        <div class="file-list-content" role="list" aria-label="Audio files">
+          <!-- File items rendered here -->
+        </div>
       </div>
 
-      <div class="section-divider mt-auto">
-        <h3 class="text-sm font-medium mb-1 section-subtitle">
-          Selected File Properties
-        </h3>
+      <div
+        class="section-divider file-properties-pinned inspector-footer"
+        role="region"
+        aria-label="Selected File Properties"
+      >
+        <!-- Context Anchor Header - prevents "what am I looking at?" confusion -->
+        <div class="inspector-header">
+          <span
+            class="inspector-context"
+            id="prop-selected-context"
+            aria-live="polite"
+          >
+            <!-- Dynamic: shows filename + position OR empty state -->
+            <span class="context-empty">No file selected</span>
+          </span>
+        </div>
+
         <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
           <span class="property-label">Bitrate:</span><span class="property-value" id="prop-bitrate">--- kb/s</span>
           <span class="property-label">Sample Rate:</span><span class="property-value" id="prop-samplerate">---
@@ -92,28 +109,17 @@
           <span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize">---
             MB</span>
         </div>
-        <p class="text-xs muted-text italic mt-1">
-          (Properties shown for single selected file.)
-        </p>
-      </div>
-
-      <div class="section-divider opacity-50">
-        <h3 class="text-sm font-medium mb-1 section-subtitle">
-          Folder Monitoring (Future)
-        </h3>
-        <div class="text-xs muted-text mb-1">Monitored Folder: N/A</div>
-        <button class="button-secondary text-xs w-full" disabled>
-          Change Watched Folder
-        </button>
       </div>
     </div>
 
-    <!-- Right: Metadata + Output -->
-    <div class="panel metadata-output-panel">
-      <!-- METADATA SECTION -->
-      <div class="section-header">
-        <h3>Metadata Manager</h3>
-      </div>
+		    <!-- Right: Metadata + Output + Status -->
+		    <div class="right-column-wrapper">
+		    <div class="panel metadata-output-panel">
+		      <div class="metadata-output-scroll">
+	      <!-- METADATA SECTION -->
+	      <div class="section-header">
+	        <h3>Metadata Manager</h3>
+	      </div>
 	      <div class="grid grid-cols-4 gap-3 mb-3">
 	        <!-- Cover art - aligned with metadata grid -->
 	        <div class="col-span-1 flex flex-col items-center">
@@ -277,59 +283,72 @@
               <span class="option-label">Twoloop</span>
             </label>
           </div>
-        </div>
-      </div>
+	        </div>
+	      </div>
 
-      <!-- OUTPUT LOCATION -->
-      <div class="section-divider">
-        <div class="mb-2">
-          <label for="output-dir-text">Output Directory & Preview</label>
-          <!-- Integrated Preview Box -->
-          <div class="output-preview-box mb-1">
-            <div id="output-preview-text" class="output-path-text" title="Full output path preview">
-              Select output directory...
-            </div>
+	      </div>
+
+	      <div
+	        class="section-divider metadata-footer-pinned inspector-footer"
+	        role="region"
+	        aria-label="Output and preview"
+	      >
+	      <!-- OUTPUT LOCATION -->
+	          <div>
+	            <div class="section-header">
+	              <h3>Output Directory</h3>
+	            </div>
+	            <div class="mb-2">
+	              <!-- Integrated Preview Box -->
+	              <div class="output-preview-box">
+	                <div id="output-preview-text" class="output-path-text" title="Full output path preview">
+	                  Select output directory...
+	            </div>
             <button id="output-dir-browse" class="btn-pill btn-pill-primary-soft">
               Browse…
             </button>
           </div>
 
-          <!-- Hidden input for legacy compatibility / fallback -->
-          <input type="text" id="output-dir-text" class="hidden" readonly />
+	          <!-- Hidden input for legacy compatibility / fallback -->
+	          <input type="text" id="output-dir-text" class="hidden" readonly />
 
-          <button type="button" id="path-options-toggle"
-            class="path-options-toggle text-xs flex items-center gap-1 mt-1">
-            <span class="toggle-arrow">▼</span> Path Options
-          </button>
+	          <div class="output-options-panel">
+	            <div class="path-option-row">
+	              <label class="checkbox-label text-xs mt-0">
+	                <input type="checkbox" id="output-subdir-pattern" checked />
+	                Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
+	              </label>
+	            </div>
+	            <div class="path-option-row">
+	              <span class="text-xs muted-text mr-2">Filename:</span>
+	              <label class="radio-inline text-xs">
+	                <input
+	                  id="filename-pattern-title-year"
+	                  type="radio"
+	                  name="filename_pattern"
+	                  value="title_year"
+	                  checked
+	                />
+	                Title (Year).m4b
+	              </label>
+	              <label class="radio-inline text-xs">
+	                <input
+	                  id="filename-pattern-author-title"
+	                  type="radio"
+	                  name="filename_pattern"
+	                  value="author_title"
+	                />
+	                Author - Title.m4b
+	              </label>
+	            </div>
+	          </div>
+	        </div>
+	      </div> <!-- Close Output Location section -->
 
-          <!-- Collapsible Options -->
-          <div id="path-options-panel" class="path-options-panel">
-            <label class="checkbox-label mt-0">
-              <input type="checkbox" id="output-subdir-pattern" checked />
-              Use Default Subdirectory Pattern ([Author]/[Series]/[Title]/)
-            </label>
-          </div>
-        </div>
-
-        <div>
-          <!-- Moved into collapsible panel -->
-          <label class="block text-xs mb-1 font-medium mt-2">Filename Pattern</label>
-          <div class="radio-group text-xs">
-            <label class="radio-inline">
-              <input type="radio" name="filename_pattern" value="title_year" checked />
-              Title (Year).m4b
-            </label>
-            <label class="radio-inline">
-              <input type="radio" name="filename_pattern" value="author_title" />
-              Author - Title.m4b
-            </label>
-          </div>
-        </div>
-      </div> <!-- Close Output Location section -->
-      <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
-      <div class="section-divider">
-        <div class="section-header justify-between">
-          <h3>Preview Audio and Metadata Tags</h3>
+	      <!-- PREVIEW AUDIO AND METADATA TAGS SECTION -->
+	      <div class="section-divider">
+	        <div class="section-header justify-between">
+	          <h3>Preview Audio and Metadata Tags</h3>
           <div class="split-button">
             <button id="preview-button" class="btn-pill btn-pill-primary split-main">
               Preview Audio
@@ -401,45 +420,48 @@
           </div>
         </div>
 
-        <!-- Preview button moved to header -->
-      </div> <!-- End of metadata-output-panel -->
-    </div> <!-- End of main-container -->
+		        <!-- Preview button moved to header -->
+		      </div> <!-- End of Preview Audio and Metadata Tags section -->
+		      </div> <!-- End of Output and preview footer -->
+			    </div> <!-- End of metadata-output-panel -->
 
-    <!-- Status panel -->
-    <div class="panel status-panel">
-      <div class="status-panel-content">
-        <div class="art-thumbnail">
-          <span>Art</span>
-        </div>
-        <div class="progress-details">
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs">Progress:
-              <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
-              →
-              <span class="property-value" id="percentage-processed">--%</span></span>
-            <span id="status-text" class="text-xs font-semibold">Idle</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
-          </div>
-          <div id="step-text" class="text-xs muted-text mt-0.5">
-            Current Step: Waiting for files...
-          </div>
-          <div id="job-list" class="text-xs muted-text mt-1"></div>
-          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
-            <!-- Moved Max Concurrent to Header -->
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button id="process-button" class="btn-pill btn-pill-primary">
-            Process Audiobook
-          </button>
-          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+	    <!-- Status panel -->
+	    <div class="panel status-panel">
+	      <div class="status-panel-content">
+	        <div class="art-thumbnail">
+	          <span>Art</span>
+	        </div>
+	        <div class="progress-details">
+	          <div class="flex justify-between mb-0.5">
+	            <span class="text-xs">Progress:
+	              <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
+	              →
+	              <span class="property-value" id="percentage-processed">--%</span></span>
+	            <span id="status-text" class="text-xs font-semibold">Idle</span>
+	          </div>
+	          <div class="progress-bar-bg">
+	            <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+	          </div>
+	          <div id="step-text" class="text-xs muted-text mt-0.5">
+	            Current Step: Waiting for files...
+	          </div>
+	          <div id="job-list" class="text-xs muted-text mt-1"></div>
+	          <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none;">
+	            <!-- Moved Max Concurrent to Header -->
+	          </div>
+	        </div>
+	        <div class="flex gap-2">
+	          <button id="process-button" class="btn-pill btn-pill-primary">
+	            Process Audiobook
+	          </button>
+	          <button id="cancel-all-button" class="btn-pill btn-pill-secondary">
+	            Cancel
+	          </button>
+	        </div>
+	      </div>
+	    </div>
+		    </div> <!-- End of right-column-wrapper -->
+		    </div> <!-- End of main-container -->
 </body>
 
 </html>
