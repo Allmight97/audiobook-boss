@@ -5,6 +5,7 @@ This index categorizes the software boundaries in **Audiobook Boss**, mapping th
 ---
 
 ## 🏗️ 1. Orchestration (The Bridge)
+**API Class**: **IPC (Inter-Process Communication)**
 **Interface**: Frontend (JS) ↔ Backend (Rust)
 **Mechanism**: Command Invocations (Request/Response)
 
@@ -19,6 +20,7 @@ These APIs define the "Menu" of actions available to the user interface.
 ---
 
 ## 🛰️ 2. Telemetry (The Observer)
+**API Class**: **Pub/Sub / Event Streaming**
 **Interface**: Backend (Rust) → Frontend (JS)
 **Mechanism**: Event Streaming (Unidirectional)
 
@@ -32,6 +34,7 @@ Real-time feedback as background jobs progress.
 ---
 
 ## ⚙️ 3. Computation (The Engine)
+**API Class**: **FFI (Foreign Function Interface)**
 **Interface**: Application Code ↔ Native System Libraries
 **Mechanism**: Low-level bindings via `ffmpeg-next`
 
@@ -45,6 +48,7 @@ The specialized "heavy lifting" layer for audio processing.
 ---
 
 ## 🛡️ 4. Guardrails (Security & I/O)
+**API Class**: **System / OS Interface**
 **Interface**: Application Code ↔ Operating System
 **Mechanism**: Path normalization and validation
 
@@ -54,8 +58,6 @@ Ensuring system safety and data integrity at the boundaries of the local machine
     - **Validation**: `src-tauri/src/audio/path_validation.rs`
     - **Analysis**: `src-tauri/src/audio/file_list.rs`
     - **Pre-execution Check**: `src-tauri/src/audio/processor/prepare.rs`
-
----
 
 ---
 
