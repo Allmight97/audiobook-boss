@@ -750,9 +750,9 @@ export class StatusPanel {
   private extractFilenameFromProgress(label: string): string | null {
     const trimmed = label.trim();
     if (!trimmed) return null;
-    const idx = trimmed.lastIndexOf(" (");
-    if (idx > 0) {
-      return trimmed.slice(0, idx).trim();
+    const match = trimmed.match(/^(.*?) \(\d+\/\d+\)$/);
+    if (match && match[1]) {
+      return match[1].trim();
     }
     return trimmed;
   }

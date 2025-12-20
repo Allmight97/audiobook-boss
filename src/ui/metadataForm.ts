@@ -29,14 +29,7 @@ export function readMetadataForm(): Partial<AudiobookMetadata> {
     if (!isNaN(yearNum)) metadata.date = yearNum; // Map year -> date for backend
   }
   if (genre) metadata.genre = genre;
-  if (series) {
-    // TODO: Persist MVNM (series name) when backend supports it
-    // For now, append to album if series is provided
-    if (metadata.album) {
-      metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""})`;
-    }
-    metadata.series = series;
-  }
+  if (series) metadata.series = series;
   if (seriesPart) metadata.series_part = seriesPart;
   if (description) metadata.description = description;
 
