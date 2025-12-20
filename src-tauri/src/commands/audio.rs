@@ -181,8 +181,8 @@ pub async fn process_audiobook_files_v2(
             let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
             let file_info = audio::get_file_list_info(&paths)?;
             let merge_key = payload.input_files.first().map(|s| s.as_str());
-            let merge_metadata = merge_key
-                .and_then(|key| metadata.as_ref().and_then(|map| map.get(key).cloned()));
+            let merge_metadata =
+                merge_key.and_then(|key| metadata.as_ref().and_then(|map| map.get(key).cloned()));
             let output_path = build_output_path(
                 &base_output_dir,
                 merge_metadata.as_ref(),
@@ -215,9 +215,10 @@ pub async fn process_audiobook_files_v2(
             let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
             for input in &payload.input_files {
                 let path = PathBuf::from(input);
+                let file_metadata = metadata.as_ref().and_then(|map| map.get(input));
                 let output_path = build_output_path(
                     &base_output_dir,
-                    metadata.as_ref(),
+                    file_metadata,
                     use_subdir_pattern,
                     filename_pattern,
                     Some(&path),
@@ -229,9 +230,7 @@ pub async fn process_audiobook_files_v2(
                 let registry_cloned = registry.inner().clone();
                 let settings_cloned = payload.settings.clone();
                 let sr_cloned = sample_rate.clone();
-                let md_cloned = metadata
-                    .as_ref()
-                    .and_then(|map| map.get(input).cloned());
+                let md_cloned = file_metadata.cloned();
                 let preview_cloned = preview_seconds;
 
                 tasks.push(tokio::spawn(async move {
