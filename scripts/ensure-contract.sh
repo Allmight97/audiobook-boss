@@ -5,6 +5,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Ensure required tools are present
+for tool in rg awk sed comm; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Error: Required tool '$tool' not found. Please install it." >&2
+    exit 1
+  fi
+done
+
 log_group() {
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     echo "::group::$1"
