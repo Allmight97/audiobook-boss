@@ -64,8 +64,8 @@ log_endgroup
 missing_in_rust_list=$(comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds"))
 missing_in_ts_list=$(comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds"))
 
-missing_in_rust_count=$(echo "$missing_in_rust_list" | grep -v '^$' | wc -l | tr -d ' ')
-missing_in_ts_count=$(echo "$missing_in_ts_list" | grep -v '^$' | wc -l | tr -d ' ')
+missing_in_rust_count=$(echo "$missing_in_rust_list" | awk 'NF' | wc -l | tr -d ' ')
+missing_in_ts_count=$(echo "$missing_in_ts_list" | awk 'NF' | wc -l | tr -d ' ')
 
 if [ "$missing_in_rust_count" -ne 0 ]; then
   msg="Contract mismatch detected: TS invoke() names missing in Rust handler registrations"
