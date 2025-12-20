@@ -24,6 +24,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 - Backend throttles progress emits to ~200ms to reduce UI load.
 - Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
   - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
+- `current_file` is a human-readable label (filename + index) for batch progress displays.
 
 ### Progress stage mapping
 

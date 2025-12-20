@@ -8,7 +8,7 @@
 
 import { bridge } from "../../lib/bridge";
 import { ProcessingProgressEvent, EVENTS, STAGES } from "../../types/events";
-import { currentFileList } from "../fileList";
+import { currentFileList, selectedFileIndex } from "../fileList";
 import { getCurrentOutputConfig } from "../outputPanel";
 import type { EncoderSettings, OutputConfig } from "../../types/audio";
 import {
@@ -19,8 +19,13 @@ import { toBoundaryEncoderSettings } from "../../types/encoder";
 import type { EncoderSettingsLike } from "../../types/encoder";
 import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
-import { getCurrentCoverArt } from "../coverArt";
 import { getJobType, setJobControlsEnabled } from "../jobControls";
+import { readMetadataForm } from "../metadataForm";
+import {
+  getAllMetadata,
+  getMetadataForFile,
+  setMetadataForFile,
+} from "../metadataState";
 
 interface ProcessingStatus {
   stage:
@@ -241,8 +246,14 @@ export class StatusPanel {
         .filter((file) => file.isValid)
         .map((file) => file.path);
 
-      // Get metadata from the form (basic implementation)
-      const metadata = this.getCurrentMetadata();
+      const currentMetadata = readMetadataForm();
+      const activeFile =
+        selectedFileIndex >= 0
+          ? currentFileList.files[selectedFileIndex]
+          : currentFileList.files.find((file) => file.isValid);
+      if (activeFile?.isValid) {
+        setMetadataForFile(activeFile.path, currentMetadata);
+      }
 
       // Call backend processing command
       const fallbackEncoderDefaults = (() => {
@@ -281,6 +292,53 @@ export class StatusPanel {
         filenamePattern: outputConfig.filenamePattern,
       };
 
+      if (v2Payload.jobType === "batch") {
+        const missingMetadata = filePaths.filter(
+          (filePath) => !getMetadataForFile(filePath)
+        );
+        if (missingMetadata.length > 0) {
+          await Promise.all(
+            missingMetadata.map(async (filePath) => {
+              try {
+                const metadata = await bridge.invoke<AudiobookMetadata>(
+                  "read_audio_metadata",
+                  { filePath }
+                );
+                setMetadataForFile(filePath, metadata);
+              } catch (error) {
+                console.warn(
+                  "Failed to load metadata for batch file:",
+                  filePath,
+                  error
+                );
+              }
+            })
+          );
+        }
+      }
+
+      let metadataPayload: Record<string, Partial<AudiobookMetadata>> | null =
+        null;
+      if (v2Payload.jobType === "merge") {
+        if (
+          v2Payload.inputFiles.length > 0 &&
+          Object.keys(currentMetadata).length > 0
+        ) {
+          metadataPayload = {
+            [v2Payload.inputFiles[0]]: currentMetadata,
+          };
+        }
+      } else {
+        const storedMetadata = getAllMetadata();
+        const filteredMetadata = Object.fromEntries(
+          Object.entries(storedMetadata).filter(
+            ([, value]) => Object.keys(value).length > 0
+          )
+        );
+        metadataPayload =
+          Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
+      }
+
       const result = await bridge.invoke<{
         message: string;
         previewFilePath?: string;
@@ -288,7 +346,7 @@ export class StatusPanel {
         jobId?: string;
       }>("process_audiobook_files_v2", {
         payload: v2Payload,
-        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+        metadata: metadataPayload,
         previewSeconds: options?.previewSeconds,
       });
 
@@ -663,53 +721,6 @@ export class StatusPanel {
       console.warn("Failed to load cover art for thumbnail:", error);
       dom.resetArtThumbnail();
     }
-  }
-
-  private getCurrentMetadata(): Partial<AudiobookMetadata> {
-    // Basic metadata extraction from DOM elements
-    const getElementValue = (id: string): string => {
-      const element = document.getElementById(id) as HTMLInputElement;
-      return element?.value?.trim() || "";
-    };
-
-    const metadata: Partial<AudiobookMetadata> = {};
-
-    const title = getElementValue("meta-title");
-    const author = getElementValue("meta-author");
-    const narrator = getElementValue("meta-narrator");
-    const year = getElementValue("meta-year");
-    const genre = getElementValue("meta-genre");
-    const series = getElementValue("meta-series");
-    const seriesPart = getElementValue("meta-series-part");
-    const description = getElementValue("meta-description");
-
-    if (title) {
-      metadata.title = title;
-      metadata.album = title; // Album derived from title
-    }
-    if (author) metadata.artist = author; // Map author -> artist for backend
-    if (narrator) metadata.composer = narrator; // Map narrator -> composer for backend
-    if (year) {
-      const yearNum = parseInt(year);
-      if (!isNaN(yearNum)) metadata.date = yearNum; // Map year -> date for backend
-    }
-    if (genre) metadata.genre = genre;
-    if (series) {
-      // TODO: Persist MVNM (series name) when backend supports it
-      // For now, append to album if series is provided
-      if (metadata.album) {
-        metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""})`;
-      }
-    }
-    if (description) metadata.description = description;
-
-    // Include cover art if user has selected any
-    const coverBytes = getCurrentCoverArt();
-    if (coverBytes && coverBytes.length > 0) {
-      metadata.cover_art = coverBytes;
-    }
-
-    return metadata;
   }
 
   // Public method to check if processing is active

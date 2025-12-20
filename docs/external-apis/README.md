@@ -16,6 +16,7 @@ These APIs define the "Menu" of actions available to the user interface.
     - **UI Integration**: `src/ui/{fileImport, statusPanel, coverArt}`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
     - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust)
+    - **Note**: `process_audiobook_files_v2` now accepts per-file metadata keyed by input path.
 
 ---
 

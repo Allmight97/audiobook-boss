@@ -15,6 +15,7 @@
 
 - Prefer typed wrappers or generics for `invoke`, e.g. `invoke<ResultType>('command', args)`.
 - Keep command args and return shapes stable and documented.
+- `process_audiobook_files_v2` now accepts a per-file metadata map keyed by input path.
 
 ### State ownership
 
@@ -25,5 +26,4 @@
 
 - Install listeners at start of an operation; unlisten on idle to avoid leaks.
 - Consider `beforeunload` cleanup as a safety net.
-
 

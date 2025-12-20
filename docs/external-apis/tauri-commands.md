@@ -29,12 +29,13 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - `process_audiobook_files_v2`
   - Args: `{ payload, metadata?, previewSeconds? }`
-    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'Merge' | 'Batch'; useSubdirPattern?: boolean; filenamePattern?: 'title_year' | 'author_title' }`
+    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'merge' | 'batch'; useSubdirPattern?: boolean; filenamePattern?: 'title_year' | 'author_title' }`
     - `settings: EncoderSettings` (`src/types/audio.ts:62`)
-    - `metadata?: AudiobookMetadata` (`src/types/metadata.ts`)
+    - `metadata?: AudiobookMetadataMap` (`src/types/metadata.ts`)
     - `previewSeconds?: number` (optional short preview)
   - Returns: `ProcessCommandResult` (`{ message: string; previewFilePath?: string; previewActualSeconds?: number; jobId: string }`)
   - Notes:
+    - `metadata` is keyed by input path; merge uses the first input path as the metadata key.
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
     - Emits `processing-progress` events with `job_id` (optional in payload for backward compatibility)
 

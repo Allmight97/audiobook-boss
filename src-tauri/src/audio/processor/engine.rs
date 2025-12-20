@@ -181,6 +181,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                 last_emit: &mut last_emit,
                 current_file_index: 0,
                 current_stream_index: 0,
+                current_file_name: String::new(),
                 input_samples_total: &mut input_samples_total,
                 encoded_samples_total: &mut encoded_samples_total,
                 early_stop: &mut preview_early_stop,
@@ -201,6 +202,11 @@ impl MediaProcessor for FfmpegNextProcessor {
                     enc_ctx.format(),
                 );
                 for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
+                    let file_label = in_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown");
+                    ctx.current_file_name = file_label.to_string();
                     log::info!(
                         "Processing input file {}/{}: {}",
                         idx + 1,

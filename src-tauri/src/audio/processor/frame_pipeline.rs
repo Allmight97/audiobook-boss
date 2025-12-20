@@ -114,6 +114,7 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) last_emit: &'a mut std::time::Instant,
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
+    pub(crate) current_file_name: String,
     pub(crate) input_samples_total: &'a mut u64,
     pub(crate) encoded_samples_total: &'a mut u64,
     pub(crate) early_stop: &'a mut bool,
@@ -129,11 +130,17 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             current_seconds,
             ctx.total_duration,
         ) as f64;
+        let file_label = if ctx.current_file_name.is_empty() {
+            "Unknown file"
+        } else {
+            ctx.current_file_name.as_str()
+        };
         ctx.emitter.emit_converting_progress(
             percentage.min(crate::audio::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
             "Converting and merging audio files...",
             Some(format!(
-                "Input {} of {}",
+                "{} ({}/{})",
+                file_label,
                 ctx.current_file_index + 1,
                 ctx.total_files
             )),
