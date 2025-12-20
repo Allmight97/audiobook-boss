@@ -31,6 +31,7 @@ Real-time feedback as background jobs progress.
     - **Emission Logic**: `src-tauri/src/audio/progress/reporter.rs`
     - **Frontend Listeners**: `src/ui/statusPanel`
     - **Event Types**: `src/types/events.ts`
+    - **Note**: `processing-progress` includes optional `job_id` + `input_index` for batch mapping.
 
 ---
 

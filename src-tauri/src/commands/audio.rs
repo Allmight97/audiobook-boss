@@ -122,7 +122,6 @@ pub struct ProcessV2Payload {
 #[tauri::command]
 pub async fn process_audiobook_files_v2(
     window: tauri::Window,
-    state: tauri::State<'_, crate::ProcessingState>,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     payload: ProcessV2Payload,
     metadata: Option<HashMap<String, crate::metadata::AudiobookMetadata>>,
@@ -160,21 +159,7 @@ pub async fn process_audiobook_files_v2(
         })?;
     }
 
-    let job_type = payload.job_type.unwrap_or(JobType::Merge);
-
-    // Legacy processing flag: set true for the duration of this command
-    {
-        let mut is_processing = state
-            .is_processing
-            .lock()
-            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
-        *is_processing = true;
-
-        let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire cancellation lock".to_string())
-        })?;
-        *is_cancelled = false;
-    }
+    let job_type = payload.job_type.unwrap_or(JobType::Batch);
 
     let result = match job_type {
         JobType::Merge => {
@@ -197,6 +182,7 @@ pub async fn process_audiobook_files_v2(
                 registry.inner().clone(),
                 payload.settings.clone(),
                 sample_rate.clone(),
+                None,
                 resolved_output,
                 file_info,
                 merge_metadata,
@@ -213,7 +199,7 @@ pub async fn process_audiobook_files_v2(
 
             let mut tasks = Vec::new();
             let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
-            for input in &payload.input_files {
+            for (index, input) in payload.input_files.iter().enumerate() {
                 let path = PathBuf::from(input);
                 let file_metadata = metadata.as_ref().and_then(|map| map.get(input));
                 let output_path = build_output_path(
@@ -231,6 +217,7 @@ pub async fn process_audiobook_files_v2(
                 let settings_cloned = payload.settings.clone();
                 let sr_cloned = sample_rate.clone();
                 let md_cloned = file_metadata.cloned();
+                let input_index = Some(index);
                 let preview_cloned = preview_seconds;
 
                 tasks.push(tokio::spawn(async move {
@@ -240,6 +227,7 @@ pub async fn process_audiobook_files_v2(
                         registry_cloned,
                         settings_cloned,
                         sr_cloned,
+                        input_index,
                         resolved_output,
                         file_info,
                         md_cloned,
@@ -267,15 +255,6 @@ pub async fn process_audiobook_files_v2(
             })
         }
     };
-
-    // Reset legacy processing state
-    {
-        let mut is_processing = state
-            .is_processing
-            .lock()
-            .map_err(|_| AppError::InvalidInput("Failed to acquire processing lock".to_string()))?;
-        *is_processing = false;
-    }
 
     result
 }
@@ -414,6 +393,7 @@ async fn run_processing_job(
     registry: crate::ManagedJobRegistry,
     encoder_settings: EncoderSettings,
     sample_rate: audio::SampleRateConfig,
+    input_index: Option<usize>,
     output_path: PathBuf,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -450,6 +430,7 @@ async fn run_processing_job(
 
         // Set job_id on context for progress emission
         context.job_id = Some(job_id.to_string());
+        context.input_index = input_index;
 
         // Resolve preview seconds
         let mut preview_seconds_resolved: Option<f64> = None;
@@ -516,7 +497,6 @@ async fn run_processing_job(
 /// Sets the global cancellation flag in the job registry
 #[tauri::command]
 pub async fn cancel_processing(
-    state: tauri::State<'_, crate::ProcessingState>,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     job_id: Option<String>,
 ) -> Result<String> {
@@ -527,12 +507,6 @@ pub async fn cancel_processing(
     } else {
         // Cancel all jobs in the registry
         registry.cancel_all();
-
-        // Also set legacy state for backward compatibility
-        let mut is_cancelled = state.is_cancelled.lock().map_err(|_| {
-            AppError::InvalidInput("Failed to acquire cancellation lock".to_string())
-        })?;
-        *is_cancelled = true;
 
         Ok("All processing jobs cancellation requested".to_string())
     }

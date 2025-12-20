@@ -1,4 +1,9 @@
-import { currentFileList, selectedFileIndex, setSelectedIndex } from "./state";
+import {
+  currentFileList,
+  selectedFileIndex,
+  setSelectedIndex,
+  isOrderLocked,
+} from "./state";
 import { selectFile, removeFile, moveFileUp, moveFileDown } from "./actions";
 import { updateFileListDOM } from "./dom";
 import { onFileListChange } from "../outputPanel";
@@ -51,6 +56,7 @@ function handleFileListClick(e: Event): void {
   if (target.classList.contains("remove-file-btn")) {
     e.stopPropagation();
     e.preventDefault();
+    if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
     if (index >= 0) {
       console.log("Remove button clicked for index:", index);
@@ -63,6 +69,7 @@ function handleFileListClick(e: Event): void {
   if (target.classList.contains("move-up-btn")) {
     e.stopPropagation();
     e.preventDefault();
+    if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
     if (index > 0) {
       moveFileUp(index);
@@ -74,6 +81,7 @@ function handleFileListClick(e: Event): void {
   if (target.classList.contains("move-down-btn")) {
     e.stopPropagation();
     e.preventDefault();
+    if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
     if (
       index >= 0 &&
@@ -94,6 +102,7 @@ function handleFileListClick(e: Event): void {
 }
 
 function handleDragStart(e: DragEvent, index: number): void {
+  if (isOrderLocked()) return;
   if (!e.dataTransfer) return;
 
   draggedIndex = index;
@@ -105,6 +114,7 @@ function handleDragStart(e: DragEvent, index: number): void {
 }
 
 function handleDragOver(e: DragEvent): void {
+  if (isOrderLocked()) return;
   e.preventDefault();
   if (!e.dataTransfer) return;
 
@@ -125,6 +135,7 @@ function handleDragOver(e: DragEvent): void {
 }
 
 function handleDrop(e: DragEvent): void {
+  if (isOrderLocked()) return;
   e.preventDefault();
   e.stopPropagation();
 
@@ -168,6 +179,7 @@ function handleDragEnd(e: DragEvent): void {
 }
 
 function reorderFiles(fromIndex: number, toIndex: number): void {
+  if (isOrderLocked()) return;
   if (!currentFileList) return;
 
   const files = currentFileList.files;

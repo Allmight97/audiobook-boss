@@ -14,21 +14,10 @@ use crate::commands::{analyze_audio_files, read_audio_metadata, validate_files};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
 /// Test media file path - relative to src-tauri directory
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
-
-/// Creates a mock processing state for testing
-#[allow(dead_code)]
-fn create_mock_processing_state() -> crate::ProcessingState {
-    crate::ProcessingState {
-        is_processing: Arc::new(Mutex::new(false)),
-        is_cancelled: Arc::new(Mutex::new(false)),
-        progress: Arc::new(Mutex::new(None)),
-    }
-}
 
 /// Checks if test media file exists and is accessible
 fn verify_test_media_exists() -> Result<PathBuf> {

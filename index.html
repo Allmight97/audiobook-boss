@@ -22,24 +22,11 @@
 
           <!-- Job Controls -->
           <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1 relative" title="Job Type">
-              <span class="text-xs muted-text whitespace-nowrap">Job Type:</span>
-              <select id="job-type-select" class="text-xs w-auto px-1 py-0.5" style="height: 24px">
-                <option value="merge" selected>
-                  Merge files to single book
-                </option>
-                <option value="batch">Convert each file separately</option>
-              </select>
-              <button id="job-type-info" type="button" class="info-icon" aria-label="About job types"
-                aria-controls="job-type-helper" aria-expanded="false" data-testid="job-type-info">
-                i
-              </button>
-              <div id="job-type-helper" class="info-popover" role="status" aria-live="polite"
-                data-testid="job-type-helper">
-                Merge: combine chapter files into one title. Batch: process each file as its own title in parallel (up
-                to Max Concurrent).
-              </div>
-            </div>
+            <label class="checkbox-label text-xs mb-0" data-testid="merge-toggle">
+              <input type="checkbox" id="merge-mode-toggle" />
+              <span class="option-label">Merge into single book</span>
+              <span class="option-desc">Off = convert each file separately</span>
+            </label>
 
             <div class="flex items-center gap-1" title="Concurrent Jobs">
               <span class="text-xs muted-text whitespace-nowrap">Number of Jobs:</span>
@@ -55,7 +42,12 @@
         </div>
 
         <div class="flex items-center justify-end gap-2">
-          <span class="text-xs muted-text italic mr-auto self-center pl-1" id="file-count-display">0 files</span>
+          <div class="flex items-center gap-2 mr-auto self-center pl-1">
+            <span class="text-xs muted-text italic" id="file-count-display">0 files</span>
+            <span class="text-xs muted-text italic" id="file-order-lock" style="display: none" data-testid="file-order-lock">
+              Order locked while processing
+            </span>
+          </div>
           <button id="sort-toggle-btn" class="btn-pill btn-pill-secondary">
             Sort: A-Z
           </button>

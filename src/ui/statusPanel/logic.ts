@@ -8,7 +8,11 @@
 
 import { bridge } from "../../lib/bridge";
 import { ProcessingProgressEvent, EVENTS, STAGES } from "../../types/events";
-import { currentFileList, selectedFileIndex } from "../fileList";
+import {
+  currentFileList,
+  selectedFileIndex,
+  setFileOrderLocked,
+} from "../fileList";
 import { getCurrentOutputConfig } from "../outputPanel";
 import type { EncoderSettings, OutputConfig } from "../../types/audio";
 import {
@@ -236,6 +240,7 @@ export class StatusPanel {
 
       // Disable job controls
       setJobControlsEnabled(false);
+      setFileOrderLocked(true);
 
       // Update art thumbnail with current file's cover art
       await this.updateArtThumbnail();
@@ -463,12 +468,20 @@ export class StatusPanel {
 
     this.updateStatus(status);
 
-    if (this.currentJobType === "batch" && event.current_file) {
-      const filename = this.extractFilenameFromProgress(event.current_file);
-      if (filename) {
-        const filePath = this.findFilePathByName(filename);
-        if (filePath) {
-          void this.updateArtThumbnailForFile(filePath);
+    if (this.currentJobType === "batch") {
+      const indexedPath =
+        typeof event.input_index === "number"
+          ? this.findFilePathByIndex(event.input_index)
+          : null;
+      if (indexedPath) {
+        void this.updateArtThumbnailForFile(indexedPath);
+      } else if (event.current_file) {
+        const filename = this.extractFilenameFromProgress(event.current_file);
+        if (filename) {
+          const filePath = this.findFilePathByName(filename);
+          if (filePath) {
+            void this.updateArtThumbnailForFile(filePath);
+          }
         }
       }
     }
@@ -655,6 +668,7 @@ export class StatusPanel {
 
     // Re-enable controls
     setJobControlsEnabled(true);
+    setFileOrderLocked(false);
 
     // Reset art thumbnail to placeholder
     dom.resetArtThumbnail();
@@ -764,6 +778,13 @@ export class StatusPanel {
       return base === filename;
     });
     return match?.path ?? null;
+  }
+
+  private findFilePathByIndex(index: number): string | null {
+    if (!currentFileList) return null;
+    if (!Number.isInteger(index)) return null;
+    if (index < 0 || index >= currentFileList.files.length) return null;
+    return currentFileList.files[index]?.path ?? null;
   }
 
   // Public method to check if processing is active

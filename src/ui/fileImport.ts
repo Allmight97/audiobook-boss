@@ -2,6 +2,7 @@ import { bridge } from "../lib/bridge";
 import { FileListInfo } from "../types/audio";
 import { EventPayload, isFileDropEvent } from "../types/events";
 import { displayFileList } from "./fileList";
+import { isOrderLocked } from "./fileList/state";
 
 let dropZoneHeader: HTMLElement | null = null;
 
@@ -95,6 +96,10 @@ export function updateDropZoneState(hasFiles: boolean): void {
 }
 
 async function handleFileDrop(paths: string[]): Promise<void> {
+  if (isOrderLocked()) {
+    showError("Order locked while processing. Wait for completion to add files.");
+    return;
+  }
   const supportedPaths = filterSupportedFiles(paths);
   if (supportedPaths.length === 0) {
     showError(
@@ -106,6 +111,10 @@ async function handleFileDrop(paths: string[]): Promise<void> {
 }
 
 async function handleClickToSelect(): Promise<void> {
+  if (isOrderLocked()) {
+    showError("Order locked while processing. Wait for completion to add files.");
+    return;
+  }
   try {
     const selected = await bridge.open({
       multiple: true,

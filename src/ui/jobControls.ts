@@ -1,50 +1,23 @@
 import { bridge } from "../lib/bridge";
 import type { JobType } from "../types/audio";
 
-const JOB_TYPE_SELECT_ID = "job-type-select";
+const MERGE_TOGGLE_ID = "merge-mode-toggle";
 const MAX_CONCURRENT_SELECT_ID = "max-concurrent-select";
 const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
-const JOB_TYPE_INFO_ID = "job-type-info";
-const JOB_TYPE_HELPER_ID = "job-type-helper";
 
 export function initJobControls(): void {
     initializeMaxConcurrentControl();
     initializeJobTypeControl();
-    initializeJobTypeHelper();
 }
 
 function initializeJobTypeControl(): void {
-    const select = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
-    if (!select) return;
+    const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
+    if (!toggle) return;
 
     // Potential: Restore saved preference if we want to persist it
-    select.addEventListener("change", () => {
+    toggle.addEventListener("change", () => {
         document.dispatchEvent(new Event("abb:job-type-changed"));
     });
-}
-
-function initializeJobTypeHelper(): void {
-    const infoButton = document.getElementById(JOB_TYPE_INFO_ID) as HTMLButtonElement | null;
-    const helper = document.getElementById(JOB_TYPE_HELPER_ID) as HTMLDivElement | null;
-    if (!infoButton || !helper) return;
-
-    const closeHelper = () => {
-        helper.classList.remove("visible");
-        infoButton.setAttribute("aria-expanded", "false");
-    };
-
-    infoButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const nextVisible = !helper.classList.contains("visible");
-        if (nextVisible) {
-            helper.classList.add("visible");
-            infoButton.setAttribute("aria-expanded", "true");
-        } else {
-            closeHelper();
-        }
-    });
-
-    document.addEventListener("click", () => closeHelper());
 }
 
 function initializeMaxConcurrentControl(): void {
@@ -69,22 +42,19 @@ function initializeMaxConcurrentControl(): void {
 
 // Read current value
 export function getJobType(): JobType {
-    const select = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
-    if (!select) return "merge";
-
-    const val = select.value;
-    if (val === "batch") return "batch";
-    return "merge";
+    const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
+    if (!toggle) return "batch";
+    return toggle.checked ? "merge" : "batch";
 }
 
 export function setJobControlsEnabled(enabled: boolean): void {
-    const jobTypeSelect = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
+    const mergeToggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
     const maxConcurrentSelect = document.getElementById(MAX_CONCURRENT_SELECT_ID) as HTMLSelectElement;
 
-    if (jobTypeSelect) {
-        jobTypeSelect.disabled = !enabled;
-        if (!enabled) jobTypeSelect.style.opacity = "0.5";
-        else jobTypeSelect.style.opacity = "1";
+    if (mergeToggle) {
+        mergeToggle.disabled = !enabled;
+        if (!enabled) mergeToggle.style.opacity = "0.5";
+        else mergeToggle.style.opacity = "1";
     }
 
     if (maxConcurrentSelect) {

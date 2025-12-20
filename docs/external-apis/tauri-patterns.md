@@ -25,6 +25,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 - Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
   - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 - `current_file` is a human-readable label (filename + index) for batch progress displays.
+- `input_index` is an optional stable index into the original input list (used to map progress to file metadata/cover art).
 
 ### Progress stage mapping
 

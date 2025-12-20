@@ -1,15 +1,17 @@
 import { AudioFile, formatDuration, formatFileSize } from "../../types/audio";
-import { currentFileList, selectedFileIndex } from "./state";
+import { currentFileList, selectedFileIndex, isOrderLocked } from "./state";
 import { updateDropZoneState } from "../fileImport";
 
 // Cached DOM elements (stable roots only)
 let sortButton: HTMLElement | null = null;
 let clearButton: HTMLElement | null = null;
+let orderLockNotice: HTMLElement | null = null;
 
 // Initialize cached DOM elements
 export function initDOMCache(): void {
   sortButton = document.getElementById("sort-toggle-btn");
   clearButton = document.getElementById("clear-files-btn");
+  orderLockNotice = document.getElementById("file-order-lock");
 }
 
 // Get container element - now uses persistent header pattern
@@ -24,7 +26,7 @@ export function createFileListItem(
   const item = document.createElement("div");
   item.className = `file-list-item ${file.isValid ? "valid" : "invalid"}`;
   item.dataset.index = index.toString();
-  item.setAttribute("draggable", "true");
+  item.setAttribute("draggable", isOrderLocked() ? "false" : "true");
   item.setAttribute("role", "listitem");
 
   const fileName = file.path.split(/[\\\/]/).pop() || file.path;
@@ -37,6 +39,7 @@ export function createFileListItem(
     ? index === currentFileList.files.length - 1
     : false;
 
+  const locked = isOrderLocked();
   item.innerHTML = `
         <div class="file-item-content">
             <div class="file-status ${statusClass}">${statusIcon}</div>
@@ -53,12 +56,14 @@ export function createFileListItem(
                 </div>
             </div>
             <button class="move-up-btn" data-index="${index}" ${
-    isFirst ? "disabled" : ""
+    isFirst || locked ? "disabled" : ""
   }>▲</button>
             <button class="move-down-btn" data-index="${index}" ${
-    isLast ? "disabled" : ""
+    isLast || locked ? "disabled" : ""
   }>▼</button>
-            <button class="remove-file-btn" data-index="${index}">×</button>
+            <button class="remove-file-btn" data-index="${index}" ${
+    locked ? "disabled" : ""
+  }>×</button>
         </div>
     `;
 
@@ -72,7 +77,7 @@ export function updateFileListItem(
 ): void {
   item.className = `file-list-item ${file.isValid ? "valid" : "invalid"}`;
   item.dataset.index = index.toString();
-  item.setAttribute("draggable", "true");
+  item.setAttribute("draggable", isOrderLocked() ? "false" : "true");
   item.setAttribute("role", "listitem");
 
   const fileName = file.path.split(/[\\\/]/).pop() || file.path;
@@ -85,6 +90,7 @@ export function updateFileListItem(
     ? index === currentFileList.files.length - 1
     : false;
 
+  const locked = isOrderLocked();
   item.innerHTML = `
         <div class="file-item-content">
             <div class="file-status ${statusClass}">${statusIcon}</div>
@@ -101,12 +107,14 @@ export function updateFileListItem(
                 </div>
             </div>
             <button class="move-up-btn" data-index="${index}" ${
-    isFirst ? "disabled" : ""
+    isFirst || locked ? "disabled" : ""
   }>▲</button>
             <button class="move-down-btn" data-index="${index}" ${
-    isLast ? "disabled" : ""
+    isLast || locked ? "disabled" : ""
   }>▼</button>
-            <button class="remove-file-btn" data-index="${index}">×</button>
+            <button class="remove-file-btn" data-index="${index}" ${
+    locked ? "disabled" : ""
+  }>×</button>
         </div>
     `;
 }
@@ -158,15 +166,22 @@ export function updateFileListDOM(): void {
 
 export function updateButtonVisibility(): void {
   if (!currentFileList) return;
+  const locked = isOrderLocked();
 
   // Update sort button visibility
-  if (sortButton) {
-    sortButton.style.display =
+  const sortBtn = sortButton as HTMLButtonElement | null;
+  if (sortBtn) {
+    sortBtn.style.display =
       currentFileList.files.length > 1 ? "block" : "none";
+    sortBtn.disabled = locked;
+    sortBtn.style.opacity = locked ? "0.5" : "1";
   }
-  if (clearButton) {
-    clearButton.style.display =
+  const clearBtn = clearButton as HTMLButtonElement | null;
+  if (clearBtn) {
+    clearBtn.style.display =
       currentFileList.files.length > 0 ? "block" : "none";
+    clearBtn.disabled = locked;
+    clearBtn.style.opacity = locked ? "0.5" : "1";
   }
 }
 
@@ -189,6 +204,11 @@ export function updateSortButtonText(ascending: boolean): void {
   if (sortButton) {
     sortButton.textContent = ascending ? "Sort: A-Z" : "Sort: Z-A";
   }
+}
+
+export function setOrderLockNotice(locked: boolean): void {
+  if (!orderLockNotice) return;
+  orderLockNotice.style.display = locked ? "inline" : "none";
 }
 
 export function clearContainer(): void {

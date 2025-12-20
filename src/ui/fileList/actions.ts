@@ -18,6 +18,8 @@ import {
   setSelectedIndex,
   getSortAscending,
   setSortAscending,
+  isOrderLocked,
+  setOrderLocked,
 } from "./state";
 import {
   updateFileListDOM,
@@ -26,6 +28,7 @@ import {
   updateSortButtonText,
   updateButtonVisibility,
   showEmptyState,
+  setOrderLockNotice,
 } from "./dom";
 import { initFileListEvents, setupDragStartHandlers } from "./events";
 
@@ -75,6 +78,7 @@ export function selectFile(index: number): void {
 }
 
 export function removeFile(index: number): void {
+  if (isOrderLocked()) return;
   if (!currentFileList || index < 0 || index >= currentFileList.files.length)
     return;
 
@@ -287,6 +291,7 @@ async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 
 // Move file up in the list
 export function moveFileUp(index: number): void {
+  if (isOrderLocked()) return;
   if (!currentFileList || index <= 0 || index >= currentFileList.files.length)
     return;
 
@@ -309,6 +314,7 @@ export function moveFileUp(index: number): void {
 
 // Move file down in the list
 export function moveFileDown(index: number): void {
+  if (isOrderLocked()) return;
   if (
     !currentFileList ||
     index < 0 ||
@@ -383,6 +389,7 @@ export function clearFileProperties(): void {
 }
 
 export function toggleFileSort(): void {
+  if (isOrderLocked()) return;
   if (!currentFileList || currentFileList.files.length <= 1) return;
 
   setSortAscending(!getSortAscending());
@@ -415,6 +422,7 @@ export function toggleFileSort(): void {
 }
 
 export function clearAllFiles(): void {
+  if (isOrderLocked()) return;
   if (!currentFileList) return;
 
   clearMetadataState();
@@ -431,4 +439,11 @@ export function clearAllFiles(): void {
   updateTotalStats();
   updateButtonVisibility();
   onFileListChange();
+}
+
+export function setFileOrderLocked(locked: boolean): void {
+  setOrderLocked(locked);
+  setOrderLockNotice(locked);
+  updateButtonVisibility();
+  updateFileListDOM();
 }

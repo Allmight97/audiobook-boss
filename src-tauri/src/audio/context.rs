@@ -95,6 +95,8 @@ pub struct ProcessingContext {
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
+    /// Optional index of the input file in the original request
+    pub input_index: Option<usize>,
 }
 
 impl ProcessingContext {
@@ -114,6 +116,7 @@ impl ProcessingContext {
             output,
             preview: None,
             job_id: None,
+            input_index: None,
         }
     }
 
@@ -138,11 +141,6 @@ impl ProcessingContext {
     /// Checks if the current processing has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.session.is_cancelled()
-    }
-
-    /// Checks if processing is currently active
-    pub fn is_processing(&self) -> bool {
-        self.session.is_processing()
     }
 
     /// Creates an error with session context

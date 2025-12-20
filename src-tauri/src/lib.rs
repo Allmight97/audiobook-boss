@@ -22,19 +22,10 @@ pub mod audio;
 pub mod tests_integration;
 pub mod tests_metadata_integration; // formerly feature-gated
 
-use audio::ProcessingProgress;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Type alias for managed JobRegistry state
 pub type ManagedJobRegistry = Arc<audio::JobRegistry>;
-
-/// Shared state for tracking processing status and cancellation
-#[derive(Clone, Default, Debug)]
-pub struct ProcessingState {
-    pub is_processing: Arc<Mutex<bool>>,
-    pub is_cancelled: Arc<Mutex<bool>>,
-    pub progress: Arc<Mutex<Option<ProcessingProgress>>>,
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,8 +33,6 @@ pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     log::info!("Starting Audiobook Boss application");
-
-    let processing_state = ProcessingState::default();
 
     // Initialize job registry with auto-detected concurrency (num_cpus / 2)
     let job_registry: ManagedJobRegistry = Arc::new(audio::JobRegistry::auto());
@@ -55,7 +44,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(processing_state)
         .manage(job_registry)
         .invoke_handler(tauri::generate_handler![
             commands::ping,
