@@ -45,6 +45,9 @@ export interface AudiobookMetadata {
   cover_art?: number[];
 }
 
+/** Per-file metadata map keyed by input path */
+export type AudiobookMetadataMap = Record<string, AudiobookMetadata>;
+
 /**
  * Result type for metadata operations
  */

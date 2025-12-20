@@ -3,6 +3,14 @@ import { bridge } from "../../lib/bridge";
 import { onFileListChange, onMetadataChange } from "../outputPanel";
 import { setCoverArt, getHasCustomCoverArt, clearCoverArt } from "../coverArt";
 import type { AudiobookMetadata } from "../../types/metadata";
+import { readMetadataForm } from "../metadataForm";
+import {
+  clearMetadataState,
+  getMetadataForFile,
+  removeMetadataForFile,
+  setMetadataForFile,
+} from "../metadataState";
+import { updateTagPreview } from "../tagPreview";
 import {
   currentFileList,
   selectedFileIndex,
@@ -22,6 +30,7 @@ import {
 import { initFileListEvents, setupDragStartHandlers } from "./events";
 
 export function displayFileList(fileListInfo: FileListInfo): void {
+  clearMetadataState();
   setCurrentFileList(fileListInfo);
 
   // Update DOM (includes drop zone state update)
@@ -47,14 +56,30 @@ export function selectFile(index: number): void {
   if (!currentFileList || index < 0 || index >= currentFileList.files.length)
     return;
 
+  const previousFile =
+    selectedFileIndex >= 0 ? currentFileList.files[selectedFileIndex] : null;
+  if (previousFile?.isValid) {
+    setMetadataForFile(previousFile.path, readMetadataForm());
+  }
+
   setSelectedIndex(index);
   updateSelection();
-  updateFileProperties(currentFileList.files[index]);
+  const nextFile = currentFileList.files[index];
+  const storedMetadata = getMetadataForFile(nextFile.path);
+  if (storedMetadata) {
+    updateFileProperties(nextFile, { skipMetadataLoad: true });
+    populateMetadataForm(storedMetadata);
+    return;
+  }
+  updateFileProperties(nextFile);
 }
 
 export function removeFile(index: number): void {
   if (!currentFileList || index < 0 || index >= currentFileList.files.length)
     return;
+
+  const removedFile = currentFileList.files[index];
+  removeMetadataForFile(removedFile.path);
 
   currentFileList.files.splice(index, 1);
   currentFileList.validCount = currentFileList.files.filter(
@@ -92,7 +117,10 @@ export function recalculateTotals(): void {
   );
 }
 
-export function updateFileProperties(file: AudioFile): void {
+export function updateFileProperties(
+  file: AudioFile,
+  options?: { skipMetadataLoad?: boolean }
+): void {
   const bitrateEl = document.getElementById("prop-bitrate");
   const sampleRateEl = document.getElementById("prop-samplerate");
   const channelsEl = document.getElementById("prop-channels");
@@ -111,8 +139,10 @@ export function updateFileProperties(file: AudioFile): void {
     if (fileSizeEl)
       fileSizeEl.textContent = file.size ? formatFileSize(file.size) : "N/A";
 
-    // Still load metadata for the metadata form
-    loadFileMetadata(file.path);
+    if (!options?.skipMetadataLoad) {
+      // Still load metadata for the metadata form
+      loadFileMetadata(file.path);
+    }
   } else {
     // File is invalid, show dashes
     if (bitrateEl) bitrateEl.textContent = "---";
@@ -166,6 +196,7 @@ async function loadFileMetadata(filePath: string): Promise<void> {
       "read_audio_metadata",
       { filePath: filePath }
     );
+    setMetadataForFile(filePath, metadata);
     populateMetadataForm(metadata);
   } catch (error) {
     console.warn("Failed to load metadata:", error);
@@ -182,7 +213,7 @@ async function loadFileMetadata(filePath: string): Promise<void> {
  * - series → Series
  * - series_part → Book #
  */
-function populateMetadataForm(metadata: AudiobookMetadata): void {
+function populateMetadataForm(metadata: Partial<AudiobookMetadata>): void {
   const titleEl = document.getElementById("meta-title") as HTMLInputElement;
   const authorEl = document.getElementById("meta-author") as HTMLInputElement;
   const narratorEl = document.getElementById(
@@ -227,6 +258,7 @@ function populateMetadataForm(metadata: AudiobookMetadata): void {
 
   // Update the output path preview now that metadata has changed
   onMetadataChange();
+  updateTagPreview();
 }
 
 async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
@@ -385,6 +417,7 @@ export function toggleFileSort(): void {
 export function clearAllFiles(): void {
   if (!currentFileList) return;
 
+  clearMetadataState();
   currentFileList.files = [];
   currentFileList.validCount = 0;
   currentFileList.invalidCount = 0;

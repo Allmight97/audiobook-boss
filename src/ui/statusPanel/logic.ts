@@ -8,7 +8,7 @@
 
 import { bridge } from "../../lib/bridge";
 import { ProcessingProgressEvent, EVENTS, STAGES } from "../../types/events";
-import { currentFileList } from "../fileList";
+import { currentFileList, selectedFileIndex } from "../fileList";
 import { getCurrentOutputConfig } from "../outputPanel";
 import type { EncoderSettings, OutputConfig } from "../../types/audio";
 import {
@@ -19,8 +19,13 @@ import { toBoundaryEncoderSettings } from "../../types/encoder";
 import type { EncoderSettingsLike } from "../../types/encoder";
 import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
-import { getCurrentCoverArt } from "../coverArt";
 import { getJobType, setJobControlsEnabled } from "../jobControls";
+import { readMetadataForm } from "../metadataForm";
+import {
+  getAllMetadata,
+  getMetadataForFile,
+  setMetadataForFile,
+} from "../metadataState";
 
 interface ProcessingStatus {
   stage:
@@ -69,6 +74,8 @@ export class StatusPanel {
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
   private lastProgressRender = 0;
+  private currentJobType: "merge" | "batch" | null = null;
+  private lastCoverArtPath: string | null = null;
 
   constructor() {
     this.currentStatus = {
@@ -241,8 +248,14 @@ export class StatusPanel {
         .filter((file) => file.isValid)
         .map((file) => file.path);
 
-      // Get metadata from the form (basic implementation)
-      const metadata = this.getCurrentMetadata();
+      const currentMetadata = readMetadataForm();
+      const activeFile =
+        selectedFileIndex >= 0
+          ? currentFileList.files[selectedFileIndex]
+          : currentFileList.files.find((file) => file.isValid);
+      if (activeFile?.isValid) {
+        setMetadataForFile(activeFile.path, currentMetadata);
+      }
 
       // Call backend processing command
       const fallbackEncoderDefaults = (() => {
@@ -271,15 +284,65 @@ export class StatusPanel {
         fallbackEncoderDefaults
       );
 
+      const jobType = getJobType();
+      this.currentJobType = jobType;
+
       const v2Payload = {
         inputFiles: filePaths,
         outputDir: outputConfig.outputPath,
         settings: boundaryEncoderSettings,
         sampleRate: outputConfig.sampleRate,
-        jobType: getJobType(),
+        jobType,
         useSubdirPattern: outputConfig.useSubdirPattern,
         filenamePattern: outputConfig.filenamePattern,
       };
+
+      if (v2Payload.jobType === "batch") {
+        const missingMetadata = filePaths.filter(
+          (filePath) => !getMetadataForFile(filePath)
+        );
+        if (missingMetadata.length > 0) {
+          await Promise.all(
+            missingMetadata.map(async (filePath) => {
+              try {
+                const metadata = await bridge.invoke<AudiobookMetadata>(
+                  "read_audio_metadata",
+                  { filePath }
+                );
+                setMetadataForFile(filePath, metadata);
+              } catch (error) {
+                console.warn(
+                  "Failed to load metadata for batch file:",
+                  filePath,
+                  error
+                );
+              }
+            })
+          );
+        }
+      }
+
+      let metadataPayload: Record<string, Partial<AudiobookMetadata>> | null =
+        null;
+      if (v2Payload.jobType === "merge") {
+        if (
+          v2Payload.inputFiles.length > 0 &&
+          Object.keys(currentMetadata).length > 0
+        ) {
+          metadataPayload = {
+            [v2Payload.inputFiles[0]]: currentMetadata,
+          };
+        }
+      } else {
+        const storedMetadata = getAllMetadata();
+        const filteredMetadata = Object.fromEntries(
+          Object.entries(storedMetadata).filter(
+            ([, value]) => Object.keys(value).length > 0
+          )
+        );
+        metadataPayload =
+          Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
+      }
 
       const result = await bridge.invoke<{
         message: string;
@@ -288,7 +351,7 @@ export class StatusPanel {
         jobId?: string;
       }>("process_audiobook_files_v2", {
         payload: v2Payload,
-        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+        metadata: metadataPayload,
         previewSeconds: options?.previewSeconds,
       });
 
@@ -399,6 +462,16 @@ export class StatusPanel {
     };
 
     this.updateStatus(status);
+
+    if (this.currentJobType === "batch" && event.current_file) {
+      const filename = this.extractFilenameFromProgress(event.current_file);
+      if (filename) {
+        const filePath = this.findFilePathByName(filename);
+        if (filePath) {
+          void this.updateArtThumbnailForFile(filePath);
+        }
+      }
+    }
 
   }
 
@@ -562,6 +635,8 @@ export class StatusPanel {
 
   private resetToIdle(): void {
     this.isProcessing = false;
+    this.currentJobType = null;
+    this.lastCoverArtPath = null;
 
     if (this.cancelUnlisten) {
       this.cancelUnlisten();
@@ -643,16 +718,23 @@ export class StatusPanel {
       return;
     }
 
+    await this.updateArtThumbnailForFile(firstValidFile.path);
+  }
+
+  private async updateArtThumbnailForFile(filePath: string): Promise<void> {
+    if (this.lastCoverArtPath === filePath) {
+      return;
+    }
+    this.lastCoverArtPath = filePath;
+
     try {
-      // Load metadata with cover art
       const metadata = await bridge.invoke<AudiobookMetadata>(
         "read_audio_metadata",
         {
-          filePath: firstValidFile.path,
+          filePath,
         }
       );
 
-      // Check for cover art data (backend returns as cover_art field with number array)
       if (metadata.cover_art && metadata.cover_art.length > 0) {
         const dataUrl = this.convertBytesToDataUrl(metadata.cover_art);
         dom.displayCoverArt(dataUrl);
@@ -665,51 +747,23 @@ export class StatusPanel {
     }
   }
 
-  private getCurrentMetadata(): Partial<AudiobookMetadata> {
-    // Basic metadata extraction from DOM elements
-    const getElementValue = (id: string): string => {
-      const element = document.getElementById(id) as HTMLInputElement;
-      return element?.value?.trim() || "";
-    };
-
-    const metadata: Partial<AudiobookMetadata> = {};
-
-    const title = getElementValue("meta-title");
-    const author = getElementValue("meta-author");
-    const narrator = getElementValue("meta-narrator");
-    const year = getElementValue("meta-year");
-    const genre = getElementValue("meta-genre");
-    const series = getElementValue("meta-series");
-    const seriesPart = getElementValue("meta-series-part");
-    const description = getElementValue("meta-description");
-
-    if (title) {
-      metadata.title = title;
-      metadata.album = title; // Album derived from title
+  private extractFilenameFromProgress(label: string): string | null {
+    const trimmed = label.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(.*?) \(\d+\/\d+\)$/);
+    if (match && match[1]) {
+      return match[1].trim();
     }
-    if (author) metadata.artist = author; // Map author -> artist for backend
-    if (narrator) metadata.composer = narrator; // Map narrator -> composer for backend
-    if (year) {
-      const yearNum = parseInt(year);
-      if (!isNaN(yearNum)) metadata.date = yearNum; // Map year -> date for backend
-    }
-    if (genre) metadata.genre = genre;
-    if (series) {
-      // TODO: Persist MVNM (series name) when backend supports it
-      // For now, append to album if series is provided
-      if (metadata.album) {
-        metadata.album = `${metadata.album} (${series}${seriesPart ? " " + seriesPart : ""})`;
-      }
-    }
-    if (description) metadata.description = description;
+    return trimmed;
+  }
 
-    // Include cover art if user has selected any
-    const coverBytes = getCurrentCoverArt();
-    if (coverBytes && coverBytes.length > 0) {
-      metadata.cover_art = coverBytes;
-    }
-
-    return metadata;
+  private findFilePathByName(filename: string): string | null {
+    if (!currentFileList) return null;
+    const match = currentFileList.files.find((file) => {
+      const base = file.path.split(/[\\/]/).pop() || "";
+      return base === filename;
+    });
+    return match?.path ?? null;
   }
 
   // Public method to check if processing is active

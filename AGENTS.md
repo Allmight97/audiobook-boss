@@ -125,6 +125,7 @@ bun run build  # from repo root
 ## During Implementation
 
 - **Minimize diffs**: Prefer smallest effective change; avoid broad refactors unless requested
+- **Atomic Commits**: Stage and commit changes categorically (e.g., separate documentation from logic) to maintain a clean history and reduce CI churn.
 - **Favor conventions**: Use project idioms and defaults when known - but always validate against engineering principles and documentation via tools.
 - **Validate inputs**: Use `validate_input_audio_path()` in any new code paths
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe

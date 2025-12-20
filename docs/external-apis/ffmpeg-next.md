@@ -79,11 +79,11 @@ Safety: Accumulator constructs exactly-sized frames for the encoder and sanitize
 - FFmpeg (timestamps/time base): [FFmpeg docs – muxing/demuxing and timestamps](https://ffmpeg.org/)
 - FFmpeg AAC encoder options (aac_coder): [FFmpeg docs – aac encoder options](https://ffmpeg.org/ffmpeg-codecs.html#aac-1)
 
-### Apple AAC (aac_at) selection — Status
+### Apple AAC (aac_at) selection
 
-Status: Planning. The current implementation prefers FFmpeg’s `aac_at` encoder on macOS when it is present in the local FFmpeg build. We detect availability by querying the encoder registry (ffmpeg-next → `avcodec_find_encoder_by_name("aac_at")`) and gate by OS.
+Status: **Implemented**. The current implementation prefers FFmpeg’s `aac_at` encoder on macOS when it is present in the local FFmpeg build. We detect availability by querying the encoder registry (ffmpeg-next → `avcodec_find_encoder_by_name("aac_at")`) and gate by OS.
 
-Not implemented: a low-level hardware capability probe via AudioToolbox (e.g., QA1663-style hardware encoder checks) and dynamic switching based on those results. These enhancements are in planning. Until then, selection is based solely on the presence of `aac_at` in FFmpeg.
+The resolver (`settings_encoder.rs`) chooses the best available encoder in the order: FDK > Apple (aac_at) > Native AAC. Hardware capability probing via AudioToolbox is still planned for future refinement.
 
 Code touchpoints:
 - `src-tauri/src/audio/settings_encoder.rs`

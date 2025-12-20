@@ -12,9 +12,11 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` + `JobRegistry` | StatusPanel cancel-all and per-job cancel |
+| `list_available_encoders` | `src-tauri/src/commands/audio.rs` | Used by UI to surface encoder guidance |
 | `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
 | `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
 | `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` | File list metadata pane, cover-art thumbnail refresh |
+| `save_metadata_to_file` | `src-tauri/src/commands/metadata.rs` | Metadata-only editing (Cmd+S workflow) |
 | `write_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
 | `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
 | `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
@@ -27,12 +29,13 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - `process_audiobook_files_v2`
   - Args: `{ payload, metadata?, previewSeconds? }`
-    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig }`
+    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'merge' | 'batch'; useSubdirPattern?: boolean; filenamePattern?: 'title_year' | 'author_title' }`
     - `settings: EncoderSettings` (`src/types/audio.ts:62`)
-    - `metadata?: AudiobookMetadata` (`src/types/metadata.ts`)
+    - `metadata?: AudiobookMetadataMap` (`src/types/metadata.ts`)
     - `previewSeconds?: number` (optional short preview)
-  - Returns: `{ message: string; previewFilePath?: string; previewActualSeconds?: number; jobId: string }` (`src-tauri/src/commands/audio.rs`)
+  - Returns: `ProcessCommandResult` (`{ message: string; previewFilePath?: string; previewActualSeconds?: number; jobId: string }`)
   - Notes:
+    - `metadata` is keyed by input path; merge uses the first input path as the metadata key.
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
     - Emits `processing-progress` events with `job_id` (optional in payload for backward compatibility)
 

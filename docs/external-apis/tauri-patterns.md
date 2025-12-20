@@ -24,21 +24,20 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 - Backend throttles progress emits to ~200ms to reduce UI load.
 - Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
   - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
+- `current_file` is a human-readable label (filename + index) for batch progress displays.
 
 ### Progress stage mapping
-
-Progress percentages emitted from Rust follow the constants in `src-tauri/src/audio/constants.rs`. Use these ranges when interpreting UI state:
 
 | Stage (ProcessingStage / ProgressEvent.stage) | Percentage range | Notes |
 | --- | --- | --- |
 | analyzing | 0–10% | Validation, temp-workspace setup |
-| converting | 10–79% | Encoder-driven progress (clamped) derived from total duration |
-| writing | 90–95% | Metadata write and container finalize |
+| converting | 10–80% | Encoder-driven progress (clamped) derived from total duration |
+| writing | 80–95% | Metadata write and container finalize |
 | completed | 95–100% | Final move/cleanup (95–98%), completion (100%) |
 | failed | 0% | Emitted with error message on failure |
 | cancelled | 0% | Special-case stage emitted by `emit_cancelled` |
 
-- The backend clamps converting progress at 79% to avoid prematurely reaching the metadata range.
+- The backend clamps converting progress at 80% to avoid prematurely reaching the metadata range.
 - See `src/types/events.ts` for the TypeScript contract and helper guards.
 
 ### Cancellation and error propagation
