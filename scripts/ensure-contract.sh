@@ -60,17 +60,41 @@ log_group "Diff (Rust minus TS)"
 comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds") || true
 log_endgroup
 
-# Fail only if TS references commands missing in Rust
-missing_in_rust=$(comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds") | wc -l | tr -d ' ')
-missing_in_ts=$(comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds") | wc -l | tr -d ' ')
+# Final Reporting logic
+missing_in_rust_list=$(comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds"))
+missing_in_ts_list=$(comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds"))
 
-if [ "$missing_in_rust" -ne 0 ]; then
-  echo "\nContract mismatch detected: TS invoke() names missing in Rust handler registrations." 1>&2
+missing_in_rust_count=$(echo "$missing_in_rust_list" | grep -v '^$' | wc -l | tr -d ' ')
+missing_in_ts_count=$(echo "$missing_in_ts_list" | grep -v '^$' | wc -l | tr -d ' ')
+
+if [ "$missing_in_rust_count" -ne 0 ]; then
+  msg="Contract mismatch detected: TS invoke() names missing in Rust handler registrations"
+  echo -e "\nERROR: $msg:" 1>&2
+  echo "$missing_in_rust_list" | sed 's/^/  - /' 1>&2
+  
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "### ❌ Contract Mismatch" >> "$GITHUB_STEP_SUMMARY"
+    echo "$msg:" >> "$GITHUB_STEP_SUMMARY"
+    echo "$missing_in_rust_list" | sed 's/^/ - /' >> "$GITHUB_STEP_SUMMARY"
+  fi
   exit 1
 fi
 
-if [ "$missing_in_ts" -ne 0 ]; then
-  echo "\nNote: Rust registers additional commands not yet invoked from TS." 1>&2
+if [ "$missing_in_ts_count" -ne 0 ]; then
+  msg="Rust registers additional commands not yet invoked from TS"
+  echo -e "\nNote: $msg:"
+  echo "$missing_in_ts_list" | sed 's/^/  - /'
+  
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "### ⚠️ Unused Rust Commands" >> "$GITHUB_STEP_SUMMARY"
+    echo "$msg:" >> "$GITHUB_STEP_SUMMARY"
+    echo "$missing_in_ts_list" | sed 's/^/ - /' >> "$GITHUB_STEP_SUMMARY"
+  fi
 else
-  echo "\nContract OK: TS invoke() names match Rust handlers."
+  msg="Contract OK: TS invoke() names match Rust handlers"
+  echo -e "\n$msg."
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "### ✅ Contract OK" >> "$GITHUB_STEP_SUMMARY"
+    echo "$msg." >> "$GITHUB_STEP_SUMMARY"
+  fi
 fi
