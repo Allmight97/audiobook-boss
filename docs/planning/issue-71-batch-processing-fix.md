@@ -231,12 +231,16 @@ metadataState.clear();
 ## Testing Checklist (owner-required)
 
 **Manual testing (jstar) — REQUIRED before merge:**
-- [ ] Load 3 files with different existing metadata
-- [ ] Switch between files, verify metadata persists per-file
-- [ ] Process in batch mode (convert each separately)
-- [ ] Verify each output file has correct unique metadata
-- [ ] Verify progress shows "filename.m4b (1/3)" format
-- [ ] Verify merge mode still works (uses first file's metadata)
+- [x] Load 3 files with different existing metadata
+- [x] Switch between files, verify metadata persists per-file
+- [x] Process in batch mode (convert each separately)
+- [x] Verify each output file has correct unique metadata
+- [X] Verify progress shows "filename.m4b (1/3)" format
+    - This appears to work at basic level in that I loaded 4 files, saw 3 added to processing queue, and the app seems procoess each file at a time eventually processing all files.
+      - Concurrent processing of files isn't working (fine for now but should be fixed in Phase 2)
+      - BUG: The coverart shown in the progress panel is the first file's coverart and doesn't update as batch processing moves to the next file.
+- [x] Verify merge mode still works (uses first file's metadata)
+- BUG: section 'Preview Audio and Metadata Tags' Metadata only displays data here when the selected file has been edited by the user. Expected: Metadata should display the metadata for the file that is selected in the file list (with and/or without user edits) Otherwise metadata handling overall seems fine.
 
 Automated:
 - [ ] `scripts/quick-checks.sh` passes

@@ -74,6 +74,8 @@ export class StatusPanel {
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
   private lastProgressRender = 0;
+  private currentJobType: "merge" | "batch" | null = null;
+  private lastCoverArtPath: string | null = null;
 
   constructor() {
     this.currentStatus = {
@@ -282,12 +284,15 @@ export class StatusPanel {
         fallbackEncoderDefaults
       );
 
+      const jobType = getJobType();
+      this.currentJobType = jobType;
+
       const v2Payload = {
         inputFiles: filePaths,
         outputDir: outputConfig.outputPath,
         settings: boundaryEncoderSettings,
         sampleRate: outputConfig.sampleRate,
-        jobType: getJobType(),
+        jobType,
         useSubdirPattern: outputConfig.useSubdirPattern,
         filenamePattern: outputConfig.filenamePattern,
       };
@@ -458,6 +463,16 @@ export class StatusPanel {
 
     this.updateStatus(status);
 
+    if (this.currentJobType === "batch" && event.current_file) {
+      const filename = this.extractFilenameFromProgress(event.current_file);
+      if (filename) {
+        const filePath = this.findFilePathByName(filename);
+        if (filePath) {
+          void this.updateArtThumbnailForFile(filePath);
+        }
+      }
+    }
+
   }
 
   /** Calculate aggregate progress across all active jobs */
@@ -620,6 +635,8 @@ export class StatusPanel {
 
   private resetToIdle(): void {
     this.isProcessing = false;
+    this.currentJobType = null;
+    this.lastCoverArtPath = null;
 
     if (this.cancelUnlisten) {
       this.cancelUnlisten();
@@ -701,16 +718,23 @@ export class StatusPanel {
       return;
     }
 
+    await this.updateArtThumbnailForFile(firstValidFile.path);
+  }
+
+  private async updateArtThumbnailForFile(filePath: string): Promise<void> {
+    if (this.lastCoverArtPath === filePath) {
+      return;
+    }
+    this.lastCoverArtPath = filePath;
+
     try {
-      // Load metadata with cover art
       const metadata = await bridge.invoke<AudiobookMetadata>(
         "read_audio_metadata",
         {
-          filePath: firstValidFile.path,
+          filePath,
         }
       );
 
-      // Check for cover art data (backend returns as cover_art field with number array)
       if (metadata.cover_art && metadata.cover_art.length > 0) {
         const dataUrl = this.convertBytesToDataUrl(metadata.cover_art);
         dom.displayCoverArt(dataUrl);
@@ -721,6 +745,25 @@ export class StatusPanel {
       console.warn("Failed to load cover art for thumbnail:", error);
       dom.resetArtThumbnail();
     }
+  }
+
+  private extractFilenameFromProgress(label: string): string | null {
+    const trimmed = label.trim();
+    if (!trimmed) return null;
+    const idx = trimmed.lastIndexOf(" (");
+    if (idx > 0) {
+      return trimmed.slice(0, idx).trim();
+    }
+    return trimmed;
+  }
+
+  private findFilePathByName(filename: string): string | null {
+    if (!currentFileList) return null;
+    const match = currentFileList.files.find((file) => {
+      const base = file.path.split(/[\\/]/).pop() || "";
+      return base === filename;
+    });
+    return match?.path ?? null;
   }
 
   // Public method to check if processing is active

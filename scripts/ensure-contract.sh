@@ -5,16 +5,31 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "== Collecting TS invoke() command names =="
+log_group() {
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "::group::$1"
+  else
+    echo "== $1 =="
+  fi
+}
+
+log_endgroup() {
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "::endgroup::"
+  fi
+}
+
+log_group "Collecting TS invoke() command names"
 ts_cmds=$(rg -n "invoke(?:<[^>]+>)?\('" "$ROOT_DIR/src" | awk -F"'" '{print $2}' | sort -u || true)
 if [ -z "${ts_cmds}" ]; then
   echo "No invoke() calls found in src/"
 else
   echo "$ts_cmds" | sed 's/^/  - /'
 fi
+log_endgroup
 
 echo
-echo "== Collecting Rust registered command names (from generate_handler!) =="
+log_group "Collecting Rust registered command names (from generate_handler!)"
 handler_block=$(awk '/generate_handler!\[/, /\]/{print}' "$ROOT_DIR/src-tauri/src/lib.rs" || true)
 rust_cmds=$(echo "$handler_block" \
   | sed 's,//.*$,,' \
@@ -26,14 +41,16 @@ if [ -z "${rust_cmds}" ]; then
 else
   echo "$rust_cmds" | sed 's/^/  - /'
 fi
+log_endgroup
 
 echo
-echo "== Diff (TS minus Rust) =="
+log_group "Diff (TS minus Rust)"
 comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds") || true
+log_endgroup
 
-echo
-echo "== Diff (Rust minus TS) =="
+log_group "Diff (Rust minus TS)"
 comm -13 <(echo "$ts_cmds") <(echo "$rust_cmds") || true
+log_endgroup
 
 # Fail only if TS references commands missing in Rust
 missing_in_rust=$(comm -23 <(echo "$ts_cmds") <(echo "$rust_cmds") | wc -l | tr -d ' ')

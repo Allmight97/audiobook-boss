@@ -10,6 +10,7 @@ import {
   removeMetadataForFile,
   setMetadataForFile,
 } from "../metadataState";
+import { updateTagPreview } from "../tagPreview";
 import {
   currentFileList,
   selectedFileIndex,
@@ -257,6 +258,7 @@ function populateMetadataForm(metadata: Partial<AudiobookMetadata>): void {
 
   // Update the output path preview now that metadata has changed
   onMetadataChange();
+  updateTagPreview();
 }
 
 async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {

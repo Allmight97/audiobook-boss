@@ -43,8 +43,19 @@ jobs:
       - name: Install dependencies
         run: bun install
         
-      - name: Quick Checks (fmt, clippy, contracts, tsc)
-        run: ./scripts/quick-checks.sh
+      - name: Rust Format Check
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Rust Clippy
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Contract Verification
+        run: chmod +x scripts/ensure-contract.sh && ./scripts/ensure-contract.sh
+
+      - name: TypeScript Typecheck
+        run: bunx tsc -p tsconfig.json --noEmit
         
       - name: Rust Tests
         run: cd src-tauri && cargo test
