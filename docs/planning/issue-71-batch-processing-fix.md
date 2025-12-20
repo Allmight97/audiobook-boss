@@ -257,6 +257,8 @@ After Phase 1 is stable:
 - Make merge an opt-in toggle ("Merge chapters into single book")
 - Consider metadata manager UI improvements for multi-file workflow
 - Remove legacy `is_processing` mutex (use JobRegistry only)
+- Fix parallel batch execution end-to-end (verify JobRegistry + UI max-concurrency actually runs jobs concurrently)
+- Add stable per-file identifier to progress events (e.g., `file_index` or `source_path`) to disambiguate duplicate filenames; update TS contracts + UI mapping
 
 ---
 
