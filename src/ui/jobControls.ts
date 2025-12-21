@@ -3,7 +3,11 @@ import type { JobType } from "../types/audio";
 
 const MERGE_TOGGLE_ID = "merge-mode-toggle";
 const MAX_CONCURRENT_SELECT_ID = "max-concurrent-select";
+const MAX_CONCURRENT_EFFECTIVE_ID = "max-concurrent-effective";
 const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
+
+let effectiveMaxConcurrent: number | null = null;
+let maxConcurrentSelection: string = "auto";
 
 export function initJobControls(): void {
     initializeMaxConcurrentControl();
@@ -29,9 +33,11 @@ function initializeMaxConcurrentControl(): void {
     // Restore saved preference
     const saved = readMaxConcurrentPreference();
     select.value = saved;
+    maxConcurrentSelection = saved;
 
     select.addEventListener("change", () => {
         const value = select.value;
+        maxConcurrentSelection = value;
         writeMaxConcurrentPreference(value);
         void pushMaxConcurrentToBackend(value);
     });
@@ -45,6 +51,16 @@ export function getJobType(): JobType {
     const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
     if (!toggle) return "batch";
     return toggle.checked ? "merge" : "batch";
+}
+
+export function getMaxConcurrentStatus(): {
+    effective: number | null;
+    selection: string;
+} {
+    return {
+        effective: effectiveMaxConcurrent,
+        selection: maxConcurrentSelection,
+    };
 }
 
 export function setJobControlsEnabled(enabled: boolean): void {
@@ -61,6 +77,22 @@ export function setJobControlsEnabled(enabled: boolean): void {
         maxConcurrentSelect.disabled = !enabled;
         if (!enabled) maxConcurrentSelect.style.opacity = "0.5";
         else maxConcurrentSelect.style.opacity = "1";
+    }
+}
+
+function updateMaxConcurrentIndicator(): void {
+    const indicator = document.getElementById(MAX_CONCURRENT_EFFECTIVE_ID) as HTMLElement | null;
+    if (!indicator) return;
+
+    if (effectiveMaxConcurrent === null) {
+        indicator.textContent = "";
+        return;
+    }
+
+    if (maxConcurrentSelection === "auto") {
+        indicator.textContent = `Auto → ${effectiveMaxConcurrent}`;
+    } else {
+        indicator.textContent = `Max ${effectiveMaxConcurrent}`;
     }
 }
 
@@ -88,17 +120,28 @@ function writeMaxConcurrentPreference(value: string): void {
 
 async function pushMaxConcurrentToBackend(value: string): Promise<void> {
     try {
+        let effective: number;
         if (value === "auto") {
-            await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
+            effective = await bridge.invoke<number>("set_max_concurrent_jobs", { max_concurrent: null });
         } else {
             const parsed = parseInt(value, 10);
             if (!Number.isFinite(parsed)) {
                 return;
             }
-            await bridge.invoke("set_max_concurrent_jobs", {
+            effective = await bridge.invoke<number>("set_max_concurrent_jobs", {
                 max_concurrent: parsed,
             });
         }
+        if (!Number.isFinite(effective)) {
+            return;
+        }
+        effectiveMaxConcurrent = effective;
+        updateMaxConcurrentIndicator();
+        document.dispatchEvent(
+            new CustomEvent("abb:max-concurrent-updated", {
+                detail: { effective, selection: maxConcurrentSelection },
+            })
+        );
     } catch (error) {
         console.warn("Failed to update max concurrency:", error);
     }

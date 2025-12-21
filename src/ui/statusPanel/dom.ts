@@ -17,6 +17,7 @@ interface StatusPanelElements {
     artThumbnail: HTMLElement;
     cancelAllButton: HTMLButtonElement;
     jobList: HTMLElement;
+    concurrencyStatus: HTMLElement;
 }
 
 let cachedElements: StatusPanelElements | null = null;
@@ -37,10 +38,11 @@ export function initializeElements(): StatusPanelElements | null {
     const processButton = document.getElementById('process-button') as HTMLButtonElement;
     const cancelAllButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
     const jobList = document.getElementById('job-list') as HTMLElement;
+    const concurrencyStatus = document.getElementById('concurrency-status') as HTMLElement;
     const artThumbnail = document.querySelector('.art-thumbnail') as HTMLElement;
 
     if (!progressBar || !percentageElement || !statusText ||
-        !stepText || !processButton || !cancelAllButton || !jobList || !artThumbnail) {
+        !stepText || !processButton || !cancelAllButton || !jobList || !concurrencyStatus || !artThumbnail) {
         console.error('StatusPanel DOM: Required DOM elements not found');
         return null;
     }
@@ -53,6 +55,7 @@ export function initializeElements(): StatusPanelElements | null {
         processButton,
         cancelAllButton,
         jobList,
+        concurrencyStatus,
         artThumbnail
     };
 
@@ -107,6 +110,17 @@ export function updateStepText(message: string, color?: string): void {
     } else {
         elements.stepText.style.color = 'var(--text-primary)';
     }
+}
+
+/**
+ * Update the concurrency status line
+ * @param message - Concurrency message to display
+ */
+export function updateConcurrencyStatus(message: string): void {
+    const elements = cachedElements || initializeElements();
+    if (!elements) return;
+
+    elements.concurrencyStatus.textContent = message;
 }
 
 /**

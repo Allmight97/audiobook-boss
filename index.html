@@ -56,6 +56,12 @@
                   <option value="3">3</option>
                   <option value="4">4</option>
                 </select>
+                <span
+                  id="max-concurrent-effective"
+                  class="text-xs muted-text"
+                  aria-live="polite"
+                  data-testid="max-concurrent-effective"
+                ></span>
               </div>
             </div>
           </div>
@@ -632,6 +638,10 @@
               <div id="step-text" class="text-xs muted-text mt-0.5">
                 Current Step: Waiting for files...
               </div>
+              <div
+                id="concurrency-status"
+                class="text-xs muted-text mt-1"
+              ></div>
               <div id="job-list" class="text-xs muted-text mt-1"></div>
               <div
                 class="text-xs muted-text mt-1 flex items-center gap-2"
