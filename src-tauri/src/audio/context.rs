@@ -173,6 +173,15 @@ impl ProcessingContext {
         ))
     }
 
+    /// Creates a progress emitter scoped to this processing context
+    pub fn new_emitter(&self) -> crate::audio::progress::ProgressEmitter {
+        crate::audio::progress::ProgressEmitter::with_context(
+            self.window.clone(),
+            self.job_id.clone(),
+            self.input_index,
+        )
+    }
+
     /// Returns the effective bitrate in kbps (v2-aware)
     pub fn effective_bitrate_kbps(&self) -> u32 {
         self.encoder_settings.bitrate_kbps as u32

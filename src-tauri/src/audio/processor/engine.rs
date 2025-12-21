@@ -144,11 +144,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Initialize processing state
             let mut running_pts: i64 = 0; // in encoder time_base units
             let mut last_emit = std::time::Instant::now();
-            let emitter = crate::audio::progress::ProgressEmitter::with_context(
-                context.window.clone(),
-                context.job_id.clone(),
-                context.input_index,
-            );
+            let emitter = context.new_emitter();
 
             // Construct context struct to reduce parameter passing
             let mut input_samples_total: u64 = 0;

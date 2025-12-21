@@ -167,11 +167,7 @@ pub(crate) fn complete_processing(
         context.output.final_path().display()
     );
 
-    let ui = crate::audio::progress::ProgressEmitter::with_context(
-        context.window.clone(),
-        context.job_id.clone(),
-        context.input_index,
-    );
+    let ui = context.new_emitter();
     ui.emit_cleanup("Cleaning up...");
 
     log::info!("Moving temporary file to final location...");
@@ -231,11 +227,7 @@ pub(crate) async fn finalize_processing(
         let moved = move_to_final_location(merged_output.clone(), &preview_path)?;
         cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
         reporter.complete();
-        let ui = crate::audio::progress::ProgressEmitter::with_context(
-            context.window.clone(),
-            context.job_id.clone(),
-            context.input_index,
-        );
+        let ui = context.new_emitter();
         ui.emit_complete("Preview created successfully");
         let msg = format!("Successfully created preview: {}", moved.display());
         log::info!("🎉 {}", msg);
