@@ -544,6 +544,11 @@ button {
   border-color: var(--border-secondary);
 }
 
+.btn-pill-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-pill-secondary:hover {
   background-color: var(--bg-input);
   border-color: var(--text-muted);

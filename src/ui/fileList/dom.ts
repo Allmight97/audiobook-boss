@@ -174,14 +174,12 @@ export function updateButtonVisibility(): void {
     sortBtn.style.display =
       currentFileList.files.length > 1 ? "block" : "none";
     sortBtn.disabled = locked;
-    sortBtn.style.opacity = locked ? "0.5" : "1";
   }
   const clearBtn = clearButton as HTMLButtonElement | null;
   if (clearBtn) {
     clearBtn.style.display =
       currentFileList.files.length > 0 ? "block" : "none";
     clearBtn.disabled = locked;
-    clearBtn.style.opacity = locked ? "0.5" : "1";
   }
 }
 
