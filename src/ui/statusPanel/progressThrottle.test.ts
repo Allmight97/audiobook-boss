@@ -7,6 +7,7 @@ function setupDom() {
     <div id="percentage-processed"></div>
     <div id="status-text"></div>
     <div id="step-text"></div>
+    <div id="concurrency-status"></div>
     <button id="process-button"></button>
     <button id="cancel-all-button"></button>
     <div class="art-thumbnail"></div>

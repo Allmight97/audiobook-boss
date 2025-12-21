@@ -1,50 +1,27 @@
 import { bridge } from "../lib/bridge";
 import type { JobType } from "../types/audio";
 
-const JOB_TYPE_SELECT_ID = "job-type-select";
+const MERGE_TOGGLE_ID = "merge-mode-toggle";
 const MAX_CONCURRENT_SELECT_ID = "max-concurrent-select";
+const MAX_CONCURRENT_EFFECTIVE_ID = "max-concurrent-effective";
 const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
-const JOB_TYPE_INFO_ID = "job-type-info";
-const JOB_TYPE_HELPER_ID = "job-type-helper";
+
+let effectiveMaxConcurrent: number | null = null;
+let maxConcurrentSelection: string = "auto";
 
 export function initJobControls(): void {
     initializeMaxConcurrentControl();
     initializeJobTypeControl();
-    initializeJobTypeHelper();
 }
 
 function initializeJobTypeControl(): void {
-    const select = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
-    if (!select) return;
+    const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
+    if (!toggle) return;
 
     // Potential: Restore saved preference if we want to persist it
-    select.addEventListener("change", () => {
+    toggle.addEventListener("change", () => {
         document.dispatchEvent(new Event("abb:job-type-changed"));
     });
-}
-
-function initializeJobTypeHelper(): void {
-    const infoButton = document.getElementById(JOB_TYPE_INFO_ID) as HTMLButtonElement | null;
-    const helper = document.getElementById(JOB_TYPE_HELPER_ID) as HTMLDivElement | null;
-    if (!infoButton || !helper) return;
-
-    const closeHelper = () => {
-        helper.classList.remove("visible");
-        infoButton.setAttribute("aria-expanded", "false");
-    };
-
-    infoButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const nextVisible = !helper.classList.contains("visible");
-        if (nextVisible) {
-            helper.classList.add("visible");
-            infoButton.setAttribute("aria-expanded", "true");
-        } else {
-            closeHelper();
-        }
-    });
-
-    document.addEventListener("click", () => closeHelper());
 }
 
 function initializeMaxConcurrentControl(): void {
@@ -56,9 +33,11 @@ function initializeMaxConcurrentControl(): void {
     // Restore saved preference
     const saved = readMaxConcurrentPreference();
     select.value = saved;
+    maxConcurrentSelection = saved;
 
     select.addEventListener("change", () => {
         const value = select.value;
+        maxConcurrentSelection = value;
         writeMaxConcurrentPreference(value);
         void pushMaxConcurrentToBackend(value);
     });
@@ -69,28 +48,51 @@ function initializeMaxConcurrentControl(): void {
 
 // Read current value
 export function getJobType(): JobType {
-    const select = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
-    if (!select) return "merge";
+    const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
+    if (!toggle) return "batch";
+    return toggle.checked ? "merge" : "batch";
+}
 
-    const val = select.value;
-    if (val === "batch") return "batch";
-    return "merge";
+export function getMaxConcurrentStatus(): {
+    effective: number | null;
+    selection: string;
+} {
+    return {
+        effective: effectiveMaxConcurrent,
+        selection: maxConcurrentSelection,
+    };
 }
 
 export function setJobControlsEnabled(enabled: boolean): void {
-    const jobTypeSelect = document.getElementById(JOB_TYPE_SELECT_ID) as HTMLSelectElement;
+    const mergeToggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement;
     const maxConcurrentSelect = document.getElementById(MAX_CONCURRENT_SELECT_ID) as HTMLSelectElement;
 
-    if (jobTypeSelect) {
-        jobTypeSelect.disabled = !enabled;
-        if (!enabled) jobTypeSelect.style.opacity = "0.5";
-        else jobTypeSelect.style.opacity = "1";
+    if (mergeToggle) {
+        mergeToggle.disabled = !enabled;
+        if (!enabled) mergeToggle.style.opacity = "0.5";
+        else mergeToggle.style.opacity = "1";
     }
 
     if (maxConcurrentSelect) {
         maxConcurrentSelect.disabled = !enabled;
         if (!enabled) maxConcurrentSelect.style.opacity = "0.5";
         else maxConcurrentSelect.style.opacity = "1";
+    }
+}
+
+function updateMaxConcurrentIndicator(): void {
+    const indicator = document.getElementById(MAX_CONCURRENT_EFFECTIVE_ID) as HTMLElement | null;
+    if (!indicator) return;
+
+    if (effectiveMaxConcurrent === null) {
+        indicator.textContent = "";
+        return;
+    }
+
+    if (maxConcurrentSelection === "auto") {
+        indicator.textContent = `Auto → ${effectiveMaxConcurrent}`;
+    } else {
+        indicator.textContent = `Max ${effectiveMaxConcurrent}`;
     }
 }
 
@@ -118,17 +120,28 @@ function writeMaxConcurrentPreference(value: string): void {
 
 async function pushMaxConcurrentToBackend(value: string): Promise<void> {
     try {
+        let effective: number;
         if (value === "auto") {
-            await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
+            effective = await bridge.invoke<number>("set_max_concurrent_jobs", { max_concurrent: null });
         } else {
             const parsed = parseInt(value, 10);
             if (!Number.isFinite(parsed)) {
                 return;
             }
-            await bridge.invoke("set_max_concurrent_jobs", {
+            effective = await bridge.invoke<number>("set_max_concurrent_jobs", {
                 max_concurrent: parsed,
             });
         }
+        if (!Number.isFinite(effective)) {
+            return;
+        }
+        effectiveMaxConcurrent = effective;
+        updateMaxConcurrentIndicator();
+        document.dispatchEvent(
+            new CustomEvent("abb:max-concurrent-updated", {
+                detail: { effective, selection: maxConcurrentSelection },
+            })
+        );
     } catch (error) {
         console.warn("Failed to update max concurrency:", error);
     }

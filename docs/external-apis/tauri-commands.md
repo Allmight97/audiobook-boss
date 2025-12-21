@@ -11,7 +11,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport` |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
-| `cancel_processing` | `src-tauri/src/commands/audio.rs` → shared `ProcessingState` + `JobRegistry` | StatusPanel cancel-all and per-job cancel |
+| `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel cancel-all and per-job cancel |
 | `list_available_encoders` | `src-tauri/src/commands/audio.rs` | Used by UI to surface encoder guidance |
 | `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
 | `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
@@ -37,7 +37,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
   - Notes:
     - `metadata` is keyed by input path; merge uses the first input path as the metadata key.
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
-    - Emits `processing-progress` events with `job_id` (optional in payload for backward compatibility)
+    - Emits `processing-progress` events with `job_id` and optional `input_index` (backward compatible)
 
 - `cancel_processing`
   - Args: `{ job_id?: string }`
@@ -73,7 +73,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Backend → frontend events
 
-- `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`. Payload includes optional `job_id` to support multiple concurrent jobs.
+- `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`. Payload includes optional `job_id` and `input_index` to support multiple concurrent jobs and stable file mapping.
   - Emission throttling (~200ms) originates in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 
 ### Frontend harness for QA

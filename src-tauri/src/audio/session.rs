@@ -1,16 +1,17 @@
 //! Session management for audio processing operations
 //!
-//! Provides a wrapper around ProcessingState with unique session identification
+//! Provides a wrapper around cancellation sources with unique session identification
 //! and convenience methods for state management.
 
 use crate::audio::job_registry::CancellationChecker;
-use crate::ProcessingState;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Cancellation source for the session
 enum CancellationSource {
-    /// Legacy: uses global ProcessingState mutex
-    Legacy(ProcessingState),
+    /// Manual cancellation flag (primarily for tests)
+    Manual(Arc<AtomicBool>),
     /// Modern: uses job registry cancellation checker
     JobRegistry(CancellationChecker),
 }
@@ -18,13 +19,13 @@ enum CancellationSource {
 impl std::fmt::Debug for CancellationSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Legacy(_) => write!(f, "CancellationSource::Legacy"),
+            Self::Manual(_) => write!(f, "CancellationSource::Manual"),
             Self::JobRegistry(_) => write!(f, "CancellationSource::JobRegistry"),
         }
     }
 }
 
-/// A unique processing session that wraps ProcessingState
+/// A unique processing session that wraps cancellation state
 ///
 /// Each session has a unique UUID identifier and provides
 /// convenience methods for checking processing status.
@@ -37,21 +38,11 @@ pub struct ProcessingSession {
 }
 
 impl ProcessingSession {
-    /// Creates a new processing session with a unique ID and fresh state (legacy mode)
+    /// Creates a new processing session with a unique ID and fresh state
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            cancellation: CancellationSource::Legacy(ProcessingState::default()),
-        }
-    }
-
-    /// Creates a new processing session that shares the provided ProcessingState
-    /// (Arc-backed) so cancel/processing flags set by commands are visible to the pipeline.
-    /// This is the legacy mode for backward compatibility.
-    pub fn from_shared_state(state: &ProcessingState) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            cancellation: CancellationSource::Legacy(state.clone()),
+            cancellation: CancellationSource::Manual(Arc::new(AtomicBool::new(false))),
         }
     }
 
@@ -74,27 +65,10 @@ impl ProcessingSession {
         self.id
     }
 
-    /// Checks if the session is currently processing (legacy mode only)
-    pub fn is_processing(&self) -> bool {
-        match &self.cancellation {
-            CancellationSource::Legacy(state) => state
-                .is_processing
-                .lock()
-                .map(|guard| *guard)
-                .unwrap_or(false),
-            // In job registry mode, if session exists it's processing
-            CancellationSource::JobRegistry(_) => true,
-        }
-    }
-
     /// Checks if the session has been cancelled
     pub fn is_cancelled(&self) -> bool {
         match &self.cancellation {
-            CancellationSource::Legacy(state) => state
-                .is_cancelled
-                .lock()
-                .map(|guard| *guard)
-                .unwrap_or(false),
+            CancellationSource::Manual(flag) => flag.load(Ordering::Acquire),
             CancellationSource::JobRegistry(checker) => checker.is_cancelled(),
         }
     }

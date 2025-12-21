@@ -35,7 +35,7 @@ export const STAGES = {
 /**
  * Progress event emitted by Rust backend during audio processing
  * 
- * Source: src-tauri/src/audio/processor.rs (ProgressEvent struct)
+ * Source: src-tauri/src/audio/progress/reporter.rs (ProgressEvent struct)
  * Handler: src/ui/statusPanel.ts (listen(EVENTS.PROGRESS))
  * 
  * Emitted during:
@@ -62,6 +62,9 @@ export interface ProcessingProgressEvent {
 
     /** Job identifier for parallel batch processing (optional, added in issue #71) */
     job_id?: string;
+
+    /** Original input index for batch processing (optional, added in issue #71) */
+    input_index?: number;
 }
 
 // ============================================================================

@@ -22,6 +22,9 @@ pub struct ProgressEvent {
     /// Job identifier for parallel batch processing (optional for backward compat)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
+    /// Original input index for batch processing (optional for backward compat)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_index: Option<usize>,
 }
 
 /// Centralized progress event emitter
@@ -30,6 +33,8 @@ pub struct ProgressEmitter {
     window: Window,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
+    /// Optional input index for batch processing
+    input_index: Option<usize>,
 }
 
 impl ProgressEmitter {
@@ -38,6 +43,7 @@ impl ProgressEmitter {
         Self {
             window,
             job_id: None,
+            input_index: None,
         }
     }
 
@@ -46,6 +52,20 @@ impl ProgressEmitter {
         Self {
             window,
             job_id: Some(job_id),
+            input_index: None,
+        }
+    }
+
+    /// Creates a progress emitter with job tracking and input index context
+    pub fn with_context(
+        window: Window,
+        job_id: Option<String>,
+        input_index: Option<usize>,
+    ) -> Self {
+        Self {
+            window,
+            job_id,
+            input_index,
         }
     }
 
@@ -158,6 +178,7 @@ impl ProgressEmitter {
             current_file: None,
             eta_seconds: None,
             job_id: self.job_id.clone(),
+            input_index: self.input_index,
         };
         let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
     }
@@ -197,6 +218,7 @@ impl ProgressEmitter {
             current_file,
             eta_seconds,
             job_id: self.job_id.clone(),
+            input_index: self.input_index,
         };
 
         let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);

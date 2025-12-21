@@ -9,7 +9,8 @@ export {
     toggleFileSort, 
     clearAllFiles,
     moveFileUp,
-    moveFileDown
+    moveFileDown,
+    setFileOrderLocked
 } from './actions';
 
 // Re-export state from state module  

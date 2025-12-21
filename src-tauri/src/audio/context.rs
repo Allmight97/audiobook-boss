@@ -95,6 +95,8 @@ pub struct ProcessingContext {
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
+    /// Optional index of the input file in the original request
+    pub input_index: Option<usize>,
 }
 
 impl ProcessingContext {
@@ -114,6 +116,7 @@ impl ProcessingContext {
             output,
             preview: None,
             job_id: None,
+            input_index: None,
         }
     }
 
@@ -138,11 +141,6 @@ impl ProcessingContext {
     /// Checks if the current processing has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.session.is_cancelled()
-    }
-
-    /// Checks if processing is currently active
-    pub fn is_processing(&self) -> bool {
-        self.session.is_processing()
     }
 
     /// Creates an error with session context
@@ -173,6 +171,15 @@ impl ProcessingContext {
             "Failed to validate {field} for session {}: {reason}",
             self.session.id()
         ))
+    }
+
+    /// Creates a progress emitter scoped to this processing context
+    pub fn new_emitter(&self) -> crate::audio::progress::ProgressEmitter {
+        crate::audio::progress::ProgressEmitter::with_context(
+            self.window.clone(),
+            self.job_id.clone(),
+            self.input_index,
+        )
     }
 
     /// Returns the effective bitrate in kbps (v2-aware)

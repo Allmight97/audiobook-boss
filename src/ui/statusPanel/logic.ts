@@ -8,7 +8,11 @@
 
 import { bridge } from "../../lib/bridge";
 import { ProcessingProgressEvent, EVENTS, STAGES } from "../../types/events";
-import { currentFileList, selectedFileIndex } from "../fileList";
+import {
+  currentFileList,
+  selectedFileIndex,
+  setFileOrderLocked,
+} from "../fileList";
 import { getCurrentOutputConfig } from "../outputPanel";
 import type { EncoderSettings, OutputConfig } from "../../types/audio";
 import {
@@ -19,7 +23,11 @@ import { toBoundaryEncoderSettings } from "../../types/encoder";
 import type { EncoderSettingsLike } from "../../types/encoder";
 import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
-import { getJobType, setJobControlsEnabled } from "../jobControls";
+import {
+  getJobType,
+  getMaxConcurrentStatus,
+  setJobControlsEnabled,
+} from "../jobControls";
 import { readMetadataForm } from "../metadataForm";
 import {
   getAllMetadata,
@@ -106,6 +114,7 @@ export class StatusPanel {
 
     // Set initial UI state
     this.updateUI();
+    this.updateConcurrencyIndicator();
 
     // Initialize art thumbnail to placeholder
     dom.resetArtThumbnail();
@@ -181,6 +190,10 @@ export class StatusPanel {
         }
       });
     }
+
+    document.addEventListener("abb:max-concurrent-updated", () => {
+      this.updateConcurrencyIndicator();
+    });
   }
 
   // MaxConcurrent control moved to src/ui/jobControls.ts
@@ -236,6 +249,7 @@ export class StatusPanel {
 
       // Disable job controls
       setJobControlsEnabled(false);
+      setFileOrderLocked(true);
 
       // Update art thumbnail with current file's cover art
       await this.updateArtThumbnail();
@@ -451,6 +465,7 @@ export class StatusPanel {
 
     // Calculate aggregate progress
     const aggregate = this.calculateAggregateProgress();
+    this.updateConcurrencyIndicator(aggregate);
 
     // Derive status from aggregate (use most advanced active stage)
     const status: ProcessingStatus = {
@@ -463,12 +478,20 @@ export class StatusPanel {
 
     this.updateStatus(status);
 
-    if (this.currentJobType === "batch" && event.current_file) {
-      const filename = this.extractFilenameFromProgress(event.current_file);
-      if (filename) {
-        const filePath = this.findFilePathByName(filename);
-        if (filePath) {
-          void this.updateArtThumbnailForFile(filePath);
+    if (this.currentJobType === "batch") {
+      const indexedPath =
+        typeof event.input_index === "number"
+          ? this.findFilePathByIndex(event.input_index)
+          : null;
+      if (indexedPath) {
+        void this.updateArtThumbnailForFile(indexedPath);
+      } else if (event.current_file) {
+        const filename = this.extractFilenameFromProgress(event.current_file);
+        if (filename) {
+          const filePath = this.findFilePathByName(filename);
+          if (filePath) {
+            void this.updateArtThumbnailForFile(filePath);
+          }
         }
       }
     }
@@ -565,6 +588,28 @@ export class StatusPanel {
       message: this.deriveAggregateMessage(aggregate),
     };
     this.updateStatus(status);
+    this.updateConcurrencyIndicator(aggregate);
+  }
+
+  private updateConcurrencyIndicator(aggregate?: AggregateProgress): void {
+    const { effective, selection } = getMaxConcurrentStatus();
+    const suffix = selection === "auto" ? " (Auto)" : "";
+
+    if (effective === null) {
+      dom.updateConcurrencyStatus("Max jobs: —");
+      return;
+    }
+
+    if (aggregate && (aggregate.activeJobs > 0 || aggregate.completedJobs > 0)) {
+      const completedSuffix =
+        aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : "";
+      dom.updateConcurrencyStatus(
+        `Running ${aggregate.activeJobs} / Max ${effective}${suffix}${completedSuffix}`
+      );
+      return;
+    }
+
+    dom.updateConcurrencyStatus(`Max jobs: ${effective}${suffix}`);
   }
 
   private updateStatus(status: ProcessingStatus): void {
@@ -652,9 +697,11 @@ export class StatusPanel {
       percentage: 0,
       message: "Ready to process audiobook",
     });
+    this.updateConcurrencyIndicator();
 
     // Re-enable controls
     setJobControlsEnabled(true);
+    setFileOrderLocked(false);
 
     // Reset art thumbnail to placeholder
     dom.resetArtThumbnail();
@@ -764,6 +811,13 @@ export class StatusPanel {
       return base === filename;
     });
     return match?.path ?? null;
+  }
+
+  private findFilePathByIndex(index: number): string | null {
+    if (!currentFileList) return null;
+    if (!Number.isInteger(index)) return null;
+    if (index < 0 || index >= currentFileList.files.length) return null;
+    return currentFileList.files[index]?.path ?? null;
   }
 
   // Public method to check if processing is active

@@ -6,6 +6,7 @@ export let selectedFileIndex: number = -1;
 
 // Internal state
 let sortAscending: boolean = true;
+let orderLocked: boolean = false;
 
 // Minimal setters for actions module
 export function setCurrentFileList(fileList: FileListInfo | null): void {
@@ -22,6 +23,14 @@ export function getSortAscending(): boolean {
 
 export function setSortAscending(ascending: boolean): void {
     sortAscending = ascending;
+}
+
+export function setOrderLocked(locked: boolean): void {
+    orderLocked = locked;
+}
+
+export function isOrderLocked(): boolean {
+    return orderLocked;
 }
 
 // State validation utilities
