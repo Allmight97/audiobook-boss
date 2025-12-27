@@ -5,7 +5,7 @@ use tempfile::TempDir;
 fn read_nonexistent_file_returns_error() {
     let result = read_audio_metadata("does-not-exist.m4b".to_string());
     assert!(result.is_err());
-    let message = result.err().expect("error").to_string();
+    let message = result.expect_err("error").to_string();
     assert!(
         message.contains("File validation failed"),
         "unexpected error: {message}"
@@ -20,7 +20,7 @@ fn invalid_file_surfaces_ffmpeg_error() {
 
     let result = read_audio_metadata(path.to_string_lossy().to_string());
     assert!(result.is_err());
-    let message = result.err().expect("error").to_string();
+    let message = result.expect_err("error").to_string();
     assert!(
         message.contains("FFmpeg error"),
         "unexpected error: {message}"
