@@ -23,15 +23,9 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
                     || metadata.cover_art.is_none()
                 {
                     if let Ok(fallback) = read_metadata_with_ffmpeg(path) {
-                        if metadata.series.is_none() {
-                            metadata.series = fallback.series;
-                        }
-                        if metadata.series_part.is_none() {
-                            metadata.series_part = fallback.series_part;
-                        }
-                        if metadata.cover_art.is_none() {
-                            metadata.cover_art = fallback.cover_art;
-                        }
+                        metadata.series = metadata.series.or(fallback.series);
+                        metadata.series_part = metadata.series_part.or(fallback.series_part);
+                        metadata.cover_art = metadata.cover_art.or(fallback.cover_art);
                     }
                 }
                 return Ok(metadata);
