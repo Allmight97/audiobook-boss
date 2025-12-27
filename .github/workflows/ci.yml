@@ -45,6 +45,10 @@ on:
       - '!**/*.md'
       - '!**/.DS_Store'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   # Fast check to determine if code actually changed (second-line defense for PRs)
   changes:
@@ -53,6 +57,8 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history needed for push event diffs
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -71,7 +77,8 @@ jobs:
 
   quality-gate:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Fail-open: run if code changed OR if detection failed (don't skip CI on filter errors)
+    if: needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
       - uses: actions/checkout@v6
