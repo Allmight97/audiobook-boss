@@ -8,6 +8,7 @@ use audiobook_boss_lib::audio::{
     context::ProcessingContext, session::ProcessingSession, MediaProcessingPlan, OutputConfig,
     SampleRateConfig,
 };
+use audiobook_boss_lib::commands::read_audio_metadata;
 use audiobook_boss_lib::metadata::AudiobookMetadata;
 use ffmpeg_next as ff;
 use std::path::PathBuf;
@@ -98,6 +99,14 @@ fn test_native_cover_art_embedding_end_to_end() {
     assert!(
         has_cover,
         "Embedded cover art should result in attached_pic stream"
+    );
+
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .expect("read metadata");
+    let cover_bytes = read_back.cover_art.unwrap_or_default();
+    assert!(
+        !cover_bytes.is_empty(),
+        "read metadata should return cover art bytes"
     );
 }
 

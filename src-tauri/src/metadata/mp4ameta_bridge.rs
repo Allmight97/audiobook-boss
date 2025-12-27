@@ -112,7 +112,9 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     }
 
     if let Some(ref cover_art) = metadata.cover_art {
-        if let Some(image) = cover_art_to_img(cover_art)? {
+        if cover_art.is_empty() {
+            tag.remove_artworks();
+        } else if let Some(image) = cover_art_to_img(cover_art)? {
             tag.set_artwork(image);
         }
     }
