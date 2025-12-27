@@ -117,24 +117,4 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn read_nonexistent_file_returns_error() {
-        let result = read_metadata("does-not-exist.m4b");
-        assert!(matches!(result, Err(AppError::FileValidation(_))));
-    }
-
-    #[test]
-    fn invalid_file_surfaces_ffmpeg_error() {
-        let temp = TempDir::new().expect("temp dir");
-        let path = temp.path().join("invalid.m4b");
-        std::fs::write(&path, b"not audio").expect("write");
-
-        let result = read_metadata(&path);
-        assert!(matches!(result, Err(AppError::Ffmpeg(_))));
-    }
-}
+// tests are defined in `src-tauri/tests/metadata_reader.rs`
