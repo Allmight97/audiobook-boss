@@ -49,16 +49,18 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set("description", description);
     }
 
-    // Series → show (ffmpeg's equivalent for movement name / series)
+    // Series metadata: dual-write for ABS/Plex + Apple Books
     if let Some(ref series) = metadata.series {
-        dict.set("show", series);
-        // Signal series presence
-        dict.set("show_work_and_movement", "1");
+        dict.set("series", series);
+        dict.set("----:com.apple.iTunes:SERIES", series);
+        dict.set("MVNM", series);
     }
 
-    // Book # → episode_sort (ffmpeg's equivalent for movement index)
+    // Book # metadata: dual-write for ABS/Plex + Apple Books
     if let Some(ref series_part) = metadata.series_part {
-        dict.set("episode_sort", series_part);
+        dict.set("series-part", series_part);
+        dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
+        dict.set("MVIN", series_part);
     }
 
     // TSOA → sort_album for library sorting

@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      # Code paths that should trigger CI
       - 'src/**'
       - 'src-tauri/src/**'
       - 'src-tauri/tests/**'
@@ -14,11 +15,18 @@ on:
       - 'bun.lockb'
       - 'tsconfig.json'
       - 'scripts/**'
-      - '!docs/**'  # Explicitly ignore docs to prevent triggers on doc-only changes
       - '.github/workflows/ci.yml'
+      # Explicit exclusions (first-line defense)
+      - '!docs/**'
+      - '!.codex/**'
+      - '!.claude/**'
+      - '!.agent/**'
+      - '!**/*.md'
+      - '!**/.DS_Store'
   push:
     branches: [main]
     paths:
+      # Code paths that should trigger CI
       - 'src/**'
       - 'src-tauri/src/**'
       - 'src-tauri/tests/**'
@@ -28,11 +36,49 @@ on:
       - 'bun.lockb'
       - 'tsconfig.json'
       - 'scripts/**'
-      - '!docs/**'  # Explicitly ignore docs to prevent triggers on doc-only changes
       - '.github/workflows/ci.yml'
+      # Explicit exclusions (first-line defense)
+      - '!docs/**'
+      - '!.codex/**'
+      - '!.claude/**'
+      - '!.agent/**'
+      - '!**/*.md'
+      - '!**/.DS_Store'
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
+  # Fast check to determine if code actually changed (second-line defense for PRs)
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history needed for push event diffs
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'src-tauri/src/**'
+              - 'src-tauri/tests/**'
+              - 'src-tauri/Cargo.toml'
+              - 'src-tauri/Cargo.lock'
+              - 'package.json'
+              - 'bun.lockb'
+              - 'tsconfig.json'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+
   quality-gate:
+    needs: changes
+    # Fail-open: run if code changed OR if detection failed (don't skip CI on filter errors)
+    if: needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
       - uses: actions/checkout@v6

@@ -15,10 +15,9 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `list_available_encoders` | `src-tauri/src/commands/audio.rs` | Used by UI to surface encoder guidance |
 | `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
 | `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
-| `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` | File list metadata pane, cover-art thumbnail refresh |
-| `save_metadata_to_file` | `src-tauri/src/commands/metadata.rs` | Metadata-only editing (Cmd+S workflow) |
-| `write_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
-| `write_cover_art` | `src-tauri/src/commands/metadata.rs` → `metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg` | Console/testing only |
+| `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` (mp4ameta for MP4/M4B, ffmpeg fallback) | File list metadata pane, cover-art thumbnail refresh |
+| `save_metadata_to_file` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Metadata-only editing (Cmd+S workflow) |
+| `write_cover_art` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Console/testing only |
 | `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
 
 ### Command payloads & returns
@@ -57,10 +56,6 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 - `read_audio_metadata`
   - Args: `{ filePath: string }`
   - Returns: `AudiobookMetadata`
-
-- `write_audio_metadata`
-  - Args: `{ filePath: string; metadata: AudiobookMetadata }`
-  - Returns: `void`
 
 - `load_cover_art_file`
   - Args: `{ filePath: string }`

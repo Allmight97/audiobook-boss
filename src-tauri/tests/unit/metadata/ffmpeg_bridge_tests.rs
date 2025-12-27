@@ -22,10 +22,22 @@ fn test_metadata_to_ffmpeg_dict_full_fields() {
         date: Some(2025),
         comment: Some("A comment".into()),
         description: Some("Long description".into()),
+        series: Some("Series Name".into()),
+        series_part: Some("2".into()),
         ..Default::default()
     };
     let dict = ffmpeg_bridge::metadata_to_ffmpeg_dict(&md).expect("conversion");
     for key in ["title","artist","album","composer","genre","date","year","comment","description","media_type"] { 
+        assert!(dict.get(key).is_some(), "Missing key {key}");
+    }
+    for key in [
+        "series",
+        "series-part",
+        "----:com.apple.iTunes:SERIES",
+        "----:com.apple.iTunes:SERIES-PART",
+        "MVNM",
+        "MVIN",
+    ] {
         assert!(dict.get(key).is_some(), "Missing key {key}");
     }
     // album_artist mirror

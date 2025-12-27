@@ -50,7 +50,7 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
-use crate::audio::ProgressReporter;
+use crate::audio::{ProcessingStage, ProgressReporter};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 
@@ -144,12 +144,26 @@ pub(crate) fn cleanup_temp_directory_with_session(
 /// Writes metadata if provided (UI emission included)
 pub(crate) fn write_metadata_stage(
     _context: &ProcessingContext,
-    _merged_output: &Path,
-    _metadata: Option<AudiobookMetadata>,
+    merged_output: &Path,
+    metadata: Option<AudiobookMetadata>,
     _passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
-    _reporter: &mut ProgressReporter,
+    reporter: &mut ProgressReporter,
 ) -> Result<()> {
-    log::debug!("Finalize metadata stage skipped; ffmpeg-next handled metadata during mux");
+    let Some(metadata) = metadata else {
+        log::debug!("Finalize metadata stage skipped; no metadata provided");
+        return Ok(());
+    };
+
+    if !crate::metadata::mp4ameta_bridge::is_mp4_container(merged_output) {
+        log::debug!("Finalize metadata stage skipped; ffmpeg-next handled metadata during mux");
+        return Ok(());
+    }
+
+    let ui = _context.new_emitter();
+    reporter.set_stage(ProcessingStage::WritingMetadata);
+    ui.emit_metadata_start("Writing metadata...");
+    crate::metadata::mp4ameta_bridge::write_metadata(merged_output, &metadata)?;
+    ui.emit_finalizing("Finalizing...");
     Ok(())
 }
 

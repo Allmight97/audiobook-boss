@@ -33,6 +33,7 @@ num_cpus = "1.17.0"
 ffmpeg-next = "8.0.0"
 image = { version = "0.25.9", default-features = false, features = ["jpeg", "png", "webp"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
+mp4ameta = "0.13.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
