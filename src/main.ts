@@ -45,7 +45,7 @@ import { initJobControls } from "./ui/jobControls";
   validateEncoderSettings: (settings: EncoderSettings) =>
     bridge.invoke("validate_encoder_settings_cmd", settings),
   writeMetadata: (filePath: string, metadata: AudiobookMetadata) =>
-    bridge.invoke("write_audio_metadata", { filePath: filePath, metadata }),
+    bridge.invoke("save_metadata_to_file", { filePath: filePath, metadata }),
   writeCoverArt: (filePath: string, coverData: number[]) =>
     bridge.invoke("write_cover_art", {
       filePath: filePath,
