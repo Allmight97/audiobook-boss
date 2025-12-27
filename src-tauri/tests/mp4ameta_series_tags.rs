@@ -1,20 +1,16 @@
 //! Integration test for mp4ameta series tag writing.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use audiobook_boss_lib::commands::metadata::save_metadata_to_file;
+use audiobook_boss_lib::commands::metadata::{read_audio_metadata, save_metadata_to_file};
 use audiobook_boss_lib::AudiobookMetadata;
 use ffmpeg_next as ff;
 use mp4ameta::{FreeformIdent, Tag};
 use tempfile::TempDir;
 
-fn sample_mp3_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("manifest parent")
-        .join("media")
-        .join("media_20sec.mp3")
-}
+// Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
+const MINIMAL_JPEG: &[u8] =
+    b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9";
 
 fn write_minimal_m4b(output: &Path) {
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
@@ -75,8 +71,6 @@ fn writes_series_tags_with_mp4ameta() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
-    let input = sample_mp3_path();
-    assert!(input.exists(), "sample mp3 should exist");
     let output = temp.path().join("series-tags.m4b");
 
     let metadata = AudiobookMetadata {
@@ -102,4 +96,68 @@ fn writes_series_tags_with_mp4ameta() {
     assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
     assert_eq!(tag.movement_index(), Some(7));
+}
+
+#[test]
+fn writes_cover_art_with_mp4ameta_and_reads_back() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("cover-art.m4b");
+
+    let metadata = AudiobookMetadata {
+        cover_art: Some(MINIMAL_JPEG.to_vec()),
+        ..Default::default()
+    };
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(output.to_string_lossy().to_string(), metadata).expect("save metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    assert!(tag.artwork().is_some(), "artwork atom should be present");
+
+    let read_back =
+        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    let cover_bytes = read_back.cover_art.unwrap_or_default();
+    assert!(
+        !cover_bytes.is_empty(),
+        "read metadata should return cover art bytes"
+    );
+}
+
+#[test]
+fn clears_cover_art_with_empty_payload() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("cover-art-clear.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            cover_art: Some(MINIMAL_JPEG.to_vec()),
+            ..Default::default()
+        },
+    )
+    .expect("save metadata");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            cover_art: Some(Vec::new()),
+            ..Default::default()
+        },
+    )
+    .expect("clear metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    assert!(tag.artwork().is_none(), "artwork atom should be removed");
+
+    let read_back =
+        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    assert!(
+        read_back.cover_art.is_none(),
+        "read metadata should not return cover art bytes"
+    );
 }
