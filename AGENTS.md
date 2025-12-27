@@ -29,6 +29,14 @@ Use this scale to rate the quality of code and solutions:
 
 ---
 
+## Team & Workflow
+
+- **Solo project**: Single developer (repo owner / product owner / user)
+- PR review via automated agent + .github/workflows/ci.yml workflow on push
+- Feature branches → PR → review/CI → merge to main
+
+---
+
 ## Project Context
 
 ## Essential Reading (in order)

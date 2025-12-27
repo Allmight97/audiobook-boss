@@ -9,6 +9,8 @@ pub mod reader;
 
 // FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
 pub mod ffmpeg_bridge;
+// Mp4ameta integration for reliable MP4/M4B metadata handling
+pub mod mp4ameta_bridge;
 // Passthrough helpers for chapter/cover preservation
 pub mod passthrough;
 
@@ -17,8 +19,8 @@ pub mod passthrough;
 /// Field mapping for Plex/Audiobookshelf compatibility:
 /// - `artist` = Author (also written to AlbumArtist)
 /// - `composer` = Narrator (also mirrored to freeform NARRATOR)
-/// - `series` = Series name (MVNM, mirrored to freeform SERIES)
-/// - `series_part` = Book number in series (MVIN, mirrored to freeform SERIES-PART)
+/// - `series` = Series name (freeform SERIES, mirrored to MVNM)
+/// - `series_part` = Book number in series (freeform SERIES-PART, mirrored to MVIN)
 /// - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiobookMetadata {
@@ -42,9 +44,9 @@ pub struct AudiobookMetadata {
     pub comment: Option<String>,
     /// Description or synopsis (desc)
     pub description: Option<String>,
-    /// Series name (©mvn/MVNM, mirrored to freeform SERIES)
+    /// Series name (freeform SERIES, mirrored to MVNM)
     pub series: Option<String>,
-    /// Book number in series as string to support "1/5" format (©mvi/MVIN, mirrored to freeform SERIES-PART)
+    /// Book number in series as string to support "1/5" format (freeform SERIES-PART, mirrored to MVIN)
     pub series_part: Option<String>,
     /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
     pub album_sort: Option<String>,

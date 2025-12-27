@@ -1,5 +1,5 @@
 //! Metadata reading via ffmpeg-next
-use super::AudiobookMetadata;
+use super::{mp4ameta_bridge, AudiobookMetadata};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
@@ -15,6 +15,37 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         )));
     }
 
+    if mp4ameta_bridge::is_mp4_container(path) {
+        match mp4ameta_bridge::read_metadata(path) {
+            Ok(mut metadata) => {
+                if metadata.series.is_none()
+                    || metadata.series_part.is_none()
+                    || metadata.cover_art.is_none()
+                {
+                    if let Ok(fallback) = read_metadata_with_ffmpeg(path) {
+                        if metadata.series.is_none() {
+                            metadata.series = fallback.series;
+                        }
+                        if metadata.series_part.is_none() {
+                            metadata.series_part = fallback.series_part;
+                        }
+                        if metadata.cover_art.is_none() {
+                            metadata.cover_art = fallback.cover_art;
+                        }
+                    }
+                }
+                return Ok(metadata);
+            }
+            Err(e) => {
+                log::warn!("mp4ameta read failed ({}); falling back to ffmpeg", e);
+            }
+        }
+    }
+
+    read_metadata_with_ffmpeg(path)
+}
+
+fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
@@ -31,9 +62,20 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     metadata.description = dict.get("description").map(str::to_string);
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
 
-    // Series metadata mapped to ffmpeg's show/episode_sort keys
-    metadata.series = dict.get("show").map(str::to_string);
-    metadata.series_part = dict.get("episode_sort").map(str::to_string);
+    // Series metadata: prefer canonical tags, fall back to legacy/movement tags
+    metadata.series = first_tag(
+        &dict,
+        &["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"],
+    );
+    metadata.series_part = first_tag(
+        &dict,
+        &[
+            "series-part",
+            "----:com.apple.iTunes:SERIES-PART",
+            "episode_sort",
+            "MVIN",
+        ],
+    );
 
     // Year/date can be stored under `date` or `year`
     metadata.date = dict
@@ -45,6 +87,11 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     metadata.cover_art = extract_attached_pic(&ictx);
 
     Ok(metadata)
+}
+
+fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| dict.get(key).map(str::to_string))
 }
 
 /// Extracts the first attached picture (cover art) from the container streams.
