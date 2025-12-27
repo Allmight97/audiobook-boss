@@ -2,9 +2,9 @@
 
 ## Overview
 
-- Backend: Rust with `ffmpeg-next` for all audio processing (decode → resample → encode → mux) and metadata read/write
+- Backend: Rust with `ffmpeg-next` for audio processing (decode → resample → encode → mux) and `mp4ameta` for MP4/M4B metadata read/write
 - Frontend: TypeScript (vanilla) + Tauri 2
-- Metadata: ffmpeg-next for MP4/M4B metadata + cover art
+- Metadata: `mp4ameta` for MP4/M4B tags + cover art; `ffmpeg-next` for non-MP4 metadata
 - Audio Processing Engine: Single engine (`FfmpegNextProcessor`); no shell-based FFmpeg and no feature flags (see note end of this doc for updates to audio processing pipeline)
 
 Internal docs:
@@ -28,7 +28,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
 2. Processing Pipeline: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events via Tauri window
-3. Metadata Flow: ffmpeg-next read → custom `AudiobookMetadata` → ffmpeg-next write/embeds during mux or metadata-only remux
+3. Metadata Flow: MP4/M4B read/write via `mp4ameta` (ffmpeg fallback for gaps) → `AudiobookMetadata` → `mp4ameta` write during metadata-only edits and finalize; non-MP4 stays on ffmpeg-next
 
 ## Commands & Integration Points
 
@@ -137,7 +137,8 @@ RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 - Tauri 2: [Tauri v2 Documentation](https://tauri.app/v2/)
 - TypeScript: [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - FFmpeg: [Official FFmpeg Documentation](https://ffmpeg.org/documentation.html)
-- Metadata via ffmpeg-next (native read/write)
+- Metadata via mp4ameta for MP4/M4B (read/write)
+- Metadata via ffmpeg-next for non-MP4 (read/write)
 
 ## Quick Reference
 

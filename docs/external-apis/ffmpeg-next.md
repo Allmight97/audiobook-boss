@@ -7,7 +7,9 @@ This guide captures the integration patterns we use with `ffmpeg-next` for audio
 - `src-tauri/src/audio/processor/frame_pipeline.rs` (frame sizing, PTS handling)
 - `src-tauri/src/audio/processor/streams.rs` (stream setup)
 - `src-tauri/src/audio/buffer.rs` (sanitization and frame construction)
-- `src-tauri/src/metadata/ffmpeg_bridge.rs` (container metadata mapping)
+- `src-tauri/src/metadata/ffmpeg_bridge.rs` (non-MP4 metadata + remux; MP4/M4B uses mp4ameta)
+
+Metadata boundary: MP4/M4B metadata reads/writes are handled by `mp4ameta` (`metadata/mp4ameta_bridge.rs`), with ffmpeg-next handling audio processing and non-MP4 metadata workflows. Cover art embedded during muxing still uses ffmpeg-next attached-pic streams.
 
 ### Core audio timestamp contract
 

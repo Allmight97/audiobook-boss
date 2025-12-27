@@ -38,14 +38,15 @@ Real-time feedback as background jobs progress.
 ## ⚙️ 3. Computation (The Engine)
 **API Class**: **FFI (Foreign Function Interface)**
 **Interface**: Application Code ↔ Native System Libraries
-**Mechanism**: Low-level bindings via `ffmpeg-next`
+**Mechanism**: Low-level bindings via `ffmpeg-next` + MP4/M4B metadata via `mp4ameta`
 
 The specialized "heavy lifting" layer for audio processing.
 
 - **[Audio Processing (FFmpeg)](./ffmpeg-next.md)**
     - **Core Pipeline**: `src-tauri/src/audio/processor/{encoder/, frame_pipeline.rs, streams.rs}`
     - **Buffer Logic**: `src-tauri/src/audio/buffer.rs`
-    - **Metadata Engine**: `src-tauri/src/metadata/ffmpeg_bridge.rs`
+    - **Metadata (non-MP4)**: `src-tauri/src/metadata/ffmpeg_bridge.rs`
+    - **Metadata (MP4/M4B)**: `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs`
 
 ---
 
