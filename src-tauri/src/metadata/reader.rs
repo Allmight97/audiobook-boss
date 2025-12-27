@@ -18,6 +18,7 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     if mp4ameta_bridge::is_mp4_container(path) {
         match mp4ameta_bridge::read_metadata(path) {
             Ok(mut metadata) => {
+                metadata.cover_art = normalize_cover_art(metadata.cover_art);
                 if metadata.series.is_none()
                     || metadata.series_part.is_none()
                     || metadata.cover_art.is_none()
@@ -25,7 +26,9 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
                     if let Ok(fallback) = read_metadata_with_ffmpeg(path) {
                         metadata.series = metadata.series.or(fallback.series);
                         metadata.series_part = metadata.series_part.or(fallback.series_part);
-                        metadata.cover_art = metadata.cover_art.or(fallback.cover_art);
+                        if metadata.cover_art.is_none() {
+                            metadata.cover_art = normalize_cover_art(fallback.cover_art);
+                        }
                     }
                 }
                 return Ok(metadata);
@@ -81,6 +84,13 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     metadata.cover_art = extract_attached_pic(&ictx);
 
     Ok(metadata)
+}
+
+fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
+    match cover_art {
+        Some(bytes) if bytes.is_empty() => None,
+        other => other,
+    }
 }
 
 fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
