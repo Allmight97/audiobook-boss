@@ -298,3 +298,46 @@ fn preserves_series_tags_on_cover_art_update() {
         "cover art update should add artwork without clearing series tags"
     );
 }
+
+#[test]
+fn preserves_series_tags_on_metadata_only_save() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-metadata-save.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("This Inevitable Spanking".into()),
+            series: Some("Dungeon Crawler Carl".into()),
+            series_part: Some("7".into()),
+            ..Default::default()
+        },
+    )
+    .expect("save metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+
+    assert_eq!(
+        tag.strings_of(&series_ident).next(),
+        Some("Dungeon Crawler Carl")
+    );
+    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
+    assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
+    assert_eq!(tag.movement_index(), Some(7));
+    assert_eq!(
+        tag.album_sort_order(),
+        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
+    );
+
+    let read_back =
+        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
+    );
+}
