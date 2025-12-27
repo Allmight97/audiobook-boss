@@ -87,10 +87,7 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
 }
 
 fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
-    match cover_art {
-        Some(bytes) if bytes.is_empty() => None,
-        other => other,
-    }
+    cover_art.filter(|bytes| !bytes.is_empty())
 }
 
 fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
