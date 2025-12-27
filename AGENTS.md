@@ -36,6 +36,27 @@ Use this scale to rate the quality of code and solutions:
 - Feature branches → PR → review/CI → merge to main
 - Use `gh issue create --body-file` or a heredoc for multi-line issue bodies to avoid literal `\\n` characters in GitHub issues.
 
+## Version & Changelog
+
+**Version sources** (must stay in sync):
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+
+**Scripts**:
+- `scripts/bump-version.sh <version>` — updates all 3 files
+- `scripts/release.sh` — full release flow: bump → changelog prompt → build → commit → tag
+
+**Changelog** (`CHANGELOG.md`):
+- Format: [Keep a Changelog](https://keepachangelog.com/) with `[Unreleased]` section at top
+- Categories: `Added`, `Changed`, `Fixed`, `Removed`
+- Write from user perspective ("Add export to MP3" not "Refactor encoder module")
+
+**Agent rules**:
+- **Do NOT** bump version or modify `CHANGELOG.md` unless user explicitly requests a release
+- When completing a PR, you MAY suggest a changelog entry but do not add it automatically
+- Regular `bun run app:build` does NOT change version — only `scripts/release.sh` does
+
 ---
 
 ## Project Context
