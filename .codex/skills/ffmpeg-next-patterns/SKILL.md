@@ -9,7 +9,7 @@ This skill captures project-specific patterns for the `ffmpeg-next` crate. Consu
 
 ## Tool Cross-Check
 
-- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `ffmpeg_next::format`, `ffmpeg_next::codec::encoder::audio::Encoder`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
+- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `ffmpeg_next::format`, `ffmpeg_next::codec::encoder::audio::Encoder`). Use underscores in module paths (`ffmpeg_next`, not `ffmpeg`). `docs_rs_readme`/`docs_rs_search_in_crate` return 404 for this crate.
 
 ## Crate Import Convention
 
