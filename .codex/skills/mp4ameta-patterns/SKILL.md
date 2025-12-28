@@ -7,6 +7,10 @@ description: "mp4ameta Rust crate patterns for audiobook-boss. Use when reading/
 
 This skill captures project-specific patterns for the `mp4ameta` crate (v0.13.0). Consult before modifying MP4/M4B metadata handling.
 
+## Tool Cross-Check
+
+- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `mp4ameta::Tag`, `mp4ameta::Userdata`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
+
 ## Why mp4ameta?
 
 ffmpeg-next cannot reliably write iTunes freeform atoms (`----:com.apple.iTunes:SERIES`) that Audiobookshelf requires. mp4ameta provides native Rust access to MP4 atom structure for reliable series tag writing.

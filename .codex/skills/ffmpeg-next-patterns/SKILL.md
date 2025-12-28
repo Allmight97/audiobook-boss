@@ -7,6 +7,10 @@ description: FFmpeg-next Rust bindings patterns for audiobook-boss. Use when wri
 
 This skill captures project-specific patterns for the `ffmpeg-next` crate. Consult this before writing any audio processing code.
 
+## Tool Cross-Check
+
+- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `ffmpeg_next::format`, `ffmpeg_next::codec::encoder::audio::Encoder`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
+
 ## Crate Import Convention
 
 ```rust

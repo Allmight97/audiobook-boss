@@ -46,7 +46,9 @@ The specialized "heavy lifting" layer for audio processing.
     - **Core Pipeline**: `src-tauri/src/audio/processor/{encoder/, frame_pipeline.rs, streams.rs}`
     - **Buffer Logic**: `src-tauri/src/audio/buffer.rs`
     - **Metadata (non-MP4)**: `src-tauri/src/metadata/ffmpeg_bridge.rs`
-    - **Metadata (MP4/M4B)**: `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs`
+- **[MPEG-4 Metadata (mp4ameta)](./mp4ameta.md)**
+    - **MP4/M4B Manager**: `src-tauri/src/metadata/mp4ameta_bridge.rs`
+    - **Tag Extraction**: `src-tauri/src/metadata/reader.rs`
 
 ---
 

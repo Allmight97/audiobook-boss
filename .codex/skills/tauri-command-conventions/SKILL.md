@@ -7,6 +7,10 @@ description: Tauri command patterns for audiobook-boss. Use when adding new comm
 
 This skill captures project-specific patterns for Tauri 2.x commands. Consult before adding new commands or modifying IPC.
 
+## Tool Cross-Check
+
+- For authoritative Tauri event/command API details, use Context7: `mcp__context7-mcp__resolve-library-id` → `mcp__context7-mcp__get-library-docs` with `topic="events"` or `topic="command"`.
+
 ## Command Location
 
 | Type | Location |

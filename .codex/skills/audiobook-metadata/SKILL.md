@@ -7,6 +7,11 @@ description: "Domain knowledge for audiobook-boss metadata and file handling. Us
 
 Reference for audiobook-boss metadata implementation targeting Audiobookshelf (ABS), Plex, and Apple Books.
 
+## Tool Cross-Check
+
+- For exact mp4ameta API signatures, use `mcp__rust-docs__docs_rs_get_item` (e.g., `mp4ameta::Tag`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
+- For ffmpeg-next metadata dictionary details, defer to `ffmpeg-next-patterns` and confirm types via docs.rs (`ffmpeg_next::format`).
+
 ## Critical Constraint
 
 **ffprobe cannot read `MVNM`/`MVIN` (movement) tags.** ABS uses ffprobe for scanning, so series info written only to movement tags is invisible to ABS.

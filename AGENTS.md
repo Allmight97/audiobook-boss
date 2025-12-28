@@ -39,20 +39,24 @@ Use this scale to rate the quality of code and solutions:
 ## Version & Changelog
 
 **Version sources** (must stay in sync):
+
 - `package.json`
 - `src-tauri/tauri.conf.json`
 - `src-tauri/Cargo.toml`
 
 **Scripts**:
+
 - `scripts/bump-version.sh <version>` — updates all 3 files
 - `scripts/release.sh` — full release flow: bump → changelog prompt → build → commit → tag
 
 **Changelog** (`CHANGELOG.md`):
+
 - Format: [Keep a Changelog](https://keepachangelog.com/) with `[Unreleased]` section at top
 - Categories: `Added`, `Changed`, `Fixed`, `Removed`
 - Write from user perspective ("Add export to MP3" not "Refactor encoder module")
 
 **Agent rules**:
+
 - **Do NOT** bump version or modify `CHANGELOG.md` unless user explicitly requests a release
 - When completing a PR, you MAY suggest a changelog entry but do not add it automatically
 - Regular `bun run app:build` does NOT change version — only `scripts/release.sh` does
@@ -115,24 +119,24 @@ Use this scale to rate the quality of code and solutions:
 - **Apply Principles**: Use Core Principles (orthogonality, SoC, KISS, YAGNI, Fail Fast) to guide decisions throughout planning and implementation.
 - **Change Scope Guardrail**: Avoid broad refactors or compatibility fallbacks unless the user explicitly requests/approves; prefer fail-fast migrations when deprecating.
 
-## Research & Context Loading
+## Research and context management
 
-1. **Internal Code Search** (Status Quo)
+Use these tools for external documentation and patterns. Do not blindly copy external patterns if they conflict with project conventions or engineering principles.
 
-   - **Tools**: `find_by_name`, `grep_search`, `view_file` (or equivalent search tools)
-   - **Use Case**: Finding how _this_ project implements X. Always start here.
-   - _Goal_: **Understand & Evaluate**. Do not blindly copy existing patterns if they are weak. If Exa/Context7 or engineering principles suggest a better approach, propose the improvement.
+1. **Context7 MCP** (Authoritative Library Docs)
 
-2. **Exa Code** (External Patterns)
+   - Two-step process:
+     1. `mcp__context7-mcp__resolve-library-id` — Resolve library name to Context7 ID (e.g., "tauri" → `/tauri-apps/tauri`).
+     2. `mcp__context7-mcp__get-library-docs` — Fetch docs with optional `topic` and `mode` (code/info).
+   - **Use Case**: Deep verification of API contracts. Prevents method signature hallucinations.
+   - **Tip**: Prefer library versions with high benchmark scores and snippet counts.
 
-   - **Tool**: `exa_search` (or equivalent MCP tool) with snippet/coding focus.
-   - **Use Case**: "How do I use library X?" or "Rust pattern for Y".
-   - _Goal_: Find targeted code snippets and high-quality answers from valid sources (GitHub, SO, Docs).
+2. **Rust-docs MCP** (docs.rs Integration)
 
-3. **Context7** (Authoritative Docs)
-   - **Tool**: `use_context7` (or append "use context7" to prompt).
-   - **Use Case**: Deep verification of API contracts. "Get me the documentation for ffmpeg-next Frame".
-   - _Goal_: Inject the _exact_, up-to-date version of the library documentation into the context to prevent method signature hallucinations.
+   - `mcp__rust-docs__docs_rs_search_crates` — Discover crates by keyword (e.g., "mp4 metadata").
+   - `mcp__rust-docs__docs_rs_readme` — Get crate README overview.
+   - `mcp__rust-docs__docs_rs_get_item` — Get detailed struct/trait/function docs (output can be large).
+   - **Note**: `docs_rs_readme` and `docs_rs_search_in_crate` may return 404 for some crates; prefer `docs_rs_get_item` as the fallback.
 
 **PR reviews**: Always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 
