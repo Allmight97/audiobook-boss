@@ -12,6 +12,12 @@ Reference for audiobook-boss metadata implementation targeting Audiobookshelf (A
 - For exact mp4ameta API signatures, use `mcp__rust-docs__docs_rs_get_item` (e.g., `mp4ameta::Tag`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
 - For ffmpeg-next metadata dictionary details, defer to `ffmpeg-next-patterns` and confirm types via docs.rs (`ffmpeg_next::format`).
 
+## Internal Docs
+
+- `docs/external-apis/README.md` (navigation)
+- `docs/external-apis/mp4ameta.md`
+- `docs/external-apis/ffmpeg-next.md`
+
 ## Critical Constraint
 
 **ffprobe cannot read `MVNM`/`MVIN` (movement) tags.** ABS uses ffprobe for scanning, so series info written only to movement tags is invisible to ABS.
@@ -84,22 +90,11 @@ Expected ffprobe output should include:
 
 | Component | Location | Notes |
 |-----------|----------|-------|
-| Metadata writing | `src-tauri/src/metadata/ffmpeg_bridge.rs` (~L50-70) | `metadata_to_ffmpeg_dict()` - currently maps to `show`/`episode_sort` |
-| Data model | `src-tauri/src/metadata/mod.rs` (~L20-55) | `AudiobookMetadata` struct with `series`/`series_part` fields |
-| Metadata reading | `src-tauri/src/metadata/reader.rs` (~L30-40) | Reads `show` → `series`, `episode_sort` → `series_part` |
-| Output path | `src-tauri/src/commands/audio.rs` (~L280-345) | `build_output_path()` with series folder logic |
-| TSOA computation | `src-tauri/src/commands/metadata.rs` (~L40-65) | `compute_tsoa()` for album sort |
-
-### Current Implementation Status
-
-The current ffmpeg_bridge.rs maps:
-- `series` → `show` (ffmpeg's TV show field)
-- `series_part` → `episode_sort` (ffmpeg's episode sort field)
-
-**This may not produce ABS-compatible output.** The correct approach is to write:
-- `series` and `series-part` as iTunes freeform atoms (`----:com.apple.iTunes:SERIES`)
-
-See references/tag-mapping.md for the correct ffmpeg `-metadata` keys.
+| Metadata writing | `src-tauri/src/metadata/ffmpeg_bridge.rs` | `metadata_to_ffmpeg_dict()` for tag mapping |
+| Data model | `src-tauri/src/metadata/mod.rs` | `AudiobookMetadata` fields (`series`, `series_part`) |
+| Metadata reading | `src-tauri/src/metadata/reader.rs` | `read_metadata()` routing (ffmpeg vs mp4ameta) |
+| Output path | `src-tauri/src/commands/audio.rs` | `build_output_path()` for folder structure |
+| TSOA computation | `src-tauri/src/commands/metadata.rs` | `compute_tsoa()` for album sort |
 
 ## Known Issues
 

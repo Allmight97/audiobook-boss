@@ -33,7 +33,7 @@ Input → Decoder → Resampler (optional) → Accumulator → Encoder → Packe
 
 ## Encoder Setup Pattern
 
-From `encoder/context.rs` (~L15-99):
+From `audio/processor/encoder/context.rs` (search for `open_as_with`):
 
 ```rust
 // 1. Find codec
@@ -64,7 +64,7 @@ let encoder = ctx.open_as_with(codec, options_dict)?;
 
 ## Frame → Encoder → Packet Pattern
 
-From `encoder/write.rs` (~L47-71):
+From `audio/processor/encoder/write.rs` (search for `encode_and_write_frame`):
 
 ```rust
 pub fn encode_and_write_frame(
@@ -109,7 +109,7 @@ output_context.write_trailer()?;
 
 ## Resampler Pattern
 
-From `frame_pipeline.rs` (~L283-299):
+From `audio/processor/frame_pipeline.rs` (search for `resampler.run`):
 
 ```rust
 let mut out = ff::frame::Audio::empty();
@@ -127,7 +127,7 @@ resampler.run(&input_frame, &mut out)?;
 
 ## Metadata Dictionary Pattern
 
-From `metadata/ffmpeg_bridge.rs` (~L12-73):
+From `metadata/ffmpeg_bridge.rs` (search for `metadata_to_ffmpeg_dict`):
 
 ```rust
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
@@ -152,7 +152,7 @@ octx.set_metadata(dict);
 
 ## Cover Art Embedding (M4B)
 
-From `metadata/ffmpeg_bridge.rs` (~L101-156):
+From `metadata/ffmpeg_bridge.rs` (search for `add_cover_art_stream_pre_header`):
 
 ```rust
 // 1. Add stream BEFORE write_header()
@@ -254,6 +254,7 @@ Before sending frame to encoder:
 
 ## References
 
+- `docs/external-apis/ffmpeg-next.md`
 - [context7: ffmpeg-next docs](/websites/rs_ffmpeg-next)
 - [Codebase: encoder setup](src-tauri/src/audio/processor/encoder/context.rs)
 - [Codebase: frame pipeline](src-tauri/src/audio/processor/frame_pipeline.rs)

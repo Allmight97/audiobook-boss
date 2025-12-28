@@ -123,6 +123,11 @@ Use this scale to rate the quality of code and solutions:
 
 Use these tools for external documentation and patterns. Do not blindly copy external patterns if they conflict with project conventions or engineering principles.
 
+When working on the following areas, load the matching skill and follow its guardrails:
+- Path handling and validation → `path-security-validation`
+- Long-running jobs, cancellation, or progress → `job-registry-and-progress`
+- Releases and TS/Rust command parity → `release-and-contract-guardrails`
+
 1. **Context7 MCP** (Authoritative Library Docs)
 
    - Two-step process:
@@ -188,6 +193,12 @@ bun run build  # from repo root
 - Prefer guard clauses; enforce orthogonality and single responsibility as much as the solution and circumstances allow
 - If exceeding for protocol/adapter/generated code: `// EXCEPTION: [reason]`
 - Run `python3 scripts/analyze_code_lines.py` to list modules exceeding 400 lines
+
+**Exception Policy (Limited Use)**:
+
+- **Inline tests**: Only for tiny private helpers, with `// EXCEPTION: tiny helper unit tests` in the module. Otherwise use `src-tauri/tests/`.
+- **>400 LOC files**: Treat 400 LOC as an early warning. If a change will exceed it, either extract a submodule or add `// EXCEPTION: [reason]` and note intent to refactor.
+- **Pre-edit check**: For changes likely to add >50 LOC, run `python3 scripts/analyze_code_lines.py` and call out any impacted files in your plan.
 
 ## Frontend Testability
 

@@ -361,6 +361,7 @@ let write_cfg = WriteConfig {
 ## References
 
 ### External Documentation
+- `docs/external-apis/mp4ameta.md`
 - [docs.rs: mp4ameta 0.13.0](https://docs.rs/mp4ameta/0.13.0/mp4ameta/) - Full API reference
 - [docs.rs: Tag struct](https://docs.rs/mp4ameta/0.13.0/mp4ameta/struct.Tag.html) - All Tag methods
 - [GitHub: Saecki/mp4ameta](https://github.com/Saecki/mp4ameta) - Source and README

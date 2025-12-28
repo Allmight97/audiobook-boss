@@ -11,6 +11,12 @@ This skill captures project-specific patterns for Tauri 2.x commands. Consult be
 
 - For authoritative Tauri event/command API details, use Context7: `mcp__context7-mcp__resolve-library-id` → `mcp__context7-mcp__get-library-docs` with `topic="events"` or `topic="command"`.
 
+## Internal Docs
+
+- `docs/external-apis/tauri-commands.md`
+- `docs/external-apis/tauri-patterns.md`
+- `docs/external-apis/tauri-ts-boundaries.md`
+
 ## Command Location
 
 | Type | Location |

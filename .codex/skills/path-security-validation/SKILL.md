@@ -14,6 +14,10 @@ Apply these steps whenever a command or processor touches user-provided paths.
 3) Check output directories are writable before processing.
 4) Avoid leaking raw paths in user-facing errors; map to `AppError`.
 
+## Internal Docs
+
+- `docs/external-apis/path-handling.md`
+
 ## Minimal Pattern
 
 ```rust
@@ -39,4 +43,3 @@ Before writing output, probe the target directory for write permissions and fail
 - `src-tauri/src/audio/path_validation.rs`
 - `src-tauri/src/commands/audio.rs`
 - `src-tauri/src/errors.rs`
-
