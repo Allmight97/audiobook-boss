@@ -13,6 +13,7 @@ pub mod context;
 pub mod file_list;
 pub mod job_registry;
 pub mod metrics;
+pub mod output_path;
 pub mod path_validation;
 pub mod preview_config;
 pub mod processor;
