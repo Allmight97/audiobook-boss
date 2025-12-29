@@ -48,3 +48,25 @@
 - Preview duration has no upper-bound validation in `src-tauri/src/commands/audio.rs`.
 - `sanitize_chapter_title()` still does not include ':' or '\t' in the replace set.
 - Overall: all checklist items still open; scope unchanged.
+
+## Issue #124 Prep Notes (context.rs split)
+- `src-tauri/src/audio/context.rs` currently contains:
+  - `PreviewConfig` + `PREVIEW_MIN_SEGMENT_SECONDS`
+  - `OutputConfig`
+  - `ProcessingContext` + `ProcessingContextBuilder`
+  - `ProgressContext` + `ProgressContextBuilder`
+  - Inline tests for `PreviewConfig`
+- Imports/usage to plan for:
+  - `commands/audio.rs` uses `crate::audio::context::PreviewConfig` and `audio::OutputConfig`.
+  - Many modules take `ProcessingContext` (processor/*, progress, plan).
+  - Tests use `audio::context::ProgressContextBuilder` (`src-tauri/tests/ffmpegnext_integration.rs`).
+- Proposed split per issue:
+  - `src-tauri/src/audio/context/mod.rs` re-exports processing/progress types for path stability.
+  - `src-tauri/src/audio/context/processing.rs` (OutputConfig, ProcessingContext, builder).
+  - `src-tauri/src/audio/context/progress.rs` (ProgressContext, builder).
+  - `src-tauri/src/audio/preview_config.rs` (PreviewConfig + const).
+- Tests to relocate:
+  - Move `PreviewConfig` tests to `src-tauri/tests/unit/audio/context_tests.rs` (new directory).
+- Coordination:
+  - Update `audio/mod.rs` re-exports to match new module paths.
+  - Update `commands/audio.rs` import path for `PreviewConfig` once extracted.
