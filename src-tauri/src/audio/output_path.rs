@@ -1,6 +1,7 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use chrono::{Datelike, Utc};
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -30,13 +31,15 @@ pub(crate) fn build_output_path(
     filename_pattern: FilenamePattern,
     source_path: Option<&Path>,
 ) -> Result<PathBuf> {
-    let title = sanitize_component(metadata.and_then(|m| m.title.as_deref()).unwrap_or_else(
-        || {
-            source_path
-                .and_then(|p| p.file_stem().and_then(|s| s.to_str()))
-                .unwrap_or("Untitled")
-        },
-    ));
+    let title = if let Some(value) = metadata.and_then(|m| m.title.as_deref()) {
+        sanitize_component(value)
+    } else {
+        let fallback = source_path
+            .and_then(|p| p.file_stem())
+            .map(|s| s.to_string_lossy())
+            .unwrap_or_else(|| Cow::from("Untitled"));
+        sanitize_component(&fallback)
+    };
     let author = sanitize_component(
         metadata
             .and_then(|m| m.artist.as_deref())
@@ -87,9 +90,12 @@ pub(crate) fn resolve_collision(path: &Path) -> Result<PathBuf> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let stem = path
         .file_stem()
-        .and_then(|s| s.to_str())
+        .map(|s| s.to_string_lossy())
         .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("m4b");
+    let ext = path
+        .extension()
+        .map(|s| s.to_string_lossy())
+        .unwrap_or_else(|| Cow::from("m4b"));
 
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
@@ -115,9 +121,12 @@ pub(crate) fn resolve_collision_with_claimed(
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let stem = path
         .file_stem()
-        .and_then(|s| s.to_str())
+        .map(|s| s.to_string_lossy())
         .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("m4b");
+    let ext = path
+        .extension()
+        .map(|s| s.to_string_lossy())
+        .unwrap_or_else(|| Cow::from("m4b"));
 
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));

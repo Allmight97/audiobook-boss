@@ -8,6 +8,7 @@ use crate::commands::audio_types::{
     FilenamePattern, JobType, ProcessCommandResult, ProcessV2Payload,
 };
 use crate::errors::{AppError, Result};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -260,8 +261,8 @@ async fn run_processing_job(
                     .unwrap_or_else(|| std::path::Path::new("."));
                 let stem = final_output
                     .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("output");
+                    .map(|s| s.to_string_lossy())
+                    .unwrap_or_else(|| Cow::from("output"));
                 let p = parent.join(format!("{}.preview.m4b", stem));
                 Some(p.display().to_string())
             } else {
