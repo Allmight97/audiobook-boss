@@ -156,22 +156,17 @@ impl JobRegistry {
     /// Marks a job as completed and removes it from active tracking
     pub async fn complete_job(&self, job_id: JobId) {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.get_mut(&job_id.0) {
-            job.state = JobState::Completed;
+        if jobs.remove(&job_id.0).is_some() {
             log::info!("Job {} completed", job_id);
         }
-        // Remove from registry to prevent memory leaks
-        jobs.remove(&job_id.0);
     }
 
     /// Marks a job as failed
     pub async fn fail_job(&self, job_id: JobId, error: String) {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.get_mut(&job_id.0) {
-            job.state = JobState::Failed(error.clone());
+        if jobs.remove(&job_id.0).is_some() {
             log::error!("Job {} failed: {}", job_id, error);
         }
-        jobs.remove(&job_id.0);
     }
 
     /// Gets aggregate progress information
