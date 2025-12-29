@@ -1,9 +1,9 @@
 //! Processing context structures and builders.
 
-use super::super::session::ProcessingSession;
-use super::super::settings_encoder::EncoderSettings;
-use super::super::SampleRateConfig;
 use crate::audio::preview_config::PreviewConfig;
+use crate::audio::session::ProcessingSession;
+use crate::audio::settings_encoder::EncoderSettings;
+use crate::audio::SampleRateConfig;
 use crate::errors::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -158,24 +158,22 @@ impl ProcessingContext {
 }
 
 /// Builder pattern for ProcessingContext
+#[derive(Default)]
 pub struct ProcessingContextBuilder {
     window: Option<Window>,
     session: Option<Arc<ProcessingSession>>,
     encoder_settings: Option<EncoderSettings>,
     sample_rate: Option<SampleRateConfig>,
     output: Option<OutputConfig>,
+    preview: Option<PreviewConfig>,
+    job_id: Option<String>,
+    input_index: Option<usize>,
 }
 
 impl ProcessingContextBuilder {
     /// Creates a new builder instance
     pub fn new() -> Self {
-        Self {
-            window: None,
-            session: None,
-            encoder_settings: None,
-            sample_rate: None,
-            output: None,
-        }
+        Self::default()
     }
 
     /// Sets the Tauri window
@@ -205,6 +203,24 @@ impl ProcessingContextBuilder {
     /// Sets the output configuration
     pub fn output(mut self, output: OutputConfig) -> Self {
         self.output = Some(output);
+        self
+    }
+
+    /// Sets the preview configuration
+    pub fn preview(mut self, preview: PreviewConfig) -> Self {
+        self.preview = Some(preview);
+        self
+    }
+
+    /// Sets the job ID
+    pub fn job_id(mut self, job_id: String) -> Self {
+        self.job_id = Some(job_id);
+        self
+    }
+
+    /// Sets the input index
+    pub fn input_index(mut self, input_index: usize) -> Self {
+        self.input_index = Some(input_index);
         self
     }
 
@@ -244,18 +260,15 @@ impl ProcessingContextBuilder {
             )
         })?;
 
-        Ok(ProcessingContext::new(
+        Ok(ProcessingContext {
             window,
             session,
             encoder_settings,
             sample_rate,
             output,
-        ))
-    }
-}
-
-impl Default for ProcessingContextBuilder {
-    fn default() -> Self {
-        Self::new()
+            preview: self.preview,
+            job_id: self.job_id,
+            input_index: self.input_index,
+        })
     }
 }
