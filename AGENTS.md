@@ -194,6 +194,13 @@ bun run build  # from repo root
 - If exceeding for protocol/adapter/generated code: `// EXCEPTION: [reason]`
 - Run `python3 scripts/analyze_code_lines.py` to list modules exceeding 400 lines
 
+**Monolith Guardrails (SoC + Cohesion, LOC as trigger)**:
+
+- Treat ~350-400 LOC as a trigger to check cohesion, not an automatic split
+- If a module mixes command handlers + domain logic + orchestration, extract by responsibility
+- Keep command signatures stable during refactors; re-export to avoid TS/Rust contract churn
+- Prefer small, testable units; any exception must be documented with `// EXCEPTION: [reason]`
+
 **Exception Policy (Limited Use)**:
 
 - **Inline tests**: Only for tiny private helpers, with `// EXCEPTION: tiny helper unit tests` in the module. Otherwise use `src-tauri/tests/`.
