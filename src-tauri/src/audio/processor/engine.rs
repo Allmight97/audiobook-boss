@@ -7,8 +7,9 @@ use ffmpeg_next as ff;
 
 use crate::audio::buffer::SampleAccumulator;
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction, PreviewState};
+use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction};
 use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
+use crate::audio::processor::preview_state::PreviewState;
 use crate::audio::{ProcessingContext, SampleRateConfig};
 use crate::errors::Result;
 

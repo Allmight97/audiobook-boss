@@ -42,6 +42,7 @@ pub mod encoder;
 pub mod frame_pipeline;
 pub mod plan;
 pub mod prepare;
+pub mod preview_state;
 pub mod selection;
 pub mod streams;
 
@@ -53,7 +54,8 @@ pub use plan::{MediaProcessingPlan, MediaProcessor};
 pub use prepare::detect_input_sample_rate;
 
 // Adaptive preview types (PR2)
-pub use frame_pipeline::{sanitize_chapter_title, ChapterMarker, PreviewAction, PreviewState};
+pub use frame_pipeline::PreviewAction;
+pub use preview_state::{sanitize_chapter_title, ChapterMarker, PreviewState};
 
 // Single-engine architecture: only ffmpeg-next processor supported
 
