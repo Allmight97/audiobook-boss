@@ -35,3 +35,16 @@
 - scripts/coverage.sh: pass (tarpaulin + vitest).
   - Rust report: coverage/rust/tarpaulin-report.html
   - TS report: coverage/typescript/index.html
+
+## Issue #55 (fast-path resampler bypass) - Current Status
+- Fast-path logic still exists in `frame_pipeline.rs` and is gated by `ABB_DISABLE_FASTPATH`.
+- No repo-level default sets `ABB_DISABLE_FASTPATH=1`; disabling is external to repo.
+- There is an integration test `src-tauri/tests/integration/pipeline_fastpath.rs`, but it only exercises encode flow and does not validate audio quality parity.
+- Acceptance criteria still unmet (needs A/B runs and audio comparison). Recommend keeping #55 open.
+
+## Issue #42 (preview hardening) - Current Status
+- Multi-file preview integration test: not present; only `preview_30s_integration.rs` exists.
+- `PreviewAction` is still missing `#[must_use]`.
+- Preview duration has no upper-bound validation in `src-tauri/src/commands/audio.rs`.
+- `sanitize_chapter_title()` still does not include ':' or '\t' in the replace set.
+- Overall: all checklist items still open; scope unchanged.
