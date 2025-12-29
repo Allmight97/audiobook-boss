@@ -8,7 +8,11 @@ use serde::{Deserialize, Serialize};
 pub mod reader;
 
 // FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
+mod cover_art;
+mod ffi;
 pub mod ffmpeg_bridge;
+mod ffmpeg_dict;
+mod remux;
 // Mp4ameta integration for reliable MP4/M4B metadata handling
 pub mod mp4ameta_bridge;
 // Passthrough helpers for chapter/cover preservation
