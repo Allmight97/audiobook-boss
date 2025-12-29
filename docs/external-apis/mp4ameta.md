@@ -49,6 +49,10 @@ tag.set_movement_index(index_u16);
 tag.set_show_movement(); // Required flag
 ```
 
+### Description vs Comment
+`description` maps to the long-form synopsis (`desc` atom). `comment` is a shorter free-form note (`©cmt`).
+Audiobook Boss only surfaces `description`; we intentionally do not write `comment` today.
+
 ### Image Formats
 `mp4ameta` is picky about image formats. We must detect and map them correctly.
 - Support: **JPEG**, **PNG**.

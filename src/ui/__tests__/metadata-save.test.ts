@@ -65,4 +65,12 @@ describe('collectMetadataFromForm', () => {
 
     expect(metadata.cover_art).toEqual([]);
   });
+
+  it('includes empty strings for clearable metadata fields', () => {
+    const metadata = collectMetadataFromForm();
+
+    expect(metadata.series).toBe('');
+    expect(metadata.series_part).toBe('');
+    expect(metadata.description).toBe('');
+  });
 });

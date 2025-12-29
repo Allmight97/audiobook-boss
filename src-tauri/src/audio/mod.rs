@@ -14,6 +14,7 @@ pub mod file_list;
 pub mod job_registry;
 pub mod metrics;
 pub mod path_validation;
+pub mod preview_config;
 pub mod processor;
 pub mod progress;
 // Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
