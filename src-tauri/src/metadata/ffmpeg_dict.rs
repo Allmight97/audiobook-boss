@@ -94,7 +94,7 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
 }
 
 pub(crate) fn merge_metadata<'a>(
-    mut existing: ff::Dictionary<'a>,
+    existing: ff::Dictionary<'a>,
     metadata: &AudiobookMetadata,
 ) -> Result<ff::Dictionary<'a>> {
     let mut merged = ff::Dictionary::new();
