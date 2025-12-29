@@ -262,9 +262,9 @@ export function collectMetadataFromForm(): AudiobookMetadata {
     if (!isNaN(yearNum)) metadata.date = yearNum; // date = Year
   }
   if (genre) metadata.genre = genre;
-  if (series) metadata.series = series;
-  if (seriesPart) metadata.series_part = seriesPart;
-  if (description) metadata.description = description;
+  metadata.series = series;
+  metadata.series_part = seriesPart;
+  metadata.description = description;
 
   // Include cover art if present
   const coverBytes = getCurrentCoverArt();

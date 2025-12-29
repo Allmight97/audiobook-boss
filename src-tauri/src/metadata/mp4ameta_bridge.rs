@@ -86,7 +86,11 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     }
 
     if let Some(ref description) = metadata.description {
-        tag.set_description(description);
+        if description.trim().is_empty() {
+            tag.remove_descriptions();
+        } else {
+            tag.set_description(description);
+        }
     }
 
     if let Some(ref album_sort) = metadata.album_sort {
@@ -95,20 +99,49 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
 
     tag.set_media_type(MediaType::AudioBook);
 
+    let series_present = metadata
+        .series
+        .as_deref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    let series_part_present = metadata
+        .series_part
+        .as_deref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+
     if let Some(ref series) = metadata.series {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
-        tag.set_data(ident, Data::Utf8(series.to_string()));
-        tag.set_movement(series);
-        tag.set_show_movement();
+        if series.trim().is_empty() {
+            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+            tag.remove_data_of(&ident);
+            tag.remove_movement();
+        } else {
+            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+            tag.set_data(ident, Data::Utf8(series.to_string()));
+            tag.set_movement(series);
+            tag.set_show_movement();
+        }
     }
 
     if let Some(ref series_part) = metadata.series_part {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
-        tag.set_data(ident, Data::Utf8(series_part.to_string()));
-        if let Some(index) = parse_series_part(series_part) {
-            tag.set_movement_index(index);
-            tag.set_show_movement();
+        if series_part.trim().is_empty() {
+            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+            tag.remove_data_of(&ident);
+            tag.remove_movement_index();
+        } else {
+            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+            tag.set_data(ident, Data::Utf8(series_part.to_string()));
+            if let Some(index) = parse_series_part(series_part) {
+                tag.set_movement_index(index);
+                tag.set_show_movement();
+            }
         }
+    }
+
+    if (metadata.series.is_some() || metadata.series_part.is_some())
+        && !(series_present || series_part_present)
+    {
+        tag.remove_show_movement();
     }
 
     if let Some(ref cover_art) = metadata.cover_art {
