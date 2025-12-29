@@ -115,6 +115,8 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
             tag.remove_data_of(&ident);
             tag.remove_movement();
+            tag.remove_tv_show_name();
+            tag.remove_tv_show_name_sort_order();
         } else {
             let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
             tag.set_data(ident, Data::Utf8(series.to_string()));
@@ -128,6 +130,8 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
             let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
             tag.remove_data_of(&ident);
             tag.remove_movement_index();
+            tag.remove_tv_episode();
+            tag.remove_tv_episode_name();
         } else {
             let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
             tag.set_data(ident, Data::Utf8(series_part.to_string()));

@@ -13,26 +13,36 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
 
     // Standard audiobook metadata fields
     if let Some(ref title) = metadata.title {
-        dict.set("title", title);
+        if !title.trim().is_empty() {
+            dict.set("title", title);
+        }
     }
 
     // Author → artist + album_artist
     if let Some(ref artist) = metadata.artist {
-        dict.set("artist", artist);
-        dict.set("album_artist", artist); // For audiobooks, artist = album_artist
+        if !artist.trim().is_empty() {
+            dict.set("artist", artist);
+            dict.set("album_artist", artist); // For audiobooks, artist = album_artist
+        }
     }
 
     if let Some(ref album) = metadata.album {
-        dict.set("album", album);
+        if !album.trim().is_empty() {
+            dict.set("album", album);
+        }
     }
 
     // Narrator → composer
     if let Some(ref composer) = metadata.composer {
-        dict.set("composer", composer);
+        if !composer.trim().is_empty() {
+            dict.set("composer", composer);
+        }
     }
 
     if let Some(ref genre) = metadata.genre {
-        dict.set("genre", genre);
+        if !genre.trim().is_empty() {
+            dict.set("genre", genre);
+        }
     }
 
     if let Some(date) = metadata.date {
@@ -41,30 +51,40 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     }
 
     if let Some(ref comment) = metadata.comment {
-        dict.set("comment", comment);
+        if !comment.trim().is_empty() {
+            dict.set("comment", comment);
+        }
     }
 
     if let Some(ref description) = metadata.description {
-        dict.set("description", description);
+        if !description.trim().is_empty() {
+            dict.set("description", description);
+        }
     }
 
     // Series metadata: dual-write for ABS/Plex + Apple Books
     if let Some(ref series) = metadata.series {
-        dict.set("series", series);
-        dict.set("----:com.apple.iTunes:SERIES", series);
-        dict.set("MVNM", series);
+        if !series.trim().is_empty() {
+            dict.set("series", series);
+            dict.set("----:com.apple.iTunes:SERIES", series);
+            dict.set("MVNM", series);
+        }
     }
 
     // Book # metadata: dual-write for ABS/Plex + Apple Books
     if let Some(ref series_part) = metadata.series_part {
-        dict.set("series-part", series_part);
-        dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
-        dict.set("MVIN", series_part);
+        if !series_part.trim().is_empty() {
+            dict.set("series-part", series_part);
+            dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
+            dict.set("MVIN", series_part);
+        }
     }
 
     // TSOA → sort_album for library sorting
     if let Some(ref album_sort) = metadata.album_sort {
-        dict.set("sort_album", album_sort);
+        if !album_sort.trim().is_empty() {
+            dict.set("sort_album", album_sort);
+        }
     }
 
     // M4B-specific audiobook metadata
@@ -74,14 +94,73 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
 }
 
 pub(crate) fn merge_metadata<'a>(
-    mut existing: ff::Dictionary<'a>,
+    existing: ff::Dictionary<'a>,
     metadata: &AudiobookMetadata,
 ) -> Result<ff::Dictionary<'a>> {
-    let overrides = metadata_to_ffmpeg_dict(metadata)?;
-    for (k, v) in overrides.iter() {
-        existing.set(k, v);
+    let mut merged = ff::Dictionary::new();
+    for (key, value) in existing.iter() {
+        if should_remove_key(metadata, key) {
+            continue;
+        }
+        merged.set(key, value);
     }
-    Ok(existing)
+
+    let overrides = metadata_to_ffmpeg_dict(metadata)?;
+    for (key, value) in overrides.iter() {
+        merged.set(key, value);
+    }
+
+    Ok(merged)
+}
+
+fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
+    let series_clear = metadata
+        .series
+        .as_deref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(false);
+    if series_clear
+        && matches!(
+            key,
+            "series" | "----:com.apple.iTunes:SERIES" | "MVNM" | "show"
+        )
+    {
+        return true;
+    }
+
+    let series_part_clear = metadata
+        .series_part
+        .as_deref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(false);
+    if series_part_clear
+        && matches!(
+            key,
+            "series-part" | "----:com.apple.iTunes:SERIES-PART" | "MVIN" | "episode_sort"
+        )
+    {
+        return true;
+    }
+
+    let comment_clear = metadata
+        .comment
+        .as_deref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(false);
+    if comment_clear && key == "comment" {
+        return true;
+    }
+
+    let description_clear = metadata
+        .description
+        .as_deref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(false);
+    if description_clear && key == "description" {
+        return true;
+    }
+
+    false
 }
 
 /// Sets global metadata on output format context
