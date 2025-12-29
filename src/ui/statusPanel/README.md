@@ -11,14 +11,42 @@ Public API aggregator that re-exports the main interfaces:
 - `getStatusPanel()` function
 
 ### `/logic.ts`
-Core business logic and state management:
-- Event handling for processing progress
-- State coordination and status updates
+Core business logic and orchestration:
+- Delegates event wiring, state derivation, and UI rendering
 - Backend communication (invoke calls)
 - Cover art processing and metadata extraction
 - Public API implementation
 
-### `/dom.ts` 
+### `/processing.ts`
+Processing workflow helpers:
+- Backend invocation payload assembly
+- Metadata preparation for merge/batch
+- Processing lifecycle coordination
+
+### `/state.ts`
+In-memory state helpers and types:
+- Processing status and per-job progress types
+- Aggregate progress calculations
+- Stage derivation
+
+### `/events.ts`
+Event wiring and listeners:
+- DOM event registration (buttons, dropdowns, toggles)
+- Progress event subscription
+
+### `/formatting.ts`
+Message and data formatting:
+- Status and aggregate message formatting
+- Cover art data URL conversion
+- Progress label parsing helpers
+
+### `/render.ts`
+UI update coordination:
+- Status and progress rendering
+- Concurrency indicator rendering
+- Job list rendering
+
+### `/dom.ts`
 DOM manipulation and UI update helpers:
 - Element caching and lookup
 - Progress bar and text updates
