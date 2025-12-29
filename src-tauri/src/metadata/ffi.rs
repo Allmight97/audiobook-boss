@@ -31,8 +31,7 @@ pub(crate) fn set_attached_pic_disposition(
         }
 
         // Set the ATTACHED_PIC disposition without clobbering existing flags
-        // AV_DISPOSITION_ATTACHED_PIC = 0x0400
-        (*stream_ptr).disposition |= 0x0400;
+        (*stream_ptr).disposition |= ff::format::stream::Disposition::ATTACHED_PIC.bits();
 
         log::debug!("Set ATTACHED_PIC disposition on stream {}", stream_index);
         Ok(())
