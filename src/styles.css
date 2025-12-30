@@ -667,6 +667,27 @@ textarea:hover:not(:focus) {
   text-align: center;
 }
 
+.cover-art-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--text-inverse);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.cover-art-area.loading .cover-art-loading {
+  opacity: 1;
+}
+
 .cover-art-clear-btn {
   position: absolute;
   top: 6px;
@@ -689,6 +710,60 @@ textarea:hover:not(:focus) {
 .cover-art-area.has-image:hover .cover-art-clear-btn,
 .cover-art-area.has-image .cover-art-clear-btn:focus-visible {
   display: flex;
+}
+
+.cover-art-url-label {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  align-self: flex-start;
+  width: 100%;
+  max-width: 260px;
+}
+
+.cover-art-url-row {
+  width: 100%;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  max-width: 260px;
+  align-self: stretch;
+}
+
+.cover-art-url-input {
+  flex: 1 1 auto;
+}
+
+.cover-art-url-load-btn {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.cover-art-url-message {
+  min-height: 1rem;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  width: 100%;
+  max-width: 260px;
+  align-self: flex-start;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.cover-art-url-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cover-art-url-message.is-error {
+  color: var(--text-error, #ef4444);
+}
+
+.cover-art-url-message.is-success {
+  color: var(--accent-primary);
 }
 
 /* Checkbox styling */

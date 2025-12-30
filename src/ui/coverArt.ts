@@ -7,12 +7,20 @@ let currentCoverArt: number[] | null = null;
 let hasCustomCoverArt: boolean = false;
 // Tracks whether the user explicitly requested cover art removal in this session
 let coverArtRemovalRequested: boolean = false;
+let coverArtMessageTimeoutId: number | null = null;
+let isCoverArtAreaHovered: boolean = false;
 
 /**
  * Initializes the cover art functionality
  */
 export function initCoverArt(): void {
     const coverArtArea = document.getElementById("cover-art-area");
+    const coverArtUrlInput = document.getElementById(
+        "cover-art-url-input"
+    ) as HTMLInputElement | null;
+    const coverArtUrlButton = document.getElementById(
+        "cover-art-url-load-btn"
+    ) as HTMLButtonElement | null;
 
     if (coverArtArea) {
         // Click Handler (Load or Clear via delegation)
@@ -28,6 +36,13 @@ export function initCoverArt(): void {
             handleLoadCoverArt();
         });
 
+        coverArtArea.addEventListener("mouseenter", () => {
+            isCoverArtAreaHovered = true;
+        });
+        coverArtArea.addEventListener("mouseleave", () => {
+            isCoverArtAreaHovered = false;
+        });
+
         // Drag Visuals
         coverArtArea.addEventListener("dragover", (e) => {
             e.preventDefault();
@@ -38,6 +53,39 @@ export function initCoverArt(): void {
             coverArtArea.classList.remove("drag-over");
         });
     }
+
+    if (coverArtUrlInput) {
+        coverArtUrlInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                void handleLoadCoverArtFromInput(coverArtUrlInput);
+            }
+        });
+        coverArtUrlInput.addEventListener("paste", (event) => {
+            const pasted = getUrlFromClipboard(event);
+            if (!pasted) return;
+            coverArtUrlInput.value = pasted;
+        });
+    }
+
+    if (coverArtUrlButton) {
+        coverArtUrlButton.addEventListener("click", () => {
+            if (!coverArtUrlInput) return;
+            void handleLoadCoverArtFromInput(coverArtUrlInput);
+        });
+    }
+
+    document.addEventListener("paste", (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target && isTextInput(target) && target.id !== "cover-art-url-input") {
+            return;
+        }
+        if (!isCoverArtAreaHovered) return;
+        const pastedUrl = getUrlFromClipboard(event);
+        if (!pastedUrl) return;
+        event.preventDefault();
+        void loadCoverArtFromUrl(pastedUrl);
+    });
 
     // Handle Global Drag & Drop (Tauri Event) for Cover Art
     bridge.listen<EventPayload<"tauri://drag-drop">>(
@@ -134,6 +182,30 @@ async function handleLoadCoverArt(): Promise<void> {
     }
 }
 
+async function handleLoadCoverArtFromInput(
+    input: HTMLInputElement
+): Promise<void> {
+    const raw = input.value.trim();
+    if (!raw) {
+        showCoverArtMessage("Paste an image URL first.", "error");
+        return;
+    }
+
+    const parsed = parseCoverArtUrl(raw);
+    if (!parsed) {
+        showCoverArtMessage("Invalid URL format.", "error");
+        return;
+    }
+
+    if (parsed.protocol !== "https:") {
+        showCoverArtMessage("Only HTTPS URLs are supported.", "error");
+        return;
+    }
+
+    input.value = parsed.toString();
+    await loadCoverArtFromUrl(parsed.toString());
+}
+
 /**
  * Loads cover art from a specific file path
  */
@@ -143,19 +215,41 @@ async function loadCoverArtFile(filePath: string): Promise<void> {
             filePath: filePath,
         });
 
-        currentCoverArt = imageData;
-        hasCustomCoverArt = true;
-        coverArtRemovalRequested = false;
-
-        displayCoverArt(imageData);
-        updateMetadataWithCoverArt(imageData);
-        updateClearButtonVisibility();
+        applyLoadedCoverArt(imageData);
 
         console.log("Cover art loaded:", filePath);
     } catch (error) {
         console.error("Failed to load cover art file:", error);
-        showCoverArtError(error instanceof Error ? error.message : "Unknown error");
+        showCoverArtError(formatCoverArtError(error, "Unknown error"));
     }
+}
+
+async function loadCoverArtFromUrl(url: string): Promise<void> {
+    try {
+        setCoverArtLoading(true);
+        clearCoverArtMessage();
+        const imageData = await bridge.invoke<number[]>("load_cover_art_from_url", {
+            url: url,
+        });
+
+        applyLoadedCoverArt(imageData);
+        showCoverArtMessage("Cover art loaded from URL.", "success");
+    } catch (error) {
+        console.error("Failed to load cover art URL:", error);
+        showCoverArtError(formatCoverArtError(error, "Unable to load image."));
+    } finally {
+        setCoverArtLoading(false);
+    }
+}
+
+function applyLoadedCoverArt(imageData: number[]): void {
+    currentCoverArt = imageData;
+    hasCustomCoverArt = true;
+    coverArtRemovalRequested = false;
+
+    displayCoverArt(imageData);
+    updateMetadataWithCoverArt(imageData);
+    updateClearButtonVisibility();
 }
 
 /**
@@ -212,7 +306,82 @@ function updateMetadataWithCoverArt(coverArtBytes: number[]): void {
 
 function showCoverArtError(message: string): void {
     console.error("Cover Art Error:", message);
-    // (Optional: visual toast)
+    showCoverArtMessage(message, "error");
+}
+
+function showCoverArtMessage(message: string, variant: "error" | "success"): void {
+    const messageEl = document.getElementById("cover-art-url-message");
+    if (!messageEl) return;
+
+    messageEl.textContent = message;
+    messageEl.classList.toggle("is-error", variant === "error");
+    messageEl.classList.toggle("is-success", variant === "success");
+    messageEl.classList.add("visible");
+
+    if (coverArtMessageTimeoutId !== null) {
+        window.clearTimeout(coverArtMessageTimeoutId);
+    }
+    coverArtMessageTimeoutId = window.setTimeout(() => {
+        messageEl.classList.remove("visible");
+        messageEl.textContent = "";
+    }, 4000);
+}
+
+function clearCoverArtMessage(): void {
+    const messageEl = document.getElementById("cover-art-url-message");
+    if (!messageEl) return;
+    messageEl.classList.remove("visible", "is-error", "is-success");
+    messageEl.textContent = "";
+    if (coverArtMessageTimeoutId !== null) {
+        window.clearTimeout(coverArtMessageTimeoutId);
+        coverArtMessageTimeoutId = null;
+    }
+}
+
+function formatCoverArtError(error: unknown, fallback: string): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    return fallback;
+}
+
+function setCoverArtLoading(isLoading: boolean): void {
+    const coverArtArea = document.getElementById("cover-art-area");
+    const coverArtUrlInput = document.getElementById(
+        "cover-art-url-input"
+    ) as HTMLInputElement | null;
+    const coverArtUrlButton = document.getElementById(
+        "cover-art-url-load-btn"
+    ) as HTMLButtonElement | null;
+
+    if (coverArtArea) {
+        coverArtArea.classList.toggle("loading", isLoading);
+    }
+    if (coverArtUrlInput) {
+        coverArtUrlInput.disabled = isLoading;
+    }
+    if (coverArtUrlButton) {
+        coverArtUrlButton.disabled = isLoading;
+    }
+}
+
+function parseCoverArtUrl(raw: string): URL | null {
+    try {
+        return new URL(raw);
+    } catch {
+        return null;
+    }
+}
+
+function isTextInput(target: HTMLElement): boolean {
+    const tagName = target.tagName.toLowerCase();
+    return tagName === "input" || tagName === "textarea";
+}
+
+function getUrlFromClipboard(event: ClipboardEvent): string | null {
+    const raw = event.clipboardData?.getData("text")?.trim();
+    if (!raw) return null;
+    const parsed = parseCoverArtUrl(raw);
+    return parsed ? parsed.toString() : null;
 }
 
 // Global Exports
@@ -245,4 +414,11 @@ export function clearCoverArt(options?: { markRemoval?: boolean }): void {
     coverArtRemovalRequested = markRemoval;
     hasCustomCoverArt = false;
     updateClearButtonVisibility();
+    const coverArtUrlInput = document.getElementById(
+        "cover-art-url-input"
+    ) as HTMLInputElement | null;
+    if (coverArtUrlInput) {
+        coverArtUrlInput.value = "";
+    }
+    clearCoverArtMessage();
 }
