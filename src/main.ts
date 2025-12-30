@@ -53,6 +53,8 @@ import { initJobControls } from "./ui/jobControls";
     }),
   loadCoverArtFile: (filePath: string) =>
     bridge.invoke("load_cover_art_file", { filePath }),
+  loadCoverArtFromUrl: (url: string) =>
+    bridge.invoke("load_cover_art_from_url", { url }),
 
   // Audio processing commands
   analyzeAudioFiles: (filePaths: string[]) =>
@@ -121,6 +123,7 @@ console.log("  window.testCommands.triggerFileListChange()");
 console.log("  window.testCommands.triggerMetadataChange()");
 console.log("  window.testCommands.testArtThumbnail()");
 console.log("  window.testCommands.loadCoverArtFile(filePath)");
+console.log("  window.testCommands.loadCoverArtFromUrl(url)");
 console.log("  window.testCommands.getCurrentCoverArt()");
 console.log("  window.testCommands.setCoverArt(coverArtBytes)");
 console.log("  window.testCommands.clearCoverArt()");

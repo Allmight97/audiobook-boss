@@ -177,11 +177,38 @@
                     id="cover-art-img"
                     class="hidden"
                   />
+                  <div class="cover-art-loading" id="cover-art-loading">
+                    Loading...
+                  </div>
                   <button class="cover-art-clear-btn" id="cover-art-clear-btn">
                     ✕
                   </button>
                 </div>
-                <!-- Removed separate buttons -->
+                <label class="cover-art-url-label" for="cover-art-url-input"
+                  >Image URL</label
+                >
+                <div class="cover-art-url-row">
+                  <input
+                    type="text"
+                    id="cover-art-url-input"
+                    data-testid="cover-art-url-input"
+                    class="cover-art-url-input"
+                    placeholder="Paste image URL (https://...)"
+                  />
+                  <button
+                    id="cover-art-url-load-btn"
+                    data-testid="cover-art-url-load-btn"
+                    class="cover-art-url-load-btn"
+                  >
+                    Load
+                  </button>
+                </div>
+                <div
+                  id="cover-art-url-message"
+                  class="cover-art-url-message"
+                  role="status"
+                  aria-live="polite"
+                ></div>
               </div>
 
               <!-- Metadata fields - compact -->

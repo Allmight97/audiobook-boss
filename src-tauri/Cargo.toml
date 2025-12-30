@@ -32,6 +32,7 @@ env_logger = "0.11.8"
 num_cpus = "1.17.0"
 ffmpeg-next = "8.0.0"
 image = { version = "0.25.9", default-features = false, features = ["jpeg", "png", "webp"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 

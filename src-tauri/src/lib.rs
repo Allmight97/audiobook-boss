@@ -53,6 +53,7 @@ pub fn run() {
             commands::read_audio_metadata,
             commands::write_cover_art,
             commands::load_cover_art_file,
+            commands::load_cover_art_from_url,
             commands::save_metadata_to_file,
             commands::analyze_audio_files,
             commands::validate_encoder_settings_cmd,

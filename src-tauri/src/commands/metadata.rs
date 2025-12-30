@@ -1,7 +1,9 @@
 use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
 use crate::errors::{AppError, Result};
 use crate::metadata::{read_metadata, AudiobookMetadata};
+use reqwest::header::CONTENT_TYPE;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Reads metadata from an audio file
 /// Returns metadata as JSON-serializable struct
@@ -117,6 +119,81 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     Ok(optimized)
 }
 
+/// Loads cover art from a remote URL and returns optimized image bytes
+/// HTTPS-only with size and content-type validation for safety.
+#[tauri::command]
+pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
+    let validated_url = validate_cover_art_url(&url)?;
+    let url_for_log = validated_url.as_str().to_string();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
+        .redirect(reqwest::redirect::Policy::limited(COVER_ART_MAX_REDIRECTS))
+        .user_agent("audiobook-boss/cover-art")
+        .build()
+        .map_err(|e| {
+            log::error!("Failed to configure HTTP client: {}", e);
+            AppError::General("Failed to configure HTTP client".to_string())
+        })?;
+
+    let mut response = client.get(validated_url).send().await.map_err(|e| {
+        log::error!("Failed to fetch image URL {}: {}", url_for_log, e);
+        AppError::General("Failed to fetch image URL".to_string())
+    })?;
+
+    if !response.status().is_success() {
+        return Err(AppError::InvalidInput(format!(
+            "Image request failed with status {}",
+            response.status()
+        )));
+    }
+
+    if let Some(content_length) = response.content_length() {
+        if content_length > COVER_ART_MAX_DOWNLOAD_BYTES as u64 {
+            return Err(AppError::InvalidInput(
+                "Image exceeds 10 MB limit".to_string(),
+            ));
+        }
+    }
+
+    if let Some(content_type) = response.headers().get(CONTENT_TYPE) {
+        let content_type = content_type
+            .to_str()
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        if !is_supported_image_content_type(content_type.as_str()) {
+            return Err(AppError::InvalidInput(
+                "Unsupported image format. Use JPEG, PNG, or WebP.".to_string(),
+            ));
+        }
+    }
+
+    let mut downloaded = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| {
+        log::error!("Failed to read image data from URL {}: {}", url_for_log, e);
+        AppError::General("Failed to read image data".to_string())
+    })? {
+        if downloaded.len() + chunk.len() > COVER_ART_MAX_DOWNLOAD_BYTES {
+            return Err(AppError::InvalidInput(
+                "Image exceeds 10 MB limit".to_string(),
+            ));
+        }
+        downloaded.extend_from_slice(&chunk);
+    }
+
+    if downloaded.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Image response was empty".to_string(),
+        ));
+    }
+
+    let optimized = optimize_cover_art(&downloaded)?;
+    Ok(optimized)
+}
+
 /// Maximum dimension for cover art (width or height)
 const COVER_ART_MAX_DIMENSION: u32 = 800;
 /// JPEG quality for cover art (0-100)
@@ -124,6 +201,12 @@ const COVER_ART_JPEG_QUALITY: u8 = 85;
 
 /// Maximum input image dimension allowed (DoS prevention)
 const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
+/// Max download size for remote cover art (DoS prevention)
+const COVER_ART_MAX_DOWNLOAD_BYTES: usize = 10 * 1024 * 1024;
+/// HTTP fetch timeout for cover art
+const COVER_ART_FETCH_TIMEOUT_SECS: u64 = 30;
+/// Max redirects for cover art URL fetch
+const COVER_ART_MAX_REDIRECTS: usize = 5;
 
 /// Optimizes cover art: resize to max 800×800, flatten transparency, encode as JPEG 85%
 ///
@@ -169,6 +252,32 @@ pub fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
     Ok(output)
 }
 
+fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
+    let parsed =
+        reqwest::Url::parse(url).map_err(|_| AppError::InvalidInput("Invalid URL".to_string()))?;
+
+    if parsed.scheme() != "https" {
+        return Err(AppError::InvalidInput(
+            "Only HTTPS URLs are supported".to_string(),
+        ));
+    }
+
+    if parsed.host_str().is_none() {
+        return Err(AppError::InvalidInput(
+            "URL must include a host".to_string(),
+        ));
+    }
+
+    Ok(parsed)
+}
+
+fn is_supported_image_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
+    )
+}
+
 /// Flattens any alpha channel to white background
 fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImage {
     use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
@@ -195,3 +304,6 @@ fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImag
 
     DynamicImage::ImageRgb8(rgb_img)
 }
+
+#[cfg(test)]
+mod metadata_tests;
