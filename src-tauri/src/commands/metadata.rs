@@ -124,18 +124,21 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 #[tauri::command]
 pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
+    let url_for_log = validated_url.as_str().to_string();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
         .redirect(reqwest::redirect::Policy::limited(COVER_ART_MAX_REDIRECTS))
         .user_agent("audiobook-boss/cover-art")
         .build()
-        .map_err(|_| AppError::General("Failed to configure HTTP client".to_string()))?;
+        .map_err(|e| {
+            log::error!("Failed to configure HTTP client: {}", e);
+            AppError::General("Failed to configure HTTP client".to_string())
+        })?;
 
-    let mut response = client
-        .get(validated_url)
-        .send()
-        .await
-        .map_err(|_| AppError::General("Failed to fetch image URL".to_string()))?;
+    let mut response = client.get(validated_url).send().await.map_err(|e| {
+        log::error!("Failed to fetch image URL {}: {}", url_for_log, e);
+        AppError::General("Failed to fetch image URL".to_string())
+    })?;
 
     if !response.status().is_success() {
         return Err(AppError::InvalidInput(format!(
@@ -169,11 +172,10 @@ pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
     }
 
     let mut downloaded = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| AppError::General("Failed to read image data".to_string()))?
-    {
+    while let Some(chunk) = response.chunk().await.map_err(|e| {
+        log::error!("Failed to read image data from URL {}: {}", url_for_log, e);
+        AppError::General("Failed to read image data".to_string())
+    })? {
         if downloaded.len() + chunk.len() > COVER_ART_MAX_DOWNLOAD_BYTES {
             return Err(AppError::InvalidInput(
                 "Image exceeds 10 MB limit".to_string(),
@@ -303,36 +305,5 @@ fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImag
     DynamicImage::ImageRgb8(rgb_img)
 }
 
-// EXCEPTION: tiny helper unit tests
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_cover_art_url_allows_https() {
-        let result = validate_cover_art_url("https://example.com/cover.jpg");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn validate_cover_art_url_rejects_http() {
-        let result = validate_cover_art_url("http://example.com/cover.jpg");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn validate_cover_art_url_rejects_missing_host() {
-        let result = validate_cover_art_url("https://");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn supported_image_content_types() {
-        assert!(is_supported_image_content_type("image/jpeg"));
-        assert!(is_supported_image_content_type("image/jpg"));
-        assert!(is_supported_image_content_type("image/png"));
-        assert!(is_supported_image_content_type("image/webp"));
-        assert!(!is_supported_image_content_type("image/gif"));
-        assert!(!is_supported_image_content_type("text/plain"));
-    }
-}
+mod metadata_tests;
