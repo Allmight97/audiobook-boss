@@ -1,6 +1,6 @@
 import { bridge } from "./lib/bridge";
 import type { AudiobookMetadata } from "./types/metadata";
-import type { FileListInfo, EncoderSettings } from "./types/audio";
+import type { FileListInfo, EncoderSettings, AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import {
   displayFileList,
@@ -11,6 +11,7 @@ import {
   moveFileUp,
   moveFileDown,
 } from "./ui/fileList";
+import { getSelectedFileIndices } from "./ui/fileList/state";
 import {
   initOutputPanel,
   getCurrentOutputConfig,
@@ -24,10 +25,11 @@ import {
   getCurrentCoverArt,
   setCoverArt,
   clearCoverArt,
-  isCoverArtRemovalRequested,
 } from "./ui/coverArt";
+import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
+import { setMetadataForFile } from "./ui/metadataState";
 
 // Expose test functions for console access
 (window as any).testCommands = {
@@ -137,6 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initOutputPanel();
   initStatusPanel();
   initCoverArt();
+  initMetadataFormEvents();
   // Initialize Advanced Encoder panel (no-op if panel not present)
   initEncoderPanel();
   // Initialize tag preview grid
@@ -157,9 +160,9 @@ document.addEventListener("DOMContentLoaded", () => {
  * Initializes the Cmd+S / Ctrl+S keyboard handler for metadata-only saving
  *
  * When triggered:
- * 1. Collects metadata from the form
- * 2. Computes TSOA on the backend
- * 3. Saves metadata to the loaded file(s) without audio processing
+ * 1. Collects DIRTY metadata changes from the form
+ * 2. Applies changes to ALL selected files (Read-Merge-Write pattern)
+ * 3. Saves each file
  */
 function initMetadataSaveHandler(): void {
   document.addEventListener("keydown", async (event) => {
@@ -180,48 +183,93 @@ function initMetadataSaveHandler(): void {
         return;
       }
 
-      // Get the file to save metadata to. Prioritize the selected file.
-      let fileToSave = null;
-      if (
-        selectedFileIndex > -1 &&
-        currentFileList.files[selectedFileIndex]?.isValid
-      ) {
-        fileToSave = currentFileList.files[selectedFileIndex];
+      // Determine target files
+      const selectedIndices = getSelectedFileIndices();
+      let targetFiles: AudioFile[] = [];
+
+      if (selectedIndices.size > 0) {
+        targetFiles = Array.from(selectedIndices)
+          .map((i) => currentFileList!.files[i])
+          .filter((f) => f && f.isValid);
       } else {
-        fileToSave = currentFileList.files.find((f) => f.isValid);
+        if (
+          selectedFileIndex > -1 &&
+          currentFileList.files[selectedFileIndex]?.isValid
+        ) {
+          targetFiles = [currentFileList.files[selectedFileIndex]];
+        } else {
+          const first = currentFileList.files.find((f) => f.isValid);
+          if (first) targetFiles = [first];
+        }
       }
 
-      if (!fileToSave) {
+      if (targetFiles.length === 0) {
         console.log("No valid files to save metadata to");
         return;
       }
 
-      // Collect metadata from the form
-      const metadata = collectMetadataFromForm();
+      const isMultiSelect = selectedIndices.size > 1;
+      const metadataPayload = isMultiSelect
+        ? readMetadataForm({ mode: "multi", onlyDirty: true })
+        : readMetadataForm({ mode: "single" });
+
+      const hasChanges = Object.keys(metadataPayload).length > 0;
+      if (!hasChanges && isMultiSelect) {
+        console.log("No metadata changes detected (multi-select).");
+        return;
+      }
 
       try {
-        console.log("Saving metadata to:", fileToSave.path);
-        await bridge.invoke("save_metadata_to_file", {
-          filePath: fileToSave.path,
-          metadata: metadata,
-        });
-        console.log("Metadata saved successfully");
+        let successCount = 0;
 
-        // Update status text briefly to indicate success
+        if (isMultiSelect) {
+          for (const file of targetFiles) {
+            console.log(`Processing save for ${file.path}...`);
+
+            const currentMeta = await bridge.invoke<AudiobookMetadata>(
+              "read_audio_metadata",
+              { filePath: file.path }
+            );
+
+            const merged = { ...currentMeta, ...metadataPayload };
+
+            await bridge.invoke("save_metadata_to_file", {
+              filePath: file.path,
+              metadata: merged,
+            });
+
+            setMetadataForFile(file.path, merged);
+            successCount++;
+          }
+        } else {
+          const file = targetFiles[0];
+          await bridge.invoke("save_metadata_to_file", {
+            filePath: file.path,
+            metadata: metadataPayload,
+          });
+          setMetadataForFile(file.path, metadataPayload);
+          successCount = 1;
+        }
+
+        resetDirtyState();
+        console.log(`Metadata saved successfully for ${successCount} files`);
+
         const statusText = document.getElementById("status-text");
         if (statusText) {
           const originalText = statusText.textContent;
-          statusText.textContent = "Metadata saved!";
-          // Fix race condition: only restore if still showing "Metadata saved!"
+          const msg =
+            targetFiles.length > 1
+              ? `Metadata saved (${successCount} files)!`
+              : "Metadata saved!";
+          statusText.textContent = msg;
           setTimeout(() => {
-            if (statusText.textContent === "Metadata saved!") {
+            if (statusText.textContent === msg) {
               statusText.textContent = originalText;
             }
           }, 2000);
         }
       } catch (error) {
         console.error("Failed to save metadata:", error);
-        // Show error to user
         const statusText = document.getElementById("status-text");
         if (statusText) {
           statusText.textContent = "Save failed - see console";
@@ -229,53 +277,4 @@ function initMetadataSaveHandler(): void {
       }
     }
   });
-}
-
-/**
- * Collects metadata from the form fields and returns an AudiobookMetadata object
- */
-export function collectMetadataFromForm(): AudiobookMetadata {
-  const getElementValue = (id: string): string => {
-    const element = document.getElementById(id) as
-      | HTMLInputElement
-      | HTMLTextAreaElement;
-    return element?.value?.trim() || "";
-  };
-
-  const title = getElementValue("meta-title");
-  const author = getElementValue("meta-author");
-  const narrator = getElementValue("meta-narrator");
-  const year = getElementValue("meta-year");
-  const genre = getElementValue("meta-genre");
-  const series = getElementValue("meta-series");
-  const seriesPart = getElementValue("meta-series-part");
-  const description = getElementValue("meta-description");
-
-  const metadata: AudiobookMetadata = {};
-
-  // Map form fields to Rust struct field names
-  if (title) {
-    metadata.title = title;
-    metadata.album = title; // Album = Title for audiobooks
-  }
-  if (author) metadata.artist = author; // artist = Author
-  if (narrator) metadata.composer = narrator; // composer = Narrator
-  if (year) {
-    const yearNum = parseInt(year);
-    if (!isNaN(yearNum)) metadata.date = yearNum; // date = Year
-  }
-  if (genre) metadata.genre = genre;
-  metadata.series = series;
-  metadata.series_part = seriesPart;
-  metadata.description = description;
-
-  // Include cover art if present
-  const coverBytes = getCurrentCoverArt();
-  if (isCoverArtRemovalRequested()) {
-    metadata.cover_art = [];
-  } else if (coverBytes && coverBytes.length > 0) {
-    metadata.cover_art = coverBytes;
-  }
-
-  return metadata;
 }

@@ -46,8 +46,10 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     }
 
     if let Some(date) = metadata.date {
-        dict.set("date", &date.to_string());
-        dict.set("year", &date.to_string()); // Some containers prefer year
+        if date > 0 {
+            dict.set("date", &date.to_string());
+            dict.set("year", &date.to_string()); // Some containers prefer year
+        }
     }
 
     if let Some(ref comment) = metadata.comment {
@@ -157,6 +159,10 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
         .map(|value| value.trim().is_empty())
         .unwrap_or(false);
     if description_clear && key == "description" {
+        return true;
+    }
+
+    if metadata.date == Some(0) && matches!(key, "date" | "year") {
         return true;
     }
 

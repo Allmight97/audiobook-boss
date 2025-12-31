@@ -78,7 +78,11 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     }
 
     if let Some(date) = metadata.date {
-        tag.set_year(date.to_string());
+        if date == 0 {
+            tag.remove_year();
+        } else {
+            tag.set_year(date.to_string());
+        }
     }
 
     if let Some(ref comment) = metadata.comment {

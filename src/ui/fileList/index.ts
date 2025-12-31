@@ -2,7 +2,7 @@
 // This preserves import paths during the split process
 
 import { initDOMCache } from './dom';
-import { toggleFileSort, clearAllFiles } from './actions';
+import { toggleFileSort, clearAllFiles, initMetadataApplyHandler } from './actions';
 
 export { 
     displayFileList, 
@@ -10,7 +10,8 @@ export {
     clearAllFiles,
     moveFileUp,
     moveFileDown,
-    setFileOrderLocked
+    setFileOrderLocked,
+    initMetadataApplyHandler
 } from './actions';
 
 // Re-export state from state module  
@@ -30,4 +31,5 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clearBtn) {
         clearBtn.addEventListener('click', () => clearAllFiles());
     }
+    initMetadataApplyHandler();
 });

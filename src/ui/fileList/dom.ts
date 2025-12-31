@@ -1,5 +1,5 @@
 import { AudioFile, formatDuration, formatFileSize } from "../../types/audio";
-import { currentFileList, selectedFileIndex, isOrderLocked } from "./state";
+import { currentFileList, isOrderLocked, getSelectedFileIndices } from "./state";
 import { updateDropZoneState } from "../fileImport";
 
 // Cached DOM elements (stable roots only)
@@ -46,24 +46,20 @@ export function createFileListItem(
             <div class="file-info">
                 <div class="file-name">${fileName}</div>
                 <div class="file-details">
-                    ${
-                      file.isValid && file.duration && file.size
-                        ? `${formatDuration(file.duration)} • ${formatFileSize(
-                            file.size
-                          )} • ${file.format}`
-                        : `Error: ${file.error || "Invalid file"}`
-                    }
+                    ${file.isValid && file.duration && file.size
+      ? `${formatDuration(file.duration)} • ${formatFileSize(
+        file.size
+      )} • ${file.format}`
+      : `Error: ${file.error || "Invalid file"}`
+    }
                 </div>
             </div>
-            <button class="move-up-btn" data-index="${index}" ${
-    isFirst || locked ? "disabled" : ""
-  }>▲</button>
-            <button class="move-down-btn" data-index="${index}" ${
-    isLast || locked ? "disabled" : ""
-  }>▼</button>
-            <button class="remove-file-btn" data-index="${index}" ${
-    locked ? "disabled" : ""
-  }>×</button>
+            <button class="move-up-btn" data-index="${index}" ${isFirst || locked ? "disabled" : ""
+    }>▲</button>
+            <button class="move-down-btn" data-index="${index}" ${isLast || locked ? "disabled" : ""
+    }>▼</button>
+            <button class="remove-file-btn" data-index="${index}" ${locked ? "disabled" : ""
+    }>×</button>
         </div>
     `;
 
@@ -97,24 +93,20 @@ export function updateFileListItem(
             <div class="file-info">
                 <div class="file-name">${fileName}</div>
                 <div class="file-details">
-                    ${
-                      file.isValid && file.duration && file.size
-                        ? `${formatDuration(file.duration)} • ${formatFileSize(
-                            file.size
-                          )} • ${file.format}`
-                        : `Error: ${file.error || "Invalid file"}`
-                    }
+                    ${file.isValid && file.duration && file.size
+      ? `${formatDuration(file.duration)} • ${formatFileSize(
+        file.size
+      )} • ${file.format}`
+      : `Error: ${file.error || "Invalid file"}`
+    }
                 </div>
             </div>
-            <button class="move-up-btn" data-index="${index}" ${
-    isFirst || locked ? "disabled" : ""
-  }>▲</button>
-            <button class="move-down-btn" data-index="${index}" ${
-    isLast || locked ? "disabled" : ""
-  }>▼</button>
-            <button class="remove-file-btn" data-index="${index}" ${
-    locked ? "disabled" : ""
-  }>×</button>
+            <button class="move-up-btn" data-index="${index}" ${isFirst || locked ? "disabled" : ""
+    }>▲</button>
+            <button class="move-down-btn" data-index="${index}" ${isLast || locked ? "disabled" : ""
+    }>▼</button>
+            <button class="remove-file-btn" data-index="${index}" ${locked ? "disabled" : ""
+    }>×</button>
         </div>
     `;
 }
@@ -191,10 +183,12 @@ export function updateTotalStats(): void {
     totalSizeEl.textContent = formatFileSize(currentFileList.totalSize);
 }
 
+
 export function updateSelection(): void {
+  const selectedIndices = getSelectedFileIndices();
   const items = document.querySelectorAll(".file-list-item");
   items.forEach((item, index) => {
-    item.classList.toggle("selected", index === selectedFileIndex);
+    item.classList.toggle("selected", selectedIndices.has(index));
   });
 }
 

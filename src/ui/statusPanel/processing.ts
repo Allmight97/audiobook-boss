@@ -12,6 +12,7 @@ import {
   selectedFileIndex,
   setFileOrderLocked,
 } from "../fileList";
+import { getSelectedFileIndices } from "../fileList/state";
 import { getCurrentOutputConfig } from "../outputPanel";
 import { getJobType, setJobControlsEnabled } from "../jobControls";
 import { readMetadataForm } from "../metadataForm";
@@ -107,13 +108,17 @@ export async function startProcessing(
       .filter((file) => file.isValid)
       .map((file) => file.path);
 
-    const currentMetadata = readMetadataForm();
-    const activeFile =
-      selectedFileIndex >= 0
-        ? currentFileList.files[selectedFileIndex]
-        : currentFileList.files.find((file) => file.isValid);
-    if (activeFile?.isValid) {
-      setMetadataForFile(activeFile.path, currentMetadata);
+    const selectionCount = getSelectedFileIndices().size;
+    let currentMetadata: Partial<AudiobookMetadata> = {};
+    if (selectionCount <= 1) {
+      currentMetadata = readMetadataForm({ mode: "single" });
+      const activeFile =
+        selectedFileIndex >= 0
+          ? currentFileList.files[selectedFileIndex]
+          : currentFileList.files.find((file) => file.isValid);
+      if (activeFile?.isValid) {
+        setMetadataForFile(activeFile.path, currentMetadata);
+      }
     }
 
     // Call backend processing command

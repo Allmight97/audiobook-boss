@@ -1,12 +1,16 @@
 import {
   currentFileList,
-  selectedFileIndex,
-  setSelectedIndex,
   isOrderLocked,
 } from "./state";
-import { selectFile, removeFile, moveFileUp, moveFileDown } from "./actions";
-import { updateFileListDOM } from "./dom";
-import { onFileListChange } from "../outputPanel";
+import {
+  selectFile,
+  removeFile,
+  moveFileUp,
+  moveFileDown,
+  reorderFiles,
+  selectAll,
+  clearSelectionAction,
+} from "./actions";
 
 let draggedIndex: number | null = null;
 
@@ -14,19 +18,19 @@ export function initFileListEvents(): void {
   const container = document.querySelector<HTMLElement>(".file-list-content");
   if (!container) return;
 
-  // Remove any existing event listeners to prevent duplicates
   container.removeEventListener("click", handleFileListClick);
   container.removeEventListener("dragover", handleDragOver);
   container.removeEventListener("drop", handleDrop);
   container.removeEventListener("dragend", handleDragEnd);
 
-  // Add event delegation handlers
   container.addEventListener("click", handleFileListClick);
   container.addEventListener("dragover", handleDragOver);
   container.addEventListener("drop", handleDrop);
   container.addEventListener("dragend", handleDragEnd);
 
-  // Add dragstart handlers to each file item
+  document.removeEventListener("keydown", handleFileListKeyDown);
+  document.addEventListener("keydown", handleFileListKeyDown);
+
   setupDragStartHandlers();
 }
 
@@ -36,13 +40,11 @@ export function setupDragStartHandlers(): void {
 
   const items = container.querySelectorAll<HTMLElement>(".file-list-item");
   items.forEach((item, index) => {
-    // Remove existing dragstart listeners by cloning (clean slate)
     const existingHandler = (item as any).__dragStartHandler;
     if (existingHandler) {
       item.removeEventListener("dragstart", existingHandler);
     }
 
-    // Create new handler and store reference
     const handler = (e: DragEvent) => handleDragStart(e, index);
     (item as any).__dragStartHandler = handler;
     item.addEventListener("dragstart", handler);
@@ -52,20 +54,17 @@ export function setupDragStartHandlers(): void {
 function handleFileListClick(e: Event): void {
   const target = e.target as HTMLElement;
 
-  // Handle remove button clicks
   if (target.classList.contains("remove-file-btn")) {
     e.stopPropagation();
     e.preventDefault();
     if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
     if (index >= 0) {
-      console.log("Remove button clicked for index:", index);
       removeFile(index);
     }
     return;
   }
 
-  // Handle move up button clicks
   if (target.classList.contains("move-up-btn")) {
     e.stopPropagation();
     e.preventDefault();
@@ -77,28 +76,55 @@ function handleFileListClick(e: Event): void {
     return;
   }
 
-  // Handle move down button clicks
   if (target.classList.contains("move-down-btn")) {
     e.stopPropagation();
     e.preventDefault();
     if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
-    if (
-      index >= 0 &&
-      currentFileList &&
-      index < currentFileList.files.length - 1
-    ) {
+    if (index >= 0 && currentFileList && index < currentFileList.files.length - 1) {
       moveFileDown(index);
     }
     return;
   }
 
-  // Handle file item selection
   const fileItem = target.closest(".file-list-item") as HTMLElement;
   if (fileItem) {
     const index = parseInt(fileItem.dataset.index || "-1");
-    if (index >= 0) selectFile(index);
+    if (index >= 0) {
+      const mouseEvent = e as MouseEvent;
+      const multi = mouseEvent.ctrlKey || mouseEvent.metaKey;
+      const range = mouseEvent.shiftKey;
+
+      if (range) {
+        window.getSelection()?.removeAllRanges();
+      }
+
+      selectFile(index, { multi, range });
+    }
   }
+}
+
+function handleFileListKeyDown(e: KeyboardEvent): void {
+  if (!currentFileList) return;
+  if (isTextInputTarget(e.target)) return;
+
+  const key = e.key.toLowerCase();
+  if ((e.metaKey || e.ctrlKey) && key === "a") {
+    e.preventDefault();
+    selectAll();
+    return;
+  }
+
+  if (key === "escape") {
+    e.preventDefault();
+    clearSelectionAction();
+  }
+}
+
+function isTextInputTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea";
 }
 
 function handleDragStart(e: DragEvent, index: number): void {
@@ -123,10 +149,8 @@ function handleDragOver(e: DragEvent): void {
   const container = e.currentTarget as HTMLElement;
   const items = Array.from(container.querySelectorAll(".file-list-item"));
 
-  // Remove all drag-over classes
   items.forEach((item) => item.classList.remove("drag-over"));
 
-  // Find item under cursor
   const target = e.target as HTMLElement;
   const fileItem = target.closest(".file-list-item") as HTMLElement;
   if (fileItem && !fileItem.classList.contains("dragging")) {
@@ -144,10 +168,8 @@ function handleDrop(e: DragEvent): void {
   const container = e.currentTarget as HTMLElement;
   const items = Array.from(container.querySelectorAll(".file-list-item"));
 
-  // Remove drag-over classes
   items.forEach((item) => item.classList.remove("drag-over"));
 
-  // Find drop target
   const target = e.target as HTMLElement;
   const dropTarget = target.closest(".file-list-item") as HTMLElement;
   if (!dropTarget) return;
@@ -155,55 +177,23 @@ function handleDrop(e: DragEvent): void {
   const dropIndex = parseInt(dropTarget.dataset.index || "-1");
   if (dropIndex < 0 || dropIndex === draggedIndex) return;
 
-  // Reorder files
   reorderFiles(draggedIndex, dropIndex);
 
   draggedIndex = null;
 }
 
 function handleDragEnd(e: DragEvent): void {
-  // Find the dragged item (it has the "dragging" class)
-  // e.currentTarget is the container, so we need to find the actual dragged item
   const container = e.currentTarget as HTMLElement;
   const draggedItem = container.querySelector(".file-list-item.dragging");
   if (draggedItem) {
     draggedItem.classList.remove("dragging");
   }
 
-  // Remove all drag-over classes
   container.querySelectorAll(".file-list-item").forEach((item) => {
     item.classList.remove("drag-over");
   });
 
   draggedIndex = null;
-}
-
-function reorderFiles(fromIndex: number, toIndex: number): void {
-  if (isOrderLocked()) return;
-  if (!currentFileList) return;
-
-  const files = currentFileList.files;
-  const [moved] = files.splice(fromIndex, 1);
-  files.splice(toIndex, 0, moved);
-
-  // Update selected index if needed
-  if (selectedFileIndex === fromIndex) {
-    setSelectedIndex(toIndex);
-  } else if (selectedFileIndex === toIndex && fromIndex < toIndex) {
-    setSelectedIndex(selectedFileIndex - 1);
-  } else if (selectedFileIndex === toIndex && fromIndex > toIndex) {
-    setSelectedIndex(selectedFileIndex + 1);
-  } else if (selectedFileIndex > fromIndex && selectedFileIndex <= toIndex) {
-    setSelectedIndex(selectedFileIndex - 1);
-  } else if (selectedFileIndex < fromIndex && selectedFileIndex >= toIndex) {
-    setSelectedIndex(selectedFileIndex + 1);
-  }
-
-  updateFileListDOM();
-  onFileListChange();
-
-  // Re-setup drag handlers for new order
-  setupDragStartHandlers();
 }
 
 // Initialize event handlers for sort and clear buttons on DOM load
