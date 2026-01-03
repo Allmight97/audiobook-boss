@@ -640,8 +640,7 @@ textarea:hover:not(:focus) {
   box-shadow: none;
 }
 
-#metadata-form[data-multi-select="false"] .meta-apply-select,
-#metadata-form[data-multi-select="false"] .metadata-apply-row {
+#metadata-form[data-multi-select="false"] .meta-apply-select {
   display: none;
 }
 
