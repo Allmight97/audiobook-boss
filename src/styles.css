@@ -617,6 +617,40 @@ textarea:hover:not(:focus) {
   background-color: var(--bg-hover);
 }
 
+/* Metadata bulk apply controls */
+.meta-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.meta-field-header label {
+  margin-bottom: 0;
+}
+
+.meta-apply-select {
+  width: auto;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  border-style: solid;
+  border-width: 1px;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  box-shadow: none;
+}
+
+#metadata-form[data-multi-select="false"] .meta-apply-select,
+#metadata-form[data-multi-select="false"] .metadata-apply-row {
+  display: none;
+}
+
+.metadata-apply-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
 /* Property labels/values */
 .property-label {
   font-weight: 500;

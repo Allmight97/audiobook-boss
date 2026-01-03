@@ -161,6 +161,12 @@
             <div class="section-header">
               <h3>Metadata Manager</h3>
             </div>
+            <div
+              id="metadata-selection-count"
+              class="text-xs muted-text mb-2"
+              hidden
+            ></div>
+            <div id="metadata-form" data-multi-select="false">
             <div class="grid grid-cols-4 gap-3 mb-3">
               <!-- Cover art - aligned with metadata grid -->
               <div class="col-span-1 flex flex-col items-center">
@@ -215,7 +221,17 @@
               <div class="col-span-3">
                 <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
                   <div class="col-span-3">
-                    <label for="meta-title">Book Title</label>
+                    <div class="meta-field-header">
+                      <label for="meta-title">Book Title</label>
+                      <select
+                        id="meta-title-action"
+                        class="meta-apply-select"
+                        data-testid="meta-title-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input
                       type="text"
                       id="meta-title"
@@ -223,11 +239,31 @@
                     />
                   </div>
                   <div class="col-span-1">
-                    <label for="meta-year">Year</label>
+                    <div class="meta-field-header">
+                      <label for="meta-year">Year</label>
+                      <select
+                        id="meta-year-action"
+                        class="meta-apply-select"
+                        data-testid="meta-year-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input type="text" id="meta-year" placeholder="2007" />
                   </div>
                   <div class="col-span-2">
-                    <label for="meta-author">Author</label>
+                    <div class="meta-field-header">
+                      <label for="meta-author">Author</label>
+                      <select
+                        id="meta-author-action"
+                        class="meta-apply-select"
+                        data-testid="meta-author-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input
                       type="text"
                       id="meta-author"
@@ -235,7 +271,17 @@
                     />
                   </div>
                   <div class="col-span-2">
-                    <label for="meta-narrator">Narrator</label>
+                    <div class="meta-field-header">
+                      <label for="meta-narrator">Narrator</label>
+                      <select
+                        id="meta-narrator-action"
+                        class="meta-apply-select"
+                        data-testid="meta-narrator-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input
                       type="text"
                       id="meta-narrator"
@@ -243,7 +289,17 @@
                     />
                   </div>
                   <div class="col-span-2">
-                    <label for="meta-series">Series</label>
+                    <div class="meta-field-header">
+                      <label for="meta-series">Series</label>
+                      <select
+                        id="meta-series-action"
+                        class="meta-apply-select"
+                        data-testid="meta-series-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input
                       type="text"
                       id="meta-series"
@@ -251,15 +307,45 @@
                     />
                   </div>
                   <div class="col-span-1">
-                    <label for="meta-series-part">Book #</label>
+                    <div class="meta-field-header">
+                      <label for="meta-series-part">Book #</label>
+                      <select
+                        id="meta-series-part-action"
+                        class="meta-apply-select"
+                        data-testid="meta-series-part-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input type="text" id="meta-series-part" placeholder="1" />
                   </div>
                   <div class="col-span-1">
-                    <label for="meta-genre">Genre</label>
+                    <div class="meta-field-header">
+                      <label for="meta-genre">Genre</label>
+                      <select
+                        id="meta-genre-action"
+                        class="meta-apply-select"
+                        data-testid="meta-genre-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <input type="text" id="meta-genre" placeholder="Fantasy" />
                   </div>
                   <div class="col-span-4">
-                    <label for="meta-description">Description</label>
+                    <div class="meta-field-header">
+                      <label for="meta-description">Description</label>
+                      <select
+                        id="meta-description-action"
+                        class="meta-apply-select"
+                        data-testid="meta-description-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
                     <textarea
                       id="meta-description"
                       rows="2"
@@ -267,7 +353,17 @@
                     ></textarea>
                   </div>
                 </div>
+                <div class="metadata-apply-row">
+                  <button
+                    id="metadata-apply-btn"
+                    class="btn-pill btn-pill-primary-soft"
+                    data-testid="metadata-apply-btn"
+                  >
+                    Apply to Selected
+                  </button>
+                </div>
               </div>
+            </div>
             </div>
 
             <!-- AUDIO ENCODER SETTINGS SECTION -->

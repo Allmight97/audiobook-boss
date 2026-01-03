@@ -3,6 +3,8 @@ import { FileListInfo } from '../../types/audio';
 // Core state variables - keep direct exports for backward compatibility
 export let currentFileList: FileListInfo | null = null;
 export let selectedFileIndex: number = -1;
+// New: Track multiple selections
+const selectedFileIndices = new Set<number>();
 
 // Internal state
 let sortAscending: boolean = true;
@@ -15,6 +17,29 @@ export function setCurrentFileList(fileList: FileListInfo | null): void {
 
 export function setSelectedIndex(index: number): void {
     selectedFileIndex = index;
+}
+
+// Multi-select accessors
+export function getSelectedFileIndices(): Set<number> {
+    return selectedFileIndices;
+}
+
+export function setSelectedFileIndices(indices: Set<number> | number[]): void {
+    selectedFileIndices.clear();
+    const arr = Array.isArray(indices) ? indices : Array.from(indices);
+    arr.forEach(i => selectedFileIndices.add(i));
+}
+
+export function addToSelectedIndices(index: number): void {
+    selectedFileIndices.add(index);
+}
+
+export function removeFromSelectedIndices(index: number): void {
+    selectedFileIndices.delete(index);
+}
+
+export function clearSelectedIndices(): void {
+    selectedFileIndices.clear();
 }
 
 export function getSortAscending(): boolean {

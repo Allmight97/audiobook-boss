@@ -3,29 +3,41 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 let coverArtBytes: number[] | null = null;
 let coverRemoval = false;
 
-vi.mock('../../ui/coverArt', () => ({
+vi.mock('../coverArt', () => ({
   getCurrentCoverArt: () => coverArtBytes,
+  getHasCustomCoverArt: () => false,
   isCoverArtRemovalRequested: () => coverRemoval,
+  setCoverArt: () => {},
 }));
 
-import { collectMetadataFromForm } from '../../main';
+import { readMetadataForm } from '../metadataForm';
 
 const setField = (id: string, value: string) => {
   const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
   if (el) el.value = value;
 };
 
-describe('collectMetadataFromForm', () => {
+describe('readMetadataForm (single mode)', () => {
   beforeEach(() => {
     document.body.innerHTML = `
-      <input id="meta-title" />
-      <input id="meta-author" />
-      <input id="meta-narrator" />
-      <input id="meta-year" />
-      <input id="meta-genre" />
-      <input id="meta-series" />
-      <input id="meta-series-part" />
-      <textarea id="meta-description"></textarea>
+      <div id="metadata-form">
+        <input id="meta-title" />
+        <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-author" />
+        <select id="meta-author-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-narrator" />
+        <select id="meta-narrator-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-year" />
+        <select id="meta-year-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-genre" />
+        <select id="meta-genre-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-series" />
+        <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-series-part" />
+        <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <textarea id="meta-description"></textarea>
+        <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+      </div>
     `;
     coverArtBytes = null;
     coverRemoval = false;
@@ -42,7 +54,7 @@ describe('collectMetadataFromForm', () => {
     setField('meta-description', 'Desc');
     coverArtBytes = [1, 2, 3];
 
-    const metadata = collectMetadataFromForm();
+    const metadata = readMetadataForm({ mode: 'single' });
 
     expect(metadata).toMatchObject({
       title: 'Title',
@@ -61,16 +73,63 @@ describe('collectMetadataFromForm', () => {
   it('emits empty cover_art array when removal requested', () => {
     coverRemoval = true;
 
-    const metadata = collectMetadataFromForm();
+    const metadata = readMetadataForm({ mode: 'single' });
 
     expect(metadata.cover_art).toEqual([]);
   });
 
   it('includes empty strings for clearable metadata fields', () => {
-    const metadata = collectMetadataFromForm();
+    const metadata = readMetadataForm({ mode: 'single' });
 
     expect(metadata.series).toBe('');
     expect(metadata.series_part).toBe('');
     expect(metadata.description).toBe('');
+  });
+});
+
+describe('readMetadataForm (multi mode)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="metadata-form" data-multi-select="true">
+        <input id="meta-title" />
+        <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-author" />
+        <select id="meta-author-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-narrator" />
+        <select id="meta-narrator-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-year" />
+        <select id="meta-year-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-genre" />
+        <select id="meta-genre-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-series" />
+        <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-series-part" />
+        <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <textarea id="meta-description"></textarea>
+        <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+      </div>
+    `;
+  });
+
+  it('uses bulk blank actions for multi-select', () => {
+    const yearAction = document.getElementById('meta-year-action') as HTMLSelectElement;
+    yearAction.value = 'blank';
+
+    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+
+    expect(metadata.date).toBe(0);
+  });
+
+  it('applies edited values in multi-select mode', () => {
+    const titleInput = document.getElementById('meta-title') as HTMLInputElement;
+    titleInput.value = 'New Title';
+    titleInput.dataset.dirty = 'true';
+
+    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+
+    expect(metadata).toMatchObject({
+      title: 'New Title',
+      album: 'New Title',
+    });
   });
 });
