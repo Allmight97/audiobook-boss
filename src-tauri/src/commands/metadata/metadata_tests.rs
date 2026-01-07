@@ -1,4 +1,6 @@
-use super::{is_supported_image_content_type, validate_cover_art_url};
+use super::{is_supported_image_content_type, validate_cover_art_url, BogonFilteringResolver};
+use reqwest::dns::Name;
+use reqwest::dns::Resolve;
 
 #[test]
 fn validate_cover_art_url_allows_https() {
@@ -26,4 +28,34 @@ fn supported_image_content_types() {
     assert!(is_supported_image_content_type("image/webp"));
     assert!(!is_supported_image_content_type("image/gif"));
     assert!(!is_supported_image_content_type("text/plain"));
+}
+
+// SSRF Protection Tests
+
+#[test]
+fn validate_cover_art_url_rejects_bogon_ip() {
+    let result = validate_cover_art_url("https://127.0.0.1/image.jpg");
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_cover_art_url_allows_public_ip() {
+    let result = validate_cover_art_url("https://8.8.8.8/image.jpg");
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn resolver_rejects_localhost() {
+    let resolver = BogonFilteringResolver::new();
+    let name: Name = "localhost".parse().expect("valid DNS name");
+    let result = resolver.resolve(name).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn resolver_allows_public_ip_literal() {
+    let resolver = BogonFilteringResolver::new();
+    let name: Name = "8.8.8.8".parse().expect("valid IP literal");
+    let result = resolver.resolve(name).await;
+    assert!(result.is_ok());
 }

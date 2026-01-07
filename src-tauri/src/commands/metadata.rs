@@ -1,8 +1,12 @@
 use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
 use crate::errors::{AppError, Result};
 use crate::metadata::{read_metadata, AudiobookMetadata};
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
+use std::io;
+use std::net::IpAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Reads metadata from an audio file
@@ -121,13 +125,46 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 
 /// Loads cover art from a remote URL and returns optimized image bytes
 /// HTTPS-only with size and content-type validation for safety.
+/// Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 #[tauri::command]
 pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let url_for_log = validated_url.as_str().to_string();
+    let resolver = Arc::new(BogonFilteringResolver::new());
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
-        .redirect(reqwest::redirect::Policy::limited(COVER_ART_MAX_REDIRECTS))
+        .dns_resolver(resolver)
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let redirect_count = attempt.previous().len();
+            if redirect_count >= COVER_ART_MAX_REDIRECTS {
+                log::warn!(
+                    "Blocked redirect due to limit (count={}): {}",
+                    redirect_count,
+                    attempt.url()
+                );
+                return attempt.error("too many redirects");
+            }
+
+            let url = attempt.url();
+            if url.scheme() != "https" {
+                log::warn!("Blocked redirect to non-HTTPS URL: {}", url);
+                return attempt.error("Only HTTPS URLs are supported");
+            }
+
+            let Some(host) = url.host_str() else {
+                log::warn!("Blocked redirect without host: {}", url);
+                return attempt.error("Redirect URL has no host");
+            };
+
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                if bogon::is_bogon(ip) {
+                    log::warn!("Blocked redirect to bogon IP {} for host {}", ip, host);
+                    return attempt.error("Redirect to private IP blocked");
+                }
+            }
+
+            attempt.follow()
+        }))
         .user_agent("audiobook-boss/cover-art")
         .build()
         .map_err(|e| {
@@ -262,13 +299,61 @@ fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
         ));
     }
 
-    if parsed.host_str().is_none() {
-        return Err(AppError::InvalidInput(
-            "URL must include a host".to_string(),
-        ));
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| AppError::InvalidInput("URL must include a host".to_string()))?;
+
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if bogon::is_bogon(ip) {
+            return Err(AppError::InvalidInput(
+                "URL resolves to a private or reserved IP address".to_string(),
+            ));
+        }
     }
 
     Ok(parsed)
+}
+
+#[derive(Debug, Default)]
+struct BogonFilteringResolver;
+
+impl BogonFilteringResolver {
+    fn new() -> Self {
+        Self
+    }
+}
+
+impl Resolve for BogonFilteringResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs = tokio::net::lookup_host((host.as_str(), 0))
+                .await
+                .map_err(|e| {
+                    log::warn!("DNS resolution failed for {}: {}", host, e);
+                    let err: Box<dyn std::error::Error + Send + Sync> = Box::new(e);
+                    err
+                })?;
+            let mut filtered = Vec::new();
+            for addr in addrs {
+                if bogon::is_bogon(addr.ip()) {
+                    log::warn!("Blocked bogon IP {} for host {}", addr.ip(), host);
+                    continue;
+                }
+                filtered.push(addr);
+            }
+
+            if filtered.is_empty() {
+                let err: Box<dyn std::error::Error + Send + Sync> = Box::new(io::Error::new(
+                    io::ErrorKind::AddrNotAvailable,
+                    "URL resolves to a private or reserved IP address",
+                ));
+                return Err(err);
+            }
+
+            Ok(Box::new(filtered.into_iter()) as Addrs)
+        })
+    }
 }
 
 fn is_supported_image_content_type(content_type: &str) -> bool {
@@ -306,4 +391,5 @@ fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImag
 }
 
 #[cfg(test)]
+// EXCEPTION: security helper unit tests
 mod metadata_tests;

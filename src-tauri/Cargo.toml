@@ -35,6 +35,7 @@ image = { version = "0.25.9", default-features = false, features = ["jpeg", "png
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
+bogon = "0.3"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

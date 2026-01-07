@@ -339,9 +339,12 @@ function clearCoverArtMessage(): void {
 }
 
 function formatCoverArtError(error: unknown, fallback: string): string {
-    if (error instanceof Error) return error.message;
-    if (typeof error === "string") return error;
-    return fallback;
+    const raw =
+        error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+    if (/status 403/i.test(raw) || /403 Forbidden/i.test(raw)) {
+        return "That URL blocked the image request (Error 403) - download the image and Load Cover Art from file.";
+    }
+    return raw;
 }
 
 function setCoverArtLoading(isLoading: boolean): void {
