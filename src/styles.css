@@ -745,15 +745,6 @@ textarea:hover:not(:focus) {
   display: flex;
 }
 
-.cover-art-url-label {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  align-self: flex-start;
-  width: 100%;
-  max-width: 260px;
-}
-
 .cover-art-url-row {
   width: 100%;
   display: flex;

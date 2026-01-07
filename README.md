@@ -109,6 +109,10 @@ RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 
 ## Security & Validation
 
+Cover art URL loading is treated as untrusted input. The app only fetches HTTPS URLs, enforces strict size, format, and dimension limits, uses timeouts and redirect limits, and blocks private, loopback, and link-local IPs at DNS resolution to prevent SSRF and DNS rebinding attacks. Requests send only a fixed user-agent and no cookies or credentials. This preserves the "paste a URL" UX while minimizing internal network and resource exhaustion risk.
+
+- Note: Some hosts (e.g., Reddit preview/CDN and some Google Images links) block hotlinking and return 403. In those cases, download the image locally and use "Load Cover Art" from file.
+
 - Inputs: must pass `validate_input_audio_path()`
   - Rejects invalid chars (CR/LF/NUL), enforces allowed extensions, canonicalizes path, logs symlink resolution
 - Output Directories: probed for write permissions before processing
