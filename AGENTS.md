@@ -29,9 +29,10 @@ Use this scale to rate the quality of code and solutions:
 
 ---
 
-## Team & Workflow
+## Workflow Dynamics
 
 - **Solo project**: Single developer (repo owner / product owner / user)
+- Prefer (git) staging coherent units of work and committing at logical stopping points.
 - PR review via automated agent + .github/workflows/ci.yml workflow on push
 - Feature branches → PR → review/CI → merge to main
 - Use `gh issue create --body-file` or a heredoc for multi-line issue bodies to avoid literal `\\n` characters in GitHub issues.

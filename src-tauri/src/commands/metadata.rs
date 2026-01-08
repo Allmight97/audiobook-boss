@@ -327,6 +327,7 @@ impl Resolve for BogonFilteringResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_string();
         Box::pin(async move {
+            // Port 0 is intentional; reqwest replaces it with the URL/scheme port.
             let addrs = tokio::net::lookup_host((host.as_str(), 0))
                 .await
                 .map_err(|e| {
