@@ -46,3 +46,25 @@ When ABS docs drive a naming decision, update both ADRs and UI hints alongside c
 
 ---
 
+## [LRN-20260111-002] best_practice
+
+**Logged**: 2026-01-11T00:00:00Z
+**Priority**: medium
+**Status**: pending
+**Area**: frontend
+
+### Summary
+Add explicit UI spacing guardrails with a safe escape hatch to reduce agent-driven layout drift.
+
+### Details
+Agents tend to introduce arbitrary spacing values or footer hacks when adjusting layout. Documenting approved spacing tokens and layout patterns in AGENTS, plus a rule to add new tokens via `src/styles.css`, keeps the UI consistent without blocking necessary changes.
+
+### Suggested Action
+When adjusting UI spacing or layout, use the documented tokens and patterns. If a new spacing size is required, add it to the AGENTS table and `src/styles.css`.
+
+### Metadata
+- Source: conversation
+- Related Files: AGENTS.md, src/styles.css
+- Tags: ui, spacing, guardrails, agents
+
+---
