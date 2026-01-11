@@ -115,14 +115,14 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         .unwrap_or(false);
 
     if let Some(ref series) = metadata.series {
-        if series.trim().is_empty() {
-            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
-            tag.remove_data_of(&ident);
-            tag.remove_movement();
-            tag.remove_tv_show_name();
-            tag.remove_tv_show_name_sort_order();
-        } else {
-            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+        // Always remove existing atoms first to prevent duplication
+        tag.remove_data_of(&ident);
+        tag.remove_movement();
+        tag.remove_tv_show_name();
+        tag.remove_tv_show_name_sort_order();
+
+        if !series.trim().is_empty() {
             tag.set_data(ident, Data::Utf8(series.to_string()));
             tag.set_movement(series);
             tag.set_show_movement();
@@ -130,14 +130,14 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     }
 
     if let Some(ref series_part) = metadata.series_part {
-        if series_part.trim().is_empty() {
-            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
-            tag.remove_data_of(&ident);
-            tag.remove_movement_index();
-            tag.remove_tv_episode();
-            tag.remove_tv_episode_name();
-        } else {
-            let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+        // Always remove existing atoms first to prevent duplication
+        tag.remove_data_of(&ident);
+        tag.remove_movement_index();
+        tag.remove_tv_episode();
+        tag.remove_tv_episode_name();
+
+        if !series_part.trim().is_empty() {
             tag.set_data(ident, Data::Utf8(series_part.to_string()));
             if let Some(index) = parse_series_part(series_part) {
                 tag.set_movement_index(index);

@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "audiobook-boss",
-        "width": 1500,
-        "height": 1000,
+        "width": 1600,
+        "height": 1100,
         "minWidth": 800,
         "minHeight": 600,
         "center": true

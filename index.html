@@ -316,6 +316,13 @@
                       </select>
                     </div>
                     <input type="text" id="meta-series-part" placeholder="1" />
+                    <div
+                      id="meta-series-part-warning"
+                      class="text-xs warning-text"
+                      hidden
+                    >
+                      Series detected — add book # for ABS ordering.
+                    </div>
                   </div>
                   <div class="col-span-1">
                     <div class="meta-field-header">
@@ -570,38 +577,31 @@
                 />
 
                 <div class="output-options-panel">
-                  <div class="path-option-row">
+                  <div class="path-option-row flex items-center gap-2">
                     <label class="checkbox-label text-xs mt-0">
                       <input
                         type="checkbox"
-                        id="output-subdir-pattern"
+                        id="output-abs-structure"
                         checked
                       />
-                      Use Default Subdirectory Pattern
-                      ([Author]/[Series]/[Title]/)
+                      ABS-compatible structure
+                      ([Author]/[Series]/[Book # - Title]/)
                     </label>
+                    <div class="relative group">
+                      <div class="info-icon">i</div>
+                      <div class="info-popover group-hover:block">
+                        Creates folder structure Audiobookshelf auto-parses.
+                      </div>
+                    </div>
                   </div>
-                  <div class="path-option-row">
-                    <span class="text-xs muted-text mr-2">Filename:</span>
-                    <label class="radio-inline text-xs">
-                      <input
-                        id="filename-pattern-title-year"
-                        type="radio"
-                        name="filename_pattern"
-                        value="title_year"
-                        checked
-                      />
-                      Title (Year).m4b
+                  <div class="path-option-row" id="output-abs-options">
+                    <label class="checkbox-label text-xs mt-0">
+                      <input type="checkbox" id="output-abs-include-year" />
+                      Include year segment (YYYY)
                     </label>
-                    <label class="radio-inline text-xs">
-                      <input
-                        id="filename-pattern-author-title"
-                        type="radio"
-                        name="filename_pattern"
-                        value="author_title"
-                      />
-                      Author - Title.m4b
-                    </label>
+                    <span id="output-abs-hint" class="text-xs muted-text">
+                      Creates Author / Series / Book # - Title
+                    </span>
                   </div>
                 </div>
               </div>

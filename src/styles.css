@@ -137,7 +137,6 @@ body {
 
 .metadata-footer-pinned {
   flex-shrink: 0;
-  margin-top: auto;
 }
 
 /* Status panel anchored at bottom via app shell layout */
@@ -439,11 +438,20 @@ body {
   font-size: 0.875rem;
 }
 
+.warning-text {
+  color: #d97706;
+  margin-top: 0.25rem;
+}
+
 @media (prefers-color-scheme: dark) {
   .error-message {
     background-color: #7f1d1d;
     border-color: #991b1b;
     color: #fca5a5;
+  }
+
+  .warning-text {
+    color: #fbbf24;
   }
 }
 
@@ -1005,7 +1013,7 @@ textarea:hover:not(:focus) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
 }
 
 .section-header h3 {
@@ -1024,7 +1032,6 @@ textarea:hover:not(:focus) {
 /* Pin Selected File Properties to bottom (inspector footer pattern) */
 .file-properties-pinned {
   flex-shrink: 0;
-  margin-top: auto;
 }
 
 /* Inspector Footer Styles - Enhanced visual hierarchy */
@@ -1078,8 +1085,8 @@ textarea:hover:not(:focus) {
 
 .section-divider {
   border-top: 1px solid var(--border-primary);
-  padding-top: 0.5rem;
-  margin-top: 0.5rem;
+  padding-top: 0.375rem;
+  margin-top: 0.375rem;
 }
 
 /* Section titles and subtitles */

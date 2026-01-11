@@ -5,7 +5,7 @@ use crate::audio::output_path::{
 };
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::commands::audio_types::{
-    FilenamePattern, JobType, ProcessCommandResult, ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
 };
 use crate::errors::{AppError, Result};
 use std::borrow::Cow;
@@ -14,8 +14,7 @@ use std::path::PathBuf;
 
 struct ProcessingInputs {
     sample_rate: audio::SampleRateConfig,
-    use_subdir_pattern: bool,
-    filename_pattern: FilenamePattern,
+    output_naming: OutputNamingConfig,
     base_output_dir: PathBuf,
     preview_seconds: Option<f64>,
 }
@@ -32,10 +31,7 @@ pub async fn process_payload(
 
     let inputs = ProcessingInputs {
         sample_rate: resolve_sample_rate(&payload)?,
-        use_subdir_pattern: payload.use_subdir_pattern.unwrap_or(true),
-        filename_pattern: payload
-            .filename_pattern
-            .unwrap_or(FilenamePattern::TitleYear),
+        output_naming: payload.output_naming.unwrap_or_default(),
         base_output_dir: ensure_output_dir(&payload.output_dir)?,
         preview_seconds,
     };
@@ -98,8 +94,7 @@ async fn dispatch_merge_job(
     let output_path = build_output_path(
         &inputs.base_output_dir,
         merge_metadata.as_ref(),
-        inputs.use_subdir_pattern,
-        inputs.filename_pattern,
+        inputs.output_naming,
         None,
     )?;
     let resolved_output = resolve_collision(&output_path)?;
@@ -139,8 +134,7 @@ async fn dispatch_batch_jobs(
         let output_path = build_output_path(
             &inputs.base_output_dir,
             file_metadata,
-            inputs.use_subdir_pattern,
-            inputs.filename_pattern,
+            inputs.output_naming,
             Some(&path),
         )?;
         let resolved_output = resolve_collision_with_claimed(&output_path, &claimed_paths)?;
