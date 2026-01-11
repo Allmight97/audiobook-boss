@@ -210,6 +210,40 @@ When working on the following areas, load the matching skill and follow its guar
 - **Semantic HTML**: Use proper HTML5 elements (button, input, select) to ensure accessibility and agent-readability.
 - **Agent-Ready**: Consider how an automated agent would "see" and interact with your UI component.
 
+## UI Layout and Spacing
+
+### Established Spacing Values
+
+The UI uses consistent spacing tokens. Do NOT introduce new arbitrary values.
+If a new value is truly needed, propose it and add it to this table and `src/styles.css` as a CSS variable (source of truth).
+
+| Token            | Value                             | Usage |
+| ---------------- | --------------------------------- | ----- |
+| `0.375rem` (6px) | Section dividers, header margins  |
+| `0.5rem` (8px)   | Compact gaps, small margins       |
+| `0.75rem` (12px) | Panel padding, standard gaps      |
+| `1rem` (16px)    | Large gaps, major section spacing |
+
+### Layout Patterns
+
+**Pinned Footers** (file-properties-pinned, metadata-footer-pinned):
+
+- Use `flex-shrink: 0` to prevent compression
+- Do NOT use `margin-top: auto` — this creates variable gaps
+- Let content flow naturally; footer stays at end of flex column
+  - If you must push a footer down, use a dedicated spacer element with `flex: 1 1 auto`
+
+**Section Dividers** (.section-divider):
+
+- `padding-top: 0.375rem; margin-top: 0.375rem` (12px total)
+- Always include `border-top: 1px solid var(--border-primary)`
+
+### Anti-Patterns (Do NOT Use)
+
+- `margin-top: auto` on footer elements — creates unpredictable gaps
+- Arbitrary pixel values in CSS — use rem tokens
+- Mixing `.mb-*` Tailwind classes with custom margins on same element (using `.mb-*` alone is fine)
+
 ---
 
 ## Security & Validation
