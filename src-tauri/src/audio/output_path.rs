@@ -46,17 +46,18 @@ fn build_abs_title(
     year: Option<i32>,
     include_year: bool,
 ) -> String {
-    let mut parts = Vec::new();
-    if let Some(series_part) = series_part.filter(|value| !value.trim().is_empty()) {
-        parts.push(format!("Book {series_part}"));
-    }
+    let mut title_part = title.to_string();
     if include_year {
         if let Some(year) = year {
-            parts.push(year.to_string());
+            title_part = format!("{title_part} ({year})");
         }
     }
-    parts.push(title.to_string());
-    parts.join(" - ")
+
+    if let Some(series_part) = series_part.filter(|value| !value.trim().is_empty()) {
+        format!("Book {series_part} - {title_part}")
+    } else {
+        title_part
+    }
 }
 
 fn build_simple_filename(title: &str, year: Option<i32>, naming: OutputNamingConfig) -> String {
