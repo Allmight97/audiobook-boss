@@ -102,7 +102,8 @@ export function calculateOutputPath(metadata: AudiobookMetadata): string {
     if (series) {
       subdirPath += `/${series}`;
     }
-    const seriesPartValue = sanitizeFilename(metadata.series_part || "").trim();
+    const rawSeriesPart = metadata.series_part || "";
+    const seriesPartValue = sanitizeFilename(rawSeriesPart.split("/")[0]).trim();
     const seriesPart = seriesPartValue.length > 0 ? seriesPartValue : undefined;
     const absTitle = buildAbsTitle(title, seriesPart, year, naming.includeYear);
     return `${subdirPath}/${absTitle}/${absTitle}.m4b`;

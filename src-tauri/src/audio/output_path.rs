@@ -100,7 +100,9 @@ pub(crate) fn build_output_path(
     }
 
     let series = series_raw.map(sanitize_component);
-    let series_part = series_part_raw.map(sanitize_component);
+    let series_part = series_part_raw
+        .map(|value| value.split('/').next().unwrap_or(value))
+        .map(sanitize_component);
     let year = metadata.and_then(|m| m.date.map(|d| d as i32));
 
     let mut dir = base_dir.to_path_buf();

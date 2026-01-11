@@ -77,6 +77,26 @@ fn build_output_path_keeps_full_title() {
 }
 
 #[test]
+fn build_output_path_normalizes_series_part_fraction() {
+    let dir = tempdir().expect("tempdir");
+    let md = AudiobookMetadata {
+        title: Some("Welcome to Paradise".to_string()),
+        artist: Some("Ryk Brown".to_string()),
+        series: Some("The Frontiers Saga".to_string()),
+        series_part: Some("14/15".to_string()),
+        ..Default::default()
+    };
+
+    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
+        .expect("should build path");
+
+    let expected = dir.path().join(
+        "Ryk Brown/The Frontiers Saga/Book 14 - Welcome to Paradise/Book 14 - Welcome to Paradise.m4b",
+    );
+    assert_eq!(path, expected);
+}
+
+#[test]
 fn build_output_path_sanitizes_colons() {
     let dir = tempdir().expect("tempdir");
     let md = AudiobookMetadata {
