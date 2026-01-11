@@ -28,7 +28,8 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - `process_audiobook_files_v2`
   - Args: `{ payload, metadata?, previewSeconds? }`
-    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'merge' | 'batch'; useSubdirPattern?: boolean; filenamePattern?: 'title_year' | 'author_title' }`
+    - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'merge' | 'batch'; outputNaming?: OutputNamingConfig }`
+      - `OutputNamingConfig: { absCompatible: boolean; includeYear: boolean }`
     - `settings: EncoderSettings` (`src/types/audio.ts:62`)
     - `metadata?: AudiobookMetadataMap` (`src/types/metadata.ts`)
     - `previewSeconds?: number` (optional short preview)

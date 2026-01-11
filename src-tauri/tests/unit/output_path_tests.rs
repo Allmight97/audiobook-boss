@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use audiobook_boss_lib::commands::audio::{build_output_path, resolve_collision, FilenamePattern};
+use audiobook_boss_lib::commands::audio::{
+    build_output_path, resolve_collision, OutputNamingConfig,
+};
 use audiobook_boss_lib::metadata::AudiobookMetadata;
 use tempfile::tempdir;
 
@@ -9,46 +11,104 @@ fn sample_metadata() -> AudiobookMetadata {
         title: Some("Flybot testing".to_string()),
         artist: Some("Dennis E. Taylor".to_string()),
         series: Some("FLY BOT SERIES".to_string()),
+        series_part: Some("24".to_string()),
         date: Some(2025),
         ..Default::default()
     }
 }
 
 #[test]
-fn build_output_path_with_metadata_and_pattern() {
+fn build_output_path_with_abs_defaults() {
     let dir = tempdir().expect("tempdir");
     let md = sample_metadata();
 
     let path = build_output_path(
         dir.path(),
         Some(&md),
-        true,
-        FilenamePattern::TitleYear,
+        OutputNamingConfig::default(),
         None,
     )
     .expect("should build path");
 
-    let expected = dir
-        .path()
-        .join("Dennis E. Taylor/FLY BOT SERIES/Flybot testing/Flybot testing (2025).m4b");
+    let expected = dir.path().join(
+        "Dennis E. Taylor/FLY BOT SERIES/Book 24 - Flybot testing/Book 24 - Flybot testing.m4b",
+    );
     assert_eq!(path, expected);
 }
 
 #[test]
-fn build_output_path_without_subdir_or_metadata_falls_back() {
+fn build_output_path_without_abs_structure_uses_simple_filename() {
     let dir = tempdir().expect("tempdir");
     let source = PathBuf::from("/tmp/source/ExampleBook.m4b");
 
     let path = build_output_path(
         dir.path(),
         None,
-        false,
-        FilenamePattern::AuthorTitle,
+        OutputNamingConfig {
+            abs_compatible: false,
+            include_year: false,
+        },
         Some(&source),
     )
     .expect("should build path");
 
-    let expected = dir.path().join("Unknown Author - ExampleBook.m4b");
+    let expected = dir.path().join("ExampleBook.m4b");
+    assert_eq!(path, expected);
+}
+
+#[test]
+fn build_output_path_keeps_full_title() {
+    let dir = tempdir().expect("tempdir");
+    let md = AudiobookMetadata {
+        title: Some("Demon World: Undying Mercenaries, Book 24 - Special Edition".to_string()),
+        artist: Some("B.V. Larson".to_string()),
+        series: Some("Undying Mercenaries".to_string()),
+        series_part: Some("24".to_string()),
+        ..Default::default()
+    };
+
+    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
+        .expect("should build path");
+
+    let expected = dir.path().join(
+        "B.V. Larson/Undying Mercenaries/Book 24 - Demon World - Undying Mercenaries - Book 24 - Special Edition/Book 24 - Demon World - Undying Mercenaries - Book 24 - Special Edition.m4b",
+    );
+    assert_eq!(path, expected);
+}
+
+#[test]
+fn build_output_path_sanitizes_colons() {
+    let dir = tempdir().expect("tempdir");
+    let md = AudiobookMetadata {
+        title: Some("Rogue: Aftermath".to_string()),
+        artist: Some("Ada Palmer".to_string()),
+        ..Default::default()
+    };
+
+    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
+        .expect("should build path");
+
+    let expected = dir
+        .path()
+        .join("Ada Palmer/Rogue - Aftermath/Rogue - Aftermath.m4b");
+    assert_eq!(path, expected);
+}
+
+#[test]
+fn build_output_path_preserves_commas_in_author() {
+    let dir = tempdir().expect("tempdir");
+    let md = AudiobookMetadata {
+        title: Some("Wizard, Tower".to_string()),
+        artist: Some("Goodkind, Terry".to_string()),
+        ..Default::default()
+    };
+
+    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
+        .expect("should build path");
+
+    let expected = dir
+        .path()
+        .join("Goodkind, Terry/Wizard - Tower/Wizard - Tower.m4b");
     assert_eq!(path, expected);
 }
 

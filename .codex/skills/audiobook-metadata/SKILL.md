@@ -93,7 +93,7 @@ Expected ffprobe output should include:
 | Metadata writing | `src-tauri/src/metadata/ffmpeg_bridge.rs` | `metadata_to_ffmpeg_dict()` for tag mapping |
 | Data model | `src-tauri/src/metadata/mod.rs` | `AudiobookMetadata` fields (`series`, `series_part`) |
 | Metadata reading | `src-tauri/src/metadata/reader.rs` | `read_metadata()` routing (ffmpeg vs mp4ameta) |
-| Output path | `src-tauri/src/commands/audio.rs` | `build_output_path()` for folder structure |
+| Output path | `src-tauri/src/audio/output_path.rs` | `build_output_path()` for folder structure |
 | TSOA computation | `src-tauri/src/commands/metadata.rs` | `compute_tsoa()` for album sort |
 
 ## Known Issues

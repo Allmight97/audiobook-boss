@@ -8,7 +8,7 @@ use audiobook_boss_lib::{
     AudiobookMetadata,
 };
 use ffmpeg_next as ff;
-use mp4ameta::{FreeformIdent, Tag};
+use mp4ameta::{Data, FreeformIdent, Tag, WriteConfig};
 use tempfile::TempDir;
 
 // Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
@@ -163,6 +163,55 @@ fn writes_series_tags_with_mp4ameta() {
     assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
     assert_eq!(tag.movement_index(), Some(7));
+}
+
+#[test]
+fn replaces_duplicate_series_atoms_on_save() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-duplicate.m4b");
+
+    write_minimal_m4b(&output);
+
+    let mut tag = Tag::read_from_path(&output).expect("read tag");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+    tag.add_data(
+        series_ident.clone(),
+        Data::Utf8("Frontiers Saga, Part 3: Fringe Worlds".to_string()),
+    );
+    tag.add_data(
+        series_ident.clone(),
+        Data::Utf8("Part 3 - Fringe Worlds".to_string()),
+    );
+    tag.add_data(part_ident.clone(), Data::Utf8("14".to_string()));
+    tag.add_data(part_ident.clone(), Data::Utf8("14/15".to_string()));
+    let config = WriteConfig {
+        write_meta_items: true,
+        ..WriteConfig::NONE
+    };
+    tag.write_with_path(&output, &config)
+        .expect("seed duplicate series atoms");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            series: Some("Part 3 - Fringe Worlds".into()),
+            series_part: Some("14".into()),
+            ..Default::default()
+        },
+    )
+    .expect("save metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    let series_values: Vec<String> = tag.strings_of(&series_ident).map(str::to_string).collect();
+    let part_values: Vec<String> = tag.strings_of(&part_ident).map(str::to_string).collect();
+
+    assert_eq!(series_values, vec!["Part 3 - Fringe Worlds"]);
+    assert_eq!(part_values, vec!["14"]);
+    assert_eq!(tag.movement(), Some("Part 3 - Fringe Worlds"));
+    assert_eq!(tag.movement_index(), Some(14));
 }
 
 #[test]

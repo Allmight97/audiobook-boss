@@ -111,29 +111,32 @@ Characters to remove or replace in folder/file names:
 ```
 sanitize(name):
   replace ":" with " -"
-  replace "/" with " - "
-  remove "?" "*" "<" ">" "|" "\" '"'
+  replace "," with " - " (except author)
+  replace "/" "\" with " "
+  remove "?" "*" "<" ">" "|"
   collapse multiple spaces to single space
   trim leading/trailing whitespace
-  trim trailing periods (Windows issue)
   return name
 ```
 
 ## audiobook-boss Implementation
 
-The output path generation is in `src-tauri/src/commands/audio.rs`:
+The output path generation is in `src-tauri/src/audio/output_path.rs`:
 
 ```rust
-// build_output_path() around line ~285
-// Structure: output_dir / author / series (optional) / title.m4b
+// build_output_path()
+// Structure (ABS-compatible): output_dir / author / series (optional) / Book # - Title / Book # - Title.m4b
 ```
 
 Current behavior:
-- Author folder: Uses `artist` from metadata
-- Series folder: Uses `series` from metadata (skipped if empty)
-- Title: Uses `title` from metadata
+- ABS-compatible structure is the default.
+- Author folder: Uses `artist` from metadata (falls back to "Unknown Author").
+- Series folder: Uses `series` from metadata (skipped if empty).
+- Title folder + filename: Uses full `title` from metadata, sanitized for filesystem safety.
+- Author folder preserves commas; other components replace commas with ` - `.
+- Year appears only when explicitly enabled and metadata date is present.
 
-To modify folder structure behavior, edit `build_output_path()` in `commands/audio.rs`.
+To modify folder structure behavior, edit `build_output_path()` in `audio/output_path.rs`.
 
 ---
 

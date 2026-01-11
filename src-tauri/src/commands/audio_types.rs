@@ -1,5 +1,5 @@
 use crate::audio;
-pub use crate::audio::output_path::FilenamePattern;
+pub use crate::audio::output_path::OutputNamingConfig;
 use crate::audio::settings_encoder::EncoderSettings;
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq, Eq)]
@@ -18,10 +18,8 @@ pub struct ProcessV2Payload {
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
     pub job_type: Option<JobType>,
-    /// Optional toggle for metadata-based subdirectory generation (default true)
-    pub use_subdir_pattern: Option<bool>,
-    /// Optional filename pattern (default title-year)
-    pub filename_pattern: Option<FilenamePattern>,
+    /// Output naming configuration (defaults to ABS-compatible)
+    pub output_naming: Option<OutputNamingConfig>,
 }
 
 /// Processes multiple audio files into a single M4B audiobook

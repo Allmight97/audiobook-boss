@@ -157,8 +157,7 @@ export async function startProcessing(
       settings: boundaryEncoderSettings,
       sampleRate: outputConfig.sampleRate,
       jobType,
-      useSubdirPattern: outputConfig.useSubdirPattern,
-      filenamePattern: outputConfig.filenamePattern,
+      outputNaming: outputConfig.outputNaming,
     };
 
     if (v2Payload.jobType === "batch") {

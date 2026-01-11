@@ -439,11 +439,20 @@ body {
   font-size: 0.875rem;
 }
 
+.warning-text {
+  color: #d97706;
+  margin-top: 0.25rem;
+}
+
 @media (prefers-color-scheme: dark) {
   .error-message {
     background-color: #7f1d1d;
     border-color: #991b1b;
     color: #fca5a5;
+  }
+
+  .warning-text {
+    color: #fbbf24;
   }
 }
 

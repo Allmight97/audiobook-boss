@@ -22,13 +22,18 @@ export interface FileListInfo {
 
 export type SampleRateConfig = "auto" | { explicit: number };
 
+// Output naming options for folder/filename generation
+export interface OutputNamingConfig {
+  absCompatible: boolean;
+  includeYear: boolean;
+}
+
 // Combined UI output configuration used by the UI boundary
 export interface OutputConfig {
   encoderSettings: EncoderSettings;
   sampleRate: SampleRateConfig;
   outputPath: string; // legacy field name; now represents the selected output folder
-  useSubdirPattern: boolean;
-  filenamePattern: FilenamePattern;
+  outputNaming: OutputNamingConfig;
 }
 
 export interface ProcessingProgress {
@@ -93,7 +98,6 @@ export interface EncoderSettings {
 
 // Job Type for batch processing (Issue #81)
 export type JobType = "merge" | "batch";
-export type FilenamePattern = "title_year" | "author_title";
 
 // Complete processing payload
 export interface ProcessV2Payload {
@@ -102,8 +106,7 @@ export interface ProcessV2Payload {
   settings: EncoderSettings;
   sampleRate?: SampleRateConfig;
   jobType?: JobType; // Optional pending backend support
-  useSubdirPattern?: boolean;
-  filenamePattern?: FilenamePattern;
+  outputNaming?: OutputNamingConfig;
 }
 
 // Platform-aware default encoder settings

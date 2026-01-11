@@ -6,7 +6,7 @@ use crate::audio::settings_encoder::{
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
-    FilenamePattern, JobType, ProcessCommandResult, ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
 };
 use crate::errors::{AppError, Result};
 use std::collections::HashMap;
