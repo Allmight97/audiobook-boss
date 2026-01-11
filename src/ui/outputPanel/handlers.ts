@@ -91,6 +91,7 @@ export function handleAbsCompatibleChange(event: Event): void {
 export function handleAbsIncludeYearChange(event: Event): void {
   const target = event.target as HTMLInputElement;
   updateAbsIncludeYear(target.checked);
+  updateNamingOptionState();
   updateOutputPath();
 }
 

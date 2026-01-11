@@ -30,16 +30,17 @@ function buildAbsTitle(
   year: number | string | undefined,
   includeYear: boolean
 ): string {
-  let titlePart = title;
   if (includeYear && year !== undefined) {
-    titlePart = `${titlePart} (${year})`;
+    if (seriesPart) {
+      return `Book ${seriesPart} - ${String(year)} - ${title}`;
+    }
+    return `${String(year)} - ${title}`;
   }
 
   if (seriesPart) {
-    return `Book ${seriesPart} - ${titlePart}`;
-  } else {
-    return titlePart;
+    return `Book ${seriesPart} - ${title}`;
   }
+  return title;
 }
 
 function buildSimpleFilename(

@@ -13,12 +13,13 @@ Previously, the app used a flat structure with configurable filename patterns. U
 ## Decision
 
 1. **ABS-compatible structure ON by default**
-   - Output: `Author/Series/## - Title/## - Title.m4b`
+   - Output: `Author/Series/Book ## - Title/Book ## - Title.m4b`
    - Non-series: `Author/Title/Title.m4b`
 
 2. **Year OFF by default** (toggle available)
-   - When enabled: `Author/Series/## - Title (YYYY)/...`
-   - Rationale: ABS doesn't require year; keeps paths shorter
+   - When enabled (series): `Author/Series/Book ## - YYYY - Title/...`
+   - When enabled (no series): `Author/YYYY - Title/...`
+   - Rationale: ABS parses year only when first or directly after series sequence
 
 3. **Full title preserved** (no short-title extraction)
    - Sanitize only for filesystem safety (`:` → ` - `)

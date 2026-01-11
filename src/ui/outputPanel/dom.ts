@@ -89,6 +89,11 @@ export function updateNamingOptionState(): void {
 
   if (absHint) {
     absHint.toggleAttribute("hidden", !state.absCompatible);
+    if (state.absCompatible) {
+      absHint.textContent = state.absIncludeYear
+        ? "Creates Author / Series / Book # - YYYY - Title"
+        : "Creates Author / Series / Book # - Title";
+    }
   }
 }
 

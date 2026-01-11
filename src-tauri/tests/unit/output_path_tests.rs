@@ -37,6 +37,55 @@ fn build_output_path_with_abs_defaults() {
 }
 
 #[test]
+fn build_output_path_with_abs_year_places_year_after_series_part() {
+    let dir = tempdir().expect("tempdir");
+    let md = sample_metadata();
+
+    let path = build_output_path(
+        dir.path(),
+        Some(&md),
+        OutputNamingConfig {
+            abs_compatible: true,
+            include_year: true,
+        },
+        None,
+    )
+    .expect("should build path");
+
+    let expected = dir.path().join(
+        "Dennis E. Taylor/FLY BOT SERIES/Book 24 - 2025 - Flybot testing/Book 24 - 2025 - Flybot testing.m4b",
+    );
+    assert_eq!(path, expected);
+}
+
+#[test]
+fn build_output_path_with_abs_year_prefixes_when_no_series() {
+    let dir = tempdir().expect("tempdir");
+    let md = AudiobookMetadata {
+        title: Some("Standalone Title".to_string()),
+        artist: Some("Ada Palmer".to_string()),
+        date: Some(2025),
+        ..Default::default()
+    };
+
+    let path = build_output_path(
+        dir.path(),
+        Some(&md),
+        OutputNamingConfig {
+            abs_compatible: true,
+            include_year: true,
+        },
+        None,
+    )
+    .expect("should build path");
+
+    let expected = dir
+        .path()
+        .join("Ada Palmer/2025 - Standalone Title/2025 - Standalone Title.m4b");
+    assert_eq!(path, expected);
+}
+
+#[test]
 fn build_output_path_without_abs_structure_uses_simple_filename() {
     let dir = tempdir().expect("tempdir");
     let source = PathBuf::from("/tmp/source/ExampleBook.m4b");

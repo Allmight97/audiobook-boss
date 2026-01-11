@@ -46,17 +46,20 @@ fn build_abs_title(
     year: Option<i32>,
     include_year: bool,
 ) -> String {
-    let mut title_part = title.to_string();
+    let series_part = series_part.filter(|value| !value.trim().is_empty());
     if include_year {
         if let Some(year) = year {
-            title_part = format!("{title_part} ({year})");
+            if let Some(series_part) = series_part {
+                return format!("Book {series_part} - {year} - {title}");
+            }
+            return format!("{year} - {title}");
         }
     }
 
-    if let Some(series_part) = series_part.filter(|value| !value.trim().is_empty()) {
-        format!("Book {series_part} - {title_part}")
+    if let Some(series_part) = series_part {
+        format!("Book {series_part} - {title}")
     } else {
-        title_part
+        title.to_string()
     }
 }
 

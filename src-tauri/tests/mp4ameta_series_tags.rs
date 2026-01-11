@@ -178,15 +178,15 @@ fn replaces_duplicate_series_atoms_on_save() {
     let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
     let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
     tag.add_data(
-        series_ident.clone(),
+        series_ident,
         Data::Utf8("Frontiers Saga, Part 3: Fringe Worlds".to_string()),
     );
     tag.add_data(
-        series_ident.clone(),
+        series_ident,
         Data::Utf8("Part 3 - Fringe Worlds".to_string()),
     );
-    tag.add_data(part_ident.clone(), Data::Utf8("14".to_string()));
-    tag.add_data(part_ident.clone(), Data::Utf8("14/15".to_string()));
+    tag.add_data(part_ident, Data::Utf8("14".to_string()));
+    tag.add_data(part_ident, Data::Utf8("14/15".to_string()));
     let config = WriteConfig {
         write_meta_items: true,
         ..WriteConfig::NONE
