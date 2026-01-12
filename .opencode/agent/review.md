@@ -73,14 +73,10 @@ Run these checks and report results:
 ```bash
 # From repo root
 python3 scripts/analyze_code_lines.py
-
-# From src-tauri/
 cargo fmt --all -- --check
-cargo clippy -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test
 scripts/ensure-contract.sh
-
-# From repo root
 bun run build
 ```
 

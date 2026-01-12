@@ -2,6 +2,14 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-01-11 — Root Cargo workspace
+Context: Cargo commands run from repo root were failing because the Rust crate lived in `src-tauri`.
+Decision: Add a root Cargo workspace, move `Cargo.lock` to the root, and update scripts/docs to run from repo root.
+Consequences:
+- Cargo commands work from repo root without directory switching.
+- Fewer agent mistakes around Rust checks.
+Links: ADR-002 (`docs/decisions/002-root-cargo-workspace.md`), `scripts/quick-checks.sh`, `AGENTS.md`, `.opencode/agent/review.md`
+
 ## 2026-01-11 — UI spacing guardrails + escape hatch
 Context: Agents were causing UI spacing/layout drift over time.
 Decision: Add explicit spacing tokens + layout patterns in `AGENTS.md`, plus a safe escape hatch to add new tokens via `src/styles.css`.

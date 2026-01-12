@@ -7,7 +7,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-tauri_dir="$repo_root/src-tauri"
+tauri_manifest="$repo_root/src-tauri/Cargo.toml"
+workspace_manifest="$repo_root/Cargo.toml"
 
 log_step() {
   echo "[quick-checks] $*"
@@ -20,22 +21,42 @@ require() {
   fi
 }
 
+cargo_fmt_cmd() {
+  if [[ -f "$workspace_manifest" ]]; then
+    cargo fmt --all -- --check
+    return
+  fi
+
+  if [[ -f "$tauri_manifest" ]]; then
+    cargo fmt --manifest-path "$tauri_manifest" --all -- --check
+    return
+  fi
+
+  echo "[quick-checks] No Cargo manifest found." >&2
+  exit 1
+}
+
+cargo_clippy_cmd() {
+  if [[ -f "$workspace_manifest" ]]; then
+    cargo clippy --workspace --all-targets -- -D warnings
+    return
+  fi
+
+  if [[ -f "$tauri_manifest" ]]; then
+    cargo clippy --manifest-path "$tauri_manifest" --all-targets -- -D warnings
+    return
+  fi
+
+  echo "[quick-checks] No Cargo manifest found." >&2
+  exit 1
+}
+
 log_step "cargo fmt --all -- --check"
 require cargo
-if [[ ! -d "$tauri_dir" ]]; then
-  echo "[quick-checks] Expected directory '$tauri_dir' not found." >&2
-  exit 1
-fi
-(
-  cd "$tauri_dir"
-  cargo fmt --all -- --check
-)
+cargo_fmt_cmd
 
 log_step "cargo clippy --workspace --all-targets -- -D warnings"
-(
-  cd "$tauri_dir"
-  cargo clippy --workspace --all-targets -- -D warnings
-)
+cargo_clippy_cmd
 
 if [[ -x scripts/ensure-contract.sh ]]; then
   log_step "scripts/ensure-contract.sh"
