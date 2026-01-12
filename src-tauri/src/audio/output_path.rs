@@ -103,9 +103,17 @@ pub(crate) fn build_output_path(
     }
 
     let series = series_raw.map(sanitize_component);
-    let series_part = series_part_raw
-        .map(|value| value.split('/').next().unwrap_or(value))
-        .map(sanitize_component);
+    let series_part = if let Some(series_part_raw) = series_part_raw {
+        let trimmed = series_part_raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            crate::metadata::validate_series_part(trimmed)?;
+            Some(sanitize_component(trimmed))
+        }
+    } else {
+        None
+    };
     let year = metadata.and_then(|m| m.date.map(|d| d as i32));
 
     let mut dir = base_dir.to_path_buf();

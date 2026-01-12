@@ -3,6 +3,7 @@
  */
 import type { AudiobookMetadata } from "../../types/metadata";
 import { getJobType } from "../jobControls";
+import { getSeriesPartValidationError } from "../metadataValidation";
 import { getOutputNamingConfig, getState } from "./state";
 
 /**
@@ -104,7 +105,10 @@ export function calculateOutputPath(metadata: AudiobookMetadata): string {
       subdirPath += `/${series}`;
     }
     const rawSeriesPart = metadata.series_part || "";
-    const seriesPartValue = sanitizeFilename(rawSeriesPart.split("/")[0]).trim();
+    const seriesPartError = getSeriesPartValidationError(rawSeriesPart);
+    const seriesPartValue = seriesPartError
+      ? ""
+      : sanitizeFilename(rawSeriesPart).trim();
     const seriesPart = seriesPartValue.length > 0 ? seriesPartValue : undefined;
     const absTitle = buildAbsTitle(title, seriesPart, year, naming.includeYear);
     return `${subdirPath}/${absTitle}/${absTitle}.m4b`;

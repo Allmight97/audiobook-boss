@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::errors::{AppError, Result};
+
 pub mod reader;
 
 // FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
@@ -50,7 +52,7 @@ pub struct AudiobookMetadata {
     pub description: Option<String>,
     /// Series name (freeform SERIES, mirrored to MVNM)
     pub series: Option<String>,
-    /// Book number in series as string to support "1/5" format (freeform SERIES-PART, mirrored to MVIN)
+    /// Book number in series (freeform SERIES-PART, mirrored to MVIN)
     pub series_part: Option<String>,
     /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
     pub album_sort: Option<String>,
@@ -85,6 +87,16 @@ impl Default for AudiobookMetadata {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Validates series part input (no slashes).
+pub(crate) fn validate_series_part(series_part: &str) -> Result<()> {
+    if series_part.contains('/') {
+        return Err(AppError::InvalidInput(
+            "Series part must not include '/'. Use a plain number like 24.".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 // Re-export main functions for convenience

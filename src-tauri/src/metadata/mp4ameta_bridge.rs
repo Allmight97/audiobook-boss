@@ -182,7 +182,10 @@ fn read_series_part(tag: &Tag) -> Option<String> {
 }
 
 fn parse_series_part(value: &str) -> Option<u16> {
-    let raw = value.split('/').next()?.trim();
+    let raw = value.trim();
+    if raw.is_empty() || raw.contains('/') {
+        return None;
+    }
     let parsed = raw.parse::<u16>().ok()?;
     if parsed == 0 {
         None

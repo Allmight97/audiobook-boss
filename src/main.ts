@@ -27,6 +27,7 @@ import {
   clearCoverArt,
 } from "./ui/coverArt";
 import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
+import { getSeriesPartValidationError } from "./ui/metadataValidation";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { setMetadataForFile } from "./ui/metadataState";
@@ -216,6 +217,19 @@ function initMetadataSaveHandler(): void {
       const hasChanges = Object.keys(metadataPayload).length > 0;
       if (!hasChanges && isMultiSelect) {
         console.log("No metadata changes detected (multi-select).");
+        return;
+      }
+
+      const seriesPartError = getSeriesPartValidationError(
+        typeof metadataPayload.series_part === "string"
+          ? metadataPayload.series_part
+          : undefined
+      );
+      if (seriesPartError) {
+        const statusText = document.getElementById("status-text");
+        if (statusText) {
+          statusText.textContent = seriesPartError;
+        }
         return;
       }
 

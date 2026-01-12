@@ -126,7 +126,7 @@ fn build_output_path_keeps_full_title() {
 }
 
 #[test]
-fn build_output_path_normalizes_series_part_fraction() {
+fn build_output_path_rejects_series_part_with_slash() {
     let dir = tempdir().expect("tempdir");
     let md = AudiobookMetadata {
         title: Some("Welcome to Paradise".to_string()),
@@ -136,13 +136,8 @@ fn build_output_path_normalizes_series_part_fraction() {
         ..Default::default()
     };
 
-    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
-        .expect("should build path");
-
-    let expected = dir.path().join(
-        "Ryk Brown/The Frontiers Saga/Book 14 - Welcome to Paradise/Book 14 - Welcome to Paradise.m4b",
-    );
-    assert_eq!(path, expected);
+    let result = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None);
+    assert!(result.is_err(), "should reject series part containing '/' characters");
 }
 
 #[test]

@@ -6,6 +6,7 @@ import { formatFileSize } from "../../types/audio";
 import { currentFileList } from "../fileList";
 import { getCurrentCoverArt } from "../coverArt";
 import { getState } from "./state";
+import { getSeriesPartValidationError } from "../metadataValidation";
 import { calculateOutputPath } from "./pathBuilder";
 
 /**
@@ -43,7 +44,16 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 
   const seriesValue = metadata.series?.trim() ?? "";
   const seriesPartValue = metadata.series_part?.trim() ?? "";
+  const seriesPartError = getSeriesPartValidationError(seriesPartValue);
+
+  if (seriesPartError) {
+    warning.textContent = seriesPartError;
+    warning.toggleAttribute("hidden", false);
+    return;
+  }
+
   const shouldShow = seriesValue.length > 0 && seriesPartValue.length === 0;
+  warning.textContent = "Series detected - add book # for ABS ordering.";
   warning.toggleAttribute("hidden", !shouldShow);
 }
 

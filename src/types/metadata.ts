@@ -37,7 +37,7 @@ export interface AudiobookMetadata {
   description?: string;
   /** Series name (©mvn/MVNM) */
   series?: string;
-  /** Book number in series as string to support "1/5" format (©mvi/MVIN) */
+  /** Book number in series (©mvi/MVIN) */
   series_part?: string;
   /** Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE" */
   album_sort?: string;

@@ -9,6 +9,7 @@ import {
   removeMetadataForFile,
   setMetadataForFile,
 } from "../metadataState";
+import { getSeriesPartValidationError } from "../metadataValidation";
 import {
   readMetadataForm,
   resetDirtyState,
@@ -160,6 +161,17 @@ async function applyMetadataToSelection(): Promise<void> {
     const statusText = document.getElementById("status-text");
     if (statusText) {
       statusText.textContent = "No metadata changes to apply";
+    }
+    return;
+  }
+
+  const seriesPartError = getSeriesPartValidationError(
+    typeof changes.series_part === "string" ? changes.series_part : undefined
+  );
+  if (seriesPartError) {
+    const statusText = document.getElementById("status-text");
+    if (statusText) {
+      statusText.textContent = seriesPartError;
     }
     return;
   }

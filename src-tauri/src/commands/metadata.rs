@@ -31,6 +31,13 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
 
     // Compute TSOA (Album Sort) if series and title are present
     let mut metadata_with_tsoa = metadata;
+    if let Some(series_part) = metadata_with_tsoa.series_part.as_deref() {
+        let trimmed = series_part.trim();
+        if !trimmed.is_empty() {
+            crate::metadata::validate_series_part(trimmed)?;
+        }
+    }
+
     if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
         metadata_with_tsoa.album_sort =
             compute_tsoa(series, metadata_with_tsoa.series_part.as_deref(), title);
@@ -53,12 +60,12 @@ pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> 
 /// Computes TSOA (Album Sort) from series + part + title.
 /// Returns None if series_part is missing or cannot be parsed to a positive integer.
 pub fn compute_tsoa(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
-    let raw_part = series_part?;
+    let raw_part = series_part?.trim();
+    if raw_part.is_empty() {
+        return None;
+    }
 
-    let part_num = raw_part
-        .split('/')
-        .next()
-        .and_then(|p| p.trim().parse::<u32>().ok())?;
+    let part_num = raw_part.parse::<u32>().ok()?;
 
     if part_num == 0 {
         return None;

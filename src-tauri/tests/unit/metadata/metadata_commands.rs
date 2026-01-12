@@ -7,9 +7,9 @@ fn computes_tsoa_with_numeric_part() {
 }
 
 #[test]
-fn computes_tsoa_with_fractional_part() {
+fn skips_tsoa_with_fractional_part() {
     let result = compute_tsoa("Series", Some("1/5"), "Title");
-    assert_eq!(result.as_deref(), Some("Series 01 - Title"));
+    assert!(result.is_none());
 }
 
 #[test]
