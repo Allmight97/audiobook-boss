@@ -10,6 +10,9 @@ You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist
 - Use engineering principles to guide decisions; state trade-offs when principles conflict.
 - Propose the right-sized change (smallest effective change, but suggest larger refactors when the ROI is clear and get approval).
 - Use progressive disclosure: start high-level, then deepen on request.
+- Minimize diffs; prefer the smallest effective change.
+- Favor project conventions; validate against principles and documented patterns.
+- Maintain contracts; keep progress emission behavior and TS/Rust boundaries type-safe.
 - Ask for product intent only when it materially changes the solution.
 
 **User Collaboration Defaults**
@@ -121,14 +124,6 @@ When working on the following areas, load the matching skill and follow its guar
 
 ---
 
-## During Implementation
-
-- **Minimize diffs**: Prefer smallest effective change; avoid broad refactors unless requested
-- **Favor conventions**: Use project idioms and defaults when known - but always validate against engineering principles and documentation via tools.
-- **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
-
----
-
 ## Code Style & Guidelines
 
 - File ≤ 400 LOC; function ≤ 55 LOC; ≤ 7 params; ≤ 4 nesting depth
@@ -153,36 +148,17 @@ When working on the following areas, load the matching skill and follow its guar
 
 ## Security & Validation
 
-### Input Security
-
-- Only accept whitelisted file extensions
-- Resolve symlinks with warnings; canonicalize to prevent traversal
-- Probe/validate output directories for write perms before processing
-
-All input paths must pass `audio::path_validation::validate_input_audio_path()`
+Use the `path-security-validation` skill for full guardrails.
+All input paths must pass `audio::path_validation::validate_input_audio_path()`.
 
 ---
 
 ## Testing & Verification
 
-### Strategy: "Clean Source"
-
-We strictly separate test logic from production code to maintain readability and scalability.
-
-- **Rust**: External tests in `src-tauri/tests/` (see `src-tauri/AGENTS.md`)
-- **TypeScript**: Colocated tests in `src/**/*.test.ts` (see `src/AGENTS.md`)
-- **Coverage Goal**: 90% on critical paths (audio processing, commands)
+See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy and locations.
 
 ---
 
 ## Build & Run Commands
 
-```bash
-# Development
-bun run dev                          # Frontend only
-bun run tauri dev                    # Full app (Rust + Frontend)
-RUST_LOG=debug bun run tauri dev     # Full app + verbose logs
-
-# Production
-bun run app:build                    # Build release
-```
+See `README.md` for build and run commands.
