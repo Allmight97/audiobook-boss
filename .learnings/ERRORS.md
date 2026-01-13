@@ -116,3 +116,91 @@ Convert `description` to a block scalar or quote the string so `:` is treated as
 - Related Files: .claude/skills/lib-research/SKILL.md
 
 ---
+## [ERR-20260113-002] btca
+
+**Logged**: 2026-01-13T09:56:30-08:00
+**Priority**: medium
+**Status**: pending
+**Area**: infra
+
+### Summary
+btca chat launches OpenCode TUI and does not return a plain-text answer in this CLI session
+
+### Error
+```
+TUI launched (OpenCode) with ANSI screen control codes; no answer returned to stdout. Required manual kill (SIGKILL).
+```
+
+### Context
+- Command/operation attempted: btca chat -r mp4ameta
+- Input or parameters used: “Where is FreeformIdent defined? Provide file path and snippet.”
+- Environment details if relevant: non-interactive CLI session; TUI not suitable for capture
+
+### Suggested Fix
+Prefer btca ask for scripted runs, or run btca chat in an interactive terminal and copy the response back.
+
+### Metadata
+- Reproducible: yes
+- Related Files: btca.config.jsonc
+- See Also: ERR-20260113-001
+
+---
+## [ERR-20260113-003] btca
+
+**Logged**: 2026-01-13T10:05:30-08:00
+**Priority**: high
+**Status**: pending
+**Area**: infra
+
+### Summary
+btca ask consistently times out after 10 seconds across resources (mp4ameta, tokio, tauri)
+
+### Error
+```
+[Bun.serve]: request timed out after 10 seconds. Pass `idleTimeout` to configure.
+Error: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+```
+
+### Context
+- Command/operation attempted: btca ask -r mp4ameta / tokio / tauri
+- Input or parameters used: FreeformIdent / spawn_blocking / event emission prompts
+- Environment details if relevant: both anthropic/claude-haiku-4-5-20251001 and opencode/glm-4.7-free
+
+### Suggested Fix
+Determine how to raise the Bun.serve idleTimeout for btca server or run against a long-lived btca server via --server.
+
+### Metadata
+- Reproducible: yes
+- Related Files: btca.config.jsonc
+- See Also: ERR-20260113-001, ERR-20260113-002
+
+---
+## [ERR-20260113-004] rg
+
+**Logged**: 2026-01-13T11:12:00-08:00
+**Priority**: low
+**Status**: pending
+**Area**: infra
+
+### Summary
+rg search over home directory timed out while looking for opencode config files
+
+### Error
+```
+rg: Operation timed out (os error 60)
+```
+
+### Context
+- Command/operation attempted: rg --files -g 'opencode*.json*' -g '.opencode*' ~
+- Input or parameters used: search for opencode config
+- Environment details if relevant: large home directory scan
+
+### Suggested Fix
+Limit search to likely config locations (e.g., ~/.config, ~/.opencode) or use find with depth.
+
+### Metadata
+- Reproducible: unknown
+- Related Files: 
+- See Also: 
+
+---

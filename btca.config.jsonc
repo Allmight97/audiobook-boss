@@ -66,6 +66,6 @@
       "specialNotes": "TypeScript compiler and type system. Focus on type inference, utility types, strict mode, and discriminated unions"
     }
   ],
-  "model": "claude-haiku-4-5-20251001",
-  "provider": "anthropic"
+  "model": "claude-haiku-4.5",
+  "provider": "github-copilot"
 }
