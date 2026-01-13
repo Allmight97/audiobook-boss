@@ -117,3 +117,5 @@ Example:
 
 - btca resources: `references/btca-resources.md`
 - btca config: `btca.config.jsonc`
+- btca repo: https://github.com/davis7dotsh/better-context
+- btca docs: https://btca.dev/getting-started
