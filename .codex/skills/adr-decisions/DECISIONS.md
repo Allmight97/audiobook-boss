@@ -1,6 +1,14 @@
 # Decisions Log
 
 Newest first. Format defined by `adr-decisions` skill.
+a
+## 2026-01-13 — btca guidance lives in lib-research skill
+Context: btca setup and usage guidance needed to be discoverable without bloating root `AGENTS.md`.
+Decision: Move btca instructions to the `lib-research` skill and ignore `.btca/` cache in git.
+Consequences:
+- Root `AGENTS.md` stays focused while research workflows remain explicit in the skill.
+- btca cache won’t be accidentally committed.
+Links: `AGENTS.md`, `.codex/skills/lib-research/SKILL.md`, `.codex/skills/lib-research/references/btca-resources.md`, `btca.config.jsonc`, `.gitignore`
 
 ## 2026-01-11 — Root Cargo workspace
 Context: Cargo commands run from repo root were failing because the Rust crate lived in `src-tauri`.

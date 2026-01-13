@@ -23,7 +23,7 @@ You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist
 
 ## Engineering Principles (rate 1-5 when reviewing)
 
-**Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling  
+**Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling
 **Practice**: DRY • KISS • YAGNI • Fail Fast (validate at boundaries; explicit errors; no masked exceptions)
   - Prefer KISS over DRY unless duplication is likely to cause maintenance errors.
   - If duplication is small and stable, keep it simple (KISS).
@@ -36,7 +36,20 @@ Use this scale to rate the quality of code and solutions:
 
 ---
 
+## Essential Reading
+
+1. `AGENTS.md` (this file) — principles, workflow, shared conventions
+2. `src-tauri/AGENTS.md` — Rust architecture and backend patterns
+3. `src/AGENTS.md` — TypeScript/UI patterns and spacing
+4. `README.md` — human-facing overview
+5. `docs/external-apis/*.md` — ffmpeg-next, tauri, path handling
+
+**For external library research**: Load the `lib-research` skill.
+
+---
+
 ## Workflow Dynamics
+
 - Prefer (git) staging coherent units of work and committing at logical stopping points.
 - Optional: enable repo hooks with `git config core.hooksPath .githooks`.
 - Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates**). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
@@ -91,75 +104,22 @@ bun run build  # from repo root
 
 ---
 
-## Essential Reading (in order)
-
-1. `AGENTS.md` (this file)
-2. `README.md` (human-facing overview + links)
-3. `src-tauri/src/commands/*` and `src-tauri/src/audio/*` (integration points)
-4. `docs/external-apis/*.md` (ffmpeg-next, tauri, path handling)
-
-## Architecture Fundamentals
-
-- **Single engine**: `FfmpegNextProcessor` via ffmpeg-next bindings (no shell FFmpeg, no engine feature flags)
-- **Concurrency surface**: `JobRegistry` (semaphore-backed) is the **exclusive source of truth** for active jobs.
-  - **Parallelism**: Multiple jobs can run concurrently (up to `max_concurrent`).
-  - **Blocking I/O**: CPU-bound encoding tasks MUST be offloaded using `tokio::task::spawn_blocking` or `tokio::task::block_in_place` to prevent async runtime starvation.
-  - **Cancellation**: Managed via `CancellationChecker` (per-job) or global signal.
-- **Path security**: all inputs → `audio::path_validation::validate_input_audio_path()` (canonicalize, whitelist extensions, traverse-safe, symlink warnings)
-- **Progress system**: ffmpeg-next timestamps → `processing-progress` Tauri events → UI (`src/ui/statusPanel`)
-- **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` structure
-
-## Critical Flows
-
-- **Import**: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-- **Processing**: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events
-
-## Integration Touchpoints
-
-- `src-tauri/src/commands/`: All user actions via `#[tauri::command]` handlers; use `ProcessingState` for cancellation
-- `src-tauri/src/audio/processor/selection.rs`: Engine selection (single engine)
-- `src-tauri/src/audio/progress/reporter.rs`: Progress emission to window
-
-## Architectural Invariants
-
-- **Type-Safe Encoder**: Encoder setup must consume `EncoderSettings` directly.
-- **Logic Location**: New processing logic belongs in `audio/processor/{encoder/,streams.rs,frame_pipeline.rs}`.
-- **Sanitization**: Finite/clamp sanitization must happen in `audio/buffer.rs`.
-- **Primary Target**: macOS (Apple Silicon).
-
-## Interface Boundaries
-
-- **Command Surface**: UI must call `process_audiobook_files_v2` exclusively.
-- **Contract Guard**: Maintain TS ↔ Rust command parity (`scripts/ensure-contract.sh`) until typesafe codegen is adopted.
-- **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
-
----
-
-# Tools & Workflow
-
-## Research and context management
-
-Use these tools for external documentation and patterns. Do not blindly copy external patterns if they conflict with project conventions or engineering principles.
+## Skills & Domain Knowledge
 
 When working on the following areas, load the matching skill and follow its guardrails:
-- Path handling and validation → `path-security-validation`
-- Long-running jobs, cancellation, or progress → `job-registry-and-progress`
-- Releases and TS/Rust command parity → `release-and-contract-guardrails`
 
-1. **Context7 MCP** (Authoritative Library Docs)
+| Area | Skill |
+|------|-------|
+| External library docs, API verification | `lib-research` |
+| Path handling and validation | `path-security-validation` |
+| Long-running jobs, cancellation, progress | `job-registry-and-progress` |
+| Releases and TS/Rust command parity | `release-and-contract-guardrails` |
+| Audiobook metadata and M4B tagging | `audiobook-metadata` |
+| FFmpeg-next encoder patterns | `ffmpeg-next-patterns` |
+| mp4ameta library patterns | `mp4ameta-patterns` |
+| Tauri command conventions | `tauri-command-conventions` |
 
-   - Two-step process:
-     1. `mcp__context7-mcp__resolve-library-id` — Resolve library name to Context7 ID (e.g., "tauri" → `/tauri-apps/tauri`).
-     2. `mcp__context7-mcp__query-docs` — Fetch docs with a focused query.
-   - **Use Case**: Deep verification of API contracts. Prevents method signature hallucinations.
-   - **Tip**: Prefer library versions with high benchmark scores and snippet counts.
-
-2. **Rust-docs MCP** (docs.rs Integration)
-
-   - `mcp__rust-docs__docs_rs_search_crates` — Discover crates by keyword (e.g., "mp4 metadata").
-   - `mcp__rust-docs__docs_rs_readme` — Get crate README overview.
-   - `mcp__rust-docs__docs_rs_get_item` — Get detailed struct/trait/function docs (output can be large).
-   - **Note**: `docs_rs_readme` and `docs_rs_search_in_crate` may return 404 for some crates; prefer `docs_rs_get_item` as the fallback.
+---
 
 ## During Implementation
 
@@ -167,23 +127,7 @@ When working on the following areas, load the matching skill and follow its guar
 - **Favor conventions**: Use project idioms and defaults when known - but always validate against engineering principles and documentation via tools.
 - **Maintain contracts**: Keep progress emission behavior and TS/Rust boundaries type-safe
 
-## Code Guidelines & Conventions
-
-### TypeScript
-
-- Strict mode; explicit types; avoid `any`
-- File names: camelCase; types/interfaces: PascalCase
-- Class-based UI modules with DOM caching; event-driven via `listen()`
-- Strong boundary types for Rust/TS crossing (`src/types/*`)
-
-### Rust
-
-- `#![deny(clippy::unwrap_used)]`; prefer `Result<T, AppError>` and `?`
-- Keep internals non-`pub` unless required across modules
-- Format with rustfmt defaults
-- Map external errors → `AppError` (`src-tauri/src/errors.rs`)
-- Don't leak raw paths in user-facing errors
-- No wildcard re-exports in module files
+---
 
 ## Code Style & Guidelines
 
@@ -205,46 +149,6 @@ When working on the following areas, load the matching skill and follow its guar
 - **>400 LOC files**: Treat 400 LOC as an early warning. If a change will exceed it, either extract a submodule or add `// EXCEPTION: [reason]` and note intent to refactor.
 - **Pre-edit check**: For changes likely to add >50 LOC, run `python3 scripts/analyze_code_lines.py` and call out any impacted files in your plan.
 
-## Frontend Testability
-
-- **Unique IDs**: All interactive elements (inputs, buttons, drop zones) MUST have a unique `id` or `data-testid`.
-- **Semantic HTML**: Use proper HTML5 elements (button, input, select) to ensure accessibility and agent-readability.
-- **Agent-Ready**: Consider how an automated agent would "see" and interact with your UI component.
-
-## UI Layout and Spacing
-
-### Established Spacing Values
-
-The UI uses consistent spacing tokens. Do NOT introduce new arbitrary values.
-If a new value is truly needed, propose it and add it to this table and `src/styles.css` as a CSS variable (source of truth).
-
-| Token            | Value                             | Usage |
-| ---------------- | --------------------------------- | ----- |
-| `0.375rem` (6px) | Section dividers, header margins  |
-| `0.5rem` (8px)   | Compact gaps, small margins       |
-| `0.75rem` (12px) | Panel padding, standard gaps      |
-| `1rem` (16px)    | Large gaps, major section spacing |
-
-### Layout Patterns
-
-**Pinned Footers** (file-properties-pinned, metadata-footer-pinned):
-
-- Use `flex-shrink: 0` to prevent compression
-- Do NOT use `margin-top: auto` — this creates variable gaps
-- Let content flow naturally; footer stays at end of flex column
-  - If you must push a footer down, use a dedicated spacer element with `flex: 1 1 auto`
-
-**Section Dividers** (.section-divider):
-
-- `padding-top: 0.375rem; margin-top: 0.375rem` (12px total)
-- Always include `border-top: 1px solid var(--border-primary)`
-
-### Anti-Patterns (Do NOT Use)
-
-- `margin-top: auto` on footer elements — creates unpredictable gaps
-- Arbitrary pixel values in CSS — use rem tokens
-- Mixing `.mb-*` Tailwind classes with custom margins on same element (using `.mb-*` alone is fine)
-
 ---
 
 ## Security & Validation
@@ -265,24 +169,9 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`
 
 We strictly separate test logic from production code to maintain readability and scalability.
 
-**1. Rust (External Testing)**
-
-- **Rule**: **No inline tests** (`mod tests`) in `src-tauri/src` except for tiny private helpers.
-- **Location**: `src-tauri/tests/`
-  - `unit/`: functionality of single modules (public API).
-  - `integration/`: cross-module flows.
-  - `contract/`: Tauri command signature verification.
-
-**2. TypeScript (Colocated Testing)**
-
-- **Rule**: Business logic belongs in `.ts` files, not `.tsx`.
-- **Location**: `src/**/*.test.ts` (colocated with source).
-- **Scope**: High coverage for logic (`.ts`), light render checks for UI (`.tsx`).
-
-**3. Quality Gates**
-
-- Follow **Checks & Gates** for required local checks.
-- **Coverage Goal**: 90% on critical paths (audio processing, commands).
+- **Rust**: External tests in `src-tauri/tests/` (see `src-tauri/AGENTS.md`)
+- **TypeScript**: Colocated tests in `src/**/*.test.ts` (see `src/AGENTS.md`)
+- **Coverage Goal**: 90% on critical paths (audio processing, commands)
 
 ---
 

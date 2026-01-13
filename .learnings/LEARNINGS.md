@@ -68,3 +68,49 @@ When adjusting UI spacing or layout, use the documented tokens and patterns. If 
 - Tags: ui, spacing, guardrails, agents
 
 ---
+## [LRN-20260112-001] correction
+
+**Logged**: 2026-01-12T21:40:55Z
+**Priority**: medium
+**Status**: pending
+**Area**: config
+
+### Summary
+Use shell/CLI editing tools for user-requested config changes; avoid Python unless user asks
+
+### Details
+Used a Python one-off to edit ~/.config/opencode/opencode.json; user explicitly asked to use tools to edit the file instead.
+
+### Suggested Action
+Prefer CLI-native editing (e.g., jq or cat + here-doc) for config changes unless user approves Python.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/jstar/.config/opencode/opencode.json
+- Tags: tooling, user_preference
+- See Also: 
+
+---
+## [LRN-20260112-002] correction
+
+**Logged**: 2026-01-12T21:43:31Z
+**Priority**: medium
+**Status**: pending
+**Area**: config
+
+### Summary
+When asked to remove a provider’s models, remove the entire provider entry if requested to delete the provider
+
+### Details
+I emptied .provider.quotio.models instead of removing the .provider.quotio entry entirely; user clarified they wanted the provider removed.
+
+### Suggested Action
+When a user asks to remove a provider’s models, confirm whether to delete the provider; if they emphasize “entire entry,” remove the provider object.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/jstar/.config/opencode/opencode.json
+- Tags: config, provider, user_preference
+- See Also: 
+
+---

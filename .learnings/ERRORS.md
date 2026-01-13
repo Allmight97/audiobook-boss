@@ -59,3 +59,60 @@ Use triple-quoted strings for multi-line replacements in Python edit scripts.
 - See Also: (none)
 
 ---
+## [ERR-20260112-001] bun_add_opencode_antigravity
+
+**Logged**: 2026-01-12T21:39:35Z
+**Priority**: medium
+**Status**: pending
+**Area**: config
+
+### Summary
+bun add for opencode-antigravity-auth was rejected by user approval policy
+
+### Error
+```
+exec_command failed: CreateProcess { message: "Rejected(\"rejected by user\")" }
+```
+
+### Context
+- Command/operation attempted: bun add opencode-antigravity-auth@beta
+- Input or parameters used: ran in ~/.config/opencode with restricted network
+- Environment details if relevant: approval policy on-request; command required escalation
+
+### Suggested Fix
+Wait for user to enable permissions or set approval policy to never / allow escalation, then retry install
+
+### Metadata
+- Reproducible: yes
+- Related Files: /Users/jstar/.config/opencode/package.json
+- See Also: 
+
+---
+## [ERR-20260112-002] opencode-run-config-frontmatter
+
+**Logged**: 2026-01-12T21:57:06Z
+**Priority**: high
+**Status**: pending
+**Area**: config
+
+### Summary
+`opencode run` failed due to invalid YAML frontmatter in a local skill file.
+
+### Error
+```
+ConfigFrontmatterError: Failed to parse YAML frontmatter: incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line at line 3, column 200
+```
+
+### Context
+- Command: `opencode run "Hello" --model=google/antigravity-claude-sonnet-4-5-thinking --variant=max`
+- File: `.claude/skills/lib-research/SKILL.md`
+- Cause: colon+space in unquoted YAML scalar (`Triggers: ...`) broke frontmatter parsing.
+
+### Suggested Fix
+Convert `description` to a block scalar or quote the string so `:` is treated as text.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .claude/skills/lib-research/SKILL.md
+
+---
