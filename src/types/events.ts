@@ -35,7 +35,7 @@ export const STAGES = {
 /**
  * Progress event emitted by Rust backend during audio processing
  * 
- * Source: src-tauri/src/audio/progress/reporter.rs (ProgressEvent struct)
+ * Source: src-tauri/src/audio/progress/mod.rs (ProgressEvent struct)
  * Handler: src/ui/statusPanel.ts (listen(EVENTS.PROGRESS))
  * 
  * Emitted during:

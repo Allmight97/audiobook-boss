@@ -119,7 +119,7 @@ bun run build  # from repo root
 
 - Commands: `src-tauri/src/commands/` (Tauri handlers; use `ProcessingState` for cancellation)
 - Engine selection: `src-tauri/src/audio/processor/selection.rs`
-- Progress emission: `src-tauri/src/audio/progress/reporter.rs`
+- Progress emission: `src-tauri/src/audio/progress/` (mod.rs, emitter.rs, state.rs)
 
 ## Architectural Invariants
 
