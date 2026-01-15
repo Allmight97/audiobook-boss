@@ -6,7 +6,9 @@
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{AudioFile, FfmpegNextProcessor, MediaProcessingPlan, SampleRateConfig};
+use audiobook_boss_lib::audio::{
+    AudioFile, FfmpegNextProcessor, MediaProcessingPlan, SampleRateConfig,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
