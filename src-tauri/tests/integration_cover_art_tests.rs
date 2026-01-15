@@ -132,8 +132,7 @@ fn test_real_media_file_cover_art_detection() {
             }
         }
         Err(e) => {
-            println!("Failed to read real MP3 metadata: {}", e);
-            // This might be expected if the file format isn't supported
+            panic!("Failed to read real MP3 metadata: {}", e);
         }
     }
 
