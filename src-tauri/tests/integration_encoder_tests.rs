@@ -1,17 +1,19 @@
-//! Encoder contract tests (moved from module-local).
+//! Integration tests for encoder configuration and FFmpeg encoder setup.
 
-use crate::audio::settings_encoder::{self, ChannelConfig as EncoderChannelConfig};
-use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
-use crate::audio::MediaProcessingPlan;
-use crate::audio::SampleRateConfig;
+use audiobook_boss_lib::audio::settings_encoder::{self, ChannelConfig as EncoderChannelConfig};
+use audiobook_boss_lib::audio::settings_encoder::{
+    BitrateMode, EncoderSettings, EncoderType, ThreadSetting,
+};
+use audiobook_boss_lib::audio::MediaProcessingPlan;
+use audiobook_boss_lib::audio::SampleRateConfig;
 use ffmpeg_next as ff;
 use std::ffi::CString;
 
-use crate::audio::processor::encoder::common::{
+use audiobook_boss_lib::audio::processor::encoder::common::{
     configure_threads, resolve_plan_encoder_settings, try_configure_variable_frame_size,
 };
-use crate::audio::processor::encoder::context::create_audio_encoder;
-use crate::audio::processor::encoder::options::build_fdk_options;
+use audiobook_boss_lib::audio::processor::encoder::context::create_audio_encoder;
+use audiobook_boss_lib::audio::processor::encoder::options::build_fdk_options;
 
 fn fdk_settings() -> EncoderSettings {
     EncoderSettings {

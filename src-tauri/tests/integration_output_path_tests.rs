@@ -22,13 +22,8 @@ fn build_output_path_with_abs_defaults() {
     let dir = tempdir().expect("tempdir");
     let md = sample_metadata();
 
-    let path = build_output_path(
-        dir.path(),
-        Some(&md),
-        OutputNamingConfig::default(),
-        None,
-    )
-    .expect("should build path");
+    let path = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None)
+        .expect("should build path");
 
     let expected = dir.path().join(
         "Dennis E. Taylor/FLY BOT SERIES/Book 24 - Flybot testing/Book 24 - Flybot testing.m4b",
@@ -137,7 +132,10 @@ fn build_output_path_rejects_series_part_with_slash() {
     };
 
     let result = build_output_path(dir.path(), Some(&md), OutputNamingConfig::default(), None);
-    assert!(result.is_err(), "should reject series part containing '/' characters");
+    assert!(
+        result.is_err(),
+        "should reject series part containing '/' characters"
+    );
 }
 
 #[test]

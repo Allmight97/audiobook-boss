@@ -1,5 +1,6 @@
-//! Integration tests for cover art embedding with real media files
-//! Tests the full pipeline using command interface
+//! Integration tests for cover art embedding with real media files.
+//!
+//! Tests the full pipeline using real files and FFmpeg infrastructure.
 
 use audiobook_boss_lib::AudiobookMetadata;
 use std::path::PathBuf;
@@ -93,6 +94,50 @@ fn test_real_mp3_cover_art_integration() {
     }
 
     println!("Real MP3 cover art integration test passed!");
+}
+
+#[test]
+fn test_real_media_file_cover_art_detection() {
+    println!("Testing cover art detection on real media file...");
+
+    let media_file = PathBuf::from(TEST_MEDIA_FILE);
+
+    if !media_file.exists() {
+        println!("Test media file not available, skipping real file test");
+        return;
+    }
+
+    // Test reading metadata from real file
+    match audiobook_boss_lib::commands::read_audio_metadata(
+        media_file.to_string_lossy().to_string(),
+    ) {
+        Ok(metadata) => {
+            println!("✓ Successfully read metadata from real MP3 file");
+            if let Some(ref cover_art) = metadata.cover_art {
+                println!("✓ Cover art found ({} bytes)", cover_art.len());
+
+                // Test format detection on real cover art
+                let format = audiobook_boss_lib::ffmpeg_detect_cover_art_format(cover_art);
+                println!("✓ Cover art format detected: {:?}", format);
+
+                // Test validation on real cover art
+                let warnings =
+                    audiobook_boss_lib::ffmpeg_validate_metadata_compatibility(&metadata);
+                println!("✓ Validation warnings: {}", warnings.len());
+                for warning in &warnings {
+                    println!("  Warning: {}", warning);
+                }
+            } else {
+                println!("Real MP3 file has no cover art to test");
+            }
+        }
+        Err(e) => {
+            println!("Failed to read real MP3 metadata: {}", e);
+            // This might be expected if the file format isn't supported
+        }
+    }
+
+    println!("Real media file test completed!");
 }
 
 fn test_cover_art_round_trip(original_metadata: &AudiobookMetadata, source_file: &PathBuf) {

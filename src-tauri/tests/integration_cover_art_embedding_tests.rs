@@ -101,8 +101,8 @@ fn test_native_cover_art_embedding_end_to_end() {
         "Embedded cover art should result in attached_pic stream"
     );
 
-    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
-        .expect("read metadata");
+    let read_back =
+        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
     let cover_bytes = read_back.cover_art.unwrap_or_default();
     assert!(
         !cover_bytes.is_empty(),

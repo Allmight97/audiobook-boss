@@ -1,12 +1,17 @@
-// Integration tests for path validation implementation across all entry points
-// These tests verify that invalid inputs are rejected at all API boundaries
+//! Integration tests for path validation across all entry points.
+//!
+//! Verifies that invalid inputs are rejected at all API boundaries and
+//! tests symlink handling, output directory validation, and special characters.
 
 use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
-use std::fs::File;
+use std::fs::{File, Permissions};
 use tempfile::TempDir;
 
-/// Test that validate_files command rejects invalid paths
+// ============================================================================
+// Command-level validation tests
+// ============================================================================
+
 #[test]
 fn test_validate_files_rejects_invalid_inputs() {
     // Test nonexistent files
@@ -49,7 +54,6 @@ fn test_validate_files_rejects_invalid_inputs() {
     );
 }
 
-/// Test that analyze_audio_files command properly validates inputs
 #[test]
 fn test_analyze_audio_files_validates_inputs() {
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -110,7 +114,10 @@ fn test_analyze_audio_files_validates_inputs() {
     }
 }
 
-/// Test that audio settings validation works correctly
+// ============================================================================
+// Audio settings validation
+// ============================================================================
+
 #[test]
 fn test_audio_settings_validation() {
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -139,7 +146,63 @@ fn test_audio_settings_validation() {
         .contains("does not exist"));
 }
 
-/// Test that path validation handles special characters correctly
+#[test]
+fn test_output_path_validation_integration() {
+    let temp_dir = TempDir::new().expect("create temp dir");
+
+    // Test valid output path
+    let result = audio::validate_output_path(temp_dir.path().join("valid_output.m4b"));
+    assert!(result.is_ok(), "Valid output path should pass validation");
+
+    // Test invalid extension
+    let result = audio::validate_output_path(temp_dir.path().join("invalid_output.mp3"));
+    assert!(result.is_err(), "Should reject non-.m4b extension");
+    assert!(result
+        .expect_err("expected extension error")
+        .to_string()
+        .contains(".m4b"));
+
+    // Test nonexistent parent directory
+    let result = audio::validate_output_path("/nonexistent/directory/output.m4b");
+    assert!(
+        result.is_err(),
+        "Should reject nonexistent parent directory"
+    );
+    assert!(result
+        .expect_err("expected directory error")
+        .to_string()
+        .contains("does not exist"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_read_only_output_directory_integration() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let readonly_dir = temp_dir.path().join("readonly");
+    std::fs::create_dir(&readonly_dir).expect("create readonly dir");
+
+    // Make directory read-only
+    let readonly_perms = Permissions::from_mode(0o444);
+    std::fs::set_permissions(&readonly_dir, readonly_perms).expect("set readonly permissions");
+
+    let result = audio::validate_output_path(readonly_dir.join("output.m4b"));
+    assert!(result.is_err(), "Should reject read-only output directory");
+    assert!(result
+        .expect_err("expected write permission error")
+        .to_string()
+        .contains("not writable"));
+
+    // Restore permissions for cleanup
+    let normal_perms = Permissions::from_mode(0o755);
+    std::fs::set_permissions(&readonly_dir, normal_perms).expect("restore permissions");
+}
+
+// ============================================================================
+// Special character and Unicode handling
+// ============================================================================
+
 #[test]
 fn test_path_validation_special_characters() {
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -161,7 +224,10 @@ fn test_path_validation_special_characters() {
     }
 }
 
-/// Test symlink handling with integration
+// ============================================================================
+// Symlink handling
+// ============================================================================
+
 #[test]
 #[cfg(unix)] // Symlinks are Unix-specific
 fn test_symlink_integration() {

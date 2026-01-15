@@ -14,5 +14,3 @@ fn test_ffmpeg_error_conversion() {
     let app_error = AppError::from(ffmpeg_error);
     assert!(matches!(app_error, AppError::FFmpeg(_)));
 }
-
-

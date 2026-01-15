@@ -31,9 +31,7 @@ async fn reqwest_replaces_port_zero_with_url_port() -> Result<(), Box<dyn std::e
     });
 
     let resolver = Arc::new(PortZeroResolver { ip: addr.ip() });
-    let client = reqwest::Client::builder()
-        .dns_resolver(resolver)
-        .build()?;
+    let client = reqwest::Client::builder().dns_resolver(resolver).build()?;
     let url = format!("http://example.test:{}/", addr.port());
     let body = client.get(url).send().await?.text().await?;
 
