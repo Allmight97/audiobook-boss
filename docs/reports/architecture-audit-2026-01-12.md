@@ -75,8 +75,9 @@ Audiobook Boss is a macOS desktop app for converting, merging, and tagging audio
 │  │   │   └── cancel.rs    — CancellationChecker (sync polling)              │
 │  │   │                                                                      │
 │  │   ├── progress/        — Progress emission                               │
-│  │   │   ├── mod.rs       — ProgressEvent, ProgressEmitter trait            │
-│  │   │   └── reporter.rs  — ProgressReporter (Tauri window emit)            │
+│  │   │   ├── mod.rs       — ProgressEvent + utils + re-exports                │
+│  │   │   ├── emitter.rs   — ProgressEmitter (Tauri window emit)             │
+│  │   │   └── state.rs     — ProgressReporter (state machine)                │
 │  │   │                                                                      │
 │  │   ├── context/         — Processing context builders                     │
 │  │   ├── path_validation.rs — Input path security (canonicalize, whitelist) │
@@ -120,7 +121,7 @@ UI "Start" → bridge.invoke("process_audiobook_files_v2")
         ├── prepare::validate_and_prepare() → ProcessingWorkflow
         ├── execute::execute_processing() → ffmpeg-next encode
         │       └── frame_pipeline (decode → resample → encode → write)
-        │       └── progress::reporter emits "processing-progress" events
+        │       └── progress::emitter emits "processing-progress" events
         └── finalize::finalize_processing() → mp4ameta metadata write → atomic move
     → JobRegistry.complete_job()
 ```
@@ -183,7 +184,7 @@ UI "Cancel All" → bridge.invoke("cancel_processing")
 | File | Lines | Over By | Extraction Candidates |
 |------|-------|---------|----------------------|
 | `src-tauri/src/audio/settings_encoder.rs` | 469 | +69 | Validation logic vs struct definitions |
-| `src-tauri/src/audio/progress/reporter.rs` | 446 | +46 | Formatting helpers vs emission logic |
+| ~~`src-tauri/src/audio/progress/reporter.rs`~~ | 446 | +46 | **Refactored: split into mod.rs, emitter.rs, state.rs (3 files)** |
 | `src/ui/coverArt.ts` | 427 | +27 | Fetch/validation vs UI rendering |
 | `src-tauri/src/commands/metadata.rs` | 403 | +3 | Cover art loading vs metadata CRUD |
 | `src/ui/encoderPanel/logic.ts` | 401 | +1 | Event handlers vs state management |
@@ -207,7 +208,7 @@ UI "Cancel All" → bridge.invoke("cancel_processing")
 | `processor/engine.rs` | `FfmpegNextProcessor` — implements `MediaProcessor` trait | High |
 | `job_registry/mod.rs` | Semaphore, job tracking, cancellation flags | High |
 | `settings_encoder.rs` | EncoderSettings struct + validation + normalization | Mixed |
-| `progress/reporter.rs` | Progress emission + formatting + throttling | Mixed |
+| ~~`progress/reporter.rs`~~ | ~~Progress emission + formatting + throttling~~ | **Refactored: split into mod.rs, emitter.rs, state.rs (High)** |
 | `commands/metadata.rs` | Metadata CRUD + cover art load/optimize | Mixed |
 | `ui/coverArt.ts` | UI + fetch + validation + optimization | Mixed |
 

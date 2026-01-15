@@ -109,7 +109,10 @@ pub enum ProcessingStage {
 // Re-export main functions for convenience
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
-pub use progress::{ProgressEmitter, ProgressEvent, ProgressReporter};
+pub use progress::{
+    calculate_stage_progress, converting_percentage_from_seconds, format_eta, ProgressEmitter,
+    ProgressEvent, ProgressReporter,
+};
 
 // Job registry for parallel batch processing
 pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
