@@ -9,7 +9,8 @@ This skill captures project-specific patterns for the `mp4ameta` crate (v0.13.0)
 
 ## Tool Cross-Check
 
-- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `mp4ameta::Tag`, `mp4ameta::Userdata`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
+This skill captures known patterns. If you need to verify, go deeper, or something seems
+stale, use the `lib-research` skill (btca for source, Context7 for docs).
 
 ## Why mp4ameta?
 

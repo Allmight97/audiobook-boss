@@ -91,6 +91,97 @@ Prefer CLI-native editing (e.g., jq or cat + here-doc) for config changes unless
 - See Also: 
 
 ---
+## [LRN-20260114-001] best_practice
+
+**Logged**: 2026-01-14T23:30:00Z
+**Priority**: high
+**Status**: promoted
+**Area**: docs
+**Promoted**: .claude/skills/lib-research/SKILL.md
+
+### Summary
+btca is a research delegation tool - don't impose rigid query templates that flow through to the smaller model
+
+### Details
+btca delegates research to a smaller, faster model (e.g., Haiku) that searches library source code. When writing skill instructions for btca usage:
+
+1. **Don't mandate query formats** - rigid templates like "YOU MUST INCLUDE FILE PATH" can confuse the smaller model or cause it to hallucinate to comply
+2. **btca is designed to return citations** - it naturally provides "receipts" (file paths, code snippets) without demanding them
+3. **Validation happens on output, not input** - the primary agent validates btca's response, not the query format
+4. **Anti-hallucination is about output** - "don't fabricate what btca didn't return" not "demand specific output format"
+
+The skill instructions guide the *primary agent* on how to work with btca's output, not instructions that flow through to btca.
+
+### Suggested Action
+When writing skills that use btca, frame guidance as "how to evaluate responses" not "how to structure queries."
+
+### Metadata
+- Source: conversation
+- Related Files: .claude/skills/lib-research/SKILL.md
+- Tags: btca, skills, lib-research, agent-delegation
+
+---
+## [LRN-20260114-002] best_practice
+
+**Logged**: 2026-01-14T23:30:00Z
+**Priority**: medium
+**Status**: promoted
+**Area**: docs
+**Promoted**: .claude/skills/lib-research/SKILL.md, domain skills
+
+### Summary
+Domain skills should defer verification mechanics to lib-research, not duplicate tool instructions
+
+### Details
+Domain skills (mp4ameta-patterns, ffmpeg-next-patterns, etc.) capture project-specific patterns that have already been verified. They should:
+
+1. **Focus on patterns** - the known, verified usage for this project
+2. **Defer verification to lib-research** - "if you need to verify, go deeper, or something seems stale, use lib-research"
+3. **Avoid duplicating tool names** - tool names change; let lib-research own that
+
+This creates a clean separation:
+- lib-research: "how to look things up"
+- domain skills: "what we already know"
+
+Cross-checking between domain skills and lib-research can improve domain skills when stale info is found.
+
+### Suggested Action
+Use standard "Tool Cross-Check" section in domain skills that points to lib-research.
+
+### Metadata
+- Source: conversation
+- Related Files: .claude/skills/lib-research/SKILL.md, .claude/skills/mp4ameta-patterns/SKILL.md, .claude/skills/ffmpeg-next-patterns/SKILL.md, .claude/skills/audiobook-metadata/SKILL.md, .claude/skills/tauri-command-conventions/SKILL.md
+- Tags: skills, lib-research, domain-skills, separation-of-concerns
+
+---
+## [LRN-20260114-003] correction
+
+**Logged**: 2026-01-14T23:30:00Z
+**Priority**: medium
+**Status**: pending
+**Area**: config
+
+### Summary
+btca `list` command launches interactive TUI - use `btca ask -r <resource> -q "..."` for non-interactive queries
+
+### Details
+When testing btca, running `btca list` or `btca` without arguments launches an interactive TUI that blocks execution. For automation/agent use:
+
+- `btca ask -r <resource> -q "question"` - non-interactive single query
+- `btca chat -r <resource>` - interactive (avoid in automation)
+- `btca` - interactive TUI (avoid in automation)
+
+Check available resources via config file (`btca.config.jsonc`) or references doc, not by running `btca list`.
+
+### Suggested Action
+In automation, always use `btca ask -r <resource> -q "..."` pattern.
+
+### Metadata
+- Source: error
+- Related Files: btca.config.jsonc, .claude/skills/lib-research/SKILL.md
+- Tags: btca, automation, cli
+
+---
 ## [LRN-20260112-002] correction
 
 **Logged**: 2026-01-12T21:43:31Z

@@ -9,7 +9,8 @@ This skill captures project-specific patterns for Tauri 2.x commands. Consult be
 
 ## Tool Cross-Check
 
-- For authoritative Tauri event/command API details, use Context7: `mcp__context7-mcp__resolve-library-id` → `mcp__context7-mcp__get-library-docs` with `topic="events"` or `topic="command"`.
+This skill captures known patterns. If you need to verify, go deeper, or something seems
+stale, use the `lib-research` skill (btca for source, Context7 for docs).
 
 ## Internal Docs
 

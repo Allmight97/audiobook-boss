@@ -9,8 +9,8 @@ Reference for audiobook-boss metadata implementation targeting Audiobookshelf (A
 
 ## Tool Cross-Check
 
-- For exact mp4ameta API signatures, use `mcp__rust-docs__docs_rs_get_item` (e.g., `mp4ameta::Tag`). `docs_rs_readme`/`docs_rs_search_in_crate` may 404.
-- For ffmpeg-next metadata dictionary details, defer to `ffmpeg-next-patterns` and confirm types via docs.rs (`ffmpeg_next::format`).
+This skill captures known patterns. If you need to verify, go deeper, or something seems
+stale, use the `lib-research` skill (btca for source, Context7 for docs).
 
 ## Internal Docs
 

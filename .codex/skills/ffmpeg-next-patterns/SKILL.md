@@ -9,7 +9,8 @@ This skill captures project-specific patterns for the `ffmpeg-next` crate. Consu
 
 ## Tool Cross-Check
 
-- For exact signatures/types, use `mcp__rust-docs__docs_rs_get_item` (e.g., `ffmpeg_next::format`, `ffmpeg_next::codec::encoder::audio::Encoder`). Use underscores in module paths (`ffmpeg_next`, not `ffmpeg`). `docs_rs_readme`/`docs_rs_search_in_crate` return 404 for this crate.
+This skill captures known patterns. If you need to verify, go deeper, or something seems
+stale, use the `lib-research` skill (btca for source, Context7 for docs).
 
 ## Crate Import Convention
 
