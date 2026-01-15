@@ -204,3 +204,34 @@ Limit search to likely config locations (e.g., ~/.config, ~/.opencode) or use fi
 - See Also: 
 
 ---
+## [ERR-20260115-001] gh-issue-comment
+
+**Logged**: 2026-01-15T20:18:00Z
+**Priority**: high
+**Status**: pending
+**Area**: docs
+
+### Summary
+Backticks in `gh issue comment -b "..."` were interpreted by zsh, corrupting the comment body.
+
+### Error
+```
+zsh:1: permission denied: src/ui/statusPanel/logic.ts
+zsh:1: command not found: state.ts
+zsh:1: command not found: formatting.ts
+zsh:1: command not found: render.ts
+```
+
+### Context
+- Command: gh issue comment 78 -b "Follow-up ... `src/ui/statusPanel/logic.ts` ... `python3 scripts/analyze_code_lines.py` ..."
+- Shell: zsh
+
+### Suggested Fix
+Use a heredoc or a small Python wrapper to pass the comment body, or avoid backticks in shell-quoted strings.
+
+### Metadata
+- Reproducible: yes
+- Related Files: 
+- See Also: 
+
+---
