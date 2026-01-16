@@ -1,7 +1,15 @@
 # Decisions Log
 
 Newest first. Format defined by `adr-decisions` skill.
-a
+
+## 2026-01-15 — Remove placeholder tests and correct test commands
+Context: Flattening the test tree exposed private-API tests that couldn’t compile as external tests, and placeholder files plus inaccurate test commands were misleading.
+Decision: Delete placeholder test files, track restoration via Issue #159, and document `cargo test --tests` + explicit `--test` examples for the flat layout; keep unit tests fast even if they use TempDir.
+Consequences:
+- Eliminates false coverage signals while preserving a clear restoration path.
+- Documentation now matches Cargo behavior and the flat test structure.
+Links: `src-tauri/tests/`, `src-tauri/AGENTS.md`, `README.md`, Issue #159, PR #158
+
 ## 2026-01-13 — btca guidance lives in lib-research skill
 Context: btca setup and usage guidance needed to be discoverable without bloating root `AGENTS.md`.
 Decision: Move btca instructions to the `lib-research` skill and ignore `.btca/` cache in git.
