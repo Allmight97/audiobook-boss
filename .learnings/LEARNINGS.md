@@ -205,3 +205,26 @@ When a user asks to remove a provider’s models, confirm whether to delete the 
 - See Also: 
 
 ---
+
+## [LRN-20260115-001] correction
+
+**Logged**: 2026-01-15T00:00:00Z
+**Priority**: medium
+**Status**: pending
+**Area**: tooling
+
+### Summary
+Use a heredoc or `--body-file` when creating GitHub issues with `gh` to avoid shell interpretation of backticks or paths.
+
+### Details
+Running `gh issue create --body "...` with unescaped backticks and paths can cause the shell to interpret them as commands, leading to errors and a malformed issue body. A heredoc (or `--body-file`) avoids shell expansion and preserves Markdown formatting.
+
+### Suggested Action
+Prefer `gh issue create --body "$(cat <<'EOF' ... EOF)"` or `gh issue create --body-file <file>` for multi-line issue bodies.
+
+### Metadata
+- Source: command_failure
+- Related Files: scripts/ (usage pattern), .learnings/LEARNINGS.md
+- Tags: gh, tooling, shell, escaping
+
+---
