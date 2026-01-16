@@ -1,9 +1,10 @@
-//! Comprehensive cover art embedding tests for Phase 12 L5 validation
-//! Tests all aspects of the native cover art embedding feature
+//! Unit tests for cover art format detection and validation.
+//!
+//! Tests format detection logic and metadata compatibility validation
+//! without touching real files or FFmpeg infrastructure.
 
 use audiobook_boss_lib::AudiobookMetadata;
 use audiobook_boss_lib::{ffmpeg_detect_cover_art_format, ffmpeg_validate_metadata_compatibility};
-use std::path::PathBuf;
 
 // Test data - minimal valid JPEG and PNG images
 const MINIMAL_JPEG: &[u8] =
@@ -121,49 +122,6 @@ fn test_metadata_compatibility_validation_comprehensive() {
     println!("✓ 10MB cover art (at limit) passed validation");
 
     println!("All metadata validation tests passed!");
-}
-
-#[test]
-fn test_real_media_file_cover_art_detection() {
-    println!("Testing cover art detection on real media file...");
-
-    let media_file = PathBuf::from("../media/01 - Introduction.mp3");
-
-    if !media_file.exists() {
-        println!("Test media file not available, skipping real file test");
-        return;
-    }
-
-    // Test reading metadata from real file
-    match audiobook_boss_lib::commands::read_audio_metadata(
-        media_file.to_string_lossy().to_string(),
-    ) {
-        Ok(metadata) => {
-            println!("✓ Successfully read metadata from real MP3 file");
-            if let Some(ref cover_art) = metadata.cover_art {
-                println!("✓ Cover art found ({} bytes)", cover_art.len());
-
-                // Test format detection on real cover art
-                let format = ffmpeg_detect_cover_art_format(cover_art);
-                println!("✓ Cover art format detected: {:?}", format);
-
-                // Test validation on real cover art
-                let warnings = ffmpeg_validate_metadata_compatibility(&metadata);
-                println!("✓ Validation warnings: {}", warnings.len());
-                for warning in &warnings {
-                    println!("  Warning: {}", warning);
-                }
-            } else {
-                println!("Real MP3 file has no cover art to test");
-            }
-        }
-        Err(e) => {
-            println!("Failed to read real MP3 metadata: {}", e);
-            // This might be expected if the file format isn't supported
-        }
-    }
-
-    println!("Real media file test completed!");
 }
 
 #[test]
@@ -355,54 +313,58 @@ fn test_no_cover_art_validation() {
 }
 
 #[test]
-fn test_twoloop_environment_variable() {
-    println!("Testing twoloop AAC enhancement environment variable handling...");
+fn test_cover_art_format_detection_basic() {
+    // Test the cover art format detection function
+    // Simpler version from cover_art_native_embedding.rs
 
-    // Test disabled state
-    std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
-    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    assert!(disable, "Should detect environment variable as disabled");
-    println!("✓ ABB_DISABLE_TWOLOOP=1 correctly detected as disabled");
+    // Test JPEG detection
+    let jpeg_data = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9";
+    let jpeg_format = ffmpeg_detect_cover_art_format(jpeg_data);
+    assert!(jpeg_format.is_some(), "Should detect JPEG format");
 
-    // Test enabled (default)
-    std::env::remove_var("ABB_DISABLE_TWOLOOP");
-    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    assert!(!disable, "Should default to enabled when env var not set");
-    println!("✓ Default state (no env var) correctly detected as enabled");
+    // Test PNG detection
+    let png_data = b"\x89PNG\r\n\x1A\nrest";
+    let png_format = ffmpeg_detect_cover_art_format(png_data);
+    assert!(png_format.is_some(), "Should detect PNG format");
 
-    // Test alternative true values
-    std::env::set_var("ABB_DISABLE_TWOLOOP", "true");
-    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    assert!(disable, "Should detect 'true' as disabled");
-    println!("✓ ABB_DISABLE_TWOLOOP=true correctly detected as disabled");
-
-    std::env::set_var("ABB_DISABLE_TWOLOOP", "TRUE");
-    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+    // Test unsupported format
+    let gif_data = b"GIF89a";
+    let gif_format = ffmpeg_detect_cover_art_format(gif_data);
     assert!(
-        disable,
-        "Should detect 'TRUE' as disabled (case insensitive)"
+        gif_format.is_none(),
+        "Should not detect unsupported formats"
     );
-    println!("✓ ABB_DISABLE_TWOLOOP=TRUE correctly detected as disabled");
+}
 
-    // Test invalid values (should default to enabled)
-    std::env::set_var("ABB_DISABLE_TWOLOOP", "maybe");
-    let disable = std::env::var("ABB_DISABLE_TWOLOOP")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    assert!(!disable, "Invalid values should default to enabled");
-    println!("✓ Invalid value 'maybe' correctly defaults to enabled");
+#[test]
+fn test_metadata_compatibility_validation_basic() {
+    // Test metadata compatibility validation function
+    // Simpler version from cover_art_native_embedding.rs
 
-    // Clean up
-    std::env::remove_var("ABB_DISABLE_TWOLOOP");
-    println!("✓ Environment variable cleanup completed");
+    let metadata = AudiobookMetadata {
+        title: Some("Test Book".to_string()),
+        track: Some((1, Some(12))), // Should generate warning
+        cover_art: Some(vec![0u8; 15 * 1024 * 1024]), // 15MB - too large, should warn
+        ..Default::default()
+    };
 
-    println!("Twoloop environment variable test passed!");
+    let warnings = ffmpeg_validate_metadata_compatibility(&metadata);
+    assert!(
+        warnings.len() >= 2,
+        "Should generate at least 2 warnings for track and cover art size"
+    );
+
+    // Test that normal metadata doesn't generate warnings
+    let normal_metadata = AudiobookMetadata {
+        title: Some("Normal Book".to_string()),
+        artist: Some("Author".to_string()),
+        cover_art: Some(vec![0u8; 1024]), // 1KB - reasonable size
+        ..Default::default()
+    };
+
+    let warnings = ffmpeg_validate_metadata_compatibility(&normal_metadata);
+    assert!(
+        warnings.is_empty(),
+        "Normal metadata should not generate warnings"
+    );
 }

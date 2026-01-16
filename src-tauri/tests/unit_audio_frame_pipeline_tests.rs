@@ -38,7 +38,10 @@ fn sanitize_chapter_title_preserves_unicode() {
 #[test]
 fn sanitize_chapter_title_handles_multiple_dots() {
     assert_eq!(sanitize_chapter_title("01.Chapter.mp3"), "01.Chapter");
-    assert_eq!(sanitize_chapter_title("Track.01.Audio.m4a"), "Track.01.Audio");
+    assert_eq!(
+        sanitize_chapter_title("Track.01.Audio.m4a"),
+        "Track.01.Audio"
+    );
 }
 
 #[test]

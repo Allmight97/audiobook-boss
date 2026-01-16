@@ -59,15 +59,17 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
 ### Strategy: External Testing
 
 - **Rule**: **No inline tests** (`mod tests`) in `src-tauri/src` except for tiny private helpers.
-- **Location**: `src-tauri/tests/`
-  - `unit/`: functionality of single modules (public API).
-  - `integration/`: cross-module flows.
-  - `contract/`: Tauri command signature verification.
+- **Location**: `src-tauri/tests/` (flat structure)
+  - **Naming convention** (strict):
+    - `unit_*_tests.rs` - Fast tests for a single module; may use TempDir, but avoid FFmpeg/filesystem-heavy flows
+    - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
+  - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
 
 ### Running Tests
 
 ```bash
-cargo test                    # All tests
-cargo test --test unit        # Unit tests only
-cargo test --test integration # Integration tests only
+cargo test                                  # All tests
+cargo test --tests                          # All external test binaries
+cargo test --test unit_audio_buffer_tests   # Specific unit test file
+cargo test --test integration_metadata_tests # Specific integration test file
 ```

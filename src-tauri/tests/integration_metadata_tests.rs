@@ -1,6 +1,6 @@
-//! Integration test for mp4ameta series tag writing.
-
-use std::path::Path;
+//! Integration tests for metadata reading and writing with real M4B/MP3 files.
+//!
+//! Tests mp4ameta series tags, cover art, and FFmpeg fallback behavior.
 
 use audiobook_boss_lib::commands::metadata::{read_audio_metadata, save_metadata_to_file};
 use audiobook_boss_lib::{
@@ -9,11 +9,20 @@ use audiobook_boss_lib::{
 };
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, Tag, WriteConfig};
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-// Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
+// Minimal 1x1 JPEG (JFIF) header (valid tiny image)
 const MINIMAL_JPEG: &[u8] =
     b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9";
+
+fn sample_mp3_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("manifest parent")
+        .join("media")
+        .join("media_20sec.mp3")
+}
 
 fn write_minimal_m4b(output: &Path) {
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
@@ -133,6 +142,92 @@ fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
     octx.write_trailer().expect("write trailer");
 }
 
+// ============================================================================
+// Basic metadata reading error handling
+// ============================================================================
+
+#[test]
+fn read_nonexistent_file_returns_error() {
+    let result = read_audio_metadata("does-not-exist.m4b".to_string());
+    assert!(result.is_err());
+    let message = result.expect_err("error").to_string();
+    assert!(
+        message.contains("File validation failed"),
+        "unexpected error: {message}"
+    );
+}
+
+#[test]
+fn invalid_file_surfaces_ffmpeg_error() {
+    let temp = TempDir::new().expect("temp dir");
+    let path = temp.path().join("invalid.m4b");
+    std::fs::write(&path, b"not audio").expect("write");
+
+    let result = read_audio_metadata(path.to_string_lossy().to_string());
+    assert!(result.is_err());
+    let message = result.expect_err("error").to_string();
+    assert!(
+        message.contains("FFmpeg error"),
+        "unexpected error: {message}"
+    );
+}
+
+// ============================================================================
+// FFmpeg fallback for non-M4B files
+// ============================================================================
+
+#[test]
+fn save_metadata_non_mp4_uses_ffmpeg_path() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = sample_mp3_path();
+    assert!(source.exists(), "sample mp3 should exist");
+    let target = temp.path().join("metadata-test.mp3");
+    std::fs::copy(&source, &target).expect("copy mp3 fixture");
+
+    let metadata = AudiobookMetadata {
+        title: Some("Non-MP4 Title".into()),
+        artist: Some("Non-MP4 Author".into()),
+        ..Default::default()
+    };
+
+    save_metadata_to_file(target.to_string_lossy().to_string(), metadata).expect("save metadata");
+
+    let read_back =
+        read_audio_metadata(target.to_string_lossy().to_string()).expect("read metadata");
+    assert_eq!(read_back.title.as_deref(), Some("Non-MP4 Title"));
+    assert_eq!(read_back.artist.as_deref(), Some("Non-MP4 Author"));
+}
+
+#[test]
+fn mp4ameta_error_falls_back_to_ffmpeg() {
+    let temp = TempDir::new().expect("temp dir");
+    let source = sample_mp3_path();
+    assert!(source.exists(), "sample mp3 should exist");
+    let mp3_path = temp.path().join("fallback.mp3");
+    std::fs::copy(&source, &mp3_path).expect("copy mp3 fixture");
+
+    let metadata = AudiobookMetadata {
+        title: Some("Fallback Title".into()),
+        artist: Some("Fallback Author".into()),
+        ..Default::default()
+    };
+
+    save_metadata_to_file(mp3_path.to_string_lossy().to_string(), metadata).expect("save metadata");
+
+    // Rename to .m4b to force mp4ameta path, then ensure ffmpeg fallback returns data.
+    let spoofed = temp.path().join("fallback.m4b");
+    std::fs::rename(&mp3_path, &spoofed).expect("rename mp3 to m4b");
+
+    let read_back =
+        read_audio_metadata(spoofed.to_string_lossy().to_string()).expect("read metadata");
+    assert_eq!(read_back.title.as_deref(), Some("Fallback Title"));
+    assert_eq!(read_back.artist.as_deref(), Some("Fallback Author"));
+}
+
+// ============================================================================
+// mp4ameta series tag tests
+// ============================================================================
+
 #[test]
 fn writes_series_tags_with_mp4ameta() {
     ff::init().expect("ffmpeg init");
@@ -213,6 +308,97 @@ fn replaces_duplicate_series_atoms_on_save() {
     assert_eq!(tag.movement(), Some("Part 3 - Fringe Worlds"));
     assert_eq!(tag.movement_index(), Some(14));
 }
+
+#[test]
+fn preserves_series_tags_on_cover_art_update() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-preserve.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            series: Some("Dungeon Crawler Carl".into()),
+            series_part: Some("7".into()),
+            ..Default::default()
+        },
+    )
+    .expect("save series metadata");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            cover_art: Some(MINIMAL_JPEG.to_vec()),
+            ..Default::default()
+        },
+    )
+    .expect("update cover art");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+
+    assert_eq!(
+        tag.strings_of(&series_ident).next(),
+        Some("Dungeon Crawler Carl")
+    );
+    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
+    assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
+    assert_eq!(tag.movement_index(), Some(7));
+    assert!(
+        tag.artwork().is_some(),
+        "cover art update should add artwork without clearing series tags"
+    );
+}
+
+#[test]
+fn preserves_series_tags_on_metadata_only_save() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-metadata-save.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("This Inevitable Spanking".into()),
+            series: Some("Dungeon Crawler Carl".into()),
+            series_part: Some("7".into()),
+            ..Default::default()
+        },
+    )
+    .expect("save metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+
+    assert_eq!(
+        tag.strings_of(&series_ident).next(),
+        Some("Dungeon Crawler Carl")
+    );
+    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
+    assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
+    assert_eq!(tag.movement_index(), Some(7));
+    assert_eq!(
+        tag.album_sort_order(),
+        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
+    );
+
+    let read_back =
+        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
+    );
+}
+
+// ============================================================================
+// Cover art tests
+// ============================================================================
 
 #[test]
 fn writes_cover_art_with_mp4ameta_and_reads_back() {
@@ -301,92 +487,5 @@ fn reads_cover_art_when_attached_pic_present() {
     assert!(
         !cover_bytes.is_empty(),
         "read metadata should return attached_pic cover art bytes"
-    );
-}
-
-#[test]
-fn preserves_series_tags_on_cover_art_update() {
-    ff::init().expect("ffmpeg init");
-
-    let temp = TempDir::new().expect("temp dir");
-    let output = temp.path().join("series-preserve.m4b");
-
-    write_minimal_m4b(&output);
-    save_metadata_to_file(
-        output.to_string_lossy().to_string(),
-        AudiobookMetadata {
-            series: Some("Dungeon Crawler Carl".into()),
-            series_part: Some("7".into()),
-            ..Default::default()
-        },
-    )
-    .expect("save series metadata");
-
-    save_metadata_to_file(
-        output.to_string_lossy().to_string(),
-        AudiobookMetadata {
-            cover_art: Some(MINIMAL_JPEG.to_vec()),
-            ..Default::default()
-        },
-    )
-    .expect("update cover art");
-
-    let tag = Tag::read_from_path(&output).expect("read tag");
-    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
-    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
-
-    assert_eq!(
-        tag.strings_of(&series_ident).next(),
-        Some("Dungeon Crawler Carl")
-    );
-    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
-    assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
-    assert_eq!(tag.movement_index(), Some(7));
-    assert!(
-        tag.artwork().is_some(),
-        "cover art update should add artwork without clearing series tags"
-    );
-}
-
-#[test]
-fn preserves_series_tags_on_metadata_only_save() {
-    ff::init().expect("ffmpeg init");
-
-    let temp = TempDir::new().expect("temp dir");
-    let output = temp.path().join("series-metadata-save.m4b");
-
-    write_minimal_m4b(&output);
-    save_metadata_to_file(
-        output.to_string_lossy().to_string(),
-        AudiobookMetadata {
-            title: Some("This Inevitable Spanking".into()),
-            series: Some("Dungeon Crawler Carl".into()),
-            series_part: Some("7".into()),
-            ..Default::default()
-        },
-    )
-    .expect("save metadata");
-
-    let tag = Tag::read_from_path(&output).expect("read tag");
-    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
-    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
-
-    assert_eq!(
-        tag.strings_of(&series_ident).next(),
-        Some("Dungeon Crawler Carl")
-    );
-    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
-    assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
-    assert_eq!(tag.movement_index(), Some(7));
-    assert_eq!(
-        tag.album_sort_order(),
-        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
-    );
-
-    let read_back =
-        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
-    assert_eq!(
-        read_back.album_sort.as_deref(),
-        Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
     );
 }

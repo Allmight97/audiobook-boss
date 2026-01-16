@@ -201,3 +201,61 @@ fn test_resolve_encoder_type_prefers_available() {
     );
     assert_eq!(resolved, EncoderType::NativeAac);
 }
+
+#[test]
+fn test_twoloop_environment_variable() {
+    // Helper to check the environment variable state
+    let is_twoloop_disabled = || {
+        std::env::var("ABB_DISABLE_TWOLOOP")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+    };
+
+    // Test ABB_DISABLE_TWOLOOP environment variable handling
+    // This environment variable controls whether the two-loop AAC enhancement algorithm is used
+
+    println!("Testing twoloop AAC enhancement environment variable handling...");
+
+    // Test disabled state with "1"
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
+    assert!(
+        is_twoloop_disabled(),
+        "Should detect environment variable as disabled"
+    );
+    println!("✓ ABB_DISABLE_TWOLOOP=1 correctly detected as disabled");
+
+    // Test enabled (default when env var not set)
+    std::env::remove_var("ABB_DISABLE_TWOLOOP");
+    assert!(
+        !is_twoloop_disabled(),
+        "Should default to enabled when env var not set"
+    );
+    println!("✓ Default state (no env var) correctly detected as enabled");
+
+    // Test alternative true value: "true" (lowercase)
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "true");
+    assert!(is_twoloop_disabled(), "Should detect 'true' as disabled");
+    println!("✓ ABB_DISABLE_TWOLOOP=true correctly detected as disabled");
+
+    // Test alternative true value: "TRUE" (uppercase - case insensitive)
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "TRUE");
+    assert!(
+        is_twoloop_disabled(),
+        "Should detect 'TRUE' as disabled (case insensitive)"
+    );
+    println!("✓ ABB_DISABLE_TWOLOOP=TRUE correctly detected as disabled");
+
+    // Test invalid values (should default to enabled)
+    std::env::set_var("ABB_DISABLE_TWOLOOP", "maybe");
+    assert!(
+        !is_twoloop_disabled(),
+        "Invalid values should default to enabled"
+    );
+    println!("✓ Invalid value 'maybe' correctly defaults to enabled");
+
+    // Clean up
+    std::env::remove_var("ABB_DISABLE_TWOLOOP");
+    println!("✓ Environment variable cleanup completed");
+
+    println!("Twoloop environment variable test passed!");
+}

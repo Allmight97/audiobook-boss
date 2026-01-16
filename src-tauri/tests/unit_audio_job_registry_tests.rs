@@ -1,6 +1,6 @@
 use audiobook_boss_lib::audio::job_registry::{AggregateJobStatus, JobId, JobRegistry, JobState};
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[test]
 fn test_job_id_uniqueness() {
@@ -178,12 +178,7 @@ async fn test_stress_concurrent_registration_respects_limit() {
             let current = active.fetch_add(1, Ordering::SeqCst) + 1;
             let mut observed = peak.load(Ordering::SeqCst);
             while current > observed {
-                match peak.compare_exchange(
-                    observed,
-                    current,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                ) {
+                match peak.compare_exchange(observed, current, Ordering::SeqCst, Ordering::SeqCst) {
                     Ok(_) => break,
                     Err(new_obs) => observed = new_obs,
                 }

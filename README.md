@@ -46,9 +46,12 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 ### Testing (run from `src-tauri/`)
 
 ```bash
-cargo test                        # All tests (unit + integration)
-cargo clippy -- -D warnings       # Lint checks (must pass)
-cargo test path_validation        # Path security subset by name filter
+cargo test                              # All tests (unit + integration)
+cargo test --tests                      # All external test binaries
+cargo test --test unit_audio_buffer_tests   # Specific unit test file
+cargo test --test integration_metadata_tests # Specific integration test file
+cargo clippy -- -D warnings             # Lint checks (must pass)
+cargo test path_validation              # Path security subset by name filter
 ```
 
 ### Build & Run
@@ -102,8 +105,9 @@ RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 
 ### Test Organization
 
-- External unit tests: `src-tauri/tests/unit/{audio,metadata,commands}/`
-- Integration tests: `src-tauri/tests/*.rs`
+- External tests: `src-tauri/tests/` (flat structure)
+  - `unit_*_tests.rs` for fast, single-module tests
+  - `integration_*_tests.rs` for cross-module or FFmpeg/filesystem tests
 - Inline tests: only for private/`pub(crate)` internals not testable externally
 - Frontend: manual testing via `window.testCommands` (see `src/main.ts`)
 
@@ -152,6 +156,9 @@ RUST_LOG=debug bun run tauri dev
 
 # All tests + lints
 cargo test
+cargo test --tests
+cargo test --test unit_audio_buffer_tests
+cargo test --test integration_metadata_tests
 cargo clippy -- -D warnings
 
 # Path validation-focused tests
