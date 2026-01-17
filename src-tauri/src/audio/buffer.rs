@@ -358,8 +358,3 @@ impl SampleAccumulator {
         Some(frame)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    // Tests moved to src-tauri/tests/unit.
-}

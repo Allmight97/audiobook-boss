@@ -154,7 +154,7 @@ When working on the following areas, load the matching skill and follow its guar
 
 **Exception Policy (Limited Use)**:
 
-- **Inline tests**: Only for tiny private helpers, with `// EXCEPTION: tiny helper unit tests` in the module. Otherwise use `src-tauri/tests/`.
+- **Inline tests**: Default to external tests (`src-tauri/tests/`). Inline tests are allowed for tiny helpers or private-API access with explicit exception tags; see `src-tauri/AGENTS.md` for details.
 - **>400 LOC files**: Treat 400 LOC as an early warning. If a change will exceed it, either extract a submodule or add `// EXCEPTION: [reason]` and note intent to refactor.
 - **Pre-edit check**: For changes likely to add >50 LOC, run `python3 scripts/analyze_code_lines.py` and call out any impacted files in your plan.
 
@@ -169,7 +169,7 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`.
 
 ## Testing & Verification
 
-See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy and locations.
+See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy, locations, and inline-test exceptions.
 
 ---
 

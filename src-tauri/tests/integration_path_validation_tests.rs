@@ -3,6 +3,9 @@
 //! Verifies that invalid inputs are rejected at all API boundaries and
 //! tests symlink handling, output directory validation, and special characters.
 
+use audiobook_boss_lib::audio::path_validation::{
+    validate_input_audio_path, validate_input_image_path,
+};
 use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
 use std::fs::{File, Permissions};
@@ -253,5 +256,127 @@ fn test_symlink_integration() {
     assert!(
         file.path.is_absolute(),
         "Should use canonical absolute path"
+    );
+}
+
+// ============================================================================
+// Audio path validation edge cases
+// ============================================================================
+
+#[test]
+fn test_rejects_cr_lf_nul_in_path() {
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let path = temp_dir.path().join("bad\nname.mp3");
+    let _ = File::create(&path);
+    let err = validate_input_audio_path(&path)
+        .expect_err("paths with invalid characters should fail validation");
+    assert!(err.to_string().contains("invalid characters"));
+}
+
+#[test]
+fn test_case_insensitive_extension() {
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let path = temp_dir.path().join("test.MP3");
+    File::create(&path).expect("create uppercase extension file");
+    let result = validate_input_audio_path(&path);
+    assert!(result.is_ok(), "Uppercase extension should be accepted");
+}
+
+#[test]
+fn test_rejects_empty_path() {
+    let empty_path = std::path::PathBuf::new();
+    let err =
+        validate_input_audio_path(&empty_path).expect_err("empty path should fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Cannot read file metadata") || msg.contains("no extension"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_broken_symlink_rejected() {
+    use std::os::unix::fs::symlink;
+
+    let dir = TempDir::new().expect("create temp dir");
+    let target = dir.path().join("nonexistent.mp3");
+    let link = dir.path().join("broken_link.mp3");
+    symlink(&target, &link).expect("create symlink to nonexistent file");
+
+    let err = validate_input_audio_path(&link).expect_err("broken symlink should fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Cannot read file metadata") || msg.contains("canonicalize"));
+}
+
+// ============================================================================
+// Image path validation
+// ============================================================================
+
+#[test]
+fn test_image_rejects_nonexistent_path() {
+    let bogus = std::path::PathBuf::from("/this/path/does/not/exist.jpg");
+    let err = validate_input_image_path(&bogus)
+        .expect_err("non-existent image path should fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Cannot read file metadata"));
+}
+
+#[test]
+fn test_image_rejects_invalid_extension() {
+    let dir = TempDir::new().expect("create temp dir");
+    let path = dir.path().join("file.txt");
+    File::create(&path).expect("create temp file");
+    let err = validate_input_image_path(&path)
+        .expect_err("invalid image extension should fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Unsupported image format"));
+}
+
+#[test]
+fn test_image_accepts_supported_extensions() {
+    let dir = TempDir::new().expect("create temp dir");
+    let extensions = ["jpg", "jpeg", "png", "webp"];
+
+    for ext in extensions {
+        let path = dir.path().join(format!("cover.{}", ext));
+        File::create(&path).expect("create temp image file");
+        let result = validate_input_image_path(&path);
+        assert!(
+            result.is_ok(),
+            "Image extension {} should be supported",
+            ext
+        );
+    }
+}
+
+#[test]
+fn test_image_rejects_audio_extension() {
+    let dir = TempDir::new().expect("create temp dir");
+    let path = dir.path().join("audio.mp3");
+    File::create(&path).expect("create temp file");
+    let err =
+        validate_input_image_path(&path).expect_err("audio extension should fail image validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Unsupported image format"));
+}
+
+#[test]
+fn test_image_canonicalizes_path() {
+    let dir = TempDir::new().expect("create temp dir");
+    let path = dir.path().join("cover.png");
+    File::create(&path).expect("create temp image file");
+    let canon = validate_input_image_path(&path).expect("valid image path should be canonicalized");
+    assert!(canon.is_absolute());
+}
+
+#[test]
+fn test_image_rejects_traversal_attempt() {
+    let dir = TempDir::new().expect("create temp dir");
+    let traversal = dir.path().join("..").join("..").join("etc").join("passwd");
+    let err =
+        validate_input_image_path(&traversal).expect_err("traversal path should fail validation");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Unsupported image format")
+            || msg.contains("Cannot read file metadata")
+            || msg.contains("no extension")
     );
 }

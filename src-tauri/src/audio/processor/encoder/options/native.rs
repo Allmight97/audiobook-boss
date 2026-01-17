@@ -43,6 +43,7 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
     opts
 }
 
+// EXCEPTION: tiny helper inline test
 #[cfg(test)]
 mod tests {
     use super::*;

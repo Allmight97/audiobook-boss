@@ -1,3 +1,5 @@
+// EXCEPTION: requires private API access (URL validation + resolver internals)
+
 use super::{is_supported_image_content_type, validate_cover_art_url, BogonFilteringResolver};
 use reqwest::dns::Name;
 use reqwest::dns::Resolve;

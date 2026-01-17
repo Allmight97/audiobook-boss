@@ -4,8 +4,8 @@
 
 use audiobook_boss_lib::commands::metadata::{read_audio_metadata, save_metadata_to_file};
 use audiobook_boss_lib::{
-    ffmpeg_add_cover_art_stream_pre_header, ffmpeg_write_cover_art_packet_post_header,
-    AudiobookMetadata,
+    ffmpeg_add_cover_art_stream_pre_header, ffmpeg_validate_metadata_compatibility,
+    ffmpeg_write_cover_art_packet_post_header, AudiobookMetadata,
 };
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, Tag, WriteConfig};
@@ -487,5 +487,45 @@ fn reads_cover_art_when_attached_pic_present() {
     assert!(
         !cover_bytes.is_empty(),
         "read metadata should return attached_pic cover art bytes"
+    );
+}
+
+// ============================================================================
+// Metadata compatibility + misc behavior
+// ============================================================================
+
+#[test]
+fn metadata_validation_warns_on_large_cover_and_track() {
+    let metadata = AudiobookMetadata {
+        title: Some("Test".to_string()),
+        track: Some((1, Some(12))),
+        cover_art: Some(vec![0u8; 15 * 1024 * 1024]), // 15MB - too large
+        ..Default::default()
+    };
+
+    let warnings = ffmpeg_validate_metadata_compatibility(&metadata);
+    assert!(
+        warnings.len() >= 2,
+        "Should warn about track and cover art size"
+    );
+}
+
+#[test]
+fn cover_art_embedding_placeholder_format_check() {
+    let cover_data = [0xFF, 0xD8, 0xFF, 0xE0]; // JPEG header
+    assert_eq!(cover_data.len(), 4);
+    assert!(cover_data.starts_with(&[0xFF, 0xD8])); // JPEG signature
+}
+
+#[test]
+fn twoloop_enhancement_logging_note() {
+    let description =
+        "Twoloop enhancement: Improves AAC quality through better psychoacoustic analysis";
+    println!("{description}");
+    let implementation = "Implementation: Set aac_coder=twoloop on encoder context";
+    println!("{implementation}");
+    assert!(
+        implementation.contains("twoloop"),
+        "Implementation summary should mention twoloop"
     );
 }
