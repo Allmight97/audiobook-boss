@@ -516,16 +516,3 @@ fn cover_art_embedding_placeholder_format_check() {
     assert_eq!(cover_data.len(), 4);
     assert!(cover_data.starts_with(&[0xFF, 0xD8])); // JPEG signature
 }
-
-#[test]
-fn twoloop_enhancement_logging_note() {
-    let description =
-        "Twoloop enhancement: Improves AAC quality through better psychoacoustic analysis";
-    println!("{description}");
-    let implementation = "Implementation: Set aac_coder=twoloop on encoder context";
-    println!("{implementation}");
-    assert!(
-        implementation.contains("twoloop"),
-        "Implementation summary should mention twoloop"
-    );
-}
