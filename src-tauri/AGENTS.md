@@ -70,6 +70,8 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
     - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
   - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
 
+**Tiered checks**: Follow the repo-wide Quick/Standard/Release tiers in `AGENTS.md` and use `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, and `scripts/release-checks.sh` from the repo root.
+
 ### Running Tests
 
 ```bash

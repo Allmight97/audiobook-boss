@@ -52,22 +52,19 @@ Scale: 1 (poor) • 2 (needs work) • 3 (acceptable) • 4 (production ready) �
 
 ## Checks & Gates
 
-**Required checks**
+**Tiered checks (run from repo root)**
 
-- Pre-commit: `scripts/quick-checks.sh` (docs-only exempt).
-- Pre-PR/branch: run full checks (docs-only exempt).
+- **Quick (pre-commit / iteration)**: `scripts/quick-checks.sh`
+  - Optional: set `SKIP_TS_CHECK=1` for Rust-only loops.
+- **Standard (pre-push / PR readiness)**: `scripts/standard-checks.sh`
+  - Runs Quick with `SKIP_TS_CHECK=1`, then `cargo test`, then `bun run build` (includes `tsc`).
+- **Release (pre-release)**: `scripts/release-checks.sh`
+  - Runs Standard, then `cargo build --release -p audiobook-boss`.
 
-**Full checks** (from `src-tauri/`):
-
-```bash
-cargo fmt --all -- --check
-cargo clippy -- -D warnings
-cargo test
-scripts/ensure-contract.sh
-bun run build  # from repo root
-```
-
-**Run full checks**: before PR/branch, before merge, before release, or when runtime behavior changes.
+**When to run**
+- Quick: before committing and during AI iteration loops.
+- Standard: before pushing a PR/publishing a branch, before merging to `main`, or when changes touch runtime behavior.
+- Release: before tagging/publishing a release.
 
 ## Version & Changelog
 

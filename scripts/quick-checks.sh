@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the fast "green baseline" checks documented in AGENTS.md.
+# Runs the Quick tier checks documented in AGENTS.md.
 # Exits on the first failure so callers get clear feedback.
 
 set -euo pipefail

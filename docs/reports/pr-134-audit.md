@@ -61,7 +61,8 @@ Tri-order impact: 1st‑order, edits appear saved but aren’t (and bulk apply c
 - Post-fix: Design 4/5 · Practice 4/5 · Code & Solution Quality 4/5 — core flows implemented with tests; remaining gaps are minor polish.
 
 **Tests & Checks**
-- `scripts/quick-checks.sh` (cargo fmt/clippy, ensure-contract, tsc)
+- `scripts/quick-checks.sh` (Tier: Quick)
 - `bun run test`
 - `cargo test` (from `src-tauri/`)
   - Note: ffmpeg/codec warnings observed in test logs; tests still passed.
+- Note: Repo now uses tiered checks (`scripts/standard-checks.sh`, `scripts/release-checks.sh`) — see `AGENTS.md`.

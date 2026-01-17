@@ -69,7 +69,7 @@ Use this scale to rate the quality of code and solutions:
 
 - Prefer (git) staging coherent units of work and committing at logical stopping points.
 - Optional: enable repo hooks with `git config core.hooksPath .githooks`.
-- Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates**). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
+- Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates** tiers). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
 - PR review via automated GitHub agent (Gemini). CI workflow is optional/manual and should not be relied upon.
 - PR reviews: always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 - Feature branches → PR → review → merge to main
@@ -77,22 +77,19 @@ Use this scale to rate the quality of code and solutions:
 
 ## Checks & Gates
 
-**Required checks**
+**Tiered checks (run from repo root)**
 
-- Before committing: run `scripts/quick-checks.sh` (skip only for documentation-only changes as defined in Workflow Dynamics).
-- Before pushing a PR or publishing a branch: run the full checks below (skip only for documentation-only changes as defined in Workflow Dynamics).
+- **Quick (pre-commit / iteration)**: `scripts/quick-checks.sh`
+  - Optional: set `SKIP_TS_CHECK=1` for Rust-only loops.
+- **Standard (pre-push / PR readiness)**: `scripts/standard-checks.sh`
+  - Runs Quick with `SKIP_TS_CHECK=1`, then `cargo test`, then `bun run build` (includes `tsc`).
+- **Release (pre-release)**: `scripts/release-checks.sh`
+  - Runs Standard, then `cargo build --release -p audiobook-boss`.
 
-**Full checks** (from repo root):
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test
-scripts/ensure-contract.sh
-bun run build  # from repo root
-```
-
-**When to run full checks**: Before pushing a PR or publishing a branch, before merging to `main`, preparing a release, or when changes touch runtime behavior (encoder, progress, metadata).
+**When to run**
+- Quick: before committing and during AI iteration loops.
+- Standard: before pushing a PR/publishing a branch, before merging to `main`, or when changes touch runtime behavior (encoder, progress, metadata).
+- Release: before tagging/publishing a release.
 
 ## Version & Changelog
 

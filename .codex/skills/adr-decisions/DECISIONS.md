@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-01-17 — Adopt tiered testing checks
+Context: Agents needed a clear, non-redundant check loop for iteration, PR readiness, and releases.
+Decision: Define Quick/Standard/Release tiers and add scripts for Standard/Release while keeping Quick as the fast baseline.
+Consequences:
+- Faster AI iteration without skipping important gates.
+- Reduced redundancy (tsc runs via `bun run build` in Standard).
+- Clear release-only build step for `cargo build --release`.
+Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, `scripts/release-checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
+
 ## 2026-01-17 — Relax inline test policy for private helpers
 Context: External-only tests made private helper coverage cumbersome while restoring tests for #159/#160.
 Decision: Keep external tests as the default, allow inline tests for tiny helpers or private-API access with explicit exception tags, and forbid large integration suites inline.

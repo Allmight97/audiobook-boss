@@ -50,7 +50,7 @@
 
 ### Pre-Release
 - [ ] All must-fix issues resolved
-- [ ] Run full checks: `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test && scripts/ensure-contract.sh && bun run build`
+- [ ] Run release checks: `scripts/release-checks.sh` (runs Standard tier + `cargo build --release -p audiobook-boss`)
 - [ ] Manual smoke test (create M4B, edit metadata, batch process)
 
 ### Release
