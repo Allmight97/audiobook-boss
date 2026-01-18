@@ -1,4 +1,4 @@
-//! Encoder v2 settings types and validation (Phase 2 — shrink.sh lift)
+//! Encoder v2 settings types and validation
 //!
 //! This module defines the advanced encoder settings surface used by the
 //! v2 command, along with validation helpers and encoder availability probes.

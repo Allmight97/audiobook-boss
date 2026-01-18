@@ -47,7 +47,7 @@ const ensureDomCache = (): EncoderDomCache => {
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 const PERSIST_DEBOUNCE_MS = 300;
 
-/** VBR level to estimated bitrate mapping (from shrink.sh) */
+/** VBR level to estimated bitrate mapping */
 const VBR_BITRATE_ESTIMATES: Record<VbrLevel, number> = {
   1: 32,
   2: 48,
