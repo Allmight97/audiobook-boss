@@ -23,27 +23,7 @@ on:
       - '!.agent/**'
       - '!**/*.md'
       - '!**/.DS_Store'
-  push:
-    branches: [main]
-    paths:
-      # Code paths that should trigger CI
-      - 'src/**'
-      - 'src-tauri/src/**'
-      - 'src-tauri/tests/**'
-      - 'src-tauri/Cargo.toml'
-      - 'src-tauri/Cargo.lock'
-      - 'package.json'
-      - 'bun.lockb'
-      - 'tsconfig.json'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
-      # Explicit exclusions (first-line defense)
-      - '!docs/**'
-      - '!.codex/**'
-      - '!.claude/**'
-      - '!.agent/**'
-      - '!**/*.md'
-      - '!**/.DS_Store'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -52,6 +32,7 @@ permissions:
 jobs:
   # Fast check to determine if code actually changed (second-line defense for PRs)
   changes:
+    if: github.event_name == 'workflow_dispatch' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.filter.outputs.code }}
@@ -77,8 +58,8 @@ jobs:
 
   quality-gate:
     needs: changes
-    # Fail-open: run if code changed OR if detection failed (don't skip CI on filter errors)
-    if: needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'
+    # Dependabot-only + fail-open when filter fails
+    if: github.event_name == 'workflow_dispatch' || (github.actor == 'dependabot[bot]' && (needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'))
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
       - uses: actions/checkout@v6
@@ -91,23 +72,9 @@ jobs:
       - name: Install dependencies
         run: bun install
         
-      - name: Rust Format Check
-        working-directory: src-tauri
-        run: cargo fmt --all -- --check
+      - name: Standard Checks (tiered)
+        run: scripts/standard-checks.sh
 
-      - name: Rust Clippy
-        working-directory: src-tauri
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Contract Verification
-        run: chmod +x scripts/ensure-contract.sh && ./scripts/ensure-contract.sh
-
-      - name: TypeScript Typecheck
-        run: bunx tsc -p tsconfig.json --noEmit
-        
-      - name: Rust Tests
-        run: cd src-tauri && cargo test
-        
       - name: TypeScript Tests
         run: bun run test
         

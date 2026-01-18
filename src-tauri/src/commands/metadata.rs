@@ -399,5 +399,4 @@ fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImag
 }
 
 #[cfg(test)]
-// EXCEPTION: security helper unit tests
 mod metadata_tests;

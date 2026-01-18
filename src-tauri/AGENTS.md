@@ -58,12 +58,19 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
 
 ### Strategy: External Testing
 
-- **Rule**: **No inline tests** (`mod tests`) in `src-tauri/src` except for tiny private helpers.
+- **Default**: tests live in `src-tauri/tests/` (flat structure).
+- **Exception 1**: tiny private helpers (<50 LOC, no I/O, no FFmpeg, no TempDir) may keep inline tests.
+  - Mark with `// EXCEPTION: tiny helper inline test`.
+- **Exception 2**: tests requiring non-pub API access may be inline **only** if they are unit-only and avoid I/O/FFmpeg/TempDir.
+  - Mark with `// EXCEPTION: requires private API access`.
+- **Anti-pattern**: large integration suites (FFmpeg/filesystem/network) under `src-tauri/src`.
 - **Location**: `src-tauri/tests/` (flat structure)
   - **Naming convention** (strict):
     - `unit_*_tests.rs` - Fast tests for a single module; may use TempDir, but avoid FFmpeg/filesystem-heavy flows
     - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
   - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
+
+**Tiered checks**: Follow the repo-wide Quick/Standard/Release tiers in `AGENTS.md` and use `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, and `scripts/release-checks.sh` from the repo root.
 
 ### Running Tests
 

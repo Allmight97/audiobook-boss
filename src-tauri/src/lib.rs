@@ -16,11 +16,13 @@ pub use metadata::ffmpeg_bridge::{
     CoverFormat as FfmpegCoverFormat,
 };
 pub use metadata::AudiobookMetadata;
-pub mod audio;
 
-#[cfg(test)]
-pub mod tests_integration;
-pub mod tests_metadata_integration; // formerly feature-gated
+// Test-facing passthrough helpers used by integration tests.
+pub use metadata::passthrough::{
+    add_chapters_to_output, extract_passthrough_metadata, ChapterSpec,
+};
+
+pub mod audio;
 
 use std::sync::Arc;
 

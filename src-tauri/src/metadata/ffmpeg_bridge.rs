@@ -18,3 +18,35 @@ pub use super::remux::rewrite_metadata_with_ffmpeg;
 pub fn metadata_to_ffmpeg_dict(metadata: &super::AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
     super::ffmpeg_dict::metadata_to_ffmpeg_dict(metadata)
 }
+
+// EXCEPTION: requires private API access
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_to_ffmpeg_conversion_includes_core_fields() {
+        let metadata = super::super::AudiobookMetadata {
+            title: Some("Test Audiobook".to_string()),
+            artist: Some("Test Author".to_string()),
+            album: Some("Test Series".to_string()),
+            composer: Some("Test Narrator".to_string()),
+            genre: Some("Audiobook".to_string()),
+            date: Some(2025),
+            description: Some("A test audiobook for metadata integration".to_string()),
+            cover_art: Some(vec![0xFF, 0xD8, 0xFF, 0xE0]),
+            ..Default::default()
+        };
+
+        let dict_result = metadata_to_ffmpeg_dict(&metadata);
+        assert!(dict_result.is_ok(), "Metadata conversion should succeed");
+
+        let dict = dict_result.expect("metadata conversion should succeed");
+        assert!(dict.get("title").is_some(), "Title should be present");
+        assert!(dict.get("artist").is_some(), "Artist should be present");
+        assert!(
+            dict.get("media_type").is_some(),
+            "Media type should be set for audiobooks"
+        );
+    }
+}

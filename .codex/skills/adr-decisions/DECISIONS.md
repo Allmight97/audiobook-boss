@@ -2,6 +2,24 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-01-17 — Adopt tiered testing checks
+Context: Agents needed a clear, non-redundant check loop for iteration, PR readiness, and releases.
+Decision: Define Quick/Standard/Release tiers and add scripts for Standard/Release while keeping Quick as the fast baseline.
+Consequences:
+- Faster AI iteration without skipping important gates.
+- Reduced redundancy (tsc runs via `bun run build` in Standard).
+- Clear release-only build step for `cargo build --release`.
+Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, `scripts/release-checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
+
+## 2026-01-17 — Relax inline test policy for private helpers
+Context: External-only tests made private helper coverage cumbersome while restoring tests for #159/#160.
+Decision: Keep external tests as the default, allow inline tests for tiny helpers or private-API access with explicit exception tags, and forbid large integration suites inline.
+Consequences:
+- Reduces test scaffolding while preserving a clear default.
+- Keeps private APIs private without new test-only exports.
+- Requires consistent exception tagging to avoid drift.
+Links: `src-tauri/AGENTS.md`, `AGENTS.md`, Issue #159, Issue #160
+
 ## 2026-01-15 — Remove placeholder tests and correct test commands
 Context: Flattening the test tree exposed private-API tests that couldn’t compile as external tests, and placeholder files plus inaccurate test commands were misleading.
 Decision: Delete placeholder test files, track restoration via Issue #159, and document `cargo test --tests` + explicit `--test` examples for the flat layout; keep unit tests fast even if they use TempDir.

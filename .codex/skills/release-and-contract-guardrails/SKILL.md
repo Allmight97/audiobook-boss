@@ -16,18 +16,22 @@ Follow these steps to avoid version drift and TS/Rust contract mismatches.
 
 ## Optional Checks (Before Merge/Release)
 
+Quick tier (pre-commit / iteration):
+
 ```bash
 scripts/quick-checks.sh
 ```
 
-Full checks (from `src-tauri/`):
+Standard tier (pre-push / PR readiness):
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy -- -D warnings
-cargo test
-scripts/ensure-contract.sh
-bun run build
+scripts/standard-checks.sh
+```
+
+Release tier (pre-release only):
+
+```bash
+scripts/release-checks.sh
 ```
 
 ## Codebase Pointers
