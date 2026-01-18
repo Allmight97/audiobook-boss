@@ -53,3 +53,32 @@ Object.defineProperty(window, '__TAURI_INTERNALS__', {
 // Set import.meta.env.DEV to true for tests
 // This allows the bridge to use mocks in test environment
 vi.stubEnv('DEV', true);
+
+const storage = new Map<string, string>();
+const localStorageMock = {
+  getItem: (key: string): string | null =>
+    storage.has(key) ? storage.get(key)! : null,
+  setItem: (key: string, value: string): void => {
+    storage.set(key, value);
+  },
+  removeItem: (key: string): void => {
+    storage.delete(key);
+  },
+  clear: (): void => {
+    storage.clear();
+  },
+  key: (index: number): string | null =>
+    Array.from(storage.keys())[index] ?? null,
+  get length(): number {
+    return storage.size;
+  },
+};
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  configurable: true,
+});

@@ -8,8 +8,21 @@ use audiobook_boss_lib::audio::path_validation::{
 };
 use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
-use std::fs::{File, Permissions};
+use std::fs::{self, File, Permissions};
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+
+fn sample_mp3_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("manifest dir parent")
+        .join("media")
+        .join("media_20sec.mp3")
+}
+
+fn copy_sample_mp3(target: &Path) {
+    fs::copy(sample_mp3_path(), target).expect("copy mp3 fixture");
+}
 
 // ============================================================================
 // Command-level validation tests
@@ -63,7 +76,7 @@ fn test_analyze_audio_files_validates_inputs() {
 
     // Test with mix of valid and invalid files
     let valid_file = temp_dir.path().join("valid.mp3");
-    File::create(&valid_file).expect("create valid file");
+    copy_sample_mp3(&valid_file);
 
     let files = vec![
         "nonexistent.mp3".to_string(),
@@ -84,22 +97,22 @@ fn test_analyze_audio_files_validates_inputs() {
         "Should analyze all provided paths"
     );
 
-    // Check that invalid files are properly marked
     let invalid_count = file_info.files.iter().filter(|f| !f.is_valid).count();
-    eprintln!("Invalid file count: {} (expected 2 or 3)", invalid_count);
-    for (i, file) in file_info.files.iter().enumerate() {
-        eprintln!(
-            "File {}: valid={}, error={:?}",
-            i, file.is_valid, file.error
-        );
-    }
-
-    // Expecting at least 2 invalid files (nonexistent + directory), valid.mp3 may also be invalid due to content
-    assert!(
-        invalid_count >= 2,
-        "At least two files should be marked invalid, got {}",
-        invalid_count
+    assert_eq!(
+        invalid_count, 2,
+        "Nonexistent path and directory should be invalid"
     );
+
+    let valid_path = valid_file
+        .canonicalize()
+        .expect("canonicalize valid file");
+    let valid_entry = file_info
+        .files
+        .iter()
+        .find(|f| f.path == valid_path)
+        .expect("valid file entry");
+    assert!(valid_entry.is_valid, "Valid mp3 should be accepted");
+    assert!(valid_entry.error.is_none(), "Valid mp3 should have no error");
 
     // Verify error messages contain path validation failures
     for file in &file_info.files {
@@ -212,19 +225,14 @@ fn test_path_validation_special_characters() {
 
     // Test unicode filename (should be accepted)
     let unicode_file = temp_dir.path().join("测试文件.mp3");
-    File::create(&unicode_file).expect("create unicode file");
+    copy_sample_mp3(&unicode_file);
     let files = vec![unicode_file.to_string_lossy().to_string()];
     let result = analyze_audio_files(files);
     assert!(result.is_ok(), "Unicode filenames should be accepted");
     let file_info = result.expect("analysis ok");
-    // The file will be marked invalid due to content, but not due to path validation
     let file = &file_info.files[0];
-    if let Some(error) = &file.error {
-        assert!(
-            !error.contains("invalid characters"),
-            "Should not fail on unicode characters"
-        );
-    }
+    assert!(file.is_valid, "Unicode filename should be valid with real media");
+    assert!(file.error.is_none(), "Unicode filename should not error");
 }
 
 // ============================================================================
@@ -240,7 +248,7 @@ fn test_symlink_integration() {
 
     // Create target file and symlink
     let target = temp_dir.path().join("target.mp3");
-    File::create(&target).expect("create target file");
+    copy_sample_mp3(&target);
     let link = temp_dir.path().join("link.mp3");
     symlink(&target, &link).expect("create symlink");
 
@@ -257,6 +265,7 @@ fn test_symlink_integration() {
         file.path.is_absolute(),
         "Should use canonical absolute path"
     );
+    assert!(file.is_valid, "Symlinked media should be valid");
 }
 
 // ============================================================================

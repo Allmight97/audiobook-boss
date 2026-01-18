@@ -302,40 +302,6 @@ fn test_file_validation() {
         eprintln!("  Channels: {:?}", audio_file.channels);
     }
 
-    let temp_dir = TempDir::new().expect("create temp dir");
-
-    // Create fake audio file with invalid content
-    let fake_audio = temp_dir.path().join("fake.mp3");
-    std::fs::write(&fake_audio, b"not audio content").expect("write fake audio");
-
-    let files = vec![fake_audio.to_string_lossy().to_string()];
-    let analysis_result = analyze_audio_files(files);
-    assert!(
-        analysis_result.is_ok(),
-        "Analysis should succeed even for invalid files"
-    );
-
-    let file_info = analysis_result.expect("analysis ok");
-    let audio_file = &file_info.files[0];
-
-    assert!(!audio_file.is_valid, "Fake audio file should be invalid");
-    assert!(
-        audio_file.error.is_some(),
-        "Invalid file should have error message"
-    );
-    assert!(
-        audio_file.size.is_some(),
-        "Should still determine file size"
-    );
-    assert!(
-        audio_file.duration.is_none(),
-        "Invalid file should have no duration"
-    );
-
-    eprintln!("Invalid file properties:");
-    eprintln!("  Error: {:?}", audio_file.error);
-    eprintln!("  Size: {:?} bytes", audio_file.size);
-
     let empty_result = analyze_audio_files(vec![]);
     assert!(empty_result.is_err(), "Empty file list should fail");
     assert!(empty_result

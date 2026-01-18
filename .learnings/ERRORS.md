@@ -383,3 +383,75 @@ Remove unused imports from `src/main.ts` after deleting the console test harness
 - **Notes**: Removed unused imports from src/main.ts.
 
 ---
+
+## [ERR-20260118-004] cargo test
+
+**Logged**: 2026-01-18T18:45:57.036753+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Cargo tests failed due to comparing PathBuf with string in integration path validation test
+
+### Error
+```
+error[E0277]: can't compare `PathBuf` with `Cow<'_, str>`
+   --> src-tauri/tests/integration_path_validation_tests.rs:112:26
+```
+
+### Context
+- Command: `cargo test`
+- Change: Added valid mp3 fixture assertion in `test_analyze_audio_files_validates_inputs`
+
+### Suggested Fix
+Compare `PathBuf` to `PathBuf` (use `valid_path` directly) instead of string comparison.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src-tauri/tests/integration_path_validation_tests.rs
+- See Also: None
+
+
+### Resolution
+- **Resolved**: 2026-01-18T18:46:07.774758+00:00
+- **Commit/PR**: pending
+- **Notes**: Compare PathBuf values directly in test to avoid string mismatch.
+
+---
+
+
+## [ERR-20260118-005] cargo test
+
+**Logged**: 2026-01-18T18:45:57.036753+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Cover art unit tests failed after switching to 1x1 JPEG fixture due to dimension warning
+
+### Error
+```
+Normal metadata should not generate warnings, got: ["Cover art dimensions (1x1) are very small and may not display well"]
+```
+
+### Context
+- Command: `cargo test`
+- Change: Replaced minimal JPEG bytes with 1x1 JPEG fixture used by compatibility checks
+
+### Suggested Fix
+Use a ≥100x100 JPEG fixture to avoid "very small" cover art warnings.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src-tauri/tests/unit_cover_art_format_tests.rs
+- See Also: ERR-20260118-004
+
+
+### Resolution
+- **Resolved**: 2026-01-18T18:46:07.774910+00:00
+- **Commit/PR**: pending
+- **Notes**: Regenerated JPEG fixture at 200x200 to avoid dimension warning.
+
+---

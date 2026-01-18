@@ -12,9 +12,8 @@ use mp4ameta::{Data, FreeformIdent, Tag, WriteConfig};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-// Minimal 1x1 JPEG (JFIF) header (valid tiny image)
-const MINIMAL_JPEG: &[u8] =
-    b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xFF\xD9";
+// Minimal valid 1x1 JPEG fixture
+const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
 
 fn sample_mp3_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
