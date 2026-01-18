@@ -1,6 +1,6 @@
 import { bridge } from "./lib/bridge";
 import type { AudiobookMetadata } from "./types/metadata";
-import type { FileListInfo, EncoderSettings, AudioFile } from "./types/audio";
+import type { AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import {
   displayFileList,
@@ -31,108 +31,6 @@ import { getSeriesPartValidationError } from "./ui/metadataValidation";
 import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { setMetadataForFile } from "./ui/metadataState";
-
-// Expose test functions for console access
-(window as any).testCommands = {
-  ping: () => bridge.invoke("ping"),
-  echo: (input: string) => bridge.invoke("echo", { input }),
-  validateFiles: (paths: string[]) =>
-    bridge.invoke("validate_files", { filePaths: paths }),
-  // Removed getFFmpegVersion and mergeAudioFiles test commands after nuclear cleanup
-
-  // Metadata commands
-  readMetadata: (filePath: string) =>
-    bridge.invoke<AudiobookMetadata>("read_audio_metadata", {
-      filePath: filePath,
-    }),
-  validateEncoderSettings: (settings: EncoderSettings) =>
-    bridge.invoke("validate_encoder_settings_cmd", settings),
-  writeMetadata: (filePath: string, metadata: AudiobookMetadata) =>
-    bridge.invoke("save_metadata_to_file", { filePath: filePath, metadata }),
-  writeCoverArt: (filePath: string, coverData: number[]) =>
-    bridge.invoke("write_cover_art", {
-      filePath: filePath,
-      coverData: coverData,
-    }),
-  loadCoverArtFile: (filePath: string) =>
-    bridge.invoke("load_cover_art_file", { filePath }),
-  loadCoverArtFromUrl: (url: string) =>
-    bridge.invoke("load_cover_art_from_url", { url }),
-
-  // Audio processing commands
-  analyzeAudioFiles: (filePaths: string[]) =>
-    bridge.invoke<FileListInfo>("analyze_audio_files", {
-      filePaths: filePaths,
-    }),
-  // UI test functions
-  testDisplayList: (fileListInfo: FileListInfo) =>
-    displayFileList(fileListInfo),
-  getCurrentFileList: () => currentFileList,
-  clearFiles: () => clearAllFiles(),
-  toggleSort: () => toggleFileSort(),
-  // Test art thumbnail functionality
-  testArtThumbnail: async () => {
-    const statusPanel = getStatusPanel();
-    if (statusPanel) {
-      console.log("Testing art thumbnail update...");
-      await (statusPanel as any).updateArtThumbnail();
-      return "Art thumbnail test completed - check the progress panel";
-    }
-    return "StatusPanel not initialized";
-  },
-
-  // Output panel test functions
-  getCurrentOutputConfig: () => getCurrentOutputConfig(),
-  triggerFileListChange: () => onFileListChange(),
-  triggerMetadataChange: () => onMetadataChange(),
-
-  // Status panel test functions
-  cancelProcessing: () => bridge.invoke("cancel_processing"),
-
-  // Cover art test functions
-  getCurrentCoverArt: () => getCurrentCoverArt(),
-  setCoverArt: (coverArtBytes: number[] | null) => setCoverArt(coverArtBytes),
-  clearCoverArt: () => clearCoverArt(),
-
-  // File movement test functions
-  testMoveFile: (index: number, direction: "up" | "down") => {
-    if (direction === "up") {
-      moveFileUp(index);
-    } else if (direction === "down") {
-      moveFileDown(index);
-    }
-  },
-  testSortFiles: () => toggleFileSort(),
-
-  // Tag preview test functions
-  updateTagPreview: () => updateTagPreview(),
-};
-
-// Log when ready
-console.log("Test commands available:");
-console.log("  window.testCommands.ping()");
-console.log("  window.testCommands.echo(input)");
-console.log("  window.testCommands.validateFiles(paths)");
-// Removed: getFFmpegVersion, mergeAudioFiles
-console.log("  window.testCommands.readMetadata(filePath)");
-console.log("  window.testCommands.writeMetadata(filePath, metadata)");
-console.log("  window.testCommands.writeCoverArt(filePath, coverData)");
-console.log("  window.testCommands.analyzeAudioFiles(filePaths)");
-console.log("  window.testCommands.testDisplayList(fileListInfo)");
-console.log("  window.testCommands.getCurrentFileList()");
-console.log("  window.testCommands.clearFiles()");
-console.log("  window.testCommands.getCurrentOutputConfig()");
-console.log("  window.testCommands.triggerFileListChange()");
-console.log("  window.testCommands.triggerMetadataChange()");
-console.log("  window.testCommands.testArtThumbnail()");
-console.log("  window.testCommands.loadCoverArtFile(filePath)");
-console.log("  window.testCommands.loadCoverArtFromUrl(url)");
-console.log("  window.testCommands.getCurrentCoverArt()");
-console.log("  window.testCommands.setCoverArt(coverArtBytes)");
-console.log("  window.testCommands.clearCoverArt()");
-console.log("  window.testCommands.testMoveFile(index, direction)");
-console.log("  window.testCommands.testSortFiles()");
-console.log("  window.testCommands.updateTagPreview()");
 
 // Initialize UI components when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {

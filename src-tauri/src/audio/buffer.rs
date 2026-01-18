@@ -31,8 +31,6 @@ pub struct SampleAccumulator {
     format: ff::format::Sample,
     storage: SampleStorage,
     bytes_per_sample: usize,
-    #[allow(dead_code)] // Kept for potential debug logging
-    is_planar: bool,
 }
 
 impl SampleAccumulator {
@@ -92,7 +90,6 @@ impl SampleAccumulator {
             format,
             storage,
             bytes_per_sample,
-            is_planar,
         }
     }
 
