@@ -14,8 +14,6 @@ pub use super::remux::rewrite_metadata_with_ffmpeg;
 // EXCEPTION: requires private API access
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn metadata_to_ffmpeg_conversion_includes_core_fields() {
         let metadata = super::super::AudiobookMetadata {
@@ -30,7 +28,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dict_result = super::ffmpeg_dict::metadata_to_ffmpeg_dict(&metadata);
+        let dict_result = super::super::ffmpeg_dict::metadata_to_ffmpeg_dict(&metadata);
         assert!(dict_result.is_ok(), "Metadata conversion should succeed");
 
         let dict = dict_result.expect("metadata conversion should succeed");

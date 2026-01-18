@@ -235,3 +235,151 @@ Use a heredoc or a small Python wrapper to pass the comment body, or avoid backt
 - See Also: 
 
 ---
+
+## [ERR-20260118-001] scripts/quick-checks.sh
+
+**Logged**: 2026-01-18T17:25:53.912961+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Quick checks failed after removing metadata_to_ffmpeg_dict wrapper; test referenced wrong module path
+
+### Error
+```
+error[E0433]: failed to resolve: could not find `ffmpeg_dict` in `super`
+  --> src-tauri/src/metadata/ffmpeg_bridge.rs:33:34
+   |
+33 |         let dict_result = super::ffmpeg_dict::metadata_to_ffmpeg_dict(&metadata);
+   |                                  ^^^^^^^^^^^ could not find `ffmpeg_dict` in `super`
+   |
+help: consider importing this module
+   |
+17 +     use crate::metadata::ffmpeg_dict;
+   |
+help: if you import `ffmpeg_dict`, refer to it directly
+   |
+33 -         let dict_result = super::ffmpeg_dict::metadata_to_ffmpeg_dict(&metadata);
+33 +         let dict_result = ffmpeg_dict::metadata_to_ffmpeg_dict(&metadata);
+   |
+
+error: unused import: `super::*`
+  --> src-tauri/src/metadata/ffmpeg_bridge.rs:17:9
+   |
+17 |     use super::*;
+   |         ^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+
+error: could not compile `audiobook-boss` (lib test) due to 2 previous errors
+```
+
+### Context
+- Command: `scripts/quick-checks.sh`
+- Occurred after removing wrapper function in `src-tauri/src/metadata/ffmpeg_bridge.rs`
+
+### Suggested Fix
+Update test module to import `crate::metadata::ffmpeg_dict` or use `crate::metadata::ffmpeg_dict::metadata_to_ffmpeg_dict` directly; remove unused `super::*` import.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src-tauri/src/metadata/ffmpeg_bridge.rs
+- See Also: None
+
+
+### Resolution
+- **Resolved**: 2026-01-18T17:26:29.994482+00:00
+- **Commit/PR**: 53ca303 (follow-up fix pending commit)
+- **Notes**: Updated test to call metadata_to_ffmpeg_dict via module path.
+
+---
+
+## [ERR-20260118-002] scripts/quick-checks.sh
+
+**Logged**: 2026-01-18T17:26:55.770458+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Quick checks failed due to unused import left in ffmpeg_bridge test module
+
+### Error
+```
+error: unused import: `super::*`
+  --> src-tauri/src/metadata/ffmpeg_bridge.rs:17:9
+   |
+17 |     use super::*;
+   |         ^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+
+error: could not compile `audiobook-boss` (lib test) due to 1 previous error
+```
+
+### Context
+- Command: `scripts/quick-checks.sh`
+- File: `src-tauri/src/metadata/ffmpeg_bridge.rs`
+
+### Suggested Fix
+Remove the unused `use super::*;` import in the test module.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src-tauri/src/metadata/ffmpeg_bridge.rs
+- See Also: ERR-20260118-001
+
+
+### Resolution
+- **Resolved**: 2026-01-18T17:27:02.487893+00:00
+- **Commit/PR**: pending
+- **Notes**: Removed unused import from ffmpeg_bridge test module.
+
+---
+
+## [ERR-20260118-003] scripts/quick-checks.sh
+
+**Logged**: 2026-01-18T17:27:42.877682+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+TypeScript check failed due to unused imports after removing window.testCommands
+
+### Error
+```
+src/main.ts(6,3): error TS6133: 'displayFileList' is declared but its value is never read.
+src/main.ts(9,3): error TS6133: 'clearAllFiles' is declared but its value is never read.
+src/main.ts(10,3): error TS6133: 'toggleFileSort' is declared but its value is never read.
+src/main.ts(11,3): error TS6133: 'moveFileUp' is declared but its value is never read.
+src/main.ts(12,3): error TS6133: 'moveFileDown' is declared but its value is never read.
+src/main.ts(17,3): error TS6133: 'getCurrentOutputConfig' is declared but its value is never read.
+src/main.ts(18,3): error TS6133: 'onFileListChange' is declared but its value is never read.
+src/main.ts(19,3): error TS6133: 'onMetadataChange' is declared but its value is never read.
+src/main.ts(25,3): error TS6133: 'getCurrentCoverArt' is declared but its value is never read.
+src/main.ts(26,3): error TS6133: 'setCoverArt' is declared but its value is never read.
+src/main.ts(27,3): error TS6133: 'clearCoverArt' is declared but its value is never read.
+src/main.ts(31,26): error TS6133: 'updateTagPreview' is declared but its value is never read.
+```
+
+### Context
+- Command: `scripts/quick-checks.sh`
+- File: `src/main.ts`
+
+### Suggested Fix
+Remove unused imports from `src/main.ts` after deleting the console test harness.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src/main.ts
+- See Also: ERR-20260118-002
+
+
+### Resolution
+- **Resolved**: 2026-01-18T17:27:49.181922+00:00
+- **Commit/PR**: pending
+- **Notes**: Removed unused imports from src/main.ts.
+
+---

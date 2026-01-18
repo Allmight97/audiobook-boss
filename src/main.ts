@@ -2,33 +2,15 @@ import { bridge } from "./lib/bridge";
 import type { AudiobookMetadata } from "./types/metadata";
 import type { AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import {
-  displayFileList,
-  currentFileList,
-  selectedFileIndex,
-  clearAllFiles,
-  toggleFileSort,
-  moveFileUp,
-  moveFileDown,
-} from "./ui/fileList";
+import { currentFileList, selectedFileIndex } from "./ui/fileList";
 import { getSelectedFileIndices } from "./ui/fileList/state";
-import {
-  initOutputPanel,
-  getCurrentOutputConfig,
-  onFileListChange,
-  onMetadataChange,
-} from "./ui/outputPanel";
+import { initOutputPanel } from "./ui/outputPanel";
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
 import { initEncoderPanel } from "./ui/encoderPanel";
-import {
-  initCoverArt,
-  getCurrentCoverArt,
-  setCoverArt,
-  clearCoverArt,
-} from "./ui/coverArt";
+import { initCoverArt } from "./ui/coverArt";
 import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
 import { getSeriesPartValidationError } from "./ui/metadataValidation";
-import { initTagPreview, updateTagPreview } from "./ui/tagPreview";
+import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { setMetadataForFile } from "./ui/metadataState";
 
