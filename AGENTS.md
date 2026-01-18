@@ -167,6 +167,8 @@ All input paths must pass `audio::path_validation::validate_input_audio_path()`.
 ## Testing & Verification
 
 See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy, locations, and inline-test exceptions.
+- When modifying behavior or fixing a bug, propose at least one outcome-based test (or state why none is needed).
+- If tests emit warnings, either assert on them as expected outcomes or remove the root cause; avoid suppression by default.
 
 ---
 
