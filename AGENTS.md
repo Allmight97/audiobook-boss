@@ -36,6 +36,15 @@ Read the checklist before starting work. It tracks:
 - Choose a path unless product intent hinges on the choice; then ask.
 - Do not add compatibility fallbacks or broad refactors unless explicitly requested or approved after a strict vs fallback trade-off is shown.
 
+**Plan Mode**
+
+- Structure: Goal → Steps → Unresolved
+- Steps: 3–6 total; each starts with a verb
+- Each step: action + 1-line rationale if non-obvious
+- No hedging, transitions, or restating the problem
+- Avoid spec detail (types, schemas, APIs) unless requested
+- End with: Unresolved questions, then Stated Assumptions
+
 **Avoid**: Vague feedback • urgent language • hidden assumptions
 
 ## Engineering Principles (rate 1-5 when reviewing)
