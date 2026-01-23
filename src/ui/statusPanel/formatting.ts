@@ -104,32 +104,32 @@ function splitPathSegments(path: string): string[] {
 
 export function buildQueueLabels(paths: string[]): string[] {
   const segmentsList = paths.map(splitPathSegments);
-  const basenames = segmentsList.map(
-    (segments) => segments[segments.length - 1] ?? ""
+  const maxDepth = segmentsList.reduce(
+    (max, segments) => Math.max(max, segments.length),
+    0
   );
-  const nameCounts = basenames.reduce<Record<string, number>>((acc, name) => {
-    acc[name] = (acc[name] ?? 0) + 1;
-    return acc;
-  }, {});
 
-  let labels = basenames.map((name, index) => {
-    if (nameCounts[name] === 1) return name;
-    const segments = segmentsList[index];
-    const parent = segments.length > 1 ? segments[segments.length - 2] : "";
-    return parent ? `${name} (${parent})` : name;
-  });
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const labels = segmentsList.map((segments) =>
+      segments.length > 0 ? segments.slice(-depth).join("/") : ""
+    );
+    const counts = labels.reduce<Record<string, number>>((acc, label) => {
+      acc[label] = (acc[label] ?? 0) + 1;
+      return acc;
+    }, {});
+    const hasDuplicates = labels.some(
+      (label) => label !== "" && (counts[label] ?? 0) > 1
+    );
+    if (!hasDuplicates) return labels;
+  }
 
-  const labelCounts = labels.reduce<Record<string, number>>((acc, label) => {
+  const labels = segmentsList.map((segments) => segments.join("/"));
+  const counts = labels.reduce<Record<string, number>>((acc, label) => {
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
-
-  labels = labels.map((label, index) => {
-    if (labelCounts[label] === 1) return label;
-    const segments = segmentsList[index];
-    const tail = segments.slice(-2).join("/");
-    return tail || label;
+  return labels.map((label, index) => {
+    if ((counts[label] ?? 0) <= 1) return label;
+    return `${label} (${index + 1})`;
   });
-
-  return labels;
 }
