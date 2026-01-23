@@ -19,6 +19,15 @@ import {
   extractFilenameFromProgress,
   formatAggregateMessage,
 } from "./formatting";
+import {
+  areAllJobsTerminal,
+  buildJobKey,
+  hasCancelledJobs,
+  hasFailedJobs,
+  processProgressUpdate,
+  processQueueSnapshot,
+  shouldThrottleUpdate,
+} from "./jobState";
 import { startProcessing as startProcessingAction } from "./processing";
 import { renderConcurrencyStatus, renderJobList, renderStatus } from "./render";
 import {
@@ -27,7 +36,6 @@ import {
   deriveAggregateStage as deriveAggregateStageState,
   type AggregateProgress,
   type JobProgress,
-  type JobStatus,
   type ProcessingStatus,
 } from "./state";
 
@@ -133,15 +141,6 @@ export class StatusPanel {
     });
   }
 
-  private buildJobKey(inputIndex?: number, jobId?: string): string {
-    if (typeof inputIndex === "number") {
-      return `idx:${inputIndex}`;
-    }
-    if (jobId) {
-      return `job:${jobId}`;
-    }
-    return "default";
-  }
 
   private buildFallbackLabel(event: ProcessingProgressEvent): string {
     if (this.currentJobType === "merge" && currentFileList?.files?.length) {
@@ -170,30 +169,16 @@ export class StatusPanel {
   }
 
   private handleQueueSnapshot(event: ProcessingQueueEvent): void {
-    const now = Date.now();
-    const labels = buildQueueLabels(event.items.map((item) => item.file_path));
+    const { jobs, order } = processQueueSnapshot(event);
 
     if (this.batchCompletionTimeout) {
       window.clearTimeout(this.batchCompletionTimeout);
       this.batchCompletionTimeout = undefined;
     }
 
-    this.jobProgress.clear();
-    this.queueOrder = [];
+    this.jobProgress = jobs;
+    this.queueOrder = order;
     this.lastProgressRenderByKey.clear();
-
-    event.items.forEach((item, index) => {
-      const key = this.buildJobKey(item.input_index, undefined);
-      this.queueOrder.push(key);
-      this.jobProgress.set(key, {
-        inputIndex: item.input_index,
-        label: labels[index] ?? item.file_path,
-        status: "queued",
-        percentage: 0,
-        message: "Queued",
-        lastUpdate: now,
-      });
-    });
 
     this.isProcessing = this.jobProgress.size > 0;
     const aggregate = this.calculateAggregateProgress();
@@ -212,16 +197,9 @@ export class StatusPanel {
     this.batchCompletionTimeout = window.setTimeout(() => {
       this.batchCompletionTimeout = undefined;
 
-      const hasFailed = Array.from(this.jobProgress.values()).some(
-        (job) => job.status === "failed"
-      );
-      const hasCancelled = Array.from(this.jobProgress.values()).some(
-        (job) => job.status === "cancelled"
-      );
-
-      if (hasFailed) {
+      if (hasFailedJobs(this.jobProgress)) {
         dom.showError("One or more files failed to process.");
-      } else if (hasCancelled) {
+      } else if (hasCancelledJobs(this.jobProgress)) {
         dom.showInfo("Processing was cancelled.");
       } else {
         dom.showSuccess("Audiobook created successfully!");
@@ -231,51 +209,30 @@ export class StatusPanel {
     }, 2000);
   }
 
-  private areAllBatchJobsTerminal(): boolean {
-    if (this.queueOrder.length === 0) return false;
-
-    return this.queueOrder.every((key) => {
-      const job = this.jobProgress.get(key);
-      return (
-        job &&
-        (job.status === "completed" ||
-          job.status === "failed" ||
-          job.status === "cancelled")
-      );
-    });
-  }
 
   public updateProgress(event: ProcessingProgressEvent): void {
-    const jobKey = this.buildJobKey(event.input_index, event.job_id ?? undefined);
+    const jobKey = buildJobKey(event.input_index, event.job_id ?? undefined);
     const now = Date.now();
 
-    // Throttle non-terminal updates to avoid UI flooding with many jobs
     const isTerminal =
       event.stage === STAGES.completed ||
       event.stage === STAGES.failed ||
       event.stage === STAGES.cancelled;
-    const lastRender = this.lastProgressRenderByKey.get(jobKey) ?? 0;
-    if (!isTerminal && now - lastRender < 500) {
+
+    if (shouldThrottleUpdate(jobKey, isTerminal, this.lastProgressRenderByKey, now)) {
       return;
     }
+
     this.lastProgressRenderByKey.set(jobKey, now);
 
     const existing = this.jobProgress.get(jobKey);
-    const jobStatus: JobStatus = isTerminal ? (event.stage as JobStatus) : "processing";
+    const fallbackLabel = this.buildFallbackLabel(event);
+    const { job } = processProgressUpdate(event, existing, fallbackLabel, now);
 
-    this.jobProgress.set(jobKey, {
-      jobId: event.job_id ?? existing?.jobId,
-      inputIndex: typeof event.input_index === "number" ? event.input_index : existing?.inputIndex,
-      label: existing?.label ?? this.buildFallbackLabel(event),
-      status: jobStatus,
-      stage: event.stage,
-      percentage: Math.round(event.percentage * 10) / 10,
-      message: event.message,
-      lastUpdate: now,
-    });
+    this.jobProgress.set(jobKey, job);
 
     if (typeof event.input_index === "number") {
-      const key = this.buildJobKey(event.input_index, undefined);
+      const key = buildJobKey(event.input_index, undefined);
       if (!this.queueOrder.includes(key)) {
         this.queueOrder.push(key);
       }
@@ -304,7 +261,7 @@ export class StatusPanel {
           this.updateAggregateUI();
           renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
         }, 2000);
-      } else if (this.areAllBatchJobsTerminal()) {
+      } else if (areAllJobsTerminal(this.jobProgress, this.queueOrder)) {
         this.scheduleBatchCompletion();
       }
     }
