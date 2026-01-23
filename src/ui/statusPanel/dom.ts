@@ -202,7 +202,17 @@ export function showInfo(message: string): void {
 /**
  * Render the active job list with optional per-job cancel affordances
  */
-export function renderJobList(jobs: Array<{ id: string; label: string; stage: string; percentage: number; onCancel?: (id: string) => void }>): void {
+export function renderJobList(
+    jobs: Array<{
+        key: string;
+        label: string;
+        statusText: string;
+        percentage?: number;
+        canCancel: boolean;
+        cancelId?: string;
+        onCancel?: (id: string) => void;
+    }>
+): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
@@ -217,16 +227,18 @@ export function renderJobList(jobs: Array<{ id: string; label: string; stage: st
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2 mb-1';
         const label = document.createElement('span');
-        label.textContent = `${job.label} (${job.percentage.toFixed(1)}%)`;
+        const percentage =
+            typeof job.percentage === 'number' ? ` (${job.percentage.toFixed(1)}%)` : '';
+        label.textContent = `${job.label} • ${job.statusText}${percentage}`;
         label.className = 'flex-1';
         const cancelButton = document.createElement('button');
         cancelButton.textContent = 'Cancel';
-        cancelButton.id = `cancel-${job.id}`;
+        cancelButton.id = `cancel-${job.key}`;
         cancelButton.className = 'button-secondary';
         cancelButton.style.padding = '0.1rem 0.4rem';
-        cancelButton.disabled = job.stage === 'completed' || job.stage === 'failed' || job.stage === 'cancelled';
-        if (job.onCancel && !cancelButton.disabled) {
-            cancelButton.addEventListener('click', () => job.onCancel?.(job.id));
+        cancelButton.disabled = !job.canCancel;
+        if (job.onCancel && job.canCancel && job.cancelId) {
+            cancelButton.addEventListener('click', () => job.onCancel?.(job.cancelId as string));
         }
         row.appendChild(label);
         row.appendChild(cancelButton);

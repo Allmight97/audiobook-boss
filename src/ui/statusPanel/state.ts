@@ -1,30 +1,36 @@
 export interface ProcessingStatus {
   stage:
-  | "idle"
-  | "analyzing"
-  | "converting"
-  | "writing"
-  | "completed"
-  | "cancelled"
-  | "failed";
+    | "idle"
+    | "analyzing"
+    | "converting"
+    | "writing"
+    | "completed"
+    | "cancelled"
+    | "failed";
   percentage: number;
   message: string;
   currentFile?: string;
   etaSeconds?: number;
 }
 
+export type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
+
 /** Per-job progress tracking for parallel batch processing */
 export interface JobProgress {
-  jobId: string;
-  stage: ProcessingStatus["stage"];
+  jobId?: string;
+  inputIndex?: number;
+  label: string;
+  status: JobStatus;
+  stage?: ProcessingStatus["stage"];
   percentage: number;
   message: string;
   lastUpdate: number;
 }
 
-/** Aggregate progress across all active jobs */
+/** Aggregate progress across all jobs */
 export interface AggregateProgress {
   activeJobs: number;
+  queuedJobs: number;
   completedJobs: number;
   overallPercentage: number;
 }
@@ -37,23 +43,29 @@ export function createInitialStatus(): ProcessingStatus {
   };
 }
 
-/** Calculate aggregate progress across all active jobs */
+/** Calculate aggregate progress across queued, active, and completed jobs */
 export function calculateAggregateProgress(
   jobProgress: Map<string, JobProgress>
 ): AggregateProgress {
   let activeJobs = 0;
+  let queuedJobs = 0;
   let completedJobs = 0;
   let totalPercentage = 0;
 
   for (const job of jobProgress.values()) {
-    if (job.stage === "completed") {
+    if (job.status === "queued") {
+      queuedJobs++;
+      continue;
+    }
+    if (job.status === "completed") {
       completedJobs++;
       totalPercentage += 100;
-    } else if (job.stage === "failed" || job.stage === "cancelled") {
-      // Don't count failed/cancelled in active or completed
-    } else {
+      continue;
+    }
+    if (job.status === "processing") {
       activeJobs++;
       totalPercentage += job.percentage;
+      continue;
     }
   }
 
@@ -65,6 +77,7 @@ export function calculateAggregateProgress(
 
   return {
     activeJobs,
+    queuedJobs,
     completedJobs,
     overallPercentage: Math.round(overallPercentage * 10) / 10,
   };
@@ -74,14 +87,38 @@ export function calculateAggregateProgress(
 export function deriveAggregateStage(
   jobProgress: Map<string, JobProgress>
 ): ProcessingStatus["stage"] {
-  const stages = Array.from(jobProgress.values()).map((job) => job.stage);
+  let hasQueued = false;
+  let hasProcessing = false;
+  let hasCompleted = false;
+  let hasFailed = false;
+  let hasCancelled = false;
+  const stages: ProcessingStatus["stage"][] = [];
 
-  // Priority: failed > cancelled > converting > analyzing > writing > completed > idle
-  if (stages.includes("failed")) return "failed";
-  if (stages.includes("cancelled")) return "cancelled";
+  for (const job of jobProgress.values()) {
+    if (job.status === "queued") {
+      hasQueued = true;
+    } else if (job.status === "completed") {
+      hasCompleted = true;
+    } else if (job.status === "failed") {
+      hasFailed = true;
+    } else if (job.status === "cancelled") {
+      hasCancelled = true;
+    } else if (job.status === "processing") {
+      hasProcessing = true;
+      if (job.stage) {
+        stages.push(job.stage);
+      }
+    }
+  }
+
+  // Priority: failed > cancelled > converting > analyzing > writing > completed > queued > idle
+  if (hasFailed) return "failed";
+  if (hasCancelled) return "cancelled";
   if (stages.includes("converting")) return "converting";
   if (stages.includes("analyzing")) return "analyzing";
   if (stages.includes("writing")) return "writing";
-  if (stages.includes("completed")) return "completed";
+  if (hasProcessing) return "analyzing";
+  if (hasCompleted && !hasQueued) return "completed";
+  if (hasQueued) return "analyzing";
   return "idle";
 }

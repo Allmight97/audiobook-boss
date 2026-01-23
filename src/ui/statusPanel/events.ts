@@ -1,6 +1,6 @@
 import { bridge } from "../../lib/bridge";
 import { EVENTS } from "../../types/events";
-import type { ProcessingProgressEvent } from "../../types/events";
+import type { ProcessingProgressEvent, ProcessingQueueEvent } from "../../types/events";
 import * as dom from "./dom";
 
 interface StatusPanelEventHandlers {
@@ -94,5 +94,13 @@ export async function listenForProgressEvents(
 ): Promise<() => void> {
   return bridge.listen(EVENTS.PROGRESS, (event) => {
     onProgress(event.payload as ProcessingProgressEvent);
+  });
+}
+
+export async function listenForQueueEvents(
+  onQueue: (event: ProcessingQueueEvent) => void
+): Promise<() => void> {
+  return bridge.listen(EVENTS.QUEUE, (event) => {
+    onQueue(event.payload as ProcessingQueueEvent);
   });
 }
