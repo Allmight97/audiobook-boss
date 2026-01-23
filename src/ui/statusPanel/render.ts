@@ -106,10 +106,10 @@ export function renderJobList(
   const orderedKeys = buildRenderOrder(jobProgress, queueOrder);
   const total = queueOrder.length > 0 ? queueOrder.length : null;
 
-  const jobs: JobListItem[] = orderedKeys
-    .map((key) => {
+  const jobs: JobListItem[] = orderedKeys.reduce<JobListItem[]>(
+    (acc, key) => {
       const job = jobProgress.get(key);
-      if (!job) return null;
+      if (!job) return acc;
       const position = queueOrder.length > 0 ? queueOrder.indexOf(key) + 1 : null;
       const statusText = formatJobStatusText(job, position, total);
       const canCancel = job.status === "processing" && !!job.jobId;
@@ -118,17 +118,24 @@ export function renderJobList(
           ? job.percentage
           : undefined;
 
-      return {
+      const item: JobListItem = {
         key,
         label: job.label,
         statusText,
-        percentage,
         canCancel,
         cancelId: job.jobId,
         onCancel: canCancel ? onCancel : undefined,
       };
-    })
-    .filter((job): job is JobListItem => job !== null);
+
+      if (typeof percentage === "number") {
+        item.percentage = percentage;
+      }
+
+      acc.push(item);
+      return acc;
+    },
+    []
+  );
 
   dom.renderJobList(jobs);
 }
