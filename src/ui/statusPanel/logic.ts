@@ -144,6 +144,12 @@ export class StatusPanel {
   }
 
   private buildFallbackLabel(event: ProcessingProgressEvent): string {
+    if (this.currentJobType === "merge" && currentFileList?.files?.length) {
+      const firstValidFile = currentFileList.files.find((file) => file.isValid);
+      if (firstValidFile?.path) {
+        return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;
+      }
+    }
     if (typeof event.input_index === "number") {
       const path = this.findFilePathByIndex(event.input_index);
       if (path) {
