@@ -3,6 +3,7 @@ use crate::audio::file_list::FileListInfo;
 use crate::audio::output_path::{
     build_output_path, resolve_collision, resolve_collision_with_claimed,
 };
+use crate::audio::{QueueEvent, QueueItem};
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
@@ -11,6 +12,7 @@ use crate::errors::{AppError, Result};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use tauri::Emitter;
 
 struct ProcessingInputs {
     sample_rate: audio::SampleRateConfig,
@@ -125,6 +127,21 @@ async fn dispatch_batch_jobs(
             "No input files provided for batch processing".to_string(),
         ));
     }
+
+    let queue_items: Vec<QueueItem> = payload
+        .input_files
+        .iter()
+        .enumerate()
+        .map(|(index, input)| QueueItem {
+            input_index: index,
+            file_path: input.clone(),
+        })
+        .collect();
+    let queue_event = QueueEvent {
+        items: queue_items,
+        max_concurrent: registry.max_concurrent(),
+    };
+    let _ = window.emit(crate::audio::constants::QUEUE_EVENT_NAME, &queue_event);
 
     let mut tasks = Vec::new();
     let mut claimed_paths: HashSet<PathBuf> = HashSet::new();

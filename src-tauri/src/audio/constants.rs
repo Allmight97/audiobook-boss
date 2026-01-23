@@ -6,6 +6,8 @@
 // Event names
 /// Progress event name for frontend communication
 pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
+/// Queue event name for batch processing snapshot
+pub const QUEUE_EVENT_NAME: &str = "processing-queue";
 
 // Progress stage percentages
 /// Progress percentage at the end of the analyzing stage (0-10%)
