@@ -7,13 +7,14 @@
 
 import { bridge } from "../../lib/bridge";
 import { STAGES } from "../../types/events";
-import type { ProcessingProgressEvent } from "../../types/events";
+import type { ProcessingProgressEvent, ProcessingQueueEvent } from "../../types/events";
 import { currentFileList, setFileOrderLocked } from "../fileList";
 import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
 import { setJobControlsEnabled } from "../jobControls";
-import { bindStatusPanelDomEvents, listenForProgressEvents } from "./events";
+import { bindStatusPanelDomEvents, listenForProgressEvents, listenForQueueEvents } from "./events";
 import {
+  buildQueueLabels,
   convertBytesToDataUrl,
   extractFilenameFromProgress,
   formatAggregateMessage,
@@ -26,17 +27,21 @@ import {
   deriveAggregateStage as deriveAggregateStageState,
   type AggregateProgress,
   type JobProgress,
+  type JobStatus,
   type ProcessingStatus,
 } from "./state";
 
 export class StatusPanel {
-  private cancelUnlisten?: () => void;
+  private progressUnlisten?: () => void;
+  private queueUnlisten?: () => void;
   private isProcessing: boolean = false;
   private currentStatus: ProcessingStatus;
   private previewDuration: number = 30;
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
-  private lastProgressRender = 0;
+  private queueOrder: string[] = [];
+  private lastProgressRenderByKey: Map<string, number> = new Map();
+  private batchCompletionTimeout?: number;
   private currentJobType: "merge" | "batch" | null = null;
   private lastCoverArtPath: string | null = null;
 
@@ -49,9 +54,13 @@ export class StatusPanel {
 
     // Ensure event listeners are cleaned up if the window unloads
     window.addEventListener("beforeunload", () => {
-      if (this.cancelUnlisten) {
-        this.cancelUnlisten();
-        this.cancelUnlisten = undefined;
+      if (this.progressUnlisten) {
+        this.progressUnlisten();
+        this.progressUnlisten = undefined;
+      }
+      if (this.queueUnlisten) {
+        this.queueUnlisten();
+        this.queueUnlisten = undefined;
       }
     });
   }
@@ -108,17 +117,136 @@ export class StatusPanel {
   }
 
   private async startProgressListener(): Promise<void> {
-    if (this.cancelUnlisten) {
-      this.cancelUnlisten();
+    if (this.progressUnlisten) {
+      this.progressUnlisten();
+    }
+    if (this.queueUnlisten) {
+      this.queueUnlisten();
     }
 
-    this.cancelUnlisten = await listenForProgressEvents((progress) => {
+    this.progressUnlisten = await listenForProgressEvents((progress) => {
       this.updateProgress(progress);
+    });
+
+    this.queueUnlisten = await listenForQueueEvents((queue) => {
+      this.handleQueueSnapshot(queue);
+    });
+  }
+
+  private buildJobKey(inputIndex?: number, jobId?: string): string {
+    if (typeof inputIndex === "number") {
+      return `idx:${inputIndex}`;
+    }
+    if (jobId) {
+      return `job:${jobId}`;
+    }
+    return "default";
+  }
+
+  private buildFallbackLabel(event: ProcessingProgressEvent): string {
+    if (this.currentJobType === "merge" && currentFileList?.files?.length) {
+      const firstValidFile = currentFileList.files.find((file) => file.isValid);
+      if (firstValidFile?.path) {
+        return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;
+      }
+    }
+    if (typeof event.input_index === "number") {
+      const path = this.findFilePathByIndex(event.input_index);
+      if (path) {
+        return buildQueueLabels([path])[0] ?? path;
+      }
+    }
+
+    if (event.job_id) {
+      return event.job_id.slice(0, 8);
+    }
+
+    if (event.current_file) {
+      const filename = extractFilenameFromProgress(event.current_file);
+      if (filename) return filename;
+    }
+
+    return "Processing";
+  }
+
+  private handleQueueSnapshot(event: ProcessingQueueEvent): void {
+    const now = Date.now();
+    const labels = buildQueueLabels(event.items.map((item) => item.file_path));
+
+    if (this.batchCompletionTimeout) {
+      window.clearTimeout(this.batchCompletionTimeout);
+      this.batchCompletionTimeout = undefined;
+    }
+
+    this.jobProgress.clear();
+    this.queueOrder = [];
+    this.lastProgressRenderByKey.clear();
+
+    event.items.forEach((item, index) => {
+      const key = this.buildJobKey(item.input_index, undefined);
+      this.queueOrder.push(key);
+      this.jobProgress.set(key, {
+        inputIndex: item.input_index,
+        label: labels[index] ?? item.file_path,
+        status: "queued",
+        percentage: 0,
+        message: "Queued",
+        lastUpdate: now,
+      });
+    });
+
+    this.isProcessing = this.jobProgress.size > 0;
+    const aggregate = this.calculateAggregateProgress();
+    this.updateConcurrencyIndicator(aggregate);
+    this.updateStatus({
+      stage: this.deriveAggregateStage(),
+      percentage: aggregate.overallPercentage,
+      message: formatAggregateMessage(this.jobProgress, aggregate),
+    });
+    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+  }
+
+  private scheduleBatchCompletion(): void {
+    if (this.batchCompletionTimeout) return;
+
+    this.batchCompletionTimeout = window.setTimeout(() => {
+      this.batchCompletionTimeout = undefined;
+
+      const hasFailed = Array.from(this.jobProgress.values()).some(
+        (job) => job.status === "failed"
+      );
+      const hasCancelled = Array.from(this.jobProgress.values()).some(
+        (job) => job.status === "cancelled"
+      );
+
+      if (hasFailed) {
+        dom.showError("One or more files failed to process.");
+      } else if (hasCancelled) {
+        dom.showInfo("Processing was cancelled.");
+      } else {
+        dom.showSuccess("Audiobook created successfully!");
+      }
+
+      this.resetToIdle();
+    }, 2000);
+  }
+
+  private areAllBatchJobsTerminal(): boolean {
+    if (this.queueOrder.length === 0) return false;
+
+    return this.queueOrder.every((key) => {
+      const job = this.jobProgress.get(key);
+      return (
+        job &&
+        (job.status === "completed" ||
+          job.status === "failed" ||
+          job.status === "cancelled")
+      );
     });
   }
 
   public updateProgress(event: ProcessingProgressEvent): void {
-    const jobId = event.job_id ?? "default";
+    const jobKey = this.buildJobKey(event.input_index, event.job_id ?? undefined);
     const now = Date.now();
 
     // Throttle non-terminal updates to avoid UI flooding with many jobs
@@ -126,46 +254,59 @@ export class StatusPanel {
       event.stage === STAGES.completed ||
       event.stage === STAGES.failed ||
       event.stage === STAGES.cancelled;
-    if (!isTerminal && now - this.lastProgressRender < 500) {
+    const lastRender = this.lastProgressRenderByKey.get(jobKey) ?? 0;
+    if (!isTerminal && now - lastRender < 500) {
       return;
     }
-    this.lastProgressRender = now;
+    this.lastProgressRenderByKey.set(jobKey, now);
 
-    // Track per-job progress
-    this.jobProgress.set(jobId, {
-      jobId,
+    const existing = this.jobProgress.get(jobKey);
+    const jobStatus: JobStatus = isTerminal ? (event.stage as JobStatus) : "processing";
+
+    this.jobProgress.set(jobKey, {
+      jobId: event.job_id ?? existing?.jobId,
+      inputIndex: typeof event.input_index === "number" ? event.input_index : existing?.inputIndex,
+      label: existing?.label ?? this.buildFallbackLabel(event),
+      status: jobStatus,
       stage: event.stage,
       percentage: Math.round(event.percentage * 10) / 10,
       message: event.message,
       lastUpdate: now,
     });
 
-    renderJobList(this.jobProgress, (id) => this.cancelJob(id));
+    if (typeof event.input_index === "number") {
+      const key = this.buildJobKey(event.input_index, undefined);
+      if (!this.queueOrder.includes(key)) {
+        this.queueOrder.push(key);
+      }
+    }
 
-    // Handle terminal states for this job
-    if (
-      event.stage === STAGES.completed ||
-      event.stage === STAGES.failed ||
-      event.stage === STAGES.cancelled
-    ) {
-      // Remove completed/failed/cancelled jobs after a delay
-      setTimeout(() => {
-        this.jobProgress.delete(jobId);
-        if (this.jobProgress.size === 0) {
-          this.resetToIdle();
+    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 
-          if (event.stage === STAGES.completed) {
-            dom.showSuccess("Audiobook created successfully!");
-          } else if (event.stage === STAGES.failed) {
-            dom.showError(event.message);
-          } else if (event.stage === STAGES.cancelled) {
-            dom.showInfo("Processing was cancelled.");
+    const isBatchActive = this.queueOrder.length > 0;
+
+    if (isTerminal) {
+      if (!isBatchActive) {
+        setTimeout(() => {
+          this.jobProgress.delete(jobKey);
+          if (this.jobProgress.size === 0) {
+            this.resetToIdle();
+
+            if (event.stage === STAGES.completed) {
+              dom.showSuccess("Audiobook created successfully!");
+            } else if (event.stage === STAGES.failed) {
+              dom.showError(event.message);
+            } else if (event.stage === STAGES.cancelled) {
+              dom.showInfo("Processing was cancelled.");
+            }
           }
-        }
 
-        this.updateAggregateUI();
-        renderJobList(this.jobProgress, (id) => this.cancelJob(id));
-      }, 2000);
+          this.updateAggregateUI();
+          renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+        }, 2000);
+      } else if (this.areAllBatchJobsTerminal()) {
+        this.scheduleBatchCompletion();
+      }
     }
 
     this.isProcessing = this.jobProgress.size > 0;
@@ -228,6 +369,7 @@ export class StatusPanel {
     };
     this.updateStatus(status);
     this.updateConcurrencyIndicator(aggregate);
+    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
   }
 
   private updateConcurrencyIndicator(aggregate?: AggregateProgress): void {
@@ -272,14 +414,24 @@ export class StatusPanel {
     this.currentJobType = null;
     this.lastCoverArtPath = null;
 
-    if (this.cancelUnlisten) {
-      this.cancelUnlisten();
-      this.cancelUnlisten = undefined;
+    if (this.progressUnlisten) {
+      this.progressUnlisten();
+      this.progressUnlisten = undefined;
+    }
+    if (this.queueUnlisten) {
+      this.queueUnlisten();
+      this.queueUnlisten = undefined;
+    }
+    if (this.batchCompletionTimeout) {
+      window.clearTimeout(this.batchCompletionTimeout);
+      this.batchCompletionTimeout = undefined;
     }
 
     // Clear all job progress tracking
     this.jobProgress.clear();
-    renderJobList(this.jobProgress, (id) => this.cancelJob(id));
+    this.queueOrder = [];
+    this.lastProgressRenderByKey.clear();
+    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 
     this.updateStatus(createInitialStatus());
     this.updateConcurrencyIndicator();

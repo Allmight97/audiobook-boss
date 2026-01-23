@@ -33,18 +33,44 @@ describe("StatusPanel progress throttling", () => {
     } as any;
 
     panel.updateProgress(evt);
-    let job = (panel as any).jobProgress.get("job-1");
+    let job = (panel as any).jobProgress.get("job:job-1");
     expect(job?.percentage).toBe(10);
 
     const evt2 = { ...evt, percentage: 20, message: "twenty" };
     panel.updateProgress(evt2);
-    job = (panel as any).jobProgress.get("job-1");
+    job = (panel as any).jobProgress.get("job:job-1");
     expect(job?.percentage).toBe(10);
 
     await new Promise((resolve) => setTimeout(resolve, 550));
     const evt3 = { ...evt, percentage: 30, message: "thirty" };
     panel.updateProgress(evt3);
-    const updated = (panel as any).jobProgress.get("job-1");
+    const updated = (panel as any).jobProgress.get("job:job-1");
     expect(updated?.percentage).toBe(30);
+  });
+
+  it("does not throttle different jobs within the same window", () => {
+    const panel = new StatusPanel();
+
+    const evt1 = {
+      job_id: "job-1",
+      stage: "converting",
+      percentage: 10,
+      message: "ten",
+    } as any;
+
+    const evt2 = {
+      job_id: "job-2",
+      stage: "converting",
+      percentage: 20,
+      message: "twenty",
+    } as any;
+
+    panel.updateProgress(evt1);
+    panel.updateProgress(evt2);
+
+    const job1 = (panel as any).jobProgress.get("job:job-1");
+    const job2 = (panel as any).jobProgress.get("job:job-2");
+    expect(job1?.percentage).toBe(10);
+    expect(job2?.percentage).toBe(20);
   });
 });

@@ -26,6 +26,8 @@ describe("StatusPanel aggregate progress", () => {
     const jobProgress = new Map<string, any>();
     jobProgress.set("job-1", {
       jobId: "job-1",
+      label: "File One",
+      status: "processing",
       stage: "converting",
       percentage: 50,
       message: "Halfway",
@@ -33,6 +35,8 @@ describe("StatusPanel aggregate progress", () => {
     });
     jobProgress.set("job-2", {
       jobId: "job-2",
+      label: "File Two",
+      status: "completed",
       stage: "completed",
       percentage: 100,
       message: "Done",
@@ -43,6 +47,7 @@ describe("StatusPanel aggregate progress", () => {
     const aggregate = (panel as any).calculateAggregateProgress();
 
     expect(aggregate.activeJobs).toBe(1);
+    expect(aggregate.queuedJobs).toBe(0);
     expect(aggregate.completedJobs).toBe(1);
     expect(aggregate.overallPercentage).toBeCloseTo(75);
   });

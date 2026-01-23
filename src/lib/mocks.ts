@@ -1,6 +1,11 @@
 import { FileListInfo } from "../types/audio";
 import { AudiobookMetadata } from "../types/metadata";
-import { ProcessingProgressEvent, EVENTS, STAGES } from "../types/events";
+import {
+  ProcessingProgressEvent,
+  ProcessingQueueEvent,
+  EVENTS,
+  STAGES,
+} from "../types/events";
 
 // Mock Data
 const MOCK_FILE_LIST: FileListInfo = {
@@ -110,9 +115,26 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
       return mockMaxConcurrent as unknown as T;
 
     case "process_audiobook_files_v2":
-      // Start a simulated progress loop
-      mockJobCounter += 1;
-      simulateProcessing(`mock-job-${mockJobCounter}`);
+      {
+        const inputFiles: string[] = args?.payload?.inputFiles ?? [];
+        emitEvent(EVENTS.QUEUE, {
+          items: inputFiles.map((filePath, index) => ({
+            input_index: index,
+            file_path: filePath,
+          })),
+          max_concurrent: mockMaxConcurrent,
+        } as ProcessingQueueEvent);
+
+        if (inputFiles.length === 0) {
+          mockJobCounter += 1;
+          simulateProcessing(`mock-job-${mockJobCounter}`);
+        } else {
+          inputFiles.forEach((_filePath, index) => {
+            mockJobCounter += 1;
+            simulateProcessing(`mock-job-${mockJobCounter}`, index);
+          });
+        }
+      }
       return {
         message: "Processing started (mock)",
         jobId: `mock-job-${mockJobCounter}`,
@@ -158,7 +180,7 @@ export async function mockOpenExternal(path: string): Promise<void> {
 }
 
 // Simulation Logic
-function simulateProcessing(jobId: string) {
+function simulateProcessing(jobId: string, inputIndex?: number) {
   let progress = 0;
   const interval = setInterval(() => {
     progress += 10;
@@ -172,6 +194,7 @@ function simulateProcessing(jobId: string) {
         current_file: "",
         eta_seconds: 0,
         job_id: jobId,
+        input_index: inputIndex,
       } as ProcessingProgressEvent);
     } else {
       emitEvent(EVENTS.PROGRESS, {
@@ -181,6 +204,7 @@ function simulateProcessing(jobId: string) {
         current_file: "mock_file.mp3",
         eta_seconds: (100 - progress) / 10,
         job_id: jobId,
+        input_index: inputIndex,
       } as ProcessingProgressEvent);
     }
   }, 500);

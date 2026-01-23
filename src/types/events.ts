@@ -15,7 +15,8 @@
 
 /** Event name constants to prevent string drift */
 export const EVENTS = {
-    PROGRESS: 'processing-progress'
+    PROGRESS: 'processing-progress',
+    QUEUE: 'processing-queue'
 } as const;
 
 /** Stage name constants to prevent string drift */
@@ -65,6 +66,16 @@ export interface ProcessingProgressEvent {
 
     /** Original input index for batch processing (optional, added in issue #71) */
     input_index?: number;
+}
+
+export interface ProcessingQueueItem {
+    input_index: number;
+    file_path: string;
+}
+
+export interface ProcessingQueueEvent {
+    items: ProcessingQueueItem[];
+    max_concurrent: number;
 }
 
 // ============================================================================
@@ -117,6 +128,8 @@ export interface TauriFileDropEvents {
 export interface ApplicationEvents extends TauriFileDropEvents {
     /** Progress updates during audiobook processing */
     [EVENTS.PROGRESS]: ProcessingProgressEvent;
+    /** Batch queue snapshot */
+    [EVENTS.QUEUE]: ProcessingQueueEvent;
 }
 
 // ============================================================================

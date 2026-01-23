@@ -28,16 +28,20 @@ export function formatAggregateMessage(
   aggregate: AggregateProgress
 ): string {
   if (aggregate.activeJobs > 1) {
-    return `Processing ${aggregate.activeJobs} files (${aggregate.completedJobs} completed)`;
+    const queuedSuffix =
+      aggregate.queuedJobs > 0 ? `, ${aggregate.queuedJobs} queued` : "";
+    const completedSuffix =
+      aggregate.completedJobs > 0 ? `, ${aggregate.completedJobs} completed` : "";
+    return `Processing ${aggregate.activeJobs} files${queuedSuffix}${completedSuffix}`;
   }
   if (aggregate.activeJobs === 1) {
     const activeJob = Array.from(jobProgress.values()).find(
-      (job) =>
-        job.stage !== "completed" &&
-        job.stage !== "failed" &&
-        job.stage !== "cancelled"
+      (job) => job.status === "processing"
     );
     return activeJob?.message ?? "Processing...";
+  }
+  if (aggregate.queuedJobs > 0) {
+    return `Queued ${aggregate.queuedJobs} file${aggregate.queuedJobs === 1 ? "" : "s"}`;
   }
   return "Ready to process audiobook";
 }
@@ -92,4 +96,40 @@ export function extractFilenameFromProgress(label: string): string | null {
     return match[1].trim();
   }
   return trimmed;
+}
+
+function splitPathSegments(path: string): string[] {
+  return path.split(/[\\/]/).filter(Boolean);
+}
+
+export function buildQueueLabels(paths: string[]): string[] {
+  const segmentsList = paths.map(splitPathSegments);
+  const maxDepth = segmentsList.reduce(
+    (max, segments) => Math.max(max, segments.length),
+    0
+  );
+
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const labels = segmentsList.map((segments) =>
+      segments.length > 0 ? segments.slice(-depth).join("/") : ""
+    );
+    const counts = labels.reduce<Record<string, number>>((acc, label) => {
+      acc[label] = (acc[label] ?? 0) + 1;
+      return acc;
+    }, {});
+    const hasDuplicates = labels.some(
+      (label) => label !== "" && (counts[label] ?? 0) > 1
+    );
+    if (!hasDuplicates) return labels;
+  }
+
+  const labels = segmentsList.map((segments) => segments.join("/"));
+  const counts = labels.reduce<Record<string, number>>((acc, label) => {
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+  return labels.map((label, index) => {
+    if ((counts[label] ?? 0) <= 1) return label;
+    return `${label} (${index + 1})`;
+  });
 }

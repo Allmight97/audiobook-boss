@@ -103,16 +103,17 @@ fn test_analyze_audio_files_validates_inputs() {
         "Nonexistent path and directory should be invalid"
     );
 
-    let valid_path = valid_file
-        .canonicalize()
-        .expect("canonicalize valid file");
+    let valid_path = valid_file.canonicalize().expect("canonicalize valid file");
     let valid_entry = file_info
         .files
         .iter()
         .find(|f| f.path == valid_path)
         .expect("valid file entry");
     assert!(valid_entry.is_valid, "Valid mp3 should be accepted");
-    assert!(valid_entry.error.is_none(), "Valid mp3 should have no error");
+    assert!(
+        valid_entry.error.is_none(),
+        "Valid mp3 should have no error"
+    );
 
     // Verify error messages contain path validation failures
     for file in &file_info.files {
@@ -231,7 +232,10 @@ fn test_path_validation_special_characters() {
     assert!(result.is_ok(), "Unicode filenames should be accepted");
     let file_info = result.expect("analysis ok");
     let file = &file_info.files[0];
-    assert!(file.is_valid, "Unicode filename should be valid with real media");
+    assert!(
+        file.is_valid,
+        "Unicode filename should be valid with real media"
+    );
     assert!(file.error.is_none(), "Unicode filename should not error");
 }
 

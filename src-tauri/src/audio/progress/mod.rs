@@ -31,6 +31,20 @@ pub struct ProgressEvent {
     pub input_index: Option<usize>,
 }
 
+/// Batch queue snapshot for frontend communication
+#[derive(Clone, Serialize)]
+pub struct QueueEvent {
+    pub items: Vec<QueueItem>,
+    pub max_concurrent: usize,
+}
+
+/// Single queued item in a batch run
+#[derive(Clone, Serialize)]
+pub struct QueueItem {
+    pub input_index: usize,
+    pub file_path: String,
+}
+
 // ============================================================================
 // Pure Math Utilities
 // ============================================================================
