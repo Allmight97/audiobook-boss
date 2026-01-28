@@ -7,6 +7,7 @@ sorted descending, with an over/under flag. Skips common build/test output dirs.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
@@ -40,36 +41,97 @@ def count_lines(path: Path) -> int:
         return 0
 
 
+def is_test_file(path: Path) -> bool:
+    """Check if a file is a test file based on path patterns."""
+    path_str = str(path)
+    test_patterns = [
+        "__tests__/",
+        ".test.ts",
+        ".spec.ts",
+        ".test.tsx",
+        ".spec.tsx",
+        "_test.rs",
+        "_tests.rs",
+    ]
+    return any(pattern in path_str for pattern in test_patterns)
+
+
+def get_test_type(path: Path) -> str | None:
+    """Check test type in Rust files: 'inline' for actual test code, 'import' for test module imports."""
+    if path.suffix != ".rs":
+        return None
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            content = handle.read()
+            if "#[cfg(test)]" not in content:
+                return None
+
+            # Check if it's just importing a test module: #[cfg(test)]\nmod name;
+            # vs actual inline tests: #[cfg(test)]\nmod name { or #[test]
+            # Look for pattern: #[cfg(test)] followed by mod name; (with semicolon, not brace)
+            if re.search(r'#\[cfg\(test\)\]\s*mod\s+\w+\s*;', content):
+                return "import"
+            # If has #[cfg(test)] but not the import pattern, assume inline
+            return "inline"
+    except OSError:
+        return None
+
+
 def main() -> None:
-    results: List[Tuple[str, int]] = []
+    results: List[Tuple[str, int, str | None]] = []  # (path, lines, test_type)
     cwd = Path.cwd()
 
     for file_path in iter_source_files():
         line_count = count_lines(file_path)
+        test_type = get_test_type(file_path)
         try:
             rel_path = str(file_path.relative_to(cwd))
         except ValueError:
             # Fallback if paths don't align
             rel_path = str(file_path)
-        results.append((rel_path, line_count))
+        results.append((rel_path, line_count, test_type))
 
     results.sort(key=lambda item: item[1], reverse=True)
 
-    print(f"Modules over {THRESHOLD} lines (scanned: {', '.join(str(p) for p in BASE_DIRS)})")
+    # Separate source modules from test files
+    source_modules = [(m, l, t) for m, l, t in results if not is_test_file(Path(m))]
+    test_files = [(m, l, t) for m, l, t in results if is_test_file(Path(m))]
+
+    # Print source modules
+    print(f"Source modules >= {THRESHOLD} lines (scanned: {', '.join(str(p) for p in BASE_DIRS)})")
     print("=" * 72)
-    print(f"{'Module':<50} {'Lines':>7}  Over?")
+    print(f"{'Module':<50} {'Lines':>7}  Flag")
     print("-" * 72)
 
-    over_count = 0
-    for module, lines in results:
-        over = "YES" if lines > THRESHOLD else "NO"
-        if lines > THRESHOLD:
-            over_count += 1
+    source_over_count = 0
+    for module, lines, test_type in source_modules:
+        flag = "OVER" if lines >= THRESHOLD else ""
+        if test_type:
+            flag = f"{flag} [tests:{test_type}]".strip()
+        if lines >= THRESHOLD:
+            source_over_count += 1
         display_name = module if len(module) <= 50 else "..." + module[-47:]
-        print(f"{display_name:<50} {lines:>7}  {over}")
+        print(f"{display_name:<50} {lines:>7}  {flag}")
+
+    # Print test files
+    print("\n" + "=" * 72)
+    print(f"Test files >= {THRESHOLD} lines")
+    print("=" * 72)
+    print(f"{'Module':<50} {'Lines':>7}  Flag")
+    print("-" * 72)
+
+    test_over_count = 0
+    for module, lines, test_type in test_files:
+        flag = "OVER" if lines >= THRESHOLD else ""
+        if test_type:
+            flag = f"{flag} [tests:{test_type}]".strip()
+        if lines >= THRESHOLD:
+            test_over_count += 1
+        display_name = module if len(module) <= 50 else "..." + module[-47:]
+        print(f"{display_name:<50} {lines:>7}  {flag}")
 
     print("\n" + "=" * 72)
-    print(f"SUMMARY: {over_count} modules exceed {THRESHOLD} lines")
+    print(f"SUMMARY: {source_over_count} source modules, {test_over_count} test files >= {THRESHOLD} lines")
 
 
 if __name__ == "__main__":
