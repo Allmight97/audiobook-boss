@@ -2,6 +2,7 @@ import {
   currentFileList,
   isOrderLocked,
 } from "./state";
+import { isMetadataSaveInProgress } from "../metadataSaveState";
 import {
   selectFile,
   removeFile,
@@ -52,6 +53,7 @@ export function setupDragStartHandlers(): void {
 }
 
 function handleFileListClick(e: Event): void {
+  if (isMetadataSaveInProgress()) return;
   const target = e.target as HTMLElement;
 
   if (target.classList.contains("remove-file-btn")) {
@@ -105,6 +107,7 @@ function handleFileListClick(e: Event): void {
 }
 
 function handleFileListKeyDown(e: KeyboardEvent): void {
+  if (isMetadataSaveInProgress()) return;
   if (!currentFileList) return;
   if (isTextInputTarget(e.target)) return;
 
@@ -128,6 +131,7 @@ function isTextInputTarget(target: EventTarget | null): boolean {
 }
 
 function handleDragStart(e: DragEvent, index: number): void {
+  if (isMetadataSaveInProgress()) return;
   if (isOrderLocked()) return;
   if (!e.dataTransfer) return;
 
@@ -140,6 +144,7 @@ function handleDragStart(e: DragEvent, index: number): void {
 }
 
 function handleDragOver(e: DragEvent): void {
+  if (isMetadataSaveInProgress()) return;
   if (isOrderLocked()) return;
   e.preventDefault();
   if (!e.dataTransfer) return;
@@ -159,6 +164,7 @@ function handleDragOver(e: DragEvent): void {
 }
 
 function handleDrop(e: DragEvent): void {
+  if (isMetadataSaveInProgress()) return;
   if (isOrderLocked()) return;
   e.preventDefault();
   e.stopPropagation();

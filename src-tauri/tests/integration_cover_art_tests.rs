@@ -16,8 +16,8 @@ fn ensure_media() -> Option<PathBuf> {
     }
 }
 
-#[test]
-fn test_real_mp3_cover_art_integration() {
+#[tokio::test]
+async fn test_real_mp3_cover_art_integration() {
     println!("Testing cover art integration with real MP3 file...");
 
     let media_file = match ensure_media() {
@@ -33,7 +33,9 @@ fn test_real_mp3_cover_art_integration() {
     // Test reading metadata with cover art
     match audiobook_boss_lib::commands::read_audio_metadata(
         media_file.to_string_lossy().to_string(),
-    ) {
+    )
+    .await
+    {
         Ok(metadata) => {
             println!("✓ Successfully read metadata from MP3");
 
@@ -77,7 +79,7 @@ fn test_real_mp3_cover_art_integration() {
                 );
 
                 // Test round-trip: write and read back
-                test_cover_art_round_trip(&metadata, &media_file);
+                test_cover_art_round_trip(&metadata, &media_file).await;
             } else {
                 println!("Real MP3 file has no cover art - testing metadata-only flow");
 
@@ -96,8 +98,8 @@ fn test_real_mp3_cover_art_integration() {
     println!("Real MP3 cover art integration test passed!");
 }
 
-#[test]
-fn test_real_media_file_cover_art_detection() {
+#[tokio::test]
+async fn test_real_media_file_cover_art_detection() {
     println!("Testing cover art detection on real media file...");
 
     let media_file = PathBuf::from(TEST_MEDIA_FILE);
@@ -110,7 +112,9 @@ fn test_real_media_file_cover_art_detection() {
     // Test reading metadata from real file
     match audiobook_boss_lib::commands::read_audio_metadata(
         media_file.to_string_lossy().to_string(),
-    ) {
+    )
+    .await
+    {
         Ok(metadata) => {
             println!("✓ Successfully read metadata from real MP3 file");
             if let Some(ref cover_art) = metadata.cover_art {
@@ -139,7 +143,7 @@ fn test_real_media_file_cover_art_detection() {
     println!("Real media file test completed!");
 }
 
-fn test_cover_art_round_trip(original_metadata: &AudiobookMetadata, source_file: &PathBuf) {
+async fn test_cover_art_round_trip(original_metadata: &AudiobookMetadata, source_file: &PathBuf) {
     println!("Testing cover art round-trip (write then read)...");
 
     use tempfile::NamedTempFile;
@@ -163,7 +167,9 @@ fn test_cover_art_round_trip(original_metadata: &AudiobookMetadata, source_file:
                 // Read back and verify
                 match audiobook_boss_lib::commands::read_audio_metadata(
                     temp_path.to_string_lossy().to_string(),
-                ) {
+                )
+                .await
+                {
                     Ok(read_back_metadata) => {
                         println!("✓ Successfully read back metadata");
 
@@ -213,13 +219,14 @@ fn test_cover_art_round_trip(original_metadata: &AudiobookMetadata, source_file:
     println!("✓ Round-trip test completed");
 }
 
-#[test]
-fn test_cover_art_commands_error_handling() {
+#[tokio::test]
+async fn test_cover_art_commands_error_handling() {
     println!("Testing cover art command error handling...");
 
     // Test reading from non-existent file
     let result =
-        audiobook_boss_lib::commands::read_audio_metadata("non_existent_file.mp3".to_string());
+        audiobook_boss_lib::commands::read_audio_metadata("non_existent_file.mp3".to_string())
+            .await;
     assert!(result.is_err(), "Should fail to read non-existent file");
     println!("✓ Non-existent file correctly returns error");
 
@@ -232,9 +239,9 @@ fn test_cover_art_commands_error_handling() {
     println!("✓ Writing to non-existent file correctly returns error");
 
     // Test loading non-existent cover file (async function)
-    let result = futures::executor::block_on(audiobook_boss_lib::commands::load_cover_art_file(
-        "non_existent_image.jpg".to_string(),
-    ));
+    let result =
+        audiobook_boss_lib::commands::load_cover_art_file("non_existent_image.jpg".to_string())
+            .await;
     assert!(
         result.is_err(),
         "Should fail to load non-existent cover file"
@@ -244,15 +251,17 @@ fn test_cover_art_commands_error_handling() {
     println!("Cover art command error handling tests passed!");
 }
 
-#[test]
-fn test_cover_art_size_limits() {
+#[tokio::test]
+async fn test_cover_art_size_limits() {
     println!("Testing cover art size limits and performance...");
 
     if let Some(media_file) = ensure_media() {
         // Read original metadata
         if let Ok(metadata) = audiobook_boss_lib::commands::read_audio_metadata(
             media_file.to_string_lossy().to_string(),
-        ) {
+        )
+        .await
+        {
             if let Some(ref original_cover) = metadata.cover_art {
                 println!("Original cover art size: {} bytes", original_cover.len());
 

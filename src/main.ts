@@ -1,5 +1,4 @@
 import { bridge } from "./lib/bridge";
-import type { AudiobookMetadata } from "./types/metadata";
 import type { AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
 import { currentFileList, selectedFileIndex } from "./ui/fileList";
@@ -12,7 +11,8 @@ import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/
 import { getSeriesPartValidationError } from "./ui/metadataValidation";
 import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
-import { setMetadataForFile } from "./ui/metadataState";
+import { setMetadataForFile, getMetadataForFile } from "./ui/metadataState";
+import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metadataSaveState";
 
 // Initialize UI components when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -113,26 +113,38 @@ function initMetadataSaveHandler(): void {
         return;
       }
 
+      const statusText = document.getElementById("status-text");
+      const originalText = statusText?.textContent ?? "";
+      if (statusText) {
+        statusText.textContent = "Saving metadata...";
+      }
+
+      if (isMetadataSaveInProgress()) {
+        if (statusText) {
+          statusText.textContent = "Save already in progress...";
+        }
+        return;
+      }
+
       try {
+        setMetadataSaveInProgress(true);
         let successCount = 0;
 
         if (isMultiSelect) {
-          for (const file of targetFiles) {
+          for (const [index, file] of targetFiles.entries()) {
             console.log(`Processing save for ${file.path}...`);
 
-            const currentMeta = await bridge.invoke<AudiobookMetadata>(
-              "read_audio_metadata",
-              { filePath: file.path }
-            );
-
-            const merged = { ...currentMeta, ...metadataPayload };
+            if (statusText) {
+              statusText.textContent = `Saving ${index + 1}/${targetFiles.length}...`;
+            }
 
             await bridge.invoke("save_metadata_to_file", {
               filePath: file.path,
-              metadata: merged,
+              metadata: metadataPayload,
             });
 
-            setMetadataForFile(file.path, merged);
+            const existing = getMetadataForFile(file.path) ?? {};
+            setMetadataForFile(file.path, { ...existing, ...metadataPayload });
             successCount++;
           }
         } else {
@@ -148,9 +160,7 @@ function initMetadataSaveHandler(): void {
         resetDirtyState();
         console.log(`Metadata saved successfully for ${successCount} files`);
 
-        const statusText = document.getElementById("status-text");
         if (statusText) {
-          const originalText = statusText.textContent;
           const msg =
             targetFiles.length > 1
               ? `Metadata saved (${successCount} files)!`
@@ -164,10 +174,11 @@ function initMetadataSaveHandler(): void {
         }
       } catch (error) {
         console.error("Failed to save metadata:", error);
-        const statusText = document.getElementById("status-text");
         if (statusText) {
           statusText.textContent = "Save failed - see console";
         }
+      } finally {
+        setMetadataSaveInProgress(false);
       }
     }
   });

@@ -62,8 +62,8 @@ fn write_minimal_m4b(output: &Path) {
     octx.write_trailer().expect("write trailer");
 }
 
-#[test]
-fn covr_only_is_visible_to_ffprobe() {
+#[tokio::test]
+async fn covr_only_is_visible_to_ffprobe() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -77,6 +77,7 @@ fn covr_only_is_visible_to_ffprobe() {
             ..Default::default()
         },
     )
+    .await
     .expect("save metadata");
 
     let tag = Tag::read_from_path(&output).expect("read tag");

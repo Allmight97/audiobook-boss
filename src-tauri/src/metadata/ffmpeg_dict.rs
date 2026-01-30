@@ -1,6 +1,6 @@
 //! FFmpeg metadata dictionary helpers for AudiobookMetadata.
 
-use super::AudiobookMetadata;
+use super::{compute_album_sort, AudiobookMetadata};
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
@@ -112,6 +112,14 @@ pub(crate) fn merge_metadata<'a>(
         merged.set(key, value);
     }
 
+    let should_recompute =
+        metadata.series.is_some() || metadata.title.is_some() || metadata.series_part.is_some();
+    if should_recompute || metadata.album_sort.is_none() {
+        if let Some(album_sort) = compute_album_sort_from_dict(&merged) {
+            merged.set("sort_album", &album_sort);
+        }
+    }
+
     Ok(merged)
 }
 
@@ -167,6 +175,33 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
     }
 
     false
+}
+
+fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
+    let series = first_tag(
+        dict,
+        &["series", "----:com.apple.iTunes:SERIES", "MVNM", "show"],
+    );
+    let series_part = first_tag(
+        dict,
+        &[
+            "series-part",
+            "----:com.apple.iTunes:SERIES-PART",
+            "MVIN",
+            "episode_sort",
+        ],
+    );
+    let title = dict.get("title").map(str::to_string);
+
+    match (series.as_deref(), title.as_deref()) {
+        (Some(series), Some(title)) => compute_album_sort(series, series_part.as_deref(), title),
+        _ => None,
+    }
+}
+
+fn first_tag(dict: &ff::Dictionary<'_>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| dict.get(key).map(str::to_string))
 }
 
 /// Sets global metadata on output format context

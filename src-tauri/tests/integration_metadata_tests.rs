@@ -145,9 +145,9 @@ fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
 // Basic metadata reading error handling
 // ============================================================================
 
-#[test]
-fn read_nonexistent_file_returns_error() {
-    let result = read_audio_metadata("does-not-exist.m4b".to_string());
+#[tokio::test]
+async fn read_nonexistent_file_returns_error() {
+    let result = read_audio_metadata("does-not-exist.m4b".to_string()).await;
     assert!(result.is_err());
     let message = result.expect_err("error").to_string();
     assert!(
@@ -156,13 +156,13 @@ fn read_nonexistent_file_returns_error() {
     );
 }
 
-#[test]
-fn invalid_file_surfaces_ffmpeg_error() {
+#[tokio::test]
+async fn invalid_file_surfaces_ffmpeg_error() {
     let temp = TempDir::new().expect("temp dir");
     let path = temp.path().join("invalid.m4b");
     std::fs::write(&path, b"not audio").expect("write");
 
-    let result = read_audio_metadata(path.to_string_lossy().to_string());
+    let result = read_audio_metadata(path.to_string_lossy().to_string()).await;
     assert!(result.is_err());
     let message = result.expect_err("error").to_string();
     assert!(
@@ -175,8 +175,8 @@ fn invalid_file_surfaces_ffmpeg_error() {
 // FFmpeg fallback for non-M4B files
 // ============================================================================
 
-#[test]
-fn save_metadata_non_mp4_uses_ffmpeg_path() {
+#[tokio::test]
+async fn save_metadata_non_mp4_uses_ffmpeg_path() {
     let temp = TempDir::new().expect("temp dir");
     let source = sample_mp3_path();
     assert!(source.exists(), "sample mp3 should exist");
@@ -189,16 +189,19 @@ fn save_metadata_non_mp4_uses_ffmpeg_path() {
         ..Default::default()
     };
 
-    save_metadata_to_file(target.to_string_lossy().to_string(), metadata).expect("save metadata");
+    save_metadata_to_file(target.to_string_lossy().to_string(), metadata)
+        .await
+        .expect("save metadata");
 
-    let read_back =
-        read_audio_metadata(target.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(target.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     assert_eq!(read_back.title.as_deref(), Some("Non-MP4 Title"));
     assert_eq!(read_back.artist.as_deref(), Some("Non-MP4 Author"));
 }
 
-#[test]
-fn mp4ameta_error_falls_back_to_ffmpeg() {
+#[tokio::test]
+async fn mp4ameta_error_falls_back_to_ffmpeg() {
     let temp = TempDir::new().expect("temp dir");
     let source = sample_mp3_path();
     assert!(source.exists(), "sample mp3 should exist");
@@ -211,14 +214,17 @@ fn mp4ameta_error_falls_back_to_ffmpeg() {
         ..Default::default()
     };
 
-    save_metadata_to_file(mp3_path.to_string_lossy().to_string(), metadata).expect("save metadata");
+    save_metadata_to_file(mp3_path.to_string_lossy().to_string(), metadata)
+        .await
+        .expect("save metadata");
 
     // Rename to .m4b to force mp4ameta path, then ensure ffmpeg fallback returns data.
     let spoofed = temp.path().join("fallback.m4b");
     std::fs::rename(&mp3_path, &spoofed).expect("rename mp3 to m4b");
 
-    let read_back =
-        read_audio_metadata(spoofed.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(spoofed.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     assert_eq!(read_back.title.as_deref(), Some("Fallback Title"));
     assert_eq!(read_back.artist.as_deref(), Some("Fallback Author"));
 }
@@ -227,8 +233,8 @@ fn mp4ameta_error_falls_back_to_ffmpeg() {
 // mp4ameta series tag tests
 // ============================================================================
 
-#[test]
-fn writes_series_tags_with_mp4ameta() {
+#[tokio::test]
+async fn writes_series_tags_with_mp4ameta() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -242,7 +248,9 @@ fn writes_series_tags_with_mp4ameta() {
     };
 
     write_minimal_m4b(&output);
-    save_metadata_to_file(output.to_string_lossy().to_string(), metadata).expect("save metadata");
+    save_metadata_to_file(output.to_string_lossy().to_string(), metadata)
+        .await
+        .expect("save metadata");
 
     assert!(output.exists(), "output should exist");
 
@@ -259,8 +267,8 @@ fn writes_series_tags_with_mp4ameta() {
     assert_eq!(tag.movement_index(), Some(7));
 }
 
-#[test]
-fn replaces_duplicate_series_atoms_on_save() {
+#[tokio::test]
+async fn replaces_duplicate_series_atoms_on_save() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -296,6 +304,7 @@ fn replaces_duplicate_series_atoms_on_save() {
             ..Default::default()
         },
     )
+    .await
     .expect("save metadata");
 
     let tag = Tag::read_from_path(&output).expect("read tag");
@@ -308,8 +317,8 @@ fn replaces_duplicate_series_atoms_on_save() {
     assert_eq!(tag.movement_index(), Some(14));
 }
 
-#[test]
-fn preserves_series_tags_on_cover_art_update() {
+#[tokio::test]
+async fn preserves_series_tags_on_cover_art_update() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -324,6 +333,7 @@ fn preserves_series_tags_on_cover_art_update() {
             ..Default::default()
         },
     )
+    .await
     .expect("save series metadata");
 
     save_metadata_to_file(
@@ -333,6 +343,7 @@ fn preserves_series_tags_on_cover_art_update() {
             ..Default::default()
         },
     )
+    .await
     .expect("update cover art");
 
     let tag = Tag::read_from_path(&output).expect("read tag");
@@ -352,8 +363,8 @@ fn preserves_series_tags_on_cover_art_update() {
     );
 }
 
-#[test]
-fn preserves_series_tags_on_metadata_only_save() {
+#[tokio::test]
+async fn preserves_series_tags_on_metadata_only_save() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -369,6 +380,7 @@ fn preserves_series_tags_on_metadata_only_save() {
             ..Default::default()
         },
     )
+    .await
     .expect("save metadata");
 
     let tag = Tag::read_from_path(&output).expect("read tag");
@@ -387,11 +399,100 @@ fn preserves_series_tags_on_metadata_only_save() {
         Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
     );
 
-    let read_back =
-        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     assert_eq!(
         read_back.album_sort.as_deref(),
         Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
+    );
+}
+
+#[tokio::test]
+async fn recomputes_album_sort_when_only_series_part_changes() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-part-update.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("The Ashen Apocalypse".into()),
+            series: Some("System Apocalypse".into()),
+            series_part: Some("1".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("save metadata");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            series_part: Some("2".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("save metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    assert_eq!(
+        tag.album_sort_order(),
+        Some("System Apocalypse 02 - The Ashen Apocalypse")
+    );
+
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("System Apocalypse 02 - The Ashen Apocalypse")
+    );
+}
+
+#[tokio::test]
+async fn recomputes_album_sort_when_series_part_changes() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-part-recompute.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("The Dungeon Anarchist's Cookbook".into()),
+            series: Some("Dungeon Crawler Carl".into()),
+            series_part: Some("6".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("save metadata");
+
+    let mut read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("Dungeon Crawler Carl 06 - The Dungeon Anarchist's Cookbook")
+    );
+
+    read_back.series_part = Some("7".into());
+    save_metadata_to_file(output.to_string_lossy().to_string(), read_back)
+        .await
+        .expect("save metadata");
+
+    let updated = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert_eq!(updated.series_part.as_deref(), Some("7"));
+    assert_eq!(
+        updated.album_sort.as_deref(),
+        Some("Dungeon Crawler Carl 07 - The Dungeon Anarchist's Cookbook")
     );
 }
 
@@ -399,8 +500,8 @@ fn preserves_series_tags_on_metadata_only_save() {
 // Cover art tests
 // ============================================================================
 
-#[test]
-fn writes_cover_art_with_mp4ameta_and_reads_back() {
+#[tokio::test]
+async fn writes_cover_art_with_mp4ameta_and_reads_back() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -412,13 +513,16 @@ fn writes_cover_art_with_mp4ameta_and_reads_back() {
     };
 
     write_minimal_m4b(&output);
-    save_metadata_to_file(output.to_string_lossy().to_string(), metadata).expect("save metadata");
+    save_metadata_to_file(output.to_string_lossy().to_string(), metadata)
+        .await
+        .expect("save metadata");
 
     let tag = Tag::read_from_path(&output).expect("read tag");
     assert!(tag.artwork().is_some(), "artwork atom should be present");
 
-    let read_back =
-        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     let cover_bytes = read_back.cover_art.unwrap_or_default();
     assert!(
         !cover_bytes.is_empty(),
@@ -426,8 +530,8 @@ fn writes_cover_art_with_mp4ameta_and_reads_back() {
     );
 }
 
-#[test]
-fn clears_cover_art_with_empty_payload() {
+#[tokio::test]
+async fn clears_cover_art_with_empty_payload() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -441,6 +545,7 @@ fn clears_cover_art_with_empty_payload() {
             ..Default::default()
         },
     )
+    .await
     .expect("save metadata");
 
     save_metadata_to_file(
@@ -450,21 +555,23 @@ fn clears_cover_art_with_empty_payload() {
             ..Default::default()
         },
     )
+    .await
     .expect("clear metadata");
 
     let tag = Tag::read_from_path(&output).expect("read tag");
     assert!(tag.artwork().is_none(), "artwork atom should be removed");
 
-    let read_back =
-        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     assert!(
         read_back.cover_art.is_none(),
         "read metadata should not return cover art bytes"
     );
 }
 
-#[test]
-fn reads_cover_art_when_attached_pic_present() {
+#[tokio::test]
+async fn reads_cover_art_when_attached_pic_present() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -480,8 +587,9 @@ fn reads_cover_art_when_attached_pic_present() {
     });
     assert!(has_attached_pic, "attached_pic stream should be present");
 
-    let read_back =
-        read_audio_metadata(output.to_string_lossy().to_string()).expect("read metadata");
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
     let cover_bytes = read_back.cover_art.unwrap_or_default();
     assert!(
         !cover_bytes.is_empty(),

@@ -12,10 +12,14 @@ use std::time::Duration;
 /// Reads metadata from an audio file
 /// Returns metadata as JSON-serializable struct
 #[tauri::command]
-pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
-    let path = PathBuf::from(&file_path);
-    let validated_path = validate_input_audio_path(&path)?;
-    read_metadata(validated_path.to_string_lossy().as_ref())
+pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(&file_path);
+        let validated_path = validate_input_audio_path(&path)?;
+        read_metadata(validated_path.to_string_lossy().as_ref())
+    })
+    .await
+    .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
 }
 
 /// Saves metadata to an audio file with TSOA computation (metadata-only editing)
@@ -25,57 +29,40 @@ pub fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
 /// 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
 /// 3. Handles cover art: preserves existing if not provided, replaces if new art given
 #[tauri::command]
-pub fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
-    let path = PathBuf::from(&file_path);
-    let validated_path = validate_input_audio_path(&path)?;
+pub async fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(&file_path);
+        let validated_path = validate_input_audio_path(&path)?;
 
-    // Compute TSOA (Album Sort) if series and title are present
-    let mut metadata_with_tsoa = metadata;
-    if let Some(series_part) = metadata_with_tsoa.series_part.as_deref() {
-        let trimmed = series_part.trim();
-        if !trimmed.is_empty() {
-            crate::metadata::validate_series_part(trimmed)?;
+        let validated_metadata = metadata;
+        if let Some(series_part) = validated_metadata.series_part.as_deref() {
+            let trimmed = series_part.trim();
+            if !trimmed.is_empty() {
+                crate::metadata::validate_series_part(trimmed)?;
+            }
         }
-    }
 
-    if let (Some(series), Some(title)) = (&metadata_with_tsoa.series, &metadata_with_tsoa.title) {
-        metadata_with_tsoa.album_sort =
-            compute_tsoa(series, metadata_with_tsoa.series_part.as_deref(), title);
-    }
+        if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
+            crate::metadata::mp4ameta_bridge::write_metadata(&validated_path, &validated_metadata)?;
+        } else {
+            // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
+            crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
+                &validated_path,
+                &validated_metadata,
+            )?;
+        }
 
-    if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
-        crate::metadata::mp4ameta_bridge::write_metadata(&validated_path, &metadata_with_tsoa)?;
-    } else {
-        // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
-        crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
-            &validated_path,
-            &metadata_with_tsoa,
-        )?;
-    }
-
-    log::info!("Metadata saved to: {}", validated_path.display());
-    Ok(())
+        log::info!("Metadata saved to: {}", validated_path.display());
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::General(format!("Metadata write task failed: {e}")))?
 }
 
-/// Computes TSOA (Album Sort) from series + part + title.
+/// Computes album sort (TSOA) from series + part + title.
 /// Returns None if series_part is missing or cannot be parsed to a positive integer.
-pub fn compute_tsoa(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
-    let raw_part = series_part?.trim();
-    if raw_part.is_empty() {
-        return None;
-    }
-
-    let part_num = raw_part.parse::<u32>().ok()?;
-
-    if part_num == 0 {
-        return None;
-    }
-
-    if series.is_empty() || title.is_empty() {
-        return None;
-    }
-
-    Some(format!("{} {:02} - {}", series, part_num, title))
+pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
+    crate::metadata::compute_album_sort(series, series_part, title)
 }
 
 /// Writes cover art to an M4B file

@@ -56,6 +56,9 @@ pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
 }
 
 fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
+    let (effective_title, effective_series, effective_series_part) =
+        resolve_effective_metadata(tag, metadata);
+
     if let Some(ref title) = metadata.title {
         tag.set_title(title);
     }
@@ -97,9 +100,13 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         }
     }
 
-    if let Some(ref album_sort) = metadata.album_sort {
-        tag.set_album_sort_order(album_sort);
-    }
+    apply_album_sort(
+        tag,
+        metadata,
+        effective_title.as_deref(),
+        effective_series.as_deref(),
+        effective_series_part.as_deref(),
+    );
 
     tag.set_media_type(MediaType::AudioBook);
 
@@ -151,7 +158,6 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     {
         tag.remove_show_movement();
     }
-
     if let Some(ref cover_art) = metadata.cover_art {
         if cover_art.is_empty() {
             tag.remove_artworks();
@@ -161,6 +167,59 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn resolve_effective_metadata(
+    tag: &Tag,
+    metadata: &AudiobookMetadata,
+) -> (Option<String>, Option<String>, Option<String>) {
+    let existing_title = tag.title().map(str::to_string);
+    let existing_series = read_series(tag);
+    let existing_series_part = read_series_part(tag);
+
+    let effective_title = metadata
+        .title
+        .as_deref()
+        .map(str::to_string)
+        .or(existing_title);
+    let effective_series = metadata
+        .series
+        .as_deref()
+        .map(str::to_string)
+        .or(existing_series);
+    let effective_series_part = metadata
+        .series_part
+        .as_deref()
+        .map(str::to_string)
+        .or(existing_series_part);
+
+    (effective_title, effective_series, effective_series_part)
+}
+
+fn apply_album_sort(
+    tag: &mut Tag,
+    metadata: &AudiobookMetadata,
+    effective_title: Option<&str>,
+    effective_series: Option<&str>,
+    effective_series_part: Option<&str>,
+) {
+    let should_recompute =
+        metadata.series.is_some() || metadata.title.is_some() || metadata.series_part.is_some();
+
+    if !should_recompute {
+        if let Some(ref album_sort) = metadata.album_sort {
+            tag.set_album_sort_order(album_sort);
+            return;
+        }
+    }
+
+    if let (Some(series), Some(title)) = (effective_series, effective_title) {
+        if let Some(computed) =
+            crate::metadata::compute_album_sort(series, effective_series_part, title)
+        {
+            tag.set_album_sort_order(&computed);
+        }
+    }
 }
 
 fn read_series(tag: &Tag) -> Option<String> {

@@ -99,6 +99,35 @@ pub(crate) fn validate_series_part(series_part: &str) -> Result<()> {
     Ok(())
 }
 
+/// Computes album sort (TSOA) from series + part + title.
+/// Returns None if series_part is missing or cannot be parsed to a positive integer.
+pub(crate) fn compute_album_sort(
+    series: &str,
+    series_part: Option<&str>,
+    title: &str,
+) -> Option<String> {
+    let raw_part = series_part?.trim();
+    if raw_part.is_empty() {
+        return None;
+    }
+
+    let part_num = raw_part.parse::<u32>().ok()?;
+    if part_num == 0 {
+        return None;
+    }
+
+    if series.trim().is_empty() || title.trim().is_empty() {
+        return None;
+    }
+
+    Some(format!(
+        "{} {:02} - {}",
+        series.trim(),
+        part_num,
+        title.trim()
+    ))
+}
+
 // Re-export main functions for convenience
 pub use reader::read_metadata;
 

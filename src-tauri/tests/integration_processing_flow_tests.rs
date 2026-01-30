@@ -85,7 +85,7 @@ async fn test_current_audio_processing_flow() {
     audio::validate_output_path(&output_path).expect("Output path should validate");
 
     // Step 4: Read metadata from input file
-    let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string());
+    let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string()).await;
     assert!(metadata_result.is_ok(), "Should be able to read metadata");
 
     let input_metadata = metadata_result.expect("metadata ok");
@@ -134,8 +134,8 @@ fn test_progress_reporting_accuracy() {
 }
 
 /// Test that captures current metadata handling behavior
-#[test]
-fn test_metadata_preservation() {
+#[tokio::test]
+async fn test_metadata_preservation() {
     let media_path = match verify_test_media_exists() {
         Some(path) => path,
         None => {
@@ -144,7 +144,7 @@ fn test_metadata_preservation() {
         }
     };
 
-    let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string());
+    let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string()).await;
     assert!(metadata_result.is_ok(), "Should be able to read metadata");
 
     let original_metadata = metadata_result.expect("metadata ok");
@@ -182,8 +182,8 @@ fn test_metadata_preservation() {
 }
 
 /// Test that captures current error handling behavior
-#[test]
-fn test_error_handling() {
+#[tokio::test]
+async fn test_error_handling() {
     let nonexistent_files = vec![
         "nonexistent1.mp3".to_string(),
         "nonexistent2.mp3".to_string(),
@@ -256,7 +256,7 @@ fn test_error_handling() {
         .contains(".m4b"));
 
     // Test metadata reading from invalid file
-    let metadata_result = read_audio_metadata("nonexistent.mp3".to_string());
+    let metadata_result = read_audio_metadata("nonexistent.mp3".to_string()).await;
     assert!(metadata_result.is_err(), "Should fail for nonexistent file");
     let err_msg = metadata_result
         .expect_err("expected file not found")
