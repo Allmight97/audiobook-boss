@@ -9,6 +9,13 @@ export function setMetadataSaveInProgress(inProgress: boolean): void {
   if (applyButton) {
     applyButton.disabled = inProgress;
   }
+
+  const saveButton = document.getElementById(
+    "metadata-save-btn"
+  ) as HTMLButtonElement | null;
+  if (saveButton) {
+    saveButton.disabled = inProgress;
+  }
 }
 
 export function isMetadataSaveInProgress(): boolean {

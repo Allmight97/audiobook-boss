@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-01-30 — Separate staging vs file save actions in metadata UI
+Context: Users needed clarity between staging metadata for processing and writing metadata to files, especially in batch workflows.
+Decision: Keep staging and file-save behaviors separate; rename the staging button to “Stage Changes” and add an explicit “Apply Changes” (save to files) button with a hint label.
+Consequences:
+- Reduces ambiguity between in-app staging and disk writes.
+- Preserves fast staging workflows for batch edits.
+- Adds a dedicated discoverable save action alongside Cmd+S.
+Links: `index.html`, `src/main.ts`, `src/styles.css`, `src/ui/metadataSaveState.ts`, `src/ui/fileList/actions.ts`
+
 ## 2026-01-17 — Adopt tiered testing checks
 Context: Agents needed a clear, non-redundant check loop for iteration, PR readiness, and releases.
 Decision: Define Quick/Standard/Release tiers and add scripts for Standard/Release while keeping Quick as the fast baseline.

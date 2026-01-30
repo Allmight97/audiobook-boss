@@ -45,141 +45,154 @@ document.addEventListener("DOMContentLoaded", () => {
  * 2. Applies changes to ALL selected files (Read-Merge-Write pattern)
  * 3. Saves each file
  */
+
+async function saveMetadataFromUI(): Promise<void> {
+  // Check if we have files loaded
+  if (!currentFileList || currentFileList.files.length === 0) {
+    console.log("No files loaded - nothing to save");
+    return;
+  }
+
+  // Check if processing is active
+  const statusPanel = getStatusPanel();
+  if (statusPanel?.isCurrentlyProcessing) {
+    console.log("Processing in progress - cannot save metadata now");
+    return;
+  }
+
+  // Determine target files
+  const selectedIndices = getSelectedFileIndices();
+  let targetFiles: AudioFile[] = [];
+
+  if (selectedIndices.size > 0) {
+    targetFiles = Array.from(selectedIndices)
+      .map((i) => currentFileList!.files[i])
+      .filter((f) => f && f.isValid);
+  } else {
+    if (
+      selectedFileIndex > -1 &&
+      currentFileList.files[selectedFileIndex]?.isValid
+    ) {
+      targetFiles = [currentFileList.files[selectedFileIndex]];
+    } else {
+      const first = currentFileList.files.find((f) => f.isValid);
+      if (first) targetFiles = [first];
+    }
+  }
+
+  if (targetFiles.length === 0) {
+    console.log("No valid files to save metadata to");
+    return;
+  }
+
+  const isMultiSelect = selectedIndices.size > 1;
+  const metadataPayload = isMultiSelect
+    ? readMetadataForm({ mode: "multi", onlyDirty: true })
+    : readMetadataForm({ mode: "single" });
+
+  const hasChanges = Object.keys(metadataPayload).length > 0;
+  if (!hasChanges && isMultiSelect) {
+    console.log("No metadata changes detected (multi-select).");
+    return;
+  }
+
+  const seriesPartError = getSeriesPartValidationError(
+    typeof metadataPayload.series_part === "string"
+      ? metadataPayload.series_part
+      : undefined
+  );
+  if (seriesPartError) {
+    const statusText = document.getElementById("status-text");
+    if (statusText) {
+      statusText.textContent = seriesPartError;
+    }
+    return;
+  }
+
+  const statusText = document.getElementById("status-text");
+  const originalText = statusText?.textContent ?? "";
+  if (statusText) {
+    statusText.textContent = "Saving metadata...";
+  }
+
+  if (isMetadataSaveInProgress()) {
+    if (statusText) {
+      statusText.textContent = "Save already in progress...";
+    }
+    return;
+  }
+
+  try {
+    setMetadataSaveInProgress(true);
+    let successCount = 0;
+
+    if (isMultiSelect) {
+      for (const [index, file] of targetFiles.entries()) {
+        console.log(`Processing save for ${file.path}...`);
+
+        if (statusText) {
+          statusText.textContent = `Saving ${index + 1}/${targetFiles.length}...`;
+        }
+
+        await bridge.invoke("save_metadata_to_file", {
+          filePath: file.path,
+          metadata: metadataPayload,
+        });
+
+        const existing = getMetadataForFile(file.path) ?? {};
+        setMetadataForFile(file.path, { ...existing, ...metadataPayload });
+        successCount++;
+      }
+    } else {
+      const file = targetFiles[0];
+      await bridge.invoke("save_metadata_to_file", {
+        filePath: file.path,
+        metadata: metadataPayload,
+      });
+      setMetadataForFile(file.path, metadataPayload);
+      successCount = 1;
+    }
+
+    resetDirtyState();
+    console.log(`Metadata saved successfully for ${successCount} files`);
+
+    if (statusText) {
+      const msg =
+        targetFiles.length > 1
+          ? `Metadata saved (${successCount} files)!`
+          : "Metadata saved!";
+      statusText.textContent = msg;
+      setTimeout(() => {
+        if (statusText.textContent === msg) {
+          statusText.textContent = originalText;
+        }
+      }, 2000);
+    }
+  } catch (error) {
+    console.error("Failed to save metadata:", error);
+    if (statusText) {
+      statusText.textContent = "Save failed - see console";
+    }
+  } finally {
+    setMetadataSaveInProgress(false);
+  }
+}
+
 function initMetadataSaveHandler(): void {
-  document.addEventListener("keydown", async (event) => {
+  const saveButton = document.getElementById(
+    "metadata-save-btn"
+  ) as HTMLButtonElement | null;
+  if (saveButton) {
+    saveButton.addEventListener("click", () => {
+      void saveMetadataFromUI();
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
     // Check for Cmd+S (Mac) or Ctrl+S (Windows/Linux)
     if ((event.metaKey || event.ctrlKey) && event.key === "s") {
       event.preventDefault(); // Prevent browser save dialog
-
-      // Check if we have files loaded
-      if (!currentFileList || currentFileList.files.length === 0) {
-        console.log("No files loaded - nothing to save");
-        return;
-      }
-
-      // Check if processing is active
-      const statusPanel = getStatusPanel();
-      if (statusPanel?.isCurrentlyProcessing) {
-        console.log("Processing in progress - cannot save metadata now");
-        return;
-      }
-
-      // Determine target files
-      const selectedIndices = getSelectedFileIndices();
-      let targetFiles: AudioFile[] = [];
-
-      if (selectedIndices.size > 0) {
-        targetFiles = Array.from(selectedIndices)
-          .map((i) => currentFileList!.files[i])
-          .filter((f) => f && f.isValid);
-      } else {
-        if (
-          selectedFileIndex > -1 &&
-          currentFileList.files[selectedFileIndex]?.isValid
-        ) {
-          targetFiles = [currentFileList.files[selectedFileIndex]];
-        } else {
-          const first = currentFileList.files.find((f) => f.isValid);
-          if (first) targetFiles = [first];
-        }
-      }
-
-      if (targetFiles.length === 0) {
-        console.log("No valid files to save metadata to");
-        return;
-      }
-
-      const isMultiSelect = selectedIndices.size > 1;
-      const metadataPayload = isMultiSelect
-        ? readMetadataForm({ mode: "multi", onlyDirty: true })
-        : readMetadataForm({ mode: "single" });
-
-      const hasChanges = Object.keys(metadataPayload).length > 0;
-      if (!hasChanges && isMultiSelect) {
-        console.log("No metadata changes detected (multi-select).");
-        return;
-      }
-
-      const seriesPartError = getSeriesPartValidationError(
-        typeof metadataPayload.series_part === "string"
-          ? metadataPayload.series_part
-          : undefined
-      );
-      if (seriesPartError) {
-        const statusText = document.getElementById("status-text");
-        if (statusText) {
-          statusText.textContent = seriesPartError;
-        }
-        return;
-      }
-
-      const statusText = document.getElementById("status-text");
-      const originalText = statusText?.textContent ?? "";
-      if (statusText) {
-        statusText.textContent = "Saving metadata...";
-      }
-
-      if (isMetadataSaveInProgress()) {
-        if (statusText) {
-          statusText.textContent = "Save already in progress...";
-        }
-        return;
-      }
-
-      try {
-        setMetadataSaveInProgress(true);
-        let successCount = 0;
-
-        if (isMultiSelect) {
-          for (const [index, file] of targetFiles.entries()) {
-            console.log(`Processing save for ${file.path}...`);
-
-            if (statusText) {
-              statusText.textContent = `Saving ${index + 1}/${targetFiles.length}...`;
-            }
-
-            await bridge.invoke("save_metadata_to_file", {
-              filePath: file.path,
-              metadata: metadataPayload,
-            });
-
-            const existing = getMetadataForFile(file.path) ?? {};
-            setMetadataForFile(file.path, { ...existing, ...metadataPayload });
-            successCount++;
-          }
-        } else {
-          const file = targetFiles[0];
-          await bridge.invoke("save_metadata_to_file", {
-            filePath: file.path,
-            metadata: metadataPayload,
-          });
-          setMetadataForFile(file.path, metadataPayload);
-          successCount = 1;
-        }
-
-        resetDirtyState();
-        console.log(`Metadata saved successfully for ${successCount} files`);
-
-        if (statusText) {
-          const msg =
-            targetFiles.length > 1
-              ? `Metadata saved (${successCount} files)!`
-              : "Metadata saved!";
-          statusText.textContent = msg;
-          setTimeout(() => {
-            if (statusText.textContent === msg) {
-              statusText.textContent = originalText;
-            }
-          }, 2000);
-        }
-      } catch (error) {
-        console.error("Failed to save metadata:", error);
-        if (statusText) {
-          statusText.textContent = "Save failed - see console";
-        }
-      } finally {
-        setMetadataSaveInProgress(false);
-      }
+      void saveMetadataFromUI();
     }
   });
 }
