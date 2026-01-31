@@ -21,6 +21,7 @@ import {
   getMetadataForFile,
   setMetadataForFile,
 } from "../metadataState";
+import { stageMetadataToSelection } from "../fileList/actions";
 import * as dom from "./dom";
 import type { ProcessingStatus } from "./state";
 
@@ -109,6 +110,9 @@ export async function startProcessing(
       .map((file) => file.path);
 
     const selectionCount = getSelectedFileIndices().size;
+    if (selectionCount > 1) {
+      await stageMetadataToSelection({ showStatus: false });
+    }
     let currentMetadata: Partial<AudiobookMetadata> = {};
     if (selectionCount <= 1) {
       currentMetadata = readMetadataForm({ mode: "single" });

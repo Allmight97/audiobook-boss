@@ -74,10 +74,10 @@ function persistSingleSelectionMetadata(file: AudioFile | null): void {
   setMetadataForFile(file.path, metadata);
 }
 
-export function selectFile(
+export async function selectFile(
   index: number,
   modifiers?: { multi: boolean; range: boolean }
-): void {
+): Promise<void> {
   if (!currentFileList || index < 0 || index >= currentFileList.files.length) {
     return;
   }
@@ -100,6 +100,10 @@ export function selectFile(
 
   const selectedFiles = getSelectedFiles();
   const count = selectedFiles.length;
+
+  if (previousSelectionCount > 1 && count <= 1) {
+    await stageMetadataToSelection({ showStatus: false });
+  }
 
   if (count === 0) {
     setSelectedIndex(-1);
@@ -135,13 +139,18 @@ export function selectAll(): void {
   }
 }
 
-export function clearSelectionAction(): void {
+export async function clearSelectionAction(): Promise<void> {
   const fileList = currentFileList;
+  const previousSelectionCount = getSelectedFiles().length;
   const previousFile =
-    fileList && getSelectedFiles().length === 1 && selectedFileIndex >= 0
+    fileList && previousSelectionCount === 1 && selectedFileIndex >= 0
       ? fileList.files[selectedFileIndex] ?? null
       : null;
   persistSingleSelectionMetadata(previousFile);
+
+  if (previousSelectionCount > 1) {
+    await stageMetadataToSelection({ showStatus: false });
+  }
 
   const changed = clearSelection();
   if (!changed) return;
@@ -150,30 +159,37 @@ export function clearSelectionAction(): void {
   clearSelectionPanels();
 }
 
-async function applyMetadataToSelection(): Promise<void> {
-  if (!currentFileList) return;
+
+export async function stageMetadataToSelection(options?: {
+  showStatus?: boolean;
+}): Promise<boolean> {
+  if (!currentFileList) return false;
 
   const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
-  if (selectedFiles.length === 0) return;
+  if (selectedFiles.length === 0) return false;
 
   const changes = readMetadataForm({ mode: "multi", onlyDirty: true });
   if (Object.keys(changes).length === 0) {
-    const statusText = document.getElementById("status-text");
-    if (statusText) {
-      statusText.textContent = "No metadata changes to apply";
+    if (options?.showStatus) {
+      const statusText = document.getElementById("status-text");
+      if (statusText) {
+        statusText.textContent = "No metadata changes to apply";
+      }
     }
-    return;
+    return false;
   }
 
   const seriesPartError = getSeriesPartValidationError(
     typeof changes.series_part === "string" ? changes.series_part : undefined
   );
   if (seriesPartError) {
-    const statusText = document.getElementById("status-text");
-    if (statusText) {
-      statusText.textContent = seriesPartError;
+    if (options?.showStatus) {
+      const statusText = document.getElementById("status-text");
+      if (statusText) {
+        statusText.textContent = seriesPartError;
+      }
     }
-    return;
+    return false;
   }
 
   await ensureMetadataForFiles(selectedFiles);
@@ -187,17 +203,25 @@ async function applyMetadataToSelection(): Promise<void> {
   resetDirtyState();
   onMetadataChange();
 
-  const statusText = document.getElementById("status-text");
-  if (statusText) {
-    const originalText = statusText.textContent;
-    const msg = `Applied to ${selectedFiles.length} files`;
-    statusText.textContent = msg;
-    setTimeout(() => {
-      if (statusText.textContent === msg) {
-        statusText.textContent = originalText;
-      }
-    }, 2000);
+  if (options?.showStatus) {
+    const statusText = document.getElementById("status-text");
+    if (statusText) {
+      const originalText = statusText.textContent;
+      const msg = `Applied to ${selectedFiles.length} files`;
+      statusText.textContent = msg;
+      setTimeout(() => {
+        if (statusText.textContent === msg) {
+          statusText.textContent = originalText;
+        }
+      }, 2000);
+    }
   }
+
+  return true;
+}
+
+async function applyMetadataToSelection(): Promise<void> {
+  await stageMetadataToSelection({ showStatus: true });
 }
 
 export function initMetadataApplyHandler(): void {

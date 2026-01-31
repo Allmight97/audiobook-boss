@@ -101,7 +101,7 @@ function handleFileListClick(e: Event): void {
         window.getSelection()?.removeAllRanges();
       }
 
-      selectFile(index, { multi, range });
+      void selectFile(index, { multi, range });
     }
   }
 }
@@ -120,7 +120,7 @@ function handleFileListKeyDown(e: KeyboardEvent): void {
 
   if (key === "escape") {
     e.preventDefault();
-    clearSelectionAction();
+    void clearSelectionAction();
   }
 }
 
