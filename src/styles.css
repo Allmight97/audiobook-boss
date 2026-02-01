@@ -666,6 +666,155 @@ textarea:hover:not(:focus) {
   text-align: right;
 }
 
+.metadata-lookup-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 60;
+}
+
+.metadata-lookup-modal.open {
+  display: flex;
+}
+
+.metadata-lookup-dialog {
+  width: min(720px, 90vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-primary);
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+}
+
+.metadata-lookup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.metadata-lookup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+  overflow: hidden;
+}
+
+.metadata-lookup-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.metadata-lookup-field label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.metadata-lookup-field-button {
+  display: flex;
+  align-items: flex-end;
+}
+
+.metadata-lookup-context,
+.metadata-lookup-status {
+  min-height: 1rem;
+}
+
+.metadata-lookup-status.is-error {
+  color: var(--text-error, #ef4444);
+}
+
+.metadata-lookup-status.is-success {
+  color: var(--text-success, #10b981);
+}
+
+.metadata-lookup-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: auto;
+  max-height: 50vh;
+  padding-right: 0.5rem;
+}
+
+.metadata-lookup-result {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid var(--border-secondary);
+  border-radius: 0.375rem;
+  background: var(--bg-panel);
+}
+
+.metadata-lookup-cover {
+  width: 4rem;
+  height: 4rem;
+  border: 1px solid var(--border-secondary);
+  border-radius: 0.375rem;
+  background: var(--bg-drag-area);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.metadata-lookup-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.metadata-lookup-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.metadata-lookup-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.metadata-lookup-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border-secondary);
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.metadata-lookup-actions {
+  display: flex;
+  align-items: flex-start;
+}
+
+.metadata-lookup-empty {
+  padding: 0.75rem;
+  text-align: center;
+  border: 1px dashed var(--border-secondary);
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+}
+
 /* Property labels/values */
 .property-label {
   font-weight: 500;

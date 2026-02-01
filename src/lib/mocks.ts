@@ -1,5 +1,5 @@
 import { FileListInfo } from "../types/audio";
-import { AudiobookMetadata } from "../types/metadata";
+import { AudiobookMetadata, OnlineMetadataResult } from "../types/metadata";
 import {
   ProcessingProgressEvent,
   ProcessingQueueEvent,
@@ -47,6 +47,35 @@ const MOCK_METADATA: AudiobookMetadata = {
   series_part: "1",
   cover_art: undefined,
 };
+
+const MOCK_LOOKUP_RESULTS: OnlineMetadataResult[] = [
+  {
+    source: "open_library",
+    sourceId: "OL12345W",
+    title: "Mock Lookup Title",
+    authors: ["Mock Author"],
+    narrators: ["Mock Narrator"],
+    series: "Mock Series",
+    seriesPart: "1",
+    description: "Mock description from lookup source.",
+    publishedYear: 2021,
+    durationSeconds: 36000,
+    coverUrl: "https://covers.openlibrary.org/b/id/123456-L.jpg",
+  },
+  {
+    source: "itunes",
+    sourceId: "987654321",
+    title: "Mock Apple Books Result",
+    authors: ["Mock Author"],
+    narrators: [],
+    series: undefined,
+    seriesPart: undefined,
+    description: "Mock Apple Books description.",
+    publishedYear: 2020,
+    durationSeconds: 32400,
+    coverUrl: "https://is1-ssl.mzstatic.com/image/thumb/Audio123/v4/cover.jpg",
+  },
+];
 
 const MOCK_COVER_ART_BYTES = [
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -157,6 +186,9 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
 
     case "load_cover_art_from_url":
       return MOCK_COVER_ART_BYTES as unknown as T;
+
+    case "search_online_metadata":
+      return MOCK_LOOKUP_RESULTS as unknown as T;
 
     default:
       console.warn(`[Bridge Mock] Unhandled command: ${cmd}`);

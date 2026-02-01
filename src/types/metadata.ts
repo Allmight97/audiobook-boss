@@ -72,3 +72,19 @@ export interface WriteCoverArtParams {
   filePath: string;
   coverData: number[]; // byte array
 }
+
+export type MetadataSource = "open_library" | "itunes";
+
+export interface OnlineMetadataResult {
+  source: MetadataSource;
+  sourceId: string;
+  title: string;
+  authors: string[];
+  narrators: string[];
+  series?: string;
+  seriesPart?: string;
+  description?: string;
+  publishedYear?: number;
+  durationSeconds?: number;
+  coverUrl?: string;
+}

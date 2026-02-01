@@ -276,6 +276,39 @@ export function populateMetadataFormMulti(
   resetDirtyState();
 }
 
+export function applyMetadataToForm(
+  metadata: Partial<AudiobookMetadata>,
+  options?: { mode?: MetadataFormMode; markDirty?: boolean }
+): void {
+  const mode = options?.mode ?? "single";
+  const shouldMarkDirty = options?.markDirty ?? true;
+
+  FIELD_CONFIGS.forEach((field) => {
+    const input = getInputElement(field.inputId);
+    if (!input) return;
+
+    if (field.isNumber) {
+      const date = metadata.date;
+      if (typeof date !== "number") return;
+      input.value = date > 0 ? date.toString() : "";
+    } else {
+      const raw = metadata[field.key];
+      if (typeof raw !== "string") return;
+      input.value = raw;
+    }
+
+    setMixedPlaceholder(input, false);
+    if (shouldMarkDirty) {
+      markDirty(input);
+    }
+
+    if (mode === "multi") {
+      const actionValue: FieldAction = input.value.trim() ? "keep" : "blank";
+      setFieldAction(field.actionId, actionValue);
+    }
+  });
+}
+
 export function readMetadataForm(options?: {
   mode?: MetadataFormMode;
   onlyDirty?: boolean;
@@ -382,14 +415,12 @@ export function readMetadataForm(options?: {
     }
   });
 
-  if (mode === "single") {
-    if (isCoverArtRemovalRequested()) {
-      metadata.cover_art = [];
-    } else {
-      const coverBytes = getCurrentCoverArt();
-      if (coverBytes && coverBytes.length > 0) {
-        metadata.cover_art = coverBytes;
-      }
+  if (isCoverArtRemovalRequested()) {
+    metadata.cover_art = [];
+  } else if (mode === "single" || getHasCustomCoverArt()) {
+    const coverBytes = getCurrentCoverArt();
+    if (coverBytes && coverBytes.length > 0) {
+      metadata.cover_art = coverBytes;
     }
   }
 

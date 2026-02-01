@@ -359,6 +359,13 @@
                 </div>
                 <div class="metadata-apply-row">
                   <button
+                    id="metadata-lookup-btn"
+                    class="btn-pill btn-pill-secondary"
+                    data-testid="metadata-lookup-btn"
+                  >
+                    Find Metadata
+                  </button>
+                  <button
                     id="metadata-apply-btn"
                     class="btn-pill btn-pill-primary-soft"
                     data-testid="metadata-apply-btn"
@@ -797,5 +804,83 @@
       <!-- End of right-column-wrapper -->
     </div>
     <!-- End of main-container -->
+    <div
+      id="metadata-lookup-modal"
+      class="metadata-lookup-modal"
+      data-testid="metadata-lookup-modal"
+      aria-hidden="true"
+    >
+      <div
+        class="metadata-lookup-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="metadata-lookup-title"
+      >
+        <div class="metadata-lookup-header">
+          <h3 id="metadata-lookup-title">Find Metadata Online</h3>
+          <button
+            id="metadata-lookup-close"
+            class="btn-pill btn-pill-secondary"
+            data-testid="metadata-lookup-close"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+        <div class="metadata-lookup-body">
+          <div class="metadata-lookup-controls">
+            <div class="metadata-lookup-field">
+              <label for="metadata-lookup-query">Search</label>
+              <input
+                id="metadata-lookup-query"
+                type="text"
+                placeholder="Title, author, or narrator"
+                data-testid="metadata-lookup-query"
+              />
+            </div>
+            <div class="metadata-lookup-field">
+              <label for="metadata-lookup-source">Source</label>
+              <select
+                id="metadata-lookup-source"
+                data-testid="metadata-lookup-source"
+              >
+                <option value="all" selected>All sources</option>
+                <option value="open_library">Open Library</option>
+                <option value="itunes">Apple Books</option>
+              </select>
+            </div>
+            <div class="metadata-lookup-field">
+              <label for="metadata-lookup-apply-mode">Apply</label>
+              <select
+                id="metadata-lookup-apply-mode"
+                data-testid="metadata-lookup-apply-mode"
+              ></select>
+            </div>
+            <div class="metadata-lookup-field metadata-lookup-field-button">
+              <button
+                id="metadata-lookup-search-btn"
+                class="btn-pill btn-pill-primary"
+                data-testid="metadata-lookup-search-btn"
+                type="button"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+          <div
+            id="metadata-lookup-context"
+            class="metadata-lookup-context text-xs muted-text"
+          ></div>
+          <div
+            id="metadata-lookup-status"
+            class="metadata-lookup-status text-xs"
+          ></div>
+          <div
+            id="metadata-lookup-results"
+            class="metadata-lookup-results"
+          ></div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

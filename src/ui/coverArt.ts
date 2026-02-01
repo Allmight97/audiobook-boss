@@ -409,6 +409,14 @@ export function setCoverArt(coverArtBytes: number[] | null): void {
     updateClearButtonVisibility();
 }
 
+export function setCustomCoverArt(coverArtBytes: number[] | null): void {
+    currentCoverArt = coverArtBytes;
+    hasCustomCoverArt = Boolean(coverArtBytes && coverArtBytes.length > 0);
+    coverArtRemovalRequested = false;
+    displayCoverArt(coverArtBytes);
+    updateClearButtonVisibility();
+}
+
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {
     const markRemoval = options?.markRemoval ?? false;
     currentCoverArt = null;

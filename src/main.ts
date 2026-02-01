@@ -11,6 +11,7 @@ import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/
 import { getSeriesPartValidationError } from "./ui/metadataValidation";
 import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
+import { initMetadataLookup } from "./ui/metadataLookup";
 import { setMetadataForFile, getMetadataForFile } from "./ui/metadataState";
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metadataSaveState";
 
@@ -25,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initEncoderPanel();
   // Initialize tag preview grid
   initTagPreview();
+  initMetadataLookup();
   // Initialize Cmd+S metadata save handler
   initMetadataSaveHandler();
   // Initialize Job Controls (Job Type, Max Concurrent)

@@ -57,6 +57,7 @@ pub fn run() {
             commands::load_cover_art_file,
             commands::load_cover_art_from_url,
             commands::save_metadata_to_file,
+            commands::search_online_metadata,
             commands::analyze_audio_files,
             commands::validate_encoder_settings_cmd,
             commands::list_available_encoders,
