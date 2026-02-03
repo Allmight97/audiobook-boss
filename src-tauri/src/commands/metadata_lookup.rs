@@ -455,20 +455,20 @@ fn extract_region_override(query: &str) -> Option<String> {
 
 fn strip_region_overrides(query: &str) -> String {
     let mut output = String::with_capacity(query.len());
-    let bytes = query.as_bytes();
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if idx + 3 < bytes.len() && bytes[idx] == b'[' && bytes[idx + 3] == b']' {
-            let region = String::from_utf8_lossy(&bytes[idx + 1..idx + 3]).to_ascii_lowercase();
-            if AUDNEXUS_ALLOWED_REGIONS.contains(&region.as_str()) {
-                idx += 4;
-                continue;
+    let mut last_end = 0;
+
+    for (start, _) in query.match_indices('[') {
+        if start + 4 <= query.len() && query.as_bytes()[start + 3] == b']' {
+            let region_candidate = &query[start + 1..start + 3];
+            if AUDNEXUS_ALLOWED_REGIONS.contains(&region_candidate.to_ascii_lowercase().as_str()) {
+                output.push_str(&query[last_end..start]);
+                last_end = start + 4;
             }
         }
-        output.push(bytes[idx] as char);
-        idx += 1;
     }
-    output.trim().to_string()
+
+    output.push_str(&query[last_end..]);
+    output.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn region_to_tld(region: &str) -> &str {
