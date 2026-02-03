@@ -56,6 +56,7 @@ Scenario: Add cover art
 - Given I'm editing metadata  
 - When I click "Load Cover Art" or drag an image  
 - Then the cover art displays  
+- And cover art changes apply only when a single file is selected  
 - And it will be embedded in the output
 
 ### **Story 4: Output Configuration**
@@ -91,7 +92,7 @@ Scenario: Generate preview
 - When I click "Preview (30s)"  
 - Then a 30-second sample is generated with my settings  
 - And it opens in my default audio player  
-- And uses the configured metadata and cover art
+- And uses the configured metadata and cover art (cover art is single-select only)
 
 ### **Story 6: Full Processing**
 

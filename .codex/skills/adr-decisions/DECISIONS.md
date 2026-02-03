@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-03 — Ignore cover art changes in multi-select
+Context: Cover art updates from any source can unintentionally overwrite multiple selected titles.
+Decision: Apply cover art changes only in single-select; multi-select ignores cover art entirely.
+Consequences:
+- Prevents accidental bulk overwrites of unrelated titles.
+- Keeps user intent explicit and predictable.
+- Queue flow can still apply art per item later.
+Links: `docs/specs/requirements_stories.md`, `src/ui/metadataForm.ts`, PR #172
+
 ## 2026-01-30 — Separate staging vs file save actions in metadata UI
 Context: Users needed clarity between staging metadata for processing and writing metadata to files, especially in batch workflows.
 Decision: Keep staging and file-save behaviors separate; rename the staging button to “Stage Changes” and add an explicit “Apply Changes” (save to files) button with a hint label.
