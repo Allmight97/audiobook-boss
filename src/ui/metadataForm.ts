@@ -427,12 +427,14 @@ export function readMetadataForm(options?: {
     }
   });
 
-  if (isCoverArtRemovalRequested()) {
-    metadata.cover_art = [];
-  } else if (mode === "single" || getHasCustomCoverArt()) {
-    const coverBytes = getCurrentCoverArt();
-    if (coverBytes && coverBytes.length > 0) {
-      metadata.cover_art = coverBytes;
+  if (mode === "single") {
+    if (isCoverArtRemovalRequested()) {
+      metadata.cover_art = [];
+    } else {
+      const coverBytes = getCurrentCoverArt();
+      if (coverBytes && coverBytes.length > 0) {
+        metadata.cover_art = coverBytes;
+      }
     }
   }
 

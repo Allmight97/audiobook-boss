@@ -2,10 +2,11 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 let coverArtBytes: number[] | null = null;
 let coverRemoval = false;
+let hasCustomCoverArt = false;
 
 vi.mock('../coverArt', () => ({
   getCurrentCoverArt: () => coverArtBytes,
-  getHasCustomCoverArt: () => false,
+  getHasCustomCoverArt: () => hasCustomCoverArt,
   isCoverArtRemovalRequested: () => coverRemoval,
   setCoverArt: () => {},
 }));
@@ -45,6 +46,7 @@ describe('readMetadataForm (single mode)', () => {
     `;
     coverArtBytes = null;
     coverRemoval = false;
+    hasCustomCoverArt = false;
   });
 
   it('maps form fields to metadata and includes cover art bytes', () => {
@@ -123,6 +125,9 @@ describe('readMetadataForm (multi mode)', () => {
         <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
       </div>
     `;
+    coverArtBytes = null;
+    coverRemoval = false;
+    hasCustomCoverArt = false;
   });
 
   it('uses bulk blank actions for multi-select', () => {
@@ -145,5 +150,15 @@ describe('readMetadataForm (multi mode)', () => {
       title: 'New Title',
       album: 'New Title',
     });
+  });
+
+  it('ignores cover art changes in multi-select', () => {
+    coverArtBytes = [1, 2, 3];
+    coverRemoval = true;
+    hasCustomCoverArt = true;
+
+    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+
+    expect(metadata.cover_art).toBeUndefined();
   });
 });
