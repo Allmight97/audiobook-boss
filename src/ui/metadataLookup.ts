@@ -97,16 +97,32 @@ function formatFileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
+function isTrackLikeTitle(value: string): boolean {
+  return /^(chapter|track|disc|disk|episode)\s*\d+/i.test(value.trim());
+}
+
 function deriveQueryFromFile(file: AudioFile): string {
   const stored = getMetadataForFile(file.path) ?? {};
+  const title = stored.title?.trim();
+  const album = stored.album?.trim();
+  const artist = stored.artist?.trim();
+  const composer = stored.composer?.trim();
+
+  const queryTitle =
+    album && (!title || isTrackLikeTitle(title)) ? album : title ?? album;
+
   const parts: string[] = [];
-  if (stored.title) parts.push(stored.title);
-  if (stored.artist) parts.push(stored.artist);
-  if (stored.composer) parts.push(stored.composer);
+  if (queryTitle) parts.push(queryTitle);
+  if (artist) {
+    parts.push(artist);
+  } else if (composer) {
+    parts.push(composer);
+  }
   if (parts.length > 0) return parts.join(" ");
 
   const rawName = formatFileName(file.path).replace(/\.[^.]+$/, "");
-  return rawName.replace(/[._-]+/g, " ").trim();
+  const cleaned = rawName.replace(/[._-]+/g, " ").trim();
+  return cleaned.replace(/^\d+\s*/, "").trim();
 }
 
 function updateQueueContext(): void {
