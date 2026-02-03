@@ -49,10 +49,26 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 
   const seriesValue = metadata.series?.trim() ?? "";
   const seriesPartValue = metadata.series_part?.trim() ?? "";
+  const subseriesValue = metadata.subseries?.trim() ?? "";
+  const subseriesPartValue = metadata.subseries_part?.trim() ?? "";
   const seriesPartError = getSeriesPartValidationError(seriesPartValue);
 
   if (seriesPartError) {
     warning.textContent = seriesPartError;
+    warning.toggleAttribute("hidden", false);
+    return;
+  }
+
+  const shouldShowDuplicate =
+    seriesValue.length > 0 &&
+    subseriesValue.length > 0 &&
+    seriesPartValue.length > 0 &&
+    subseriesPartValue.length > 0 &&
+    seriesPartValue === subseriesPartValue;
+
+  if (shouldShowDuplicate) {
+    warning.textContent =
+      "Book # matches sub-series #. Update if you want global ordering.";
     warning.toggleAttribute("hidden", false);
     return;
   }
