@@ -8,7 +8,10 @@ import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
 import { initEncoderPanel } from "./ui/encoderPanel";
 import { initCoverArt } from "./ui/coverArt";
 import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
-import { getSeriesPartValidationError } from "./ui/metadataValidation";
+import {
+  getSeriesPartValidationError,
+  getSubseriesPartValidationError,
+} from "./ui/metadataValidation";
 import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { initMetadataLookup } from "./ui/metadataLookup";
@@ -103,10 +106,16 @@ async function saveMetadataFromUI(): Promise<void> {
       ? metadataPayload.series_part
       : undefined
   );
-  if (seriesPartError) {
+  const subseriesPartError = getSubseriesPartValidationError(
+    typeof metadataPayload.subseries_part === "string"
+      ? metadataPayload.subseries_part
+      : undefined
+  );
+  const validationError = seriesPartError ?? subseriesPartError;
+  if (validationError) {
     const statusText = document.getElementById("status-text");
     if (statusText) {
-      statusText.textContent = seriesPartError;
+      statusText.textContent = validationError;
     }
     return;
   }

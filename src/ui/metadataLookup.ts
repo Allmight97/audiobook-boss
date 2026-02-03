@@ -14,7 +14,7 @@ import { currentFileList } from "./fileList";
 import { stageMetadataToSelection, selectFile } from "./fileList/actions";
 import { getSelectedFileIndices } from "./fileList/state";
 
-const DEFAULT_SOURCES: MetadataSource[] = ["open_library", "itunes"];
+const DEFAULT_SOURCES: MetadataSource[] = ["audnexus"];
 
 type ApplyMode = "current" | "all" | "queue";
 
@@ -48,6 +48,16 @@ function getSourceSelect(): HTMLSelectElement | null {
 function getApplyModeSelect(): HTMLSelectElement | null {
   const el = document.getElementById("metadata-lookup-apply-mode");
   return el instanceof HTMLSelectElement ? el : null;
+}
+
+function getCoverArtToggle(): HTMLInputElement | null {
+  const el = document.getElementById("metadata-lookup-cover-toggle");
+  return el instanceof HTMLInputElement ? el : null;
+}
+
+function shouldReplaceCoverArt(): boolean {
+  const toggle = getCoverArtToggle();
+  return toggle ? toggle.checked : false;
 }
 
 function getStatusEl(): HTMLElement | null {
@@ -204,6 +214,23 @@ function renderResults(results: OnlineMetadataResult[]): void {
       : "Narrator: —";
 
     const extra = document.createElement("div");
+    const seriesLine = document.createElement("div");
+    seriesLine.className = "metadata-lookup-meta";
+    const seriesParts: string[] = [];
+    if (result.series) {
+      const label = result.seriesPart
+        ? `Series: ${result.series} #${result.seriesPart}`
+        : `Series: ${result.series}`;
+      seriesParts.push(label);
+    }
+    if (result.subseries) {
+      const label = result.subseriesPart
+        ? `Sub-series: ${result.subseries} #${result.subseriesPart}`
+        : `Sub-series: ${result.subseries}`;
+      seriesParts.push(label);
+    }
+    seriesLine.textContent = seriesParts.length ? seriesParts.join(" • ") : "Series: —";
+
     extra.className = "metadata-lookup-meta";
     const year = result.publishedYear ? result.publishedYear.toString() : "—";
     const duration = result.durationSeconds
@@ -213,11 +240,15 @@ function renderResults(results: OnlineMetadataResult[]): void {
 
     const source = document.createElement("span");
     source.className = "metadata-lookup-source";
-    source.textContent = result.source === "itunes" ? "Apple Books" : "Open Library";
+    source.textContent = result.audibleOnly ? "Audible-only" : "Audnexus";
+    if (result.audibleOnly) {
+      source.classList.add("is-fallback");
+    }
 
     details.appendChild(title);
     details.appendChild(authors);
     details.appendChild(narrators);
+    details.appendChild(seriesLine);
     details.appendChild(extra);
     details.appendChild(source);
 
@@ -256,15 +287,19 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
   if (result.seriesPart) {
     metadata.series_part = result.seriesPart;
   }
+  if (result.subseries) {
+    metadata.subseries = result.subseries;
+  }
+  if (result.subseriesPart) {
+    metadata.subseries_part = result.subseriesPart;
+  }
   if (result.description) {
     metadata.description = result.description;
   }
   if (result.publishedYear) {
     metadata.date = result.publishedYear;
   }
-  if (result.title) {
-    metadata.album = result.title;
-  }
+  metadata.album = result.title;
 
   return metadata;
 }
@@ -294,7 +329,9 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 
   if (mode === "all") {
     applyMetadataToForm(metadata, { mode: "multi", markDirty: true });
-    await applyCoverArt(result);
+    if (shouldReplaceCoverArt()) {
+      await applyCoverArt(result);
+    }
     await stageMetadataToSelection({ showStatus: true });
     setStatus("Metadata staged for all selected files.", "success");
     return;
@@ -306,7 +343,9 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
   }
 
   applyMetadataToForm(metadata, { mode: "single", markDirty: true });
-  await applyCoverArt(result);
+  if (shouldReplaceCoverArt()) {
+    await applyCoverArt(result);
+  }
   onMetadataChange();
   updateTagPreview();
   setStatus("Metadata applied to form.", "success");
@@ -333,12 +372,12 @@ async function runSearch(): Promise<void> {
 
   const query = queryInput.value.trim();
   if (!query) {
-    setStatus("Enter a title or author to search.", "error");
+    setStatus("Enter a title, author, or ASIN to search.", "error");
     return;
   }
 
-  const selectedSource = sourceSelect.value as MetadataSource | "all";
-  const sources = selectedSource === "all" ? DEFAULT_SOURCES : [selectedSource];
+  const selectedSource = (sourceSelect.value as MetadataSource) || DEFAULT_SOURCES[0];
+  const sources = [selectedSource];
 
   setStatus("Searching metadata sources…", "info");
 
@@ -379,6 +418,11 @@ function openLookup(): void {
   updateQueueContext();
   updateApplyModeOptions();
   resetResults();
+  const coverToggle = getCoverArtToggle();
+  if (coverToggle) {
+    coverToggle.checked = false;
+  }
+
   showModal();
 }
 

@@ -7,7 +7,7 @@ Inherits principles from root `AGENTS.md`. This file covers TypeScript conventio
 ## Code Conventions
 
 - Strict mode; explicit types; avoid `any`
-- File names: camelCase; types/interfaces: PascalCase
+- Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
 - Class-based UI modules with DOM caching; event-driven via `listen()`
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
 

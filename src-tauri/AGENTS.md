@@ -72,6 +72,8 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
 
 **Tiered checks**: Follow the repo-wide Quick/Standard/Release tiers in `AGENTS.md` and use `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, and `scripts/release-checks.sh` from the repo root.
 
+**Workspace note**: Run cargo commands from the repo root (workspace). No need to `cd src-tauri`.
+
 ### Running Tests
 
 ```bash

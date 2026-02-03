@@ -1,6 +1,6 @@
 //! FFmpeg metadata dictionary helpers for AudiobookMetadata.
 
-use super::{compute_album_sort, AudiobookMetadata};
+use super::{build_series_list, compute_album_sort, split_series_list, AudiobookMetadata};
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
@@ -65,21 +65,38 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     }
 
     // Series metadata: dual-write for ABS/Plex + Apple Books
-    if let Some(ref series) = metadata.series {
-        if !series.trim().is_empty() {
-            dict.set("series", series);
-            dict.set("----:com.apple.iTunes:SERIES", series);
-            dict.set("MVNM", series);
-        }
+    let primary_series = metadata
+        .series
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let primary_series_part = metadata
+        .series_part
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let (series_value, series_part_value) = build_series_list(
+        metadata.series.as_deref(),
+        metadata.series_part.as_deref(),
+        metadata.subseries.as_deref(),
+        metadata.subseries_part.as_deref(),
+    );
+
+    if let Some(series) = series_value.as_deref() {
+        dict.set("series", series);
+        dict.set("----:com.apple.iTunes:SERIES", series);
+    }
+    if let Some(primary_series) = primary_series {
+        dict.set("MVNM", primary_series);
     }
 
     // Book # metadata: dual-write for ABS/Plex + Apple Books
-    if let Some(ref series_part) = metadata.series_part {
-        if !series_part.trim().is_empty() {
-            dict.set("series-part", series_part);
-            dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
-            dict.set("MVIN", series_part);
-        }
+    if let Some(series_part) = series_part_value.as_deref() {
+        dict.set("series-part", series_part);
+        dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
+    }
+    if let Some(primary_series_part) = primary_series_part {
+        dict.set("MVIN", primary_series_part);
     }
 
     // TSOA → sort_album for library sorting
@@ -193,8 +210,11 @@ fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
     );
     let title = dict.get("title").map(str::to_string);
 
-    match (series.as_deref(), title.as_deref()) {
-        (Some(series), Some(title)) => compute_album_sort(series, series_part.as_deref(), title),
+    let (primary_series, _) = split_series_list(series.as_deref());
+    let (primary_part, _) = split_series_list(series_part.as_deref());
+
+    match (primary_series.as_deref(), title.as_deref()) {
+        (Some(series), Some(title)) => compute_album_sort(series, primary_part.as_deref(), title),
         _ => None,
     }
 }

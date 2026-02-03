@@ -40,6 +40,23 @@ fn sanitize_component_with_commas(input: &str, replace_commas: bool) -> String {
         .join(" ")
 }
 
+fn is_prefixed_subseries(value: &str) -> bool {
+    let trimmed = value.trim_start();
+    let lowered = trimmed.to_ascii_lowercase();
+    ["part", "book", "vol", "vol.", "volume"]
+        .iter()
+        .any(|prefix| lowered.starts_with(prefix))
+}
+
+fn normalize_subseries_folder(subseries: &str, subseries_part: Option<&str>) -> String {
+    if let Some(part) = subseries_part {
+        if !is_prefixed_subseries(subseries) {
+            return format!("Part {part} - {subseries}");
+        }
+    }
+    subseries.to_string()
+}
+
 fn build_abs_title(
     title: &str,
     series_part: Option<&str>,
@@ -88,6 +105,8 @@ pub(crate) fn build_output_path(
         .unwrap_or(&fallback);
     let series_raw = metadata.and_then(|m| m.series.as_deref());
     let series_part_raw = metadata.and_then(|m| m.series_part.as_deref());
+    let subseries_raw = metadata.and_then(|m| m.subseries.as_deref());
+    let subseries_part_raw = metadata.and_then(|m| m.subseries_part.as_deref());
     let mut title = sanitize_component(title_raw);
     if title.is_empty() {
         title = "Untitled".to_string();
@@ -114,6 +133,18 @@ pub(crate) fn build_output_path(
     } else {
         None
     };
+    let subseries = subseries_raw.map(sanitize_component);
+    let subseries_part = if let Some(subseries_part_raw) = subseries_part_raw {
+        let trimmed = subseries_part_raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            crate::metadata::validate_series_part(trimmed)?;
+            Some(sanitize_component(trimmed))
+        }
+    } else {
+        None
+    };
     let year = metadata.and_then(|m| m.date.map(|d| d as i32));
 
     let mut dir = base_dir.to_path_buf();
@@ -124,8 +155,15 @@ pub(crate) fn build_output_path(
                 dir = dir.join(series);
             }
         }
-        let title_folder =
-            build_abs_title(&title, series_part.as_deref(), year, naming.include_year);
+        if let Some(subseries) = &subseries {
+            if !subseries.is_empty() {
+                let subseries_folder =
+                    normalize_subseries_folder(subseries, subseries_part.as_deref());
+                dir = dir.join(subseries_folder);
+            }
+        }
+        let book_part = series_part.as_deref();
+        let title_folder = build_abs_title(&title, book_part, year, naming.include_year);
         dir = dir.join(&title_folder);
         Some(title_folder)
     } else {
@@ -208,4 +246,26 @@ pub(crate) fn resolve_collision_with_claimed(
     Err(AppError::FileValidation(
         "Could not find collision-free output filename after 99 attempts".to_string(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_subseries_folder;
+
+    // EXCEPTION: inline tests for private helper functions.
+    #[test]
+    fn normalize_subseries_folder_prefixes_when_needed() {
+        assert_eq!(
+            normalize_subseries_folder("Discovery", Some("1")),
+            "Part 1 - Discovery"
+        );
+    }
+
+    #[test]
+    fn normalize_subseries_folder_keeps_existing_prefix() {
+        assert_eq!(
+            normalize_subseries_folder("Part 2 - Rogue Castes", Some("2")),
+            "Part 2 - Rogue Castes"
+        );
+    }
 }

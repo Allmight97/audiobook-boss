@@ -6,7 +6,10 @@ import { formatFileSize } from "../../types/audio";
 import { currentFileList } from "../fileList";
 import { getCurrentCoverArt } from "../coverArt";
 import { getState } from "./state";
-import { getSeriesPartValidationError } from "../metadataValidation";
+import {
+  getSeriesPartValidationError,
+  getSubseriesPartValidationError,
+} from "../metadataValidation";
 import { calculateOutputPath } from "./pathBuilder";
 
 /**
@@ -31,6 +34,8 @@ export function getCurrentMetadata(): AudiobookMetadata {
     description: getElementValue("meta-description"),
     series: getElementValue("meta-series"),
     series_part: getElementValue("meta-series-part") || undefined,
+    subseries: getElementValue("meta-subseries"),
+    subseries_part: getElementValue("meta-subseries-part") || undefined,
     cover_art: coverArt ?? undefined,
   };
 }
@@ -57,6 +62,26 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
   warning.toggleAttribute("hidden", !shouldShow);
 }
 
+export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
+  const warning = document.getElementById("meta-subseries-part-warning");
+  if (!warning) return;
+
+  const subseriesValue = metadata.subseries?.trim() ?? "";
+  const subseriesPartValue = metadata.subseries_part?.trim() ?? "";
+  const subseriesPartError = getSubseriesPartValidationError(subseriesPartValue);
+
+  if (subseriesPartError) {
+    warning.textContent = subseriesPartError;
+    warning.toggleAttribute("hidden", false);
+    return;
+  }
+
+  const shouldShow = subseriesValue.length > 0 && subseriesPartValue.length === 0;
+  warning.textContent = "Sub-series detected - add sub-series # for ABS ordering.";
+  warning.toggleAttribute("hidden", !shouldShow);
+}
+
+
 /**
  * Updates the output path PREVIEW display
  */
@@ -69,6 +94,7 @@ export function updateOutputPath(): void {
 
   const metadata = getCurrentMetadata();
   updateSeriesPartWarning(metadata);
+  updateSubseriesPartWarning(metadata);
 
   // Basic validation state
   if (!state.outputDirectory) {
@@ -101,8 +127,8 @@ export function updateNamingOptionState(): void {
     absHint.toggleAttribute("hidden", !state.absCompatible);
     if (state.absCompatible) {
       absHint.textContent = state.absIncludeYear
-        ? "Creates Author / Series / Book # - YYYY - Title"
-        : "Creates Author / Series / Book # - Title";
+        ? "Creates Author / Series / (Sub-series) / Book # - YYYY - Title"
+        : "Creates Author / Series / (Sub-series) / Book # - Title";
     }
   }
 }

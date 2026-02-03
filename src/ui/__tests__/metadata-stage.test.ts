@@ -18,6 +18,7 @@ vi.mock("../outputPanel", () => ({
 
 vi.mock("../metadataValidation", () => ({
   getSeriesPartValidationError: () => null,
+  getSubseriesPartValidationError: () => null,
 }));
 
 vi.mock("../metadataForm", () => ({

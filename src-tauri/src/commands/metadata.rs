@@ -42,6 +42,13 @@ pub async fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadat
             }
         }
 
+        if let Some(subseries_part) = validated_metadata.subseries_part.as_deref() {
+            let trimmed = subseries_part.trim();
+            if !trimmed.is_empty() {
+                crate::metadata::validate_series_part(trimmed)?;
+            }
+        }
+
         if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
             crate::metadata::mp4ameta_bridge::write_metadata(&validated_path, &validated_metadata)?;
         } else {

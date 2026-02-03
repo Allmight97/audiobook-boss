@@ -84,7 +84,7 @@ body {
 /* Main container - 2-column grid layout */
 .main-container {
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   gap: 1rem;
   padding: 0.75rem;
   flex: 1 1 auto;
@@ -107,9 +107,9 @@ body {
 
 /* Input panel specific styling */
 .input-panel {
-  min-width: 280px;
   width: auto;
   height: 100%; /* Use full available height */
+  min-width: 0;
 }
 
 /* Right column wrapper - contains metadata-output-panel and status-panel */
@@ -119,6 +119,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   gap: 1rem;
+  min-width: 0;
 }
 
 /* Metadata/Output panel specific styling */
@@ -295,6 +296,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .file-status {
@@ -305,17 +307,24 @@ body {
 
 .file-info {
   flex: 1;
+  min-width: 0;
 }
 
 .file-name {
   font-weight: 500;
   font-size: 0.875rem;
   margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-details {
   font-size: 0.75rem;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-list-item.selected .file-details {
@@ -711,7 +720,7 @@ textarea:hover:not(:focus) {
 
 .metadata-lookup-controls {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: end;
 }
@@ -724,6 +733,17 @@ textarea:hover:not(:focus) {
 .metadata-lookup-field-button {
   display: flex;
   align-items: flex-end;
+}
+
+.metadata-lookup-field-toggle {
+  display: flex;
+  align-items: flex-end;
+}
+
+.metadata-lookup-field-toggle .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .metadata-lookup-context,
@@ -800,6 +820,11 @@ textarea:hover:not(:focus) {
   border-radius: 9999px;
   font-size: 0.7rem;
   color: var(--text-secondary);
+}
+
+.metadata-lookup-source.is-fallback {
+  border-color: var(--border-secondary);
+  color: var(--text-muted);
 }
 
 .metadata-lookup-actions {

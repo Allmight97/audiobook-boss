@@ -40,6 +40,8 @@ const TAG_FIELD_MAPPINGS: Record<string, () => string> = {
     composer: () => getInputValue('meta-narrator'),
     series: () => getInputValue('meta-series'),
     part: () => getInputValue('meta-series-part'),
+    subseries: () => getInputValue('meta-subseries'),
+    subpart: () => getInputValue('meta-subseries-part'),
     year: () => getInputValue('meta-year'),
     genre: () => getInputValue('meta-genre'),
     tsoa: () => calculateTSOA(
@@ -91,6 +93,8 @@ export function initTagPreview(): void {
         'meta-narrator',
         'meta-series',
         'meta-series-part',
+        'meta-subseries',
+        'meta-subseries-part',
         'meta-year',
         'meta-genre',
     ];

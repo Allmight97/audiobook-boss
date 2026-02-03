@@ -232,7 +232,7 @@
                     <input
                       type="text"
                       id="meta-title"
-                      placeholder="The Name of the Wind"
+                      placeholder="Book title"
                     />
                   </div>
                   <div class="col-span-1">
@@ -247,7 +247,7 @@
                         <option value="blank">Blank</option>
                       </select>
                     </div>
-                    <input type="text" id="meta-year" placeholder="2007" />
+                    <input type="text" id="meta-year" placeholder="YYYY" />
                   </div>
                   <div class="col-span-2">
                     <div class="meta-field-header">
@@ -264,7 +264,7 @@
                     <input
                       type="text"
                       id="meta-author"
-                      placeholder="Patrick Rothfuss"
+                      placeholder="Author"
                     />
                   </div>
                   <div class="col-span-2">
@@ -282,7 +282,7 @@
                     <input
                       type="text"
                       id="meta-narrator"
-                      placeholder="Nick Podehl"
+                      placeholder="Narrator"
                     />
                   </div>
                   <div class="col-span-2">
@@ -300,7 +300,7 @@
                     <input
                       type="text"
                       id="meta-series"
-                      placeholder="The Kingkiller Chronicle"
+                      placeholder="Series name"
                     />
                   </div>
                   <div class="col-span-1">
@@ -315,13 +315,56 @@
                         <option value="blank">Blank</option>
                       </select>
                     </div>
-                    <input type="text" id="meta-series-part" placeholder="1" />
+                    <input type="text" id="meta-series-part" placeholder="#" />
                     <div
                       id="meta-series-part-warning"
                       class="text-xs warning-text"
                       hidden
                     >
                       Series detected - add book # for ABS ordering.
+                    </div>
+                  </div>
+                  <div class="col-span-2">
+                    <div class="meta-field-header">
+                      <label for="meta-subseries">Sub-series</label>
+                      <select
+                        id="meta-subseries-action"
+                        class="meta-apply-select"
+                        data-testid="meta-subseries-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      id="meta-subseries"
+                      placeholder="Sub-series name"
+                    />
+                  </div>
+                  <div class="col-span-1">
+                    <div class="meta-field-header">
+                      <label for="meta-subseries-part">Sub-series #</label>
+                      <select
+                        id="meta-subseries-part-action"
+                        class="meta-apply-select"
+                        data-testid="meta-subseries-part-action"
+                      >
+                        <option value="keep">Keep</option>
+                        <option value="blank">Blank</option>
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      id="meta-subseries-part"
+                      placeholder="#"
+                    />
+                    <div
+                      id="meta-subseries-part-warning"
+                      class="text-xs warning-text"
+                      hidden
+                    >
+                      Sub-series detected - add sub-series # for ABS ordering.
                     </div>
                   </div>
                   <div class="col-span-1">
@@ -336,7 +379,7 @@
                         <option value="blank">Blank</option>
                       </select>
                     </div>
-                    <input type="text" id="meta-genre" placeholder="Fantasy" />
+                    <input type="text" id="meta-genre" placeholder="Genre" />
                   </div>
                   <div class="col-span-4">
                     <div class="meta-field-header">
@@ -353,7 +396,7 @@
                     <textarea
                       id="meta-description"
                       rows="2"
-                      placeholder="Enter book description..."
+                      placeholder="Description"
                     ></textarea>
                   </div>
                 </div>
@@ -718,6 +761,20 @@
                   </div>
                   <div
                     class="tag-row"
+                    title="Secondary series name. Stored as the second entry in the SERIES list for ABS/Plex."
+                  >
+                    <span class="tag-name">SERIES (Sub-series)</span>
+                    <span class="tag-value" data-field="subseries">—</span>
+                  </div>
+                  <div
+                    class="tag-row"
+                    title="Secondary series number. Stored as the second entry in SERIES-PART for ABS/Plex."
+                  >
+                    <span class="tag-name">SERIES-PART (Sub-series #)</span>
+                    <span class="tag-value" data-field="subpart">—</span>
+                  </div>
+                  <div
+                    class="tag-row"
                     title="Auto-generated sort key. Forces Plex to sort by series, then book number, then title."
                   >
                     <span class="tag-name">TSOA (Title Sort Order)</span>
@@ -834,7 +891,7 @@
               <input
                 id="metadata-lookup-query"
                 type="text"
-                placeholder="Title, author, or narrator"
+                placeholder="Title, author, or ASIN (e.g., B01234ABCD)"
                 data-testid="metadata-lookup-query"
               />
             </div>
@@ -844,9 +901,7 @@
                 id="metadata-lookup-source"
                 data-testid="metadata-lookup-source"
               >
-                <option value="all" selected>All sources</option>
-                <option value="open_library">Open Library</option>
-                <option value="itunes">Apple Books</option>
+                <option value="audnexus">Audnexus</option>
               </select>
             </div>
             <div class="metadata-lookup-field">
@@ -855,6 +910,16 @@
                 id="metadata-lookup-apply-mode"
                 data-testid="metadata-lookup-apply-mode"
               ></select>
+            </div>
+            <div class="metadata-lookup-field metadata-lookup-field-toggle">
+              <label class="checkbox-label text-xs mb-0">
+                <input
+                  type="checkbox"
+                  id="metadata-lookup-cover-toggle"
+                  data-testid="metadata-lookup-cover-toggle"
+                />
+                <span class="option-label">Replace cover art</span>
+              </label>
             </div>
             <div class="metadata-lookup-field metadata-lookup-field-button">
               <button

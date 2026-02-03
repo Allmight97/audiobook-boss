@@ -54,6 +54,10 @@ pub struct AudiobookMetadata {
     pub series: Option<String>,
     /// Book number in series (freeform SERIES-PART, mirrored to MVIN)
     pub series_part: Option<String>,
+    /// Sub-series name (secondary series)
+    pub subseries: Option<String>,
+    /// Book number in sub-series (secondary series part)
+    pub subseries_part: Option<String>,
     /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
     pub album_sort: Option<String>,
     /// Cover art as raw bytes
@@ -77,6 +81,8 @@ impl AudiobookMetadata {
             description: None,
             series: None,
             series_part: None,
+            subseries: None,
+            subseries_part: None,
             album_sort: None,
             cover_art: None,
         }
@@ -97,6 +103,54 @@ pub(crate) fn validate_series_part(series_part: &str) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+/// Splits a semicolon-separated series list into primary and secondary values.
+pub(crate) fn split_series_list(value: Option<&str>) -> (Option<String>, Option<String>) {
+    let Some(raw) = value else {
+        return (None, None);
+    };
+    let mut parts = raw
+        .split(';')
+        .map(|part| part.trim())
+        .filter(|part| !part.is_empty());
+    let primary = parts.next().map(|part| part.to_string());
+    let secondary = parts.next().map(|part| part.to_string());
+    (primary, secondary)
+}
+
+/// Builds ABS/Plex series tag values, including secondary series when complete.
+pub(crate) fn build_series_list(
+    series: Option<&str>,
+    series_part: Option<&str>,
+    subseries: Option<&str>,
+    subseries_part: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    let normalize = |value: Option<&str>| {
+        value
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(|item| item.to_string())
+    };
+
+    let primary_series = normalize(series);
+    let primary_part = normalize(series_part);
+    let secondary_series = normalize(subseries);
+    let secondary_part = normalize(subseries_part);
+
+    if let (Some(series), Some(part), Some(subseries), Some(subpart)) = (
+        primary_series.as_deref(),
+        primary_part.as_deref(),
+        secondary_series.as_deref(),
+        secondary_part.as_deref(),
+    ) {
+        return (
+            Some(format!("{}; {}", series, subseries)),
+            Some(format!("{}; {}", part, subpart)),
+        );
+    }
+
+    (primary_series, primary_part)
 }
 
 /// Computes album sort (TSOA) from series + part + title.

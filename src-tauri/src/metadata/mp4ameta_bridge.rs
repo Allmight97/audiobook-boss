@@ -1,6 +1,6 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::{build_series_list, split_series_list, AudiobookMetadata};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
 
@@ -30,8 +30,14 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     metadata.album_sort = tag.album_sort_order().map(str::to_string);
     metadata.date = tag.year().and_then(|y| y.parse::<u32>().ok());
 
-    metadata.series = read_series(&tag);
-    metadata.series_part = read_series_part(&tag);
+    let series_raw = read_series_raw(&tag);
+    let series_part_raw = read_series_part_raw(&tag);
+    let (series, subseries) = split_series_list(series_raw.as_deref());
+    let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
+    metadata.series = series;
+    metadata.series_part = series_part;
+    metadata.subseries = subseries;
+    metadata.subseries_part = subseries_part;
 
     metadata.cover_art = tag.artwork().map(|img| img.data.to_vec());
 
@@ -110,18 +116,40 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
 
     tag.set_media_type(MediaType::AudioBook);
 
-    let series_present = metadata
-        .series
+    apply_series_metadata(tag, metadata);
+    apply_cover_art(tag, metadata)?;
+
+    Ok(())
+}
+
+fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
+    let (series_value, series_part_value) = build_series_list(
+        metadata.series.as_deref(),
+        metadata.series_part.as_deref(),
+        metadata.subseries.as_deref(),
+        metadata.subseries_part.as_deref(),
+    );
+    let series_present = series_value
         .as_deref()
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false);
-    let series_part_present = metadata
-        .series_part
+    let series_part_present = series_part_value
         .as_deref()
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false);
 
-    if let Some(ref series) = metadata.series {
+    let primary_series = metadata
+        .series
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let primary_series_part = metadata
+        .series_part
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if metadata.series.is_some() {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
@@ -129,14 +157,16 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         tag.remove_tv_show_name();
         tag.remove_tv_show_name_sort_order();
 
-        if !series.trim().is_empty() {
-            tag.set_data(ident, Data::Utf8(series.to_string()));
-            tag.set_movement(series);
+        if let Some(series_value) = series_value.as_deref() {
+            tag.set_data(ident, Data::Utf8(series_value.to_string()));
+        }
+        if let Some(primary_series) = primary_series {
+            tag.set_movement(primary_series);
             tag.set_show_movement();
         }
     }
 
-    if let Some(ref series_part) = metadata.series_part {
+    if metadata.series_part.is_some() {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
@@ -144,20 +174,27 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         tag.remove_tv_episode();
         tag.remove_tv_episode_name();
 
-        if !series_part.trim().is_empty() {
-            tag.set_data(ident, Data::Utf8(series_part.to_string()));
-            if let Some(index) = parse_series_part(series_part) {
+        if let Some(series_part_value) = series_part_value.as_deref() {
+            tag.set_data(ident, Data::Utf8(series_part_value.to_string()));
+        }
+        if let Some(primary_series_part) = primary_series_part {
+            if let Some(index) = parse_series_part(primary_series_part) {
                 tag.set_movement_index(index);
                 tag.set_show_movement();
             }
         }
     }
 
-    if (metadata.series.is_some() || metadata.series_part.is_some())
-        && !(series_present || series_part_present)
-    {
+    let should_clear_series = metadata.series.is_some()
+        || metadata.series_part.is_some()
+        || metadata.subseries.is_some()
+        || metadata.subseries_part.is_some();
+    if should_clear_series && !(series_present || series_part_present) {
         tag.remove_show_movement();
     }
+}
+
+fn apply_cover_art(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     if let Some(ref cover_art) = metadata.cover_art {
         if cover_art.is_empty() {
             tag.remove_artworks();
@@ -174,8 +211,8 @@ fn resolve_effective_metadata(
     metadata: &AudiobookMetadata,
 ) -> (Option<String>, Option<String>, Option<String>) {
     let existing_title = tag.title().map(str::to_string);
-    let existing_series = read_series(tag);
-    let existing_series_part = read_series_part(tag);
+    let (existing_series, _) = split_series_list(read_series_raw(tag).as_deref());
+    let (existing_series_part, _) = split_series_list(read_series_part_raw(tag).as_deref());
 
     let effective_title = metadata
         .title
@@ -222,7 +259,7 @@ fn apply_album_sort(
     }
 }
 
-fn read_series(tag: &Tag) -> Option<String> {
+fn read_series_raw(tag: &Tag) -> Option<String> {
     let series = {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
         let value = tag.strings_of(&ident).next().map(str::to_string);
@@ -231,7 +268,7 @@ fn read_series(tag: &Tag) -> Option<String> {
     series.or_else(|| tag.movement().map(str::to_string))
 }
 
-fn read_series_part(tag: &Tag) -> Option<String> {
+fn read_series_part_raw(tag: &Tag) -> Option<String> {
     let series_part = {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
         let value = tag.strings_of(&ident).next().map(str::to_string);

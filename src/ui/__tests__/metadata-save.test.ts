@@ -35,6 +35,10 @@ describe('readMetadataForm (single mode)', () => {
         <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
         <input id="meta-series-part" />
         <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-subseries" />
+        <select id="meta-subseries-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-subseries-part" />
+        <select id="meta-subseries-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
         <textarea id="meta-description"></textarea>
         <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
       </div>
@@ -51,6 +55,8 @@ describe('readMetadataForm (single mode)', () => {
     setField('meta-genre', 'Fiction');
     setField('meta-series', 'Series');
     setField('meta-series-part', '2');
+    setField('meta-subseries', 'Sub-series');
+    setField('meta-subseries-part', '4');
     setField('meta-description', 'Desc');
     coverArtBytes = [1, 2, 3];
 
@@ -65,6 +71,8 @@ describe('readMetadataForm (single mode)', () => {
       genre: 'Fiction',
       series: 'Series',
       series_part: '2',
+      subseries: 'Sub-series',
+      subseries_part: '4',
       description: 'Desc',
       cover_art: [1, 2, 3],
     });
@@ -83,6 +91,8 @@ describe('readMetadataForm (single mode)', () => {
 
     expect(metadata.series).toBe('');
     expect(metadata.series_part).toBe('');
+    expect(metadata.subseries).toBe('');
+    expect(metadata.subseries_part).toBe('');
     expect(metadata.description).toBe('');
   });
 });
@@ -105,6 +115,10 @@ describe('readMetadataForm (multi mode)', () => {
         <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
         <input id="meta-series-part" />
         <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-subseries" />
+        <select id="meta-subseries-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
+        <input id="meta-subseries-part" />
+        <select id="meta-subseries-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
         <textarea id="meta-description"></textarea>
         <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
       </div>

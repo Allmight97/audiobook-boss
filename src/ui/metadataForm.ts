@@ -33,6 +33,18 @@ const FIELD_CONFIGS: FieldConfig[] = [
     unconditional: true,
   },
   {
+    inputId: "meta-subseries",
+    actionId: "meta-subseries-action",
+    key: "subseries",
+    unconditional: true,
+  },
+  {
+    inputId: "meta-subseries-part",
+    actionId: "meta-subseries-part-action",
+    key: "subseries_part",
+    unconditional: true,
+  },
+  {
     inputId: "meta-description",
     actionId: "meta-description-action",
     key: "description",

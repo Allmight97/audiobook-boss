@@ -9,7 +9,10 @@ import {
   removeMetadataForFile,
   setMetadataForFile,
 } from "../metadataState";
-import { getSeriesPartValidationError } from "../metadataValidation";
+import {
+  getSeriesPartValidationError,
+  getSubseriesPartValidationError,
+} from "../metadataValidation";
 import {
   readMetadataForm,
   resetDirtyState,
@@ -182,11 +185,15 @@ export async function stageMetadataToSelection(options?: {
   const seriesPartError = getSeriesPartValidationError(
     typeof changes.series_part === "string" ? changes.series_part : undefined
   );
-  if (seriesPartError) {
+  const subseriesPartError = getSubseriesPartValidationError(
+    typeof changes.subseries_part === "string" ? changes.subseries_part : undefined
+  );
+  const validationError = seriesPartError ?? subseriesPartError;
+  if (validationError) {
     if (options?.showStatus) {
       const statusText = document.getElementById("status-text");
       if (statusText) {
-        statusText.textContent = seriesPartError;
+        statusText.textContent = validationError;
       }
     }
     return false;

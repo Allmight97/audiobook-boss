@@ -1,5 +1,5 @@
 //! Metadata reading via ffmpeg-next
-use super::{mp4ameta_bridge, AudiobookMetadata};
+use super::{mp4ameta_bridge, split_series_list, AudiobookMetadata};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
@@ -21,11 +21,16 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
                 metadata.cover_art = normalize_cover_art(metadata.cover_art);
                 if metadata.series.is_none()
                     || metadata.series_part.is_none()
+                    || metadata.subseries.is_none()
+                    || metadata.subseries_part.is_none()
                     || metadata.cover_art.is_none()
                 {
                     if let Ok(fallback) = read_metadata_with_ffmpeg(path) {
                         metadata.series = metadata.series.or(fallback.series);
                         metadata.series_part = metadata.series_part.or(fallback.series_part);
+                        metadata.subseries = metadata.subseries.or(fallback.subseries);
+                        metadata.subseries_part =
+                            metadata.subseries_part.or(fallback.subseries_part);
                         if metadata.cover_art.is_none() {
                             metadata.cover_art = normalize_cover_art(fallback.cover_art);
                         }
@@ -60,11 +65,11 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
 
     // Series metadata: prefer canonical tags, fall back to legacy/movement tags
-    metadata.series = first_tag(
+    let series_raw = first_tag(
         &dict,
         &["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"],
     );
-    metadata.series_part = first_tag(
+    let series_part_raw = first_tag(
         &dict,
         &[
             "series-part",
@@ -73,6 +78,12 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
             "MVIN",
         ],
     );
+    let (series, subseries) = split_series_list(series_raw.as_deref());
+    let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
+    metadata.series = series;
+    metadata.series_part = series_part;
+    metadata.subseries = subseries;
+    metadata.subseries_part = subseries_part;
 
     // Year/date can be stored under `date` or `year`
     metadata.date = dict

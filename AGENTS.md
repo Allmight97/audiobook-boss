@@ -12,7 +12,7 @@ Read the checklist before starting work. It tracks:
 - Release process steps
 - What's explicitly deferred to post-launch
 
-**Focus guidance**: This project is in ship-it mode. Favor working solutions over perfect ones. If a fix grows into a refactor, pause and get approval. Optimization and polish are post-launch unless they block a checklist item.
+**Focus guidance**: This project is in ship-it mode. Favor elegant secure working solutions over over-engineered ones. If a fix could grow into a refactor, pause and get approval. Optimization and polish are post-launch unless they block performance or security.
 
 ---
 
@@ -94,6 +94,8 @@ Use this scale to rate the quality of code and solutions:
   - Runs Quick with `SKIP_TS_CHECK=1`, then `cargo test`, then `bun run build` (includes `tsc`).
 - **Release (pre-release)**: `scripts/release-checks.sh`
   - Runs Standard, then `cargo build --release -p audiobook-boss`.
+
+**Workspace note**: Cargo runs from the repo root (workspace). No need to `cd src-tauri`. If any doc says otherwise, prefer running from root.
 
 **When to run**
 - Quick: before committing and during AI iteration loops.
@@ -184,3 +186,9 @@ See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy, locations, a
 ## Build & Run Commands
 
 See `README.md` for build and run commands.
+Quick references (from `README.md`):
+- Dev mode: `bun run tauri dev` (Vite on port 1420)
+- Rust logging: `RUST_LOG=debug bun run tauri dev` (or `RUST_LOG=audiobook_boss=debug`)
+- Rust lint: `cargo clippy -- -D warnings`
+- Path validation tests: `cargo test path_validation`
+- Stale dev sessions: `lsof -i :1420` then `pkill -f vite && pkill -f "tauri dev"`
