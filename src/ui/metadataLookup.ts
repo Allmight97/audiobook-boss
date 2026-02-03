@@ -5,11 +5,11 @@ import type {
   MetadataSource,
   OnlineMetadataResult,
 } from "../types/metadata";
-import { applyMetadataToForm } from "./metadataForm";
+import { applyMetadataToForm, readMetadataForm } from "./metadataForm";
 import { onMetadataChange } from "./outputPanel";
 import { updateTagPreview } from "./tagPreview";
-import { setCustomCoverArt } from "./coverArt";
-import { getMetadataForFile } from "./metadataState";
+import { clearCoverArt, setCoverArt, setCustomCoverArt } from "./coverArt";
+import { getMetadataForFile, setMetadataForFile } from "./metadataState";
 import { currentFileList } from "./fileList";
 import { selectFile } from "./fileList/actions";
 import { getSelectedFileIndices } from "./fileList/state";
@@ -161,14 +161,29 @@ function resetResults(): void {
   }
 }
 
+function persistQueueMetadata(file: AudioFile): void {
+  if (!file.isValid) return;
+  const metadata = readMetadataForm({ mode: "single" });
+  setMetadataForFile(file.path, metadata);
+}
+
+function restoreCoverArtForFile(file: AudioFile | null): void {
+  clearCoverArt();
+  if (!file?.isValid) return;
+  const stored = getMetadataForFile(file.path);
+  setCoverArt(stored?.cover_art ?? null);
+}
+
 async function advanceQueue(reason: "applied" | "skipped"): Promise<void> {
   if (lookupQueue.length === 0) return;
 
   if (queueIndex >= lookupQueue.length - 1) {
+    restoreCoverArtForFile(lookupQueue[queueIndex]?.file ?? null);
     setStatus("Queue complete.", "success");
     return;
   }
 
+  clearCoverArt();
   queueIndex += 1;
   updateQueueContext();
   const nextItem = lookupQueue[queueIndex];
@@ -368,6 +383,9 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
   setStatus("Metadata applied to form.", "success");
 
   if (mode === "queue") {
+    if (current) {
+      persistQueueMetadata(current.file);
+    }
     await advanceQueue("applied");
   }
 }
