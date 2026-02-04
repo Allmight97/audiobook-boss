@@ -136,3 +136,4 @@ The application's architecture follows the stack described in the repo's [README
 - **Backend**: Pure Rust handles the application logic. FFmpeg (via ffmpeg-next) handles audio processing; `mp4ameta` handles MP4/M4B metadata with ffmpeg-next for non-MP4 metadata, all managed by the Tokio async runtime.
 - **Frontend**: The UI is built with vanilla HTML, TypeScript, and styled with Tailwind CSS. Vite serves as the build tool.
 - **Communication**: The frontend and backend communicate using Tauri commands, with data serialized to JSON using `serde`.
+
