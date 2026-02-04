@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(dev-browser)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.agenticworkers.com)",
+      "Bash(gh issue view:*)",
+      "Bash(gh api:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue create --title \"Refactor: Split ffmpeg_bridge.rs to reduce complexity\" --body \"$\\(cat <<''EOF''\n## Summary\n\n`src-tauri/src/metadata/ffmpeg_bridge.rs` has grown to 607 LOC \\(exceeds 400 LOC guideline\\) and contains multiple cohesive but separable concerns. This issue tracks a future refactor to improve maintainability.\n\n## Current State\n\n**Quality Rating**: 3.5/5 \\(acceptable, room for improvement\\)\n\n**What''s working well**:\n- Clear abstraction boundary isolating FFmpeg knowledge\n- Consistent `Result<T, AppError>` error handling\n- Atomic file operations \\(temp file + rename\\)\n- Comprehensive cover art validation\n\n**Concerns**:\n- Mixed abstraction levels: low-level JPEG/PNG marker parsing alongside high-level orchestration\n- Inline unsafe FFI \\(`set_attached_pic_disposition`\\) should be isolated\n- `rewrite_metadata_with_ffmpeg\\(\\)` is ~130 LOC handling 7+ concerns\n- Image format parsing is general-purpose but buried in FFmpeg-specific module\n\n## Proposed Split\n\n```\nmetadata/\n├── mod.rs              # AudiobookMetadata struct \\(existing\\)\n├── ffmpeg_dict.rs      # metadata → Dictionary conversion \\(~80 LOC\\)\n├── cover_art/\n│   ├── mod.rs          \n│   ├── format.rs       # detect_*_format\\(\\), detect_*_dimensions\\(\\) \\(~100 LOC\\)\n│   └── embedding.rs    # stream creation, packet writing \\(~150 LOC\\)\n├── remux.rs            # rewrite_metadata_with_ffmpeg \\(~150 LOC\\)\n└── ffi.rs              # unsafe disposition helpers \\(~50 LOC\\)\n```\n\n## Benefits\n\n- Each file stays under 200 LOC\n- Image parsing becomes reusable \\(e.g., pre-validation in UI layer\\)\n- Unsafe FFI isolated for easier audit\n- Cover art complexity gets proper namespace given its growth\n\n## Notes\n\n- No urgency — current implementation is stable and tested\n- Consider during next significant metadata feature work\n- Inline tests in current file would need migration to `src-tauri/tests/unit/`\n\n---\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__rust-docs__docs_rs_search_crates",
+      "mcp__exa__get_code_context_exa",
+      "mcp__plugin_context7_context7__get-library-docs",
+      "mcp__rust-docs__docs_rs_get_item",
+      "mcp__rust-docs__docs_rs_search_in_crate",
+      "mcp__exa__web_search_exa",
+      "Bash(while read f)",
+      "Bash(do wc -l \"$f\")",
+      "Bash(done)",
+      "Bash(gh pr view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(git show:*)",
+      "Bash(wc:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(SKIP_TS_CHECK=0 scripts/quick-checks.sh:*)",
+      "Bash(bun test:*)",
+      "Bash(scripts/quick-checks.sh:*)"
+    ]
+  },
+  "outputStyle": "default"
+}
