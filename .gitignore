@@ -36,3 +36,4 @@ docs/model_tests/*
 .claude/
 opencode.json
 .btca/
+.learnings/
