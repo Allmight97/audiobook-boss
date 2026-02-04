@@ -186,6 +186,7 @@ See `src-tauri/AGENTS.md` and `src/AGENTS.md` for testing strategy, locations, a
 ## Build & Run Commands
 
 See `README.md` for build and run commands.
+
 Quick references (from `README.md`):
 - Dev mode: `bun run tauri dev` (Vite on port 1420)
 - Rust logging: `RUST_LOG=debug bun run tauri dev` (or `RUST_LOG=audiobook_boss=debug`)
