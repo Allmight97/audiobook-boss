@@ -134,6 +134,9 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
     case "analyze_audio_files":
       return MOCK_FILE_LIST as unknown as T;
 
+    case "decrypt_audible_titles":
+      return MOCK_FILE_LIST as unknown as T;
+
     case "read_audio_metadata":
       return MOCK_METADATA as unknown as T;
 

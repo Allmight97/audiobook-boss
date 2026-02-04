@@ -840,6 +840,47 @@ textarea:hover:not(:focus) {
   color: var(--text-muted);
 }
 
+.audible-import-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.audible-import-field label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.audible-import-files {
+  grid-column: 1 / -1;
+}
+
+.audible-import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.audible-import-file-row input {
+  flex: 1;
+}
+
+.audible-import-field-toggle {
+  display: flex;
+  align-items: flex-end;
+}
+
+.audible-import-field-button {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.audible-import-guidance {
+  line-height: 1.4;
+}
+
 /* Property labels/values */
 .property-label {
   font-weight: 500;

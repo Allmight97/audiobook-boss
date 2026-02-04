@@ -15,6 +15,7 @@ import {
 import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { initMetadataLookup } from "./ui/metadataLookup";
+import { initAudibleImport } from "./ui/audibleImport";
 import { setMetadataForFile, getMetadataForFile } from "./ui/metadataState";
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metadataSaveState";
 
@@ -30,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize tag preview grid
   initTagPreview();
   initMetadataLookup();
+  initAudibleImport();
   // Initialize Cmd+S metadata save handler
   initMetadataSaveHandler();
   // Initialize Job Controls (Job Type, Max Concurrent)
@@ -40,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("Cover art system initialized");
   console.log("Tag preview initialized");
   console.log("Metadata save handler initialized (Cmd+S / Ctrl+S)");
+  console.log("Audible import initialized");
 });
 
 /**

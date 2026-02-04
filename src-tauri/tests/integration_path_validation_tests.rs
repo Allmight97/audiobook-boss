@@ -196,6 +196,11 @@ fn test_output_path_validation_integration() {
 fn test_read_only_output_directory_integration() {
     use std::os::unix::fs::PermissionsExt;
 
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("Skipping read-only directory check when running as root.");
+        return;
+    }
+
     let temp_dir = TempDir::new().expect("create temp dir");
     let readonly_dir = temp_dir.path().join("readonly");
     std::fs::create_dir(&readonly_dir).expect("create readonly dir");

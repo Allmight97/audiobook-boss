@@ -59,6 +59,7 @@ pub fn run() {
             commands::save_metadata_to_file,
             commands::search_online_metadata,
             commands::analyze_audio_files,
+            commands::decrypt_audible_titles,
             commands::validate_encoder_settings_cmd,
             commands::list_available_encoders,
             commands::get_max_concurrent_jobs,

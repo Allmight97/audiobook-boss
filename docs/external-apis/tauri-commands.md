@@ -9,6 +9,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `ping`, `echo` | `src-tauri/src/commands/system.rs` | Console smoke tests via `window.testCommands` |
 | `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and console harness |
 | `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport` |
+| `decrypt_audible_titles` | `src-tauri/src/commands/audio.rs` → `audio::audible_import` | Audible import modal (`src/ui/audibleImport`) |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
 | `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel cancel-all and per-job cancel |
@@ -37,7 +38,14 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
   - Notes:
     - `metadata` is keyed by input path; merge uses the first input path as the metadata key.
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
-    - Emits `processing-progress` events with `job_id` and optional `input_index` (backward compatible)
+  - Emits `processing-progress` events with `job_id` and optional `input_index` (backward compatible)
+
+- `decrypt_audible_titles`
+  - Args: `{ filePaths: string[]; activationBytes: string; retainOriginal: boolean }`
+  - Returns: `FileListInfo` (`src/types/audio.ts:15`)
+  - Notes:
+    - Activation bytes must be 16 hex characters (8 bytes).
+    - Decrypted M4B files are returned to the main file list.
 
 - `cancel_processing`
   - Args: `{ job_id?: string }`
@@ -64,7 +72,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Contract sources
 
-- Command and data types: `src/types/audio.ts`, `src/types/metadata.ts`
+- Command and data types: `src/types/audio.ts`, `src/types/audible.ts`, `src/types/metadata.ts`
 - Event contracts: `src/types/events.ts`
 
 ### Backend → frontend events

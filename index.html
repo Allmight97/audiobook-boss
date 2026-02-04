@@ -84,6 +84,14 @@
               Sort: A-Z
             </button>
             <button
+              id="audible-import-open"
+              class="btn-pill btn-pill-secondary"
+              data-testid="audible-import-open"
+              type="button"
+            >
+              Audible Import
+            </button>
+            <button
               id="clear-files-btn"
               class="btn-pill btn-pill-secondary"
               style="display: none"
@@ -944,6 +952,95 @@
             id="metadata-lookup-results"
             class="metadata-lookup-results"
           ></div>
+        </div>
+      </div>
+    </div>
+    <div
+      id="audible-import-modal"
+      class="metadata-lookup-modal"
+      data-testid="audible-import-modal"
+      aria-hidden="true"
+    >
+      <div
+        class="metadata-lookup-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="audible-import-title"
+      >
+        <div class="metadata-lookup-header">
+          <h3 id="audible-import-title">Audible Import (Prototype)</h3>
+          <button
+            id="audible-import-close"
+            class="btn-pill btn-pill-secondary"
+            data-testid="audible-import-close"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+        <div class="metadata-lookup-body">
+          <div class="audible-import-controls">
+            <div class="audible-import-field audible-import-files">
+              <label for="audible-import-files">Audible .aax files</label>
+              <div class="audible-import-file-row">
+                <input
+                  id="audible-import-files"
+                  data-testid="audible-import-files"
+                  type="text"
+                  placeholder="No files selected"
+                  readonly
+                />
+                <button
+                  id="audible-import-select"
+                  class="btn-pill btn-pill-secondary"
+                  data-testid="audible-import-select"
+                  type="button"
+                >
+                  Choose files
+                </button>
+              </div>
+            </div>
+            <div class="audible-import-field">
+              <label for="audible-import-activation">Activation bytes</label>
+              <input
+                id="audible-import-activation"
+                data-testid="audible-import-activation"
+                type="text"
+                placeholder="16 hex chars (e.g. 1A2B3C4D5E6F7890)"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+            <div class="audible-import-field audible-import-field-toggle">
+              <label class="checkbox-label text-xs mb-0">
+                <input
+                  type="checkbox"
+                  id="audible-import-retain"
+                  data-testid="audible-import-retain"
+                />
+                <span class="option-label">Keep original .aax downloads</span>
+              </label>
+            </div>
+            <div class="audible-import-field audible-import-field-button">
+              <button
+                id="audible-import-start"
+                class="btn-pill btn-pill-primary"
+                data-testid="audible-import-start"
+                type="button"
+              >
+                Decrypt & Add to Queue
+              </button>
+            </div>
+          </div>
+          <div
+            id="audible-import-status"
+            class="metadata-lookup-status text-xs"
+          ></div>
+          <div class="audible-import-guidance text-xs muted-text">
+            Decrypted files are loaded into the main workflow for muxing and
+            shrinking. Original .aax downloads are removed unless you opt in to
+            keep them.
+          </div>
         </div>
       </div>
     </div>

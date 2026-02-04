@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub mod audible_import;
 pub mod buffer;
 pub mod cleanup;
 pub mod constants;

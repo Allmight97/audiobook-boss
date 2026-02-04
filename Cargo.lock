@@ -289,6 +289,7 @@ dependencies = [
  "ffmpeg-next",
  "futures",
  "image",
+ "libc",
  "log",
  "mp4ameta",
  "num_cpus",

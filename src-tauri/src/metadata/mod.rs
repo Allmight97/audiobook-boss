@@ -20,6 +20,8 @@ pub mod mp4ameta_bridge;
 // Passthrough helpers for chapter/cover preservation
 pub mod passthrough;
 
+pub(crate) use ffi::set_stream_disposition_and_clear_codec_tag;
+
 /// Represents audiobook metadata
 ///
 /// Field mapping for Plex/Audiobookshelf compatibility:

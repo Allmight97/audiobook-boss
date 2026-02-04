@@ -49,3 +49,4 @@ default = []
 tempfile = "3.24.0"
 tauri = { version = "2.9.5", features = ["test"] }
 futures = "0.3.31"
+libc = "0.2.177"

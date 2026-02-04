@@ -17,6 +17,17 @@ impl Resolve for PortZeroResolver {
 
 #[tokio::test]
 async fn reqwest_replaces_port_zero_with_url_port() -> Result<(), Box<dyn std::error::Error>> {
+    for var in [
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+    ] {
+        std::env::remove_var(var);
+    }
+
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 

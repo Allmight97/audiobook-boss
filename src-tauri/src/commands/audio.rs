@@ -12,6 +12,14 @@ use crate::errors::{AppError, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudibleDecryptPayload {
+    pub file_paths: Vec<String>,
+    pub activation_bytes: String,
+    pub retain_original: bool,
+}
+
 /// Validates that all provided file paths exist and are files
 /// Accepts an array of file paths and checks file existence
 #[tauri::command]
@@ -51,6 +59,18 @@ pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
 pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
     audio::get_file_list_info(&paths)
+}
+
+/// Decrypts Audible AAX files into M4B and returns file list info for the UI workflow.
+#[tauri::command]
+pub fn decrypt_audible_titles(payload: AudibleDecryptPayload) -> Result<FileListInfo> {
+    let paths: Vec<PathBuf> = payload.file_paths.iter().map(PathBuf::from).collect();
+    let decrypted_paths = audio::audible_import::decrypt_audible_files(
+        &paths,
+        &payload.activation_bytes,
+        payload.retain_original,
+    )?;
+    audio::get_file_list_info(&decrypted_paths)
 }
 
 /// Validates encoder settings (no side effects)
