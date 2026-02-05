@@ -32,6 +32,7 @@ Read the checklist before starting work. It tracks:
 **Avoid**
 - Vague feedback • urgent language • hidden assumptions
 - Compatibility fallbacks or broad refactors unless explicitly requested; or the issue warrants it by violating guidelines of this repo.
+- Silent defensive fallbacks or compatibility shims without justification (state concrete trigger, affected contract/caller, and removal condition when temporary).
 
 ## Engineering Principles (rate 1-5 when reviewing)
 
