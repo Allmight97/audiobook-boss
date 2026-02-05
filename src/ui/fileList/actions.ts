@@ -79,7 +79,8 @@ function persistSingleSelectionMetadata(file: AudioFile | null): void {
 
 export async function selectFile(
   index: number,
-  modifiers?: { multi: boolean; range: boolean }
+  modifiers?: { multi: boolean; range: boolean },
+  options?: { skipPersistPrevious?: boolean }
 ): Promise<void> {
   if (!currentFileList || index < 0 || index >= currentFileList.files.length) {
     return;
@@ -95,7 +96,11 @@ export async function selectFile(
   const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
   if (!selectionResult.changed) return;
 
-  if (previousSelectionCount === 1 && previousIndex >= 0) {
+  if (
+    previousSelectionCount === 1 &&
+    previousIndex >= 0 &&
+    !options?.skipPersistPrevious
+  ) {
     persistSingleSelectionMetadata(previousFile);
   }
 

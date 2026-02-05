@@ -23,9 +23,19 @@ type LookupQueueItem = {
   index: number;
 };
 
+type QueueCoverState =
+  | { intent: "keep" }
+  | { intent: "replace"; bytes: number[] };
+
+type QueueItemState = {
+  metadataPatch: Partial<AudiobookMetadata>;
+  cover: QueueCoverState;
+};
+
 let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
 let currentResults: OnlineMetadataResult[] = [];
+const queueStateByFile = new Map<string, QueueItemState>();
 
 function getModal(): HTMLElement | null {
   return document.getElementById("metadata-lookup-modal");
@@ -177,10 +187,22 @@ function resetResults(): void {
   }
 }
 
-function persistQueueMetadata(file: AudioFile): void {
+function buildQueueMetadataPatch(): Partial<AudiobookMetadata> {
+  return readMetadataForm({ mode: "single", includeCoverArt: false });
+}
+
+function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
   if (!file.isValid) return;
-  const metadata = readMetadataForm({ mode: "single" });
-  setMetadataForFile(file.path, metadata);
+  const existing = getMetadataForFile(file.path) ?? {};
+  const merged: Partial<AudiobookMetadata> = {
+    ...existing,
+    ...state.metadataPatch,
+  };
+  if (state.cover.intent === "replace") {
+    merged.cover_art = state.cover.bytes;
+  }
+
+  setMetadataForFile(file.path, merged);
 }
 
 function restoreCoverArtForFile(file: AudioFile | null): void {
@@ -204,7 +226,11 @@ async function advanceQueue(reason: "applied" | "skipped"): Promise<void> {
   updateQueueContext();
   const nextItem = lookupQueue[queueIndex];
   if (nextItem) {
-    await selectFile(nextItem.index, { multi: false, range: false });
+    await selectFile(
+      nextItem.index,
+      { multi: false, range: false },
+      { skipPersistPrevious: true }
+    );
   }
 
   const searchInput = getSearchInput();
@@ -362,17 +388,19 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
   return metadata;
 }
 
-async function applyCoverArt(result: OnlineMetadataResult): Promise<void> {
-  if (!result.coverUrl) return;
+async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
+  if (!result.coverUrl) return null;
   try {
     const coverBytes = await bridge.invoke<number[]>(
       "load_cover_art_from_url",
       { url: result.coverUrl }
     );
     setCustomCoverArt(coverBytes);
+    return coverBytes;
   } catch (error) {
     console.warn("Failed to load cover art from lookup:", error);
     setStatus("Cover art failed to load from source.", "error");
+    return null;
   }
 }
 
@@ -387,23 +415,38 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 
   const current = lookupQueue[queueIndex];
   if (current) {
-    await selectFile(current.index, { multi: false, range: false });
+    await selectFile(
+      current.index,
+      { multi: false, range: false },
+      { skipPersistPrevious: true }
+    );
   }
 
   applyMetadataToForm(metadata, { mode: "single", markDirty: true });
+  let queueCoverState: QueueCoverState = { intent: "keep" };
   if (shouldReplaceCoverArt()) {
-    await applyCoverArt(result);
+    const coverBytes = await applyCoverArt(result);
+    if (coverBytes && coverBytes.length > 0) {
+      queueCoverState = { intent: "replace", bytes: coverBytes };
+    }
   }
   onMetadataChange();
   updateTagPreview();
-  setStatus("Metadata applied to form.", "success");
 
   if (mode === "queue") {
     if (current) {
-      persistQueueMetadata(current.file);
+      const queueState: QueueItemState = {
+        metadataPatch: buildQueueMetadataPatch(),
+        cover: queueCoverState,
+      };
+      queueStateByFile.set(current.file.path, queueState);
+      persistQueueMetadata(current.file, queueState);
     }
     await advanceQueue("applied");
+    return;
   }
+
+  setStatus("Metadata applied to form.", "success");
 }
 
 async function runSearch(): Promise<void> {
@@ -445,6 +488,7 @@ function openLookup(): void {
     })
     .filter((item): item is LookupQueueItem => Boolean(item));
   queueIndex = 0;
+  queueStateByFile.clear();
 
   if (lookupQueue.length === 0) {
     setStatus("Select a valid file to search metadata.", "error");
