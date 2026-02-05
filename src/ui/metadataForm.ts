@@ -324,9 +324,11 @@ export function applyMetadataToForm(
 export function readMetadataForm(options?: {
   mode?: MetadataFormMode;
   onlyDirty?: boolean;
+  includeCoverArt?: boolean;
 }): Partial<AudiobookMetadata> {
   const mode = options?.mode ?? "single";
   const onlyDirty = options?.onlyDirty ?? false;
+  const includeCoverArt = options?.includeCoverArt ?? true;
   const metadata: Partial<AudiobookMetadata> = {};
   const setMetadataValue = <K extends keyof AudiobookMetadata>(
     key: K,
@@ -427,7 +429,7 @@ export function readMetadataForm(options?: {
     }
   });
 
-  if (mode === "single") {
+  if (mode === "single" && includeCoverArt) {
     if (isCoverArtRemovalRequested()) {
       metadata.cover_art = [];
     } else {
