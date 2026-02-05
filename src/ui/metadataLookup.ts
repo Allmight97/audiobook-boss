@@ -191,21 +191,15 @@ function buildQueueMetadataPatch(): Partial<AudiobookMetadata> {
   return readMetadataForm({ mode: "single", includeCoverArt: false });
 }
 
-function persistQueueMetadata(file: AudioFile, state?: QueueItemState): void {
+function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
   if (!file.isValid) return;
   const existing = getMetadataForFile(file.path) ?? {};
-  const queueState = state ?? queueStateByFile.get(file.path);
-  if (!queueState) {
-    setMetadataForFile(file.path, { ...existing, ...buildQueueMetadataPatch() });
-    return;
-  }
-
   const merged: Partial<AudiobookMetadata> = {
     ...existing,
-    ...queueState.metadataPatch,
+    ...state.metadataPatch,
   };
-  if (queueState.cover.intent === "replace") {
-    merged.cover_art = queueState.cover.bytes;
+  if (state.cover.intent === "replace") {
+    merged.cover_art = state.cover.bytes;
   }
 
   setMetadataForFile(file.path, merged);
