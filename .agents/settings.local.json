@@ -28,7 +28,8 @@
       "Bash(git commit:*)",
       "Bash(SKIP_TS_CHECK=0 scripts/quick-checks.sh:*)",
       "Bash(bun test:*)",
-      "Bash(scripts/quick-checks.sh:*)"
+      "Bash(scripts/quick-checks.sh:*)",
+      "mcp__acp__Write"
     ]
   },
   "outputStyle": "default"

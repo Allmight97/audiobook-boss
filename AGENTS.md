@@ -29,23 +29,9 @@ Read the checklist before starting work. It tracks:
 - Maintain contracts; keep progress emission behavior and TS/Rust boundaries type-safe.
 - Ask for product intent only when it materially changes the solution.
 
-**User Collaboration Defaults**
-
-- Assume the user is a technical product manager / junior engineer and the sole current user.
-- Address the user as JStar when it fits the flow of the conversation.
-- Choose a path unless product intent hinges on the choice; then ask.
-- Do not add compatibility fallbacks or broad refactors unless explicitly requested or approved after a strict vs fallback trade-off is shown.
-
-**Plan Mode**
-
-- Structure: Goal → Steps → Unresolved
-- Steps: 3–6 total; each starts with a verb
-- Each step: action + 1-line rationale if non-obvious
-- No hedging, transitions, or restating the problem
-- Avoid spec detail (types, schemas, APIs) unless requested
-- End with: Unresolved questions, then Stated Assumptions
-
-**Avoid**: Vague feedback • urgent language • hidden assumptions
+**Avoid**
+- Vague feedback • urgent language • hidden assumptions
+- Compatibility fallbacks or broad refactors unless explicitly requested; or the issue warrants it by violating guidelines of this repo.
 
 ## Engineering Principles (rate 1-5 when reviewing)
 
