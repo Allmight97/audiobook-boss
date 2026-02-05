@@ -134,7 +134,11 @@ When working on the following areas, load the matching skill and follow its guar
 
 ## Code Style & Guidelines
 
-- File ≤ 400 LOC; function ≤ 55 LOC; ≤ 7 params; ≤ 4 nesting depth
+- Treat numeric limits as guardrails and review triggers, not automatic hard-fail rules.
+- File target: ≤ 400 LOC (start cohesion review around ~350 LOC).
+- Function target: ≤ 55 LOC; allow up to ~80 LOC for boundary/orchestrator/adapter code with `// EXCEPTION: [reason]`.
+- Parameter target: ≤ 7 params; prefer a config struct when >7 unless an external contract/signature must stay fixed.
+- Nesting target: ≤ 4 levels; prefer guard clauses/fail-fast structure.
 - Prefer guard clauses; enforce orthogonality and single responsibility as much as the solution and circumstances allow
 - If exceeding for protocol/adapter/generated code: `// EXCEPTION: [reason]`
 - Run `python3 scripts/analyze_code_lines.py` to list modules exceeding 400 lines
@@ -143,13 +147,14 @@ When working on the following areas, load the matching skill and follow its guar
 
 - Treat ~350-400 LOC as a trigger to check cohesion, not an automatic split
 - If a module mixes command handlers + domain logic + orchestration, extract by responsibility
+- If a module repeatedly causes bugs/churn and is already above target, prioritize a focused split
 - Keep command signatures stable during refactors; re-export to avoid TS/Rust contract churn
 - Prefer small, testable units; any exception must be documented with `// EXCEPTION: [reason]`
 
 **Exception Policy (Limited Use)**:
 
 - **Inline tests**: Default to external tests (`src-tauri/tests/`). Inline tests are allowed for tiny helpers or private-API access with explicit exception tags; see `src-tauri/AGENTS.md` for details.
-- **>400 LOC files**: Treat 400 LOC as an early warning. If a change will exceed it, either extract a submodule or add `// EXCEPTION: [reason]` and note intent to refactor.
+- **>400 LOC files**: Treat 400 LOC as an early warning. If a change will exceed it, either extract a submodule or add `// EXCEPTION: [reason]` and record follow-up intent (issue/plan note) when not splitting immediately.
 - **Pre-edit check**: For changes likely to add >50 LOC, run `python3 scripts/analyze_code_lines.py` and call out any impacted files in your plan.
 
 ---
