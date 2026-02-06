@@ -31,6 +31,16 @@ pub struct SampleAccumulator {
     format: ff::format::Sample,
     storage: SampleStorage,
     bytes_per_sample: usize,
+    consumed_samples: usize,
+}
+
+#[derive(Clone, Copy)]
+struct DrainConfig {
+    frame_size: usize,
+    format: ff::format::Sample,
+    channel_layout: ff::channel_layout::ChannelLayout,
+    sample_rate: u32,
+    channels: usize,
 }
 
 impl SampleAccumulator {
@@ -90,6 +100,7 @@ impl SampleAccumulator {
             format,
             storage,
             bytes_per_sample,
+            consumed_samples: 0,
         }
     }
 
@@ -110,6 +121,12 @@ impl SampleAccumulator {
                         for (ch, buffer) in buffers.iter_mut().enumerate() {
                             let plane = frame.data(ch);
                             if plane.is_empty() {
+                                log::warn!(
+                                    "Frame plane {} is empty while {} samples were reported – padding with silence",
+                                    ch,
+                                    in_samples
+                                );
+                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples));
                                 continue;
                             }
                             let available_samples = plane.len() / self.bytes_per_sample;
@@ -123,6 +140,9 @@ impl SampleAccumulator {
                             let slice =
                                 std::slice::from_raw_parts(plane.as_ptr() as *const f32, copy_len);
                             buffer.extend_from_slice(slice);
+                            if copy_len < in_samples {
+                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples - copy_len));
+                            }
                         }
                     }
                 }
@@ -173,37 +193,43 @@ impl SampleAccumulator {
         if self.frame_size == 0 {
             return false;
         }
+        self.available_samples() >= self.frame_size
+    }
+
+    fn available_samples(&self) -> usize {
         match &self.storage {
-            SampleStorage::F32Planar(buffers) => buffers[0].len() >= self.frame_size,
-            SampleStorage::S16Packed(buffer) => buffer.len() / self.channels >= self.frame_size,
+            SampleStorage::F32Planar(buffers) => buffers
+                .iter()
+                .map(|buffer| buffer.len().saturating_sub(self.consumed_samples))
+                .min()
+                .unwrap_or(0),
+            SampleStorage::S16Packed(buffer) => buffer
+                .len()
+                .saturating_div(self.channels)
+                .saturating_sub(self.consumed_samples),
         }
     }
 
     /// Flush tail (pad to full frame if pad=true) returning optional final frame.
     pub fn flush_tail(&mut self, pad: bool) -> Option<ff::frame::Audio> {
-        let is_empty = match &self.storage {
-            SampleStorage::F32Planar(buffers) => buffers[0].is_empty(),
-            SampleStorage::S16Packed(buffer) => buffer.is_empty(),
-        };
-
-        if is_empty {
+        let available = self.available_samples();
+        if available == 0 {
             return None;
         }
 
         if pad {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
-                    if buffers[0].len() < self.frame_size {
-                        let missing = self.frame_size - buffers[0].len();
+                    if available < self.frame_size {
+                        let missing = self.frame_size - available;
                         for buf in buffers.iter_mut() {
                             buf.extend(std::iter::repeat_n(0.0f32, missing));
                         }
                     }
                 }
                 SampleStorage::S16Packed(buffer) => {
-                    let samples_available = buffer.len() / self.channels;
-                    if samples_available < self.frame_size {
-                        let missing_samples = self.frame_size - samples_available;
+                    if available < self.frame_size {
+                        let missing_samples = self.frame_size - available;
                         // Pad with silence (0) for all channels
                         buffer.extend(std::iter::repeat_n(0i16, missing_samples * self.channels));
                     }
@@ -215,70 +241,64 @@ impl SampleAccumulator {
 
     fn drain_one(&mut self, allow_short: bool) -> Option<ff::frame::Audio> {
         // Extract immutable fields to avoid borrow conflicts
-        let frame_size = self.frame_size;
-        let format = self.format;
-        let channel_layout = self.channel_layout;
-        let sample_rate = self.sample_rate;
-        let channels = self.channels;
+        let config = DrainConfig {
+            frame_size: self.frame_size,
+            format: self.format,
+            channel_layout: self.channel_layout,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        };
+        let consumed_samples = &mut self.consumed_samples;
 
-        match &mut self.storage {
-            SampleStorage::F32Planar(buffers) => Self::drain_one_f32_planar(
-                buffers,
-                allow_short,
-                frame_size,
-                format,
-                channel_layout,
-                sample_rate,
-                channels,
-            ),
-            SampleStorage::S16Packed(buffer) => Self::drain_one_s16_packed(
-                buffer,
-                allow_short,
-                frame_size,
-                format,
-                channel_layout,
-                sample_rate,
-                channels,
-            ),
+        let frame = match &self.storage {
+            SampleStorage::F32Planar(buffers) => {
+                Self::drain_one_f32_planar(buffers, consumed_samples, allow_short, config)
+            }
+            SampleStorage::S16Packed(buffer) => {
+                Self::drain_one_s16_packed(buffer, consumed_samples, allow_short, config)
+            }
+        };
+
+        if frame.is_some() {
+            self.compact_if_needed();
         }
+        frame
     }
 
     fn drain_one_f32_planar(
-        buffers: &mut [Vec<f32>],
+        buffers: &[Vec<f32>],
+        consumed_samples: &mut usize,
         allow_short: bool,
-        frame_size: usize,
-        format: ff::format::Sample,
-        channel_layout: ff::channel_layout::ChannelLayout,
-        sample_rate: u32,
-        _channels: usize,
+        config: DrainConfig,
     ) -> Option<ff::frame::Audio> {
-        let available = buffers[0].len();
+        let available = buffers[0].len().saturating_sub(*consumed_samples);
         if available == 0 {
             return None;
         }
-        if !allow_short && available < frame_size {
+        if !allow_short && available < config.frame_size {
             return None;
         }
-        let take = available.min(frame_size);
+        let take = available.min(config.frame_size);
 
         let mut frame = ff::frame::Audio::empty();
-        frame.set_format(format);
-        frame.set_channel_layout(channel_layout);
-        frame.set_rate(sample_rate);
+        frame.set_format(config.format);
+        frame.set_channel_layout(config.channel_layout);
+        frame.set_rate(config.sample_rate);
         frame.set_samples(take);
         unsafe {
-            frame.alloc(format, take, channel_layout);
+            frame.alloc(config.format, take, config.channel_layout);
         }
 
         let mut total_repairs = 0usize;
-        for (ch, buffer) in buffers.iter_mut().enumerate() {
+        for (ch, buffer) in buffers.iter().enumerate() {
             let plane = frame.data_mut(ch);
             if plane.is_empty() {
                 continue;
             }
             let dst: &mut [f32] =
                 unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take) };
-            let src = &buffer[..take];
+            let start = *consumed_samples;
+            let src = &buffer[start..start + take];
 
             // Sanitize float samples: clamp to [-1.0, 1.0], fix NaN/Inf
             let mut repaired = 0usize;
@@ -297,8 +317,8 @@ impl SampleAccumulator {
                 dst[i] = v;
             }
             total_repairs += repaired;
-            buffer.drain(..take);
         }
+        *consumed_samples += take;
 
         if total_repairs > 0 {
             log::warn!(
@@ -311,31 +331,30 @@ impl SampleAccumulator {
     }
 
     fn drain_one_s16_packed(
-        buffer: &mut Vec<i16>,
+        buffer: &[i16],
+        consumed_samples: &mut usize,
         allow_short: bool,
-        frame_size: usize,
-        format: ff::format::Sample,
-        channel_layout: ff::channel_layout::ChannelLayout,
-        sample_rate: u32,
-        channels: usize,
+        config: DrainConfig,
     ) -> Option<ff::frame::Audio> {
-        let samples_available = buffer.len() / channels;
-        if samples_available == 0 {
+        let samples_available = buffer.len() / config.channels;
+        let available = samples_available.saturating_sub(*consumed_samples);
+        if available == 0 {
             return None;
         }
-        if !allow_short && samples_available < frame_size {
+        if !allow_short && available < config.frame_size {
             return None;
         }
-        let take = samples_available.min(frame_size);
-        let take_total = take * channels;
+        let take = available.min(config.frame_size);
+        let take_total = take * config.channels;
+        let start = *consumed_samples * config.channels;
 
         let mut frame = ff::frame::Audio::empty();
-        frame.set_format(format);
-        frame.set_channel_layout(channel_layout);
-        frame.set_rate(sample_rate);
+        frame.set_format(config.format);
+        frame.set_channel_layout(config.channel_layout);
+        frame.set_rate(config.sample_rate);
         frame.set_samples(take);
         unsafe {
-            frame.alloc(format, take, channel_layout);
+            frame.alloc(config.format, take, config.channel_layout);
         }
 
         // S16 packed: all data goes in plane 0, interleaved
@@ -344,14 +363,45 @@ impl SampleAccumulator {
             let dst: &mut [i16] = unsafe {
                 std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut i16, take_total)
             };
-            let src = &buffer[..take_total];
+            let src = &buffer[start..start + take_total];
 
             // No sanitization needed for integer samples (can't be NaN/Inf)
             // Just copy directly
             dst.copy_from_slice(src);
         }
 
-        buffer.drain(..take_total);
+        *consumed_samples += take;
         Some(frame)
+    }
+
+    fn compact_if_needed(&mut self) {
+        if self.consumed_samples == 0 {
+            return;
+        }
+
+        let total_samples = match &self.storage {
+            SampleStorage::F32Planar(buffers) => buffers[0].len(),
+            SampleStorage::S16Packed(buffer) => buffer.len() / self.channels,
+        };
+        let compact_threshold = self.frame_size.saturating_mul(2);
+        let should_compact = self.consumed_samples >= compact_threshold
+            && self.consumed_samples.saturating_mul(2) >= total_samples;
+
+        if !should_compact {
+            return;
+        }
+
+        match &mut self.storage {
+            SampleStorage::F32Planar(buffers) => {
+                for buffer in buffers.iter_mut() {
+                    buffer.drain(..self.consumed_samples);
+                }
+            }
+            SampleStorage::S16Packed(buffer) => {
+                let drop_total = self.consumed_samples * self.channels;
+                buffer.drain(..drop_total);
+            }
+        }
+        self.consumed_samples = 0;
     }
 }
