@@ -18,6 +18,7 @@ import {
 import {
   appendNdjson,
   ensureDir,
+  readJson,
   REPO_ROOT,
   RESULTS_DIR,
   writeJson,
@@ -31,6 +32,10 @@ import { buildLatestMarkdown } from "./trends.mjs";
 const HISTORY_PATH = resolve(RESULTS_DIR, "history.ndjson");
 const LATEST_JSON_PATH = resolve(RESULTS_DIR, "latest.json");
 const LATEST_MD_PATH = resolve(RESULTS_DIR, "latest.md");
+
+function getLatestModeJsonPath(mode) {
+  return resolve(RESULTS_DIR, `latest-${mode}.json`);
+}
 
 function parseArgs(argv) {
   const parsed = {
@@ -436,16 +441,28 @@ async function main() {
 
   await writeJson(LATEST_JSON_PATH, payload);
 
+  // Save per-mode snapshot
+  const latestModeJsonPath = getLatestModeJsonPath(parsed.mode);
+  await writeJson(latestModeJsonPath, payload);
+
   if (parsed.appendHistory) {
     for (const row of finalResults) {
       await appendNdjson(HISTORY_PATH, row);
     }
   }
 
+  // Load other mode's results for combined matrix
+  const otherMode = parsed.mode === "synthetic" ? "real" : "synthetic";
+  const otherModePayload = await readJson(getLatestModeJsonPath(otherMode), null);
+  const combinedRows = [...finalResults];
+  if (otherModePayload?.results) {
+    combinedRows.push(...otherModePayload.results);
+  }
+
   const historyRows = await readNdjson(HISTORY_PATH);
   const latestMd = buildLatestMarkdown({
     summary: payload,
-    latestRows: finalResults,
+    latestRows: combinedRows,
     historyRows,
   });
   await writeText(LATEST_MD_PATH, latestMd);

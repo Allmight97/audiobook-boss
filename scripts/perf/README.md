@@ -28,6 +28,7 @@ Results compare against committed baselines (15% threshold):
 bun run perf            # Full synthetic sweep (the default go-to)
 bun run perf:audio      # Real audio encode test
 bun run perf:real       # All benchmarks, real mode
+bun run perf:all        # Full sweep: synthetic + real, combined matrix
 bun run perf:quick      # Fast 3-run gut check
 bun run perf:list       # What benchmarks exist + what they measure
 ```

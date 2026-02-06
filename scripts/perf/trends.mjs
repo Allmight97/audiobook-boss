@@ -132,8 +132,25 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   const lines = [];
   lines.push("# Performance Results");
   lines.push("");
-  lines.push(`- Timestamp: ${summary.timestamp}`);
-  lines.push(`- Mode: ${summary.mode}`);
+
+  // Group by mode to show timestamps
+  const modeGroups = new Map();
+  for (const row of latestRows) {
+    if (!modeGroups.has(row.mode)) {
+      modeGroups.set(row.mode, row.timestamp);
+    }
+  }
+
+  if (modeGroups.size === 1) {
+    lines.push(`- Timestamp: ${summary.timestamp}`);
+    lines.push(`- Mode: ${summary.mode}`);
+  } else {
+    const syntheticTs = modeGroups.get("synthetic");
+    const realTs = modeGroups.get("real");
+    if (syntheticTs) lines.push(`- Synthetic: ${syntheticTs}`);
+    if (realTs) lines.push(`- Real: ${realTs}`);
+  }
+
   lines.push(`- Git: ${summary.git_branch} (${summary.git_sha})`);
   lines.push(`- Host: ${summary.host_os} | ${summary.cpu_info}`);
   lines.push(
@@ -144,8 +161,8 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   // UX/Outcomes Matrix
   lines.push("## Performance Matrix");
   lines.push("");
-  lines.push("| What Users Feel | Area | Result | vs Baseline | Health |");
-  lines.push("| --- | --- | ---: | ---: | --- |");
+  lines.push("| What Users Feel | Area | Mode | Result | vs Baseline | Health |");
+  lines.push("| --- | --- | --- | ---: | ---: | --- |");
 
   for (const row of latestRows) {
     const bench = BENCHMARKS_BY_NAME.get(row.bench_name);
@@ -158,7 +175,7 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
     const delta = formatDelta(row.delta_pct);
     const health = statusEmoji(row.status);
 
-    lines.push(`| ${userImpact} | ${area} | ${result} | ${delta} | ${health} |`);
+    lines.push(`| ${userImpact} | ${area} | ${row.mode} | ${result} | ${delta} | ${health} |`);
   }
 
   // Encoder breakdown sub-table if applicable
@@ -170,12 +187,12 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   lines.push("");
   lines.push("## Technical Detail");
   lines.push("");
-  lines.push("| Bench | Metric | Median | P95 | Delta vs Baseline | Status |");
-  lines.push("| --- | --- | ---: | ---: | ---: | --- |");
+  lines.push("| Bench | Mode | Metric | Median | P95 | Delta vs Baseline | Status |");
+  lines.push("| --- | --- | --- | ---: | ---: | ---: | --- |");
 
   for (const row of latestRows) {
     lines.push(
-      `| ${row.bench_name} | ${row.metric_type} | ${formatNumber(row.median)} | ${formatNumber(row.p95)} | ${formatDelta(row.delta_pct)} | ${statusEmoji(row.status)} |`
+      `| ${row.bench_name} | ${row.mode} | ${row.metric_type} | ${formatNumber(row.median)} | ${formatNumber(row.p95)} | ${formatDelta(row.delta_pct)} | ${statusEmoji(row.status)} |`
     );
   }
 
