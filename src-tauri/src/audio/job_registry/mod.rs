@@ -7,10 +7,12 @@ mod cancel;
 mod types;
 
 use crate::errors::{AppError, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
@@ -29,6 +31,91 @@ pub struct JobRegistry {
     max_concurrent: AtomicUsize,
     /// Global cancellation flag (cancels all jobs when set)
     global_cancel: Arc<AtomicBool>,
+}
+
+/// Internal batch scheduler facade backed by JobRegistry concurrency settings.
+pub struct BatchScheduler<'a> {
+    registry: &'a JobRegistry,
+}
+
+impl<'a> BatchScheduler<'a> {
+    fn new(registry: &'a JobRegistry) -> Self {
+        Self { registry }
+    }
+
+    /// Runs a batch of futures with bounded in-flight concurrency.
+    ///
+    /// If one task fails, no new tasks are scheduled. Existing in-flight tasks
+    /// are drained before returning the first encountered error.
+    pub async fn run_batch<R, Fut>(&self, futures: Vec<Fut>) -> Result<Vec<R>>
+    where
+        R: Send + 'static,
+        Fut: Future<Output = Result<R>> + Send + 'static,
+    {
+        if futures.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let max_in_flight = self.registry.max_concurrent().max(1);
+        let total_tasks = futures.len();
+        let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
+        let mut join_set: JoinSet<(usize, Result<R>)> = JoinSet::new();
+        let mut ordered_results: Vec<Option<R>> = Vec::with_capacity(total_tasks);
+        ordered_results.resize_with(total_tasks, || None);
+        let mut first_error: Option<AppError> = None;
+
+        for _ in 0..max_in_flight {
+            if let Some((index, future)) = pending.pop_front() {
+                join_set.spawn(async move { (index, future.await) });
+            } else {
+                break;
+            }
+        }
+
+        while let Some(joined) = join_set.join_next().await {
+            match joined {
+                Ok((index, Ok(value))) => {
+                    if first_error.is_none() {
+                        ordered_results[index] = Some(value);
+                    }
+                }
+                Ok((_, Err(error))) => {
+                    if first_error.is_none() {
+                        first_error = Some(error);
+                    }
+                }
+                Err(join_error) => {
+                    if first_error.is_none() {
+                        first_error = Some(AppError::General(format!(
+                            "Batch task join error: {join_error}"
+                        )));
+                    }
+                }
+            }
+
+            if first_error.is_none() {
+                if let Some((next_index, next_future)) = pending.pop_front() {
+                    join_set.spawn(async move { (next_index, next_future.await) });
+                }
+            }
+        }
+
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+
+        ordered_results
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                value.ok_or_else(|| {
+                    AppError::General(format!(
+                        "Batch scheduler missing result for task index {index}"
+                    ))
+                })
+            })
+            .collect()
+    }
 }
 
 impl JobRegistry {
@@ -62,6 +149,11 @@ impl JobRegistry {
     pub fn default_max() -> usize {
         let cores = num_cpus::get();
         Self::normalize_max(cores / 2)
+    }
+
+    /// Returns a scheduler facade for bounded batch task orchestration.
+    pub fn scheduler(&self) -> BatchScheduler<'_> {
+        BatchScheduler::new(self)
     }
 
     /// Registers a new job and acquires a semaphore permit

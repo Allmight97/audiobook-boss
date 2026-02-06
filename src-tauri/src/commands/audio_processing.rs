@@ -143,7 +143,7 @@ async fn dispatch_batch_jobs(
     };
     let _ = window.emit(crate::audio::constants::QUEUE_EVENT_NAME, &queue_event);
 
-    let mut tasks = Vec::new();
+    let mut scheduled_jobs = Vec::new();
     let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
     for (index, input) in payload.input_files.iter().enumerate() {
         let path = PathBuf::from(input);
@@ -165,7 +165,7 @@ async fn dispatch_batch_jobs(
         let input_index = Some(index);
         let preview_cloned = inputs.preview_seconds;
 
-        tasks.push(tokio::spawn(async move {
+        scheduled_jobs.push(async move {
             let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
             run_processing_job(
                 window_cloned,
@@ -179,23 +179,13 @@ async fn dispatch_batch_jobs(
                 preview_cloned,
             )
             .await
-        }));
+        });
     }
 
-    let mut last_ok: Option<ProcessCommandResult> = None;
-    for task in tasks {
-        match task.await {
-            Ok(Ok(res)) => last_ok = Some(res),
-            Ok(Err(e)) => return Err(e),
-            Err(join_err) => {
-                return Err(AppError::General(format!(
-                    "Batch task join error: {join_err}"
-                )))
-            }
-        }
-    }
+    let mut ordered_results = registry.scheduler().run_batch(scheduled_jobs).await?;
 
-    last_ok
+    ordered_results
+        .pop()
         .ok_or_else(|| AppError::InvalidInput("Batch processing produced no results".to_string()))
 }
 
