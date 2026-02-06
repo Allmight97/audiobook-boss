@@ -37,7 +37,7 @@ export const STAGES = {
  * Progress event emitted by Rust backend during audio processing
  * 
  * Source: src-tauri/src/audio/progress/mod.rs (ProgressEvent struct)
- * Handler: src/ui/statusPanel.ts (listen(EVENTS.PROGRESS))
+ * Handler: src/ui/statusPanel/events.ts (listen(EVENTS.PROGRESS))
  * 
  * Emitted during:
  * - File analysis phase
@@ -73,6 +73,12 @@ export interface ProcessingQueueItem {
     file_path: string;
 }
 
+/**
+ * Queue snapshot event emitted by Rust backend during batch processing
+ *
+ * Source: src-tauri/src/commands/audio_processing.rs
+ * Handler: src/ui/statusPanel/events.ts (listen(EVENTS.QUEUE))
+ */
 export interface ProcessingQueueEvent {
     items: ProcessingQueueItem[];
     max_concurrent: number;
@@ -169,8 +175,9 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * - listen('tauri://drag-enter') → add drag-over CSS class
  * - listen('tauri://drag-leave') → remove drag-over CSS class
  * 
- * File: src/ui/statusPanel.ts  
+ * File: src/ui/statusPanel/events.ts
  * - listen(EVENTS.PROGRESS) → updateProgress() → updateStatus() → updateUI()
+ * - listen(EVENTS.QUEUE) → handleQueueSnapshot() → queue/aggregate UI updates
  * 
  * PROCESSING STATES (frontend):
  * - isProcessing: boolean flag in StatusPanel

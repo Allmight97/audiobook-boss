@@ -13,7 +13,7 @@ These APIs define the "Menu" of actions available to the user interface.
 
 - **[Tauri Commands](./tauri-commands.md)**
     - **Command Entry Points**: `src-tauri/src/commands/*`
-    - **UI Integration**: `src/ui/{fileImport, statusPanel, coverArt}`
+    - **UI Integration**: `src/ui/{fileImport, statusPanel, coverArt, metadataLookup}`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
     - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust)
     - **Note**: `process_audiobook_files_v2` now accepts per-file metadata keyed by input path.
@@ -31,7 +31,7 @@ Real-time feedback as background jobs progress.
     - **Emission Logic**: `src-tauri/src/audio/progress/reporter.rs`
     - **Frontend Listeners**: `src/ui/statusPanel`
     - **Event Types**: `src/types/events.ts`
-    - **Note**: `processing-progress` includes optional `job_id` + `input_index` for batch mapping.
+    - **Note**: `processing-progress` includes optional `job_id` + `input_index` for batch mapping; `processing-queue` carries queue snapshots for batch ordering.
 
 ---
 

@@ -2,6 +2,7 @@
 
 ### Where used
 - `src-tauri/src/audio/progress/reporter.rs` (emit `processing-progress`)
+- `src-tauri/src/commands/audio_processing.rs` (emit `processing-queue`)
 - `src/types/events.ts` (event names and payload types)
 - `src/ui/statusPanel` (progress listener and UI rendering)
 - `src/main.ts` (test commands using `invoke`)
@@ -26,6 +27,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
   - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 - `current_file` is a human-readable label (filename + index) for batch progress displays.
 - `input_index` is an optional stable index into the original input list (used to map progress to file metadata/cover art).
+- `processing-queue` emits queue snapshots (`items`, `max_concurrent`) to keep UI queue order aligned with backend scheduling.
 
 ### Progress stage mapping
 

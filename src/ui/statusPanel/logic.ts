@@ -9,27 +9,29 @@ import { bridge } from "../../lib/bridge";
 import { STAGES } from "../../types/events";
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from "../../types/events";
 import { currentFileList, setFileOrderLocked } from "../fileList";
-import { AudiobookMetadata } from "../../types/metadata";
 import * as dom from "./dom";
 import { setJobControlsEnabled } from "../jobControls";
 import { bindStatusPanelDomEvents, listenForProgressEvents, listenForQueueEvents } from "./events";
 import {
   buildQueueLabels,
-  convertBytesToDataUrl,
   extractFilenameFromProgress,
   formatAggregateMessage,
 } from "./formatting";
 import { startProcessing as startProcessingAction } from "./processing";
 import { renderConcurrencyStatus, renderJobList, renderStatus } from "./render";
 import {
-  calculateAggregateProgress as calculateAggregateProgressState,
   createInitialStatus,
-  deriveAggregateStage as deriveAggregateStageState,
   type AggregateProgress,
   type JobProgress,
   type JobStatus,
   type ProcessingStatus,
 } from "./state";
+import { calculateAggregateProgress as calculateAggregateProgressDomain, deriveAggregateStage as deriveAggregateStageDomain } from "./domain/aggregate";
+import { buildJobKey as buildJobKeyDomain } from "./domain/jobKeys";
+import { areAllBatchJobsTerminal, buildQueueSnapshotState } from "./domain/queueState";
+import { readCoverArtDataUrl, shouldSkipCoverArtRead } from "./services/artThumbnail";
+import { findFilePathByIndex as findFilePathByIndexService, findFilePathByName as findFilePathByNameService } from "./services/fileLookup";
+import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from "./services/progressThrottle";
 
 export class StatusPanel {
   private progressUnlisten?: () => void;
@@ -134,13 +136,7 @@ export class StatusPanel {
   }
 
   private buildJobKey(inputIndex?: number, jobId?: string): string {
-    if (typeof inputIndex === "number") {
-      return `idx:${inputIndex}`;
-    }
-    if (jobId) {
-      return `job:${jobId}`;
-    }
-    return "default";
+    return buildJobKeyDomain(inputIndex, jobId);
   }
 
   private buildFallbackLabel(event: ProcessingProgressEvent): string {
@@ -171,7 +167,7 @@ export class StatusPanel {
 
   private handleQueueSnapshot(event: ProcessingQueueEvent): void {
     const now = Date.now();
-    const labels = buildQueueLabels(event.items.map((item) => item.file_path));
+    const queueSnapshotState = buildQueueSnapshotState(event.items, now);
 
     if (this.batchCompletionTimeout) {
       window.clearTimeout(this.batchCompletionTimeout);
@@ -179,20 +175,11 @@ export class StatusPanel {
     }
 
     this.jobProgress.clear();
-    this.queueOrder = [];
+    this.queueOrder = queueSnapshotState.queueOrder;
     this.lastProgressRenderByKey.clear();
 
-    event.items.forEach((item, index) => {
-      const key = this.buildJobKey(item.input_index, undefined);
-      this.queueOrder.push(key);
-      this.jobProgress.set(key, {
-        inputIndex: item.input_index,
-        label: labels[index] ?? item.file_path,
-        status: "queued",
-        percentage: 0,
-        message: "Queued",
-        lastUpdate: now,
-      });
+    queueSnapshotState.jobProgress.forEach((job, key) => {
+      this.jobProgress.set(key, job);
     });
 
     this.isProcessing = this.jobProgress.size > 0;
@@ -232,17 +219,7 @@ export class StatusPanel {
   }
 
   private areAllBatchJobsTerminal(): boolean {
-    if (this.queueOrder.length === 0) return false;
-
-    return this.queueOrder.every((key) => {
-      const job = this.jobProgress.get(key);
-      return (
-        job &&
-        (job.status === "completed" ||
-          job.status === "failed" ||
-          job.status === "cancelled")
-      );
-    });
+    return areAllBatchJobsTerminal(this.queueOrder, this.jobProgress);
   }
 
   public updateProgress(event: ProcessingProgressEvent): void {
@@ -250,12 +227,9 @@ export class StatusPanel {
     const now = Date.now();
 
     // Throttle non-terminal updates to avoid UI flooding with many jobs
-    const isTerminal =
-      event.stage === STAGES.completed ||
-      event.stage === STAGES.failed ||
-      event.stage === STAGES.cancelled;
+    const isTerminal = isTerminalProgressEvent(event);
     const lastRender = this.lastProgressRenderByKey.get(jobKey) ?? 0;
-    if (!isTerminal && now - lastRender < 500) {
+    if (shouldThrottleProgressUpdate(now, lastRender, isTerminal)) {
       return;
     }
     this.lastProgressRenderByKey.set(jobKey, now);
@@ -347,12 +321,12 @@ export class StatusPanel {
 
   /** Calculate aggregate progress across all active jobs */
   private calculateAggregateProgress(): AggregateProgress {
-    return calculateAggregateProgressState(this.jobProgress);
+    return calculateAggregateProgressDomain(this.jobProgress);
   }
 
   /** Derive aggregate stage from active jobs */
   private deriveAggregateStage(): ProcessingStatus["stage"] {
-    return deriveAggregateStageState(this.jobProgress);
+    return deriveAggregateStageDomain(this.jobProgress);
   }
 
   /** Update UI with aggregate progress (called after job removal) */
@@ -461,21 +435,14 @@ export class StatusPanel {
   }
 
   private async updateArtThumbnailForFile(filePath: string): Promise<void> {
-    if (this.lastCoverArtPath === filePath) {
+    if (shouldSkipCoverArtRead(this.lastCoverArtPath, filePath)) {
       return;
     }
     this.lastCoverArtPath = filePath;
 
     try {
-      const metadata = await bridge.invoke<AudiobookMetadata>(
-        "read_audio_metadata",
-        {
-          filePath,
-        }
-      );
-
-      if (metadata.cover_art && metadata.cover_art.length > 0) {
-        const dataUrl = convertBytesToDataUrl(metadata.cover_art);
+      const dataUrl = await readCoverArtDataUrl(filePath);
+      if (dataUrl) {
         dom.displayCoverArt(dataUrl);
       } else {
         dom.resetArtThumbnail();
@@ -487,19 +454,11 @@ export class StatusPanel {
   }
 
   private findFilePathByName(filename: string): string | null {
-    if (!currentFileList) return null;
-    const match = currentFileList.files.find((file) => {
-      const base = file.path.split(/[\\/]/).pop() || "";
-      return base === filename;
-    });
-    return match?.path ?? null;
+    return findFilePathByNameService(currentFileList, filename);
   }
 
   private findFilePathByIndex(index: number): string | null {
-    if (!currentFileList) return null;
-    if (!Number.isInteger(index)) return null;
-    if (index < 0 || index >= currentFileList.files.length) return null;
-    return currentFileList.files[index]?.path ?? null;
+    return findFilePathByIndexService(currentFileList, index);
   }
 
   // Public method to check if processing is active

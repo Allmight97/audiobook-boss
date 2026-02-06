@@ -14,8 +14,14 @@ Public API aggregator that re-exports the main interfaces:
 Core business logic and orchestration:
 - Delegates event wiring, state derivation, and UI rendering
 - Backend communication (invoke calls)
-- Cover art processing and metadata extraction
+- Cover art thumbnail refresh orchestration
 - Public API implementation
+
+### `/domain/`
+Pure status-panel domain helpers:
+- `jobKeys.ts` for stable per-job key derivation
+- `queueState.ts` for queue snapshot state and terminal-state checks
+- `aggregate.ts` for aggregate progress/stage derivation wrappers
 
 ### `/processing.ts`
 Processing workflow helpers:
@@ -39,6 +45,12 @@ Message and data formatting:
 - Status and aggregate message formatting
 - Cover art data URL conversion
 - Progress label parsing helpers
+
+### `/services/`
+Side-effect and boundary helpers:
+- `artThumbnail.ts` for metadata reads and cover-art data URL extraction
+- `fileLookup.ts` for file path lookup by name/index
+- `progressThrottle.ts` for non-terminal progress throttling decisions
 
 ### `/render.ts`
 UI update coordination:

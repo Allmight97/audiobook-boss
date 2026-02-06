@@ -19,6 +19,8 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `save_metadata_to_file` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Metadata-only editing (Cmd+S workflow) |
 | `write_cover_art` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Console/testing only |
 | `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
+| `load_cover_art_from_url` | `src-tauri/src/commands/metadata.rs` | `src/ui/coverArt`, `src/ui/metadataLookup` |
+| `search_online_metadata` | `src-tauri/src/commands/metadata_lookup/mod.rs` | `src/ui/metadataLookup` |
 
 ### Command payloads & returns
 
@@ -38,6 +40,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
     - `metadata` is keyed by input path; merge uses the first input path as the metadata key.
     - Threads mapping: `{mode:'auto'|'off'|'fixed'; value?}` → `threads=0|1|n`
     - Emits `processing-progress` events with `job_id` and optional `input_index` (backward compatible)
+    - Emits `processing-queue` queue snapshots for batch ordering
 
 - `cancel_processing`
   - Args: `{ job_id?: string }`
@@ -62,6 +65,10 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
   - Args: `{ filePath: string }`
   - Returns: `number[]` (bytes); basic header validation for JPG/PNG/WebP
 
+- `search_online_metadata`
+  - Args: `{ query: string, sources?: MetadataSource[], limit?: number }`
+  - Returns: `OnlineMetadataResult[]`
+
 ### Contract sources
 
 - Command and data types: `src/types/audio.ts`, `src/types/metadata.ts`
@@ -71,6 +78,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`. Payload includes optional `job_id` and `input_index` to support multiple concurrent jobs and stable file mapping.
   - Emission throttling (~200ms) originates in `src-tauri/src/audio/processor/frame_pipeline.rs`.
+- `processing-queue` (emitted from `src-tauri/src/commands/audio_processing.rs`) provides queue snapshots consumed by `src/ui/statusPanel`.
 
 ### Frontend harness for QA
 
