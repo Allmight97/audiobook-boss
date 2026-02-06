@@ -304,6 +304,25 @@ function printRunSummary(results) {
   }
 }
 
+function printBenchDetails(benchName, latestDetails) {
+  if (!latestDetails) return;
+  const encoderRuns = latestDetails.encoder_runs;
+  if (!Array.isArray(encoderRuns) || encoderRuns.length === 0) return;
+
+  console.log(`  ${benchName} encoder breakdown:`);
+  for (const run of encoderRuns) {
+    const encoder = run.encoder ?? "unknown";
+    const rt = Number.isFinite(run.realtime_factor) ? run.realtime_factor.toFixed(3) : "n/a";
+    const mib = Number.isFinite(run.throughput_mib_per_s)
+      ? run.throughput_mib_per_s.toFixed(3)
+      : "n/a";
+    const elapsed = Number.isFinite(run.elapsed_ms) ? run.elapsed_ms.toFixed(1) : "n/a";
+    console.log(
+      `    - ${encoder}: realtime=${rt}x, throughput=${mib} MiB/s, elapsed=${elapsed}ms`
+    );
+  }
+}
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
 
@@ -373,6 +392,7 @@ async function main() {
         row.p95?.toFixed(3) ?? "n/a"
       }`
     );
+    printBenchDetails(bench.name, row.details?.latest);
   }
 
   const warnThresholdPct = 15;

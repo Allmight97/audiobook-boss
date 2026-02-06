@@ -37,7 +37,8 @@ bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --seed-baseline
 Real mode notes:
 - `metadata-lookup-latency` uses network only if `ABB_PERF_ALLOW_NETWORK=1`; otherwise it falls back to synthetic and records fallback reason.
 - `audio-processing-throughput` benchmarks encoder-path transcodes (`aac`, `aac_at`, `libfdk_aac`) and reports per-encoder realtime factors.
-- `audio-processing-throughput` prefers `media/Feedback.m4b` when present, otherwise falls back to `media/media_30sec.mp3`.
+- `audio-processing-throughput` requires `media/Feedback.m4b` by default and fails fast if missing.
+- `audio-processing-throughput` runs the full input duration by default; set `ABB_PERF_AUDIO_MAX_SECONDS` only when you intentionally want a capped run.
 - Real-mode override env vars for `audio-processing-throughput`:
   - `ABB_PERF_AUDIO_INPUT` (relative path from repo root)
   - `ABB_PERF_AUDIO_MAX_SECONDS` (clip duration cap, default `90`)

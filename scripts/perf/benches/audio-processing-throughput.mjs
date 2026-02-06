@@ -12,9 +12,7 @@ const SYNTHETIC_WORKLOAD = {
 
 const REAL_WORKLOAD = {
   preferredFixturePath: "media/Feedback.m4b",
-  fallbackFixturePath: "media/media_30sec.mp3",
-  fallbackDurationSeconds: 30,
-  defaultClipSeconds: 90,
+  defaultClipSeconds: null,
 };
 
 function getEncoderScenarios() {
@@ -115,35 +113,29 @@ function runFfprobeDuration(filePath) {
   );
 
   if (probe.status !== 0) {
-    return null;
+    throw new Error(`ffprobe failed for '${filePath}': ${probe.stderr.trim() || "unknown error"}`);
   }
 
   const parsed = Number.parseFloat(probe.stdout.trim());
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
+    throw new Error(`ffprobe returned invalid duration for '${filePath}': '${probe.stdout.trim()}'`);
   }
   return parsed;
 }
 
 function runRealThroughput(repoRoot) {
   const preferredFixture = resolve(repoRoot, REAL_WORKLOAD.preferredFixturePath);
-  const fallbackFixture = resolve(repoRoot, REAL_WORKLOAD.fallbackFixturePath);
   const envFixture = process.env.ABB_PERF_AUDIO_INPUT;
-  const fixture = envFixture
-    ? resolve(repoRoot, envFixture)
-    : existsSync(preferredFixture)
-      ? preferredFixture
-      : fallbackFixture;
+  const fixture = envFixture ? resolve(repoRoot, envFixture) : preferredFixture;
 
   if (!existsSync(fixture)) {
     throw new Error(
-      `Real-mode fixture not found at '${fixture}'. Set ABB_PERF_AUDIO_INPUT or add ${REAL_WORKLOAD.preferredFixturePath}.`
+      `Real-mode fixture not found at '${fixture}'. Add ${REAL_WORKLOAD.preferredFixturePath} or set ABB_PERF_AUDIO_INPUT.`
     );
   }
 
   const availableEncoders = detectAvailableEncoders();
-  const fixtureDuration =
-    runFfprobeDuration(fixture) ?? REAL_WORKLOAD.fallbackDurationSeconds;
+  const fixtureDuration = runFfprobeDuration(fixture);
   const clipSeconds = resolveClipSeconds(fixtureDuration);
   const processedSeconds = Math.min(fixtureDuration, clipSeconds);
   const fixtureBytes = statSync(fixture).size;
@@ -222,7 +214,10 @@ function resolveClipSeconds(fixtureDuration) {
   if (Number.isFinite(envClip) && envClip > 0) {
     return envClip;
   }
-  return Math.min(fixtureDuration, REAL_WORKLOAD.defaultClipSeconds);
+  if (Number.isFinite(REAL_WORKLOAD.defaultClipSeconds) && REAL_WORKLOAD.defaultClipSeconds > 0) {
+    return Math.min(fixtureDuration, REAL_WORKLOAD.defaultClipSeconds);
+  }
+  return fixtureDuration;
 }
 
 function resolvePositiveInt(raw, fallback) {
