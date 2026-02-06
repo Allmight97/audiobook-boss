@@ -105,12 +105,19 @@ export function renderJobList(
 ): void {
   const orderedKeys = buildRenderOrder(jobProgress, queueOrder);
   const total = queueOrder.length > 0 ? queueOrder.length : null;
+  const queuePositions =
+    queueOrder.length > 0
+      ? queueOrder.reduce<Map<string, number>>((positions, key, index) => {
+          positions.set(key, index + 1);
+          return positions;
+        }, new Map<string, number>())
+      : null;
 
   const jobs: JobListItem[] = orderedKeys.reduce<JobListItem[]>(
     (acc, key) => {
       const job = jobProgress.get(key);
       if (!job) return acc;
-      const position = queueOrder.length > 0 ? queueOrder.indexOf(key) + 1 : null;
+      const position = queuePositions?.get(key) ?? null;
       const statusText = formatJobStatusText(job, position, total);
       const canCancel = job.status === "processing" && !!job.jobId;
       const percentage =
