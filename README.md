@@ -22,7 +22,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 - Single Processing Engine: `FfmpegNextProcessor` implements `MediaProcessor`
 - Media Abstraction: `MediaProcessingPlan` → `execute()`
 - Path Security: All input paths must pass `audio::path_validation::validate_input_audio_path()` (canonicalizes, checks whitelist, resolves symlinks with warnings)
-- Progress System: Based on ffmpeg-next timestamps; UI updates via a single Tauri event channel. Supports multiple concurrent jobs (events include an optional `job_id`) and a UI max-concurrency selector (Auto = `num_cpus/2`, clamped 1–8).
+- Progress System: Based on ffmpeg-next timestamps; UI updates via Tauri events (`processing-progress`, `processing-queue`). Supports multiple concurrent jobs (events include an optional `job_id`) and a UI max-concurrency selector (Auto = `num_cpus/2`, clamped 1–8).
 
 ## Critical Data Flows
 
@@ -39,7 +39,8 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
   - ffmpeg-next initialized once per process (`ff::init()`)
 - Progress Emission
   - Backend: `audio/progress/reporter.rs` emits via `window.emit("processing-progress", event)`
-  - Frontend: listen to `processing-progress` (see `src/ui/statusPanel/logic.ts` and `src/types/events.ts`)
+  - Backend: `commands/audio_processing.rs` emits `window.emit("processing-queue", event)` snapshots for batch ordering
+  - Frontend: listeners live in `src/ui/statusPanel/events.ts` (types in `src/types/events.ts`)
 
 ## Development Workflows
 

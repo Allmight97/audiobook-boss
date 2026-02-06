@@ -9,7 +9,7 @@
 ### Centralized event types
 
 - Define event names and payload interfaces in one module to prevent string/value drift.
-- This repo uses `src/types/events.ts` to define `EVENTS.PROGRESS` and `ProcessingProgressEvent` (including optional `input_index` for batch mapping).
+- This repo uses `src/types/events.ts` to define `EVENTS.PROGRESS`, `EVENTS.QUEUE`, and payload interfaces (`ProcessingProgressEvent`, `ProcessingQueueEvent`).
 
 ### Command typing
 
