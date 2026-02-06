@@ -22,7 +22,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 
 ### Emission cadence and payloads
 
-- Backend throttles progress emits to ~200ms to reduce UI load.
+- Backend throttles progress emits to ~500ms to reduce UI load.
 - Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
   - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 - `current_file` is a human-readable label (filename + index) for batch progress displays.
@@ -41,6 +41,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 - Trend artifacts:
   - `scripts/perf/results/history.ndjson`
   - `scripts/perf/results/latest.md`
+- App-vs-encoder attribution is surfaced in `scripts/perf/results/latest.md` (via `rtf_app`, `rtf_cli`, and `overhead_ratio`).
 - Threshold semantics:
   - `warn`: >15% regression vs baseline in the wrong direction
   - `improved`: >15% improvement vs baseline

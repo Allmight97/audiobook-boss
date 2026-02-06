@@ -7,8 +7,8 @@ use tauri::{Emitter, Window};
 
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
-    /// Reference to the Tauri window for event emission
-    window: Window,
+    /// Optional Tauri window for event emission (None in headless perf runs)
+    window: Option<Window>,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
     /// Optional input index for batch processing
@@ -19,7 +19,7 @@ impl ProgressEmitter {
     /// Creates a new progress emitter without job tracking (legacy/single-job mode)
     pub fn new(window: Window) -> Self {
         Self {
-            window,
+            window: Some(window),
             job_id: None,
             input_index: None,
         }
@@ -28,7 +28,7 @@ impl ProgressEmitter {
     /// Creates a progress emitter with job tracking for parallel processing
     pub fn with_job_id(window: Window, job_id: String) -> Self {
         Self {
-            window,
+            window: Some(window),
             job_id: Some(job_id),
             input_index: None,
         }
@@ -41,9 +41,18 @@ impl ProgressEmitter {
         input_index: Option<usize>,
     ) -> Self {
         Self {
-            window,
+            window: Some(window),
             job_id,
             input_index,
+        }
+    }
+
+    /// Creates a headless emitter (no UI events emitted).
+    pub fn headless() -> Self {
+        Self {
+            window: None,
+            job_id: None,
+            input_index: None,
         }
     }
 
@@ -158,7 +167,9 @@ impl ProgressEmitter {
             job_id: self.job_id.clone(),
             input_index: self.input_index,
         };
-        let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
+        if let Some(window) = &self.window {
+            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
+        }
     }
     /// Emits custom progress event with all parameters
     pub fn emit_custom(
@@ -199,6 +210,8 @@ impl ProgressEmitter {
             input_index: self.input_index,
         };
 
-        let _ = self.window.emit(PROGRESS_EVENT_NAME, &event);
+        if let Some(window) = &self.window {
+            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
+        }
     }
 }

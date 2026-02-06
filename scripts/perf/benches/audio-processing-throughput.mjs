@@ -84,6 +84,7 @@ function runSyntheticThroughput() {
     value: mibPerSecond,
     details: {
       mode: "synthetic",
+      layer: "app_pipeline_synthetic",
       bytes_processed: bytesProcessed,
       elapsed_ms: Number(elapsedMs.toFixed(3)),
       throughput_mib_per_s: Number(mibPerSecond.toFixed(3)),
@@ -175,6 +176,7 @@ function runRealThroughput(repoRoot) {
     value: avgRealtimeFactor,
     details: {
       mode: "real",
+      layer: "encoder_cli",
       fixture,
       fixture_bytes: fixtureBytes,
       fixture_duration_seconds: Number(fixtureDuration.toFixed(3)),

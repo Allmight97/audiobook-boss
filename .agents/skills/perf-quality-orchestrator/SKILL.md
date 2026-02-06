@@ -33,7 +33,7 @@ Do not trigger for unrelated feature implementation unless perf validation is ex
 
 3. Run performance benchmarks.
 - Preferred default:
-  - `bun run perf:all` (synthetic + real matrix in one flow).
+  - `bun run perf:all` (canonical all-mode path: synthetic + real in one flow; still runs real even if synthetic warns).
 - Single-benchmark path:
   - `bun scripts/perf/run.mjs --bench <name> --mode <synthetic|real> --runs <n> --compare-baseline --append-history`
 - Full synthetic only:
@@ -64,6 +64,11 @@ Do not trigger for unrelated feature implementation unless perf validation is ex
 
 - Keep report concise, outcome-first, and decision-ready.
 - Include exact benchmark names, run counts, and delta percentages.
+- Metric definitions for attribution:
+  - `rtf_cli`: encoder-only realtime factor from `audio-processing-throughput` (real mode).
+  - `rtf_app`: app end-to-end realtime factor from `audio-processing-app-e2e` (real mode).
+  - `overhead_ratio`: `(rtf_cli - rtf_app) / rtf_cli`.
+    - `>30%` high app-side overhead, `>15%` moderate, `>5%` low, `<=5%` near encoder baseline.
 - Data sources (use the right one for the task):
   - `scripts/perf/results/latest.md` — Performance Matrix (UX outcomes), Technical Detail table (engineering signal), trend sparklines. Start here for reports.
   - `scripts/perf/results/latest.json` — Structured results: `median`, `p95`, `stddev`, `delta_pct`, `status`, raw `samples[]`, encoder `details`. Use for programmatic analysis and regression root-cause.

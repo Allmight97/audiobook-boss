@@ -37,6 +37,13 @@ const BENCH_UX_META = {
       return `${median.toFixed(1)}x realtime (~${Math.round(encodeSeconds)}s for a ${bookMinutes}-min book)`;
     },
   },
+  "audio-processing-app-e2e": {
+    area: "Audio Encoding (App E2E)",
+    humanize: (median) => {
+      if (!Number.isFinite(median)) return "n/a";
+      return `${median.toFixed(1)}x realtime`;
+    },
+  },
 };
 
 function keyFor(row) {
@@ -128,6 +135,78 @@ function buildEncoderBreakdown(latestRows) {
   return lines.join("\n");
 }
 
+function buildAttributionMatrix(latestRows) {
+  const cliRow = latestRows.find(
+    (row) => row.bench_name === "audio-processing-throughput" && row.mode === "real"
+  );
+  const appRow = latestRows.find(
+    (row) => row.bench_name === "audio-processing-app-e2e" && row.mode === "real"
+  );
+  if (!cliRow || !appRow) return null;
+
+  const cliRuns = cliRow.details?.latest?.encoder_runs;
+  const appRuns = appRow.details?.latest?.encoder_runs;
+  if (!Array.isArray(cliRuns) || !Array.isArray(appRuns)) return null;
+  if (cliRuns.length === 0 || appRuns.length === 0) return null;
+
+  const appByEncoder = new Map();
+  for (const run of appRuns) {
+    if (!run?.encoder) continue;
+    appByEncoder.set(run.encoder, run);
+  }
+
+  const rows = [];
+  for (const cli of cliRuns) {
+    const encoder = cli?.encoder;
+    if (!encoder) continue;
+    const app = appByEncoder.get(encoder);
+    if (!app) continue;
+    if (!Number.isFinite(cli.realtime_factor) || !Number.isFinite(app.realtime_factor)) continue;
+
+    const rtfCli = Number(cli.realtime_factor);
+    const rtfApp = Number(app.realtime_factor);
+    const overheadRatio = rtfCli > 0 ? (rtfCli - rtfApp) / rtfCli : null;
+    rows.push({
+      encoder,
+      rtfCli,
+      rtfApp,
+      overheadRatio,
+    });
+  }
+
+  if (rows.length === 0) return null;
+
+  const lines = [];
+  lines.push("");
+  lines.push("### Attribution Matrix (App vs Encoder, real mode)");
+  lines.push("");
+  lines.push("| Encoder | rtf_cli | rtf_app | overhead_ratio | Interpretation |");
+  lines.push("| --- | ---: | ---: | ---: | --- |");
+
+  for (const row of rows) {
+    const overheadPct = Number.isFinite(row.overheadRatio)
+      ? `${(row.overheadRatio * 100).toFixed(1)}%`
+      : "n/a";
+    let interpretation = "Pipeline close to encoder baseline";
+    if (Number.isFinite(row.overheadRatio)) {
+      if (row.overheadRatio > 0.3) {
+        interpretation = "High app-side overhead opportunity";
+      } else if (row.overheadRatio > 0.15) {
+        interpretation = "Moderate app-side overhead";
+      } else if (row.overheadRatio > 0.05) {
+        interpretation = "Low app-side overhead";
+      } else {
+        interpretation = "Near encoder baseline";
+      }
+    }
+    lines.push(
+      `| ${row.encoder} | ${row.rtfCli.toFixed(1)}x | ${row.rtfApp.toFixed(1)}x | ${overheadPct} | ${interpretation} |`
+    );
+  }
+
+  return lines.join("\n");
+}
+
 export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   const lines = [];
   lines.push("# Performance Results");
@@ -182,6 +261,10 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   const encoderBreakdown = buildEncoderBreakdown(latestRows);
   if (encoderBreakdown) {
     lines.push(encoderBreakdown);
+  }
+  const attributionMatrix = buildAttributionMatrix(latestRows);
+  if (attributionMatrix) {
+    lines.push(attributionMatrix);
   }
 
   lines.push("");
