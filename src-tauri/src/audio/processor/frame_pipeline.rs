@@ -122,6 +122,43 @@ fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) -> bool {
     false
 }
 
+fn process_and_encode_frame(
+    frame: &ff::frame::Audio,
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    output_context: &mut ff::format::context::Output,
+    ctx: &mut FramePipelineCtx,
+    accumulator: &mut crate::audio::buffer::SampleAccumulator,
+) -> Result<PreviewAction> {
+    let samples_count = frame.samples() as u64;
+    *ctx.input_samples_total += samples_count;
+
+    if let Some(ref mut ps) = ctx.preview_state {
+        ps.current_file_elapsed_samples += samples_count;
+    }
+
+    for mut full in accumulator.push_frame(frame) {
+        full.set_pts(Some(*ctx.running_pts));
+        *ctx.running_pts += full.samples() as i64;
+        *ctx.encoded_samples_total += full.samples() as u64;
+        crate::audio::processor::encoder::encode_and_write_frame(
+            encoder,
+            &full,
+            output_context,
+            ctx.output_stream_index,
+            ctx.output_time_base,
+        )?;
+    }
+
+    emit_progress_update(ctx);
+    let action = check_per_file_preview_stop(ctx);
+    if action != PreviewAction::Continue {
+        return Ok(action);
+    }
+
+    check_and_mark_preview_early_stop(ctx);
+    Ok(PreviewAction::Continue)
+}
+
 /// Processes audio frames from decoder through resample and encode pipeline
 /// Returns PreviewAction to signal adaptive preview file transitions
 pub(crate) fn process_decoded_frames(
@@ -138,6 +175,10 @@ pub(crate) fn process_decoded_frames(
     let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
+    let fastpath_enabled = !disable_fastpath;
+    let encoder_format = encoder.format();
+    let encoder_channel_layout = encoder.channel_layout();
+    let encoder_sample_rate = encoder.rate();
 
     loop {
         if ctx.context.is_cancelled() {
@@ -148,11 +189,12 @@ pub(crate) fn process_decoded_frames(
         let mut frame = ff::frame::Audio::empty();
         match decoder.receive_frame(&mut frame) {
             Ok(()) => {
-                let decoder_matches_encoder = frame.format() == encoder.format()
-                    && frame.channel_layout() == encoder.channel_layout()
-                    && frame.rate() == encoder.rate();
+                let decoder_matches_encoder = fastpath_enabled
+                    && frame.format() == encoder_format
+                    && frame.channel_layout() == encoder_channel_layout
+                    && frame.rate() == encoder_sample_rate;
 
-                if decoder_matches_encoder && !disable_fastpath {
+                if decoder_matches_encoder {
                     log::debug!(
                         "Fast-path: decoder frame matches encoder format – skipping resampler"
                     );
@@ -160,46 +202,26 @@ pub(crate) fn process_decoded_frames(
                         log::warn!("Decoder produced 0 samples – skipping frame");
                         continue;
                     }
-                    let samples_count = frame.samples() as u64;
-                    *ctx.input_samples_total += samples_count;
-
-                    // Track samples for adaptive preview
-                    if let Some(ref mut ps) = ctx.preview_state {
-                        ps.current_file_elapsed_samples += samples_count;
-                    }
-
-                    for mut full in accumulator.push_frame(&frame) {
-                        full.set_pts(Some(*ctx.running_pts));
-                        *ctx.running_pts += full.samples() as i64;
-                        *ctx.encoded_samples_total += full.samples() as u64;
-                        crate::audio::processor::encoder::encode_and_write_frame(
-                            encoder,
-                            &full,
-                            output_context,
-                            ctx.output_stream_index,
-                            ctx.output_time_base,
-                        )?;
-                    }
-                    emit_progress_update(ctx);
-
-                    // Check adaptive preview first, then legacy
-                    action = check_per_file_preview_stop(ctx);
-                    if action != PreviewAction::Continue {
-                        break;
-                    }
-                    if check_and_mark_preview_early_stop(ctx) {
+                    action = process_and_encode_frame(
+                        &frame,
+                        encoder,
+                        output_context,
+                        ctx,
+                        accumulator,
+                    )?;
+                    if action != PreviewAction::Continue || *ctx.early_stop {
                         break;
                     }
                     continue;
                 }
 
                 let mut out = ff::frame::Audio::empty();
-                out.set_format(encoder.format());
-                out.set_channel_layout(encoder.channel_layout());
-                out.set_rate(encoder.rate());
+                out.set_format(encoder_format);
+                out.set_channel_layout(encoder_channel_layout);
+                out.set_rate(encoder_sample_rate);
                 out.set_samples(frame.samples());
                 unsafe {
-                    out.alloc(encoder.format(), frame.samples(), encoder.channel_layout());
+                    out.alloc(encoder_format, frame.samples(), encoder_channel_layout);
                 }
 
                 resampler
@@ -211,35 +233,8 @@ pub(crate) fn process_decoded_frames(
                     continue;
                 }
 
-                let samples_count = out.samples() as u64;
-                *ctx.input_samples_total += samples_count;
-
-                // Track samples for adaptive preview
-                if let Some(ref mut ps) = ctx.preview_state {
-                    ps.current_file_elapsed_samples += samples_count;
-                }
-
-                for mut full in accumulator.push_frame(&out) {
-                    full.set_pts(Some(*ctx.running_pts));
-                    *ctx.running_pts += full.samples() as i64;
-                    *ctx.encoded_samples_total += full.samples() as u64;
-                    crate::audio::processor::encoder::encode_and_write_frame(
-                        encoder,
-                        &full,
-                        output_context,
-                        ctx.output_stream_index,
-                        ctx.output_time_base,
-                    )?;
-                }
-
-                emit_progress_update(ctx);
-
-                // Check adaptive preview first, then legacy
-                action = check_per_file_preview_stop(ctx);
-                if action != PreviewAction::Continue {
-                    break;
-                }
-                if check_and_mark_preview_early_stop(ctx) {
+                action = process_and_encode_frame(&out, encoder, output_context, ctx, accumulator)?;
+                if action != PreviewAction::Continue || *ctx.early_stop {
                     break;
                 }
             }
