@@ -326,11 +326,13 @@ function updateJobRowState(state: JobRowState, job: JobListItem): void {
 }
 
 function serializeJobs(jobs: JobListItem[]): string {
-    return jobs
-        .map((job) =>
-            `${job.key}:${job.label}:${job.statusText}:${job.percentage ?? ''}:${job.canCancel ? 1 : 0}:${job.cancelId ?? ''}`
-        )
-        .join('|');
+    return JSON.stringify(
+        jobs.map((job) => ({
+            key: job.key,
+            cancelId: job.cancelId ?? null,
+            snapshot: createSnapshot(job),
+        }))
+    );
 }
 
 export function renderJobList(jobs: JobListItem[]): void {
