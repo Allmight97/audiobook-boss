@@ -52,7 +52,7 @@
 - [ ] All must-fix issues resolved
 - [ ] Run release checks: `scripts/release-checks.sh` (runs Standard tier + `cargo build --release -p audiobook-boss`)
 - [ ] Manual smoke test (create M4B, edit metadata, batch process)
-- [ ] Optional perf suite (non-blocking): run `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history` and review `scripts/perf/results/latest.md` for trend deltas
+- [ ] Optional perf suite (non-blocking): run `bun run perf` (or `bun run perf:all` for synthetic + real) and review `scripts/perf/results/latest.md` for trend deltas
 
 ### Release
 - [ ] Update CHANGELOG.md with user-facing changes

@@ -63,6 +63,7 @@ Workload-shaped runs using real files/endpoints when available.
 
 - **Latest markdown summary**: `scripts/perf/results/latest.md`
 - **Latest machine-readable summary**: `scripts/perf/results/latest.json`
+- **Per-mode machine-readable snapshots**: `scripts/perf/results/latest-{mode}.json` (e.g., `latest-synthetic.json`, `latest-real.json`)
 - **Historical run rows**: `scripts/perf/results/history.ndjson`
 
 The markdown summary includes:

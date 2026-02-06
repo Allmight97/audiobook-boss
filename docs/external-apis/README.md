@@ -80,17 +80,22 @@ To maintain the integrity of "The Bridge", we use `scripts/ensure-contract.sh` t
 
 Contract-sensitive perf surfaces (status panel event/render flow, metadata lookup path, audio processing path) are tracked with repo-native scripts under `scripts/perf/`.
 
-- Runner: `bun scripts/perf/run.mjs`
-- Usage:
+- **Quick start** (package.json aliases):
+  - `bun run perf` — full synthetic sweep (default go-to)
+  - `bun run perf:audio` — real audio encode test
+  - `bun run perf:all` — synthetic + real, combined matrix
+  - `bun run perf:list` — list benchmarks with user impact descriptions
+- **Advanced** (manual runner): `bun scripts/perf/run.mjs`
   - `bun scripts/perf/run.mjs --list`
   - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
 - Baselines:
   - `scripts/perf/baselines/synthetic-main.json`
   - `scripts/perf/baselines/real-main.json`
 - Results:
-  - `scripts/perf/results/latest.json`
-  - `scripts/perf/results/history.ndjson`
-  - `scripts/perf/results/latest.md`
+  - `scripts/perf/results/latest.md` — combined matrix, encoder breakdown, trends
+  - `scripts/perf/results/latest.json` — latest run payload
+  - `scripts/perf/results/latest-{mode}.json` — per-mode snapshots
+  - `scripts/perf/results/history.ndjson` — full history
 - Threshold semantics:
   - `warn`: >15% regression vs baseline
   - `improved`: >15% improvement vs baseline

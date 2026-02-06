@@ -44,7 +44,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 ## Development Workflows
 
-### Testing (run from `src-tauri/`)
+### Testing (run from repo root)
 
 ```bash
 cargo test                              # All tests (unit + integration)
@@ -92,6 +92,19 @@ RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 
 Run the perf system from `scripts/perf` for local and manual CI trend checks.
 
+**Quick start (using package.json scripts):**
+
+```bash
+bun run perf            # Full synthetic sweep (the default go-to)
+bun run perf:audio      # Real audio encode test
+bun run perf:real       # All benchmarks, real mode
+bun run perf:all        # Full sweep: synthetic + real, combined matrix
+bun run perf:quick      # Fast 3-run gut check
+bun run perf:list       # What benchmarks exist + what they measure
+```
+
+**Advanced (manual invocation):**
+
 ```bash
 # List all benches
 bun scripts/perf/run.mjs --list
@@ -103,9 +116,10 @@ bun scripts/perf/run.mjs --bench statuspanel-render-lookup --mode synthetic --ru
 bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history
 ```
 
+**Details:**
 - Modes: `synthetic` (deterministic) and `real` (workload-shaped).
 - Baselines: `scripts/perf/baselines/synthetic-main.json` and `scripts/perf/baselines/real-main.json`.
-- Trend output: `scripts/perf/results/history.ndjson` and `scripts/perf/results/latest.md`.
+- Output: `scripts/perf/results/latest.md` (combined matrix + encoder breakdown + trends), `latest-{mode}.json` (per-mode snapshots), `history.ndjson` (full history).
 - Threshold policy: `warn` when metric regresses by more than 15% versus baseline.
 - CI policy: manual/non-blocking via `.github/workflows/perf.yml`.
 

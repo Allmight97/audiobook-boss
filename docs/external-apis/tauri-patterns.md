@@ -37,7 +37,7 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
   - `statuspanel-event-throughput`
   - `metadata-lookup-latency`
 - Recommended command:
-  - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
+  - `bun run perf` (or manually: `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`)
 - Trend artifacts:
   - `scripts/perf/results/history.ndjson`
   - `scripts/perf/results/latest.md`
