@@ -15,7 +15,7 @@ const AUDIBLE_MAX_CONCURRENCY: usize = 6;
 
 pub(super) async fn search_online_metadata(
     query: String,
-    sources: Option<Vec<MetadataSource>>,
+    _sources: Option<Vec<MetadataSource>>,
     limit: Option<u8>,
 ) -> Result<Vec<OnlineMetadataResult>> {
     let trimmed = query.trim();
@@ -26,7 +26,6 @@ pub(super) async fn search_online_metadata(
     }
 
     let limit = limit.unwrap_or(8).clamp(1, 20);
-    let _sources = sources.unwrap_or_else(|| vec![MetadataSource::Audnexus]);
 
     let region =
         extract_region_override(trimmed).unwrap_or_else(|| AUDNEXUS_DEFAULT_REGION.to_string());
