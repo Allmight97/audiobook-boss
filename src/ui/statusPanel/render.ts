@@ -2,16 +2,7 @@ import { getMaxConcurrentStatus } from "../jobControls";
 import * as dom from "./dom";
 import { formatStatusDisplayText } from "./formatting";
 import type { AggregateProgress, JobProgress, ProcessingStatus } from "./state";
-
-type JobListItem = {
-  key: string;
-  label: string;
-  statusText: string;
-  percentage?: number;
-  canCancel: boolean;
-  cancelId?: string;
-  onCancel?: (id: string) => void;
-};
+import type { JobListItem } from "./dom";
 
 export function renderStatus(
   status: ProcessingStatus,

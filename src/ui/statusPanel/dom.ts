@@ -213,49 +213,180 @@ export function showInfo(message: string): void {
 /**
  * Render the active job list with optional per-job cancel affordances
  */
-export function renderJobList(
-    jobs: Array<{
-        key: string;
-        label: string;
-        statusText: string;
-        percentage?: number;
-        canCancel: boolean;
-        cancelId?: string;
-        onCancel?: (id: string) => void;
-    }>
-): void {
+export type JobListItem = {
+    key: string;
+    label: string;
+    statusText: string;
+    percentage?: number;
+    canCancel: boolean;
+    cancelId?: string;
+    onCancel?: (id: string) => void;
+};
+
+type JobSnapshot = {
+    label: string;
+    statusText: string;
+    percentage?: number;
+    isCancellable: boolean;
+};
+
+interface JobRowState {
+    row: HTMLElement;
+    label: HTMLElement;
+    cancelButton: HTMLButtonElement;
+    job: JobListItem;
+    snapshot: JobSnapshot;
+}
+
+const jobListState = {
+    rows: new Map<string, JobRowState>(),
+    serialized: '',
+};
+
+function buildLabelText(job: JobListItem): string {
+    const percentage =
+        typeof job.percentage === 'number' ? ` (${job.percentage.toFixed(1)}%)` : '';
+    return `${job.label} • ${job.statusText}${percentage}`;
+}
+
+function createSnapshot(job: JobListItem): JobSnapshot {
+    return {
+        label: job.label,
+        statusText: job.statusText,
+        percentage: job.percentage,
+        isCancellable: job.canCancel && !!job.cancelId && !!job.onCancel,
+    };
+}
+
+function areSnapshotsEqual(a: JobSnapshot, b: JobSnapshot): boolean {
+    return (
+        a.label === b.label &&
+        a.statusText === b.statusText &&
+        a.percentage === b.percentage &&
+        a.isCancellable === b.isCancellable
+    );
+}
+
+function updateCancelButtonState(button: HTMLButtonElement, isCancellable: boolean): void {
+    const nextDisabled = !isCancellable;
+    if (button.disabled !== nextDisabled) {
+        button.disabled = nextDisabled;
+    }
+}
+
+function createJobRow(job: JobListItem): JobRowState {
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between gap-2 mb-1';
+    const label = document.createElement('span');
+    label.className = 'flex-1';
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.id = `cancel-${job.key}`;
+    cancelButton.className = 'button-secondary';
+    cancelButton.style.padding = '0.1rem 0.4rem';
+
+    const state: JobRowState = {
+        row,
+        label,
+        cancelButton,
+        job,
+        snapshot: createSnapshot(job),
+    };
+
+    cancelButton.addEventListener('click', () => {
+        const currentJob = state.job;
+        if (currentJob.canCancel && currentJob.cancelId && currentJob.onCancel) {
+            currentJob.onCancel(currentJob.cancelId);
+        }
+    });
+
+    label.textContent = buildLabelText(job);
+    updateCancelButtonState(cancelButton, state.snapshot.isCancellable);
+    row.appendChild(label);
+    row.appendChild(cancelButton);
+    return state;
+}
+
+function updateJobRowState(state: JobRowState, job: JobListItem): void {
+    state.job = job;
+    const nextSnapshot = createSnapshot(job);
+    if (!areSnapshotsEqual(state.snapshot, nextSnapshot)) {
+        if (
+            state.snapshot.label !== nextSnapshot.label ||
+            state.snapshot.statusText !== nextSnapshot.statusText ||
+            state.snapshot.percentage !== nextSnapshot.percentage
+        ) {
+            state.label.textContent = buildLabelText(job);
+        }
+        if (state.snapshot.isCancellable !== nextSnapshot.isCancellable) {
+            updateCancelButtonState(state.cancelButton, nextSnapshot.isCancellable);
+        }
+        state.snapshot = nextSnapshot;
+    }
+}
+
+function serializeJobs(jobs: JobListItem[]): string {
+    return JSON.stringify(
+        jobs.map((job) => ({
+            key: job.key,
+            cancelId: job.cancelId ?? null,
+            snapshot: createSnapshot(job),
+        }))
+    );
+}
+
+export function renderJobList(jobs: JobListItem[]): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
     if (jobs.length === 0) {
-        elements.jobList.textContent = '';
+        if (elements.jobList.childElementCount > 0) {
+            elements.jobList.textContent = '';
+        }
+        jobListState.rows.clear();
+        jobListState.serialized = '';
         return;
     }
 
-    const fragment = document.createDocumentFragment();
+    const serialized = serializeJobs(jobs);
+    if (serialized === jobListState.serialized) {
+        return;
+    }
+    jobListState.serialized = serialized;
 
+    const seenKeys = new Set<string>();
+    let expectedNode = elements.jobList.firstElementChild;
     jobs.forEach((job) => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-2 mb-1';
-        const label = document.createElement('span');
-        const percentage =
-            typeof job.percentage === 'number' ? ` (${job.percentage.toFixed(1)}%)` : '';
-        label.textContent = `${job.label} • ${job.statusText}${percentage}`;
-        label.className = 'flex-1';
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Cancel';
-        cancelButton.id = `cancel-${job.key}`;
-        cancelButton.className = 'button-secondary';
-        cancelButton.style.padding = '0.1rem 0.4rem';
-        cancelButton.disabled = !job.canCancel;
-        if (job.onCancel && job.canCancel && job.cancelId) {
-            cancelButton.addEventListener('click', () => job.onCancel?.(job.cancelId as string));
+        seenKeys.add(job.key);
+        let state = jobListState.rows.get(job.key);
+        if (!state) {
+            state = createJobRow(job);
+            jobListState.rows.set(job.key, state);
+        } else {
+            updateJobRowState(state, job);
         }
-        row.appendChild(label);
-        row.appendChild(cancelButton);
-        fragment.appendChild(row);
+
+        if (state.row !== expectedNode) {
+            elements.jobList.insertBefore(state.row, expectedNode);
+        }
+        expectedNode = state.row.nextElementSibling;
     });
 
-    elements.jobList.innerHTML = '';
-    elements.jobList.appendChild(fragment);
+    const keysToRemove: string[] = [];
+    for (const key of jobListState.rows.keys()) {
+        if (!seenKeys.has(key)) {
+            keysToRemove.push(key);
+        }
+    }
+    keysToRemove.forEach((key) => {
+        const stale = jobListState.rows.get(key);
+        stale?.row.remove();
+        jobListState.rows.delete(key);
+    });
+}
+
+export function resetStatusPanelDomCache(): void {
+    cachedElements = null;
+    jobListState.rows.clear();
+    jobListState.serialized = '';
 }
