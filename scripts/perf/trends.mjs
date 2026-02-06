@@ -187,18 +187,15 @@ function buildAttributionMatrix(latestRows) {
     const overheadPct = Number.isFinite(row.overheadRatio)
       ? `${(row.overheadRatio * 100).toFixed(1)}%`
       : "n/a";
-    let interpretation = "Pipeline close to encoder baseline";
-    if (Number.isFinite(row.overheadRatio)) {
-      if (row.overheadRatio > 0.3) {
-        interpretation = "High app-side overhead opportunity";
-      } else if (row.overheadRatio > 0.15) {
-        interpretation = "Moderate app-side overhead";
-      } else if (row.overheadRatio > 0.05) {
-        interpretation = "Low app-side overhead";
-      } else {
-        interpretation = "Near encoder baseline";
-      }
-    }
+    const interpretation = !Number.isFinite(row.overheadRatio)
+      ? "n/a"
+      : row.overheadRatio > 0.3
+        ? "High app-side overhead opportunity"
+        : row.overheadRatio > 0.15
+          ? "Moderate app-side overhead"
+          : row.overheadRatio > 0.05
+            ? "Low app-side overhead"
+            : "Near encoder baseline";
     lines.push(
       `| ${row.encoder} | ${row.rtfCli.toFixed(1)}x | ${row.rtfApp.toFixed(1)}x | ${overheadPct} | ${interpretation} |`
     );

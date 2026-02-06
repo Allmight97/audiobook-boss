@@ -1,3 +1,4 @@
+use anyhow::{anyhow, bail, Context, Result};
 use audiobook_boss_lib::audio;
 use audiobook_boss_lib::audio::preview_config::PreviewConfig;
 use audiobook_boss_lib::audio::settings_encoder::{
@@ -160,33 +161,31 @@ async fn main() {
     }
 }
 
-async fn run() -> Result<(), String> {
-    let args = parse_args()?;
+async fn run() -> Result<()> {
+    let args = parse_args().map_err(anyhow::Error::msg)?;
     let input_path = audio::path_validation::validate_input_audio_path(&args.input)
-        .map_err(|e| format!("Input validation failed: {e}"))?;
+        .map_err(|e| anyhow!("Input validation failed: {e}"))?;
 
     if let Some(parent) = args.output.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create output parent '{}': {e}", parent.display()))?;
+            .with_context(|| format!("Failed to create output parent '{}'", parent.display()))?;
     }
 
     let settings = encoder_settings(&args);
     audio::settings_encoder::validate_encoder_settings(&settings)
-        .map_err(|e| format!("Encoder settings invalid: {e}"))?;
+        .map_err(|e| anyhow!("Encoder settings invalid: {e}"))?;
     let availability = audio::settings_encoder::detect_available_encoders();
     let resolved_encoder = audio::settings_encoder::resolve_encoder_type(&settings, &availability);
 
     let file_info = audio::get_file_list_info(&[input_path])
-        .map_err(|e| format!("Failed to collect input file info: {e}"))?;
+        .map_err(|e| anyhow!("Failed to collect input file info: {e}"))?;
     if file_info.valid_count == 0 || file_info.files.is_empty() {
-        return Err("No valid input files found for app_e2e run".to_string());
+        bail!("No valid input files found for app_e2e run");
     }
 
     let total_duration = file_info.total_duration;
     if !(total_duration.is_finite() && total_duration > 0.0) {
-        return Err(format!(
-            "Invalid total duration from file info: {total_duration}"
-        ));
+        bail!("Invalid total duration from file info: {total_duration}");
     }
 
     let session = Arc::new(audio::session::ProcessingSession::new());
@@ -212,7 +211,7 @@ async fn run() -> Result<(), String> {
     let start = Instant::now();
     let message = audio::process_audiobook_with_context(context, file_info.files, None)
         .await
-        .map_err(|e| format!("App e2e processing failed: {e}"))?;
+        .map_err(|e| anyhow!("App e2e processing failed: {e}"))?;
     let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
     let elapsed_seconds = elapsed_ms / 1000.0;
     let realtime_factor = if elapsed_seconds > 0.0 {
@@ -242,7 +241,7 @@ async fn run() -> Result<(), String> {
     println!(
         "{}",
         serde_json::to_string(&payload)
-            .map_err(|e| format!("Failed to serialize result payload: {e}"))?
+            .map_err(|e| anyhow!("Failed to serialize result payload: {e}"))?
     );
 
     Ok(())
