@@ -73,4 +73,37 @@ describe("StatusPanel progress throttling", () => {
     expect(job1?.percentage).toBe(10);
     expect(job2?.percentage).toBe(20);
   });
+
+  it("does not throttle terminal events inside the same 500ms window", () => {
+    const panel = new StatusPanel();
+
+    (panel as any).handleQueueSnapshot({
+      items: [
+        { input_index: 0, file_path: "/books/alpha.m4b" },
+        { input_index: 1, file_path: "/books/beta.m4b" },
+      ],
+      max_concurrent: 2,
+    });
+
+    const progress = {
+      input_index: 0,
+      stage: "converting",
+      percentage: 12,
+      message: "processing",
+    } as any;
+    panel.updateProgress(progress);
+
+    const terminal = {
+      ...progress,
+      stage: "completed",
+      percentage: 100,
+      message: "done",
+    };
+    panel.updateProgress(terminal);
+
+    const job = (panel as any).jobProgress.get("idx:0");
+    expect(job?.status).toBe("completed");
+    expect(job?.percentage).toBe(100);
+    expect(job?.message).toBe("done");
+  });
 });
