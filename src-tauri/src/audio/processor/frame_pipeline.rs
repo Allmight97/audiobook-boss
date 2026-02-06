@@ -36,7 +36,7 @@ pub(crate) struct FramePipelineCtx<'a> {
 }
 
 fn emit_progress_update(ctx: &mut FramePipelineCtx) {
-    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(200) {
+    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(500) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
         let percentage = crate::audio::progress::converting_percentage_from_seconds(
@@ -135,6 +135,9 @@ pub(crate) fn process_decoded_frames(
     use crate::errors::AppError;
 
     let mut action = PreviewAction::Continue;
+    let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
 
     loop {
         if ctx.context.is_cancelled() {
@@ -148,9 +151,6 @@ pub(crate) fn process_decoded_frames(
                 let decoder_matches_encoder = frame.format() == encoder.format()
                     && frame.channel_layout() == encoder.channel_layout()
                     && frame.rate() == encoder.rate();
-                let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
-                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                    .unwrap_or(false);
 
                 if decoder_matches_encoder && !disable_fastpath {
                     log::debug!(
@@ -265,13 +265,12 @@ pub(crate) fn process_input_packets(
 
     if log::log_enabled!(log::Level::Info) {
         log::info!(
-            "📦 Starting packet processing for stream index: {}",
+            "Starting packet processing for stream index: {}",
             ctx.current_stream_index
         );
     }
     let mut packet_count = 0;
     let mut final_action = PreviewAction::Continue;
-    log::info!("Starting packet iteration...");
     for (si, packet) in ictx.packets() {
         if log::log_enabled!(log::Level::Debug) {
             log::debug!("Processing packet from stream {}", si.index());
@@ -293,8 +292,8 @@ pub(crate) fn process_input_packets(
         }
 
         packet_count += 1;
-        if packet_count % 100 == 0 && log::log_enabled!(log::Level::Info) {
-            log::info!("Processed {} packets so far", packet_count);
+        if packet_count % 100 == 0 && log::log_enabled!(log::Level::Debug) {
+            log::debug!("Processed {} packets so far", packet_count);
         }
 
         if log::log_enabled!(log::Level::Debug) {

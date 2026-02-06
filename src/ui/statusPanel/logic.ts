@@ -26,7 +26,9 @@ import {
   type JobStatus,
   type ProcessingStatus,
 } from "./state";
-import { calculateAggregateProgress as calculateAggregateProgressDomain, deriveAggregateStage as deriveAggregateStageDomain } from "./domain/aggregate";
+import {
+  calculateAggregateProgressAndStage as calculateAggregateProgressAndStageDomain,
+} from "./domain/aggregate";
 import { buildJobKey as buildJobKeyDomain } from "./domain/jobKeys";
 import { areAllBatchJobsTerminal, buildQueueSnapshotState } from "./domain/queueState";
 import { readCoverArtDataUrl, shouldSkipCoverArtRead } from "./services/artThumbnail";
@@ -42,6 +44,7 @@ export class StatusPanel {
   /** Per-job progress tracking for parallel batch processing */
   private jobProgress: Map<string, JobProgress> = new Map();
   private queueOrder: string[] = [];
+  private queueOrderSet: Set<string> = new Set();
   private lastProgressRenderByKey: Map<string, number> = new Map();
   private batchCompletionTimeout?: number;
   private currentJobType: "merge" | "batch" | null = null;
@@ -176,6 +179,7 @@ export class StatusPanel {
 
     this.jobProgress.clear();
     this.queueOrder = queueSnapshotState.queueOrder;
+    this.queueOrderSet = new Set(queueSnapshotState.queueOrder);
     this.lastProgressRenderByKey.clear();
 
     queueSnapshotState.jobProgress.forEach((job, key) => {
@@ -183,10 +187,10 @@ export class StatusPanel {
     });
 
     this.isProcessing = this.jobProgress.size > 0;
-    const aggregate = this.calculateAggregateProgress();
+    const { aggregate, stage } = this.calculateAggregateProgressAndStage();
     this.updateConcurrencyIndicator(aggregate);
     this.updateStatus({
-      stage: this.deriveAggregateStage(),
+      stage,
       percentage: aggregate.overallPercentage,
       message: formatAggregateMessage(this.jobProgress, aggregate),
     });
@@ -250,8 +254,9 @@ export class StatusPanel {
 
     if (typeof event.input_index === "number") {
       const key = this.buildJobKey(event.input_index, undefined);
-      if (!this.queueOrder.includes(key)) {
+      if (!this.queueOrderSet.has(key)) {
         this.queueOrder.push(key);
+        this.queueOrderSet.add(key);
       }
     }
 
@@ -286,12 +291,12 @@ export class StatusPanel {
     this.isProcessing = this.jobProgress.size > 0;
 
     // Calculate aggregate progress
-    const aggregate = this.calculateAggregateProgress();
+    const { aggregate, stage } = this.calculateAggregateProgressAndStage();
     this.updateConcurrencyIndicator(aggregate);
 
     // Derive status from aggregate (use most advanced active stage)
     const status: ProcessingStatus = {
-      stage: this.deriveAggregateStage(),
+      stage,
       percentage: aggregate.overallPercentage,
       message: formatAggregateMessage(this.jobProgress, aggregate),
       currentFile: event.current_file,
@@ -319,14 +324,11 @@ export class StatusPanel {
     }
   }
 
-  /** Calculate aggregate progress across all active jobs */
-  private calculateAggregateProgress(): AggregateProgress {
-    return calculateAggregateProgressDomain(this.jobProgress);
-  }
-
-  /** Derive aggregate stage from active jobs */
-  private deriveAggregateStage(): ProcessingStatus["stage"] {
-    return deriveAggregateStageDomain(this.jobProgress);
+  private calculateAggregateProgressAndStage(): {
+    aggregate: AggregateProgress;
+    stage: ProcessingStatus["stage"];
+  } {
+    return calculateAggregateProgressAndStageDomain(this.jobProgress);
   }
 
   /** Update UI with aggregate progress (called after job removal) */
@@ -335,9 +337,9 @@ export class StatusPanel {
       return; // No need to update if idle
     }
     this.isProcessing = this.jobProgress.size > 0;
-    const aggregate = this.calculateAggregateProgress();
+    const { aggregate, stage } = this.calculateAggregateProgressAndStage();
     const status: ProcessingStatus = {
-      stage: this.deriveAggregateStage(),
+      stage,
       percentage: aggregate.overallPercentage,
       message: formatAggregateMessage(this.jobProgress, aggregate),
     };
@@ -404,6 +406,7 @@ export class StatusPanel {
     // Clear all job progress tracking
     this.jobProgress.clear();
     this.queueOrder = [];
+    this.queueOrderSet.clear();
     this.lastProgressRenderByKey.clear();
     renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 

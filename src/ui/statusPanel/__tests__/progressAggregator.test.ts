@@ -44,7 +44,7 @@ describe("StatusPanel aggregate progress", () => {
     });
 
     (panel as any).jobProgress = jobProgress;
-    const aggregate = (panel as any).calculateAggregateProgress();
+    const aggregate = (panel as any).calculateAggregateProgressAndStage().aggregate;
 
     expect(aggregate.activeJobs).toBe(1);
     expect(aggregate.queuedJobs).toBe(0);
