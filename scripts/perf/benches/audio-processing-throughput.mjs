@@ -12,7 +12,7 @@ const SYNTHETIC_WORKLOAD = {
 
 const REAL_WORKLOAD = {
   preferredFixturePath: "media/Feedback.m4b",
-  defaultClipSeconds: null,
+  defaultClipSeconds: 300,
 };
 
 function getEncoderScenarios() {
@@ -214,10 +214,7 @@ function resolveClipSeconds(fixtureDuration) {
   if (Number.isFinite(envClip) && envClip > 0) {
     return envClip;
   }
-  if (Number.isFinite(REAL_WORKLOAD.defaultClipSeconds) && REAL_WORKLOAD.defaultClipSeconds > 0) {
-    return Math.min(fixtureDuration, REAL_WORKLOAD.defaultClipSeconds);
-  }
-  return fixtureDuration;
+  return Math.min(fixtureDuration, REAL_WORKLOAD.defaultClipSeconds);
 }
 
 function resolvePositiveInt(raw, fallback) {

@@ -38,14 +38,21 @@ Real mode notes:
 - `metadata-lookup-latency` uses network only if `ABB_PERF_ALLOW_NETWORK=1`; otherwise it falls back to synthetic and records fallback reason.
 - `audio-processing-throughput` benchmarks encoder-path transcodes (`aac`, `aac_at`, `libfdk_aac`) and reports per-encoder realtime factors.
 - `audio-processing-throughput` requires `media/Feedback.m4b` by default and fails fast if missing.
-- `audio-processing-throughput` runs the full input duration by default; set `ABB_PERF_AUDIO_MAX_SECONDS` only when you intentionally want a capped run.
+- `audio-processing-throughput` defaults to a 300-second clip for stable and faster comparisons.
+- To run full-file encode, set `ABB_PERF_AUDIO_MAX_SECONDS` to the input duration in seconds (example below).
 - Real-mode override env vars for `audio-processing-throughput`:
   - `ABB_PERF_AUDIO_INPUT` (relative path from repo root)
-  - `ABB_PERF_AUDIO_MAX_SECONDS` (clip duration cap, default `90`)
+  - `ABB_PERF_AUDIO_MAX_SECONDS` (clip duration cap, default `300`)
   - `ABB_PERF_AAC_BITRATE_KBPS` (default `64`)
   - `ABB_PERF_NATIVE_TWOOLOOP` (`1` default, set `0` to disable)
   - `ABB_PERF_FDK_VBR` (`1..5`, default `3`)
   - `ABB_PERF_FDK_AFTERBURNER` (`1` default, set `0` to disable)
+
+Example full-file run for `Feedback.m4b` (~1985s):
+
+```bash
+ABB_PERF_AUDIO_MAX_SECONDS=1985 bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 3
+```
 
 ## Results
 
