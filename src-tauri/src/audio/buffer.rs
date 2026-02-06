@@ -250,7 +250,7 @@ impl SampleAccumulator {
         };
         let consumed_samples = &mut self.consumed_samples;
 
-        let frame = match &mut self.storage {
+        let frame = match &self.storage {
             SampleStorage::F32Planar(buffers) => {
                 Self::drain_one_f32_planar(buffers, consumed_samples, allow_short, config)
             }
@@ -266,7 +266,7 @@ impl SampleAccumulator {
     }
 
     fn drain_one_f32_planar(
-        buffers: &mut [Vec<f32>],
+        buffers: &[Vec<f32>],
         consumed_samples: &mut usize,
         allow_short: bool,
         config: DrainConfig,
@@ -290,7 +290,7 @@ impl SampleAccumulator {
         }
 
         let mut total_repairs = 0usize;
-        for (ch, buffer) in buffers.iter_mut().enumerate() {
+        for (ch, buffer) in buffers.iter().enumerate() {
             let plane = frame.data_mut(ch);
             if plane.is_empty() {
                 continue;
