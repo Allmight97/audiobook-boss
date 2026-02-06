@@ -203,6 +203,112 @@ async fn test_stress_concurrent_registration_respects_limit() {
     assert_eq!(status.total_jobs, 0);
 }
 
+#[tokio::test]
+async fn test_scheduler_respects_max_in_flight() {
+    use std::sync::atomic::AtomicUsize;
+    use tokio::time::{sleep, Duration};
+
+    let registry = JobRegistry::new(2);
+    let active = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+
+    let mut futures = Vec::new();
+    for _ in 0..12 {
+        let active = Arc::clone(&active);
+        let peak = Arc::clone(&peak);
+        futures.push(async move {
+            let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+            let mut observed = peak.load(Ordering::SeqCst);
+            while current > observed {
+                match peak.compare_exchange(observed, current, Ordering::SeqCst, Ordering::SeqCst) {
+                    Ok(_) => break,
+                    Err(new_obs) => observed = new_obs,
+                }
+            }
+
+            sleep(Duration::from_millis(10)).await;
+            active.fetch_sub(1, Ordering::SeqCst);
+            Ok(1usize)
+        });
+    }
+
+    let results = registry
+        .scheduler()
+        .run_batch(futures)
+        .await
+        .expect("scheduler should complete all jobs");
+
+    assert_eq!(results.len(), 12);
+    assert!(
+        peak.load(Ordering::SeqCst) <= 2,
+        "scheduler should not exceed max_concurrent"
+    );
+}
+
+#[tokio::test]
+async fn test_scheduler_preserves_input_order() {
+    use tokio::time::{sleep, Duration};
+
+    let registry = JobRegistry::new(2);
+    let mut futures = Vec::new();
+
+    for index in 0..5usize {
+        futures.push(async move {
+            sleep(Duration::from_millis((4 - index as u64) * 5)).await;
+            Ok(index)
+        });
+    }
+
+    let results = registry
+        .scheduler()
+        .run_batch(futures)
+        .await
+        .expect("scheduler should complete");
+
+    assert_eq!(results, vec![0, 1, 2, 3, 4]);
+}
+
+#[tokio::test]
+async fn test_scheduler_stops_scheduling_after_first_error() {
+    use std::sync::atomic::AtomicUsize;
+    use tokio::time::{sleep, Duration};
+
+    let registry = JobRegistry::new(2);
+    let started = Arc::new(AtomicUsize::new(0));
+    let completed = Arc::new(AtomicUsize::new(0));
+    let mut futures = Vec::new();
+
+    for index in 0..6usize {
+        let started = Arc::clone(&started);
+        let completed = Arc::clone(&completed);
+        futures.push(async move {
+            started.fetch_add(1, Ordering::SeqCst);
+
+            if index == 1 {
+                sleep(Duration::from_millis(5)).await;
+                return JobId::parse("not-a-uuid").map(|_| index);
+            }
+
+            sleep(Duration::from_millis(30)).await;
+            completed.fetch_add(1, Ordering::SeqCst);
+            Ok(index)
+        });
+    }
+
+    let result = registry.scheduler().run_batch(futures).await;
+    assert!(result.is_err(), "scheduler should return first task error");
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        2,
+        "scheduler should not enqueue new work after first failure"
+    );
+    assert_eq!(
+        completed.load(Ordering::SeqCst),
+        1,
+        "in-flight non-failing work should drain before returning"
+    );
+}
+
 #[test]
 fn aggregate_job_status_struct() {
     let status = AggregateJobStatus {
