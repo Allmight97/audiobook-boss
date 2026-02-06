@@ -145,7 +145,15 @@ export function displayCoverArt(dataUrl: string): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
-    elements.artThumbnail.innerHTML = `<img src="${dataUrl}" alt="Cover Art" style="width: 100%; height: 100%; object-fit: cover; border-radius: 0.25rem;">`;
+    const coverArtImage = document.createElement('img');
+    coverArtImage.src = dataUrl;
+    coverArtImage.alt = 'Cover Art';
+    coverArtImage.style.width = '100%';
+    coverArtImage.style.height = '100%';
+    coverArtImage.style.objectFit = 'cover';
+    coverArtImage.style.borderRadius = '0.25rem';
+
+    elements.artThumbnail.replaceChildren(coverArtImage);
 }
 
 /**
@@ -155,7 +163,10 @@ export function resetArtThumbnail(): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
-    elements.artThumbnail.innerHTML = '<span>Art</span>';
+    const placeholder = document.createElement('span');
+    placeholder.textContent = 'Art';
+
+    elements.artThumbnail.replaceChildren(placeholder);
 }
 
 /**
