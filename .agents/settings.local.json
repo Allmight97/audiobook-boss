@@ -28,7 +28,8 @@
       "Bash(git commit:*)",
       "Bash(scripts/standard-checks.sh:*)",
       "Bash(bun test:*)",
-      "mcp__acp__Write"
+      "mcp__acp__Write",
+      "Bash(git push:*)"
     ]
   },
   "outputStyle": "default"
