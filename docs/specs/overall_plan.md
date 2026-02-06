@@ -23,21 +23,9 @@
 
 ### Current repo/PR truth you should trust first
 - Branch: `perf/181-attribution-matrix`
-- PR: #186 ([link](https://github.com/Allmight97/audiobook-boss/pull/186))
+- PR: #186 ([link](https://github.com/Allmight97/audiobook-boss/pull/186)) - merged and closed.
 - Deferred issue: #187 ([link](https://github.com/Allmight97/audiobook-boss/issues/187))
 - Canonical tracker for this program: this file (`docs/specs/overall_plan.md`)
-
-### Immediate next action (do this in order)
-1. Re-run validation on branch:
-   - `scripts/standard-checks.sh`
-   - `bun run perf:all`
-2. Confirm `scripts/perf/results/latest.md` still clearly shows:
-   - UX matrix
-   - engineering signal
-   - attribution metrics (`rtf_cli`, `rtf_app`, `overhead_ratio`)
-3. Pause for user Go/No-Go on manual UX/perf checks.
-4. User is currently merging PR #186 from GitHub.
-5. After merge completes, start Phase 2 parallel lanes (clone + branch per issue).
 
 ### Hard guardrails (carry forward exactly)
 - No worktrees. Use separate local clones + one branch per issue.
@@ -56,6 +44,8 @@
 - `0684739`: initial #181 attribution implementation + docs
 - `6e810bc`: Gemini follow-up fixes + plan ledger addition
 - `32cb6b3`: restored original plan format with status integrated
+---
+# Original Plan
 
 ## Summary
 We will use a hybrid execution model:
@@ -74,7 +64,7 @@ This gives immediate UX/outcome value (fewer wrong perf bets) while preserving c
 
 ## Phase Plan
 
-### Phase 0: Program Setup (No code changes)
+### Phase 0: Program Setup (No code changes) - DONE
 - Confirm baseline in `latest.md` is current (already done by user via `perf:all`).
 - Use issue #180 as umbrella tracking only.
 - Keep per-issue execution in #181–#185 with one PR each.
@@ -84,7 +74,7 @@ Status update:
 - **Done:** baseline + tracking posture established.
 - **Done:** umbrella/issue split already in use.
 
-### Phase 1 (Gate): Issue #181 only
+### Phase 1 (Gate): Issue #181 only - DONE
 Branch and workspace:
 - Primary repo: `/Users/jstar/Projects/audiobook-boss`
 - Branch: `perf/181-attribution-matrix`
@@ -113,13 +103,13 @@ Validation gate for #181:
 Go/No-Go condition:
 - If #181 does not produce clear attribution confidence, do not start parallel lanes.
 
-Status update:
+Status update (done):
 - **In progress:** PR #186 open, merge in progress by user.
 - **Done:** implementation delivered; Gemini comments triaged.
 - **Done:** two PR comments fixed in branch; one deferred with issue #187.
 - **Pending:** final merge to `main`.
 
-### Phase 2: Parallel Lanes (after #181 merge)
+### Phase 2: Parallel Lanes (after #181 merge) - NOT STARTED
 Use separate clones (no worktrees), one agent/lane each.
 
 Clone topology:
