@@ -4,7 +4,7 @@
 - Date: 2026-02-06
 - Active branch: `perf/181-attribution-matrix`
 - Active PR: [#186](https://github.com/Allmight97/audiobook-boss/pull/186)
-- Gate state (#181): **In progress, implementation + review follow-ups complete, pending merge decision**
+- Gate state (#181): **In progress, implementation + review follow-ups complete, merge in progress by user**
 - Deferred follow-up created: [#187](https://github.com/Allmight97/audiobook-boss/issues/187) (`clap` migration for `perf_app_e2e` CLI parsing)
 
 ## Fresh-Context Handoff (for a new agent)
@@ -36,8 +36,8 @@
    - engineering signal
    - attribution metrics (`rtf_cli`, `rtf_app`, `overhead_ratio`)
 3. Pause for user Go/No-Go on manual UX/perf checks.
-4. If Go: user merges PR #186 from GitHub.
-5. Only after merge, start Phase 2 parallel lanes (clone + branch per issue).
+4. User is currently merging PR #186 from GitHub.
+5. After merge completes, start Phase 2 parallel lanes (clone + branch per issue).
 
 ### Hard guardrails (carry forward exactly)
 - No worktrees. Use separate local clones + one branch per issue.
@@ -114,7 +114,7 @@ Go/No-Go condition:
 - If #181 does not produce clear attribution confidence, do not start parallel lanes.
 
 Status update:
-- **In progress:** PR #186 open.
+- **In progress:** PR #186 open, merge in progress by user.
 - **Done:** implementation delivered; Gemini comments triaged.
 - **Done:** two PR comments fixed in branch; one deferred with issue #187.
 - **Pending:** final merge to `main`.
