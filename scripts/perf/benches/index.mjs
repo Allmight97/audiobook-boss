@@ -2,6 +2,7 @@ import { benchmark as statuspanelRenderLookup } from "./statuspanel-render-looku
 import { benchmark as statuspanelEventThroughput } from "./statuspanel-event-throughput.mjs";
 import { benchmark as metadataLookupLatency } from "./metadata-lookup-latency.mjs";
 import { benchmark as audioProcessingThroughput } from "./audio-processing-throughput.mjs";
+import { benchmark as audioProcessingAppE2E } from "./audio-processing-app-e2e.mjs";
 import { benchmark as cancelLatency } from "./cancel-latency.mjs";
 import { benchmark as coverArtPath } from "./cover-art-path.mjs";
 
@@ -10,6 +11,7 @@ export const BENCHMARKS = [
   statuspanelEventThroughput,
   metadataLookupLatency,
   audioProcessingThroughput,
+  audioProcessingAppE2E,
   cancelLatency,
   coverArtPath,
 ];
@@ -30,6 +32,7 @@ export const PHASE1_BENCH_NAMES = [
   "statuspanel-event-throughput",
   "metadata-lookup-latency",
   "audio-processing-throughput",
+  "audio-processing-app-e2e",
 ];
 
 export const PHASE2_BENCH_NAMES = [

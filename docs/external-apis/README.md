@@ -92,7 +92,7 @@ Contract-sensitive perf surfaces (status panel event/render flow, metadata looku
   - `scripts/perf/baselines/synthetic-main.json`
   - `scripts/perf/baselines/real-main.json`
 - Results:
-  - `scripts/perf/results/latest.md` — combined matrix, encoder breakdown, trends
+  - `scripts/perf/results/latest.md` — combined matrix (includes app-vs-encoder attribution), encoder breakdown, trends; triage notes live here
   - `scripts/perf/results/latest.json` — latest run payload
   - `scripts/perf/results/latest-{mode}.json` — per-mode snapshots
   - `scripts/perf/results/history.ndjson` — full history

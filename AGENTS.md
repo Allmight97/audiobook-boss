@@ -92,6 +92,7 @@ Use this scale to rate the quality of code and solutions:
 **Quick start**:
 - `bun run perf` — full synthetic sweep with baseline comparison
 - `bun run perf:audio` — real audio encode test
+- `bun run perf:all` — full synthetic + real sweep (canonical all-mode command)
 - `bun run perf:list` — show available benchmarks with user-impact descriptions
 
 **Canonical runner** (manual invocation):
@@ -104,6 +105,13 @@ Use this scale to rate the quality of code and solutions:
 **Results**:
 - `scripts/perf/results/latest.md` — Performance Matrix (UX-oriented), encoder breakdown, technical detail, trends
 - `scripts/perf/results/history.ndjson` — full history
+
+**Perf Metrics Glossary**:
+- `rtf_cli`: encoder-only realtime factor (CLI transcode layer). Good for “encoder/hardware ceiling”.
+- `rtf_app`: app end-to-end realtime factor (actual backend pipeline path). This is closer to user-perceived processing speed.
+- `overhead_ratio`: `(rtf_cli - rtf_app) / rtf_cli`.
+  - High value means app overhead is taking more of the total encode time.
+  - Low value means app is “out of the way” and near encoder baseline.
 
 **Warning semantics**:
 - `warn`: >15% regression versus baseline in the wrong direction

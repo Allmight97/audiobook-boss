@@ -114,12 +114,16 @@ bun scripts/perf/run.mjs --bench statuspanel-render-lookup --mode synthetic --ru
 
 # Run all phase-1 benches with baseline compare + history append
 bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history
+
+# Run app end-to-end audio throughput attribution bench (real mode)
+bun scripts/perf/run.mjs --bench audio-processing-app-e2e --mode real --runs 3 --compare-baseline --append-history
 ```
 
 **Details:**
 - Modes: `synthetic` (deterministic) and `real` (workload-shaped).
 - Baselines: `scripts/perf/baselines/synthetic-main.json` and `scripts/perf/baselines/real-main.json`.
-- Output: `scripts/perf/results/latest.md` (combined matrix + encoder breakdown + trends), `latest-{mode}.json` (per-mode snapshots), `history.ndjson` (full history).
+- Output: `scripts/perf/results/latest.md` (combined matrix + encoder breakdown + attribution matrix + trends), `latest-{mode}.json` (per-mode snapshots), `history.ndjson` (full history).
+- Attribution matrix (real mode): when both `audio-processing-throughput` (encoder CLI layer) and `audio-processing-app-e2e` (app pipeline layer) run, `latest.md` includes `rtf_cli`, `rtf_app`, and `overhead_ratio = (rtf_cli - rtf_app) / rtf_cli` per encoder.
 - Threshold policy: `warn` when metric regresses by more than 15% versus baseline.
 - CI policy: manual/non-blocking via `.github/workflows/perf.yml`.
 

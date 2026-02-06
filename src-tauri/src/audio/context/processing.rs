@@ -41,8 +41,8 @@ impl OutputConfig {
 /// reducing the need to pass multiple parameters through function calls.
 #[derive(Clone, Debug)]
 pub struct ProcessingContext {
-    /// Tauri window for event emission
-    pub window: Window,
+    /// Optional Tauri window for event emission (None in headless perf runs)
+    pub window: Option<Window>,
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,
     /// Encoder settings (v2-only)
@@ -69,7 +69,26 @@ impl ProcessingContext {
         output: OutputConfig,
     ) -> Self {
         Self {
-            window,
+            window: Some(window),
+            session,
+            encoder_settings,
+            sample_rate,
+            output,
+            preview: None,
+            job_id: None,
+            input_index: None,
+        }
+    }
+
+    /// Creates a headless ProcessingContext (no UI event emission).
+    pub fn new_headless(
+        session: Arc<ProcessingSession>,
+        encoder_settings: EncoderSettings,
+        sample_rate: SampleRateConfig,
+        output: OutputConfig,
+    ) -> Self {
+        Self {
+            window: None,
             session,
             encoder_settings,
             sample_rate,
@@ -87,14 +106,16 @@ impl ProcessingContext {
         payload: S,
     ) -> Result<()> {
         use tauri::Emitter;
-        self.window.emit(event_name, payload).map_err(|e| {
-            crate::errors::AppError::General(format!(
-                "Failed to emit event '{}' for session {}: {}",
-                event_name,
-                self.session.id(),
-                e
-            ))
-        })?;
+        if let Some(window) = &self.window {
+            window.emit(event_name, payload).map_err(|e| {
+                crate::errors::AppError::General(format!(
+                    "Failed to emit event '{}' for session {}: {}",
+                    event_name,
+                    self.session.id(),
+                    e
+                ))
+            })?;
+        }
         Ok(())
     }
 
@@ -135,11 +156,14 @@ impl ProcessingContext {
 
     /// Creates a progress emitter scoped to this processing context
     pub fn new_emitter(&self) -> crate::audio::progress::ProgressEmitter {
-        crate::audio::progress::ProgressEmitter::with_context(
-            self.window.clone(),
-            self.job_id.clone(),
-            self.input_index,
-        )
+        match &self.window {
+            Some(window) => crate::audio::progress::ProgressEmitter::with_context(
+                window.clone(),
+                self.job_id.clone(),
+                self.input_index,
+            ),
+            None => crate::audio::progress::ProgressEmitter::headless(),
+        }
     }
 
     /// Returns the effective bitrate in kbps (v2-aware)
@@ -261,7 +285,7 @@ impl ProcessingContextBuilder {
         })?;
 
         Ok(ProcessingContext {
-            window,
+            window: Some(window),
             session,
             encoder_settings,
             sample_rate,

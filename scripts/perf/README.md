@@ -2,7 +2,7 @@
 
 ## How It Works (mental model)
 
-You have 4 benchmarks. Each measures something users actually feel:
+You have 5 benchmarks. Each measures something users actually feel:
 
 | Benchmark | What It Answers |
 |---|---|
@@ -10,6 +10,7 @@ You have 4 benchmarks. Each measures something users actually feel:
 | `statuspanel-event-throughput` | Can the UI keep up with rapid progress events? |
 | `metadata-lookup-latency` | How fast does metadata resolve when adding books? |
 | `audio-processing-throughput` | How fast do audiobooks actually encode? |
+| `audio-processing-app-e2e` | How fast the app pipeline encodes using real backend flow (for attribution) |
 
 Each benchmark runs in two modes:
 - **synthetic** — fast, deterministic, pure-JS. Great for quick checks.
@@ -53,8 +54,11 @@ Workload-shaped runs using real files/endpoints when available.
 **Notes:**
 - `metadata-lookup-latency` uses network only if `ABB_PERF_ALLOW_NETWORK=1`; otherwise it falls back to synthetic and records fallback reason.
 - `audio-processing-throughput` benchmarks encoder-path transcodes (`aac`, `aac_at`, `libfdk_aac`) and reports per-encoder realtime factors.
+- `audio-processing-app-e2e` is real-mode only and benchmarks app end-to-end encode throughput per encoder path.
 - `audio-processing-throughput` requires `media/Feedback.m4b` by default and fails fast if missing.
+- `audio-processing-app-e2e` also requires `media/Feedback.m4b` by default and fails fast if missing.
 - `audio-processing-throughput` defaults to a 300-second clip for stable and faster comparisons.
+- `audio-processing-app-e2e` defaults to a 300-second clip to keep app-pipeline comparisons stable.
 - To run full-file encode, set `ABB_PERF_AUDIO_MAX_SECONDS` to the input duration in seconds.
 
 ---
@@ -69,6 +73,7 @@ Workload-shaped runs using real files/endpoints when available.
 The markdown summary includes:
 - **Performance Matrix** — translates raw metrics into user-facing outcomes
 - **Encoder Breakdown** (real audio mode only) — per-encoder speed/throughput
+- **Attribution Matrix (App vs Encoder)** — per-encoder `rtf_cli`, `rtf_app`, and `overhead_ratio`
 - **Technical Detail** — raw bench/metric/median/p95 numbers
 - **Trend Snapshot** — ASCII sparklines from the last 12 history entries
 
@@ -100,11 +105,37 @@ Environment variables for `audio-processing-throughput`:
 - `ABB_PERF_FDK_VBR` (`1..5`, default: `3`)
 - `ABB_PERF_FDK_AFTERBURNER` (`1` default, set `0` to disable)
 
+These same `ABB_PERF_*` settings are used by `audio-processing-app-e2e` for apples-to-apples attribution.
+
 Example full-file run for `Feedback.m4b` (~1985s):
 
 ```bash
 ABB_PERF_AUDIO_MAX_SECONDS=1985 bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 3
 ```
+
+### Attribution Matrix Runbook
+
+Use this when you need to separate encoder speed from app-introduced overhead.
+
+```bash
+# Encoder-only baseline (rtf_cli)
+bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 5 --compare-baseline --append-history
+
+# App end-to-end path (rtf_app)
+bun scripts/perf/run.mjs --bench audio-processing-app-e2e --mode real --runs 5 --compare-baseline --append-history
+
+# Combined convenience sweep (runs synthetic + real)
+bun run perf:all
+```
+
+Interpretation:
+- `overhead_ratio = (rtf_cli - rtf_app) / rtf_cli`
+- `> 30%`: high app-side overhead opportunity (users likely feel slower processing)
+- `> 15%`: moderate app-side overhead
+- `> 5%`: low app-side overhead
+- `<= 5%`: near encoder baseline
+
+If the attribution matrix is missing, ensure both real-mode audio benches ran and produced overlapping encoder rows.
 
 ### Manual Invocation
 
@@ -152,6 +183,11 @@ bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --seed-baseline
 - **What it measures**: Audio DSP (synthetic) and encoder throughput (real)
 - **User impact**: Audiobooks encode fast — a 33-min book should finish in seconds, not minutes
 - **Metric**: `realtime_factor` (real) / `throughput_mib_per_s` (synthetic) — higher is better
+
+**`audio-processing-app-e2e`**
+- **What it measures**: App end-to-end backend processing throughput (decode/resample/encode/finalize) per encoder
+- **User impact**: Quantifies whether user-visible encode slowdowns come from app overhead vs encoder-only baseline
+- **Metric**: `realtime_factor` (real-mode only) — higher is better
 
 ### Phase 2 (Stubs)
 
