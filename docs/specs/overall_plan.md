@@ -7,6 +7,56 @@
 - Gate state (#181): **In progress, implementation + review follow-ups complete, pending merge decision**
 - Deferred follow-up created: [#187](https://github.com/Allmight97/audiobook-boss/issues/187) (`clap` migration for `perf_app_e2e` CLI parsing)
 
+## Fresh-Context Handoff (for a new agent)
+
+### What is already done
+- #181 implementation is complete on `perf/181-attribution-matrix`.
+- PR #186 is open and includes:
+  - app-vs-encoder attribution matrix in perf reporting
+  - headless app e2e benchmark path
+  - `tauri dev` binary ambiguity fix (`default-run = "audiobook-boss"`)
+  - docs and skill updates for perf interpretation
+- Gemini review comments were handled:
+  - fixed: non-finite attribution interpretation now shows `n/a`
+  - fixed: `perf_app_e2e::run()` migrated to `anyhow::Result<()>`
+  - deferred: `clap` parser migration moved to issue #187
+
+### Current repo/PR truth you should trust first
+- Branch: `perf/181-attribution-matrix`
+- PR: #186 ([link](https://github.com/Allmight97/audiobook-boss/pull/186))
+- Deferred issue: #187 ([link](https://github.com/Allmight97/audiobook-boss/issues/187))
+- Canonical tracker for this program: this file (`docs/specs/overall_plan.md`)
+
+### Immediate next action (do this in order)
+1. Re-run validation on branch:
+   - `scripts/standard-checks.sh`
+   - `bun run perf:all`
+2. Confirm `scripts/perf/results/latest.md` still clearly shows:
+   - UX matrix
+   - engineering signal
+   - attribution metrics (`rtf_cli`, `rtf_app`, `overhead_ratio`)
+3. Pause for user Go/No-Go on manual UX/perf checks.
+4. If Go: user merges PR #186 from GitHub.
+5. Only after merge, start Phase 2 parallel lanes (clone + branch per issue).
+
+### Hard guardrails (carry forward exactly)
+- No worktrees. Use separate local clones + one branch per issue.
+- Do not start #182/#184/#185 until #181 is merged.
+- Keep issue infra lean (avoid tracking bloat).
+- Keep product API contracts stable unless explicitly approved.
+- Docs should be updated after implementation validation and before merge.
+- User handles final merge from GitHub.
+
+### Known pitfalls from this session
+- `docs/specs/overall_plan.md` must preserve the original plan structure; add status notes inside it, do not replace with a new format.
+- Perf interpretation text must not imply healthy baseline when values are non-finite.
+- Keep attribution focus outcome-first (avoid over-indexing on internal-only metrics without UX meaning).
+
+### Commit breadcrumbs (for fast audit)
+- `0684739`: initial #181 attribution implementation + docs
+- `6e810bc`: Gemini follow-up fixes + plan ledger addition
+- `32cb6b3`: restored original plan format with status integrated
+
 ## Summary
 We will use a hybrid execution model:
 
