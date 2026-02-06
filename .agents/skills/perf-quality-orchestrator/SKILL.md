@@ -25,8 +25,7 @@ Do not trigger for unrelated feature implementation unless perf validation is ex
 - If `bench_scope=single`, require `bench_name`.
 
 2. Run quality gates first.
-- Run `scripts/quick-checks.sh`.
-- Run `scripts/standard-checks.sh` unless the user explicitly requests quick-only iteration.
+- Run `scripts/standard-checks.sh` (the default check command).
 
 3. Run performance benchmarks.
 - Preferred orchestrator: `bun scripts/perf/run.mjs --mode <mode> --bench-scope <scope> --runs <n> [--bench-name <name>]`.

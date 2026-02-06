@@ -13,7 +13,12 @@
     "app:build:all": "bun run tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "perf": "bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history",
+    "perf:audio": "bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 3 --compare-baseline --append-history",
+    "perf:real": "bun scripts/perf/run.mjs --all --mode real --runs 5 --compare-baseline --append-history",
+    "perf:quick": "bun scripts/perf/run.mjs --all --mode synthetic --runs 3",
+    "perf:list": "bun scripts/perf/run.mjs --list"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

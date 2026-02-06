@@ -1,4 +1,43 @@
 import { sparklineAscii, formatDelta } from "./shared/stats.mjs";
+import { BENCHMARKS_BY_NAME } from "./benches/index.mjs";
+
+const BENCH_UX_META = {
+  "statuspanel-render-lookup": {
+    area: "UI Rendering",
+    humanize: (median) => {
+      if (!Number.isFinite(median)) return "n/a";
+      return `${median.toFixed(2)} ms (well under 16ms frame budget)`;
+    },
+  },
+  "statuspanel-event-throughput": {
+    area: "Event Pipeline",
+    humanize: (median) => {
+      if (!Number.isFinite(median)) return "n/a";
+      const k = Math.round(median / 1000);
+      return `${k}K events/sec`;
+    },
+  },
+  "metadata-lookup-latency": {
+    area: "Search",
+    humanize: (median) => {
+      if (!Number.isFinite(median)) return "n/a";
+      return `${median.toFixed(1)} ms`;
+    },
+  },
+  "audio-processing-throughput": {
+    area: "Audio Encoding",
+    humanize: (median, mode, details) => {
+      if (!Number.isFinite(median)) return "n/a";
+      if (mode === "synthetic") {
+        return `${Math.round(median)} MiB/s`;
+      }
+      // real mode: median is realtime_factor, calculate encoding time for 33-min book
+      const bookMinutes = 33;
+      const encodeSeconds = (bookMinutes * 60) / median;
+      return `${median.toFixed(1)}x realtime (~${Math.round(encodeSeconds)}s for a ${bookMinutes}-min book)`;
+    },
+  },
+};
 
 function keyFor(row) {
   return `${row.bench_name}::${row.mode}`;
@@ -51,6 +90,44 @@ function buildSparklineRows(historyRows, latestRows) {
   });
 }
 
+function buildEncoderBreakdown(latestRows) {
+  const audioRow = latestRows.find((row) => row.bench_name === "audio-processing-throughput");
+  if (!audioRow || audioRow.mode !== "real") return null;
+
+  const encoderRuns = audioRow.details?.latest?.encoder_runs;
+  if (!Array.isArray(encoderRuns) || encoderRuns.length === 0) return null;
+
+  const lines = [];
+  lines.push("");
+  lines.push("### Encoder Breakdown (audio-processing-throughput, real mode)");
+  lines.push("");
+  lines.push("| Encoder | Speed | Throughput | Wall Time | What This Means |");
+  lines.push("| --- | ---: | ---: | ---: | --- |");
+
+  const interpretations = {
+    aac_at: "Fastest — native macOS hardware path",
+    fdk_he_aac: "Good quality-to-speed for HE-AAC",
+    native_aac: "Slowest — software-only fallback",
+  };
+
+  for (const run of encoderRuns) {
+    const encoder = run.encoder ?? "unknown";
+    const label = encoder === "aac_at" ? "aac_at (Apple)" : encoder;
+    const speed = Number.isFinite(run.realtime_factor)
+      ? `${run.realtime_factor.toFixed(1)}x realtime`
+      : "n/a";
+    const throughput = Number.isFinite(run.throughput_mib_per_s)
+      ? `${run.throughput_mib_per_s.toFixed(1)} MiB/s`
+      : "n/a";
+    const wall = Number.isFinite(run.elapsed_ms) ? `${(run.elapsed_ms / 1000).toFixed(1)}s` : "n/a";
+    const meaning = interpretations[encoder] ?? "";
+
+    lines.push(`| ${label} | ${speed} | ${throughput} | ${wall} | ${meaning} |`);
+  }
+
+  return lines.join("\n");
+}
+
 export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   const lines = [];
   lines.push("# Performance Results");
@@ -64,7 +141,34 @@ export function buildLatestMarkdown({ summary, latestRows, historyRows }) {
   );
   lines.push("");
 
-  lines.push("## Latest Benchmarks");
+  // UX/Outcomes Matrix
+  lines.push("## Performance Matrix");
+  lines.push("");
+  lines.push("| What Users Feel | Area | Result | vs Baseline | Health |");
+  lines.push("| --- | --- | ---: | ---: | --- |");
+
+  for (const row of latestRows) {
+    const bench = BENCHMARKS_BY_NAME.get(row.bench_name);
+    const userImpact = bench?.userImpact ?? row.bench_name;
+    const meta = BENCH_UX_META[row.bench_name];
+    const area = meta?.area ?? "System";
+    const result = meta?.humanize
+      ? meta.humanize(row.median, row.mode, row.details?.latest)
+      : formatNumber(row.median);
+    const delta = formatDelta(row.delta_pct);
+    const health = statusEmoji(row.status);
+
+    lines.push(`| ${userImpact} | ${area} | ${result} | ${delta} | ${health} |`);
+  }
+
+  // Encoder breakdown sub-table if applicable
+  const encoderBreakdown = buildEncoderBreakdown(latestRows);
+  if (encoderBreakdown) {
+    lines.push(encoderBreakdown);
+  }
+
+  lines.push("");
+  lines.push("## Technical Detail");
   lines.push("");
   lines.push("| Bench | Metric | Median | P95 | Delta vs Baseline | Status |");
   lines.push("| --- | --- | ---: | ---: | ---: | --- |");

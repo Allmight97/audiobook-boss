@@ -229,6 +229,7 @@ async function runRealMetadataBench() {
 export const benchmark = {
   name: "metadata-lookup-latency",
   description: "Metadata lookup pipeline latency (synthetic) and optional network probes (real).",
+  userImpact: "Book metadata resolves near-instantly when adding files to the library",
   phase: 1,
   metricType: "duration_ms",
   direction: "lower_is_better",

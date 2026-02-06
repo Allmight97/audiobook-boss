@@ -70,7 +70,7 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
     - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
   - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
 
-**Tiered checks**: Follow the repo-wide Quick/Standard/Release tiers in `AGENTS.md` and use `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, and `scripts/release-checks.sh` from the repo root.
+**Tiered checks**: Follow the repo-wide Standard/Release tiers in `AGENTS.md`. Use `scripts/standard-checks.sh` (the default go-to) and `scripts/release-checks.sh` from the repo root.
 
 **Workspace note**: Run cargo commands from the repo root (workspace). No need to `cd src-tauri`.
 

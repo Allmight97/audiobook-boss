@@ -97,6 +97,7 @@ export function runLookupBenchmark(options = {}) {
 export const benchmark = {
   name: "statuspanel-render-lookup",
   description: "StatusPanel render ordering lookup hot-path.",
+  userImpact: "Progress panel stays smooth when processing large queues (target: under 16ms frame budget)",
   phase: 1,
   metricType: "duration_ms",
   direction: "lower_is_better",

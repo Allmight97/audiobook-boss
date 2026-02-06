@@ -1,15 +1,110 @@
 # Perf System
 
-This directory contains repo-native performance benchmarks for Audiobook Boss.
+## How It Works (mental model)
 
-## Goals
+You have 4 benchmarks. Each measures something users actually feel:
 
-- Provide repeatable local/CI perf signals.
-- Support single benchmark and run-all workflows.
-- Compare against committed baselines with a 15% warning threshold.
-- Track trend history over time in machine + human readable formats.
+| Benchmark | What It Answers |
+|---|---|
+| `statuspanel-render-lookup` | Does the progress panel stay snappy as queues grow? |
+| `statuspanel-event-throughput` | Can the UI keep up with rapid progress events? |
+| `metadata-lookup-latency` | How fast does metadata resolve when adding books? |
+| `audio-processing-throughput` | How fast do audiobooks actually encode? |
 
-## Commands
+Each benchmark runs in two modes:
+- **synthetic** — fast, deterministic, pure-JS. Great for quick checks.
+- **real** — uses actual files and encoders. Shows true user-facing performance.
+
+Results compare against committed baselines (15% threshold):
+- **OK** = users won't notice a difference
+- **WARN** = users would feel this regression
+- **IMPROVED** = ship it, things got faster
+
+---
+
+## Quick Start
+
+```bash
+bun run perf            # Full synthetic sweep (the default go-to)
+bun run perf:audio      # Real audio encode test
+bun run perf:real       # All benchmarks, real mode
+bun run perf:quick      # Fast 3-run gut check
+bun run perf:list       # What benchmarks exist + what they measure
+```
+
+---
+
+## Modes
+
+### Synthetic Mode
+
+Deterministic local workloads that run quickly and consistently. Pure CPU/memory ops, no external dependencies (no ffmpeg, no network).
+
+Use synthetic mode for:
+- Pre-commit checks
+- Iteration loops during development
+- Fast baseline comparisons
+
+### Real Mode
+
+Workload-shaped runs using real files/endpoints when available.
+
+**Notes:**
+- `metadata-lookup-latency` uses network only if `ABB_PERF_ALLOW_NETWORK=1`; otherwise it falls back to synthetic and records fallback reason.
+- `audio-processing-throughput` benchmarks encoder-path transcodes (`aac`, `aac_at`, `libfdk_aac`) and reports per-encoder realtime factors.
+- `audio-processing-throughput` requires `media/Feedback.m4b` by default and fails fast if missing.
+- `audio-processing-throughput` defaults to a 300-second clip for stable and faster comparisons.
+- To run full-file encode, set `ABB_PERF_AUDIO_MAX_SECONDS` to the input duration in seconds.
+
+---
+
+## Results
+
+- **Latest markdown summary**: `scripts/perf/results/latest.md`
+- **Latest machine-readable summary**: `scripts/perf/results/latest.json`
+- **Historical run rows**: `scripts/perf/results/history.ndjson`
+
+The markdown summary includes:
+- **Performance Matrix** — translates raw metrics into user-facing outcomes
+- **Encoder Breakdown** (real audio mode only) — per-encoder speed/throughput
+- **Technical Detail** — raw bench/metric/median/p95 numbers
+- **Trend Snapshot** — ASCII sparklines from the last 12 history entries
+
+---
+
+## Baselines
+
+- `scripts/perf/baselines/synthetic-main.json`
+- `scripts/perf/baselines/real-main.json`
+
+Comparison status semantics:
+- `ok`: within threshold.
+- `warn`: >15% regression versus baseline.
+- `improved`: >15% improvement.
+- `missing`: no baseline value.
+- `skipped`: benchmark intentionally skipped (phase 2 stubs).
+
+---
+
+## Advanced Usage
+
+### Override Real-Mode Audio Settings
+
+Environment variables for `audio-processing-throughput`:
+- `ABB_PERF_AUDIO_INPUT` (relative path from repo root, default: `media/Feedback.m4b`)
+- `ABB_PERF_AUDIO_MAX_SECONDS` (clip duration cap, default: `300`)
+- `ABB_PERF_AAC_BITRATE_KBPS` (default: `64`)
+- `ABB_PERF_NATIVE_TWOOLOOP` (`1` default, set `0` to disable)
+- `ABB_PERF_FDK_VBR` (`1..5`, default: `3`)
+- `ABB_PERF_FDK_AFTERBURNER` (`1` default, set `0` to disable)
+
+Example full-file run for `Feedback.m4b` (~1985s):
+
+```bash
+ABB_PERF_AUDIO_MAX_SECONDS=1985 bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 3
+```
+
+### Manual Invocation
 
 ```bash
 # List benches
@@ -29,48 +124,39 @@ bun scripts/perf/run.mjs --mode synthetic --bench-scope single --bench-name stat
 bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --seed-baseline
 ```
 
-## Modes
+---
 
-- `synthetic`: deterministic local workloads that run quickly and consistently.
-- `real`: workload-shaped runs using real files/endpoints when available.
+## Benchmark Catalog
 
-Real mode notes:
-- `metadata-lookup-latency` uses network only if `ABB_PERF_ALLOW_NETWORK=1`; otherwise it falls back to synthetic and records fallback reason.
-- `audio-processing-throughput` benchmarks encoder-path transcodes (`aac`, `aac_at`, `libfdk_aac`) and reports per-encoder realtime factors.
-- `audio-processing-throughput` requires `media/Feedback.m4b` by default and fails fast if missing.
-- `audio-processing-throughput` defaults to a 300-second clip for stable and faster comparisons.
-- To run full-file encode, set `ABB_PERF_AUDIO_MAX_SECONDS` to the input duration in seconds (example below).
-- Real-mode override env vars for `audio-processing-throughput`:
-  - `ABB_PERF_AUDIO_INPUT` (relative path from repo root)
-  - `ABB_PERF_AUDIO_MAX_SECONDS` (clip duration cap, default `300`)
-  - `ABB_PERF_AAC_BITRATE_KBPS` (default `64`)
-  - `ABB_PERF_NATIVE_TWOOLOOP` (`1` default, set `0` to disable)
-  - `ABB_PERF_FDK_VBR` (`1..5`, default `3`)
-  - `ABB_PERF_FDK_AFTERBURNER` (`1` default, set `0` to disable)
+### Phase 1 (Active)
 
-Example full-file run for `Feedback.m4b` (~1985s):
+**`statuspanel-render-lookup`**
+- **What it measures**: Progress panel render ordering lookup hot-path (O(n) vs O(1))
+- **User impact**: Progress panel stays smooth when processing large queues
+- **Metric**: `duration_ms` (lower is better)
+- **Target**: Under 16ms frame budget
 
-```bash
-ABB_PERF_AUDIO_MAX_SECONDS=1985 bun scripts/perf/run.mjs --bench audio-processing-throughput --mode real --runs 3
-```
+**`statuspanel-event-throughput`**
+- **What it measures**: End-to-end progress event handling throughput
+- **User impact**: UI handles rapid progress updates without stuttering during batch jobs
+- **Metric**: `events_per_second` (higher is better)
 
-## Results
+**`metadata-lookup-latency`**
+- **What it measures**: Metadata lookup pipeline latency
+- **User impact**: Book metadata resolves near-instantly when adding files to the library
+- **Metric**: `duration_ms` (lower is better)
 
-- Latest machine-readable summary: `scripts/perf/results/latest.json`
-- Latest markdown summary: `scripts/perf/results/latest.md`
-- Historical run rows: `scripts/perf/results/history.ndjson`
+**`audio-processing-throughput`**
+- **What it measures**: Audio DSP (synthetic) and encoder throughput (real)
+- **User impact**: Audiobooks encode fast — a 33-min book should finish in seconds, not minutes
+- **Metric**: `realtime_factor` (real) / `throughput_mib_per_s` (synthetic) — higher is better
 
-## Baselines
+### Phase 2 (Stubs)
 
-- `scripts/perf/baselines/synthetic-main.json`
-- `scripts/perf/baselines/real-main.json`
+- `cancel-latency` — Job cancellation responsiveness (not implemented)
+- `cover-art-path` — Cover art read/render path (not implemented)
 
-Comparison status semantics:
-- `ok`: within threshold.
-- `warn`: >15% regression versus baseline.
-- `improved`: >15% improvement.
-- `missing`: no baseline value.
-- `skipped`: benchmark intentionally skipped (phase 2 stubs).
+---
 
 ## Result Row Schema
 
@@ -87,21 +173,11 @@ Each benchmark result row includes:
 - `baseline_median`, `delta_pct`, `status`
 - `details`
 
-## Bench Catalog
-
-Phase 1:
-- `statuspanel-render-lookup`
-- `statuspanel-event-throughput`
-- `metadata-lookup-latency`
-- `audio-processing-throughput`
-
-Phase 2 stubs:
-- `cancel-latency`
-- `cover-art-path`
+---
 
 ## Troubleshooting
 
-- Unknown benchmark: run `--list` and use one of the printed names.
-- Missing baseline: run with `--seed-baseline` intentionally after validating run quality.
-- Network errors in metadata real mode: use `ABB_PERF_ALLOW_NETWORK=1` and verify connectivity.
-- FFmpeg failures in real audio mode: ensure `ffmpeg` and `ffprobe` are installed.
+- **Unknown benchmark**: run `bun run perf:list` and use one of the printed names.
+- **Missing baseline**: run with `--seed-baseline` intentionally after validating run quality.
+- **Network errors in metadata real mode**: use `ABB_PERF_ALLOW_NETWORK=1` and verify connectivity.
+- **FFmpeg failures in real audio mode**: ensure `ffmpeg` and `ffprobe` are installed and on PATH.

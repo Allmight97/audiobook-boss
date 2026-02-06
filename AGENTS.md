@@ -74,40 +74,45 @@ Use this scale to rate the quality of code and solutions:
 
 **Tiered checks (run from repo root)**
 
-- **Quick (pre-commit / iteration)**: `scripts/quick-checks.sh`
-  - Optional: set `SKIP_TS_CHECK=1` for Rust-only loops.
-- **Standard (pre-push / PR readiness)**: `scripts/standard-checks.sh`
-  - Runs Quick with `SKIP_TS_CHECK=1`, then `cargo test`, then `bun run build` (includes `tsc`).
+- **Standard (default)**: `scripts/standard-checks.sh` — the go-to command for all workflows
+  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, `ensure-contract.sh`, `cargo test`, `bun run build` (includes `tsc`)
+  - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
 - **Release (pre-release)**: `scripts/release-checks.sh`
-  - Runs Standard, then `cargo build --release -p audiobook-boss`.
+  - Runs Standard, then `cargo build --release -p audiobook-boss`
+  - Run before tagging/publishing a release
 
 **Workspace note**: Cargo runs from the repo root (workspace). No need to `cd src-tauri`. If any doc says otherwise, prefer running from root.
 
-**When to run**
-- Quick: before committing and during AI iteration loops.
-- Standard: before pushing a PR/publishing a branch, before merging to `main`, or when changes touch runtime behavior (encoder, progress, metadata).
-- Release: before tagging/publishing a release.
+**Note**: `scripts/quick-checks.sh` still exists for backward compat (lint-only subset) but is no longer the primary workflow. Use Standard for daily work.
 
 ### Perf System (non-gating)
 
-- Perf root: `scripts/perf/`
-- Canonical runner:
-  - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
-- Single bench:
-  - `bun scripts/perf/run.mjs --bench <bench-name> --mode synthetic --runs 9 --compare-baseline --append-history`
-- Baselines:
-  - `scripts/perf/baselines/synthetic-main.json`
-  - `scripts/perf/baselines/real-main.json`
-- Trend outputs:
-  - `scripts/perf/results/history.ndjson`
-  - `scripts/perf/results/latest.md`
-- Warning semantics:
-  - `warn`: >15% regression versus baseline in the wrong direction.
-  - `improved`: >15% improvement versus baseline.
-  - `missing`: baseline entry not set yet.
-- Agent guidance:
-  - Run perf when touching queue/progress rendering, metadata lookup paths, or audio processing paths.
-  - Treat perf as advisory during release prep unless user explicitly asks to gate merges.
+**Full docs**: `scripts/perf/README.md`
+
+**Quick start**:
+- `bun run perf` — full synthetic sweep with baseline comparison
+- `bun run perf:audio` — real audio encode test
+- `bun run perf:list` — show available benchmarks with user-impact descriptions
+
+**Canonical runner** (manual invocation):
+- `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
+
+**Baselines**:
+- `scripts/perf/baselines/synthetic-main.json`
+- `scripts/perf/baselines/real-main.json`
+
+**Results**:
+- `scripts/perf/results/latest.md` — Performance Matrix (UX-oriented), encoder breakdown, technical detail, trends
+- `scripts/perf/results/history.ndjson` — full history
+
+**Warning semantics**:
+- `warn`: >15% regression versus baseline in the wrong direction
+- `improved`: >15% improvement versus baseline
+- `missing`: baseline entry not set yet
+
+**Agent guidance**:
+- Run perf when touching queue/progress rendering, metadata lookup paths, or audio processing paths
+- Treat perf as advisory during release prep unless user explicitly asks to gate merges
 
 ## Version & Changelog
 

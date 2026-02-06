@@ -282,6 +282,7 @@ export const benchmark = {
   name: "audio-processing-throughput",
   description:
     "Audio throughput benchmark using synthetic DSP and real encoder-path transcodes.",
+  userImpact: "Audiobooks encode fast — a 33-min book should finish in seconds, not minutes",
   phase: 1,
   metricType: "realtime_factor",
   direction: "higher_is_better",

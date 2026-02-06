@@ -61,6 +61,7 @@ function generateProgressEvents(workload) {
 export const benchmark = {
   name: "statuspanel-event-throughput",
   description: "StatusPanel event handling throughput using domain/service helpers.",
+  userImpact: "UI handles rapid progress updates without stuttering during batch jobs",
   phase: 1,
   metricType: "events_per_second",
   direction: "higher_is_better",

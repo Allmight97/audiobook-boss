@@ -16,13 +16,7 @@ Follow these steps to avoid version drift and TS/Rust contract mismatches.
 
 ## Optional Checks (Before Merge/Release)
 
-Quick tier (pre-commit / iteration):
-
-```bash
-scripts/quick-checks.sh
-```
-
-Standard tier (pre-push / PR readiness):
+Standard tier (default for all workflows):
 
 ```bash
 scripts/standard-checks.sh

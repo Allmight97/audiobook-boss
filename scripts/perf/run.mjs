@@ -186,12 +186,19 @@ function resolveBenchSelection(parsed) {
 }
 
 function listBenchmarks() {
-  console.log("Available benchmarks:");
+  console.log("Available benchmarks:\n");
   BENCHMARKS.forEach((bench) => {
-    console.log(
-      `- ${bench.name} (phase ${bench.phase}) :: ${bench.metricType}, ${bench.direction}`
-    );
+    console.log(`  ${bench.name} (phase ${bench.phase})`);
+    console.log(`    Metric: ${bench.metricType} (${bench.direction.replace(/_/g, " ")})`);
+    if (bench.userImpact) {
+      console.log(`    Impact: ${bench.userImpact}`);
+    }
+    console.log("");
   });
+  console.log("Quick start:");
+  console.log("  bun run perf         Full synthetic sweep with baseline comparison");
+  console.log("  bun run perf:audio   Real audio encode test");
+  console.log("  bun run perf:list    This listing");
 }
 
 async function runBenchmark(bench, config) {
