@@ -18,8 +18,7 @@ Read the checklist before starting work. It tracks:
 
 ## Work style & decision framework
 
-- Lead with a plain-English recommendation and expected outcome.
-- Use specific examples with actionable improvements and a neutral coaching tone.
+- ALWAYS blend SWE engineering jargon and vernacular through lens of UX/outcomes using a helpful coaching tone. The user wants to learn engineering jargon/vernacular while also understanding how it affects the user experience and outcomes.
 - Use Tri-Order impact analysis (immediate UX/DX → architectural ripple → long-term maintenance) when a decision affects UX/DX, architecture, or long-term behavior.
 - Use engineering principles to guide decisions; state trade-offs when principles conflict.
 - Propose the right-sized change (smallest effective change, but suggest larger refactors when the ROI is clear and get approval).
@@ -27,8 +26,7 @@ Read the checklist before starting work. It tracks:
 - Minimize diffs; prefer the smallest effective change.
 - Favor project conventions; validate against principles and documented patterns.
 - Maintain contracts; keep progress emission behavior and TS/Rust boundaries type-safe.
-- Ask for product intent only when it materially changes the solution.
-- When asked to "go full gonzo" - Brainstorm & explore without constraints, still rank findings & recs by effort/impact ratio. Explore like a senior specialist; prioritize like a pragmatic founder. Apply the regret test: "Would we regret NOT doing this before the next milestone?"
+- When asked to "go full gonzo" - Brainstorm & explore without constraints, ranking findings & recs by effort/impact ratio. Explore like a senior specialist; prioritize like a pragmatic founder. Apply the regret test: "Would we regret NOT doing this before the next milestone?"
 
 **Avoid**
 - Vague feedback • urgent language • hidden assumptions
