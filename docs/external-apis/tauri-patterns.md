@@ -29,6 +29,22 @@ if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
 - `input_index` is an optional stable index into the original input list (used to map progress to file metadata/cover art).
 - `processing-queue` emits queue snapshots (`items`, `max_concurrent`) to keep UI queue order aligned with backend scheduling.
 
+### Perf observability touchpoints
+
+- Perf runner: `bun scripts/perf/run.mjs`.
+- Relevant benches for this contract surface:
+  - `statuspanel-render-lookup`
+  - `statuspanel-event-throughput`
+  - `metadata-lookup-latency`
+- Recommended command:
+  - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
+- Trend artifacts:
+  - `scripts/perf/results/history.ndjson`
+  - `scripts/perf/results/latest.md`
+- Threshold semantics:
+  - `warn`: >15% regression vs baseline in the wrong direction
+  - `improved`: >15% improvement vs baseline
+
 ### Progress stage mapping
 
 | Stage (ProcessingStage / ProgressEvent.stage) | Percentage range | Notes |

@@ -88,6 +88,27 @@ RUST_LOG=audiobook_boss=debug bun run tauri dev
 RUST_LOG=warn,audiobook_boss=debug bun run tauri dev
 ```
 
+### Performance Benchmarks
+
+Run the perf system from `scripts/perf` for local and manual CI trend checks.
+
+```bash
+# List all benches
+bun scripts/perf/run.mjs --list
+
+# Run one bench
+bun scripts/perf/run.mjs --bench statuspanel-render-lookup --mode synthetic --runs 9
+
+# Run all phase-1 benches with baseline compare + history append
+bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history
+```
+
+- Modes: `synthetic` (deterministic) and `real` (workload-shaped).
+- Baselines: `scripts/perf/baselines/synthetic-main.json` and `scripts/perf/baselines/real-main.json`.
+- Trend output: `scripts/perf/results/history.ndjson` and `scripts/perf/results/latest.md`.
+- Threshold policy: `warn` when metric regresses by more than 15% versus baseline.
+- CI policy: manual/non-blocking via `.github/workflows/perf.yml`.
+
 ## Coding Standards
 
 - TypeScript: strict mode; explicit types; avoid `any`; camelCase filenames; PascalCase types

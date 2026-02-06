@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "mode": "real",
+  "warn_threshold_pct": 15,
+  "updated_at": "2026-02-06T03:40:53.881Z",
+  "benchmarks": {
+    "statuspanel-render-lookup": {
+      "metric_type": "duration_ms",
+      "direction": "lower_is_better",
+      "median": 10.45,
+      "p95": 10.828,
+      "stddev": 0.2,
+      "updated_at": "2026-02-06T03:40:43.514Z",
+      "git_sha": "4c73174"
+    },
+    "statuspanel-event-throughput": {
+      "metric_type": "events_per_second",
+      "direction": "higher_is_better",
+      "median": 196783.142,
+      "p95": 202349.202,
+      "stddev": 3498.62,
+      "updated_at": "2026-02-06T03:40:43.514Z",
+      "git_sha": "4c73174"
+    },
+    "metadata-lookup-latency": {
+      "metric_type": "duration_ms",
+      "direction": "lower_is_better",
+      "median": 17.321,
+      "p95": 18.094,
+      "stddev": 0.437,
+      "updated_at": "2026-02-06T03:40:43.514Z",
+      "git_sha": "4c73174"
+    },
+    "audio-processing-throughput": {
+      "metric_type": "throughput_mib_per_s",
+      "direction": "higher_is_better",
+      "median": 19.079,
+      "p95": 19.316,
+      "stddev": 0.174,
+      "updated_at": "2026-02-06T03:40:43.514Z",
+      "git_sha": "4c73174"
+    }
+  }
+}

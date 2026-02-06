@@ -37,3 +37,7 @@ docs/model_tests/*
 opencode.json
 .btca/
 .learnings/
+
+# Perf run artifacts (generated locally/CI)
+/scripts/perf/results/*
+!/scripts/perf/results/.gitkeep

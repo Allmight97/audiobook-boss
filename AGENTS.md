@@ -89,6 +89,27 @@ Use this scale to rate the quality of code and solutions:
 - Standard: before pushing a PR/publishing a branch, before merging to `main`, or when changes touch runtime behavior (encoder, progress, metadata).
 - Release: before tagging/publishing a release.
 
+### Perf System (non-gating)
+
+- Perf root: `scripts/perf/`
+- Canonical runner:
+  - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
+- Single bench:
+  - `bun scripts/perf/run.mjs --bench <bench-name> --mode synthetic --runs 9 --compare-baseline --append-history`
+- Baselines:
+  - `scripts/perf/baselines/synthetic-main.json`
+  - `scripts/perf/baselines/real-main.json`
+- Trend outputs:
+  - `scripts/perf/results/history.ndjson`
+  - `scripts/perf/results/latest.md`
+- Warning semantics:
+  - `warn`: >15% regression versus baseline in the wrong direction.
+  - `improved`: >15% improvement versus baseline.
+  - `missing`: baseline entry not set yet.
+- Agent guidance:
+  - Run perf when touching queue/progress rendering, metadata lookup paths, or audio processing paths.
+  - Treat perf as advisory during release prep unless user explicitly asks to gate merges.
+
 ## Version & Changelog
 
 **Version sources** (must stay in sync):

@@ -73,3 +73,24 @@ To maintain the integrity of "The Bridge", we use `scripts/ensure-contract.sh` t
 - **What it does**: It extracts all `invoke()` calls from the TypeScript source and compares them against the registered commands in the Rust `generate_handler!` block.
 - **Why it matters**: It prevents "Dead End Invitations" where the UI tries to call a command that no longer exists in Rust, or where a Rust command is added but forgotten in the UI.
 - **Usage**: Run `scripts/ensure-contract.sh` from the repository root. It will exit with an error if there's a mismatch.
+
+---
+
+## 📈 Performance System
+
+Contract-sensitive perf surfaces (status panel event/render flow, metadata lookup path, audio processing path) are tracked with repo-native scripts under `scripts/perf/`.
+
+- Runner: `bun scripts/perf/run.mjs`
+- Usage:
+  - `bun scripts/perf/run.mjs --list`
+  - `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`
+- Baselines:
+  - `scripts/perf/baselines/synthetic-main.json`
+  - `scripts/perf/baselines/real-main.json`
+- Results:
+  - `scripts/perf/results/latest.json`
+  - `scripts/perf/results/history.ndjson`
+  - `scripts/perf/results/latest.md`
+- Threshold semantics:
+  - `warn`: >15% regression vs baseline
+  - `improved`: >15% improvement vs baseline
