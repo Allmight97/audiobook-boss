@@ -28,6 +28,7 @@ Read the checklist before starting work. It tracks:
 - Favor project conventions; validate against principles and documented patterns.
 - Maintain contracts; keep progress emission behavior and TS/Rust boundaries type-safe.
 - Ask for product intent only when it materially changes the solution.
+- When asked to "go full gonzo" - Brainstorm & explore without constraints, still rank findings & recs by effort/impact ratio. Explore like a senior specialist; prioritize like a pragmatic founder. Apply the regret test: "Would we regret NOT doing this before the next milestone?"
 
 **Avoid**
 - Vague feedback • urgent language • hidden assumptions
