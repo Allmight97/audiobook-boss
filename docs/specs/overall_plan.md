@@ -147,7 +147,7 @@ Validation:
 - Merge to `main`
 
 Status update:
-- **Not started.**
+- **Complete.** Backend throttle 500→1000ms, frontend rAF batching, frontend throttle 500→1000ms. All checks pass, perf validated.
 
 ### Phase 4: Program Closeout
 - Final `bun run perf:all` on `main`
@@ -157,7 +157,11 @@ Status update:
   - remaining opportunities (if any)
 
 Status update:
-- **Not started.**
+- **Complete.** Final perf sweep executed on commit `a1f920c`. Closeout summary posted to issue #180 ([comment link](https://github.com/Allmight97/audiobook-boss/issues/180#issuecomment-3865109430)) with:
+  - Per-issue synthetic-mode deltas (4c73174 → a1f920c): statuspanel stable, event-throughput reduced by design (cadence alignment), metadata improved -5.3%, audio stable
+  - Real-mode benchmarks established (no pre-program baseline; current state becomes new baseline)
+  - UX outcomes: 50% fewer IPC events, ~127x status panel render speedup (510ms → 4ms for 500-job list), rAF batching, attribution matrix live
+  - Remaining opportunities: native_aac 33.6% overhead, Phase 2 bench stubs, real-mode baseline establishment
 
 ## Parallel-Agent Safety Protocol (No Toe-Stepping)
 - One issue = one clone = one branch = one agent owner.

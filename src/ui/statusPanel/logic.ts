@@ -49,6 +49,10 @@ export class StatusPanel {
   private batchCompletionTimeout?: number;
   private currentJobType: "merge" | "batch" | null = null;
   private lastCoverArtPath: string | null = null;
+  /** Track pending render to coalesce rAF batches */
+  private pendingRender = false;
+  /** Latest progress event data for deferred rendering */
+  private latestProgressEvent: ProcessingProgressEvent | null = null;
 
   constructor() {
     this.currentStatus = createInitialStatus();
@@ -238,9 +242,14 @@ export class StatusPanel {
     }
     this.lastProgressRenderByKey.set(jobKey, now);
 
+    // --- SYNCHRONOUS STATE UPDATES ---
+    // Store latest event for deferred rendering
+    this.latestProgressEvent = event;
+
     const existing = this.jobProgress.get(jobKey);
     const jobStatus: JobStatus = isTerminal ? (event.stage as JobStatus) : "processing";
 
+    // Update job progress map
     this.jobProgress.set(jobKey, {
       jobId: event.job_id ?? existing?.jobId,
       inputIndex: typeof event.input_index === "number" ? event.input_index : existing?.inputIndex,
@@ -252,6 +261,7 @@ export class StatusPanel {
       lastUpdate: now,
     });
 
+    // Update queue order if new job
     if (typeof event.input_index === "number") {
       const key = this.buildJobKey(event.input_index, undefined);
       if (!this.queueOrderSet.has(key)) {
@@ -260,12 +270,14 @@ export class StatusPanel {
       }
     }
 
-    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+    this.isProcessing = this.jobProgress.size > 0;
 
     const isBatchActive = this.queueOrder.length > 0;
 
+    // Handle terminal events (completion/failure/cancellation)
     if (isTerminal) {
       if (!isBatchActive) {
+        // Single-job mode: schedule cleanup and reset
         setTimeout(() => {
           this.jobProgress.delete(jobKey);
           if (this.jobProgress.size === 0) {
@@ -284,44 +296,14 @@ export class StatusPanel {
           renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
         }, 2000);
       } else if (this.areAllBatchJobsTerminal()) {
+        // Batch mode: all jobs terminal, schedule batch completion
         this.scheduleBatchCompletion();
       }
     }
 
-    this.isProcessing = this.jobProgress.size > 0;
-
-    // Calculate aggregate progress
-    const { aggregate, stage } = this.calculateAggregateProgressAndStage();
-    this.updateConcurrencyIndicator(aggregate);
-
-    // Derive status from aggregate (use most advanced active stage)
-    const status: ProcessingStatus = {
-      stage,
-      percentage: aggregate.overallPercentage,
-      message: formatAggregateMessage(this.jobProgress, aggregate),
-      currentFile: event.current_file,
-      etaSeconds: event.eta_seconds,
-    };
-
-    this.updateStatus(status);
-
-    if (this.currentJobType === "batch") {
-      const indexedPath =
-        typeof event.input_index === "number"
-          ? this.findFilePathByIndex(event.input_index)
-          : null;
-      if (indexedPath) {
-        void this.updateArtThumbnailForFile(indexedPath);
-      } else if (event.current_file) {
-        const filename = extractFilenameFromProgress(event.current_file);
-        if (filename) {
-          const filePath = this.findFilePathByName(filename);
-          if (filePath) {
-            void this.updateArtThumbnailForFile(filePath);
-          }
-        }
-      }
-    }
+    // --- DEFERRED UI RENDERING ---
+    // Schedule render (immediate for terminal, batched for progress updates)
+    this.scheduleRender(isTerminal);
   }
 
   private calculateAggregateProgressAndStage(): {
@@ -408,6 +390,8 @@ export class StatusPanel {
     this.queueOrder = [];
     this.queueOrderSet.clear();
     this.lastProgressRenderByKey.clear();
+    this.pendingRender = false;
+    this.latestProgressEvent = null;
     renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 
     this.updateStatus(createInitialStatus());
@@ -419,6 +403,68 @@ export class StatusPanel {
 
     // Reset art thumbnail to placeholder
     dom.resetArtThumbnail();
+  }
+
+  /**
+   * Schedule a UI render, either immediate (for terminal events) or batched via rAF.
+   * Coalesces multiple render requests within a single frame into one flush.
+   */
+  private scheduleRender(immediate: boolean): void {
+    if (immediate) {
+      this.flushRender();
+    } else if (!this.pendingRender) {
+      this.pendingRender = true;
+      requestAnimationFrame(() => this.flushRender());
+    }
+  }
+
+  /**
+   * Execute all pending UI rendering work:
+   * - Render job list
+   * - Calculate aggregate progress
+   * - Update status panel
+   * - Update concurrency indicator
+   * - Update art thumbnail (if applicable)
+   */
+  private flushRender(): void {
+    this.pendingRender = false;
+
+    // Render job list
+    renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+
+    // Calculate aggregate progress and stage
+    const { aggregate, stage } = this.calculateAggregateProgressAndStage();
+    this.updateConcurrencyIndicator(aggregate);
+
+    // Build status from latest event data (if available)
+    const status: ProcessingStatus = {
+      stage,
+      percentage: aggregate.overallPercentage,
+      message: formatAggregateMessage(this.jobProgress, aggregate),
+      currentFile: this.latestProgressEvent?.current_file,
+      etaSeconds: this.latestProgressEvent?.eta_seconds,
+    };
+    this.updateStatus(status);
+
+    // Handle art thumbnail updates for batch jobs
+    if (this.currentJobType === "batch" && this.latestProgressEvent) {
+      const event = this.latestProgressEvent;
+      const indexedPath =
+        typeof event.input_index === "number"
+          ? this.findFilePathByIndex(event.input_index)
+          : null;
+      if (indexedPath) {
+        void this.updateArtThumbnailForFile(indexedPath);
+      } else if (event.current_file) {
+        const filename = extractFilenameFromProgress(event.current_file);
+        if (filename) {
+          const filePath = this.findFilePathByName(filename);
+          if (filePath) {
+            void this.updateArtThumbnailForFile(filePath);
+          }
+        }
+      }
+    }
   }
 
   private async updateArtThumbnail(): Promise<void> {

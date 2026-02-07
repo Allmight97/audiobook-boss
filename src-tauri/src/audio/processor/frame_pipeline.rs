@@ -4,6 +4,9 @@ use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
+/// Progress emission throttle interval (milliseconds)
+const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
+
 /// Result of checking per-file preview progress
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreviewAction {
@@ -36,7 +39,7 @@ pub(crate) struct FramePipelineCtx<'a> {
 }
 
 fn emit_progress_update(ctx: &mut FramePipelineCtx) {
-    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(500) {
+    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(PROGRESS_EMIT_INTERVAL_MS) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
         let percentage = crate::audio::progress::converting_percentage_from_seconds(

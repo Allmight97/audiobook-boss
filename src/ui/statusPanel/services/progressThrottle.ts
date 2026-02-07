@@ -1,7 +1,7 @@
 import { STAGES } from "../../../types/events";
 import type { ProcessingProgressEvent } from "../../../types/events";
 
-const DEFAULT_PROGRESS_THROTTLE_MS = 500;
+const DEFAULT_PROGRESS_THROTTLE_MS = 1000;
 
 export function isTerminalProgressEvent(event: ProcessingProgressEvent): boolean {
   return (

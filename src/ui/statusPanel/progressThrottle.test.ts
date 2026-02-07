@@ -41,7 +41,7 @@ describe("StatusPanel progress throttling", () => {
     job = (panel as any).jobProgress.get("job:job-1");
     expect(job?.percentage).toBe(10);
 
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await new Promise((resolve) => setTimeout(resolve, 1050));
     const evt3 = { ...evt, percentage: 30, message: "thirty" };
     panel.updateProgress(evt3);
     const updated = (panel as any).jobProgress.get("job:job-1");
@@ -74,7 +74,7 @@ describe("StatusPanel progress throttling", () => {
     expect(job2?.percentage).toBe(20);
   });
 
-  it("does not throttle terminal events inside the same 500ms window", () => {
+  it("does not throttle terminal events inside the throttle window", () => {
     const panel = new StatusPanel();
 
     (panel as any).handleQueueSnapshot({
