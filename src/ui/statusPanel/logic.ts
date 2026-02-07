@@ -390,6 +390,8 @@ export class StatusPanel {
     this.queueOrder = [];
     this.queueOrderSet.clear();
     this.lastProgressRenderByKey.clear();
+    this.pendingRender = false;
+    this.latestProgressEvent = null;
     renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 
     this.updateStatus(createInitialStatus());
