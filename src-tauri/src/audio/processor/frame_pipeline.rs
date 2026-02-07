@@ -36,7 +36,7 @@ pub(crate) struct FramePipelineCtx<'a> {
 }
 
 fn emit_progress_update(ctx: &mut FramePipelineCtx) {
-    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(500) {
+    if ctx.last_emit.elapsed() > std::time::Duration::from_millis(1000) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
         let percentage = crate::audio::progress::converting_percentage_from_seconds(
