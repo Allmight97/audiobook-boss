@@ -10,7 +10,6 @@ Implement Issue #183 (progress cadence alignment) + Phase 4 closeout for perform
 
 ### Setup
 - Branch: `perf/183-progress-cadence` created from `main` (commit `ed91a36`)
-- Plan file: `/Users/jstar/.claude/plans/wondrous-mixing-torvalds.md`
 - Execution: Agent teams implement, Codex reserved for minimal pre-PR review only
 
 ### Observations
