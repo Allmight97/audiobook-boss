@@ -147,7 +147,7 @@ Validation:
 - Merge to `main`
 
 Status update:
-- **Not started.**
+- **Complete.** Backend throttle 500→1000ms, frontend rAF batching, frontend throttle 500→1000ms. All checks pass, perf validated.
 
 ### Phase 4: Program Closeout
 - Final `bun run perf:all` on `main`
