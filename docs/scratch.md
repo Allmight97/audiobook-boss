@@ -30,4 +30,12 @@ Implement Issue #183 (progress cadence alignment) + Phase 4 closeout for perform
 ### Learnings
 (Insights and patterns discovered during implementation)
 
+### Phase 4 Closeout (Commit 6)
+- **Commit 6 complete** (pending commit): Final performance program summary posted to issue #180. Composed comprehensive closeout covering:
+  - Per-issue perf deltas: Synthetic mode showed statuspanel stable, event-throughput reduced by design (cadence alignment = more throttling), metadata improved -5.3%, audio stable within noise
+  - Real-mode note: Benchmarks were introduced during program (issue #181), so no pre-program baseline exists. Current state (a1f920c) establishes new baseline going forward.
+  - UX outcomes summary: 50% reduction in backend IPC events (500→1000ms cadence), ~127x status panel render speedup (510ms → 4ms for 500-job list via incremental rendering), rAF batching eliminates redundant DOM updates, attribution matrix now separates encoder speed from app overhead
+  - Remaining opportunities: native_aac shows 33.6% app overhead (vs 7.9% aac_at, 6.3% fdk_he_aac), Phase 2 bench stubs (cancel-latency, cover-art-path) deferred, real-mode baseline now established for future tracking
+- Updated `docs/specs/overall_plan.md` to mark Phase 4 complete with summary and GitHub comment link.
+
 ---
