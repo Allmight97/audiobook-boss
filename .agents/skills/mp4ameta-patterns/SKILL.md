@@ -370,7 +370,6 @@ let write_cfg = WriteConfig {
 
 ### Related Documentation
 - [AtomicParsley Doc](http://atomicparsley.sourceforge.net/mpeg-4files.html) - MP4 atom reference
-- [Mutagen Doc](https://mutagen.readthedocs.io/en/latest/api/mp4.html) - Python MP4 handling (reference)
 - [Apple QuickTime Metadata](https://developer.apple.com/library/archive/documentation/QuickTime/QTFF/Metadata/Metadata.html) - Official atom spec
 
 ### Codebase
