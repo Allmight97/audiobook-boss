@@ -25,6 +25,7 @@ Implement Issue #183 (progress cadence alignment) + Phase 4 closeout for perform
 
 ### Mistakes & Corrections
 - Branch already existed from previous session — deleted and recreated fresh
+- **Gemini review feedback** (commit aa8962d): Extracted magic number `1000` to `PROGRESS_EMIT_INTERVAL_MS` constant in `frame_pipeline.rs` for better readability/maintainability
 
 ### Learnings
 (Insights and patterns discovered during implementation)
