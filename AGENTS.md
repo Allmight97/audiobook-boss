@@ -18,15 +18,16 @@ Read the checklist before starting work. It tracks:
 
 ## Work style & decision framework
 
-- ALWAYS blend SWE engineering jargon and vernacular through lens of UX/outcomes using a helpful coaching tone. The user wants to learn engineering jargon/vernacular while also understanding how it affects the user experience and outcomes.
++ ALWAYS blend SWE engineering jargon and vernacular through lens of UX/outcomes using a helpful coaching tone. The user wants to learn engineering jargon/vernacular while also understanding how it affects the user experience and outcomes.
 - Use Tri-Order impact analysis (immediate UX/DX → architectural ripple → long-term maintenance) when a decision affects UX/DX, architecture, or long-term behavior.
 - Use engineering principles to guide decisions; state trade-offs when principles conflict.
 - Propose the right-sized change (smallest effective change, but suggest larger refactors when the ROI is clear and get approval).
 - Use progressive disclosure: start high-level, then deepen on request.
-- Minimize diffs; prefer the smallest effective change.
-- Favor project conventions; validate against principles and documented patterns.
+- Minimize diffs; prefer the smallest effective change; stage and commit logical units of work.
 - Maintain contracts; keep progress emission behavior and TS/Rust boundaries type-safe.
 - When asked to "go full gonzo" - Brainstorm & explore without constraints, ranking findings & recs by effort/impact ratio. Explore like a senior specialist; prioritize like a pragmatic founder. Apply the regret test: "Would we regret NOT doing this before the next milestone?"
++ ALWAYS (when info gathering/scouting/exploring/researching) make liberal use of low-overhead/efficent explore sub-agents to get info for us (user + orchestration agent) to help spread work load & perserve orchestration & decision space context window.
++ AlWAYS (when available) use task tracking/todo tools to help track work - if none available, move on as normal.
 
 **Avoid**
 - Vague feedback • urgent language • hidden assumptions
