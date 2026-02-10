@@ -27,11 +27,14 @@ Required fields per fallback:
 | FB-015 | `src/lib/bridge.ts` | non-Tauri runtime requires DEV mocks / non-DEV no-op rejection path | bridge init + non-Tauri warning logs | 2026-06-30 (revalidate) | #195 | Active |
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe disabled/fails and synthetic fallback is used | benchmark result details include `fixture-fallback` + reason | 2026-06-30 (revalidate) | #195 | Active |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifact files missing (`ENOENT`) | report output demonstrates empty baseline/history bootstrap path | 2026-06-30 (revalidate) | #195 | Active |
+| FB-018 | `src/ui/statusPanel.ts` | legacy import paths still resolve via aggregator re-export shim | static import graph + build/tests continue resolving through shim path | framework migration phase 2 completion, no later than 2026-06-30 | #195 | Active |
+| FB-019 | `src/ui/fileList/state.ts` | direct mutable state exports retained for old import contracts | static import graph + behavior-contract tests keep UX flow stable | framework migration phase 2 completion, no later than 2026-06-30 | #195 | Active |
 
 ## Migration Hooks (Svelte + Tailwind Track)
 
 - FB-008 is migration-bound and must be removed when framework migration reaches typed component/service paths.
 - FB-014 and FB-015 should be re-evaluated during framework migration once component-level state management replaces global provider/runtime branching.
+- FB-018 and FB-019 should be removed as import/state ownership is migrated to framework-managed modules.
 - Framework migration PR checklist must include:
   - no new dual-key fallback aliases,
   - explicit review of active FB-* entries,
