@@ -97,7 +97,7 @@ async function loadMetadataForFile(
   if (existing) return existing;
 
   try {
-    const metadata = await bridge.invoke<AudiobookMetadata>(
+    const metadata = await bridge.invoke(
       "read_audio_metadata",
       { filePath: file.path }
     );
@@ -200,7 +200,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
       setCoverArt(null);
       return;
     }
-    const metadata = await bridge.invoke<AudiobookMetadata>(
+    const metadata = await bridge.invoke(
       "read_audio_metadata",
       { filePath: firstValid.path }
     );

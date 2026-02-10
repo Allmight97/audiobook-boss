@@ -228,7 +228,7 @@ const persistState = (): void => {
 
 const hydrateAvailability = async (): Promise<void> => {
   try {
-    cachedAvailability = await bridge.invoke<EncoderAvailability>(
+    cachedAvailability = await bridge.invoke(
       "list_available_encoders"
     );
     debugLog("Encoder availability:", cachedAvailability);

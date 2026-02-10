@@ -391,7 +391,7 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
 async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
   if (!result.coverUrl) return null;
   try {
-    const coverBytes = await bridge.invoke<number[]>(
+    const coverBytes = await bridge.invoke(
       "load_cover_art_from_url",
       { url: result.coverUrl }
     );
@@ -466,7 +466,7 @@ async function runSearch(): Promise<void> {
   setStatus("Searching metadata sources…", "info");
 
   try {
-    const results = await bridge.invoke<OnlineMetadataResult[]>(
+    const results = await bridge.invoke(
       "search_online_metadata",
       { query, sources, limit: 8 }
     );

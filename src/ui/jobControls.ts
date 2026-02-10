@@ -122,13 +122,13 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
     try {
         let effective: number;
         if (value === "auto") {
-            effective = await bridge.invoke<number>("set_max_concurrent_jobs", { max_concurrent: null });
+            effective = await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
         } else {
             const parsed = parseInt(value, 10);
             if (!Number.isFinite(parsed)) {
                 return;
             }
-            effective = await bridge.invoke<number>("set_max_concurrent_jobs", {
+            effective = await bridge.invoke("set_max_concurrent_jobs", {
                 max_concurrent: parsed,
             });
         }

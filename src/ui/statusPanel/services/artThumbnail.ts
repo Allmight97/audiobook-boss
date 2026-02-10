@@ -1,5 +1,4 @@
 import { bridge } from "../../../lib/bridge";
-import type { AudiobookMetadata } from "../../../types/metadata";
 import { convertBytesToDataUrl } from "../formatting";
 
 export function shouldSkipCoverArtRead(
@@ -12,7 +11,7 @@ export function shouldSkipCoverArtRead(
 export async function readCoverArtDataUrl(
   filePath: string
 ): Promise<string | null> {
-  const metadata = await bridge.invoke<AudiobookMetadata>("read_audio_metadata", {
+  const metadata = await bridge.invoke("read_audio_metadata", {
     filePath,
   });
 

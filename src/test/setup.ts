@@ -15,6 +15,9 @@ vi.mock('@tauri-apps/api/core', () => ({
     console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
     return Promise.resolve(undefined);
   }),
+  Channel: class MockChannel {
+    // Minimal placeholder required by generated tauri-specta bindings import surface.
+  },
 }));
 
 // Mock Tauri's event API

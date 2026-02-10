@@ -1,6 +1,6 @@
 import { bridge } from "../lib/bridge";
 import { FileListInfo } from "../types/audio";
-import { EventPayload, isFileDropEvent } from "../types/events";
+import { isFileDropEvent } from "../types/events";
 import { displayFileList } from "./fileList";
 import { isOrderLocked } from "./fileList/state";
 
@@ -21,7 +21,7 @@ function setupDragDropHandlers(): void {
 
   // Listen for the Tauri file drop event
   // Payload is now { paths: string[], position: { x, y } }
-  bridge.listen<EventPayload<"tauri://drag-drop">>(
+  bridge.listen(
     "tauri://drag-drop",
     async (event) => {
       dropZoneHeader?.classList.remove("drag-over");

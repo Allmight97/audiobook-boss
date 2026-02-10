@@ -172,7 +172,7 @@ export async function startProcessing(
         await Promise.all(
           missingMetadata.map(async (filePath) => {
             try {
-              const metadata = await bridge.invoke<AudiobookMetadata>(
+              const metadata = await bridge.invoke(
                 "read_audio_metadata",
                 { filePath }
               );
@@ -211,12 +211,7 @@ export async function startProcessing(
         Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
     }
 
-    const result = await bridge.invoke<{
-      message: string;
-      previewFilePath?: string;
-      previewActualSeconds?: number;
-      jobId?: string;
-    }>("process_audiobook_files_v2", {
+    const result = await bridge.invoke("process_audiobook_files_v2", {
       payload: v2Payload,
       metadata: metadataPayload,
       previewSeconds: options?.previewSeconds,
