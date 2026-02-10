@@ -981,6 +981,20 @@ The design governance requirements (lines 368-378) include:
 
 ---
 
+### Fallback Burn-Down Hooks (must run before/during migration)
+
+Track active fallbacks in `docs/engineering/fallback-register.md` and tie burn-down to migration checkpoints:
+- `FB-008` (bridge legacy command wrapper) must be removed by framework migration Phase 2 completion (no later than 2026-05-31).
+- `FB-003` and `FB-004` must remain explicit/observable if retained during component migration.
+- No new dual-key alias fallbacks should be introduced while moving to Svelte + Tailwind.
+
+Migration PRs should include:
+1. Updated fallback register entries for touched fallback IDs.
+2. Sunset decision for any fallback retained past the milestone.
+3. Outcome-based test proof that UX behavior is unchanged.
+
+---
+
 ### Phase 2: Design + Architecture Checkpoint (with Opus)
 **Outcome**: Token source-of-truth, component variant strategy, baseline screenshots
 

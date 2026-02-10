@@ -9,6 +9,7 @@
     "check": "scripts/checks.sh standard",
     "check:quick": "scripts/checks.sh quick",
     "check:release": "scripts/checks.sh release",
+    "check:fallback": "scripts/check-fallback-policy.sh",
     "preview": "vite preview",
     "tauri": "tauri",
     "app:build": "bun run tauri build --bundles app",

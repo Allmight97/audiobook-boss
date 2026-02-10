@@ -48,6 +48,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 ```bash
 scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + TS + contract drift + build)
+scripts/check-fallback-policy.sh      # Fallback governance check (marker + sunset + issue metadata)
 cargo test                              # All tests (unit + integration)
 cargo test --tests                      # All external test binaries
 cargo test --test unit_audio_buffer_tests   # Specific unit test file

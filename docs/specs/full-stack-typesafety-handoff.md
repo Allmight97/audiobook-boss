@@ -91,6 +91,11 @@ For `processing-progress` and `processing-queue`, assert:
 - `bun run test`
 - `bun run bindings:check`
 
+## Fallback Governance
+- Register intentional fallbacks in `docs/engineering/fallback-register.md`.
+- All fallback markers must include issue + sunset metadata and pass `scripts/check-fallback-policy.sh`.
+- Migration-bound fallback for bridge wrapper is tracked in #203.
+
 ## Commit Grouping Rule
 Commit in coherent units (contract builder, derives, exporter, bridge mapping, tests, docs).  
 Each commit should be reviewable and independently meaningful.

@@ -43,6 +43,8 @@ Read the checklist before starting work. It tracks:
   - **Time-bounded**: define removal condition and target milestone/version/issue.
 - Every fallback must be called out in PR notes and linked to a tracking issue for removal.
 - Hidden compatibility aliases (accepting multiple key shapes silently) are disallowed unless explicitly approved.
+- Register all intentional fallbacks in `docs/engineering/fallback-register.md`.
+- `scripts/check-fallback-policy.sh` enforces fallback marker metadata (`issue=#...`, `sunset=...`) and register parity.
 
 ## Engineering Principles (rate 1-5 when reviewing)
 

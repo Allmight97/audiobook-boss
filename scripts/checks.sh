@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: fmt + clippy + IPC binding drift
+# - quick: fmt + clippy + IPC binding drift + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
 # - release: standard + release build
 #
@@ -95,6 +95,9 @@ run_quick() {
 
   log_step "scripts/check-generated-bindings.sh"
   bash scripts/check-generated-bindings.sh
+
+  log_step "scripts/check-fallback-policy.sh"
+  bash scripts/check-fallback-policy.sh
 }
 
 run_standard() {
