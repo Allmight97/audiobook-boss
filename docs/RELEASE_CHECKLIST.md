@@ -50,7 +50,7 @@
 
 ### Pre-Release
 - [ ] All must-fix issues resolved
-- [ ] Run release checks: `scripts/release-checks.sh` (runs Standard tier + `cargo build --release -p audiobook-boss`)
+- [ ] Run release checks: `scripts/checks.sh release` (runs Standard tier + `cargo build --release -p audiobook-boss`)
 - [ ] Manual smoke test (create M4B, edit metadata, batch process)
 - [ ] Optional perf suite (non-blocking): run `bun run perf` (or `bun run perf:all` for synthetic + real) and review `scripts/perf/results/latest.md` for trend deltas
 

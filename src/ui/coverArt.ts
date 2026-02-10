@@ -1,5 +1,5 @@
 import { bridge } from "../lib/bridge";
-import { isFileDropEvent, EventPayload } from "../types/events";
+import { isFileDropEvent } from "../types/events";
 
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
@@ -88,8 +88,8 @@ export function initCoverArt(): void {
     });
 
     // Handle Global Drag & Drop (Tauri Event) for Cover Art
-    bridge.listen<EventPayload<"tauri://drag-drop">>(
-        "tauri://drag-drop",
+    bridge.listen(
+      "tauri://drag-drop",
         async (event) => {
             if (!isFileDropEvent(event.payload)) return;
             const { position, paths } = event.payload;
@@ -211,7 +211,7 @@ async function handleLoadCoverArtFromInput(
  */
 async function loadCoverArtFile(filePath: string): Promise<void> {
     try {
-        const imageData = await bridge.invoke<number[]>("load_cover_art_file", {
+        const imageData = await bridge.invoke("load_cover_art_file", {
             filePath: filePath,
         });
 
@@ -228,7 +228,7 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
     try {
         setCoverArtLoading(true);
         clearCoverArtMessage();
-        const imageData = await bridge.invoke<number[]>("load_cover_art_from_url", {
+        const imageData = await bridge.invoke("load_cover_art_from_url", {
             url: url,
         });
 

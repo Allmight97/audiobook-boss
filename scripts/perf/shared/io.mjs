@@ -28,6 +28,9 @@ export async function readJson(pathLike, fallback = null) {
     const raw = await readFile(pathLike, "utf8");
     return JSON.parse(raw);
   } catch (error) {
+    // FALLBACK[FB-017]: trigger=optional perf artifact absent on disk (ENOENT)
+    // observe=callers explicitly pass fallback defaults and resulting reports indicate missing baselines/history
+    // sunset=2026-06-30 issue=#195
     if (error && error.code === "ENOENT") {
       return fallback;
     }
@@ -54,6 +57,9 @@ export async function readNdjson(pathLike) {
       .filter(Boolean)
       .map((line) => JSON.parse(line));
   } catch (error) {
+    // FALLBACK[FB-017]: trigger=perf history file not created yet (ENOENT)
+    // observe=report output indicates empty history and rebuilds from first run
+    // sunset=2026-06-30 issue=#195
     if (error && error.code === "ENOENT") {
       return [];
     }

@@ -12,6 +12,7 @@ use std::time::Duration;
 /// Reads metadata from an audio file
 /// Returns metadata as JSON-serializable struct
 #[tauri::command]
+#[specta::specta]
 pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
@@ -29,6 +30,7 @@ pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata>
 /// 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
 /// 3. Handles cover art: preserves existing if not provided, replaces if new art given
 #[tauri::command]
+#[specta::specta]
 pub async fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
@@ -75,6 +77,7 @@ pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) 
 /// Writes cover art to an M4B file
 /// Accepts file path and base64-encoded image data
 #[tauri::command]
+#[specta::specta]
 pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_audio_path(&path)?;
@@ -101,6 +104,7 @@ pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
 /// Loads image file from disk and returns as byte array
 /// Supports common image formats: jpg, jpeg, png, webp
 #[tauri::command]
+#[specta::specta]
 pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     use std::fs;
 
@@ -128,6 +132,7 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 /// HTTPS-only with size and content-type validation for safety.
 /// Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 #[tauri::command]
+#[specta::specta]
 pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let url_for_log = validated_url.as_str().to_string();

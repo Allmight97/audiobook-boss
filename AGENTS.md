@@ -34,6 +34,24 @@ Read the checklist before starting work. It tracks:
 - Compatibility fallbacks or broad refactors unless explicitly requested; or the issue warrants it by violating guidelines of this repo.
 - Silent defensive fallbacks or compatibility shims without justification (state concrete trigger, affected contract/caller, and removal condition when temporary).
 
+## Fallback Policy (Strict)
+
+- Default stance: **no fallback/shim** unless there is a clear and present need.
+- Any fallback must be **explicit, observable, and time-bounded**:
+  - **Explicit**: document trigger, scope (who/what depends on it), and why fail-fast is not acceptable.
+  - **Observable**: add a detectable signal (log/metric/test assertion) so usage can be seen during QA/operations.
+  - **Time-bounded**: define removal condition and target milestone/version/issue.
+- Every fallback must be called out in PR notes and linked to a tracking issue for removal.
+- Hidden compatibility aliases (accepting multiple key shapes silently) are disallowed unless explicitly approved.
+- Register all intentional fallbacks in `docs/engineering/fallback-register.md`.
+- `scripts/check-fallback-policy.sh` enforces fallback marker metadata (`issue=#...`, `sunset=...`) and register parity.
+- Acceptance rule: a fallback is not allowed unless the same PR includes marker metadata, register entry, observability signal, and a linked removal/revalidation issue.
+
+## Generated Artifacts (Strict)
+
+- For generated files, prefer robust post-processing (append or syntax-aware edits) over fragile `replacen`/exact-string anchoring.
+- If exact-string patching is unavoidable, fail fast with a clear error when the anchor changes; never silently continue.
+
 ## Engineering Principles (rate 1-5 when reviewing)
 
 **Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling
@@ -69,22 +87,21 @@ Use this scale to rate the quality of code and solutions:
 - PR review via automated GitHub agent (Gemini). CI workflow is optional/manual and should not be relied upon.
 - PR reviews: always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 - Feature branches → PR → review → merge to main
-- Use `gh issue create --body-file` or a heredoc for multi-line issue bodies to avoid literal `\\n` characters in GitHub issues.
+- Use `--body-file` (or heredoc) for multi-line `gh` issue/PR create/edit/comment commands to avoid shell interpolation and malformed comments.
 
 ## Checks & Gates
 
 **Tiered checks (run from repo root)**
 
-- **Standard (default)**: `scripts/standard-checks.sh` — the go-to command for all workflows
-  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, `ensure-contract.sh`, `cargo test`, `bun run build` (includes `tsc`)
+- **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
+  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
-- **Release (pre-release)**: `scripts/release-checks.sh`
+  - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
+- **Release (pre-release)**: `scripts/checks.sh release`
   - Runs Standard, then `cargo build --release -p audiobook-boss`
   - Run before tagging/publishing a release
 
 **Workspace note**: Cargo runs from the repo root (workspace). No need to `cd src-tauri`. If any doc says otherwise, prefer running from root.
-
-**Note**: `scripts/quick-checks.sh` still exists for backward compat (lint-only subset) but is no longer the primary workflow. Use Standard for daily work.
 
 ### Perf System (non-gating)
 

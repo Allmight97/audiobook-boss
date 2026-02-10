@@ -2,6 +2,8 @@
 
 Inherits principles from root `AGENTS.md`. This file covers TypeScript conventions, UI patterns, and frontend testing.
 
+Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, observable, time-bounded, with removal tracking) and be listed in `docs/engineering/fallback-register.md`.
+
 ---
 
 ## Code Conventions
@@ -10,6 +12,7 @@ Inherits principles from root `AGENTS.md`. This file covers TypeScript conventio
 - Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
 - Class-based UI modules with DOM caching; event-driven via `listen()`
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
+- Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings.
 
 ---
 

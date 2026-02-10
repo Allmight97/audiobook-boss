@@ -25,20 +25,64 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
                     || metadata.subseries_part.is_none()
                     || metadata.cover_art.is_none()
                 {
-                    if let Ok(fallback) = read_metadata_with_ffmpeg(path) {
-                        metadata.series = metadata.series.or(fallback.series);
-                        metadata.series_part = metadata.series_part.or(fallback.series_part);
-                        metadata.subseries = metadata.subseries.or(fallback.subseries);
-                        metadata.subseries_part =
-                            metadata.subseries_part.or(fallback.subseries_part);
-                        if metadata.cover_art.is_none() {
-                            metadata.cover_art = normalize_cover_art(fallback.cover_art);
+                    // FALLBACK[FB-001]: trigger=mp4ameta read succeeds but leaves key fields unset
+                    // observe=warn log with backfilled fields
+                    // sunset=2026-03-31 issue=#196
+                    match read_metadata_with_ffmpeg(path) {
+                        Ok(fallback) => {
+                            let mut backfilled_fields: Vec<&str> = Vec::new();
+
+                            if metadata.series.is_none() && fallback.series.is_some() {
+                                backfilled_fields.push("series");
+                            }
+                            if metadata.series_part.is_none() && fallback.series_part.is_some() {
+                                backfilled_fields.push("series_part");
+                            }
+                            if metadata.subseries.is_none() && fallback.subseries.is_some() {
+                                backfilled_fields.push("subseries");
+                            }
+                            if metadata.subseries_part.is_none()
+                                && fallback.subseries_part.is_some()
+                            {
+                                backfilled_fields.push("subseries_part");
+                            }
+                            let fallback_cover_art = normalize_cover_art(fallback.cover_art);
+                            if metadata.cover_art.is_none() && fallback_cover_art.is_some() {
+                                backfilled_fields.push("cover_art");
+                            }
+
+                            metadata.series = metadata.series.or(fallback.series);
+                            metadata.series_part = metadata.series_part.or(fallback.series_part);
+                            metadata.subseries = metadata.subseries.or(fallback.subseries);
+                            metadata.subseries_part =
+                                metadata.subseries_part.or(fallback.subseries_part);
+                            if metadata.cover_art.is_none() {
+                                metadata.cover_art = fallback_cover_art;
+                            }
+
+                            if !backfilled_fields.is_empty() {
+                                log::warn!(
+                                    "FALLBACK[FB-001] applied ffmpeg partial metadata hydration for {} (fields: {})",
+                                    path.display(),
+                                    backfilled_fields.join(", ")
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "FALLBACK[FB-001] ffmpeg partial metadata hydration unavailable for {}: {}",
+                                path.display(),
+                                e
+                            );
                         }
                     }
                 }
                 return Ok(metadata);
             }
             Err(e) => {
+                // FALLBACK[FB-001]: trigger=mp4ameta read fails and ffmpeg fallback path is required
+                // observe=warn log with primary read failure reason
+                // sunset=2026-03-31 issue=#196
                 log::warn!("mp4ameta read failed ({}); falling back to ffmpeg", e);
             }
         }
@@ -64,6 +108,9 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     metadata.description = dict.get("description").map(str::to_string);
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
 
+    // FALLBACK[FB-007]: trigger=legacy files with movement-tag-only series metadata
+    // observe=covered via metadata fallback tests and migration fallback register
+    // sunset=2026-05-31 issue=#202
     // Series metadata: prefer canonical tags, fall back to legacy/movement tags
     let series_raw = first_tag(
         &dict,

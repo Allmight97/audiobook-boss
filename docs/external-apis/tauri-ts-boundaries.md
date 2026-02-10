@@ -1,21 +1,26 @@
 ## TypeScript boundaries for Tauri commands and events
 
 ### Where used
-- `src/types/events.ts` (EVENTS and ProcessingProgressEvent)
-- `src/main.ts` (invoke wrappers in window.testCommands)
-- `src/ui/statusPanel` (events → UI state transitions)
-- `src-tauri/src/commands/*` (Rust commands for audio and metadata)
+- Rust contract source: `src-tauri/src/ipc_contract.rs`
+- Generated TS contract: `src/lib/generated/tauri.ts`
+- Bridge compatibility layer: `src/lib/bridge.ts`
+- Event compatibility contract: `src/types/events.ts`
+- UI consumers: `src/ui/statusPanel`, `src/ui/fileImport`, `src/ui/coverArt`
 
-### Centralized event types
+### Contract model
 
-- Define event names and payload interfaces in one module to prevent string/value drift.
-- This repo uses `src/types/events.ts` to define `EVENTS.PROGRESS`, `EVENTS.QUEUE`, and payload interfaces (`ProcessingProgressEvent`, `ProcessingQueueEvent`).
+- Commands/events are exported from Rust via tauri-specta.
+- The generated file is committed to keep reviews deterministic.
+- `bridge.ts` preserves legacy command/event names and normalizes nullability for existing UI types.
+- Bridge inputs are strict at the boundary: no dual-key alias fallbacks (for example, no mixed `previewSeconds`/`preview_seconds` or `job_id`/`jobId` acceptance).
 
-### Command typing
+### Command typing and drift checks
 
-- Prefer typed wrappers or generics for `invoke`, e.g. `invoke<ResultType>('command', args)`.
-- Keep command args and return shapes stable and documented.
-- `process_audiobook_files_v2` now accepts a per-file metadata map keyed by input path.
+- Use `bridge.invoke("<legacy_command_name>", args)` from UI modules.
+- Legacy command names remain stable (`snake_case`) even though generated functions are camelCase.
+- Run `bun run bindings:generate` after Rust IPC type changes.
+- Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh`) to detect drift.
+- `scripts/checks.sh standard` is the canonical quality gate and includes binding drift checks.
 
 ### State ownership
 
@@ -26,3 +31,5 @@
 
 - Install listeners at start of an operation; unlisten on idle to avoid leaks.
 - Consider `beforeunload` cleanup as a safety net.
+- App events (`processing-progress`, `processing-queue`) are listened via generated tauri-specta event bindings through `bridge.listen`.
+- Built-in Tauri drag events remain manually typed in `src/types/events.ts`.

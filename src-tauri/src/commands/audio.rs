@@ -15,6 +15,7 @@ use std::path::PathBuf;
 /// Validates that all provided file paths exist and are files
 /// Accepts an array of file paths and checks file existence
 #[tauri::command]
+#[specta::specta]
 pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
     if file_paths.is_empty() {
         return Err(AppError::InvalidInput(
@@ -48,6 +49,7 @@ pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
 /// Validates and analyzes a list of audio files
 /// Returns comprehensive file information including duration and size
 #[tauri::command]
+#[specta::specta]
 pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
     audio::get_file_list_info(&paths)
@@ -55,6 +57,7 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 
 /// Validates encoder settings (no side effects)
 #[tauri::command]
+#[specta::specta]
 pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
     validate_encoder_settings(&settings)?;
     Ok("Encoder settings are valid".to_string())
@@ -62,6 +65,7 @@ pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String
 
 /// Lists runtime encoder availability so the UI can surface guidance.
 #[tauri::command]
+#[specta::specta]
 pub fn list_available_encoders() -> EncoderAvailability {
     log::info!("🔍 list_available_encoders command invoked");
     let result = detect_available_encoders();
@@ -71,12 +75,14 @@ pub fn list_available_encoders() -> EncoderAvailability {
 
 /// Returns the current maximum concurrent jobs setting
 #[tauri::command]
+#[specta::specta]
 pub fn get_max_concurrent_jobs(registry: tauri::State<'_, crate::ManagedJobRegistry>) -> usize {
     registry.max_concurrent()
 }
 
 /// Updates the maximum concurrent jobs setting (requires idle state)
 #[tauri::command]
+#[specta::specta]
 pub async fn set_max_concurrent_jobs(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     max_concurrent: Option<usize>,
@@ -85,11 +91,15 @@ pub async fn set_max_concurrent_jobs(
     registry.update_max_concurrent(desired).await
 }
 
+/// FALLBACK[FB-008]: trigger=stable IPC command contract for existing UI callsites
+/// observe=behavior-contract tests assert command name parity
+/// sunset=2026-05-31 issue=#203
 /// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).
 ///
 /// This command now supports parallel batch processing via the JobRegistry.
 /// Multiple invocations can run concurrently up to the configured limit.
 #[tauri::command]
+#[specta::specta]
 pub async fn process_audiobook_files_v2(
     window: tauri::Window,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
@@ -110,6 +120,7 @@ pub async fn process_audiobook_files_v2(
 /// Cancels all active audio processing operations
 /// Sets the global cancellation flag in the job registry
 #[tauri::command]
+#[specta::specta]
 pub async fn cancel_processing(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     job_id: Option<String>,

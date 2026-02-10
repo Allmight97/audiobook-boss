@@ -1,5 +1,8 @@
 import { FileListInfo } from '../../types/audio';
 
+// FALLBACK[FB-019]: trigger=older UI modules still import direct mutable state exports
+// observe=static import graph + behavior-contract tests validate unchanged UX flow
+// sunset=framework migration phase 2 completion, no later than 2026-06-30 issue=#195
 // Core state variables - keep direct exports for backward compatibility
 export let currentFileList: FileListInfo | null = null;
 export let selectedFileIndex: number = -1;

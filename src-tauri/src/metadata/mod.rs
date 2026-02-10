@@ -28,7 +28,7 @@ pub mod passthrough;
 /// - `series` = Series name (freeform SERIES, mirrored to MVNM)
 /// - `series_part` = Book number in series (freeform SERIES-PART, mirrored to MVIN)
 /// - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     /// Title of the audiobook (©nam)
     pub title: Option<String>,

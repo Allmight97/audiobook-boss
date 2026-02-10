@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+
+import { bridge, BRIDGE_APP_EVENT_NAMES, BRIDGE_COMMAND_NAMES } from "./bridge";
+import { defaultEncoderSettings, type ProcessV2Payload } from "../types/audio";
+import { EVENTS, STAGES, type ProcessingProgressEvent, type ProcessingQueueEvent } from "../types/events";
+
+const EXPECTED_COMMAND_NAMES = [
+  "analyze_audio_files",
+  "cancel_processing",
+  "echo",
+  "get_max_concurrent_jobs",
+  "list_available_encoders",
+  "load_cover_art_file",
+  "load_cover_art_from_url",
+  "ping",
+  "process_audiobook_files_v2",
+  "read_audio_metadata",
+  "save_metadata_to_file",
+  "search_online_metadata",
+  "set_max_concurrent_jobs",
+  "validate_encoder_settings_cmd",
+  "validate_files",
+  "write_cover_art",
+] as const;
+
+const EXPECTED_EVENT_NAMES = ["processing-progress", "processing-queue"] as const;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<void> {
+  const started = Date.now();
+  while (!predicate()) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for condition`);
+    }
+    await sleep(25);
+  }
+}
+
+describe("compatibility guards", () => {
+  it("keeps legacy command names stable", () => {
+    expect([...BRIDGE_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
+  });
+
+  it("keeps app event names stable", () => {
+    expect([...BRIDGE_APP_EVENT_NAMES]).toEqual([...EXPECTED_EVENT_NAMES]);
+  });
+});
+
+describe("behavior-first IPC smoke", () => {
+  it("preserves analyze outcome contract", async () => {
+    const result = await bridge.invoke("analyze_audio_files", {
+      filePaths: ["/mock/path/chapter1.mp3", "/mock/path/chapter2.mp3"],
+    });
+
+    expect(result.validCount).toBeGreaterThan(0);
+    expect(result.files.length).toBeGreaterThan(0);
+    expect(typeof result.totalDuration).toBe("number");
+    expect(typeof result.totalSize).toBe("number");
+  });
+
+  it("preserves metadata lookup outcome contract", async () => {
+    const results = await bridge.invoke("search_online_metadata", {
+      query: "mock search",
+      sources: ["audnexus"],
+      limit: 8,
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]?.source).toBe("audnexus");
+    expect(typeof results[0]?.title).toBe("string");
+  });
+
+  it("preserves processing event behavior invariants", async () => {
+    const progressEvents: ProcessingProgressEvent[] = [];
+    const queueEvents: ProcessingQueueEvent[] = [];
+
+    const unlistenProgress = await bridge.listen(EVENTS.PROGRESS, (event) => {
+      progressEvents.push(event.payload);
+    });
+    const unlistenQueue = await bridge.listen(EVENTS.QUEUE, (event) => {
+      queueEvents.push(event.payload);
+    });
+
+    const payload: ProcessV2Payload = {
+      inputFiles: ["/mock/path/chapter1.mp3", "/mock/path/chapter2.mp3"],
+      outputDir: "/mock/output",
+      settings: defaultEncoderSettings(),
+      sampleRate: "auto",
+      jobType: "batch",
+      outputNaming: {
+        absCompatible: true,
+        includeYear: false,
+      },
+    };
+
+    await bridge.invoke("process_audiobook_files_v2", {
+      payload,
+      metadata: null,
+      previewSeconds: null,
+    });
+
+    await sleep(250);
+    await bridge.invoke("cancel_processing", { job_id: "mock-job-1" });
+
+    await waitFor(
+      () =>
+        progressEvents.some(
+          (e) => e.stage === STAGES.completed || e.stage === STAGES.cancelled
+        ),
+      4_000
+    );
+
+    expect(queueEvents.length).toBeGreaterThan(0);
+    expect(queueEvents[0]?.items.length).toBeGreaterThan(0);
+    expect(queueEvents[0]?.max_concurrent).toBeGreaterThan(0);
+
+    const seenStages = new Set(progressEvents.map((event) => event.stage));
+    expect(
+      seenStages.has(STAGES.converting) ||
+        seenStages.has(STAGES.completed) ||
+        seenStages.has(STAGES.cancelled)
+    ).toBe(true);
+
+    for (const event of progressEvents) {
+      expect(event.percentage).toBeGreaterThanOrEqual(0);
+      expect(event.percentage).toBeLessThanOrEqual(100);
+      expect(typeof event.message).toBe("string");
+    }
+
+    unlistenProgress();
+    unlistenQueue();
+  });
+
+  it("preserves cancellation terminal event behavior", async () => {
+    const progressEvents: ProcessingProgressEvent[] = [];
+    const unlisten = await bridge.listen(EVENTS.PROGRESS, (event) => {
+      progressEvents.push(event.payload);
+    });
+
+    await bridge.invoke("cancel_processing", { job_id: "mock-job-1" });
+
+    await waitFor(
+      () => progressEvents.some((event) => event.stage === STAGES.cancelled),
+      2_000
+    );
+
+    expect(progressEvents.some((event) => event.stage === STAGES.cancelled)).toBe(true);
+    unlisten();
+  });
+});

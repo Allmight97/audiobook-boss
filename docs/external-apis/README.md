@@ -68,11 +68,11 @@ Ensuring system safety and data integrity at the boundaries of the local machine
 
 ## 🏗️ Automated Contract Validation
 
-To maintain the integrity of "The Bridge", we use `scripts/ensure-contract.sh` to ensure the JS and Rust sides of the API stay in sync.
+To maintain the integrity of "The Bridge", this repo treats generated IPC bindings as the source of truth.
 
-- **What it does**: It extracts all `invoke()` calls from the TypeScript source and compares them against the registered commands in the Rust `generate_handler!` block.
-- **Why it matters**: It prevents "Dead End Invitations" where the UI tries to call a command that no longer exists in Rust, or where a Rust command is added but forgotten in the UI.
-- **Usage**: Run `scripts/ensure-contract.sh` from the repository root. It will exit with an error if there's a mismatch.
+- **What it does**: `scripts/check-generated-bindings.sh` regenerates `src/lib/generated/tauri.ts` and fails on drift.
+- **Why it matters**: It prevents silent TS↔Rust contract drift by requiring committed generated bindings to match command/event definitions.
+- **Usage**: Run `scripts/checks.sh standard` from the repository root (or `bun run bindings:check` for drift-only verification).
 
 ---
 

@@ -47,6 +47,8 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 ### Testing (run from repo root)
 
 ```bash
+scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + TS + contract drift + build)
+scripts/check-fallback-policy.sh      # Fallback governance check (marker + sunset + issue metadata)
 cargo test                              # All tests (unit + integration)
 cargo test --tests                      # All external test binaries
 cargo test --test unit_audio_buffer_tests   # Specific unit test file
@@ -61,6 +63,18 @@ cargo test path_validation              # Path security subset by name filter
 bun run tauri dev                 # Full dev mode (port 1420)
 RUST_LOG=debug bun run tauri dev  # With verbose logging
 ```
+
+### IPC Contract Generation (Rust ↔ TS)
+
+```bash
+bun run bindings:generate  # Regenerate src/lib/generated/tauri.ts from Rust commands/events
+bun run bindings:check     # Verify generated bindings are up to date
+```
+
+Source of truth:
+- Rust contract builder: `src-tauri/src/ipc_contract.rs`
+- Generated bindings: `src/lib/generated/tauri.ts`
+- UI compatibility adapter: `src/lib/bridge.ts`
 
 ### Find & Kill Stale Dev Sessions
 

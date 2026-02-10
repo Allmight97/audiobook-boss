@@ -29,7 +29,7 @@ Do not trigger for unrelated feature implementation unless perf validation is ex
 - If mode is not explicitly specified, default to `all` by running `perf:all`.
 
 2. Run quality gates first.
-- Run `scripts/standard-checks.sh` (the default check command).
+- Run `scripts/checks.sh standard` (the default check command).
 
 3. Run performance benchmarks.
 - Preferred default:

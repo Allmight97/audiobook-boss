@@ -2,6 +2,14 @@
 
 This guide expands on the lightweight index by summarizing the public Tauri IPC the app exposes, the Rust modules that implement them, and the UI surfaces that depend on each command or event.
 
+## Contract generation
+
+- Rust contract builder: `src-tauri/src/ipc_contract.rs`
+- Generated TypeScript bindings: `src/lib/generated/tauri.ts`
+- UI bridge adapter (legacy compatibility): `src/lib/bridge.ts`
+- Export command: `bun run bindings:generate`
+- Drift check: `bun run bindings:check`
+
 ### Command matrix
 
 | Command | Rust implementation | Primary consumers |
@@ -71,8 +79,8 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Contract sources
 
-- Command and data types: `src/types/audio.ts`, `src/types/metadata.ts`
-- Event contracts: `src/types/events.ts`
+- Generated source of truth: `src/lib/generated/tauri.ts`
+- UI compatibility types: `src/types/audio.ts`, `src/types/metadata.ts`, `src/types/events.ts`
 
 ### Backend → frontend events
 

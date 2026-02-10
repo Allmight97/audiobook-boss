@@ -11,7 +11,7 @@ use serde::Serialize;
 // ============================================================================
 
 /// Progress event structure for frontend communication
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 pub struct ProgressEvent {
     /// Current processing stage name
     pub stage: String,
@@ -32,17 +32,25 @@ pub struct ProgressEvent {
 }
 
 /// Batch queue snapshot for frontend communication
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 pub struct QueueEvent {
     pub items: Vec<QueueItem>,
     pub max_concurrent: usize,
 }
 
 /// Single queued item in a batch run
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 pub struct QueueItem {
     pub input_index: usize,
     pub file_path: String,
+}
+
+impl tauri_specta::Event for ProgressEvent {
+    const NAME: &'static str = "processing-progress";
+}
+
+impl tauri_specta::Event for QueueEvent {
+    const NAME: &'static str = "processing-queue";
 }
 
 // ============================================================================

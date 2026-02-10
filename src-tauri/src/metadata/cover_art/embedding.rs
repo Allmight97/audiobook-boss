@@ -129,8 +129,21 @@ fn configure_cover_art_stream_parameters(
         .video()
         .map_err(|e| AppError::General(format!("Failed to create video encoder context: {}", e)))?;
 
+    // FALLBACK[FB-002]: trigger=image header parsing cannot detect dimensions
+    // observe=warn log with input byte length and default dimensions
+    // sunset=2026-03-31 issue=#197
     // Try to detect image dimensions for better compatibility
-    let (width, height) = detect_image_dimensions(cover_data, format).unwrap_or((600, 600));
+    let (width, height) = match detect_image_dimensions(cover_data, format) {
+        Some(dimensions) => dimensions,
+        None => {
+            log::warn!(
+                "FALLBACK[FB-002] defaulting cover art dimensions to 600x600 for {:?} input ({} bytes)",
+                format,
+                cover_data.len()
+            );
+            (600, 600)
+        }
+    };
 
     ctx.set_width(width as u32);
     ctx.set_height(height as u32);

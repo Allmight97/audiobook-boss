@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-10 — Adopt generated IPC contract (tauri-specta)
+Context: Manual Rust↔TS IPC typing increased drift risk ahead of larger frontend evolution work.
+Decision: Adopt tauri-specta/specta for command+event contract generation, commit generated bindings, and gate with drift checks while preserving UX behavior through bridge compatibility mapping.
+Consequences:
+- Reduces contract drift and improves refactor safety.
+- Adds build dependency on tauri-specta/specta versions.
+- Keeps current UX flows stable by normalizing nullability/events at the bridge boundary without dual-key alias fallbacks.
+Links: `docs/decisions/003-typesafe-ipc-contract.md`, `src-tauri/src/ipc_contract.rs`, `src/lib/generated/tauri.ts`, `scripts/check-generated-bindings.sh`, Issue #193
+
 ## 2026-02-03 — Ignore cover art changes in multi-select
 Context: Cover art updates from any source can unintentionally overwrite multiple selected titles.
 Decision: Apply cover art changes only in single-select; multi-select ignores cover art entirely.
@@ -27,7 +36,7 @@ Consequences:
 - Faster AI iteration without skipping important gates.
 - Reduced redundancy (tsc runs via `bun run build` in Standard).
 - Clear release-only build step for `cargo build --release`.
-Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, `scripts/release-checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
+Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
 
 ## 2026-01-17 — Relax inline test policy for private helpers
 Context: External-only tests made private helper coverage cumbersome while restoring tests for #159/#160.
@@ -60,7 +69,7 @@ Decision: Add a root Cargo workspace, move `Cargo.lock` to the root, and update 
 Consequences:
 - Cargo commands work from repo root without directory switching.
 - Fewer agent mistakes around Rust checks.
-Links: ADR-002 (`docs/decisions/002-root-cargo-workspace.md`), `scripts/quick-checks.sh`, `AGENTS.md`, `.opencode/agent/review.md`
+Links: ADR-002 (`docs/decisions/002-root-cargo-workspace.md`), `scripts/checks.sh`, `AGENTS.md`, `.opencode/agent/review.md`
 
 ## 2026-01-11 — UI spacing guardrails + escape hatch
 Context: Agents were causing UI spacing/layout drift over time.

@@ -26,10 +26,11 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(scripts/standard-checks.sh:*)",
+      "Bash(scripts/checks.sh:*)",
       "Bash(bun test:*)",
       "mcp__acp__Write",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:v2.tauri.app)"
     ]
   },
   "outputStyle": "default"

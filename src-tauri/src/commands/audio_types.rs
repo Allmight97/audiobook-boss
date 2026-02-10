@@ -2,14 +2,14 @@ use crate::audio;
 pub use crate::audio::output_path::OutputNamingConfig;
 use crate::audio::settings_encoder::EncoderSettings;
 
-#[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum JobType {
     Merge,
     Batch,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessV2Payload {
     pub input_files: Vec<String>,
@@ -24,7 +24,7 @@ pub struct ProcessV2Payload {
 
 /// Processes multiple audio files into a single M4B audiobook
 /// Merges files with specified settings and optional metadata
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessCommandResult {
     pub message: String,
