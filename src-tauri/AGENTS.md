@@ -38,7 +38,7 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
 ## Interface Boundaries
 
 - **Command Surface**: UI must call `process_audiobook_files_v2` exclusively.
-- **Contract Guard**: Maintain TS ↔ Rust command parity (`scripts/ensure-contract.sh`) until typesafe codegen is adopted.
+- **Contract Guard**: Maintain TS ↔ Rust command parity through tauri-specta generated bindings (`src/lib/generated/tauri.ts`) and drift checks (`scripts/check-generated-bindings.sh`).
 - **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
 
 ---
@@ -70,7 +70,7 @@ Inherits principles from root `AGENTS.md`. This file covers Rust-specific archit
     - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
   - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
 
-**Tiered checks**: Follow the repo-wide Standard/Release tiers in `AGENTS.md`. Use `scripts/standard-checks.sh` (the default go-to) and `scripts/release-checks.sh` from the repo root.
+**Tiered checks**: Follow the repo-wide Standard/Release tiers in `AGENTS.md`. Use `scripts/checks.sh standard` (the default go-to) and `scripts/checks.sh release` from the repo root.
 
 **Workspace note**: Run cargo commands from the repo root (workspace). No need to `cd src-tauri`.
 

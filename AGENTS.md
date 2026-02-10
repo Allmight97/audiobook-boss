@@ -75,16 +75,14 @@ Use this scale to rate the quality of code and solutions:
 
 **Tiered checks (run from repo root)**
 
-- **Standard (default)**: `scripts/standard-checks.sh` — the go-to command for all workflows
-  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, `ensure-contract.sh`, `cargo test`, `bun run build` (includes `tsc`)
+- **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
+  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
-- **Release (pre-release)**: `scripts/release-checks.sh`
+- **Release (pre-release)**: `scripts/checks.sh release`
   - Runs Standard, then `cargo build --release -p audiobook-boss`
   - Run before tagging/publishing a release
 
 **Workspace note**: Cargo runs from the repo root (workspace). No need to `cd src-tauri`. If any doc says otherwise, prefer running from root.
-
-**Note**: `scripts/quick-checks.sh` still exists for backward compat (lint-only subset) but is no longer the primary workflow. Use Standard for daily work.
 
 ### Perf System (non-gating)
 

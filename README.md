@@ -47,6 +47,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 ### Testing (run from repo root)
 
 ```bash
+scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + TS + contract drift + build)
 cargo test                              # All tests (unit + integration)
 cargo test --tests                      # All external test binaries
 cargo test --test unit_audio_buffer_tests   # Specific unit test file

@@ -19,7 +19,7 @@
 - Legacy command names remain stable (`snake_case`) even though generated functions are camelCase.
 - Run `bun run bindings:generate` after Rust IPC type changes.
 - Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh`) to detect drift.
-- `scripts/quick-checks.sh` gates on generated-binding drift; `scripts/ensure-contract.sh` is advisory fallback.
+- `scripts/checks.sh standard` is the canonical quality gate and includes binding drift checks.
 
 ### State ownership
 
