@@ -62,6 +62,18 @@ bun run tauri dev                 # Full dev mode (port 1420)
 RUST_LOG=debug bun run tauri dev  # With verbose logging
 ```
 
+### IPC Contract Generation (Rust ↔ TS)
+
+```bash
+bun run bindings:generate  # Regenerate src/lib/generated/tauri.ts from Rust commands/events
+bun run bindings:check     # Verify generated bindings are up to date
+```
+
+Source of truth:
+- Rust contract builder: `src-tauri/src/ipc_contract.rs`
+- Generated bindings: `src/lib/generated/tauri.ts`
+- UI compatibility adapter: `src/lib/bridge.ts`
+
 ### Find & Kill Stale Dev Sessions
 
 ```bash

@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-10 — Adopt generated IPC contract (tauri-specta)
+Context: Manual Rust↔TS IPC typing increased drift risk ahead of larger frontend evolution work.
+Decision: Adopt tauri-specta/specta for command+event contract generation, commit generated bindings, and gate with drift checks while preserving UX behavior through bridge compatibility mapping.
+Consequences:
+- Reduces contract drift and improves refactor safety.
+- Adds build dependency on tauri-specta/specta versions.
+- Keeps current UX flows stable by normalizing nullability/events at the bridge boundary.
+Links: `docs/decisions/003-typesafe-ipc-contract.md`, `src-tauri/src/ipc_contract.rs`, `src/lib/generated/tauri.ts`, `scripts/check-generated-bindings.sh`, Issue #193
+
 ## 2026-02-03 — Ignore cover art changes in multi-select
 Context: Cover art updates from any source can unintentionally overwrite multiple selected titles.
 Decision: Apply cover art changes only in single-select; multi-select ignores cover art entirely.
