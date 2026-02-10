@@ -12,6 +12,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
 - Class-based UI modules with DOM caching; event-driven via `listen()`
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
+- Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings.
 
 ---
 

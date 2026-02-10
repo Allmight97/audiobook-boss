@@ -45,6 +45,12 @@ Read the checklist before starting work. It tracks:
 - Hidden compatibility aliases (accepting multiple key shapes silently) are disallowed unless explicitly approved.
 - Register all intentional fallbacks in `docs/engineering/fallback-register.md`.
 - `scripts/check-fallback-policy.sh` enforces fallback marker metadata (`issue=#...`, `sunset=...`) and register parity.
+- Acceptance rule: a fallback is not allowed unless the same PR includes marker metadata, register entry, observability signal, and a linked removal/revalidation issue.
+
+## Generated Artifacts (Strict)
+
+- For generated files, prefer robust post-processing (append or syntax-aware edits) over fragile `replacen`/exact-string anchoring.
+- If exact-string patching is unavoidable, fail fast with a clear error when the anchor changes; never silently continue.
 
 ## Engineering Principles (rate 1-5 when reviewing)
 
@@ -81,7 +87,7 @@ Use this scale to rate the quality of code and solutions:
 - PR review via automated GitHub agent (Gemini). CI workflow is optional/manual and should not be relied upon.
 - PR reviews: always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 - Feature branches → PR → review → merge to main
-- Use `gh issue create --body-file` or a heredoc for multi-line issue bodies to avoid literal `\\n` characters in GitHub issues.
+- Use `--body-file` (or heredoc) for multi-line `gh` issue/PR create/edit/comment commands to avoid shell interpolation and malformed comments.
 
 ## Checks & Gates
 
@@ -90,6 +96,7 @@ Use this scale to rate the quality of code and solutions:
 - **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
   - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
+  - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
 - **Release (pre-release)**: `scripts/checks.sh release`
   - Runs Standard, then `cargo build --release -p audiobook-boss`
   - Run before tagging/publishing a release

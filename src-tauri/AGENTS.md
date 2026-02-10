@@ -41,6 +41,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 
 - **Command Surface**: UI must call `process_audiobook_files_v2` exclusively.
 - **Contract Guard**: Maintain TS ↔ Rust command parity through tauri-specta generated bindings (`src/lib/generated/tauri.ts`) and drift checks (`scripts/check-generated-bindings.sh`).
+- **Bindings Export Patching**: Generated-file post-processing must be robust (append or syntax-aware) and must not rely on brittle import-string replacement.
 - **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
 
 ---
