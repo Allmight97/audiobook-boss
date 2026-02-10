@@ -37,15 +37,26 @@ fi
 log_endgroup
 
 echo
-log_group "Collecting Rust registered command names (from generate_handler!)"
+log_group "Collecting Rust registered command names"
 handler_block=$(awk '/generate_handler!\[/, /\]/{print}' "$ROOT_DIR/src-tauri/src/lib.rs" || true)
 rust_cmds=$(echo "$handler_block" \
   | sed 's,//.*$,,' \
   | rg -o "commands::[A-Za-z0-9_]+" \
   | sed 's/commands:://' \
   | sort -u || true)
+
+# tauri-specta path: parse collect_commands![] in ipc_contract.rs when generate_handler![] is not present
+if [ -z "${rust_cmds}" ] && [ -f "$ROOT_DIR/src-tauri/src/ipc_contract.rs" ]; then
+  specta_block=$(awk '/collect_commands!\[/, /\]/{print}' "$ROOT_DIR/src-tauri/src/ipc_contract.rs" || true)
+  rust_cmds=$(echo "$specta_block" \
+    | sed 's,//.*$,,' \
+    | rg -o "crate::commands::[A-Za-z0-9_]+" \
+    | sed 's/crate::commands:://' \
+    | sort -u || true)
+fi
+
 if [ -z "${rust_cmds}" ]; then
-  echo "No commands found in generate_handler! block"
+  echo "No commands found in generate_handler![] or collect_commands![]"
 else
   echo "$rust_cmds" | sed 's/^/  - /'
 fi

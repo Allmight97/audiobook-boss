@@ -58,15 +58,25 @@ cargo_fmt_cmd
 log_step "cargo clippy --workspace --all-targets -- -D warnings"
 cargo_clippy_cmd
 
-if [[ -x scripts/ensure-contract.sh ]]; then
-  log_step "scripts/ensure-contract.sh"
-  scripts/ensure-contract.sh
-elif [[ -f scripts/ensure-contract.sh ]]; then
-  log_step "bash scripts/ensure-contract.sh (non-executable file)"
-  bash scripts/ensure-contract.sh
+if [[ -x scripts/check-generated-bindings.sh ]]; then
+  log_step "scripts/check-generated-bindings.sh"
+  scripts/check-generated-bindings.sh
+elif [[ -f scripts/check-generated-bindings.sh ]]; then
+  log_step "bash scripts/check-generated-bindings.sh (non-executable file)"
+  bash scripts/check-generated-bindings.sh
 else
-  echo "[quick-checks] scripts/ensure-contract.sh not executable or missing." >&2
+  echo "[quick-checks] scripts/check-generated-bindings.sh not executable or missing." >&2
   exit 1
+fi
+
+if [[ -x scripts/ensure-contract.sh ]]; then
+  log_step "scripts/ensure-contract.sh (advisory)"
+  scripts/ensure-contract.sh || echo "[quick-checks] Advisory: ensure-contract reported differences."
+elif [[ -f scripts/ensure-contract.sh ]]; then
+  log_step "bash scripts/ensure-contract.sh (advisory)"
+  bash scripts/ensure-contract.sh || echo "[quick-checks] Advisory: ensure-contract reported differences."
+else
+  log_step "Skipping ensure-contract advisory check (script missing)."
 fi
 
 if [[ "${SKIP_TS_CHECK:-0}" == "1" ]]; then

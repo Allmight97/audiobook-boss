@@ -11,6 +11,8 @@
     "app:build": "bun run tauri build --bundles app",
     "app:build:dmg": "bun run tauri build --bundles dmg",
     "app:build:all": "bun run tauri build",
+    "bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --bin export_bindings",
+    "bindings:check": "scripts/check-generated-bindings.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
