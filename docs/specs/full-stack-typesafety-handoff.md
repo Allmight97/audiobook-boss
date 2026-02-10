@@ -42,7 +42,7 @@ Strategy context: `docs/specs/frontend-framework-evaluation.md`
 - `src/lib/behavior-contract.test.ts` (new)
 - `src/test/setup.ts`
 - `scripts/check-generated-bindings.sh` (new)
-- `scripts/quick-checks.sh`
+- `scripts/checks.sh` (new primary quality gate)
 - `package.json`
 
 ## Execution Order
@@ -87,7 +87,7 @@ For `processing-progress` and `processing-queue`, assert:
 - key payload fields unchanged
 
 ## Verification Commands
-- `scripts/standard-checks.sh`
+- `scripts/checks.sh standard`
 - `bun run test`
 - `bun run bindings:check`
 

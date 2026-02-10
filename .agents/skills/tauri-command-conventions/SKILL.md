@@ -25,7 +25,7 @@ stale, use the `lib-research` skill (btca for source, Context7 for docs).
 | Audio processing | `src-tauri/src/commands/audio.rs` |
 | Metadata operations | `src-tauri/src/commands/metadata.rs` |
 | System utilities | `src-tauri/src/commands/system.rs` |
-| Command registration | `src-tauri/src/main.rs` → `generate_handler![]` |
+| Command registration | `src-tauri/src/ipc_contract.rs` → `collect_commands![]` |
 
 ## Basic Command Pattern
 
@@ -105,7 +105,7 @@ impl From<AppError> for tauri::ipc::InvokeError {
 
 ## State Management
 
-From `src-tauri/src/main.rs`:
+From `src-tauri/src/lib.rs`:
 
 ```rust
 // State definition
@@ -114,7 +114,11 @@ pub type ManagedJobRegistry = Arc<JobRegistry>;
 // Registration in builder
 tauri::Builder::default()
     .manage(Arc::new(JobRegistry::new(max_concurrent)))
-    .invoke_handler(tauri::generate_handler![...])
+    .invoke_handler(specta_builder.invoke_handler())
+    .setup(move |app| {
+        specta_builder.mount_events(app);
+        Ok(())
+    })
 
 // Access in command
 #[tauri::command]
@@ -248,30 +252,31 @@ try {
 
 ## Command Registration
 
-In `src-tauri/src/main.rs`:
+In `src-tauri/src/ipc_contract.rs`:
 
 ```rust
-.invoke_handler(tauri::generate_handler![
-    commands::audio::validate_files,
-    commands::audio::analyze_audio_files,
-    commands::audio::process_audiobook_files_v2,
-    commands::audio::cancel_processing,
-    commands::metadata::read_audio_metadata,
-    commands::metadata::save_metadata_to_file,
-    // ... add new commands here
-])
+#[tauri_specta::collect_commands]
+pub fn builder() -> TauriSpectaBuilder<tauri::Wry> {
+    tauri_specta::Builder::new()
+        .commands(tauri_specta::collect_commands![
+            crate::commands::audio::analyze_audio_files,
+            crate::commands::audio::process_audiobook_files_v2,
+            crate::commands::metadata::read_audio_metadata,
+            // ... add new commands here
+        ])
+}
 ```
 
 ## Contract Verification
 
-Run `scripts/ensure-contract.sh` to verify TS/Rust command parity:
+Run `scripts/checks.sh standard` to verify TS/Rust contract integrity (includes generated-binding drift checks):
 
 ```bash
 # From repo root
-./scripts/ensure-contract.sh
+./scripts/checks.sh standard
 ```
 
-This extracts `invoke()` calls from TypeScript and compares against `generate_handler![]` in Rust.
+This ensures generated TypeScript bindings match Rust command/event definitions.
 
 ## Payload Structures
 
@@ -343,9 +348,9 @@ pub async fn command_with_window(
 1. [ ] Add function with `#[tauri::command]` in appropriate `commands/*.rs`
 2. [ ] Return `Result<T>` using `crate::errors::Result`
 3. [ ] Map errors to `AppError` variants
-4. [ ] Register in `generate_handler![]` in `main.rs`
-5. [ ] Add TypeScript type for payload/result in `src/types/`
-6. [ ] Run `scripts/ensure-contract.sh` to verify parity
+4. [ ] Register in `collect_commands![]` in `src-tauri/src/ipc_contract.rs`
+5. [ ] Regenerate bindings (`bun run bindings:generate`) and verify `src/lib/generated/tauri.ts`
+6. [ ] Run `scripts/checks.sh standard` to verify contract + behavior gates
 7. [ ] For progress-emitting commands, use `ProgressEmitter`
 
 ## References

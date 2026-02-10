@@ -669,7 +669,7 @@ These guardrails are what convert a framework migration from "rewrite churn" int
 Right now, the Rust/TypeScript contract is **partially type-safe** but **manually maintained**:
 
 **Current state**:
-- Command name parity check only (via `scripts/ensure-contract.sh`)
+- Command name parity check is manual and partial
 - Stringly-typed `invoke()` calls in `bridge.ts`: `invoke<T>(commandName: string, args?: unknown)`
 - Event payloads typed in TS (`src/types/events.ts`) but manually kept in sync with Rust
 - No compile-time guarantee that TS types match Rust signatures
@@ -693,7 +693,7 @@ This is a known technical debt item. The question is: what's the best path to re
 **Immediate (UX/DX)**:
 - Fewer runtime IPC bugs (wrong arg types, missing fields, typos in command names)
 - Safer refactors (change a Rust signature → TS compile error shows all affected call sites)
-- Faster feature work (no manual type sync, no `ensure-contract.sh` detective work)
+- Faster feature work (no manual type sync and parity detective work)
 
 **Architectural Ripple**:
 - Low-medium. Changes live in the contract layer (`bridge.ts`, `src/types/*`, Rust command annotations)
@@ -773,7 +773,7 @@ export const bridge = {
 - Annotate 10 commands + 2 event types in Rust
 - Refactor `bridge.ts` to use generated client
 - Update 19 IPC call sites to use typed imports
-- Test, verify, retire `ensure-contract.sh`
+- Test, verify, and remove manual command-parity maintenance
 
 **Rollback**: Easy. Remove deps, delete generated file, revert `bridge.ts`. All Rust code unchanged (annotations are no-ops if specta is removed).
 
@@ -886,7 +886,7 @@ interface audio {
 **Mitigation for risks**:
 - Pin `tauri-specta` and `specta` versions in `Cargo.toml` (don't auto-update)
 - Document the version alignment in `CLAUDE.md` or `src-tauri/AGENTS.md`
-- Keep `ensure-contract.sh` around (disabled) for 1-2 releases as a fallback sanity check
+- Keep binding generation and drift checks as the sole contract guardrail
 
 **Not recommended**:
 - **TauRPC**: Too invasive, changes too much Rust code for marginal type-safety improvement
@@ -962,7 +962,7 @@ The design governance requirements (lines 368-378) include:
 ## Recommended Phased Approach
 
 ### Phase 1: Full-Stack Type Safety (tauri-specta)
-**Outcome**: Type-safe IPC, retire `ensure-contract.sh`, generated bindings in `bridge.ts`
+**Outcome**: Type-safe IPC, generated bindings in `bridge.ts`, manual parity scripts removed
 
 **Estimated scope**: 1-2 days work
 1. Add `tauri-specta` + `specta` dependencies to `src-tauri/Cargo.toml`
@@ -971,8 +971,8 @@ The design governance requirements (lines 368-378) include:
 4. Annotate 2 event types (`ProcessingProgress`, `ProcessingQueue`) in `src-tauri/src/audio/progress/mod.rs`
 5. Refactor `src/lib/bridge.ts` to use generated client instead of raw `invoke<T>(commandName: string, args?: unknown)`
 6. Update 19 IPC call sites across `src/ui/*` to import and use typed command wrappers
-7. Run `scripts/standard-checks.sh` to verify tests still pass
-8. Disable (but don't delete) `ensure-contract.sh` name parity checks (keep as fallback for 1 release)
+7. Run `scripts/checks.sh standard` to verify tests still pass
+8. Remove manual parity scripts and stale docs references
 9. Document version alignment in `CLAUDE.md` or `src-tauri/AGENTS.md`
 
 **Risk**: Low. Contract layer only, no UI changes. Easy rollback (remove deps, revert `bridge.ts`).
@@ -1092,7 +1092,7 @@ The design governance requirements (lines 368-378) include:
 
 **When to choose this**:
 - You're in "ship and learn" mode -- need to get Windows/Linux ports done first, worry about type safety + framework later
-- Current manual contract sync (`ensure-contract.sh`) is working fine, not causing bugs
+- Current manual contract sync is working fine, not causing bugs
 - Current vanilla TS UI is fast enough, co-location isn't a pain point yet
 
 **Trade-offs**:

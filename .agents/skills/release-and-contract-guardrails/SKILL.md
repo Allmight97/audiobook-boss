@@ -12,26 +12,25 @@ Follow these steps to avoid version drift and TS/Rust contract mismatches.
 1) Do not bump version or edit `CHANGELOG.md` unless explicitly preparing a release.
 2) For releases, use `scripts/release.sh` (it bumps versions and handles tagging).
 3) Keep version sources in sync: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
-4) After changing commands or payloads, run `scripts/ensure-contract.sh`.
+4) After changing commands or payloads, run `scripts/checks.sh standard` (includes generated-binding drift checks).
 
 ## Optional Checks (Before Merge/Release)
 
 Standard tier (default for all workflows):
 
 ```bash
-scripts/standard-checks.sh
+scripts/checks.sh standard
 ```
 
 Release tier (pre-release only):
 
 ```bash
-scripts/release-checks.sh
+scripts/checks.sh release
 ```
 
 ## Codebase Pointers
 
 - `scripts/release.sh`
 - `scripts/bump-version.sh`
-- `scripts/ensure-contract.sh`
-- `src-tauri/src/main.rs` (command registration)
-
+- `scripts/check-generated-bindings.sh`
+- `src-tauri/src/ipc_contract.rs` (command and event registration)

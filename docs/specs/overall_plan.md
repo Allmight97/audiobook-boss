@@ -94,7 +94,7 @@ Required docs updates:
 - `/Users/jstar/Projects/audiobook-boss/docs/external-apis/README.md` and/or `/Users/jstar/Projects/audiobook-boss/docs/external-apis/tauri-patterns.md` if contract-observability language changes
 
 Validation gate for #181:
-- `scripts/standard-checks.sh` passes
+- `scripts/checks.sh standard` passes
 - `bun run perf:all` passes
 - `latest.md` has unambiguous attribution interpretation
 - PR opened and reviewed by Gemini; comments resolved
@@ -123,7 +123,7 @@ Lane rules:
 - Rebase from `origin/main` before opening/refreshing PR.
 
 Per-lane PR requirements:
-- `scripts/standard-checks.sh` pass
+- `scripts/checks.sh standard` pass
 - `bun run perf:all` run and before/after excerpt from `latest.md`
 - Docs updates included (relevant AGENTS/skills/API docs)
 - Gemini PR review completed and addressed
@@ -142,7 +142,7 @@ Why last:
 
 Validation:
 - Semantics unchanged for terminal/error/cancel updates
-- `standard-checks` + `perf:all` pass
+- `scripts/checks.sh standard` + `perf:all` pass
 - Gemini review resolved
 - Merge to `main`
 
@@ -205,10 +205,10 @@ Status update:
   - Final `perf:all` on `main` shows no major regressions in protected paths.
 
 Status update:
-- **Done for #181 branch:** `scripts/standard-checks.sh` passing and perf outputs validated in PR flow.
+- **Done for #181 branch:** `scripts/checks.sh standard` passing and perf outputs validated in PR flow.
 
 ## Explicit Assumptions and Defaults
-- Default checks command is `scripts/standard-checks.sh`.
+- Default checks command is `scripts/checks.sh standard`.
 - Default perf command for decision-making is `bun run perf:all`.
 - Branch-only workflow is mandatory; no git worktrees.
 - Separate local clones are acceptable and preferred for parallel issue execution.

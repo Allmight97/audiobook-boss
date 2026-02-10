@@ -28,7 +28,7 @@ Implement Issue #183 (progress cadence alignment) + Phase 4 closeout for perform
 - **Gemini review feedback** (commit aa8962d): Extracted magic number `1000` to `PROGRESS_EMIT_INTERVAL_MS` constant in `frame_pipeline.rs` for better readability/maintainability
 
 ### Learnings
-- **Test-constant drift**: When changing a constant shared between production code and tests, always grep for hardcoded values in test files. The standard-checks pipeline doesn't run vitest directly, so test drift can slip through. (Codex P1: `progressThrottle.test.ts` hardcoded 550ms wait when constant changed from 500ms → 1000ms)
+- **Test-constant drift**: When changing a constant shared between production code and tests, always grep for hardcoded values in test files. The primary checks pipeline should include behavior tests so drift fails fast. (Codex P1: `progressThrottle.test.ts` hardcoded 550ms wait when constant changed from 500ms → 1000ms)
 - **Deferred state lifecycle**: When adding deferred state fields to a class (e.g., `pendingRender`, `latestProgressEvent`), audit all reset/teardown paths. `resetToIdle()` was the obvious one but was missed during initial implementation. (Codex P2: Late rAF callbacks could rehydrate stale event data after panel returned to idle)
 
 ### Phase 4 Closeout (Commit 6)

@@ -36,7 +36,7 @@ Consequences:
 - Faster AI iteration without skipping important gates.
 - Reduced redundancy (tsc runs via `bun run build` in Standard).
 - Clear release-only build step for `cargo build --release`.
-Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/quick-checks.sh`, `scripts/standard-checks.sh`, `scripts/release-checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
+Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
 
 ## 2026-01-17 — Relax inline test policy for private helpers
 Context: External-only tests made private helper coverage cumbersome while restoring tests for #159/#160.
@@ -69,7 +69,7 @@ Decision: Add a root Cargo workspace, move `Cargo.lock` to the root, and update 
 Consequences:
 - Cargo commands work from repo root without directory switching.
 - Fewer agent mistakes around Rust checks.
-Links: ADR-002 (`docs/decisions/002-root-cargo-workspace.md`), `scripts/quick-checks.sh`, `AGENTS.md`, `.opencode/agent/review.md`
+Links: ADR-002 (`docs/decisions/002-root-cargo-workspace.md`), `scripts/checks.sh`, `AGENTS.md`, `.opencode/agent/review.md`
 
 ## 2026-01-11 — UI spacing guardrails + escape hatch
 Context: Agents were causing UI spacing/layout drift over time.
