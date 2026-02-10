@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputNamingConfig {
     pub abs_compatible: bool,

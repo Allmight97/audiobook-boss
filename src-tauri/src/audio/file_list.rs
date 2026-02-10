@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 /// Summary information for a file list
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileListInfo {
     /// List of validated audio files

@@ -3,6 +3,7 @@ use crate::errors::Result;
 /// Simple ping command that returns "pong"
 /// Used for testing basic Tauri command functionality
 #[tauri::command]
+#[specta::specta]
 pub fn ping() -> Result<String> {
     Ok("pong".to_string())
 }
@@ -10,6 +11,7 @@ pub fn ping() -> Result<String> {
 /// Echo command that returns the input string
 /// Demonstrates parameter passing in Tauri commands
 #[tauri::command]
+#[specta::specta]
 pub fn echo(input: String) -> Result<String> {
     Ok(input)
 }

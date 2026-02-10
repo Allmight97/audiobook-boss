@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Supported encoder types for audiobooks
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderType {
     /// Auto-detect best available (FDK > Apple > Native AAC)
@@ -34,7 +34,7 @@ impl fmt::Display for EncoderType {
 }
 
 /// Bitrate/quality control mode per encoder
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "mode", content = "value", rename_all = "snake_case")]
 pub enum BitrateMode {
     Cbr,
@@ -43,7 +43,7 @@ pub enum BitrateMode {
 }
 
 /// Channel selection strategy
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ChannelConfig {
     Auto,
@@ -62,7 +62,7 @@ impl ChannelConfig {
 }
 
 /// Threading configuration for encoder
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "mode", content = "value", rename_all = "snake_case")]
 pub enum ThreadSetting {
     /// Let FFmpeg decide (maps to threads=0)
@@ -74,7 +74,7 @@ pub enum ThreadSetting {
 }
 
 /// Advanced encoder settings payload for v2 command
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
@@ -200,7 +200,7 @@ pub fn is_encoder_available_by_name(name: &str) -> bool {
 }
 
 /// Runtime detection of available encoders.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderAvailability {
     pub fdk_available: bool,

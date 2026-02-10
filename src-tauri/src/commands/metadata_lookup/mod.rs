@@ -9,6 +9,7 @@ use crate::errors::Result;
 pub use types::{MetadataSource, OnlineMetadataResult};
 
 #[tauri::command]
+#[specta::specta]
 pub async fn search_online_metadata(
     query: String,
     sources: Option<Vec<MetadataSource>>,

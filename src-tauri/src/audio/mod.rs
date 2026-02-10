@@ -24,7 +24,7 @@ pub mod settings;
 pub mod settings_encoder;
 
 /// Represents an audio file with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
     /// File path
@@ -65,7 +65,7 @@ impl AudioFile {
 }
 
 /// Sample rate configuration options
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleRateConfig {
     /// Automatically detect from input files
@@ -75,7 +75,7 @@ pub enum SampleRateConfig {
 }
 
 /// Progress information for audio processing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ProcessingProgress {
     /// Current stage of processing
     pub stage: ProcessingStage,
@@ -92,7 +92,7 @@ pub struct ProcessingProgress {
 }
 
 /// Processing stage enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 pub enum ProcessingStage {
     /// Analyzing input files
     Analyzing,

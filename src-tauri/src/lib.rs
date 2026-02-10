@@ -5,6 +5,7 @@
 
 pub mod commands;
 mod errors;
+pub mod ipc_contract;
 mod metadata;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::ffmpeg_bridge::{
@@ -43,29 +44,17 @@ pub fn run() {
         job_registry.max_concurrent()
     );
 
+    let specta_builder = ipc_contract::builder();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(job_registry)
-        .invoke_handler(tauri::generate_handler![
-            commands::ping,
-            commands::echo,
-            commands::validate_files,
-            // Removed get_ffmpeg_version & merge_audio_files (legacy shell commands) in nuclear cleanup
-            commands::read_audio_metadata,
-            commands::write_cover_art,
-            commands::load_cover_art_file,
-            commands::load_cover_art_from_url,
-            commands::save_metadata_to_file,
-            commands::search_online_metadata,
-            commands::analyze_audio_files,
-            commands::validate_encoder_settings_cmd,
-            commands::list_available_encoders,
-            commands::get_max_concurrent_jobs,
-            commands::set_max_concurrent_jobs,
-            commands::process_audiobook_files_v2,
-            commands::cancel_processing
-        ])
+        .invoke_handler(specta_builder.invoke_handler())
+        .setup(move |app| {
+            specta_builder.mount_events(app);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
