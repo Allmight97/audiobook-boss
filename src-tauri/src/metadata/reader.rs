@@ -80,6 +80,9 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
                 return Ok(metadata);
             }
             Err(e) => {
+                // FALLBACK[FB-001]: trigger=mp4ameta read fails and ffmpeg fallback path is required
+                // observe=warn log with primary read failure reason
+                // sunset=2026-03-31 issue=#196
                 log::warn!("mp4ameta read failed ({}); falling back to ffmpeg", e);
             }
         }
