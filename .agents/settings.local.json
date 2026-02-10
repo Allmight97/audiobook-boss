@@ -29,7 +29,8 @@
       "Bash(scripts/standard-checks.sh:*)",
       "Bash(bun test:*)",
       "mcp__acp__Write",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:v2.tauri.app)"
     ]
   },
   "outputStyle": "default"
