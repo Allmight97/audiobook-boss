@@ -2,6 +2,8 @@
 
 Inherits principles from root `AGENTS.md`. This file covers Rust-specific architecture, conventions, and testing.
 
+Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, observable, time-bounded, with removal tracking).
+
 ---
 
 ## Architecture Fundamentals

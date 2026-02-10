@@ -2,6 +2,8 @@
 
 Inherits principles from root `AGENTS.md`. This file covers TypeScript conventions, UI patterns, and frontend testing.
 
+Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, observable, time-bounded, with removal tracking).
+
 ---
 
 ## Code Conventions

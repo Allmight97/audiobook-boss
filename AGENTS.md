@@ -34,6 +34,16 @@ Read the checklist before starting work. It tracks:
 - Compatibility fallbacks or broad refactors unless explicitly requested; or the issue warrants it by violating guidelines of this repo.
 - Silent defensive fallbacks or compatibility shims without justification (state concrete trigger, affected contract/caller, and removal condition when temporary).
 
+## Fallback Policy (Strict)
+
+- Default stance: **no fallback/shim** unless there is a clear and present need.
+- Any fallback must be **explicit, observable, and time-bounded**:
+  - **Explicit**: document trigger, scope (who/what depends on it), and why fail-fast is not acceptable.
+  - **Observable**: add a detectable signal (log/metric/test assertion) so usage can be seen during QA/operations.
+  - **Time-bounded**: define removal condition and target milestone/version/issue.
+- Every fallback must be called out in PR notes and linked to a tracking issue for removal.
+- Hidden compatibility aliases (accepting multiple key shapes silently) are disallowed unless explicitly approved.
+
 ## Engineering Principles (rate 1-5 when reviewing)
 
 **Design**: Orthogonality • Separation of Concerns • High Cohesion • Loose Coupling
