@@ -12,6 +12,7 @@
 - Commands/events are exported from Rust via tauri-specta.
 - The generated file is committed to keep reviews deterministic.
 - `bridge.ts` preserves legacy command/event names and normalizes nullability for existing UI types.
+- Bridge inputs are strict at the boundary: no dual-key alias fallbacks (for example, no mixed `previewSeconds`/`preview_seconds` or `job_id`/`jobId` acceptance).
 
 ### Command typing and drift checks
 

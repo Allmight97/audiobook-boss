@@ -217,7 +217,6 @@ const commandInvokers = {
     payload: LegacyProcessV2Payload;
     metadata?: LegacyMetadataPayload | null;
     previewSeconds?: number | null;
-    preview_seconds?: number | null;
   }) => {
     const metadataPayload = args.metadata
       ? Object.fromEntries(
@@ -232,12 +231,12 @@ const commandInvokers = {
       .processAudiobookFilesV2(
         denormalizeProcessPayload(args.payload),
         metadataPayload,
-        args.previewSeconds ?? args.preview_seconds ?? null
+        args.previewSeconds ?? null
       )
       .then(normalizeProcessResult);
   },
-  cancel_processing: (args?: { job_id?: string | null; jobId?: string | null }) =>
-    generatedCommands.cancelProcessing(args?.job_id ?? args?.jobId ?? null),
+  cancel_processing: (args?: { job_id?: string | null }) =>
+    generatedCommands.cancelProcessing(args?.job_id ?? null),
 } as const;
 
 type BridgeCommand = keyof typeof commandInvokers;

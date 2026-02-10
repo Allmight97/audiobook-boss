@@ -411,8 +411,8 @@ import {
 	invoke as TAURI_INVOKE,
 	Channel as TAURI_CHANNEL,
 } from "@tauri-apps/api/core";
-import * as TAURI_API_EVENT from "@tauri-apps/api/event";
 void TAURI_CHANNEL;
+import * as TAURI_API_EVENT from "@tauri-apps/api/event";
 import { type WebviewWindow as __WebviewWindow__ } from "@tauri-apps/api/webviewWindow";
 
 type __EventObj__<T> = {

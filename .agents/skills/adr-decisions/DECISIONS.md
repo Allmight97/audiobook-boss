@@ -8,7 +8,7 @@ Decision: Adopt tauri-specta/specta for command+event contract generation, commi
 Consequences:
 - Reduces contract drift and improves refactor safety.
 - Adds build dependency on tauri-specta/specta versions.
-- Keeps current UX flows stable by normalizing nullability/events at the bridge boundary.
+- Keeps current UX flows stable by normalizing nullability/events at the bridge boundary without dual-key alias fallbacks.
 Links: `docs/decisions/003-typesafe-ipc-contract.md`, `src-tauri/src/ipc_contract.rs`, `src/lib/generated/tauri.ts`, `scripts/check-generated-bindings.sh`, Issue #193
 
 ## 2026-02-03 — Ignore cover art changes in multi-select

@@ -53,11 +53,33 @@ pub fn export_typescript_bindings() -> std::result::Result<(), Box<dyn std::erro
 
     let generated = std::fs::read_to_string(&output_path)?;
     if !generated.contains("void TAURI_CHANNEL;") {
+        if !generated.contains("Channel as TAURI_CHANNEL") {
+            return Err(
+                "tauri-specta output no longer imports TAURI_CHANNEL; update binding patch logic"
+                    .into(),
+            );
+        }
+
+        const CORE_IMPORT_END: &str = "} from \"@tauri-apps/api/core\";";
+        if !generated.contains(CORE_IMPORT_END) {
+            return Err(
+                "tauri-specta output no longer contains the expected @tauri-apps/api/core import"
+                    .into(),
+            );
+        }
+
         let patched = generated.replacen(
-            "import * as TAURI_API_EVENT from \"@tauri-apps/api/event\";",
-            "import * as TAURI_API_EVENT from \"@tauri-apps/api/event\";\nvoid TAURI_CHANNEL;",
+            CORE_IMPORT_END,
+            "} from \"@tauri-apps/api/core\";\nvoid TAURI_CHANNEL;",
             1,
         );
+
+        if !patched.contains("void TAURI_CHANNEL;") {
+            return Err(
+                "failed to inject TAURI_CHANNEL usage marker into generated bindings".into(),
+            );
+        }
+
         std::fs::write(&output_path, patched)?;
     }
 

@@ -13,7 +13,7 @@ Adopt `tauri-specta` + `specta` as the IPC contract source of truth:
 - Derive `specta::Type` for IPC-facing Rust types.
 - Generate and commit TypeScript bindings (`src/lib/generated/tauri.ts`).
 - Gate checks with generated-binding drift detection.
-- Preserve current UX behavior by mapping generated nullability and event payloads through the bridge compatibility layer.
+- Preserve current UX behavior by mapping generated nullability and event payloads through the bridge adapter, while keeping a strict single-shape bridge input contract (no dual-key alias fallbacks).
 
 ## Consequences
 ### Pros
