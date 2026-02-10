@@ -52,6 +52,9 @@ impl SampleAccumulator {
         format: ff::format::Sample,
     ) -> Self {
         if frame_size == 0 {
+            // FALLBACK[FB-010]: trigger=encoder reports unknown/zero frame_size
+            // observe=warn log with default frame size usage
+            // sunset=2026-06-30 issue=#195
             log::warn!("Encoder reported frame_size=0; using fallback 1024 for accumulation");
             frame_size = 1024; // AAC-LC typical frame size
         }

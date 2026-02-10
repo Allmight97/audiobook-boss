@@ -95,6 +95,9 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
                 final_path.display(),
                 rename_err
             );
+            // FALLBACK[FB-012]: trigger=atomic rename fails (cross-volume/permissions edge)
+            // observe=warn rename failure + info copy-replace success logs
+            // sunset=2026-06-30 issue=#195
             // Fallback: copy then remove temp (handles cross-volume or other rename failures)
             if final_path.exists() {
                 if let Err(e) = std::fs::remove_file(final_path) {

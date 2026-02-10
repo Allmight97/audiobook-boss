@@ -85,8 +85,8 @@ pub(super) fn try_configure_variable_frame_size(
         );
 
         if result < 0 {
-            log::debug!(
-                "Could not set strict=experimental: FFmpeg error code {}",
+            log::warn!(
+                "strict=experimental not applied (FFmpeg error code {}); continuing with encoder defaults",
                 result
             );
         } else {

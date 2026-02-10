@@ -31,6 +31,7 @@ const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
 let cachedAvailability: EncoderAvailability | null = null;
+let fallbackHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 // DOM cache - initialized once, reused across all functions
 let domCache: EncoderDomCache | null = null;
@@ -258,6 +259,30 @@ const updateAvailabilityHint = (): void => {
   }
 };
 
+const reportEncoderAutoSwitchFallback = (
+  from: EncoderFlavor,
+  to: EncoderFlavor
+): void => {
+  // FALLBACK[FB-003]: trigger=selected encoder becomes unavailable/disabled
+  // observe=console.warn + temporary availability hint override
+  // sunset=2026-04-30 issue=#198
+  console.warn(
+    `FALLBACK[FB-003] encoder '${from}' unavailable; auto-switched to '${to}'`
+  );
+
+  const dom = ensureDomCache();
+  if (!dom.encoderAvailabilityHint) return;
+  dom.encoderAvailabilityHint.textContent = `Encoder '${from}' unavailable; switched to '${to}'.`;
+
+  if (fallbackHintTimer) {
+    clearTimeout(fallbackHintTimer);
+  }
+  fallbackHintTimer = setTimeout(() => {
+    updateAvailabilityHint();
+    fallbackHintTimer = null;
+  }, 3500);
+};
+
 /** Main sync function - updates all encoder-dependent UI */
 const syncEncoderUI = (): void => {
   const dom = ensureDomCache();
@@ -392,9 +417,11 @@ const disableDisallowedEncoders = (): void => {
 
   // Fall back if current selection is disabled
   if (select.selectedOptions[0]?.disabled) {
+    const from = select.value as EncoderFlavor;
     const fallback = Array.from(select.options).find((opt) => !opt.disabled);
     if (fallback) {
       select.value = fallback.value;
+      reportEncoderAutoSwitchFallback(from, fallback.value as EncoderFlavor);
       syncEncoderUI(); // Re-sync after fallback
     }
   }

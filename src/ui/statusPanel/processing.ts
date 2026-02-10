@@ -126,6 +126,9 @@ export async function startProcessing(
     }
 
     // Call backend processing command
+    // FALLBACK[FB-014]: trigger=encoder provider unavailable/invalid at runtime
+    // observe=console warn with defaulted encoder payload usage
+    // sunset=2026-06-30 issue=#195
     const fallbackEncoderDefaults = (() => {
       const defaults = defaultEncoderSettings();
       const selected = outputConfig.encoderSettings;
@@ -146,6 +149,12 @@ export async function startProcessing(
       typeof windowWithProvider.EncoderSettingsProvider === "function"
         ? windowWithProvider.EncoderSettingsProvider()
         : undefined;
+
+    if (typeof windowWithProvider.EncoderSettingsProvider !== "function") {
+      console.warn(
+        "FALLBACK[FB-014] EncoderSettingsProvider missing; using sanitized output defaults"
+      );
+    }
 
     const boundaryEncoderSettings = toBoundaryEncoderSettings(
       providerResult,

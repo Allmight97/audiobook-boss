@@ -22,6 +22,9 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
     let disable_twoloop = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
+        // FALLBACK[FB-005]: trigger=legacy env var typo still used in local setups
+        // observe=test coverage (`respects_twoloop_flag_and_env_override`) + startup logs
+        // sunset=2026-03-31 issue=#200
         || std::env::var("ABB_DISABLE_TWOOLOOP")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);

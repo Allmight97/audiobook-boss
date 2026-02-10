@@ -245,6 +245,9 @@ pub fn resolve_encoder_type(
         EncoderType::AacAt if availability.aac_at_available => EncoderType::AacAt,
         EncoderType::NativeAac if availability.native_aac_available => EncoderType::NativeAac,
         fallback => {
+            // FALLBACK[FB-011]: trigger=requested encoder unavailable on host/runtime
+            // observe=warn log includes requested encoder + availability snapshot
+            // sunset=2026-06-30 issue=#195
             log::warn!(
                 "encoder fallback: requested={:?} availability={:?}",
                 fallback,

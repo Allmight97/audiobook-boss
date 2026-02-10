@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
 
 /**
+ * FALLBACK[FB-009]: trigger=older local scripts still call this legacy entrypoint
+ * observe=repo grep + perf workflow checks for direct shim references
+ * sunset=2026-03-31 issue=#204
+ *
  * Back-compat shim for the migrated perf benchmark.
  *
  * Prefer:

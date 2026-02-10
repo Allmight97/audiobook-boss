@@ -265,6 +265,9 @@ fn read_series_raw(tag: &Tag) -> Option<String> {
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };
+    // FALLBACK[FB-007]: trigger=legacy files store series in movement tag only
+    // observe=series metadata compatibility tests + fallback register tracking
+    // sunset=2026-05-31 issue=#202
     series.or_else(|| tag.movement().map(str::to_string))
 }
 
@@ -274,6 +277,9 @@ fn read_series_part_raw(tag: &Tag) -> Option<String> {
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };
+    // FALLBACK[FB-007]: trigger=legacy files store series-part in movement_index only
+    // observe=series metadata compatibility tests + fallback register tracking
+    // sunset=2026-05-31 issue=#202
     series_part.or_else(|| tag.movement_index().map(|idx| idx.to_string()))
 }
 

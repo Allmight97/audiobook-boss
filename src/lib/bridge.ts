@@ -249,6 +249,9 @@ type BridgeCommandResult<K extends BridgeCommand> = Awaited<
 
 // Helper to lazily load mocks only in DEV mode
 async function getMocks() {
+  // FALLBACK[FB-015]: trigger=runtime lacks Tauri bridge (web tests/dev shell)
+  // observe=bridge init + warn logs for ignored non-tauri commands/listeners
+  // sunset=2026-06-30 issue=#195
   console.log("[Bridge] Loading mocks...");
   if (import.meta.env.DEV) {
     return await import("./mocks");
@@ -258,6 +261,10 @@ async function getMocks() {
 
 export const bridge = {
   /**
+   * FALLBACK[FB-008]: trigger=UI callsites still rely on stable snake_case command surface
+   * observe=behavior-contract compatibility guards + generated binding drift checks
+   * sunset=2026-05-31 issue=#203
+   *
    * Typed wrapper for Tauri commands while preserving legacy command names at call sites.
    */
   invoke: async <K extends BridgeCommand>(

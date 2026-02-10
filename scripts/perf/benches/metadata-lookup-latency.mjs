@@ -181,6 +181,9 @@ async function fetchWithTiming(url, timeoutMs) {
 async function runRealMetadataBench() {
   const allowNetwork = process.env.ABB_PERF_ALLOW_NETWORK === "1";
   if (!allowNetwork) {
+    // FALLBACK[FB-016]: trigger=network mode disabled for deterministic local perf runs
+    // observe=result details include mode=fixture-fallback + fallback_reason
+    // sunset=2026-06-30 issue=#195
     const fallback = runSyntheticMetadataBench();
     return {
       ...fallback,
@@ -200,6 +203,9 @@ async function runRealMetadataBench() {
       continue;
     }
 
+    // FALLBACK[FB-016]: trigger=real network request fails mid-benchmark sequence
+    // observe=result details include failing URL and fallback_reason
+    // sunset=2026-06-30 issue=#195
     const fallback = runSyntheticMetadataBench();
     return {
       ...fallback,

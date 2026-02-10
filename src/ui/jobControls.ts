@@ -97,12 +97,17 @@ function updateMaxConcurrentIndicator(): void {
 }
 
 function readMaxConcurrentPreference(): string {
+    // FALLBACK[FB-004]: trigger=localStorage unavailable/blocked (privacy mode, restricted contexts)
+    // observe=console.warn markers on read/write/parse fallback paths
+    // sunset=2026-04-30 issue=#199
     if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
+        console.warn("FALLBACK[FB-004] localStorage.getItem unavailable; using auto max concurrency");
         return "auto";
     }
     try {
         return localStorage.getItem(MAX_CONCURRENT_STORAGE_KEY) ?? "auto";
-    } catch (_e) {
+    } catch (error) {
+        console.warn("FALLBACK[FB-004] failed to read max concurrency preference; using auto", error);
         return "auto";
     }
 }
@@ -113,8 +118,9 @@ function writeMaxConcurrentPreference(value: string): void {
     }
     try {
         localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, value);
-    } catch {
+    } catch (error) {
         // localStorage may be unavailable in private browsing; non-critical
+        console.warn("FALLBACK[FB-004] failed to persist max concurrency preference", error);
     }
 }
 
@@ -126,6 +132,7 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
         } else {
             const parsed = parseInt(value, 10);
             if (!Number.isFinite(parsed)) {
+                console.warn("FALLBACK[FB-004] invalid max concurrency selection ignored:", value);
                 return;
             }
             effective = await bridge.invoke("set_max_concurrent_jobs", {

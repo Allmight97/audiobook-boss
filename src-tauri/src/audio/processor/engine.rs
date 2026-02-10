@@ -239,6 +239,9 @@ impl MediaProcessor for FfmpegNextProcessor {
                             // Continue to next file in loop
                         }
                         PreviewAction::Continue => {
+                            // FALLBACK[FB-006]: trigger=legacy preview control path still setting early_stop
+                            // observe=info logs when legacy path is engaged
+                            // sunset=2026-03-31 issue=#201
                             // Check legacy early_stop flag for backward compatibility
                             if *ctx.early_stop {
                                 log::info!(

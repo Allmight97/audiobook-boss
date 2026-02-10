@@ -91,6 +91,9 @@ pub async fn set_max_concurrent_jobs(
     registry.update_max_concurrent(desired).await
 }
 
+/// FALLBACK[FB-008]: trigger=stable IPC command contract for existing UI callsites
+/// observe=behavior-contract tests assert command name parity
+/// sunset=2026-05-31 issue=#203
 /// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).
 ///
 /// This command now supports parallel batch processing via the JobRegistry.
