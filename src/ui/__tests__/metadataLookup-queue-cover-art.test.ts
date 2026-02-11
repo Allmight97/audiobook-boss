@@ -18,6 +18,7 @@ const context = vi.hoisted(() => ({
     ],
   } as { files: Array<{ path: string; isValid: boolean }> },
   metadataByFile: new Map<string, any>(),
+  setMetadataForFileMock: vi.fn(),
   activeIndex: 0,
 }));
 
@@ -60,9 +61,7 @@ vi.mock("../coverArt", () => ({
 
 vi.mock("../metadataState", () => ({
   getMetadataForFile: (filePath: string) => context.metadataByFile.get(filePath),
-  setMetadataForFile: (filePath: string, metadata: any) => {
-    context.metadataByFile.set(filePath, metadata);
-  },
+  setMetadataForFile: context.setMetadataForFileMock,
 }));
 
 vi.mock("../outputPanel", () => ({
@@ -136,6 +135,12 @@ describe("metadata lookup queue cover art isolation", () => {
       ["/books/alpha.m4b", { title: "Alpha Existing", cover_art: [1, 1, 1] }],
       ["/books/beta.m4b", { title: "Beta Existing", cover_art: [2, 2, 2] }],
     ]);
+    context.setMetadataForFileMock.mockReset();
+    context.setMetadataForFileMock.mockImplementation(
+      (filePath: string, metadata: any) => {
+        context.metadataByFile.set(filePath, metadata);
+      }
+    );
     context.activeIndex = 0;
 
     context.selectFileMock.mockReset();
@@ -186,6 +191,15 @@ describe("metadata lookup queue cover art isolation", () => {
     );
     expect(firstPathWrites.length).toBeGreaterThanOrEqual(1);
     expect(firstPathWrites[0]?.[2]).toEqual({ skipPersistPrevious: true });
+    expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+      "/books/alpha.m4b",
+      expect.objectContaining({
+        title: "Alpha Patched",
+        album: "Alpha Patched",
+        cover_art: [9, 9, 9],
+      }),
+      { markPending: true }
+    );
     expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
   });
 
@@ -215,6 +229,12 @@ describe("metadata lookup queue cover art isolation", () => {
     const second = context.metadataByFile.get("/books/beta.m4b");
     expect(first.cover_art).toEqual([9, 9, 9]);
     expect(second.cover_art).toEqual([2, 2, 2]);
+    const pendingCalls = context.setMetadataForFileMock.mock.calls.map(
+      (call) => call[2]
+    );
+    expect(pendingCalls).toEqual(
+      expect.arrayContaining([{ markPending: true }, { markPending: true }])
+    );
   });
 
   it("does not mutate metadata when skipping queue item", async () => {
