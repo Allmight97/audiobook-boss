@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/bridge", () => ({
   bridge: {
-    invoke: vi.fn(),
+    searchOnlineMetadata: vi.fn(),
+    loadCoverArtFromUrl: vi.fn(),
   },
 }));
 
 vi.mock("../fileList", () => ({
-  currentFileList: { files: [] },
+  getCurrentFileList: () => ({ files: [] }),
 }));
 
 vi.mock("../fileList/state", () => ({

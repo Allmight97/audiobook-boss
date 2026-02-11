@@ -3,7 +3,7 @@
  */
 import type { AudiobookMetadata } from "../../types/metadata";
 import { formatFileSize } from "../../types/audio";
-import { currentFileList } from "../fileList";
+import { getCurrentFileList } from "../fileList";
 import { getCurrentCoverArt } from "../coverArt";
 import { getState } from "./state";
 import {
@@ -180,7 +180,7 @@ export function updateEstimatedSize(): void {
   const sizeElement = document.getElementById("estimated-size");
   if (!sizeElement) return;
 
-  const fileList = currentFileList;
+  const fileList = getCurrentFileList();
   if (!fileList || !fileList.files.length) {
     sizeElement.textContent = "~ --- MB";
     return;

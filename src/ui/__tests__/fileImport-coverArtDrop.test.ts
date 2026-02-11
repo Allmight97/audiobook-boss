@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initFileImport } from "../fileImport";
 
-const { invokeMock, listeners } = vi.hoisted(() => ({
-  invokeMock: vi.fn(),
+const { analyzeAudioFilesMock, listeners } = vi.hoisted(() => ({
+  analyzeAudioFilesMock: vi.fn(),
   listeners: {} as Record<string, (payload: any) => void>,
 }));
 
@@ -12,7 +12,7 @@ vi.mock("../../lib/bridge", () => ({
       listeners[event] = cb;
     }),
     open: vi.fn(),
-    invoke: invokeMock,
+    analyzeAudioFiles: analyzeAudioFilesMock,
   },
 }));
 
@@ -25,7 +25,7 @@ function fireDragDrop(position: { x: number; y: number }, paths: string[]) {
 
 describe("File import drop vs cover art drop isolation", () => {
   beforeEach(() => {
-    invokeMock.mockReset();
+    analyzeAudioFilesMock.mockReset();
     document.body.innerHTML = `
       <div id="cover-art-area"></div>
       <div id="file-import-root"></div>
@@ -76,11 +76,11 @@ describe("File import drop vs cover art drop isolation", () => {
 
   it("ignores drops inside cover art area", async () => {
     fireDragDrop({ x: 50, y: 50 }, ["/tmp/image.png"]);
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
   });
 
   it("processes drops on file management container (header area)", async () => {
-    invokeMock.mockResolvedValue({
+    analyzeAudioFilesMock.mockResolvedValue({
       files: [],
       totalDuration: 0,
       totalSize: 0,
@@ -88,13 +88,11 @@ describe("File import drop vs cover art drop isolation", () => {
       invalidCount: 0,
     });
     fireDragDrop({ x: 200, y: 200 }, ["/tmp/file1.mp3"]);
-    expect(invokeMock).toHaveBeenCalledWith("analyze_audio_files", {
-      filePaths: ["/tmp/file1.mp3"],
-    });
+    expect(analyzeAudioFilesMock).toHaveBeenCalledWith(["/tmp/file1.mp3"]);
   });
 
   it("processes drops on file management container (file list area)", async () => {
-    invokeMock.mockResolvedValue({
+    analyzeAudioFilesMock.mockResolvedValue({
       files: [],
       totalDuration: 0,
       totalSize: 0,
@@ -103,13 +101,11 @@ describe("File import drop vs cover art drop isolation", () => {
     });
     // Drop on file list content area (when files are present)
     fireDragDrop({ x: 200, y: 300 }, ["/tmp/file1.mp3"]);
-    expect(invokeMock).toHaveBeenCalledWith("analyze_audio_files", {
-      filePaths: ["/tmp/file1.mp3"],
-    });
+    expect(analyzeAudioFilesMock).toHaveBeenCalledWith(["/tmp/file1.mp3"]);
   });
 
   it("ignores drops outside file management container", async () => {
-    invokeMock.mockResolvedValue({
+    analyzeAudioFilesMock.mockResolvedValue({
       files: [],
       totalDuration: 0,
       totalSize: 0,
@@ -117,6 +113,6 @@ describe("File import drop vs cover art drop isolation", () => {
       invalidCount: 0,
     });
     fireDragDrop({ x: 500, y: 500 }, ["/tmp/file1.mp3"]);
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
   });
 });

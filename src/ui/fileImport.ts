@@ -177,12 +177,7 @@ async function processFilePaths(filePaths: string[]): Promise<void> {
   if (filePaths.length === 0) return;
 
   try {
-    const fileListInfo: FileListInfo = await bridge.invoke(
-      "analyze_audio_files",
-      {
-        filePaths: filePaths,
-      }
-    );
+    const fileListInfo: FileListInfo = await bridge.analyzeAudioFiles(filePaths);
     displayFileList(fileListInfo);
     clearError();
   } catch (error) {

@@ -8,7 +8,7 @@
 import { bridge } from "../../lib/bridge";
 import { STAGES } from "../../types/events";
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from "../../types/events";
-import { currentFileList, setFileOrderLocked } from "../fileList";
+import { getCurrentFileList, setFileOrderLocked } from "../fileList";
 import * as dom from "./dom";
 import { setJobControlsEnabled } from "../jobControls";
 import { bindStatusPanelDomEvents, listenForProgressEvents, listenForQueueEvents } from "./events";
@@ -147,8 +147,9 @@ export class StatusPanel {
   }
 
   private buildFallbackLabel(event: ProcessingProgressEvent): string {
-    if (this.currentJobType === "merge" && currentFileList?.files?.length) {
-      const firstValidFile = currentFileList.files.find((file) => file.isValid);
+    const fileList = getCurrentFileList();
+    if (this.currentJobType === "merge" && fileList?.files?.length) {
+      const firstValidFile = fileList.files.find((file) => file.isValid);
       if (firstValidFile?.path) {
         return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;
       }
@@ -345,7 +346,7 @@ export class StatusPanel {
 
   private async handleCancelAll(): Promise<void> {
     try {
-      await bridge.invoke("cancel_processing");
+      await bridge.cancelProcessing();
       // Do not set final cancelled state here; wait for backend events
       this.updateStatus({
         stage: this.currentStatus.stage,
@@ -360,7 +361,7 @@ export class StatusPanel {
 
   private async cancelJob(jobId: string): Promise<void> {
     try {
-      await bridge.invoke("cancel_processing", { job_id: jobId });
+      await bridge.cancelProcessing(jobId);
     } catch (error) {
       console.error(`Failed to cancel job ${jobId}:`, error);
       dom.showError(`Failed to cancel job ${jobId}`);
@@ -468,13 +469,14 @@ export class StatusPanel {
   }
 
   private async updateArtThumbnail(): Promise<void> {
-    if (!currentFileList || !currentFileList.files.length) {
+    const fileList = getCurrentFileList();
+    if (!fileList || !fileList.files.length) {
       dom.resetArtThumbnail();
       return;
     }
 
     // Get the first valid file for cover art
-    const firstValidFile = currentFileList.files.find((file) => file.isValid);
+    const firstValidFile = fileList.files.find((file) => file.isValid);
     if (!firstValidFile) {
       dom.resetArtThumbnail();
       return;
@@ -503,11 +505,11 @@ export class StatusPanel {
   }
 
   private findFilePathByName(filename: string): string | null {
-    return findFilePathByNameService(currentFileList, filename);
+    return findFilePathByNameService(getCurrentFileList(), filename);
   }
 
   private findFilePathByIndex(index: number): string | null {
-    return findFilePathByIndexService(currentFileList, index);
+    return findFilePathByIndexService(getCurrentFileList(), index);
   }
 
   // Public method to check if processing is active

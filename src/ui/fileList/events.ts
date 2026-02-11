@@ -1,5 +1,5 @@
 import {
-  currentFileList,
+  getCurrentFileList,
   isOrderLocked,
 } from "./state";
 import { isMetadataSaveInProgress } from "../metadataSaveState";
@@ -83,7 +83,8 @@ function handleFileListClick(e: Event): void {
     e.preventDefault();
     if (isOrderLocked()) return;
     const index = parseInt(target.dataset.index || "-1");
-    if (index >= 0 && currentFileList && index < currentFileList.files.length - 1) {
+    const fileList = getCurrentFileList();
+    if (index >= 0 && fileList && index < fileList.files.length - 1) {
       moveFileDown(index);
     }
     return;
@@ -108,7 +109,7 @@ function handleFileListClick(e: Event): void {
 
 function handleFileListKeyDown(e: KeyboardEvent): void {
   if (isMetadataSaveInProgress()) return;
-  if (!currentFileList) return;
+  if (!getCurrentFileList()) return;
   if (isTextInputTarget(e.target)) return;
 
   const key = e.key.toLowerCase();

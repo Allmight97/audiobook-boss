@@ -4,12 +4,12 @@ import { bridge } from "../../lib/bridge";
 
 vi.mock("../../lib/bridge", () => ({
   bridge: {
-    invoke: vi.fn().mockResolvedValue(undefined),
+    setMaxConcurrentJobs: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
 const MAX_CONCURRENT_STORAGE_KEY = "abb:maxConcurrentJobs";
-const invokeMock = vi.mocked(bridge.invoke);
+const setMaxConcurrentJobsMock = vi.mocked(bridge.setMaxConcurrentJobs);
 
 function setupDomRoot() {
   document.body.innerHTML = '<div id="job-controls-root"></div>';
@@ -49,11 +49,11 @@ describe("Job controls merge toggle", () => {
   beforeEach(() => {
     setupDomRoot();
     localStorage.clear();
-    invokeMock.mockReset();
+    setMaxConcurrentJobsMock.mockReset();
   });
 
   it("dispatches job-type change and reflects merge toggle state", async () => {
-    invokeMock.mockResolvedValueOnce(4);
+    setMaxConcurrentJobsMock.mockResolvedValueOnce(4);
     initJobControls();
     await flushAsync();
 
@@ -77,7 +77,7 @@ describe("Job controls merge toggle", () => {
   it("reads persisted max concurrency, sends numeric payload, and emits detail + indicator", async () => {
     localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, "3");
     const getItemSpy = vi.spyOn(localStorage, "getItem");
-    invokeMock.mockResolvedValueOnce(3);
+    setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
 
     let detail: { effective: number; selection: string } | null = null;
     document.addEventListener(
@@ -93,7 +93,7 @@ describe("Job controls merge toggle", () => {
 
     expect(getItemSpy).toHaveBeenCalledWith(MAX_CONCURRENT_STORAGE_KEY);
     expect(getMaxConcurrentSelect().value).toBe("3");
-    expect(invokeMock).toHaveBeenCalledWith("set_max_concurrent_jobs", { max_concurrent: 3 });
+    expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
     expect(getMaxConcurrentIndicator().textContent).toBe("Max 3");
     expect(detail).toEqual({ effective: 3, selection: "3" });
   });
@@ -101,11 +101,11 @@ describe("Job controls merge toggle", () => {
   it("writes updated selection, sends auto payload, and updates indicator + event detail", async () => {
     localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, "2");
     const setItemSpy = vi.spyOn(localStorage, "setItem");
-    invokeMock.mockResolvedValueOnce(2).mockResolvedValueOnce(6);
+    setMaxConcurrentJobsMock.mockResolvedValueOnce(2).mockResolvedValueOnce(6);
 
     initJobControls();
     await flushAsync();
-    invokeMock.mockClear();
+    setMaxConcurrentJobsMock.mockClear();
 
     let detail: { effective: number; selection: string } | null = null;
     document.addEventListener(
@@ -122,13 +122,13 @@ describe("Job controls merge toggle", () => {
     await flushAsync();
 
     expect(setItemSpy).toHaveBeenCalledWith(MAX_CONCURRENT_STORAGE_KEY, "auto");
-    expect(invokeMock).toHaveBeenCalledWith("set_max_concurrent_jobs", { max_concurrent: null });
+    expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(null);
     expect(getMaxConcurrentIndicator().textContent).toBe("Auto → 6");
     expect(detail).toEqual({ effective: 6, selection: "auto" });
   });
 
   it("toggles disabled state and opacity on both controls", async () => {
-    invokeMock.mockResolvedValueOnce(4);
+    setMaxConcurrentJobsMock.mockResolvedValueOnce(4);
     initJobControls();
     await flushAsync();
 

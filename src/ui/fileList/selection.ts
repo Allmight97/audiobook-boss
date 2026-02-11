@@ -1,6 +1,6 @@
 import {
-  currentFileList,
-  selectedFileIndex,
+  getCurrentFileList,
+  getSelectedFileIndex,
   setSelectedIndex,
   getSelectedFileIndices,
   addToSelectedIndices,
@@ -26,6 +26,7 @@ function ensureAnchor(): void {
     return;
   }
 
+  const selectedFileIndex = getSelectedFileIndex();
   if (selectedFileIndex >= 0 && selected.has(selectedFileIndex)) return;
 
   const sorted = getSortedSelectedIndices();
@@ -37,12 +38,14 @@ export function handleSelection(
   index: number,
   modifiers: SelectionModifiers
 ): SelectionResult {
-  if (!currentFileList) return { changed: false };
+  const fileList = getCurrentFileList();
+  if (!fileList) return { changed: false };
 
-  const totalFiles = currentFileList.files.length;
+  const totalFiles = fileList.files.length;
   if (index < 0 || index >= totalFiles) return { changed: false };
 
   const { multi, range } = modifiers;
+  const selectedFileIndex = getSelectedFileIndex();
 
   if (range && selectedFileIndex !== -1) {
     const start = Math.min(selectedFileIndex, index);
@@ -76,10 +79,11 @@ export function handleSelection(
 }
 
 export function selectAllFiles(): boolean {
-  if (!currentFileList) return false;
+  const fileList = getCurrentFileList();
+  if (!fileList) return false;
 
   clearSelectedIndices();
-  const count = currentFileList.files.length;
+  const count = fileList.files.length;
   for (let i = 0; i < count; i += 1) {
     addToSelectedIndices(i);
   }
@@ -88,6 +92,7 @@ export function selectAllFiles(): boolean {
 }
 
 export function clearSelection(): boolean {
+  const selectedFileIndex = getSelectedFileIndex();
   if (getSelectedFileIndices().size === 0 && selectedFileIndex === -1) {
     return false;
   }
@@ -122,6 +127,7 @@ export function reindexSelectionAfterMove(fromIndex: number, toIndex: number): v
 
   setSelectedFileIndices(updated);
 
+  const selectedFileIndex = getSelectedFileIndex();
   if (selectedFileIndex !== -1) {
     setSelectedIndex(mapIndexForMove(selectedFileIndex, fromIndex, toIndex));
   }
@@ -143,6 +149,7 @@ export function swapSelectionIndices(indexA: number, indexB: number): void {
 
   setSelectedFileIndices(updated);
 
+  const selectedFileIndex = getSelectedFileIndex();
   if (selectedFileIndex === indexA) {
     setSelectedIndex(indexB);
   } else if (selectedFileIndex === indexB) {

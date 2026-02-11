@@ -11,9 +11,7 @@ export function shouldSkipCoverArtRead(
 export async function readCoverArtDataUrl(
   filePath: string
 ): Promise<string | null> {
-  const metadata = await bridge.invoke("read_audio_metadata", {
-    filePath,
-  });
+  const metadata = await bridge.readAudioMetadata(filePath);
 
   if (!metadata.cover_art || metadata.cover_art.length === 0) {
     return null;

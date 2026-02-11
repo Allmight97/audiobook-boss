@@ -240,9 +240,7 @@ async function handleLoadCoverArtFromInput(
  */
 async function loadCoverArtFile(filePath: string): Promise<void> {
     try {
-        const imageData = await bridge.invoke("load_cover_art_file", {
-            filePath: filePath,
-        });
+        const imageData = await bridge.loadCoverArtFile(filePath);
 
         applyLoadedCoverArt(imageData);
 
@@ -257,9 +255,7 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
     try {
         setCoverArtLoading(true);
         clearCoverArtMessage();
-        const imageData = await bridge.invoke("load_cover_art_from_url", {
-            url: url,
-        });
+        const imageData = await bridge.loadCoverArtFromUrl(url);
 
         applyLoadedCoverArt(imageData);
         showCoverArtMessage("Cover art loaded from URL.", "success");

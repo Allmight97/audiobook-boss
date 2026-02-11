@@ -10,7 +10,8 @@ vi.mock("../../lib/bridge", () => ({
   bridge: {
     listen: vi.fn(),
     open: vi.fn(),
-    invoke: vi.fn(),
+    loadCoverArtFile: vi.fn(),
+    loadCoverArtFromUrl: vi.fn(),
   },
 }));
 

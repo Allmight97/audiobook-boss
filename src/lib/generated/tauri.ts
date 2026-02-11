@@ -101,10 +101,7 @@ async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
     return await TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent });
 },
 /**
- * FALLBACK[FB-008]: trigger=stable IPC command contract for existing UI callsites
- * observe=behavior-contract tests assert command name parity
- * sunset=2026-05-31 issue=#203
- * Processes files using the encoder settings payload (`process_audiobook_files_v2` command name retained for compatibility).
+ * Processes files using the encoder settings payload (`process_audiobook_files_v2` command name).
  * 
  * This command now supports parallel batch processing via the JobRegistry.
  * Multiple invocations can run concurrently up to the configured limit.

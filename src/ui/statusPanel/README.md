@@ -66,18 +66,12 @@ DOM manipulation and UI update helpers:
 - Button state management
 - Error/success message styling
 
-### `/src/ui/statusPanel.ts` (Aggregator Shim)
-Re-exports everything from the modular implementation to maintain import compatibility:
-```typescript
-export * from './statusPanel/index';
-```
-
 ## Architecture
 
 The split follows a clean separation pattern:
 - **Logic**: Handles events, state, and business rules
 - **DOM**: Pure view layer with no business logic
 - **Index**: Public interface contract
-- **Shim**: Backwards compatibility
+- **Island**: Svelte mount host that preserves existing DOM IDs and logic wiring contracts
 
 This design allows for easier testing, maintenance, and future enhancements while preserving the existing public API contract.

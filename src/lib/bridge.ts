@@ -259,31 +259,78 @@ async function getMocks() {
   throw new Error("Mocks are not available in production builds");
 }
 
+async function invokeCommand<K extends BridgeCommand>(
+  cmd: K,
+  args?: BridgeCommandArgs<K>
+): Promise<BridgeCommandResult<K>> {
+  if (isTauri) {
+    const command = commandInvokers[cmd];
+    return (await command(args as never)) as unknown as BridgeCommandResult<K>;
+  }
+
+  if (import.meta.env.DEV) {
+    const mocks = await getMocks();
+    return (await mocks.mockInvoke(cmd, args as never)) as unknown as BridgeCommandResult<K>;
+  }
+
+  console.warn(`[Bridge] Tauri not detected and not in DEV mode. Command '${cmd}' ignored.`);
+  return Promise.reject("Tauri API not available") as unknown as BridgeCommandResult<K>;
+}
+
 export const bridge = {
-  /**
-   * FALLBACK[FB-008]: trigger=UI callsites still rely on stable snake_case command surface
-   * observe=behavior-contract compatibility guards + generated binding drift checks
-   * sunset=2026-05-31 issue=#203
-   *
-   * Typed wrapper for Tauri commands while preserving legacy command names at call sites.
-   */
-  invoke: async <K extends BridgeCommand>(
-    cmd: K,
-    args?: BridgeCommandArgs<K>
-  ): Promise<BridgeCommandResult<K>> => {
-    if (isTauri) {
-      const command = commandInvokers[cmd];
-      return (await command(args as never)) as unknown as BridgeCommandResult<K>;
-    }
-
-    if (import.meta.env.DEV) {
-      const mocks = await getMocks();
-      return (await mocks.mockInvoke(cmd, args as never)) as unknown as BridgeCommandResult<K>;
-    }
-
-    console.warn(`[Bridge] Tauri not detected and not in DEV mode. Command '${cmd}' ignored.`);
-    return Promise.reject("Tauri API not available") as unknown as BridgeCommandResult<K>;
-  },
+  ping: (): Promise<BridgeCommandResult<"ping">> => invokeCommand("ping"),
+  echo: (input: string): Promise<BridgeCommandResult<"echo">> =>
+    invokeCommand("echo", { input }),
+  validateFiles: (filePaths: string[]): Promise<BridgeCommandResult<"validate_files">> =>
+    invokeCommand("validate_files", { filePaths }),
+  readAudioMetadata: (filePath: string): Promise<BridgeCommandResult<"read_audio_metadata">> =>
+    invokeCommand("read_audio_metadata", { filePath }),
+  writeCoverArt: (
+    filePath: string,
+    coverData: number[]
+  ): Promise<BridgeCommandResult<"write_cover_art">> =>
+    invokeCommand("write_cover_art", { filePath, coverData }),
+  loadCoverArtFile: (filePath: string): Promise<BridgeCommandResult<"load_cover_art_file">> =>
+    invokeCommand("load_cover_art_file", { filePath }),
+  loadCoverArtFromUrl: (url: string): Promise<BridgeCommandResult<"load_cover_art_from_url">> =>
+    invokeCommand("load_cover_art_from_url", { url }),
+  saveMetadataToFile: (
+    filePath: string,
+    metadata: Partial<LegacyAudiobookMetadata>
+  ): Promise<BridgeCommandResult<"save_metadata_to_file">> =>
+    invokeCommand("save_metadata_to_file", { filePath, metadata }),
+  searchOnlineMetadata: (args: {
+    query: string;
+    sources?: LegacyMetadataSource[] | null;
+    limit?: number | null;
+  }): Promise<BridgeCommandResult<"search_online_metadata">> =>
+    invokeCommand("search_online_metadata", args),
+  analyzeAudioFiles: (filePaths: string[]): Promise<BridgeCommandResult<"analyze_audio_files">> =>
+    invokeCommand("analyze_audio_files", { filePaths }),
+  validateEncoderSettings: (
+    settings: EncoderSettings
+  ): Promise<BridgeCommandResult<"validate_encoder_settings_cmd">> =>
+    invokeCommand("validate_encoder_settings_cmd", { settings }),
+  listAvailableEncoders: (): Promise<BridgeCommandResult<"list_available_encoders">> =>
+    invokeCommand("list_available_encoders"),
+  getMaxConcurrentJobs: (): Promise<BridgeCommandResult<"get_max_concurrent_jobs">> =>
+    invokeCommand("get_max_concurrent_jobs"),
+  setMaxConcurrentJobs: (
+    maxConcurrent?: number | null
+  ): Promise<BridgeCommandResult<"set_max_concurrent_jobs">> =>
+    invokeCommand("set_max_concurrent_jobs", { max_concurrent: maxConcurrent ?? null }),
+  processAudiobookFilesV2: (args: {
+    payload: LegacyProcessV2Payload;
+    metadata?: LegacyMetadataPayload | null;
+    previewSeconds?: number | null;
+  }): Promise<BridgeCommandResult<"process_audiobook_files_v2">> =>
+    invokeCommand("process_audiobook_files_v2", args),
+  cancelProcessing: (
+    jobId?: string | null
+  ): Promise<BridgeCommandResult<"cancel_processing">> =>
+    jobId === undefined
+      ? invokeCommand("cancel_processing")
+      : invokeCommand("cancel_processing", { job_id: jobId }),
 
   /**
    * Typed wrapper for Tauri listen() with generated app events + built-in Tauri events.

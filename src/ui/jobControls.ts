@@ -153,16 +153,14 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
   try {
     let effective: number;
     if (value === "auto") {
-      effective = await bridge.invoke("set_max_concurrent_jobs", { max_concurrent: null });
+      effective = await bridge.setMaxConcurrentJobs(null);
     } else {
       const parsed = parseInt(value, 10);
       if (!Number.isFinite(parsed)) {
         console.warn("FALLBACK[FB-004] invalid max concurrency selection ignored:", value);
         return;
       }
-      effective = await bridge.invoke("set_max_concurrent_jobs", {
-        max_concurrent: parsed,
-      });
+      effective = await bridge.setMaxConcurrentJobs(parsed);
     }
     if (!Number.isFinite(effective)) {
       return;

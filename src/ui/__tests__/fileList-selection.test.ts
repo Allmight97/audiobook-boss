@@ -8,8 +8,8 @@ import {
   swapSelectionIndices,
 } from "../fileList/selection";
 import {
-  currentFileList,
-  selectedFileIndex,
+  getCurrentFileList,
+  getSelectedFileIndex,
   setCurrentFileList,
   setSelectedIndex,
   setSelectedFileIndices,
@@ -48,7 +48,7 @@ describe("file list selection", () => {
 
     expect(result.changed).toBe(true);
     expect(selectedIndices()).toEqual([2]);
-    expect(selectedFileIndex).toBe(2);
+    expect(getSelectedFileIndex()).toBe(2);
   });
 
   it("toggles multi-select and maintains anchor", () => {
@@ -56,12 +56,12 @@ describe("file list selection", () => {
     handleSelection(3, { multi: true, range: false });
 
     expect(selectedIndices()).toEqual([1, 3]);
-    expect(selectedFileIndex).toBe(3);
+    expect(getSelectedFileIndex()).toBe(3);
 
     handleSelection(3, { multi: true, range: false });
 
     expect(selectedIndices()).toEqual([1]);
-    expect(selectedFileIndex).toBe(1);
+    expect(getSelectedFileIndex()).toBe(1);
   });
 
   it("selects a range from the anchor", () => {
@@ -69,7 +69,7 @@ describe("file list selection", () => {
     handleSelection(3, { multi: false, range: true });
 
     expect(selectedIndices()).toEqual([1, 2, 3]);
-    expect(selectedFileIndex).toBe(3);
+    expect(getSelectedFileIndex()).toBe(3);
   });
 
   it("selects all files", () => {
@@ -77,7 +77,7 @@ describe("file list selection", () => {
 
     expect(changed).toBe(true);
     expect(selectedIndices()).toEqual([0, 1, 2, 3, 4]);
-    expect(selectedFileIndex).toBe(0);
+    expect(getSelectedFileIndex()).toBe(0);
   });
 
   it("clears selection", () => {
@@ -87,7 +87,7 @@ describe("file list selection", () => {
 
     expect(changed).toBe(true);
     expect(selectedIndices()).toEqual([]);
-    expect(selectedFileIndex).toBe(-1);
+    expect(getSelectedFileIndex()).toBe(-1);
   });
 
   it("reindexes selection after removal", () => {
@@ -97,7 +97,7 @@ describe("file list selection", () => {
     reindexSelectionAfterRemoval(2);
 
     expect(selectedIndices()).toEqual([1, 2, 3]);
-    expect(selectedFileIndex).toBe(3);
+    expect(getSelectedFileIndex()).toBe(3);
   });
 
   it("reindexes selection after move", () => {
@@ -107,7 +107,7 @@ describe("file list selection", () => {
     reindexSelectionAfterMove(1, 3);
 
     expect(selectedIndices()).toEqual([3, 4]);
-    expect(selectedFileIndex).toBe(4);
+    expect(getSelectedFileIndex()).toBe(4);
   });
 
   it("swaps selection indices and anchor", () => {
@@ -117,14 +117,14 @@ describe("file list selection", () => {
     swapSelectionIndices(1, 2);
 
     expect(selectedIndices()).toEqual([2, 3]);
-    expect(selectedFileIndex).toBe(2);
+    expect(getSelectedFileIndex()).toBe(2);
   });
 
   it("ignores out-of-bounds selections", () => {
     const result = handleSelection(9, { multi: false, range: false });
 
     expect(result.changed).toBe(false);
-    expect(currentFileList?.files.length).toBe(5);
+    expect(getCurrentFileList()?.files.length).toBe(5);
     expect(selectedIndices()).toEqual([]);
   });
 });
