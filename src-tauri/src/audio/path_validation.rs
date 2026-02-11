@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 
 /// Validate a single input audio file path and return its canonical absolute path.
 pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
@@ -26,7 +26,7 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot canonicalize path '{}': {}",
-            path.display(),
+            sanitize_path_for_display(path),
             e
         ))
     })?;
@@ -45,7 +45,7 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot canonicalize path '{}': {}",
-            path.display(),
+            sanitize_path_for_display(path),
             e
         ))
     })?;
@@ -85,7 +85,7 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     let metadata = fs::metadata(path).map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot read file metadata for '{}': {}",
-            path.display(),
+            sanitize_path_for_display(path),
             e
         ))
     })?;
@@ -93,7 +93,7 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     if !metadata.is_file() {
         return Err(AppError::FileValidation(format!(
             "Path is not a regular file: {}",
-            path.display()
+            sanitize_path_for_display(path)
         )));
     }
 

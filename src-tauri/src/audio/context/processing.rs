@@ -4,6 +4,7 @@ use crate::audio::preview_config::PreviewConfig;
 use crate::audio::session::ProcessingSession;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::SampleRateConfig;
+use crate::errors::sanitize_path_str_for_display;
 use crate::errors::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -141,7 +142,7 @@ impl ProcessingContext {
     ) -> crate::errors::AppError {
         crate::errors::AppError::FileValidation(format!(
             "Failed to {operation} file '{}' in session {}: {reason}",
-            file_path,
+            sanitize_path_str_for_display(file_path),
             self.session.id()
         ))
     }

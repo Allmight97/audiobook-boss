@@ -263,9 +263,13 @@ fn test_symlink_integration() {
         err
     );
 
-    let file_info = analyze_audio_files(vec![link.to_string_lossy().to_string()]).expect("analysis ok");
+    let file_info =
+        analyze_audio_files(vec![link.to_string_lossy().to_string()]).expect("analysis ok");
     assert_eq!(file_info.files.len(), 1, "Should report one analyzed path");
-    assert!(!file_info.files[0].is_valid, "Symlinked media should be invalid");
+    assert!(
+        !file_info.files[0].is_valid,
+        "Symlinked media should be invalid"
+    );
     let reported_error = file_info.files[0]
         .error
         .as_deref()
@@ -307,6 +311,28 @@ fn test_rejects_empty_path() {
         validate_input_audio_path(&empty_path).expect_err("empty path should fail validation");
     let msg = err.to_string();
     assert!(msg.contains("Cannot read file metadata") || msg.contains("no extension"));
+}
+
+#[test]
+fn test_validation_errors_sanitize_directory_paths() {
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let nested_dir = temp_dir.path().join("highly-sensitive-dir");
+    std::fs::create_dir(&nested_dir).expect("create nested directory");
+
+    let err =
+        validate_input_audio_path(&nested_dir).expect_err("directory path should fail validation");
+    let msg = err.to_string();
+
+    assert!(
+        msg.contains("highly-sensitive-dir"),
+        "Expected basename in error message, got: {}",
+        msg
+    );
+    assert!(
+        !msg.contains(temp_dir.path().to_string_lossy().as_ref()),
+        "Error message should not expose full directory path: {}",
+        msg
+    );
 }
 
 #[cfg(unix)]

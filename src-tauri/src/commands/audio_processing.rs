@@ -8,6 +8,7 @@ use crate::audio::{QueueEvent, QueueItem};
 use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
 };
+use crate::errors::sanitize_path_for_display;
 use crate::errors::{AppError, Result};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -73,7 +74,7 @@ fn ensure_output_dir(output_dir: &str) -> Result<PathBuf> {
         std::fs::create_dir_all(&base_output_dir).map_err(|e| {
             AppError::FileValidation(format!(
                 "Failed to create output directory '{}': {}",
-                base_output_dir.display(),
+                sanitize_path_for_display(&base_output_dir),
                 e
             ))
         })?;

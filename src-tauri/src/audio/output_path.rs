@@ -1,4 +1,4 @@
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -174,7 +174,7 @@ pub(crate) fn build_output_path(
         std::fs::create_dir_all(&dir).map_err(|e| {
             AppError::FileValidation(format!(
                 "Failed to create output directory '{}': {}",
-                dir.display(),
+                sanitize_path_for_display(&dir),
                 e
             ))
         })?;

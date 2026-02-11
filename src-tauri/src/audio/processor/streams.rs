@@ -1,6 +1,6 @@
 //! Decoder and resampler setup (behavior-preserving extraction)
 
-use crate::errors::Result;
+use crate::errors::{sanitize_path_for_display, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
 
@@ -24,7 +24,7 @@ pub(crate) fn setup_decoder_and_resampler(
     if !input_path.exists() {
         return Err(AppError::FileValidation(format!(
             "Input file does not exist: {}",
-            input_path.display()
+            sanitize_path_for_display(input_path)
         )));
     }
     log::info!("✓ Input file exists and is accessible");
@@ -33,7 +33,7 @@ pub(crate) fn setup_decoder_and_resampler(
     let ictx = ff::format::input(&input_path).map_err(|e| {
         AppError::General(format!(
             "Failed to open input file '{}': {}",
-            input_path.display(),
+            sanitize_path_for_display(input_path),
             e
         ))
     })?;
@@ -43,7 +43,7 @@ pub(crate) fn setup_decoder_and_resampler(
     let istream = ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
         AppError::InvalidInput(format!(
             "No audio stream found in input file: {}",
-            input_path.display()
+            sanitize_path_for_display(input_path)
         ))
     })?;
     let stream_index = istream.index();
@@ -54,7 +54,7 @@ pub(crate) fn setup_decoder_and_resampler(
         ff::codec::context::Context::from_parameters(istream.parameters()).map_err(|e| {
             AppError::General(format!(
                 "Failed to create decoder context from parameters for '{}': {}",
-                input_path.display(),
+                sanitize_path_for_display(input_path),
                 e
             ))
         })?;
@@ -64,7 +64,7 @@ pub(crate) fn setup_decoder_and_resampler(
     let decoder = dec_ctx.decoder().audio().map_err(|e| {
         AppError::General(format!(
             "Failed to open audio decoder for '{}': {}",
-            input_path.display(),
+            sanitize_path_for_display(input_path),
             e
         ))
     })?;
@@ -99,7 +99,7 @@ pub(crate) fn setup_decoder_and_resampler(
     .map_err(|e| {
         AppError::General(format!(
             "Failed to create resampler for '{}': {}",
-            input_path.display(),
+            sanitize_path_for_display(input_path),
             e
         ))
     })?;

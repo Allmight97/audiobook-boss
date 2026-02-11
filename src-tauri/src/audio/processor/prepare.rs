@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::context::ProcessingContext;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 
 use super::ProcessingWorkflow;
 
@@ -88,7 +88,7 @@ fn get_file_sample_rate(path: &Path) -> Result<u32> {
         .ok_or_else(|| {
             AppError::InvalidInput(format!(
                 "File {} has no detectable audio stream",
-                path.display()
+                sanitize_path_for_display(path)
             ))
         })?;
 
@@ -116,7 +116,7 @@ pub(crate) fn validate_processing_inputs(
         if !file.is_valid {
             return Err(AppError::FileValidation(format!(
                 "Invalid file: {} - {}",
-                file.path.display(),
+                sanitize_path_for_display(&file.path),
                 file.error.as_deref().unwrap_or("Unknown error")
             )));
         }
@@ -136,7 +136,7 @@ pub(crate) fn create_temp_directory_with_session(session_id: &str) -> Result<Pat
     std::fs::create_dir_all(&temp_dir).map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot create session temp directory '{}': {e}",
-            temp_dir.display()
+            sanitize_path_for_display(&temp_dir)
         ))
     })?;
     Ok(temp_dir)

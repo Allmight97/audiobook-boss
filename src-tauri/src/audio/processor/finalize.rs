@@ -51,7 +51,7 @@ use std::path::{Path, PathBuf};
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
 use crate::audio::{ProcessingStage, ProgressReporter};
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 
 use super::ProcessingWorkflow;
@@ -77,7 +77,7 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
         std::fs::create_dir_all(parent).map_err(|e| {
             AppError::FileValidation(format!(
                 "Cannot create output directory '{}': {e}",
-                parent.display()
+                sanitize_path_for_display(parent)
             ))
         })?;
     }
@@ -107,7 +107,7 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
             std::fs::copy(&temp_output, final_path).map_err(|e| {
                 AppError::FileValidation(format!(
                     "Cannot copy file to final location '{}': {e}",
-                    final_path.display()
+                    sanitize_path_for_display(final_path)
                 ))
             })?;
             if let Err(e) = std::fs::remove_file(&temp_output) {
