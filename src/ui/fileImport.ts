@@ -2,7 +2,7 @@ import { bridge } from "../lib/bridge";
 import { FileListInfo } from "../types/audio";
 import { isFileDropEvent } from "../types/events";
 import { mount, unmount } from "svelte";
-import { displayFileList } from "./fileList";
+import { displayFileList, refreshFileListControlBindings } from "./fileList";
 import FileImportIsland from "./fileImport/FileImportIsland.svelte";
 import { isOrderLocked } from "./fileList/state";
 
@@ -14,6 +14,7 @@ let mountedFileImportIsland: Parameters<typeof unmount>[0] | null = null;
 
 export function initFileImport(): void {
   mountFileImportIsland();
+  refreshFileListControlBindings();
 
   dropZoneHeader = document.querySelector(".drop-zone-header");
   if (!dropZoneHeader) return;

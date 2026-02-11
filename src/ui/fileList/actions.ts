@@ -14,9 +14,11 @@ import {
   getSubseriesPartValidationError,
 } from "../metadataValidation";
 import {
+  hasDirtyMetadataFields,
   readMetadataForm,
   resetDirtyState,
 } from "../metadataForm";
+import type { AudiobookMetadata } from "../../types/metadata";
 import {
   getCurrentFileList,
   getSelectedFileIndex,
@@ -70,11 +72,55 @@ export function displayFileList(fileListInfo: FileListInfo): void {
   void autoUpdateCoverArtFromFirstValidFile();
 }
 
-function persistSingleSelectionMetadata(file: AudioFile | null): void {
-  if (!file?.isValid) return;
+function metadataEquals(
+  a: Partial<AudiobookMetadata>,
+  b: Partial<AudiobookMetadata>
+): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const aValue = a[key as keyof AudiobookMetadata];
+    const bValue = b[key as keyof AudiobookMetadata];
+    if (JSON.stringify(aValue) !== JSON.stringify(bValue)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | null {
+  const seriesPartError = getSeriesPartValidationError(
+    typeof changes.series_part === "string" ? changes.series_part : undefined
+  );
+  const subseriesPartError = getSubseriesPartValidationError(
+    typeof changes.subseries_part === "string" ? changes.subseries_part : undefined
+  );
+  return seriesPartError ?? subseriesPartError;
+}
+
+function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
+  if (!file?.isValid) return false;
+  if (!hasDirtyMetadataFields()) return false;
 
   const metadata = readMetadataForm({ mode: "single" });
-  setMetadataForFile(file.path, metadata);
+  const validationError = validateSeriesFields(metadata);
+  if (validationError) {
+    const statusText = document.getElementById("status-text");
+    if (statusText) {
+      statusText.textContent = validationError;
+    }
+    return false;
+  }
+
+  const existing = getMetadataForFile(file.path) ?? {};
+  const merged = { ...existing, ...metadata };
+  if (metadataEquals(existing, merged)) {
+    return false;
+  }
+
+  setMetadataForFile(file.path, merged, { markPending: true });
+  resetDirtyState();
+  onMetadataChange();
+  return true;
 }
 
 export async function selectFile(
@@ -88,6 +134,8 @@ export async function selectFile(
   }
 
   const previousSelectionCount = getSelectedFiles().length;
+  const previousSelectedFiles =
+    previousSelectionCount > 1 ? getSelectedFiles() : [];
   const previousIndex = getSelectedFileIndex();
   const previousFile =
     previousSelectionCount === 1
@@ -105,14 +153,17 @@ export async function selectFile(
     persistSingleSelectionMetadata(previousFile);
   }
 
+  if (previousSelectionCount > 1) {
+    await stageMetadataToSelection({
+      showStatus: false,
+      selectedFilesOverride: previousSelectedFiles,
+    });
+  }
+
   updateSelection();
 
   const selectedFiles = getSelectedFiles();
   const count = selectedFiles.length;
-
-  if (previousSelectionCount > 1 && count <= 1) {
-    await stageMetadataToSelection({ showStatus: false });
-  }
 
   if (count === 0) {
     setSelectedIndex(-1);
@@ -161,7 +212,10 @@ export async function clearSelectionAction(): Promise<void> {
   persistSingleSelectionMetadata(previousFile);
 
   if (previousSelectionCount > 1) {
-    await stageMetadataToSelection({ showStatus: false });
+    await stageMetadataToSelection({
+      showStatus: false,
+      selectedFilesOverride: getSelectedFiles(),
+    });
   }
 
   const changed = clearSelection();
@@ -174,10 +228,12 @@ export async function clearSelectionAction(): Promise<void> {
 
 export async function stageMetadataToSelection(options?: {
   showStatus?: boolean;
+  selectedFilesOverride?: AudioFile[];
 }): Promise<boolean> {
   if (!getCurrentFileList()) return false;
 
-  const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
+  const selectedFiles = (options?.selectedFilesOverride ?? getSelectedFiles())
+    .filter((file) => file.isValid);
   if (selectedFiles.length === 0) return false;
 
   const changes = readMetadataForm({ mode: "multi", onlyDirty: true });
@@ -191,13 +247,7 @@ export async function stageMetadataToSelection(options?: {
     return false;
   }
 
-  const seriesPartError = getSeriesPartValidationError(
-    typeof changes.series_part === "string" ? changes.series_part : undefined
-  );
-  const subseriesPartError = getSubseriesPartValidationError(
-    typeof changes.subseries_part === "string" ? changes.subseries_part : undefined
-  );
-  const validationError = seriesPartError ?? subseriesPartError;
+  const validationError = validateSeriesFields(changes);
   if (validationError) {
     if (options?.showStatus) {
       const statusText = document.getElementById("status-text");
@@ -213,7 +263,9 @@ export async function stageMetadataToSelection(options?: {
   selectedFiles.forEach((file) => {
     const existing = getMetadataForFile(file.path) ?? {};
     const merged = { ...existing, ...changes };
-    setMetadataForFile(file.path, merged);
+    if (!metadataEquals(existing, merged)) {
+      setMetadataForFile(file.path, merged, { markPending: true });
+    }
   });
 
   resetDirtyState();
@@ -223,7 +275,7 @@ export async function stageMetadataToSelection(options?: {
     const statusText = document.getElementById("status-text");
     if (statusText) {
       const originalText = statusText.textContent;
-      const msg = `Applied to ${selectedFiles.length} files`;
+      const msg = `Draft saved for ${selectedFiles.length} files`;
       statusText.textContent = msg;
       setTimeout(() => {
         if (statusText.textContent === msg) {
@@ -236,19 +288,25 @@ export async function stageMetadataToSelection(options?: {
   return true;
 }
 
-async function applyMetadataToSelection(): Promise<void> {
-  await stageMetadataToSelection({ showStatus: true });
-}
+export async function persistPendingMetadataDraftsForCurrentSelection(options?: {
+  showStatus?: boolean;
+}): Promise<boolean> {
+  const selectedFiles = getSelectedFiles();
+  if (selectedFiles.length === 0) {
+    return false;
+  }
+  if (selectedFiles.length === 1) {
+    const changed = persistSingleSelectionMetadata(selectedFiles[0]);
+    if (changed && options?.showStatus) {
+      const statusText = document.getElementById("status-text");
+      if (statusText) {
+        statusText.textContent = "Draft saved";
+      }
+    }
+    return changed;
+  }
 
-export function initMetadataApplyHandler(): void {
-  const applyButton = document.getElementById(
-    "metadata-apply-btn"
-  ) as HTMLButtonElement | null;
-  if (!applyButton) return;
-
-  applyButton.addEventListener("click", () => {
-    void applyMetadataToSelection();
-  });
+  return stageMetadataToSelection({ showStatus: options?.showStatus });
 }
 
 export function removeFile(index: number): void {

@@ -1,6 +1,6 @@
 //! Metadata reading via ffmpeg-next
 use super::{mp4ameta_bridge, split_series_list, AudiobookMetadata};
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
 
@@ -11,7 +11,7 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     if !path.exists() {
         return Err(AppError::FileValidation(format!(
             "File not found: {}",
-            path.display()
+            sanitize_path_for_display(path)
         )));
     }
 

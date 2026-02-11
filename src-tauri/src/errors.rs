@@ -1,3 +1,4 @@
+use std::path::Path;
 use thiserror::Error;
 
 /// Application-wide error type for structured error handling
@@ -32,6 +33,25 @@ pub enum AppError {
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
+
+/// Sanitizes filesystem paths for user-facing messages.
+/// Returns basename only and avoids exposing directory structure.
+pub fn sanitize_path_for_display(path: &Path) -> String {
+    path.file_name()
+        .or_else(|| {
+            path.components()
+                .next_back()
+                .map(|component| component.as_os_str())
+        })
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "[path]".to_string())
+}
+
+/// Sanitizes string paths for user-facing messages.
+pub fn sanitize_path_str_for_display(path: &str) -> String {
+    sanitize_path_for_display(Path::new(path))
+}
 
 /// Convert AppError to string for Tauri command results
 impl From<AppError> for String {

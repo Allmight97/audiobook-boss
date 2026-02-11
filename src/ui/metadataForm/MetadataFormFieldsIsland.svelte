@@ -134,11 +134,7 @@
   >
     Find Metadata
   </button>
-  <button id="metadata-apply-btn" class="btn-pill btn-pill-primary-soft" data-testid="metadata-apply-btn">
-    Stage Changes
-  </button>
   <button id="metadata-save-btn" class="btn-pill btn-pill-primary" data-testid="metadata-save-btn">
-    Apply Changes
+    Save All Changes
   </button>
 </div>
-<div class="metadata-apply-hint">Stage only — Apply writes to files</div>

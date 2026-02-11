@@ -16,6 +16,50 @@ Primary token definition lives in:
 
 These CSS custom properties are the canonical contract for theme values during migration.
 
+## Token Reference
+
+Source: `src/styles.css`
+
+### Color Tokens
+
+| Token | Role | Light Value | Dark Value |
+| --- | --- | --- | --- |
+| `--bg-main` | App background | `#f3f4f6` | `#111827` |
+| `--bg-panel` | Panel background | `#ffffff` | `#1f2937` |
+| `--bg-input` | Input background | `#ffffff` | `#374151` |
+| `--bg-input-disabled` | Disabled input background | `#f3f4f6` | `#1f2937` |
+| `--bg-hover` | Hover background | `#f9fafb` | `#4b5563` |
+| `--bg-drag-area` | Dropzone background | `#fafafa` | `#374151` |
+| `--text-primary` | Primary text | `#1f2937` | `#f9fafb` |
+| `--text-secondary` | Secondary text | `#4b5563` | `#e5e7eb` |
+| `--text-muted` | Muted text | `#6b7280` | `#9ca3af` |
+| `--text-placeholder` | Placeholder text | `#9ca3af` | `#6b7280` |
+| `--text-inverse` | Inverse text | `#ffffff` | `#1f2937` |
+| `--border-primary` | Primary border | `#e5e7eb` | `#374151` |
+| `--border-secondary` | Secondary border | `#d1d5db` | `#4b5563` |
+| `--border-focus` | Focus border | `#6366f1` | `#6366f1` |
+| `--accent-primary` | Primary action | `#3b82f6` | `#3b82f6` |
+| `--accent-primary-hover` | Primary action hover | `#2563eb` | `#60a5fa` |
+| `--accent-secondary` | Secondary action | `#6b7280` | `#6b7280` |
+| `--accent-secondary-hover` | Secondary action hover | `#4b5563` | `#9ca3af` |
+| `--progress-bg` | Progress track | `#e5e7eb` | `#374151` |
+| `--progress-fg` | Progress fill | `#3b82f6` | `#3b82f6` |
+| `--shadow-sm` | Elevation (small) | `0 1px 2px 0 rgba(0, 0, 0, 0.05)` | `0 1px 2px 0 rgba(0, 0, 0, 0.3)` |
+| `--shadow-md` | Elevation (medium) | `0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)` | `0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)` |
+| `--shadow-focus` | Focus ring shadow | `0 0 0 2px #a5b4fc` | `0 0 0 2px #4338ca` |
+
+### Spacing Tokens
+
+| Token | Role | Value |
+| --- | --- | --- |
+| _(none in `src/styles.css` custom properties)_ | Spacing currently uses fixed `rem` values in CSS/layout classes | See spacing baseline below (`0.25rem`, `0.5rem`, `0.75rem`, `1rem`, `1.5rem`, `2rem`) |
+
+### Typography Tokens
+
+| Token | Role | Value |
+| --- | --- | --- |
+| _(none in `src/styles.css` custom properties)_ | Typography currently set directly in rules (not via CSS custom properties) | `body { font-family: "Inter", sans-serif; }` |
+
 ### Token groups
 
 - Background: `--bg-*`

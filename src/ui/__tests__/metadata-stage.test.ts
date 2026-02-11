@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stageMetadataToSelection } from "../fileList/actions";
 import { setCurrentFileList, setSelectedFileIndices } from "../fileList/state";
-import { getMetadataForFile, clearMetadataState } from "../metadataState";
+import {
+  clearMetadataState,
+  getMetadataForFile,
+  getPendingMetadataEntries,
+} from "../metadataState";
 import type { FileListInfo } from "../../types/audio";
 
 vi.mock("../fileList/metadataPanel", () => ({
@@ -65,5 +69,9 @@ describe("stageMetadataToSelection", () => {
     expect(didStage).toBe(true);
     expect(getMetadataForFile("/a.mp3")).toMatchObject({ series: "Series X" });
     expect(getMetadataForFile("/b.mp3")).toMatchObject({ series: "Series X" });
+    expect(getPendingMetadataEntries()).toEqual([
+      ["/a.mp3", { series: "Series X" }],
+      ["/b.mp3", { series: "Series X" }],
+    ]);
   });
 });

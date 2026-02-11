@@ -11,13 +11,14 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock("../metadataForm", () => ({
+  hasDirtyMetadataFields: vi.fn(() => true),
   readMetadataForm: context.readMetadataFormMock,
   resetDirtyState: vi.fn(),
 }));
 
 vi.mock("../metadataState", () => ({
   clearMetadataState: vi.fn(),
-  getMetadataForFile: vi.fn(),
+  getMetadataForFile: vi.fn(() => ({})),
   removeMetadataForFile: vi.fn(),
   setMetadataForFile: context.setMetadataForFileMock,
 }));
@@ -67,6 +68,13 @@ vi.mock("../fileList/metadataPanel", () => ({
 
 describe("selectFile transition options", () => {
   beforeEach(() => {
+    document.body.innerHTML = `
+      <form id="metadata-form">
+        <input id="meta-title" data-dirty="true" />
+      </form>
+      <div id="status-text"></div>
+    `;
+
     const fileList: FileListInfo = {
       files: [
         {
@@ -129,7 +137,8 @@ describe("selectFile transition options", () => {
     expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: "single" });
     expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
       "/books/alpha.m4b",
-      { title: "Persisted Title" }
+      { title: "Persisted Title" },
+      { markPending: true }
     );
   });
 });

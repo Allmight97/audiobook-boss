@@ -1,21 +1,19 @@
 import { bridge } from "./lib/bridge";
-import type { AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import { getCurrentFileList, getSelectedFileIndex } from "./ui/fileList";
-import { getSelectedFileIndices } from "./ui/fileList/state";
+import { getCurrentFileList } from "./ui/fileList";
+import { persistPendingMetadataDraftsForCurrentSelection } from "./ui/fileList/actions";
 import { initOutputPanel } from "./ui/outputPanel";
 import { initStatusPanel, getStatusPanel } from "./ui/statusPanel/index";
 import { initEncoderPanel } from "./ui/encoderPanel";
 import { initCoverArt } from "./ui/coverArt";
-import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
-import {
-  getSeriesPartValidationError,
-  getSubseriesPartValidationError,
-} from "./ui/metadataValidation";
+import { initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
 import { initTagPreview } from "./ui/tagPreview";
 import { initJobControls } from "./ui/jobControls";
 import { initMetadataLookup } from "./ui/metadataLookup";
-import { setMetadataForFile, getMetadataForFile } from "./ui/metadataState";
+import {
+  clearPendingMetadataForFile,
+  getPendingMetadataEntries,
+} from "./ui/metadataState";
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metadataSaveState";
 
 // Initialize UI components when DOM is ready
@@ -42,13 +40,32 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("Metadata save handler initialized (Cmd+S / Ctrl+S)");
 });
 
+function setUserStatusMessage(
+  statusText: HTMLElement | null,
+  message: string,
+  holdMs = 1000
+): void {
+  if (!statusText) return;
+  statusText.dataset.userStatusLockUntil = String(Date.now() + holdMs);
+  statusText.textContent = message;
+}
+
+function restoreStatusMessage(
+  statusText: HTMLElement | null,
+  expectedMessage: string,
+  fallbackMessage: string
+): void {
+  if (!statusText) return;
+  if (statusText.textContent !== expectedMessage) return;
+  delete statusText.dataset.userStatusLockUntil;
+  statusText.textContent = fallbackMessage;
+}
+
 /**
- * Initializes the Cmd+S / Ctrl+S keyboard handler for metadata-only saving
- *
- * When triggered:
- * 1. Collects DIRTY metadata changes from the form
- * 2. Applies changes to ALL selected files (Read-Merge-Write pattern)
- * 3. Saves each file
+ * Save workflow for Draft-First metadata UX:
+ * 1) persist current-selection draft deltas into pending state
+ * 2) save all pending drafts in one batch
+ * 3) keep failed files pending for retry
  */
 
 async function saveMetadataFromUI(): Promise<void> {
@@ -66,120 +83,73 @@ async function saveMetadataFromUI(): Promise<void> {
     return;
   }
 
-  // Determine target files
-  const selectedIndices = getSelectedFileIndices();
-  let targetFiles: AudioFile[] = [];
-
-  if (selectedIndices.size > 0) {
-    targetFiles = Array.from(selectedIndices)
-      .map((i) => fileList.files[i])
-      .filter((f) => f && f.isValid);
-  } else {
-    const selectedFileIndex = getSelectedFileIndex();
-    if (
-      selectedFileIndex > -1 &&
-      fileList.files[selectedFileIndex]?.isValid
-    ) {
-      targetFiles = [fileList.files[selectedFileIndex]];
-    } else {
-      const first = fileList.files.find((f) => f.isValid);
-      if (first) targetFiles = [first];
-    }
-  }
-
-  if (targetFiles.length === 0) {
-    console.log("No valid files to save metadata to");
-    return;
-  }
-
-  const isMultiSelect = selectedIndices.size > 1;
-  const metadataPayload = isMultiSelect
-    ? readMetadataForm({ mode: "multi", onlyDirty: true })
-    : readMetadataForm({ mode: "single" });
-
-  const hasChanges = Object.keys(metadataPayload).length > 0;
-  if (!hasChanges && isMultiSelect) {
-    console.log("No metadata changes detected (multi-select).");
-    return;
-  }
-
-  const seriesPartError = getSeriesPartValidationError(
-    typeof metadataPayload.series_part === "string"
-      ? metadataPayload.series_part
-      : undefined
-  );
-  const subseriesPartError = getSubseriesPartValidationError(
-    typeof metadataPayload.subseries_part === "string"
-      ? metadataPayload.subseries_part
-      : undefined
-  );
-  const validationError = seriesPartError ?? subseriesPartError;
-  if (validationError) {
-    const statusText = document.getElementById("status-text");
-    if (statusText) {
-      statusText.textContent = validationError;
-    }
-    return;
-  }
-
   const statusText = document.getElementById("status-text");
   const originalText = statusText?.textContent ?? "";
-  if (statusText) {
-    statusText.textContent = "Saving metadata...";
-  }
+  setUserStatusMessage(statusText, "Preparing metadata save...", 1000);
 
   if (isMetadataSaveInProgress()) {
-    if (statusText) {
-      statusText.textContent = "Save already in progress...";
-    }
+    setUserStatusMessage(statusText, "Save already in progress...", 1500);
     return;
   }
 
   try {
     setMetadataSaveInProgress(true);
+    await persistPendingMetadataDraftsForCurrentSelection({ showStatus: false });
+
+    const validFilePaths = new Set(
+      fileList.files.filter((file) => file.isValid).map((file) => file.path)
+    );
+    const pendingEntries = getPendingMetadataEntries().filter(([filePath]) =>
+      validFilePaths.has(filePath)
+    );
+    if (pendingEntries.length === 0) {
+      const msg = "No pending metadata changes";
+      setUserStatusMessage(statusText, msg, 2000);
+      setTimeout(() => {
+        restoreStatusMessage(statusText, msg, originalText);
+      }, 2000);
+      return;
+    }
+
     let successCount = 0;
+    let failureCount = 0;
+    const failedFiles: string[] = [];
 
-    if (isMultiSelect) {
-      for (const [index, file] of targetFiles.entries()) {
-        console.log(`Processing save for ${file.path}...`);
+    for (const [index, [filePath, metadata]] of pendingEntries.entries()) {
+      setUserStatusMessage(
+        statusText,
+        `Saving ${index + 1}/${pendingEntries.length}...`,
+        1200
+      );
 
-        if (statusText) {
-          statusText.textContent = `Saving ${index + 1}/${targetFiles.length}...`;
-        }
-
-        await bridge.saveMetadataToFile(file.path, metadataPayload);
-
-        const existing = getMetadataForFile(file.path) ?? {};
-        setMetadataForFile(file.path, { ...existing, ...metadataPayload });
+      try {
+        await bridge.saveMetadataToFile(filePath, metadata);
+        clearPendingMetadataForFile(filePath);
         successCount++;
+      } catch (error) {
+        failureCount++;
+        failedFiles.push(filePath.split(/[\\/]/).pop() || filePath);
+        console.error(`Failed metadata save for ${filePath}:`, error);
       }
-    } else {
-      const file = targetFiles[0];
-      await bridge.saveMetadataToFile(file.path, metadataPayload);
-      setMetadataForFile(file.path, metadataPayload);
-      successCount = 1;
     }
 
     resetDirtyState();
-    console.log(`Metadata saved successfully for ${successCount} files`);
+    console.log(
+      `Metadata save complete: success=${successCount}, failed=${failureCount}`
+    );
 
-    if (statusText) {
-      const msg =
-        targetFiles.length > 1
-          ? `Metadata saved (${successCount} files)!`
-          : "Metadata saved!";
-      statusText.textContent = msg;
-      setTimeout(() => {
-        if (statusText.textContent === msg) {
-          statusText.textContent = originalText;
-        }
-      }, 2000);
-    }
+    const msg = failureCount === 0
+      ? successCount > 1
+        ? `Metadata saved (${successCount} files)!`
+        : "Metadata saved!"
+      : `Saved ${successCount}/${pendingEntries.length}. Failed: ${failedFiles.join(", ")}`;
+    setUserStatusMessage(statusText, msg, 3000);
+    setTimeout(() => {
+      restoreStatusMessage(statusText, msg, originalText);
+    }, 3000);
   } catch (error) {
     console.error("Failed to save metadata:", error);
-    if (statusText) {
-      statusText.textContent = "Save failed - see console";
-    }
+    setUserStatusMessage(statusText, "Save failed - see console", 3000);
   } finally {
     setMetadataSaveInProgress(false);
   }

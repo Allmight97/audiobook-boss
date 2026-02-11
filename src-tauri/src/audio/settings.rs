@@ -1,7 +1,7 @@
 //! Audio processing settings validation utilities (v2-only)
 
 use super::SampleRateConfig;
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
 /// Validates sample rate configuration
@@ -30,14 +30,14 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     if !dir.exists() {
         return Err(AppError::FileValidation(format!(
             "Output directory does not exist: {}",
-            dir.display()
+            sanitize_path_for_display(dir)
         )));
     }
 
     if !dir.is_dir() {
         return Err(AppError::FileValidation(format!(
             "Output path is not a directory: {}",
-            dir.display()
+            sanitize_path_for_display(dir)
         )));
     }
 

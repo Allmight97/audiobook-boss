@@ -24,6 +24,7 @@ pub use metadata::passthrough::{
 };
 
 pub mod audio;
+pub use errors::{sanitize_path_for_display, sanitize_path_str_for_display};
 
 use std::sync::Arc;
 

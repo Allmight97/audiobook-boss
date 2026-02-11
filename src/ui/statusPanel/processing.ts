@@ -15,7 +15,7 @@ import {
 import { getSelectedFileIndices } from "../fileList/state";
 import { getCurrentOutputConfig } from "../outputPanel";
 import { getJobType, setJobControlsEnabled } from "../jobControls";
-import { readMetadataForm } from "../metadataForm";
+import { hasDirtyMetadataFields, readMetadataForm } from "../metadataForm";
 import {
   getAllMetadata,
   getMetadataForFile,
@@ -116,14 +116,19 @@ export async function startProcessing(
     }
     let currentMetadata: Partial<AudiobookMetadata> = {};
     if (selectionCount <= 1) {
-      const selectedFileIndex = getSelectedFileIndex();
-      currentMetadata = readMetadataForm({ mode: "single" });
-      const activeFile =
-        selectedFileIndex >= 0
-          ? fileList.files[selectedFileIndex]
-          : fileList.files.find((file) => file.isValid);
-      if (activeFile?.isValid) {
-        setMetadataForFile(activeFile.path, currentMetadata);
+      if (hasDirtyMetadataFields()) {
+        const selectedFileIndex = getSelectedFileIndex();
+        currentMetadata = readMetadataForm({ mode: "single" });
+        const activeFile =
+          selectedFileIndex >= 0
+            ? fileList.files[selectedFileIndex]
+            : fileList.files.find((file) => file.isValid);
+        if (
+          activeFile?.isValid &&
+          Object.keys(currentMetadata).length > 0
+        ) {
+          setMetadataForFile(activeFile.path, currentMetadata);
+        }
       }
     }
 

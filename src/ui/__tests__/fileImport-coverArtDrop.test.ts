@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initFileImport } from "../fileImport";
 
-const { analyzeAudioFilesMock, listeners } = vi.hoisted(() => ({
+const { analyzeAudioFilesMock, readAudioMetadataMock, listeners } = vi.hoisted(() => ({
   analyzeAudioFilesMock: vi.fn(),
+  readAudioMetadataMock: vi.fn(),
   listeners: {} as Record<string, (payload: any) => void>,
 }));
 
@@ -13,6 +14,7 @@ vi.mock("../../lib/bridge", () => ({
     }),
     open: vi.fn(),
     analyzeAudioFiles: analyzeAudioFilesMock,
+    readAudioMetadata: readAudioMetadataMock,
   },
 }));
 
@@ -23,9 +25,16 @@ function fireDragDrop(position: { x: number; y: number }, paths: string[]) {
   }
 }
 
+async function flushAsync(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("File import drop vs cover art drop isolation", () => {
   beforeEach(() => {
     analyzeAudioFilesMock.mockReset();
+    readAudioMetadataMock.mockReset();
+    readAudioMetadataMock.mockResolvedValue({});
     document.body.innerHTML = `
       <div id="cover-art-area"></div>
       <div id="file-import-root"></div>
@@ -114,5 +123,39 @@ describe("File import drop vs cover art drop isolation", () => {
     });
     fireDragDrop({ x: 500, y: 500 }, ["/tmp/file1.mp3"]);
     expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("shows and wires the Clear button after files are loaded", async () => {
+    analyzeAudioFilesMock.mockResolvedValue({
+      files: [
+        {
+          path: "/tmp/file1.mp3",
+          isValid: true,
+          duration: 1,
+          size: 1000,
+          bitrate: 64,
+          sampleRate: 44100,
+          channels: 2,
+          format: "mp3",
+        },
+      ],
+      totalDuration: 1,
+      totalSize: 1000,
+      validCount: 1,
+      invalidCount: 0,
+    });
+
+    fireDragDrop({ x: 200, y: 200 }, ["/tmp/file1.mp3"]);
+    await flushAsync();
+
+    const clearButton = document.getElementById("clear-files-btn") as HTMLButtonElement | null;
+    expect(clearButton).toBeTruthy();
+    expect(clearButton?.style.display).toBe("block");
+    expect(document.querySelectorAll(".file-list-item")).toHaveLength(1);
+
+    clearButton?.click();
+
+    expect(document.querySelectorAll(".file-list-item")).toHaveLength(0);
+    expect(clearButton?.style.display).toBe("none");
   });
 });

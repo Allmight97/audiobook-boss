@@ -92,6 +92,14 @@ export function updateStatusText(statusText: string): void {
     const elements = cachedElements || initializeElements();
     if (!elements) return;
 
+    const lockUntil = Number(elements.statusText.dataset.userStatusLockUntil ?? "0");
+    if (Number.isFinite(lockUntil) && lockUntil > Date.now()) {
+        return;
+    }
+    if (elements.statusText.dataset.userStatusLockUntil) {
+        delete elements.statusText.dataset.userStatusLockUntil;
+    }
+
     elements.statusText.textContent = statusText;
 }
 
