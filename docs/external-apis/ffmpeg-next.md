@@ -64,6 +64,8 @@ Both options are applied via `av_opt_set` on the underlying encoder context, wit
 - Fast-path: If a decoded frame already matches encoder format, layout, and rate, we skip resampling and send the frame through the accumulator directly.
 - Otherwise, we resample into an output frame matching the encoder contract, then accumulate and encode.
 
+Fast-path parity checks are covered by integration tests (`integration_fastpath_parity_tests.rs`) that run native AAC with fast-path on/off and assert matching core output properties (duration, sample rate, channels, near-equal bitrate).
+
 Safety: Accumulator constructs exactly-sized frames for the encoder and sanitizes samples (finite; clamped to [-1, 1]). A debug-only validator enforces the frame contract prior to encoding.
 
 ### Packet writing & trailer
