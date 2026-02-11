@@ -31,4 +31,12 @@ describe("MetadataForm island mount + multi-select action sync", () => {
     expect(titleInput.dataset.dirty).toBe("true");
     expect(titleAction.value).toBe("keep");
   });
+
+  it("updates selection count text for multi-select mode", () => {
+    initMetadataFormEvents();
+    setMetadataFormMode("multi", 3);
+
+    const count = document.getElementById("metadata-selection-count");
+    expect(count?.textContent).toBe("3 files selected");
+  });
 });
