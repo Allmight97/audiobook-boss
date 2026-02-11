@@ -13,24 +13,14 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     // Strip invalid chars (CR/LF/NUL)
     validate_path_characters(path)?;
 
+    // Reject symlinks before any other checks to prevent extension bypass.
+    reject_symlink(path, "audio")?;
+
     // Check exists and is regular file
     validate_file_existence_and_type(path)?;
 
     // Extension whitelist check
     validate_audio_extension(path)?;
-
-    // Check if it's a symlink before canonicalization (for logging)
-    let is_symlink = path
-        .symlink_metadata()
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false);
-
-    if is_symlink {
-        log::warn!(
-            "Input file is a symlink: {} -> resolving to target",
-            path.display()
-        );
-    }
 
     // Canonicalize to prevent path traversal and resolve symlinks
     let canonical = path.canonicalize().map_err(|e| {
@@ -41,10 +31,6 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
         ))
     })?;
 
-    if is_symlink {
-        log::warn!("Symlink resolved to: {}", canonical.display());
-    }
-
     Ok(canonical)
 }
 
@@ -52,20 +38,9 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
 /// Used for cover art loading to prevent path traversal attacks.
 pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
+    reject_symlink(path, "image")?;
     validate_file_existence_and_type(path)?;
     validate_image_extension(path)?;
-
-    let is_symlink = path
-        .symlink_metadata()
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false);
-
-    if is_symlink {
-        log::warn!(
-            "Input image is a symlink: {} -> resolving to target",
-            path.display()
-        );
-    }
 
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
@@ -75,11 +50,23 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
         ))
     })?;
 
+    Ok(canonical)
+}
+
+/// Rejects symlink inputs to avoid extension whitelist bypass via symlink targets.
+fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
+    let is_symlink = path
+        .symlink_metadata()
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false);
+
     if is_symlink {
-        log::warn!("Symlink resolved to: {}", canonical.display());
+        return Err(AppError::InvalidInput(format!(
+            "Symlinks are not supported for {kind} files. Please use the original file path."
+        )));
     }
 
-    Ok(canonical)
+    Ok(())
 }
 
 /// Validates path doesn't contain invalid characters (CR/LF/NUL)

@@ -256,20 +256,25 @@ fn test_symlink_integration() {
     let link = temp_dir.path().join("link.mp3");
     symlink(&target, &link).expect("create symlink");
 
-    let files = vec![link.to_string_lossy().to_string()];
-    let result = analyze_audio_files(files);
-    assert!(result.is_ok(), "Symlinks should be accepted");
-
-    let file_info = result.expect("analysis ok");
-    assert_eq!(file_info.files.len(), 1, "Should process symlink");
-
-    // Check that the symlink was resolved to canonical path
-    let file = &file_info.files[0];
+    let err = validate_input_audio_path(&link).expect_err("symlink should be rejected");
     assert!(
-        file.path.is_absolute(),
-        "Should use canonical absolute path"
+        err.to_string().contains("Symlinks are not supported"),
+        "Expected symlink rejection error, got: {}",
+        err
     );
-    assert!(file.is_valid, "Symlinked media should be valid");
+
+    let file_info = analyze_audio_files(vec![link.to_string_lossy().to_string()]).expect("analysis ok");
+    assert_eq!(file_info.files.len(), 1, "Should report one analyzed path");
+    assert!(!file_info.files[0].is_valid, "Symlinked media should be invalid");
+    let reported_error = file_info.files[0]
+        .error
+        .as_deref()
+        .expect("invalid symlink should have error");
+    assert!(
+        reported_error.contains("Symlinks are not supported"),
+        "Expected symlink rejection in file list error, got: {}",
+        reported_error
+    );
 }
 
 // ============================================================================
@@ -316,7 +321,23 @@ fn test_broken_symlink_rejected() {
 
     let err = validate_input_audio_path(&link).expect_err("broken symlink should fail validation");
     let msg = err.to_string();
-    assert!(msg.contains("Cannot read file metadata") || msg.contains("canonicalize"));
+    assert!(msg.contains("Symlinks are not supported"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_image_symlink_rejected() {
+    use std::os::unix::fs::symlink;
+
+    let dir = TempDir::new().expect("create temp dir");
+    let target = dir.path().join("cover.jpg");
+    File::create(&target).expect("create temp image file");
+    let link = dir.path().join("cover-link.jpg");
+    symlink(&target, &link).expect("create symlink to image");
+
+    let err = validate_input_image_path(&link).expect_err("image symlink should fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("Symlinks are not supported"));
 }
 
 // ============================================================================
