@@ -19,6 +19,11 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
 
     let mut opts = Dictionary::new();
 
+    // Speech-heavy audiobook content sounds more stable with psychoacoustic
+    // substitutions disabled on native AAC (avoids swishy/static artifacts).
+    opts.set("aac_is", "0");
+    opts.set("aac_pns", "0");
+
     let disable_twoloop = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
@@ -33,12 +38,12 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
         // twoloop provides better psychoacoustic analysis
         opts.set("aac_coder", "twoloop");
         log::info!(
-            "Native AAC encoder: bitrate={}k coder=twoloop",
+            "Native AAC encoder: bitrate={}k coder=twoloop aac_is=0 aac_pns=0",
             settings.bitrate_kbps
         );
     } else {
         log::info!(
-            "Native AAC encoder: bitrate={}k (twoloop disabled)",
+            "Native AAC encoder: bitrate={}k aac_is=0 aac_pns=0 (twoloop disabled)",
             settings.bitrate_kbps
         );
     }
@@ -72,23 +77,31 @@ mod tests {
         std::env::remove_var("ABB_DISABLE_TWOLOOP");
         let opts = build_native_options(&mut ctx, &s);
         assert_eq!(opts.get("aac_coder"), Some("twoloop"));
+        assert_eq!(opts.get("aac_is"), Some("0"));
+        assert_eq!(opts.get("aac_pns"), Some("0"));
 
         // UI off -> no twoloop even if env allows
         s.twoloop = false;
         let opts = build_native_options(&mut ctx, &s);
         assert!(opts.get("aac_coder").is_none());
+        assert_eq!(opts.get("aac_is"), Some("0"));
+        assert_eq!(opts.get("aac_pns"), Some("0"));
 
         // Env override (new name) disables regardless of UI
         s.twoloop = true;
         std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
         let opts = build_native_options(&mut ctx, &s);
         assert!(opts.get("aac_coder").is_none());
+        assert_eq!(opts.get("aac_is"), Some("0"));
+        assert_eq!(opts.get("aac_pns"), Some("0"));
 
         // Backward compatibility: old typo still disables
         std::env::remove_var("ABB_DISABLE_TWOLOOP");
         std::env::set_var("ABB_DISABLE_TWOOLOOP", "1");
         let opts = build_native_options(&mut ctx, &s);
         assert!(opts.get("aac_coder").is_none());
+        assert_eq!(opts.get("aac_is"), Some("0"));
+        assert_eq!(opts.get("aac_pns"), Some("0"));
         std::env::remove_var("ABB_DISABLE_TWOOLOOP");
     }
 }
