@@ -16,8 +16,26 @@
 
 ### Command typing and drift checks
 
-- Use `bridge.invoke("<legacy_command_name>", args)` from UI modules.
-- Legacy command names remain stable (`snake_case`) even though generated functions are camelCase.
+- Use typed `bridge` methods from UI modules; `bridge.invoke(...)` is internal to `src/lib/bridge.ts`.
+- Legacy command names remain stable (`snake_case`) in bridge internals, while UI callsites use camelCase bridge methods.
+- Example (command with args):
+  ```ts
+  const result = await bridge.processAudiobookFilesV2({
+    payload: v2Payload,
+    metadata: metadataPayload,
+    previewSeconds: options?.previewSeconds,
+  });
+  ```
+- Example (command without args):
+  ```ts
+  cachedAvailability = await bridge.listAvailableEncoders();
+  ```
+- Example (`bridge.listen` event):
+  ```ts
+  return bridge.listen(EVENTS.PROGRESS, (event) => {
+    onProgress(event.payload as ProcessingProgressEvent);
+  });
+  ```
 - Run `bun run bindings:generate` after Rust IPC type changes.
 - Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh`) to detect drift.
 - `scripts/checks.sh standard` is the canonical quality gate and includes binding drift checks.
