@@ -87,7 +87,7 @@ export const VALID_ENCODER_BITRATES = [
 export type BitrateKbps = (typeof VALID_ENCODER_BITRATES)[number];
 
 export interface EncoderSettings {
-  encoderType: EncoderType; // default: Apple on macOS, native otherwise
+  encoderType: EncoderType; // default: auto (resolver picks best available encoder)
   bitrateKbps: BitrateKbps;
   bitrateMode: BitrateMode;
   channels: EncoderChannelConfig;
@@ -109,21 +109,17 @@ export interface ProcessV2Payload {
   outputNaming?: OutputNamingConfig;
 }
 
-// Platform-aware default encoder settings
+// Default encoder settings with runtime auto resolution.
+// Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.
 export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
-  const isMac =
-    typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
-  const encoderType: EncoderType = isMac ? "aac_at" : "native_aac";
-  const bitrateMode: BitrateMode =
-    encoderType === "aac_at" ? { mode: "cvbr" } : { mode: "cbr" };
   return {
-    encoderType,
+    encoderType: "auto",
     bitrateKbps: 64,
-    bitrateMode,
+    bitrateMode: { mode: "vbr", value: 3 },
     channels: "auto",
     afterburner: false,
     threads: { mode: "auto" },
-    twoloop: true, // Default to true (Native AAC benefits)
+    twoloop: true,
   };
 };
 

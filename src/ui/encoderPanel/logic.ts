@@ -64,6 +64,8 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
   aac_at: "AAC-LC",
   native_aac: "AAC-LC",
 };
+const NATIVE_AAC_WARNING =
+  "Native AAC may sound degraded on speech (known issue; prefer Auto/Apple/FDK).";
 
 /** Resolves effective encoder when "auto" is selected */
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
@@ -247,6 +249,14 @@ const updateAvailabilityHint = (): void => {
     return;
   }
 
+  const selectedFlavor =
+    (dom.encoderSelect?.value as EncoderFlavor | undefined) ?? "auto";
+  const effectiveEncoder = resolveEffectiveEncoder(selectedFlavor);
+  if (effectiveEncoder === "native_aac") {
+    dom.encoderAvailabilityHint.textContent = NATIVE_AAC_WARNING;
+    return;
+  }
+
   // Single concise line showing what's available
   if (cachedAvailability.fdkAvailable && ENABLE_FDK) {
     dom.encoderAvailabilityHint.textContent = "FDK detected ✓";
@@ -294,6 +304,7 @@ const syncEncoderUI = (): void => {
   syncEncoderOptions(effectiveEncoder);
   updateEstimatedBitrate();
   disableDisallowedEncoders();
+  updateAvailabilityHint();
 };
 
 const updateProfileDisplay = (encoder: EncoderFlavor): void => {
