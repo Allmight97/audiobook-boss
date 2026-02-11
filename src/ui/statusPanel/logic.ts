@@ -345,6 +345,7 @@ export class StatusPanel {
   }
 
   private async handleCancelAll(): Promise<void> {
+    dom.setCancelAllButtonPending(true);
     try {
       await bridge.cancelProcessing();
       // Do not set final cancelled state here; wait for backend events
@@ -356,6 +357,8 @@ export class StatusPanel {
     } catch (error) {
       console.error("Failed to cancel processing:", error);
       dom.showError("Failed to cancel processing. Please try again.");
+    } finally {
+      dom.setCancelAllButtonPending(false);
     }
   }
 

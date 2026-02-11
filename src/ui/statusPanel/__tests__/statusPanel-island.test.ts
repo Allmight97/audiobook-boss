@@ -22,8 +22,19 @@ describe("StatusPanel island mount", () => {
     initStatusPanel();
 
     expect(document.querySelector(".panel.status-panel")).toBeTruthy();
-    expect(document.getElementById("process-button")).toBeTruthy();
-    expect(document.getElementById("cancel-all-button")).toBeTruthy();
+    const requiredIds = [
+      "progress-bar",
+      "percentage-processed",
+      "status-text",
+      "step-text",
+      "concurrency-status",
+      "process-button",
+      "cancel-all-button",
+      "job-list",
+    ];
+    requiredIds.forEach((id) => {
+      expect(document.getElementById(id)).toBeTruthy();
+    });
     expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
   });
 });

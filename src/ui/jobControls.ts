@@ -45,10 +45,13 @@ function initializeJobTypeControl(): void {
   const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement | null;
   if (!toggle) return;
 
-  // Potential: Restore saved preference if we want to persist it
-  toggle.addEventListener("change", () => {
-    document.dispatchEvent(new Event("abb:job-type-changed"));
-  });
+  if (toggle.dataset.jobTypeBound !== "true") {
+    // Potential: Restore saved preference if we want to persist it
+    toggle.addEventListener("change", () => {
+      document.dispatchEvent(new Event("abb:job-type-changed"));
+    });
+    toggle.dataset.jobTypeBound = "true";
+  }
 }
 
 function initializeMaxConcurrentControl(): void {
@@ -60,12 +63,15 @@ function initializeMaxConcurrentControl(): void {
   select.value = saved;
   maxConcurrentSelection = saved;
 
-  select.addEventListener("change", () => {
-    const value = select.value;
-    maxConcurrentSelection = value;
-    writeMaxConcurrentPreference(value);
-    void pushMaxConcurrentToBackend(value);
-  });
+  if (select.dataset.maxConcurrentBound !== "true") {
+    select.addEventListener("change", () => {
+      const value = select.value;
+      maxConcurrentSelection = value;
+      writeMaxConcurrentPreference(value);
+      void pushMaxConcurrentToBackend(value);
+    });
+    select.dataset.maxConcurrentBound = "true";
+  }
 
   // Push initial selection
   void pushMaxConcurrentToBackend(saved);

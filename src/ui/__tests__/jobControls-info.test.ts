@@ -74,6 +74,32 @@ describe("Job controls merge toggle", () => {
     expect(getJobType()).toBe("merge");
   });
 
+  it("does not duplicate listeners when initialized twice on same DOM", async () => {
+    initJobControls();
+    await flushAsync();
+    initJobControls();
+    await flushAsync();
+    setMaxConcurrentJobsMock.mockClear();
+
+    let jobTypeChangedCount = 0;
+    document.addEventListener("abb:job-type-changed", () => {
+      jobTypeChangedCount += 1;
+    });
+
+    const toggle = getMergeToggle();
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event("change"));
+
+    const select = getMaxConcurrentSelect();
+    select.value = "3";
+    select.dispatchEvent(new Event("change"));
+    await flushAsync();
+
+    expect(jobTypeChangedCount).toBe(1);
+    expect(setMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
+    expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
+  });
+
   it("reads persisted max concurrency, sends numeric payload, and emits detail + indicator", async () => {
     localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, "3");
     const getItemSpy = vi.spyOn(localStorage, "getItem");

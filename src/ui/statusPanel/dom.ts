@@ -187,6 +187,16 @@ export function getCancelAllButton(): HTMLButtonElement | null {
 }
 
 /**
+ * Toggle cancel-all button pending state while cancellation request is in flight.
+ */
+export function setCancelAllButtonPending(isPending: boolean): void {
+    const cancelButton = getCancelAllButton();
+    if (!cancelButton) return;
+
+    cancelButton.disabled = isPending;
+}
+
+/**
  * Show error message in step text with error styling
  * @param message - Error message to display
  */
