@@ -14,6 +14,7 @@ import {
   getSubseriesPartValidationError,
 } from "../metadataValidation";
 import {
+  hasDirtyMetadataFields,
   readMetadataForm,
   resetDirtyState,
 } from "../metadataForm";
@@ -69,16 +70,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
   onFileListChange();
 
   void autoUpdateCoverArtFromFirstValidFile();
-}
-
-function hasDirtyMetadataFields(): boolean {
-  const form = document.getElementById("metadata-form");
-  if (!form) return false;
-  return Boolean(
-    form.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      "input[data-dirty='true'], textarea[data-dirty='true']"
-    )
-  );
 }
 
 function metadataEquals(

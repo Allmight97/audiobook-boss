@@ -240,6 +240,16 @@ export function resetDirtyState(): void {
   });
 }
 
+export function hasDirtyMetadataFields(): boolean {
+  const form = getMetadataForm();
+  if (!form) return false;
+  return Boolean(
+    form.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      "input[data-dirty='true'], textarea[data-dirty='true']"
+    )
+  );
+}
+
 export function populateMetadataFormSingle(
   metadata: Partial<AudiobookMetadata>
 ): void {
