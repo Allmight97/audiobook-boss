@@ -45,4 +45,17 @@ describe("statusPanel cover art DOM rendering", () => {
     expect(placeholderSpans[0].textContent).toBe("Art");
     expect(artThumbnail.children).toHaveLength(1);
   });
+
+  it("does not overwrite user-locked status text until lock expires", () => {
+    const statusText = document.getElementById("status-text") as HTMLElement;
+    statusText.dataset.userStatusLockUntil = String(Date.now() + 10_000);
+    statusText.textContent = "Metadata saved!";
+
+    domModule.updateStatusText("Idle");
+    expect(statusText.textContent).toBe("Metadata saved!");
+
+    statusText.dataset.userStatusLockUntil = String(Date.now() - 1);
+    domModule.updateStatusText("Idle");
+    expect(statusText.textContent).toBe("Idle");
+  });
 });
