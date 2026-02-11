@@ -296,6 +296,54 @@ describe("StatusPanel lifecycle", () => {
     }
   );
 
+  it("shows cancellation requested before final cancelled summary in batch flow", async () => {
+    const panel = new StatusPanel();
+    seedDisabledControls();
+
+    const updateStepTextSpy = vi.spyOn(dom, "updateStepText");
+    const showInfoSpy = vi.spyOn(dom, "showInfo");
+    vi.spyOn(bridge, "cancelProcessing").mockResolvedValue("cancel requested" as any);
+
+    (panel as any).handleQueueSnapshot({
+      items: [
+        { input_index: 0, file_path: "/books/alpha.m4b" },
+        { input_index: 1, file_path: "/books/beta.m4b" },
+      ],
+      max_concurrent: 2,
+    });
+
+    await (panel as any).handleCancelAll();
+
+    panel.updateProgress({
+      input_index: 0,
+      stage: STAGES.cancelled,
+      percentage: 100,
+      message: "cancelled-0",
+    } as any);
+    panel.updateProgress({
+      input_index: 1,
+      stage: STAGES.cancelled,
+      percentage: 100,
+      message: "cancelled-1",
+    } as any);
+
+    vi.advanceTimersByTime(2000);
+
+    const requestedCallIndex = updateStepTextSpy.mock.calls.findIndex(
+      ([message]) => String(message) === "Current Step: Cancellation requested…"
+    );
+    const requestedCallOrder =
+      requestedCallIndex >= 0
+        ? updateStepTextSpy.mock.invocationCallOrder[requestedCallIndex]
+        : -1;
+    const cancelledSummaryCallOrder = showInfoSpy.mock.invocationCallOrder[0] ?? -1;
+
+    expect(requestedCallOrder).toBeGreaterThan(0);
+    expect(showInfoSpy).toHaveBeenCalledWith("Processing was cancelled.");
+    expect(cancelledSummaryCallOrder).toBeGreaterThan(0);
+    expect(requestedCallOrder).toBeLessThan(cancelledSummaryCallOrder);
+  });
+
   it("cleans up listeners on reset and restarts without duplicate active handlers", async () => {
     const panel = new StatusPanel();
     const updateProgressSpy = vi.spyOn(panel, "updateProgress");
