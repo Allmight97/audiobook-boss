@@ -40,7 +40,7 @@
 
 ### UX Clarity (must-fix)
 - [x] **#141** - Metadata UX: auto-preserve on file switch, single Save All action, progress + status feedback (PR #214)
-- [ ] **#107** - Batch queue visibility + per-file status
+- [x] **#107** - Batch queue visibility + per-file status (closed 2026-01-23)
 
 ### QA Verification (must-fix)
 - [x] **#136** - Verify bulk metadata save and multi-select UX (PR #214)
