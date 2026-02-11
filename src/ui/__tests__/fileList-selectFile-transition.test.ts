@@ -11,6 +11,7 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock("../metadataForm", () => ({
+  hasDirtyMetadataFields: vi.fn(() => true),
   readMetadataForm: context.readMetadataFormMock,
   resetDirtyState: vi.fn(),
 }));
