@@ -18,9 +18,9 @@ import {
   resetDirtyState,
 } from "../metadataForm";
 import {
-  currentFileList,
+  getCurrentFileList,
   getSelectedFileIndices,
-  selectedFileIndex,
+  getSelectedFileIndex,
 } from "./state";
 
 function setText(id: string, value: string): void {
@@ -30,11 +30,12 @@ function setText(id: string, value: string): void {
 
 function updatePropertiesContextSingle(file: AudioFile, index: number): void {
   const contextEl = document.getElementById("prop-selected-context");
-  if (!contextEl || !currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!contextEl || !fileList) return;
 
   contextEl.replaceChildren();
 
-  if (index < 0 || index >= currentFileList.files.length) {
+  if (index < 0 || index >= fileList.files.length) {
     const emptySpan = document.createElement("span");
     emptySpan.className = "context-empty";
     emptySpan.textContent = "No file selected";
@@ -43,7 +44,7 @@ function updatePropertiesContextSingle(file: AudioFile, index: number): void {
   }
 
   const fileName = file.path.split(/[\\/]/).pop() || file.path;
-  const totalFiles = currentFileList.files.length;
+  const totalFiles = fileList.files.length;
 
   const filenameSpan = document.createElement("span");
   filenameSpan.className = "context-filename";
@@ -97,10 +98,7 @@ async function loadMetadataForFile(
   if (existing) return existing;
 
   try {
-    const metadata = await bridge.invoke(
-      "read_audio_metadata",
-      { filePath: file.path }
-    );
+    const metadata = await bridge.readAudioMetadata(file.path);
     setMetadataForFile(file.path, metadata);
     return metadata;
   } catch (error) {
@@ -142,7 +140,7 @@ export function updateFileProperties(
     clearPropertyValues();
   }
 
-  updatePropertiesContextSingle(file, selectedFileIndex);
+  updatePropertiesContextSingle(file, getSelectedFileIndex());
 }
 
 export async function showSingleSelection(file: AudioFile): Promise<void> {
@@ -191,19 +189,17 @@ export function clearSelectionPanels(): void {
 export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
   try {
     if (getHasCustomCoverArt()) return;
-    if (!currentFileList || !currentFileList.files.length) {
+    const fileList = getCurrentFileList();
+    if (!fileList || !fileList.files.length) {
       setCoverArt(null);
       return;
     }
-    const firstValid = currentFileList.files.find((f) => f.isValid);
+    const firstValid = fileList.files.find((f) => f.isValid);
     if (!firstValid) {
       setCoverArt(null);
       return;
     }
-    const metadata = await bridge.invoke(
-      "read_audio_metadata",
-      { filePath: firstValid.path }
-    );
+    const metadata = await bridge.readAudioMetadata(firstValid.path);
     setCoverArt(metadata.cover_art || null);
   } catch (error) {
     setCoverArt(null);
@@ -212,7 +208,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 }
 
 export function getSelectedFiles(): AudioFile[] {
-  const fileList = currentFileList;
+  const fileList = getCurrentFileList();
   if (!fileList) return [];
   const selectedIndices = getSelectedFileIndices();
   return Array.from(selectedIndices)

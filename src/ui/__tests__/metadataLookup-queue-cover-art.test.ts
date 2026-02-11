@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const context = vi.hoisted(() => ({
-  invokeMock: vi.fn(),
+  searchOnlineMetadataMock: vi.fn(),
+  loadCoverArtFromUrlMock: vi.fn(),
   selectFileMock: vi.fn(),
   applyMetadataToFormMock: vi.fn(),
   setCustomCoverArtMock: vi.fn(),
@@ -22,14 +23,13 @@ const context = vi.hoisted(() => ({
 
 vi.mock("../../lib/bridge", () => ({
   bridge: {
-    invoke: context.invokeMock,
+    searchOnlineMetadata: context.searchOnlineMetadataMock,
+    loadCoverArtFromUrl: context.loadCoverArtFromUrlMock,
   },
 }));
 
 vi.mock("../fileList", () => ({
-  get currentFileList() {
-    return context.currentFileList;
-  },
+  getCurrentFileList: () => context.currentFileList,
 }));
 
 vi.mock("../fileList/state", () => ({
@@ -149,31 +149,25 @@ describe("metadata lookup queue cover art isolation", () => {
     context.onMetadataChangeMock.mockReset();
     context.updateTagPreviewMock.mockReset();
 
-    context.invokeMock.mockReset();
-    context.invokeMock.mockImplementation(async (command: string) => {
-      if (command === "search_online_metadata") {
-        return [
-          {
-            title: "Lookup Title",
-            authors: ["Author One"],
-            narrators: ["Narrator One"],
-            series: null,
-            seriesPart: null,
-            subseries: null,
-            subseriesPart: null,
-            description: "Description",
-            publishedYear: 2020,
-            durationSeconds: 3600,
-            audibleOnly: false,
-            coverUrl: "https://example.com/cover.jpg",
-          },
-        ];
-      }
-      if (command === "load_cover_art_from_url") {
-        return [9, 9, 9];
-      }
-      throw new Error(`Unexpected command: ${command}`);
-    });
+    context.searchOnlineMetadataMock.mockReset();
+    context.searchOnlineMetadataMock.mockResolvedValue([
+      {
+        title: "Lookup Title",
+        authors: ["Author One"],
+        narrators: ["Narrator One"],
+        series: null,
+        seriesPart: null,
+        subseries: null,
+        subseriesPart: null,
+        description: "Description",
+        publishedYear: 2020,
+        durationSeconds: 3600,
+        audibleOnly: false,
+        coverUrl: "https://example.com/cover.jpg",
+      },
+    ]);
+    context.loadCoverArtFromUrlMock.mockReset();
+    context.loadCoverArtFromUrlMock.mockResolvedValue([9, 9, 9]);
   });
 
   it("does not wipe previously replaced art when queue advances", async () => {
@@ -192,6 +186,7 @@ describe("metadata lookup queue cover art isolation", () => {
     );
     expect(firstPathWrites.length).toBeGreaterThanOrEqual(1);
     expect(firstPathWrites[0]?.[2]).toEqual({ skipPersistPrevious: true });
+    expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
   });
 
   it("preserves existing cover art when replace toggle is disabled", async () => {

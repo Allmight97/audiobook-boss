@@ -1,9 +1,16 @@
 # Frontend Framework Evaluation
 
 **Date**: 2026-02-10
-**Updated**: 2026-02-10 (added Electron vs Tauri analysis)
+**Updated**: 2026-02-11 (execution-mode + post-Phase 6 sync)
 
 **Context**: Research exploring the co-location pattern (styles + logic + markup in one component), evaluating frontend framework options for Audiobook Boss, adding Opus Agent (frontend design-focused collaborator) to the decision surface, and critically evaluating the Tauri vs Electron foundation decision.
+
+**Execution Addendum (2026-02-11)**:
+- Migration is the active workstream now (not a post-launch placeholder).
+- Release process remains a parallel/non-blocking lane while migration is in flight.
+- Visual regression tooling is currently non-gating in solo/macOS execution mode and will be re-evaluated when multi-platform rollout becomes active.
+- Phase 3 spike is complete (`TagPreview`), and Phases 4-6 are complete in the migration branch (pending merge).
+- Quality gate is rolling per panel (outcome tests + local verification), not a front-loaded migration-wide block; CI remains optional/non-gating in this execution mode.
 
 **⚠️ CRITICAL DECISION POINT**: This document now includes a fundamental architectural choice that must be resolved BEFORE framework/type-safety decisions: **Should this app be rebuilt on Electron instead of Tauri?**
 
@@ -256,10 +263,10 @@ This is not a theoretical debate. **Your repo is Tauri v2 with Rust backend wrap
 
 ### Recommendation (Conditional on Risk Tolerance)
 
-**If you're risk-averse (ship-it mode)**: **Path A (Stay on Tauri)**
+**If you're risk-averse in the current execution mode (active migration + parallel release lane)**: **Path A (Stay on Tauri)**
 - You're 1 year in, close to launch, cross-platform testing is manageable
 - Add rigorous visual testing (screenshot diffs), document engine quirks for AI
-- Revisit Electron post-launch if cross-platform bugs become unbearable
+- Revisit Electron after current migration/release milestones if cross-platform bugs become unbearable
 
 **If you're risk-tolerant (willing to reset timeline)**: **Path B (Electron + Keep Rust)**
 - Chromium consistency and AI debugging ease are worth 2-3 weeks migration
@@ -270,7 +277,7 @@ This is not a theoretical debate. **Your repo is Tauri v2 with Rust backend wrap
 - Single-language codebase is easier for AI agents (no Rust<->TS context switch)
 - But: lose Rust performance / safety, and 4-6 weeks is a major timeline reset
 
-**My gut** (as a senior engineer who respects Theo but also respects your 1-year investment): **Stay on Tauri for now (Path A), but plan for Electron migration post-launch if cross-platform pain becomes real**. Don't let sunk cost blind you, but also don't throw away working code based on a YouTube video. Test the pain threshold first.
+**My gut** (as a senior engineer who respects Theo but also respects your 1-year investment): **Stay on Tauri for now (Path A), but plan for an Electron re-evaluation after current migration/release milestones if cross-platform pain becomes real**. Don't let sunk cost blind you, but also don't throw away working code based on a YouTube video. Test the pain threshold first.
 
 ---
 
@@ -437,7 +444,7 @@ let currentFileList = $state<AudioFile[]>([]);
 | **Maturity** | **1.x is stable**. However, **2.0 is still experimental** (no release date) with breaking changes to Resources, async behavior, and store APIs. |
 | **Desktop fit** | Strong. The fine-grained reactivity is ideal for real-time progress updates (our status panel). **Performance ceiling is the highest** of any framework in benchmarks. |
 
-**Trade-off**: The pending 2.0 migration and the steeper learning curve (the "runs once" gotchas like destructuring props breaking reactivity) make it a riskier bet for a project in ship-it mode.
+**Trade-off**: The pending 2.0 migration and the steeper learning curve (the "runs once" gotchas like destructuring props breaking reactivity) make it a riskier bet in the current migration + release-parallel execution mode.
 
 **State mapping example**:
 ```tsx
@@ -652,7 +659,7 @@ These guardrails are what convert a framework migration from "rewrite churn" int
 
 **The main trade-off** is the smaller ecosystem compared to React/Vue. For a solo desktop app that isn't pulling in many third-party UI components, this is a manageable trade-off. Our domain logic, services, and validation code (~29% of the frontend) would survive untouched. The migration is about eliminating boilerplate and improving DX, not fixing structural problems.
 
-**SolidJS** is the performance-first alternative if status panel rendering becomes a bottleneck, but the pending 2.0 migration and the steeper learning curve make it a riskier bet for a project in ship-it mode.
+**SolidJS** is the performance-first alternative if status panel rendering becomes a bottleneck, but the pending 2.0 migration and the steeper learning curve make it a riskier bet in the current migration + release-parallel execution mode.
 
 **Vue 4** is a solid middle ground with a strong ecosystem and incremental adoption story, but the bundle is larger and the runtime model (virtual DOM) is further from our current imperative patterns.
 
@@ -827,7 +834,7 @@ await client.analyzeAudioFiles(['path1.m4a']);  // Fully typed
 
 **Rollback**: Moderate. Requires reverting both Rust command signatures AND all TS call sites.
 
-**Verdict for this repo**: **Too invasive for ship-it mode**. The stronger guarantees don't justify the migration cost when we're trying to minimize churn before launch.
+**Verdict for this repo**: **Too invasive for current execution mode**. The stronger guarantees don't justify added migration churn while active migration work is already in flight.
 
 ---
 
@@ -864,7 +871,7 @@ interface audio {
 
 **Rollback**: Hard. WIT becomes a hard dependency, reverting requires manually reconstructing Rust signatures.
 
-**Verdict for this repo**: **Wait for stable release**. The standard-based approach is appealing, but experimental status is a non-starter for ship-it mode. Revisit post-launch if Tauri promotes it to stable.
+**Verdict for this repo**: **Wait for stable release**. The standard-based approach is appealing, but experimental status is a non-starter in current execution mode. Revisit after current migration/release milestones if Tauri promotes it to stable.
 
 ---
 
@@ -905,16 +912,16 @@ interface audio {
 **How type safety helps**:
 - **Platform-agnostic contracts**: TS types generated from Rust work identically on Windows/Linux/macOS
 - **Safer platform-specific code**: if you add platform-specific Rust logic (e.g., Windows-only file dialogs), type system enforces consistent TS interface
-- **Easier CI/CD**: type checks run on all platforms in CI, catch platform-specific contract drift
+- **Easier matrix verification**: type checks can run across platforms (CI or manual hosts) to catch platform-specific contract drift
 
 **How type safety could hurt**:
 - **Build toolchain complexity**: Windows Rust toolchain + Node/Bun + specta codegen = more moving parts
-- **Version skew**: if Windows CI uses a different Rust/Node version, specta codegen might differ (rare but possible)
+- **Version skew**: if a Windows validation host uses a different Rust/Node version, specta codegen might differ (rare but possible)
 
 **Mitigation**:
 - Use `rust-toolchain.toml` to pin Rust version across platforms (already a best practice)
 - Use `.nvmrc` or similar to pin Node/Bun version
-- Run codegen in CI on all platforms, fail if generated TS differs (ensures consistency)
+- When cross-platform validation is active, run codegen checks on all target platforms (CI or manual matrix) and fail if generated TS differs
 
 **Verdict**: Type safety is a **net win for cross-platform**. The contract enforcement is more valuable when you have 3 build targets instead of 1.
 
@@ -984,7 +991,7 @@ The design governance requirements (lines 368-378) include:
 ### Fallback Burn-Down Hooks (must run before/during migration)
 
 Track active fallbacks in `docs/engineering/fallback-register.md` and tie burn-down to migration checkpoints:
-- `FB-008` (bridge legacy command wrapper) must be removed by framework migration Phase 2 completion (no later than 2026-05-31).
+- Bridge migration wrapper fallback removal is completed in Phase 5 execution (issue #203 closure evidence tied to migration PR).
 - `FB-003` and `FB-004` must remain explicit/observable if retained during component migration.
 - No new dual-key alias fallbacks should be introduced while moving to Svelte + Tailwind.
 
@@ -1020,22 +1027,22 @@ Migration PRs should include:
 
 ---
 
-### Phase 3: Framework Migration Spike (Svelte)
-**Outcome**: One small panel converted to Svelte as proof-of-concept
+### Phase 3: Framework Migration Spike (Svelte) -- Complete
+**Outcome**: `TagPreview` converted to Svelte as proof-of-concept and migration pattern baseline
 
-**Estimated scope**: 2-3 days work
-1. Add Svelte dependencies: `svelte@5.x`, `@sveltejs/vite-plugin-svelte`
-2. Update `vite.config.ts` to include Svelte plugin
-3. Choose spike target: **JobControls** (149 LOC, simple, low coupling) or **TagPreview** (113 LOC, pure data-driven)
-4. Convert chosen panel to `.svelte` component:
-   - Move state from `let` variables to `$state` runes
-   - Move markup from `index.html` section to Svelte template
-   - Move event handlers to `on:click` / `on:change` directives
-   - Test IPC calls (should work seamlessly with tauri-specta types from Phase 1)
-5. Test Tailwind + scoped styles pattern (use both inline utilities and `<style>` block)
-6. Measure bundle size impact (compare `dist/` size before/after)
-7. Verify baseline screenshot still matches (visual regression check)
-8. Document lessons learned: what worked, what didn't, gotchas encountered
+**Historical scope**: 2-3 days work (completed)
+1. Added Svelte dependencies: `svelte@5.x`, `@sveltejs/vite-plugin-svelte`
+2. Updated `vite.config.ts` to include Svelte plugin
+3. Spike target chosen: **TagPreview** (113 LOC, pure data-driven)
+4. Converted spike panel to `.svelte` component:
+   - Moved state from `let` variables to `$state` runes
+   - Moved markup from `index.html` section to Svelte template
+   - Moved event handlers to `on:click` / `on:change` directives
+   - Tested IPC calls against tauri-specta types from Phase 1
+5. Validated Tailwind + scoped styles pattern (inline utilities + `<style>` block)
+6. Measured bundle size impact (compare `dist/` size before/after)
+7. Verified baseline screenshot behavior in current solo/macOS workflow
+8. Captured lessons learned for Phase 4 rollout
 
 **Risk**: Low. Single component, easy to revert (delete `.svelte` file, restore old TS module).
 
@@ -1043,22 +1050,22 @@ Migration PRs should include:
 
 ---
 
-### Phase 4: Phased Framework Migration (if spike succeeds)
+### Phase 4: Phased Framework Migration -- Complete (Migration Branch)
 **Outcome**: Full frontend migrated to Svelte, component by component
 
 **Estimated scope**: 3-4 weeks work (staggered, one panel at a time)
 
 **Migration sequence** (low-risk → high-complexity):
-1. **JobControls** (149 LOC) -- already done in spike, just formalize
-2. **TagPreview** (113 LOC) -- pure data display, no complex state
-3. **OutputPanel** (560 LOC) -- moderate complexity, well-decomposed
-4. **EncoderPanel** (470 LOC) -- moderate complexity, well-decomposed
-5. **CoverArt** (436 LOC) -- drag/drop, file loading, moderate state
-6. **MetadataForm** (445 LOC) -- form state, dirty tracking, validation
-7. **FileImport** (178 LOC) -- drag/drop, file dialog, moderate coupling
-8. **MetadataLookup** (582 LOC) -- modal, online search, complex DOM building
-9. **FileList** (620 LOC, 6 files) -- high complexity, multi-select, reordering, metadata panel
-10. **StatusPanel** (1,300 LOC, 12 files) -- **highest complexity**, progress rendering, job orchestration, queue state
+1. **TagPreview** (113 LOC) -- completed in Phase 3 spike (reference baseline)
+2. **JobControls** (149 LOC)
+3. **FileImport** (178 LOC)
+4. **CoverArt** (436 LOC)
+5. **MetadataForm** (445 LOC)
+6. **EncoderPanel** (470 LOC)
+7. **OutputPanel** (560 LOC)
+8. **MetadataLookup** (582 LOC)
+9. **FileList** (620 LOC, 6 files)
+10. **StatusPanel** (1,300 LOC, 12 files)
 
 **Process for each panel**:
 1. Create `.svelte` component in `src/ui/{panel-name}.svelte` or `src/ui/{panel-name}/Component.svelte`
@@ -1073,20 +1080,26 @@ Migration PRs should include:
 10. Update `index.html` to remove migrated section, replace with `<Component />` mount point
 11. Commit at panel boundary (logical unit of work)
 
+**Rolling per-panel outcome-test gate (current execution mode)**:
+- Gate each panel before moving to the next panel; do not front-load one migration-wide test block.
+- Verify panel-specific outcome behavior (interaction, state sync, IPC/result surfaces) via targeted tests/manual checks.
+- Run local quality checks required for that panel's change scope (`scripts/checks.sh standard` when applicable).
+- Keep visual checks non-gating/manual in solo/macOS mode until multi-platform rollout is active.
+
 **Guardrails**:
 - Maintain type safety via tauri-specta bindings (from Phase 1)
 - Follow design system rules (from Phase 2)
-- Visual regression test after each panel
+- Apply the rolling per-panel outcome-test gate before advancing
 - Can pause/ship at any panel boundary if timeline pressure hits
 
 **Risk**: Medium-High. Large refactor, but phased to limit blast radius. Each panel migration is reversible.
 
-**Dependencies**: Phase 3 spike must succeed and validate assumptions.
+**Dependencies**: Phase 3 spike is complete and assumptions are validated enough to run phased rollout.
 
 ---
 
-### Phase 5 (Optional): Post-Migration Cleanup
-**Outcome**: Remove hybrid cruft, consolidate design tokens, optimize bundle
+### Phase 5: High-Complexity Endgame + Fallback Burn-Down -- Complete (Migration Branch)
+**Outcome**: FileList + StatusPanel migration completed, migration-bound fallbacks retired, compatibility behavior preserved
 
 **Estimated scope**: 1-2 days work
 1. Shrink `src/styles.css` (move component-specific styles into `.svelte` files, keep only global/token styles)
@@ -1098,14 +1111,19 @@ Migration PRs should include:
 
 **Risk**: Low. Cleanup phase, no new features.
 
-**Dependencies**: Phase 4 complete (full migration done).
+**Dependencies**: Phase 4 complete (satisfied in migration branch).
+
+---
+
+### Phase 6: Post-Migration Cleanup -- Complete (Migration Branch)
+**Outcome**: Legacy module/shim cleanup completed, docs/fallback tracking synchronized, and local quality gates re-run.
 
 ---
 
 ## Alternative: Defer Both (Status Quo)
 
 **When to choose this**:
-- You're in "ship and learn" mode -- need to get Windows/Linux ports done first, worry about type safety + framework later
+- You're prioritizing release-track or Windows/Linux port work first, and deferring type safety + framework work
 - Current manual contract sync is working fine, not causing bugs
 - Current vanilla TS UI is fast enough, co-location isn't a pain point yet
 
@@ -1147,14 +1165,14 @@ Migration PRs should include:
 - **Smaller ecosystem**: fewer pre-built components than React/Vue (less relevant for desktop app)
 - **Deferred value**: benefits emerge over time, not immediate
 
-**Recommended decision**:
-1. **Do Phase 1 (tauri-specta) now**: low-risk, immediate value, helps with everything else
-2. **Do Phase 2 (design checkpoint) next**: locks down design system before code migration
-3. **Spike Phase 3 (Svelte POC)**: validate assumptions, measure real migration cost
-4. **Decide on Phase 4 (full migration) after spike**: you'll have real data, not just theory
+**Recommended decision (current status-aligned)**:
+1. **Phase 1 complete**: keep tauri-specta contract discipline in place during UI migration
+2. **Phase 2 complete enough to execute**: continue refining design artifacts in parallel as needed
+3. **Phase 3 complete (`TagPreview`)**: use as the baseline implementation pattern
+4. **Phases 4-6 complete in migration branch**: panel migration, fallback burn-down, and cleanup are now complete pending merge
 
 **Alternative decision** (defer both):
-- Valid if ship-it mode requires focus on Windows/Linux ports first
+- Valid if the current execution mode requires focus on Windows/Linux ports first
 - Revisit after cross-platform launch, when type safety + co-location ROI is clearer
 
 ---

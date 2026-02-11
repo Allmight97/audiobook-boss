@@ -8,8 +8,8 @@ import { toBoundaryEncoderSettings } from "../../types/encoder";
 import type { EncoderSettingsLike } from "../../types/encoder";
 import type { AudiobookMetadata } from "../../types/metadata";
 import {
-  currentFileList,
-  selectedFileIndex,
+  getCurrentFileList,
+  getSelectedFileIndex,
   setFileOrderLocked,
 } from "../fileList";
 import { getSelectedFileIndices } from "../fileList/state";
@@ -49,21 +49,22 @@ export async function startProcessing(
   }
 ): Promise<void> {
   try {
+    const fileList = getCurrentFileList();
     console.log("StatusPanel: Starting processing...");
-    console.log("Current file list:", currentFileList);
+    console.log("Current file list:", fileList);
 
     // Validate inputs
     if (
-      !currentFileList ||
-      !currentFileList.files ||
-      currentFileList.files.length === 0
+      !fileList ||
+      !fileList.files ||
+      fileList.files.length === 0
     ) {
       console.log("StatusPanel: No files found");
       dom.showError("No audio files selected. Please add files to process.");
       return;
     }
 
-    if (currentFileList.validCount === 0) {
+    if (fileList.validCount === 0) {
       console.log("StatusPanel: No valid files found");
       dom.showError(
         "No valid audio files found. Please check your files and try again."
@@ -105,7 +106,7 @@ export async function startProcessing(
     await context.startProgressListener();
 
     // Get file paths for processing
-    const filePaths = currentFileList.files
+    const filePaths = fileList.files
       .filter((file) => file.isValid)
       .map((file) => file.path);
 
@@ -115,11 +116,12 @@ export async function startProcessing(
     }
     let currentMetadata: Partial<AudiobookMetadata> = {};
     if (selectionCount <= 1) {
+      const selectedFileIndex = getSelectedFileIndex();
       currentMetadata = readMetadataForm({ mode: "single" });
       const activeFile =
         selectedFileIndex >= 0
-          ? currentFileList.files[selectedFileIndex]
-          : currentFileList.files.find((file) => file.isValid);
+          ? fileList.files[selectedFileIndex]
+          : fileList.files.find((file) => file.isValid);
       if (activeFile?.isValid) {
         setMetadataForFile(activeFile.path, currentMetadata);
       }
@@ -181,10 +183,7 @@ export async function startProcessing(
         await Promise.all(
           missingMetadata.map(async (filePath) => {
             try {
-              const metadata = await bridge.invoke(
-                "read_audio_metadata",
-                { filePath }
-              );
+              const metadata = await bridge.readAudioMetadata(filePath);
               setMetadataForFile(filePath, metadata);
             } catch (error) {
               console.warn(
@@ -220,7 +219,7 @@ export async function startProcessing(
         Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
     }
 
-    const result = await bridge.invoke("process_audiobook_files_v2", {
+    const result = await bridge.processAudiobookFilesV2({
       payload: v2Payload,
       metadata: metadataPayload,
       previewSeconds: options?.previewSeconds,

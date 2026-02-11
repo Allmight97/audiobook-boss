@@ -1,4 +1,5 @@
 import { bridge } from "../lib/bridge";
+import { mount, unmount } from "svelte";
 import type { AudioFile } from "../types/audio";
 import type {
   AudiobookMetadata,
@@ -10,11 +11,13 @@ import { onMetadataChange } from "./outputPanel";
 import { updateTagPreview } from "./tagPreview";
 import { clearCoverArt, setCoverArt, setCustomCoverArt } from "./coverArt";
 import { getMetadataForFile, setMetadataForFile } from "./metadataState";
-import { currentFileList } from "./fileList";
+import { getCurrentFileList } from "./fileList";
 import { selectFile } from "./fileList/actions";
 import { getSelectedFileIndices } from "./fileList/state";
+import MetadataLookupIsland from "./metadataLookup/MetadataLookupIsland.svelte";
 
 const DEFAULT_SOURCES: MetadataSource[] = ["audnexus"];
+const METADATA_LOOKUP_ROOT_ID = "metadata-lookup-root";
 
 type ApplyMode = "current" | "queue";
 
@@ -36,6 +39,32 @@ let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
 let currentResults: OnlineMetadataResult[] = [];
 const queueStateByFile = new Map<string, QueueItemState>();
+let mountedMetadataLookupRoot: HTMLElement | null = null;
+let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
+
+function mountMetadataLookupIsland(): void {
+  const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
+  if (!lookupRoot) return;
+
+  if (
+    mountedMetadataLookupIsland &&
+    mountedMetadataLookupRoot === lookupRoot &&
+    lookupRoot.childElementCount > 0
+  ) {
+    return;
+  }
+
+  if (mountedMetadataLookupIsland) {
+    void unmount(mountedMetadataLookupIsland);
+    mountedMetadataLookupIsland = null;
+  }
+
+  lookupRoot.innerHTML = "";
+  mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
+    target: lookupRoot,
+  });
+  mountedMetadataLookupRoot = lookupRoot;
+}
 
 function getModal(): HTMLElement | null {
   return document.getElementById("metadata-lookup-modal");
@@ -391,10 +420,7 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
 async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
   if (!result.coverUrl) return null;
   try {
-    const coverBytes = await bridge.invoke(
-      "load_cover_art_from_url",
-      { url: result.coverUrl }
-    );
+    const coverBytes = await bridge.loadCoverArtFromUrl(result.coverUrl);
     setCustomCoverArt(coverBytes);
     return coverBytes;
   } catch (error) {
@@ -466,10 +492,7 @@ async function runSearch(): Promise<void> {
   setStatus("Searching metadata sources…", "info");
 
   try {
-    const results = await bridge.invoke(
-      "search_online_metadata",
-      { query, sources, limit: 8 }
-    );
+    const results = await bridge.searchOnlineMetadata({ query, sources, limit: 8 });
     renderResults(results);
     setStatus(`Found ${results.length} results.`, "success");
   } catch (error) {
@@ -482,7 +505,7 @@ function openLookup(): void {
   const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
   lookupQueue = selectedIndices
     .map((index) => {
-      const file = currentFileList?.files[index];
+      const file = getCurrentFileList()?.files[index];
       if (!file || !file.isValid) return null;
       return { file, index };
     })
@@ -516,6 +539,8 @@ function openLookup(): void {
 }
 
 export function initMetadataLookup(): void {
+  mountMetadataLookupIsland();
+
   const openButton = document.getElementById(
     "metadata-lookup-btn"
   ) as HTMLButtonElement | null;

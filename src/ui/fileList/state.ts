@@ -1,11 +1,7 @@
 import { FileListInfo } from '../../types/audio';
 
-// FALLBACK[FB-019]: trigger=older UI modules still import direct mutable state exports
-// observe=static import graph + behavior-contract tests validate unchanged UX flow
-// sunset=framework migration phase 2 completion, no later than 2026-06-30 issue=#195
-// Core state variables - keep direct exports for backward compatibility
-export let currentFileList: FileListInfo | null = null;
-export let selectedFileIndex: number = -1;
+let currentFileList: FileListInfo | null = null;
+let selectedFileIndex: number = -1;
 // New: Track multiple selections
 const selectedFileIndices = new Set<number>();
 
@@ -20,6 +16,14 @@ export function setCurrentFileList(fileList: FileListInfo | null): void {
 
 export function setSelectedIndex(index: number): void {
     selectedFileIndex = index;
+}
+
+export function getCurrentFileList(): FileListInfo | null {
+    return currentFileList;
+}
+
+export function getSelectedFileIndex(): number {
+    return selectedFileIndex;
 }
 
 // Multi-select accessors

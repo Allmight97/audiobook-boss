@@ -1,5 +1,9 @@
 import { bridge } from "../lib/bridge";
 import { isFileDropEvent } from "../types/events";
+import { mount, unmount } from "svelte";
+import CoverArtIsland from "./coverArt/CoverArtIsland.svelte";
+
+const COVER_ART_ROOT_ID = "cover-art-root";
 
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
@@ -9,11 +13,15 @@ let hasCustomCoverArt: boolean = false;
 let coverArtRemovalRequested: boolean = false;
 let coverArtMessageTimeoutId: number | null = null;
 let isCoverArtAreaHovered: boolean = false;
+let mountedCoverArtRoot: HTMLElement | null = null;
+let mountedCoverArtIsland: Parameters<typeof unmount>[0] | null = null;
 
 /**
  * Initializes the cover art functionality
  */
 export function initCoverArt(): void {
+    mountCoverArtIsland();
+
     const coverArtArea = document.getElementById("cover-art-area");
     const coverArtUrlInput = document.getElementById(
         "cover-art-url-input"
@@ -124,6 +132,27 @@ export function initCoverArt(): void {
     updateClearButtonVisibility();
 }
 
+function mountCoverArtIsland(): void {
+    const coverArtRoot = document.getElementById(COVER_ART_ROOT_ID);
+    if (!coverArtRoot) return;
+
+    if (
+        mountedCoverArtIsland &&
+        mountedCoverArtRoot === coverArtRoot &&
+        coverArtRoot.childElementCount > 0
+    ) {
+        return;
+    }
+
+    if (mountedCoverArtIsland) {
+        void unmount(mountedCoverArtIsland);
+        mountedCoverArtIsland = null;
+    }
+
+    mountedCoverArtIsland = mount(CoverArtIsland, { target: coverArtRoot });
+    mountedCoverArtRoot = coverArtRoot;
+}
+
 /**
  * Handles the Clear Cover Art action
  */
@@ -211,9 +240,7 @@ async function handleLoadCoverArtFromInput(
  */
 async function loadCoverArtFile(filePath: string): Promise<void> {
     try {
-        const imageData = await bridge.invoke("load_cover_art_file", {
-            filePath: filePath,
-        });
+        const imageData = await bridge.loadCoverArtFile(filePath);
 
         applyLoadedCoverArt(imageData);
 
@@ -228,9 +255,7 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
     try {
         setCoverArtLoading(true);
         clearCoverArtMessage();
-        const imageData = await bridge.invoke("load_cover_art_from_url", {
-            url: url,
-        });
+        const imageData = await bridge.loadCoverArtFromUrl(url);
 
         applyLoadedCoverArt(imageData);
         showCoverArtMessage("Cover art loaded from URL.", "success");

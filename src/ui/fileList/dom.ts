@@ -1,5 +1,9 @@
 import { AudioFile, formatDuration, formatFileSize } from "../../types/audio";
-import { currentFileList, isOrderLocked, getSelectedFileIndices } from "./state";
+import {
+  getCurrentFileList,
+  isOrderLocked,
+  getSelectedFileIndices,
+} from "./state";
 import { updateDropZoneState } from "../fileImport";
 
 // Cached DOM elements (stable roots only)
@@ -35,9 +39,8 @@ export function createFileListItem(
   const statusClass = file.isValid ? "text-green-500" : "text-red-500";
 
   const isFirst = index === 0;
-  const isLast = currentFileList
-    ? index === currentFileList.files.length - 1
-    : false;
+  const fileList = getCurrentFileList();
+  const isLast = fileList ? index === fileList.files.length - 1 : false;
 
   const locked = isOrderLocked();
   item.innerHTML = `
@@ -82,9 +85,8 @@ export function updateFileListItem(
   const statusClass = file.isValid ? "text-green-500" : "text-red-500";
 
   const isFirst = index === 0;
-  const isLast = currentFileList
-    ? index === currentFileList.files.length - 1
-    : false;
+  const fileList = getCurrentFileList();
+  const isLast = fileList ? index === fileList.files.length - 1 : false;
 
   const locked = isOrderLocked();
   item.innerHTML = `
@@ -112,12 +114,13 @@ export function updateFileListItem(
 }
 
 export function updateFileListDOM(): void {
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
 
   const container = getContainer();
   if (!container) return;
 
-  const hasFiles = currentFileList.files.length > 0;
+  const hasFiles = fileList.files.length > 0;
 
   // Update drop zone state
   updateDropZoneState(hasFiles);
@@ -136,12 +139,12 @@ export function updateFileListDOM(): void {
 
   // Remove excess items
   const existingItems = container.querySelectorAll(".file-list-item");
-  for (let i = currentFileList.files.length; i < existingItems.length; i++) {
+  for (let i = fileList.files.length; i < existingItems.length; i++) {
     existingItems[i].remove();
   }
 
   // Update or create items
-  currentFileList.files.forEach((file, index) => {
+  fileList.files.forEach((file, index) => {
     const existingItem = existingItems[index] as HTMLElement;
     if (existingItem) {
       updateFileListItem(existingItem, file, index);
@@ -157,30 +160,32 @@ export function updateFileListDOM(): void {
 }
 
 export function updateButtonVisibility(): void {
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
   const locked = isOrderLocked();
 
   // Update sort button visibility
   const sortBtn = sortButton as HTMLButtonElement | null;
   if (sortBtn) {
     sortBtn.style.display =
-      currentFileList.files.length > 1 ? "block" : "none";
+      fileList.files.length > 1 ? "block" : "none";
     sortBtn.disabled = locked;
   }
   const clearBtn = clearButton as HTMLButtonElement | null;
   if (clearBtn) {
     clearBtn.style.display =
-      currentFileList.files.length > 0 ? "block" : "none";
+      fileList.files.length > 0 ? "block" : "none";
     clearBtn.disabled = locked;
   }
 }
 
 export function updateTotalStats(): void {
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
 
   const totalSizeEl = document.getElementById("prop-combinedsize");
   if (totalSizeEl)
-    totalSizeEl.textContent = formatFileSize(currentFileList.totalSize);
+    totalSizeEl.textContent = formatFileSize(fileList.totalSize);
 }
 
 

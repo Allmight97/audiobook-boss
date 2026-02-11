@@ -21,12 +21,14 @@ describe('bridge', () => {
     });
   });
 
-  describe('invoke', () => {
+  describe('typed command helpers', () => {
     it('should be importable', async () => {
       // Dynamic import to test module loading
       const { bridge } = await import('./bridge');
       expect(bridge).toBeDefined();
-      expect(typeof bridge.invoke).toBe('function');
+      expect(typeof bridge.analyzeAudioFiles).toBe('function');
+      expect(typeof bridge.processAudiobookFilesV2).toBe('function');
+      expect(typeof bridge.cancelProcessing).toBe('function');
     });
   });
 

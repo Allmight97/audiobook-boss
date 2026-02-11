@@ -4,6 +4,7 @@
 **Distribution**: Direct download (GitHub Releases) + Homebrew cask
 **Notarization**: Deferred (users right-click > Open)
 **Focus**: Ship a working product, not a perfect one
+**Execution mode**: Full-stack migration is active now (solo human + AI agents); this checklist is the parallel release lane.
 
 ---
 
@@ -110,9 +111,9 @@
 
 ---
 
-## Post-Launch (parking lot)
+## Deferred / Parking Lot (not release-blocking)
 
-These are valid but not blocking release:
+These are valid but not blocking release. Migration work is active and tracked in `docs/specs/frontend-framework-evaluation.md`.
 - Performance optimization (#150, #145)
 - Tech debt refactoring (#147, #78, #108)
 - Save/Revert/Clear UX (#115)

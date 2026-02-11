@@ -9,6 +9,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 ## Code Conventions
 
 - Strict mode; explicit types; avoid `any`
+- **Return types**: Prefer inference. Explicit return types are encouraged at exported API boundaries and required for type guards (`is` predicates). Omit elsewhere.
 - Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
 - Class-based UI modules with DOM caching; event-driven via `listen()`
 - Strong boundary types for Rust/TS crossing (`src/types/*`)

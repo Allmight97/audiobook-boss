@@ -51,9 +51,10 @@ describe("compatibility guards", () => {
 
 describe("behavior-first IPC smoke", () => {
   it("preserves analyze outcome contract", async () => {
-    const result = await bridge.invoke("analyze_audio_files", {
-      filePaths: ["/mock/path/chapter1.mp3", "/mock/path/chapter2.mp3"],
-    });
+    const result = await bridge.analyzeAudioFiles([
+      "/mock/path/chapter1.mp3",
+      "/mock/path/chapter2.mp3",
+    ]);
 
     expect(result.validCount).toBeGreaterThan(0);
     expect(result.files.length).toBeGreaterThan(0);
@@ -62,7 +63,7 @@ describe("behavior-first IPC smoke", () => {
   });
 
   it("preserves metadata lookup outcome contract", async () => {
-    const results = await bridge.invoke("search_online_metadata", {
+    const results = await bridge.searchOnlineMetadata({
       query: "mock search",
       sources: ["audnexus"],
       limit: 8,
@@ -96,14 +97,14 @@ describe("behavior-first IPC smoke", () => {
       },
     };
 
-    await bridge.invoke("process_audiobook_files_v2", {
+    await bridge.processAudiobookFilesV2({
       payload,
       metadata: null,
       previewSeconds: null,
     });
 
     await sleep(250);
-    await bridge.invoke("cancel_processing", { job_id: "mock-job-1" });
+    await bridge.cancelProcessing("mock-job-1");
 
     await waitFor(
       () =>
@@ -140,7 +141,7 @@ describe("behavior-first IPC smoke", () => {
       progressEvents.push(event.payload);
     });
 
-    await bridge.invoke("cancel_processing", { job_id: "mock-job-1" });
+    await bridge.cancelProcessing("mock-job-1");
 
     await waitFor(
       () => progressEvents.some((event) => event.stage === STAGES.cancelled),

@@ -18,8 +18,8 @@ import {
   resetDirtyState,
 } from "../metadataForm";
 import {
-  currentFileList,
-  selectedFileIndex,
+  getCurrentFileList,
+  getSelectedFileIndex,
   setCurrentFileList,
   setSelectedIndex,
   getSortAscending,
@@ -82,15 +82,16 @@ export async function selectFile(
   modifiers?: { multi: boolean; range: boolean },
   options?: { skipPersistPrevious?: boolean }
 ): Promise<void> {
-  if (!currentFileList || index < 0 || index >= currentFileList.files.length) {
+  const fileList = getCurrentFileList();
+  if (!fileList || index < 0 || index >= fileList.files.length) {
     return;
   }
 
   const previousSelectionCount = getSelectedFiles().length;
-  const previousIndex = selectedFileIndex;
+  const previousIndex = getSelectedFileIndex();
   const previousFile =
-    previousSelectionCount === 1 && currentFileList
-      ? currentFileList.files[previousIndex] ?? null
+    previousSelectionCount === 1
+      ? fileList.files[previousIndex] ?? null
       : null;
 
   const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
@@ -128,10 +129,12 @@ export async function selectFile(
 }
 
 export function selectAll(): void {
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
+  const selectedIndex = getSelectedFileIndex();
   const previousFile =
-    getSelectedFiles().length === 1 && selectedFileIndex >= 0
-      ? currentFileList.files[selectedFileIndex] ?? null
+    getSelectedFiles().length === 1 && selectedIndex >= 0
+      ? fileList.files[selectedIndex] ?? null
       : null;
   persistSingleSelectionMetadata(previousFile);
 
@@ -148,11 +151,12 @@ export function selectAll(): void {
 }
 
 export async function clearSelectionAction(): Promise<void> {
-  const fileList = currentFileList;
+  const fileList = getCurrentFileList();
+  const selectedIndex = getSelectedFileIndex();
   const previousSelectionCount = getSelectedFiles().length;
   const previousFile =
-    fileList && previousSelectionCount === 1 && selectedFileIndex >= 0
-      ? fileList.files[selectedFileIndex] ?? null
+    fileList && previousSelectionCount === 1 && selectedIndex >= 0
+      ? fileList.files[selectedIndex] ?? null
       : null;
   persistSingleSelectionMetadata(previousFile);
 
@@ -171,7 +175,7 @@ export async function clearSelectionAction(): Promise<void> {
 export async function stageMetadataToSelection(options?: {
   showStatus?: boolean;
 }): Promise<boolean> {
-  if (!currentFileList) return false;
+  if (!getCurrentFileList()) return false;
 
   const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
   if (selectedFiles.length === 0) return false;
@@ -249,19 +253,19 @@ export function initMetadataApplyHandler(): void {
 
 export function removeFile(index: number): void {
   if (isOrderLocked()) return;
-  if (!currentFileList || index < 0 || index >= currentFileList.files.length) {
+  const fileList = getCurrentFileList();
+  if (!fileList || index < 0 || index >= fileList.files.length) {
     return;
   }
 
-  const removedFile = currentFileList.files[index];
+  const removedFile = fileList.files[index];
   removeMetadataForFile(removedFile.path);
 
-  currentFileList.files.splice(index, 1);
-  currentFileList.validCount = currentFileList.files.filter(
+  fileList.files.splice(index, 1);
+  fileList.validCount = fileList.files.filter(
     (f) => f.isValid
   ).length;
-  currentFileList.invalidCount =
-    currentFileList.files.length - currentFileList.validCount;
+  fileList.invalidCount = fileList.files.length - fileList.validCount;
 
   recalculateTotals();
   updateFileListDOM();
@@ -282,16 +286,17 @@ export function removeFile(index: number): void {
 }
 
 export function recalculateTotals(): void {
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
 
-  const validFiles = currentFileList.files.filter(
+  const validFiles = fileList.files.filter(
     (f) => f.isValid && f.duration && f.size
   );
-  currentFileList.totalDuration = validFiles.reduce(
+  fileList.totalDuration = validFiles.reduce(
     (sum, f) => sum + (f.duration || 0),
     0
   );
-  currentFileList.totalSize = validFiles.reduce(
+  fileList.totalSize = validFiles.reduce(
     (sum, f) => sum + (f.size || 0),
     0
   );
@@ -299,13 +304,14 @@ export function recalculateTotals(): void {
 
 export function moveFileUp(index: number): void {
   if (isOrderLocked()) return;
-  if (!currentFileList || index <= 0 || index >= currentFileList.files.length) {
+  const fileList = getCurrentFileList();
+  if (!fileList || index <= 0 || index >= fileList.files.length) {
     return;
   }
 
-  const temp = currentFileList.files[index];
-  currentFileList.files[index] = currentFileList.files[index - 1];
-  currentFileList.files[index - 1] = temp;
+  const temp = fileList.files[index];
+  fileList.files[index] = fileList.files[index - 1];
+  fileList.files[index - 1] = temp;
 
   swapSelectionIndices(index, index - 1);
 
@@ -321,17 +327,18 @@ export function moveFileUp(index: number): void {
 
 export function moveFileDown(index: number): void {
   if (isOrderLocked()) return;
+  const fileList = getCurrentFileList();
   if (
-    !currentFileList ||
+    !fileList ||
     index < 0 ||
-    index >= currentFileList.files.length - 1
+    index >= fileList.files.length - 1
   ) {
     return;
   }
 
-  const temp = currentFileList.files[index];
-  currentFileList.files[index] = currentFileList.files[index + 1];
-  currentFileList.files[index + 1] = temp;
+  const temp = fileList.files[index];
+  fileList.files[index] = fileList.files[index + 1];
+  fileList.files[index + 1] = temp;
 
   swapSelectionIndices(index, index + 1);
 
@@ -347,11 +354,12 @@ export function moveFileDown(index: number): void {
 
 export function toggleFileSort(): void {
   if (isOrderLocked()) return;
-  if (!currentFileList || currentFileList.files.length <= 1) return;
+  const fileList = getCurrentFileList();
+  if (!fileList || fileList.files.length <= 1) return;
 
   setSortAscending(!getSortAscending());
 
-  currentFileList.files.sort((a, b) => {
+  fileList.files.sort((a, b) => {
     const nameA = a.path.split(/[\\/]/).pop() || a.path;
     const nameB = b.path.split(/[\\/]/).pop() || b.path;
 
@@ -375,14 +383,15 @@ export function toggleFileSort(): void {
 
 export function clearAllFiles(): void {
   if (isOrderLocked()) return;
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
 
   clearMetadataState();
-  currentFileList.files = [];
-  currentFileList.validCount = 0;
-  currentFileList.invalidCount = 0;
-  currentFileList.totalDuration = 0;
-  currentFileList.totalSize = 0;
+  fileList.files = [];
+  fileList.validCount = 0;
+  fileList.invalidCount = 0;
+  fileList.totalDuration = 0;
+  fileList.totalSize = 0;
 
   showEmptyState();
 
@@ -403,9 +412,10 @@ export function setFileOrderLocked(locked: boolean): void {
 
 export function reorderFiles(fromIndex: number, toIndex: number): void {
   if (isOrderLocked()) return;
-  if (!currentFileList) return;
+  const fileList = getCurrentFileList();
+  if (!fileList) return;
 
-  const files = currentFileList.files;
+  const files = fileList.files;
   const [moved] = files.splice(fromIndex, 1);
   files.splice(toIndex, 0, moved);
 

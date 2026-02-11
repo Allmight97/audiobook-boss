@@ -1,10 +1,10 @@
 import { bridge } from "./lib/bridge";
 import type { AudioFile } from "./types/audio";
 import { initFileImport } from "./ui/fileImport";
-import { currentFileList, selectedFileIndex } from "./ui/fileList";
+import { getCurrentFileList, getSelectedFileIndex } from "./ui/fileList";
 import { getSelectedFileIndices } from "./ui/fileList/state";
 import { initOutputPanel } from "./ui/outputPanel";
-import { initStatusPanel, getStatusPanel } from "./ui/statusPanel";
+import { initStatusPanel, getStatusPanel } from "./ui/statusPanel/index";
 import { initEncoderPanel } from "./ui/encoderPanel";
 import { initCoverArt } from "./ui/coverArt";
 import { readMetadataForm, initMetadataFormEvents, resetDirtyState } from "./ui/metadataForm";
@@ -21,12 +21,12 @@ import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metada
 // Initialize UI components when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   initFileImport();
+  // Initialize Advanced Encoder panel before output handlers so shared controls are present.
+  initEncoderPanel();
   initOutputPanel();
   initStatusPanel();
   initCoverArt();
   initMetadataFormEvents();
-  // Initialize Advanced Encoder panel (no-op if panel not present)
-  initEncoderPanel();
   // Initialize tag preview grid
   initTagPreview();
   initMetadataLookup();
@@ -52,8 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
  */
 
 async function saveMetadataFromUI(): Promise<void> {
+  const fileList = getCurrentFileList();
   // Check if we have files loaded
-  if (!currentFileList || currentFileList.files.length === 0) {
+  if (!fileList || fileList.files.length === 0) {
     console.log("No files loaded - nothing to save");
     return;
   }
@@ -71,16 +72,17 @@ async function saveMetadataFromUI(): Promise<void> {
 
   if (selectedIndices.size > 0) {
     targetFiles = Array.from(selectedIndices)
-      .map((i) => currentFileList!.files[i])
+      .map((i) => fileList.files[i])
       .filter((f) => f && f.isValid);
   } else {
+    const selectedFileIndex = getSelectedFileIndex();
     if (
       selectedFileIndex > -1 &&
-      currentFileList.files[selectedFileIndex]?.isValid
+      fileList.files[selectedFileIndex]?.isValid
     ) {
-      targetFiles = [currentFileList.files[selectedFileIndex]];
+      targetFiles = [fileList.files[selectedFileIndex]];
     } else {
-      const first = currentFileList.files.find((f) => f.isValid);
+      const first = fileList.files.find((f) => f.isValid);
       if (first) targetFiles = [first];
     }
   }
@@ -145,10 +147,7 @@ async function saveMetadataFromUI(): Promise<void> {
           statusText.textContent = `Saving ${index + 1}/${targetFiles.length}...`;
         }
 
-        await bridge.invoke("save_metadata_to_file", {
-          filePath: file.path,
-          metadata: metadataPayload,
-        });
+        await bridge.saveMetadataToFile(file.path, metadataPayload);
 
         const existing = getMetadataForFile(file.path) ?? {};
         setMetadataForFile(file.path, { ...existing, ...metadataPayload });
@@ -156,10 +155,7 @@ async function saveMetadataFromUI(): Promise<void> {
       }
     } else {
       const file = targetFiles[0];
-      await bridge.invoke("save_metadata_to_file", {
-        filePath: file.path,
-        metadata: metadataPayload,
-      });
+      await bridge.saveMetadataToFile(file.path, metadataPayload);
       setMetadataForFile(file.path, metadataPayload);
       successCount = 1;
     }

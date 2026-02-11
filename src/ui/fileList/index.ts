@@ -16,8 +16,8 @@ export {
 
 // Re-export state from state module  
 export { 
-    currentFileList, 
-    selectedFileIndex 
+    getCurrentFileList,
+    getSelectedFileIndex
 } from './state';
 
 // Initialize module when loaded
