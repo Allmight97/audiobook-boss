@@ -9,6 +9,8 @@
 - Migration is the active workstream now (not a post-launch placeholder).
 - Release process remains a parallel/non-blocking lane while migration is in flight.
 - Visual regression tooling is currently non-gating in solo/macOS execution mode and will be re-evaluated when multi-platform rollout becomes active.
+- Phase 3 spike is complete (`TagPreview`), and Phase 4 panel migration is active.
+- Quality gate is rolling per panel (outcome tests + local verification), not a front-loaded migration-wide block; CI remains optional/non-gating in this execution mode.
 
 **⚠️ CRITICAL DECISION POINT**: This document now includes a fundamental architectural choice that must be resolved BEFORE framework/type-safety decisions: **Should this app be rebuilt on Electron instead of Tauri?**
 
@@ -1025,22 +1027,22 @@ Migration PRs should include:
 
 ---
 
-### Phase 3: Framework Migration Spike (Svelte)
-**Outcome**: One small panel converted to Svelte as proof-of-concept
+### Phase 3: Framework Migration Spike (Svelte) -- Complete
+**Outcome**: `TagPreview` converted to Svelte as proof-of-concept and migration pattern baseline
 
-**Estimated scope**: 2-3 days work
-1. Add Svelte dependencies: `svelte@5.x`, `@sveltejs/vite-plugin-svelte`
-2. Update `vite.config.ts` to include Svelte plugin
-3. Choose spike target: **JobControls** (149 LOC, simple, low coupling) or **TagPreview** (113 LOC, pure data-driven)
-4. Convert chosen panel to `.svelte` component:
-   - Move state from `let` variables to `$state` runes
-   - Move markup from `index.html` section to Svelte template
-   - Move event handlers to `on:click` / `on:change` directives
-   - Test IPC calls (should work seamlessly with tauri-specta types from Phase 1)
-5. Test Tailwind + scoped styles pattern (use both inline utilities and `<style>` block)
-6. Measure bundle size impact (compare `dist/` size before/after)
-7. Verify baseline screenshot still matches (visual regression check)
-8. Document lessons learned: what worked, what didn't, gotchas encountered
+**Historical scope**: 2-3 days work (completed)
+1. Added Svelte dependencies: `svelte@5.x`, `@sveltejs/vite-plugin-svelte`
+2. Updated `vite.config.ts` to include Svelte plugin
+3. Spike target chosen: **TagPreview** (113 LOC, pure data-driven)
+4. Converted spike panel to `.svelte` component:
+   - Moved state from `let` variables to `$state` runes
+   - Moved markup from `index.html` section to Svelte template
+   - Moved event handlers to `on:click` / `on:change` directives
+   - Tested IPC calls against tauri-specta types from Phase 1
+5. Validated Tailwind + scoped styles pattern (inline utilities + `<style>` block)
+6. Measured bundle size impact (compare `dist/` size before/after)
+7. Verified baseline screenshot behavior in current solo/macOS workflow
+8. Captured lessons learned for Phase 4 rollout
 
 **Risk**: Low. Single component, easy to revert (delete `.svelte` file, restore old TS module).
 
@@ -1048,14 +1050,14 @@ Migration PRs should include:
 
 ---
 
-### Phase 4: Phased Framework Migration (if spike succeeds)
-**Outcome**: Full frontend migrated to Svelte, component by component
+### Phase 4: Phased Framework Migration -- Active
+**Outcome**: Full frontend migrated to Svelte, component by component (active execution)
 
 **Estimated scope**: 3-4 weeks work (staggered, one panel at a time)
 
 **Migration sequence** (low-risk → high-complexity):
-1. **JobControls** (149 LOC) -- already done in spike, just formalize
-2. **TagPreview** (113 LOC) -- pure data display, no complex state
+1. **TagPreview** (113 LOC) -- completed in Phase 3 spike (reference baseline)
+2. **JobControls** (149 LOC) -- next low-risk panel
 3. **OutputPanel** (560 LOC) -- moderate complexity, well-decomposed
 4. **EncoderPanel** (470 LOC) -- moderate complexity, well-decomposed
 5. **CoverArt** (436 LOC) -- drag/drop, file loading, moderate state
@@ -1078,15 +1080,21 @@ Migration PRs should include:
 10. Update `index.html` to remove migrated section, replace with `<Component />` mount point
 11. Commit at panel boundary (logical unit of work)
 
+**Rolling per-panel outcome-test gate (current execution mode)**:
+- Gate each panel before moving to the next panel; do not front-load one migration-wide test block.
+- Verify panel-specific outcome behavior (interaction, state sync, IPC/result surfaces) via targeted tests/manual checks.
+- Run local quality checks required for that panel's change scope (`scripts/checks.sh standard` when applicable).
+- Keep visual checks non-gating/manual in solo/macOS mode until multi-platform rollout is active.
+
 **Guardrails**:
 - Maintain type safety via tauri-specta bindings (from Phase 1)
 - Follow design system rules (from Phase 2)
-- Visual regression test after each panel
+- Apply the rolling per-panel outcome-test gate before advancing
 - Can pause/ship at any panel boundary if timeline pressure hits
 
 **Risk**: Medium-High. Large refactor, but phased to limit blast radius. Each panel migration is reversible.
 
-**Dependencies**: Phase 3 spike must succeed and validate assumptions.
+**Dependencies**: Phase 3 spike is complete and assumptions are validated enough to run phased rollout.
 
 ---
 
@@ -1152,11 +1160,11 @@ Migration PRs should include:
 - **Smaller ecosystem**: fewer pre-built components than React/Vue (less relevant for desktop app)
 - **Deferred value**: benefits emerge over time, not immediate
 
-**Recommended decision**:
-1. **Do Phase 1 (tauri-specta) now**: low-risk, immediate value, helps with everything else
-2. **Do Phase 2 (design checkpoint) next**: locks down design system before code migration
-3. **Spike Phase 3 (Svelte POC)**: validate assumptions, measure real migration cost
-4. **Decide on Phase 4 (full migration) after spike**: you'll have real data, not just theory
+**Recommended decision (current status-aligned)**:
+1. **Phase 1 complete**: keep tauri-specta contract discipline in place during UI migration
+2. **Phase 2 complete enough to execute**: continue refining design artifacts in parallel as needed
+3. **Phase 3 complete (`TagPreview`)**: use as the baseline implementation pattern
+4. **Phase 4 active**: continue panel-by-panel with the rolling per-panel outcome-test gate
 
 **Alternative decision** (defer both):
 - Valid if the current execution mode requires focus on Windows/Linux ports first

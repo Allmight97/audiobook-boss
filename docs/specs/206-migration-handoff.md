@@ -75,9 +75,9 @@
 | **CoverArt** | `coverArt.ts` | 435 | **MEDIUM** | Drag-drop, URL loading, MIME detection, clipboard paste, global state on `window`. |
 | **FileImport** | `fileImport.ts` | 177 | **LOW** | Drag-drop handler, click-to-select, file filtering. Good early candidate. |
 | **JobControls** | `jobControls.ts` | 155 | **LOW** | Merge toggle, max concurrent selector, localStorage persistence. Good early candidate. |
-| **TagPreview** | `tagPreview.ts` | 112 | **LOWEST** | Pure display component. Reads input values, renders tag grid. No bridge calls, no state management. **Best spike candidate.** |
+| **TagPreview** | `tagPreview.ts` | 112 | **LOWEST** | Pure display component. Reads input values, renders tag grid. No bridge calls, no state management. **Phase 3 spike complete.** |
 
-**Migration order guidance**: TagPreview or JobControls for Phase 3 spike. FileImport next. Save StatusPanel and FileList for Phase 4 endgame after pattern is proven.
+**Migration order guidance**: Phase 3 spike is complete (TagPreview). Phase 4 is active; continue panel-by-panel from low-risk to high-complexity with a rolling per-panel outcome-test gate. Save StatusPanel and FileList for Phase 4 endgame.
 
 ---
 
@@ -109,8 +109,8 @@
 
 - **Phase 1**: Full-stack type safety (done, #193)
 - **Phase 2**: Design checkpoint (tokens, variants, baseline screenshots, design system doc)
-- **Phase 3**: Framework migration spike (one small panel to Svelte 5)
-- **Phase 4**: Panel-by-panel migration (JobControls → StatusPanel, 10 panels total)
+- **Phase 3**: Framework migration spike (one small panel to Svelte 5) — **complete (TagPreview)**
+- **Phase 4**: Panel-by-panel migration (JobControls → StatusPanel, 10 panels total) — **active**
 - **Phase 5**: Cleanup (remove legacy styles/modules)
 
 The spec chooses **Svelte 5** for: lowest migration cost (compiles to imperative DOM like current code), best co-location (`.svelte` SFCs), smallest bundle (~28KB), 1:1 state pattern mapping (`let foo` → `let foo = $state(...)`).
@@ -178,7 +178,7 @@ See **Section 3 of the plan file** (`/Users/jstar/.claude/plans/vectorized-wobbl
 
 4. **Plan for the missing child issues**: design checkpoint work, FB-018/FB-019 tracking, pre-migration perf baseline.
 
-5. **Use TagPreview or JobControls for the Phase 3 spike.** Both are low-risk, isolated, small. Avoid StatusPanel or FileList early — they're the hardest.
+5. **Treat TagPreview as the proven Phase 3 baseline and run Phase 4 as a rolling gate.** Validate each migrated panel with outcome tests before moving on; avoid front-loading a single migration-wide test block.
 
 6. **Bridge layer is framework-agnostic.** Svelte components call `bridge.*` directly. No new IPC adapters needed.
 
