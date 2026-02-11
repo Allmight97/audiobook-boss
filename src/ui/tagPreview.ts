@@ -12,7 +12,7 @@ import {
   setTagPreviewValues,
   type TagField,
   type TagPreviewValues,
-} from "./tagPreview/state";
+} from "./tagPreview/state.svelte";
 
 /**
  * Pads a part number to 2 digits for proper sorting

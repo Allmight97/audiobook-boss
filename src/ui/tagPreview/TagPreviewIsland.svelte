@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tagPreviewValuesStore, type TagField } from "./state";
+  import { tagPreviewValues, type TagField } from "./state.svelte";
 
   type TagRow = {
     field: TagField;
@@ -89,7 +89,7 @@
       <div class="tag-row" title={row.title}>
         <span class="tag-name">{row.label}</span>
         <span class="tag-value" data-field={row.field}>
-          {$tagPreviewValuesStore[row.field] || "—"}
+          {tagPreviewValues[row.field] || "—"}
         </span>
       </div>
     {/each}
@@ -100,7 +100,7 @@
       <div class="tag-row" title={row.title}>
         <span class="tag-name">{row.label}</span>
         <span class="tag-value" data-field={row.field}>
-          {$tagPreviewValuesStore[row.field] || "—"}
+          {tagPreviewValues[row.field] || "—"}
         </span>
       </div>
     {/each}

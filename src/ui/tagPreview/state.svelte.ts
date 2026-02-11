@@ -1,5 +1,3 @@
-import { writable } from "svelte/store";
-
 export const TAG_FIELDS = [
   "title",
   "album",
@@ -33,7 +31,7 @@ const EMPTY_VALUES: TagPreviewValues = {
   genre: "",
 };
 
-export const tagPreviewValuesStore = writable<TagPreviewValues>({
+export const tagPreviewValues = $state<TagPreviewValues>({
   ...EMPTY_VALUES,
 });
 
@@ -42,5 +40,7 @@ export function createEmptyTagPreviewValues(): TagPreviewValues {
 }
 
 export function setTagPreviewValues(values: TagPreviewValues): void {
-  tagPreviewValuesStore.set(values);
+  for (const field of TAG_FIELDS) {
+    tagPreviewValues[field] = values[field];
+  }
 }

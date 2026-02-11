@@ -67,9 +67,13 @@ When adding Svelte component props, use:
 - Keep panel-level changes isolated to avoid cross-panel CSS regressions.
 - If a new component needs temporary local styling, align names/tokens with this doc and fold shared patterns back into global styles once stable.
 
+## Svelte State Convention (Migration)
+
+- Use Svelte 5 runes as the default pattern for newly migrated islands/components.
+- Only use `svelte/store` when a cross-component/shared-store requirement is explicit and documented in the migration PR notes.
+
 ## Visual Regression Policy (Current Execution Mode)
 
 - Visual regression tooling is currently **non-gating** in solo/macOS execution mode.
 - Baseline screenshot work is still useful context, but not a merge blocker during the current migration phase.
 - Revisit visual gating when multi-platform rollout becomes active.
-
