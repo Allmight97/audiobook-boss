@@ -1,7 +1,7 @@
 # Frontend Framework Evaluation
 
 **Date**: 2026-02-10
-**Updated**: 2026-02-11 (execution-mode alignment for active migration)
+**Updated**: 2026-02-11 (execution-mode + post-Phase 6 sync)
 
 **Context**: Research exploring the co-location pattern (styles + logic + markup in one component), evaluating frontend framework options for Audiobook Boss, adding Opus Agent (frontend design-focused collaborator) to the decision surface, and critically evaluating the Tauri vs Electron foundation decision.
 
@@ -9,7 +9,7 @@
 - Migration is the active workstream now (not a post-launch placeholder).
 - Release process remains a parallel/non-blocking lane while migration is in flight.
 - Visual regression tooling is currently non-gating in solo/macOS execution mode and will be re-evaluated when multi-platform rollout becomes active.
-- Phase 3 spike is complete (`TagPreview`), and Phase 4 panel migration is active.
+- Phase 3 spike is complete (`TagPreview`), and Phases 4-6 are complete in the migration branch (pending merge).
 - Quality gate is rolling per panel (outcome tests + local verification), not a front-loaded migration-wide block; CI remains optional/non-gating in this execution mode.
 
 **⚠️ CRITICAL DECISION POINT**: This document now includes a fundamental architectural choice that must be resolved BEFORE framework/type-safety decisions: **Should this app be rebuilt on Electron instead of Tauri?**
@@ -991,7 +991,7 @@ The design governance requirements (lines 368-378) include:
 ### Fallback Burn-Down Hooks (must run before/during migration)
 
 Track active fallbacks in `docs/engineering/fallback-register.md` and tie burn-down to migration checkpoints:
-- `FB-008` (bridge legacy command wrapper) must be removed by framework migration Phase 2 completion (no later than 2026-05-31).
+- Bridge migration wrapper fallback removal is completed in Phase 5 execution (issue #203 closure evidence tied to migration PR).
 - `FB-003` and `FB-004` must remain explicit/observable if retained during component migration.
 - No new dual-key alias fallbacks should be introduced while moving to Svelte + Tailwind.
 
@@ -1050,22 +1050,22 @@ Migration PRs should include:
 
 ---
 
-### Phase 4: Phased Framework Migration -- Active
-**Outcome**: Full frontend migrated to Svelte, component by component (active execution)
+### Phase 4: Phased Framework Migration -- Complete (Migration Branch)
+**Outcome**: Full frontend migrated to Svelte, component by component
 
 **Estimated scope**: 3-4 weeks work (staggered, one panel at a time)
 
 **Migration sequence** (low-risk → high-complexity):
 1. **TagPreview** (113 LOC) -- completed in Phase 3 spike (reference baseline)
-2. **JobControls** (149 LOC) -- next low-risk panel
-3. **OutputPanel** (560 LOC) -- moderate complexity, well-decomposed
-4. **EncoderPanel** (470 LOC) -- moderate complexity, well-decomposed
-5. **CoverArt** (436 LOC) -- drag/drop, file loading, moderate state
-6. **MetadataForm** (445 LOC) -- form state, dirty tracking, validation
-7. **FileImport** (178 LOC) -- drag/drop, file dialog, moderate coupling
-8. **MetadataLookup** (582 LOC) -- modal, online search, complex DOM building
-9. **FileList** (620 LOC, 6 files) -- high complexity, multi-select, reordering, metadata panel
-10. **StatusPanel** (1,300 LOC, 12 files) -- **highest complexity**, progress rendering, job orchestration, queue state
+2. **JobControls** (149 LOC)
+3. **FileImport** (178 LOC)
+4. **CoverArt** (436 LOC)
+5. **MetadataForm** (445 LOC)
+6. **EncoderPanel** (470 LOC)
+7. **OutputPanel** (560 LOC)
+8. **MetadataLookup** (582 LOC)
+9. **FileList** (620 LOC, 6 files)
+10. **StatusPanel** (1,300 LOC, 12 files)
 
 **Process for each panel**:
 1. Create `.svelte` component in `src/ui/{panel-name}.svelte` or `src/ui/{panel-name}/Component.svelte`
@@ -1098,8 +1098,8 @@ Migration PRs should include:
 
 ---
 
-### Phase 5 (Optional): Post-Migration Cleanup
-**Outcome**: Remove hybrid cruft, consolidate design tokens, optimize bundle
+### Phase 5: High-Complexity Endgame + Fallback Burn-Down -- Complete (Migration Branch)
+**Outcome**: FileList + StatusPanel migration completed, migration-bound fallbacks retired, compatibility behavior preserved
 
 **Estimated scope**: 1-2 days work
 1. Shrink `src/styles.css` (move component-specific styles into `.svelte` files, keep only global/token styles)
@@ -1111,7 +1111,12 @@ Migration PRs should include:
 
 **Risk**: Low. Cleanup phase, no new features.
 
-**Dependencies**: Phase 4 complete (full migration done).
+**Dependencies**: Phase 4 complete (satisfied in migration branch).
+
+---
+
+### Phase 6: Post-Migration Cleanup -- Complete (Migration Branch)
+**Outcome**: Legacy module/shim cleanup completed, docs/fallback tracking synchronized, and local quality gates re-run.
 
 ---
 
@@ -1164,7 +1169,7 @@ Migration PRs should include:
 1. **Phase 1 complete**: keep tauri-specta contract discipline in place during UI migration
 2. **Phase 2 complete enough to execute**: continue refining design artifacts in parallel as needed
 3. **Phase 3 complete (`TagPreview`)**: use as the baseline implementation pattern
-4. **Phase 4 active**: continue panel-by-panel with the rolling per-panel outcome-test gate
+4. **Phases 4-6 complete in migration branch**: panel migration, fallback burn-down, and cleanup are now complete pending merge
 
 **Alternative decision** (defer both):
 - Valid if the current execution mode requires focus on Windows/Linux ports first

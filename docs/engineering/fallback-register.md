@@ -17,7 +17,6 @@ Required fields per fallback:
 | FB-005 | `src-tauri/src/audio/processor/encoder/options/native.rs` | legacy env alias `ABB_DISABLE_TWOOLOOP` still present in local setups | test coverage + encoder startup logs | 2026-03-31 | #200 | Active |
 | FB-006 | `src-tauri/src/audio/processor/engine.rs` | legacy `early_stop` path still toggled in preview loop | info log when branch is engaged | 2026-03-31 | #201 | Active |
 | FB-007 | `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs` | legacy movement tag fields are present without canonical series tags | metadata compatibility tests + register tracking | 2026-05-31 (revalidate) | #202 | Active |
-| FB-008 | `src/lib/bridge.ts`, `src-tauri/src/commands/audio.rs` | preserve stable snake_case command surface during architecture transition | behavior-contract compatibility guards + generated binding drift checks | framework migration phase 2 completion, no later than 2026-05-31 | #203 | Active |
 | FB-009 | `scripts/bench-statuspanel-render-lookup.mjs` | legacy local command still targets old perf entrypoint | grep/workflow checks for shim references | 2026-03-31 | #204 | Active |
 | FB-010 | `src-tauri/src/audio/buffer.rs` | encoder reports zero frame size and accumulator must continue safely | warn log when default frame size `1024` is applied | 2026-06-30 (revalidate) | #195 | Active |
 | FB-011 | `src-tauri/src/audio/settings_encoder.rs` | requested encoder unavailable on current host/runtime | warn log with requested encoder + availability snapshot | 2026-06-30 (revalidate) | #195 | Active |
@@ -27,15 +26,18 @@ Required fields per fallback:
 | FB-015 | `src/lib/bridge.ts` | non-Tauri runtime requires DEV mocks / non-DEV no-op rejection path | bridge init + non-Tauri warning logs | 2026-06-30 (revalidate) | #195 | Active |
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe disabled/fails and synthetic fallback is used | benchmark result details include `fixture-fallback` + reason | 2026-06-30 (revalidate) | #195 | Active |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifact files missing (`ENOENT`) | report output demonstrates empty baseline/history bootstrap path | 2026-06-30 (revalidate) | #195 | Active |
-| FB-018 | `src/ui/statusPanel.ts` | legacy import paths still resolve via aggregator re-export shim | static import graph + build/tests continue resolving through shim path | framework migration phase 2 completion, no later than 2026-06-30 | #195 | Active |
-| FB-019 | `src/ui/fileList/state.ts` | direct mutable state exports retained for old import contracts | static import graph + behavior-contract tests keep UX flow stable | framework migration phase 2 completion, no later than 2026-06-30 | #195 | Active |
 
 ## Migration Hooks (Svelte + Tailwind Track)
 
-- FB-008 is migration-bound and must be removed when framework migration reaches typed component/service paths.
 - FB-014 and FB-015 should be re-evaluated during framework migration once component-level state management replaces global provider/runtime branching.
-- FB-018 and FB-019 should be removed as import/state ownership is migrated to framework-managed modules.
 - Framework migration PR checklist must include:
   - no new dual-key fallback aliases,
   - explicit review of active FB-* entries,
   - updated sunset decision for any fallback that survives migration phases.
+
+### Migration Closure Evidence (2026-02-11, migration branch)
+
+- Bridge legacy-command wrapper fallback removed: UI callsites now use typed `bridge.*` helpers directly (`src/lib/bridge.ts`, `src/main.ts`, `src/ui/**`).
+- StatusPanel aggregator shim fallback removed: legacy shim module deleted and replaced with island mount entry (`src/ui/statusPanel/index.ts`, `src/ui/statusPanel/StatusPanelIsland.svelte`).
+- FileList mutable-export fallback removed: direct mutable exports replaced with explicit accessor API (`src/ui/fileList/state.ts`, updated consumers in `src/ui/fileList/**`, `src/main.ts`, `src/ui/statusPanel/**`).
+- Tracking issues: #203 and #210 (closure tied to migration PR merge evidence).

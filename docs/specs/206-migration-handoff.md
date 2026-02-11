@@ -1,7 +1,7 @@
 # Issue #206 Migration Handoff: Execution Briefing for Codex
 
 **Date**: 2026-02-10
-**Updated**: 2026-02-11
+**Updated**: 2026-02-11 (post-Phase 6 sync)
 **Session**: Solo migration execution (human owner + Codex/agents)
 **Purpose**: Keep migration execution aligned to ground truth while implementation is in flight.
 
@@ -43,15 +43,15 @@
 - **Never hand-edited** (drift check in `scripts/checks.sh standard`)
 
 **Tier 2 — Bridge adapter** (`src/lib/bridge.ts`, 363 LOC):
-- Wraps generated bindings with legacy snake_case command names (`"analyze_audio_files"`, `"save_metadata_to_file"`)
+- Wraps generated bindings with stable command/event normalization
 - Normalizes between Generated types (uses `null`) and Legacy types (uses `undefined`)
-- Provides `bridge.invoke()`, `bridge.listen()`, `bridge.open()`, `bridge.openExternal()`
+- Provides typed `bridge.*` helpers plus `bridge.listen()`, `bridge.open()`, `bridge.openExternal()`
 - Falls back to mocks in dev when Tauri unavailable
-- **Tracked as FALLBACK[FB-008]** — sunset 2026-05-31, issue #203
+- Legacy migration wrapper path was retired during migration execution (issue #203 closure evidence in migration PR)
 
-**Tier 3 — UI callsites**: Components call `bridge.invoke("command_name", { args })`
+**Tier 3 — UI callsites**: Components call typed `bridge.*` helpers directly
 
-**Key implication**: Bridge layer is framework-agnostic. Svelte components import and call `bridge.*` directly — no additional adapters needed. Bridge stays until FB-008 is retired.
+**Key implication**: Bridge layer remains framework-agnostic. Svelte components import and call `bridge.*` directly — no additional adapters needed.
 
 ### Build Tooling
 
@@ -77,7 +77,7 @@
 | **JobControls** | `jobControls.ts` | 155 | **LOW** | Merge toggle, max concurrent selector, localStorage persistence. Good early candidate. |
 | **TagPreview** | `tagPreview.ts` | 112 | **LOWEST** | Pure display component. Reads input values, renders tag grid. No bridge calls, no state management. **Phase 3 spike complete.** |
 
-**Migration order guidance**: Phase 3 spike is complete (TagPreview). Phase 4 is active; continue panel-by-panel from low-risk to high-complexity with a rolling per-panel outcome-test gate. Save StatusPanel and FileList for Phase 4 endgame.
+**Migration order guidance**: Phase 3 spike is complete (TagPreview). Phase 4 panel migration sequence is complete in the active branch, including FileList and StatusPanel endgame waves, using the rolling per-panel outcome-test gate.
 
 ---
 
@@ -86,7 +86,7 @@
 ### Dependency Graph Status
 
 - **#193 (typed IPC foundation)**: **CLOSED** — Phase 1 is complete, contracts are stable, drift checks are gated
-- **#203 (FB-008 bridge wrapper sunset)**: **OPEN** — but treat as "complete during" not "complete before"
+- **#203 (bridge migration wrapper sunset)**: migration branch implementation complete; issue closure is tied to merge
 - **#206 (this epic)**: **OPEN** — needs corrections (see below)
 
 ### Where #206 Misleads
@@ -95,9 +95,9 @@
 
 2. **#206's Phase 1 says "Tailwind + token foundation"** — but Tailwind v4 is already installed and wired (PostCSS, config, utilities in HTML). Phase 1's *real* work is Svelte introduction into Vite + design token system. **Fix**: Clarify Phase 1 scope.
 
-3. **Missing child issues**:
+3. **Issue linkage updates**:
    - **Design checkpoint** (spec Phase 2): baseline screenshots, token centralization, `docs/design-system.md` — no issue exists
-   - **FB-018** (StatusPanel re-export shim) and **FB-019** (FileList mutable state exports) are migration-bound per fallback register but not mentioned in #206
+   - StatusPanel re-export shim + FileList mutable state export fallback were tracked under #210 and removed in Phase 5 execution
    - **Pre-migration perf baseline** capture (spec Phase 2, step 6) — no issue exists
 
 4. **Release impact**: **Parallel/non-blocking.** Migration is active now; keep `docs/RELEASE_CHECKLIST.md` running as the release lane while migration work proceeds.
@@ -110,8 +110,9 @@
 - **Phase 1**: Full-stack type safety (done, #193)
 - **Phase 2**: Design checkpoint (tokens, variants, baseline screenshots, design system doc)
 - **Phase 3**: Framework migration spike (one small panel to Svelte 5) — **complete (TagPreview)**
-- **Phase 4**: Panel-by-panel migration (JobControls → StatusPanel, 10 panels total) — **active**
-- **Phase 5**: Cleanup (remove legacy styles/modules)
+- **Phase 4**: Panel-by-panel migration (JobControls → StatusPanel, 10 panels total) — **complete in migration branch**
+- **Phase 5**: High-complexity endgame + fallback burn-down — **complete in migration branch**
+- **Phase 6**: Cleanup (remove legacy styles/modules/wiring) — **complete in migration branch**
 
 The spec chooses **Svelte 5** for: lowest migration cost (compiles to imperative DOM like current code), best co-location (`.svelte` SFCs), smallest bundle (~28KB), 1:1 state pattern mapping (`let foo` → `let foo = $state(...)`).
 
@@ -172,17 +173,17 @@ See **Section 3 of the plan file** (`/Users/jstar/.claude/plans/vectorized-wobbl
 
 1. **Start with the spec doc, not the GH issue.** #206 has inaccuracies. The spec is ground truth.
 
-2. **Treat #203 (FB-008) as a "complete during" dependency.** Don't block on it. The spike can use typed bindings directly; bridge removal is the natural outcome of successful migration.
+2. **Treat #203 as "complete during," then verify closure evidence.** The migration branch now removes the transitional wrapper usage path and switches callsites to typed bridge helpers.
 
 3. **Phase 1 is really "Svelte + design tokens," not "Tailwind setup."** Tailwind infrastructure is done.
 
-4. **Plan for the missing child issues**: design checkpoint work, FB-018/FB-019 tracking, pre-migration perf baseline.
+4. **Keep issue tracking aligned with implementation state**: design checkpoint work, fallback closure evidence, and perf baseline history should stay in-sync with active migration commits.
 
 5. **Treat TagPreview as the proven Phase 3 baseline and run Phase 4 as a rolling gate.** Validate each migrated panel with outcome tests before moving on; avoid front-loading a single migration-wide test block.
 
 6. **Bridge layer is framework-agnostic.** Svelte components call `bridge.*` directly. No new IPC adapters needed.
 
-7. **Watch the fallback register for migration-bound entries.** FB-008, FB-018, FB-019 all have migration sunset conditions.
+7. **Watch the fallback register for migration-bound entries and closure evidence.** Keep register state and migration handoff notes aligned after each closure.
 
 ---
 
