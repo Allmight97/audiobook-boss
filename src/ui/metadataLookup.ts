@@ -231,7 +231,7 @@ function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
     merged.cover_art = state.cover.bytes;
   }
 
-  setMetadataForFile(file.path, merged);
+  setMetadataForFile(file.path, merged, { markPending: true });
 }
 
 function restoreCoverArtForFile(file: AudioFile | null): void {
