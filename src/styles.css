@@ -668,13 +668,6 @@ textarea:hover:not(:focus) {
   margin-top: 0.5rem;
 }
 
-.metadata-apply-hint {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  text-align: right;
-}
-
 .metadata-lookup-modal {
   position: fixed;
   inset: 0;
