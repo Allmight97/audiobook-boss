@@ -18,7 +18,7 @@ These CSS custom properties are the canonical contract for theme values during m
 
 ## Token Reference
 
-Source: `/Users/jstar/Projects/audiobook-boss/src/styles.css`
+Source: `src/styles.css`
 
 ### Color Tokens
 
