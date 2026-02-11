@@ -4,7 +4,7 @@
  * Calculates TSOA (sort key) and updates the tag preview grid
  * based on metadata input values.
  */
-import { mount } from "svelte";
+import { mount, unmount } from "svelte";
 import TagPreviewIsland from "./tagPreview/TagPreviewIsland.svelte";
 import {
   TAG_FIELDS,
@@ -62,6 +62,7 @@ const TAG_FIELD_MAPPINGS: Record<TagField, () => string> = {
 };
 
 let mountedPreviewRoot: HTMLElement | null = null;
+let mountedTagPreview: Parameters<typeof unmount>[0] | null = null;
 
 /**
  * Gets the trimmed value from an input element
@@ -75,14 +76,16 @@ function mountTagPreviewIsland(): void {
   const previewRoot = document.getElementById("tag-preview-root");
   if (!previewRoot) return;
 
-  if (
-    mountedPreviewRoot === previewRoot &&
-    previewRoot.childElementCount > 0
-  ) {
+  if (mountedTagPreview && mountedPreviewRoot === previewRoot && previewRoot.childElementCount > 0) {
     return;
   }
 
-  mount(TagPreviewIsland, { target: previewRoot });
+  if (mountedTagPreview) {
+    void unmount(mountedTagPreview);
+    mountedTagPreview = null;
+  }
+
+  mountedTagPreview = mount(TagPreviewIsland, { target: previewRoot });
   mountedPreviewRoot = previewRoot;
 }
 
@@ -122,9 +125,10 @@ export function initTagPreview(): void {
 
   for (const id of inputIds) {
     const element = document.getElementById(id);
-    if (element) {
+    if (element && element.dataset.tagPreviewBound !== "true") {
       // Use 'input' event for real-time updates as user types
       element.addEventListener("input", updateTagPreview);
+      element.dataset.tagPreviewBound = "true";
     }
   }
 

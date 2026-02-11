@@ -132,4 +132,28 @@ describe("tagPreview", () => {
     expect(getFieldValue("artist")).toBe("Robin Hobb");
     expect(getFieldValue("albumArtist")).toBe("Robin Hobb");
   });
+
+  it("remounts the island cleanly when preview root is cleared", async () => {
+    initTagPreview();
+    await flushRender();
+
+    expect(document.querySelectorAll('[data-field="title"]').length).toBe(1);
+
+    const previewRoot = document.getElementById("tag-preview-root");
+    if (!previewRoot) {
+      throw new Error("Missing tag-preview-root");
+    }
+    previewRoot.innerHTML = "";
+
+    initTagPreview();
+    await flushRender();
+
+    expect(document.querySelectorAll('[data-field="title"]').length).toBe(1);
+
+    input("meta-title").value = "Dune";
+    input("meta-title").dispatchEvent(new Event("input"));
+    await flushRender();
+
+    expect(getFieldValue("title")).toBe("Dune");
+  });
 });
