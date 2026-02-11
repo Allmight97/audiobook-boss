@@ -192,6 +192,7 @@ describe("metadata lookup queue cover art isolation", () => {
     );
     expect(firstPathWrites.length).toBeGreaterThanOrEqual(1);
     expect(firstPathWrites[0]?.[2]).toEqual({ skipPersistPrevious: true });
+    expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
   });
 
   it("preserves existing cover art when replace toggle is disabled", async () => {

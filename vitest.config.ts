@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
+  plugins: [svelte()],
   test: {
     // Use jsdom for DOM testing (statusPanel, fileList, etc.)
     environment: 'jsdom',
@@ -39,6 +41,7 @@ export default defineConfig({
 
   // Resolve aliases to match the main vite config if needed
   resolve: {
+    conditions: ['browser'],
     alias: {
       // Add any path aliases here if needed
     },
