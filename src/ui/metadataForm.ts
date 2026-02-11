@@ -1,10 +1,12 @@
 import type { AudiobookMetadata } from "../types/metadata";
+import { mount, unmount } from "svelte";
 import {
   getCurrentCoverArt,
   getHasCustomCoverArt,
   isCoverArtRemovalRequested,
   setCoverArt,
 } from "./coverArt";
+import MetadataFormFieldsIsland from "./metadataForm/MetadataFormFieldsIsland.svelte";
 
 export type MetadataFormMode = "single" | "multi";
 
@@ -53,6 +55,10 @@ const FIELD_CONFIGS: FieldConfig[] = [
 ];
 
 const MIXED_PLACEHOLDER = "Mixed values";
+const METADATA_FORM_FIELDS_ROOT_ID = "metadata-form-fields-root";
+
+let mountedMetadataFieldsRoot: HTMLElement | null = null;
+let mountedMetadataFieldsIsland: Parameters<typeof unmount>[0] | null = null;
 
 function getMetadataForm(): HTMLElement | null {
   return document.getElementById("metadata-form");
@@ -127,6 +133,29 @@ function isMultiSelectMode(): boolean {
   return form?.dataset.multiSelect === "true";
 }
 
+function mountMetadataFieldsIsland(_form: HTMLElement): void {
+  const fieldsRoot = document.getElementById(METADATA_FORM_FIELDS_ROOT_ID);
+  if (!fieldsRoot) return;
+
+  if (
+    mountedMetadataFieldsIsland &&
+    mountedMetadataFieldsRoot === fieldsRoot &&
+    fieldsRoot.childElementCount > 0
+  ) {
+    return;
+  }
+
+  if (mountedMetadataFieldsIsland) {
+    void unmount(mountedMetadataFieldsIsland);
+    mountedMetadataFieldsIsland = null;
+  }
+
+  mountedMetadataFieldsIsland = mount(MetadataFormFieldsIsland, {
+    target: fieldsRoot,
+  });
+  mountedMetadataFieldsRoot = fieldsRoot;
+}
+
 export function setMetadataFormMode(
   mode: MetadataFormMode,
   selectionCount?: number
@@ -151,6 +180,7 @@ export function setMetadataFormMode(
 export function initMetadataFormEvents(): void {
   const form = getMetadataForm();
   if (!form) return;
+  mountMetadataFieldsIsland(form);
 
   const inputs = form.querySelectorAll<
     HTMLInputElement | HTMLTextAreaElement

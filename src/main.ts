@@ -21,12 +21,12 @@ import { isMetadataSaveInProgress, setMetadataSaveInProgress } from "./ui/metada
 // Initialize UI components when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   initFileImport();
+  // Initialize Advanced Encoder panel before output handlers so shared controls are present.
+  initEncoderPanel();
   initOutputPanel();
   initStatusPanel();
   initCoverArt();
   initMetadataFormEvents();
-  // Initialize Advanced Encoder panel (no-op if panel not present)
-  initEncoderPanel();
   // Initialize tag preview grid
   initTagPreview();
   initMetadataLookup();

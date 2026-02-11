@@ -1,4 +1,5 @@
 import { bridge } from "../lib/bridge";
+import { mount, unmount } from "svelte";
 import type { AudioFile } from "../types/audio";
 import type {
   AudiobookMetadata,
@@ -13,8 +14,10 @@ import { getMetadataForFile, setMetadataForFile } from "./metadataState";
 import { currentFileList } from "./fileList";
 import { selectFile } from "./fileList/actions";
 import { getSelectedFileIndices } from "./fileList/state";
+import MetadataLookupIsland from "./metadataLookup/MetadataLookupIsland.svelte";
 
 const DEFAULT_SOURCES: MetadataSource[] = ["audnexus"];
+const METADATA_LOOKUP_ROOT_ID = "metadata-lookup-root";
 
 type ApplyMode = "current" | "queue";
 
@@ -36,6 +39,32 @@ let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
 let currentResults: OnlineMetadataResult[] = [];
 const queueStateByFile = new Map<string, QueueItemState>();
+let mountedMetadataLookupRoot: HTMLElement | null = null;
+let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
+
+function mountMetadataLookupIsland(): void {
+  const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
+  if (!lookupRoot) return;
+
+  if (
+    mountedMetadataLookupIsland &&
+    mountedMetadataLookupRoot === lookupRoot &&
+    lookupRoot.childElementCount > 0
+  ) {
+    return;
+  }
+
+  if (mountedMetadataLookupIsland) {
+    void unmount(mountedMetadataLookupIsland);
+    mountedMetadataLookupIsland = null;
+  }
+
+  lookupRoot.innerHTML = "";
+  mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
+    target: lookupRoot,
+  });
+  mountedMetadataLookupRoot = lookupRoot;
+}
 
 function getModal(): HTMLElement | null {
   return document.getElementById("metadata-lookup-modal");
@@ -516,6 +545,8 @@ function openLookup(): void {
 }
 
 export function initMetadataLookup(): void {
+  mountMetadataLookupIsland();
+
   const openButton = document.getElementById(
     "metadata-lookup-btn"
   ) as HTMLButtonElement | null;

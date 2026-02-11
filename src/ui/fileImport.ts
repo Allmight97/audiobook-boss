@@ -1,12 +1,20 @@
 import { bridge } from "../lib/bridge";
 import { FileListInfo } from "../types/audio";
 import { isFileDropEvent } from "../types/events";
+import { mount, unmount } from "svelte";
 import { displayFileList } from "./fileList";
+import FileImportIsland from "./fileImport/FileImportIsland.svelte";
 import { isOrderLocked } from "./fileList/state";
 
+const FILE_IMPORT_ROOT_ID = "file-import-root";
+
 let dropZoneHeader: HTMLElement | null = null;
+let mountedFileImportRoot: HTMLElement | null = null;
+let mountedFileImportIsland: Parameters<typeof unmount>[0] | null = null;
 
 export function initFileImport(): void {
+  mountFileImportIsland();
+
   dropZoneHeader = document.querySelector(".drop-zone-header");
   if (!dropZoneHeader) return;
 
@@ -14,6 +22,27 @@ export function initFileImport(): void {
   setupClickToSelect();
   setupKeyboardHandler();
   updateDropZoneState(false);
+}
+
+function mountFileImportIsland(): void {
+  const importRoot = document.getElementById(FILE_IMPORT_ROOT_ID);
+  if (!importRoot) return;
+
+  if (
+    mountedFileImportIsland &&
+    mountedFileImportRoot === importRoot &&
+    importRoot.childElementCount > 0
+  ) {
+    return;
+  }
+
+  if (mountedFileImportIsland) {
+    void unmount(mountedFileImportIsland);
+    mountedFileImportIsland = null;
+  }
+
+  mountedFileImportIsland = mount(FileImportIsland, { target: importRoot });
+  mountedFileImportRoot = importRoot;
 }
 
 function setupDragDropHandlers(): void {
