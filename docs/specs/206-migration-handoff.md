@@ -1,8 +1,9 @@
-# Issue #206 Migration Handoff: Pre-Discovery Briefing for Codex
+# Issue #206 Migration Handoff: Execution Briefing for Codex
 
 **Date**: 2026-02-10
-**Session**: Claude Code exploration (agents a241bd2, a9c068b, a15bef4)
-**Purpose**: Equip Codex 5.3 with ground truth so planning starts warm, not cold.
+**Updated**: 2026-02-11
+**Session**: Solo migration execution (human owner + Codex/agents)
+**Purpose**: Keep migration execution aligned to ground truth while implementation is in flight.
 
 ---
 
@@ -99,7 +100,8 @@
    - **FB-018** (StatusPanel re-export shim) and **FB-019** (FileList mutable state exports) are migration-bound per fallback register but not mentioned in #206
    - **Pre-migration perf baseline** capture (spec Phase 2, step 6) — no issue exists
 
-4. **Release impact**: **None.** Migration is post-launch per `docs/RELEASE_CHECKLIST.md`. This is Q1 2026+ work, not pre-ship.
+4. **Release impact**: **Parallel/non-blocking.** Migration is active now; keep `docs/RELEASE_CHECKLIST.md` running as the release lane while migration work proceeds.
+5. **Visual regression tooling**: currently non-gating by execution decision in solo/macOS mode; revisit when multi-platform rollout becomes active.
 
 ### Authoritative Source of Truth
 

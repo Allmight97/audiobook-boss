@@ -1,9 +1,14 @@
 # Frontend Framework Evaluation
 
 **Date**: 2026-02-10
-**Updated**: 2026-02-10 (added Electron vs Tauri analysis)
+**Updated**: 2026-02-11 (execution-mode alignment for active migration)
 
 **Context**: Research exploring the co-location pattern (styles + logic + markup in one component), evaluating frontend framework options for Audiobook Boss, adding Opus Agent (frontend design-focused collaborator) to the decision surface, and critically evaluating the Tauri vs Electron foundation decision.
+
+**Execution Addendum (2026-02-11)**:
+- Migration is the active workstream now (not a post-launch placeholder).
+- Release process remains a parallel/non-blocking lane while migration is in flight.
+- Visual regression tooling is currently non-gating in solo/macOS execution mode and will be re-evaluated when multi-platform rollout becomes active.
 
 **⚠️ CRITICAL DECISION POINT**: This document now includes a fundamental architectural choice that must be resolved BEFORE framework/type-safety decisions: **Should this app be rebuilt on Electron instead of Tauri?**
 
@@ -256,10 +261,10 @@ This is not a theoretical debate. **Your repo is Tauri v2 with Rust backend wrap
 
 ### Recommendation (Conditional on Risk Tolerance)
 
-**If you're risk-averse (ship-it mode)**: **Path A (Stay on Tauri)**
+**If you're risk-averse in the current execution mode (active migration + parallel release lane)**: **Path A (Stay on Tauri)**
 - You're 1 year in, close to launch, cross-platform testing is manageable
 - Add rigorous visual testing (screenshot diffs), document engine quirks for AI
-- Revisit Electron post-launch if cross-platform bugs become unbearable
+- Revisit Electron after current migration/release milestones if cross-platform bugs become unbearable
 
 **If you're risk-tolerant (willing to reset timeline)**: **Path B (Electron + Keep Rust)**
 - Chromium consistency and AI debugging ease are worth 2-3 weeks migration
@@ -270,7 +275,7 @@ This is not a theoretical debate. **Your repo is Tauri v2 with Rust backend wrap
 - Single-language codebase is easier for AI agents (no Rust<->TS context switch)
 - But: lose Rust performance / safety, and 4-6 weeks is a major timeline reset
 
-**My gut** (as a senior engineer who respects Theo but also respects your 1-year investment): **Stay on Tauri for now (Path A), but plan for Electron migration post-launch if cross-platform pain becomes real**. Don't let sunk cost blind you, but also don't throw away working code based on a YouTube video. Test the pain threshold first.
+**My gut** (as a senior engineer who respects Theo but also respects your 1-year investment): **Stay on Tauri for now (Path A), but plan for an Electron re-evaluation after current migration/release milestones if cross-platform pain becomes real**. Don't let sunk cost blind you, but also don't throw away working code based on a YouTube video. Test the pain threshold first.
 
 ---
 
@@ -437,7 +442,7 @@ let currentFileList = $state<AudioFile[]>([]);
 | **Maturity** | **1.x is stable**. However, **2.0 is still experimental** (no release date) with breaking changes to Resources, async behavior, and store APIs. |
 | **Desktop fit** | Strong. The fine-grained reactivity is ideal for real-time progress updates (our status panel). **Performance ceiling is the highest** of any framework in benchmarks. |
 
-**Trade-off**: The pending 2.0 migration and the steeper learning curve (the "runs once" gotchas like destructuring props breaking reactivity) make it a riskier bet for a project in ship-it mode.
+**Trade-off**: The pending 2.0 migration and the steeper learning curve (the "runs once" gotchas like destructuring props breaking reactivity) make it a riskier bet in the current migration + release-parallel execution mode.
 
 **State mapping example**:
 ```tsx
@@ -652,7 +657,7 @@ These guardrails are what convert a framework migration from "rewrite churn" int
 
 **The main trade-off** is the smaller ecosystem compared to React/Vue. For a solo desktop app that isn't pulling in many third-party UI components, this is a manageable trade-off. Our domain logic, services, and validation code (~29% of the frontend) would survive untouched. The migration is about eliminating boilerplate and improving DX, not fixing structural problems.
 
-**SolidJS** is the performance-first alternative if status panel rendering becomes a bottleneck, but the pending 2.0 migration and the steeper learning curve make it a riskier bet for a project in ship-it mode.
+**SolidJS** is the performance-first alternative if status panel rendering becomes a bottleneck, but the pending 2.0 migration and the steeper learning curve make it a riskier bet in the current migration + release-parallel execution mode.
 
 **Vue 4** is a solid middle ground with a strong ecosystem and incremental adoption story, but the bundle is larger and the runtime model (virtual DOM) is further from our current imperative patterns.
 
@@ -827,7 +832,7 @@ await client.analyzeAudioFiles(['path1.m4a']);  // Fully typed
 
 **Rollback**: Moderate. Requires reverting both Rust command signatures AND all TS call sites.
 
-**Verdict for this repo**: **Too invasive for ship-it mode**. The stronger guarantees don't justify the migration cost when we're trying to minimize churn before launch.
+**Verdict for this repo**: **Too invasive for current execution mode**. The stronger guarantees don't justify added migration churn while active migration work is already in flight.
 
 ---
 
@@ -864,7 +869,7 @@ interface audio {
 
 **Rollback**: Hard. WIT becomes a hard dependency, reverting requires manually reconstructing Rust signatures.
 
-**Verdict for this repo**: **Wait for stable release**. The standard-based approach is appealing, but experimental status is a non-starter for ship-it mode. Revisit post-launch if Tauri promotes it to stable.
+**Verdict for this repo**: **Wait for stable release**. The standard-based approach is appealing, but experimental status is a non-starter in current execution mode. Revisit after current migration/release milestones if Tauri promotes it to stable.
 
 ---
 
@@ -905,16 +910,16 @@ interface audio {
 **How type safety helps**:
 - **Platform-agnostic contracts**: TS types generated from Rust work identically on Windows/Linux/macOS
 - **Safer platform-specific code**: if you add platform-specific Rust logic (e.g., Windows-only file dialogs), type system enforces consistent TS interface
-- **Easier CI/CD**: type checks run on all platforms in CI, catch platform-specific contract drift
+- **Easier matrix verification**: type checks can run across platforms (CI or manual hosts) to catch platform-specific contract drift
 
 **How type safety could hurt**:
 - **Build toolchain complexity**: Windows Rust toolchain + Node/Bun + specta codegen = more moving parts
-- **Version skew**: if Windows CI uses a different Rust/Node version, specta codegen might differ (rare but possible)
+- **Version skew**: if a Windows validation host uses a different Rust/Node version, specta codegen might differ (rare but possible)
 
 **Mitigation**:
 - Use `rust-toolchain.toml` to pin Rust version across platforms (already a best practice)
 - Use `.nvmrc` or similar to pin Node/Bun version
-- Run codegen in CI on all platforms, fail if generated TS differs (ensures consistency)
+- When cross-platform validation is active, run codegen checks on all target platforms (CI or manual matrix) and fail if generated TS differs
 
 **Verdict**: Type safety is a **net win for cross-platform**. The contract enforcement is more valuable when you have 3 build targets instead of 1.
 
@@ -1105,7 +1110,7 @@ Migration PRs should include:
 ## Alternative: Defer Both (Status Quo)
 
 **When to choose this**:
-- You're in "ship and learn" mode -- need to get Windows/Linux ports done first, worry about type safety + framework later
+- You're prioritizing release-track or Windows/Linux port work first, and deferring type safety + framework work
 - Current manual contract sync is working fine, not causing bugs
 - Current vanilla TS UI is fast enough, co-location isn't a pain point yet
 
@@ -1154,7 +1159,7 @@ Migration PRs should include:
 4. **Decide on Phase 4 (full migration) after spike**: you'll have real data, not just theory
 
 **Alternative decision** (defer both):
-- Valid if ship-it mode requires focus on Windows/Linux ports first
+- Valid if the current execution mode requires focus on Windows/Linux ports first
 - Revisit after cross-platform launch, when type safety + co-location ROI is clearer
 
 ---
