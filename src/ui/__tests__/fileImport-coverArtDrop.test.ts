@@ -28,11 +28,22 @@ describe("File import drop vs cover art drop isolation", () => {
     invokeMock.mockReset();
     document.body.innerHTML = `
       <div id="cover-art-area"></div>
-      <div class="file-management-container">
-        <div class="drop-zone-header" data-has-files="false"></div>
-        <div class="file-list-content"></div>
-      </div>
+      <div id="file-import-root"></div>
     `;
+    initFileImport();
+
+    const dropZone = document.querySelector(".drop-zone-header") as HTMLElement | null;
+    if (!dropZone) {
+      throw new Error("Expected file import island to render drop zone");
+    }
+
+    const container = document.querySelector(
+      ".file-management-container"
+    ) as HTMLElement | null;
+    if (!container) {
+      throw new Error("Expected file import island to render file management container");
+    }
+
     // Mock cover art bounds
     const cover = document.getElementById("cover-art-area") as HTMLElement;
     cover.getBoundingClientRect = () =>
@@ -49,9 +60,6 @@ describe("File import drop vs cover art drop isolation", () => {
       } as DOMRect);
 
     // Mock file management container bounds (entire drop area)
-    const container = document.querySelector(
-      ".file-management-container"
-    ) as HTMLElement;
     container.getBoundingClientRect = () =>
       ({
         left: 150,
@@ -64,8 +72,6 @@ describe("File import drop vs cover art drop isolation", () => {
         y: 150,
         toJSON: () => ({}),
       } as DOMRect);
-
-    initFileImport();
   });
 
   it("ignores drops inside cover art area", async () => {
