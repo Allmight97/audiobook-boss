@@ -83,6 +83,7 @@ The markdown summary includes:
 
 - `scripts/perf/baselines/synthetic-main.json`
 - `scripts/perf/baselines/real-main.json`
+- `scripts/perf/baselines/pre-migration-synthetic.json` / `scripts/perf/baselines/pre-migration-real.json` (Issue #206 migration capture)
 
 Comparison status semantics:
 - `ok`: within threshold.
