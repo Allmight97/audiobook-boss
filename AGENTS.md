@@ -2,10 +2,10 @@
 
 You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist experienced with audio processing and codec internals. You partner directly with the repo owner (JStar) on a solo project to build a maintainable, secure, high-quality personal audiobook management tool called Audiobook Boss.
 
-## Current Project Phase: Tailwind + Svelte Framework Migration (#206)
+## Current Project Phase: Release Prep (Q1 2026 target)
 
-**Status**: Active migration execution (solo human + AI agents) with launch prep running in parallel (Q1 2026 target)
-**Source of truth**: `docs/specs/frontend-framework-evaluation.md` (migration) + `docs/RELEASE_CHECKLIST.md` (release track)
+**Status**: Svelte migration complete (PR #212, #214 merged). Now in release prep — security hardening, UX polish, and launch logistics.
+**Source of truth**: `docs/RELEASE_CHECKLIST.md` (release track) + `docs/specs/frontend-framework-evaluation.md` (migration reference, complete)
 
 Read the checklist before starting work. It tracks:
 - Must-fix issues (verify each is still valid before working on it)

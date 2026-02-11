@@ -4,7 +4,7 @@
 **Distribution**: Direct download (GitHub Releases) + Homebrew cask
 **Notarization**: Deferred (users right-click > Open)
 **Focus**: Ship a working product, not a perfect one
-**Execution mode**: Full-stack migration is active now (solo human + AI agents); this checklist is the parallel release lane.
+**Execution mode**: Full-stack migration complete (Svelte + Tailwind, Feb 2026). This checklist is now the primary release lane.
 
 ---
 
@@ -32,18 +32,18 @@
 3. If valid → fix it, test it, close it
 
 ### Security (must-fix)
-- [ ] **#144** - Symlink extension bypass in path validation
-- [ ] **#146** - Sanitize filesystem paths in user-facing error messages
+- [x] **#144** - Symlink extension bypass in path validation (PR #214)
+- [x] **#146** - Sanitize filesystem paths in user-facing error messages (PR #214)
 
 ### Core Functionality (must-fix)
-- [ ] **#52** - Audio quality distortion (native AAC encoder)
+- [x] **#52** - Audio quality distortion — safety warning added, defaults to auto encoder (PR #214). Deep codec research deferred (native AAC still lower quality than FDK/Apple).
 
 ### UX Clarity (must-fix)
-- [ ] **#141** - Metadata UX: progress feedback, Apply button behavior
+- [x] **#141** - Metadata UX: auto-preserve on file switch, single Save All action, progress + status feedback (PR #214)
 - [ ] **#107** - Batch queue visibility + per-file status
 
 ### QA Verification (must-fix)
-- [ ] **#136** - Verify bulk metadata save and multi-select UX
+- [x] **#136** - Verify bulk metadata save and multi-select UX (PR #214)
 
 ---
 
@@ -113,8 +113,8 @@
 
 ## Deferred / Parking Lot (not release-blocking)
 
-These are valid but not blocking release. Migration work is active and tracked in `docs/specs/frontend-framework-evaluation.md`.
-- Performance optimization (#150, #145)
+These are valid but not blocking release. Migration is complete; these are post-launch improvements.
+- Performance optimization (#180, #145)
 - Tech debt refactoring (#147, #78, #108)
 - Save/Revert/Clear UX (#115)
 - Window persistence (#117)
