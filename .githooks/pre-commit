@@ -30,7 +30,7 @@ if [[ ${#biome_files[@]} -gt 0 ]]; then
     exit 1
   fi
   echo "[pre-commit] biome format (staged frontend files)"
-  bunx @biomejs/biome format --no-errors-on-unmatched "${biome_files[@]}"
+  bunx @biomejs/biome check --no-errors-on-unmatched "${biome_files[@]}"
 fi
 
 mapfile -t svelte_files < <(
