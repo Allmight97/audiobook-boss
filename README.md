@@ -44,16 +44,28 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 
 ## Development Workflows
 
+### Toolchain Setup
+
+```bash
+# Install pinned toolchain versions for this repo
+mise install
+```
+
+Notes:
+- `mise.toml` pins Bun for reproducible JS/TS tooling.
+- `rust-toolchain.toml` pins Rust channel/components for `cargo`, `rustfmt`, and `clippy`.
+
 ### Testing (run from repo root)
 
 ```bash
-scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + TS + contract drift + build)
+scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + frontend format + TS + contract drift + build)
 scripts/check-fallback-policy.sh      # Fallback governance check (marker + sunset + issue metadata)
 cargo test                              # All tests (unit + integration)
 cargo test --tests                      # All external test binaries
 cargo test --test unit_audio_buffer_tests   # Specific unit test file
 cargo test --test integration_metadata_tests # Specific integration test file
 cargo clippy -- -D warnings             # Lint checks (must pass)
+bun run fmt:check                       # Frontend format checks (Biome + Prettier for Svelte)
 cargo test path_validation              # Path security subset by name filter
 ```
 
@@ -75,6 +87,18 @@ Source of truth:
 - Rust contract builder: `src-tauri/src/ipc_contract.rs`
 - Generated bindings: `src/lib/generated/tauri.ts`
 - UI compatibility adapter: `src/lib/bridge.ts`
+
+### Formatting
+
+```bash
+bun run fmt          # Apply frontend formatting (Biome + Prettier for .svelte)
+bun run fmt:check    # Check-only formatting gate
+bun run fmt:changed  # Changed-files cleanup loop (agent/human workflow)
+```
+
+- Biome owns TS/JS/CSS/JSON and config file formatting.
+- Prettier is intentionally scoped to `.svelte` files during release prep.
+- Frontend formatting in this repo uses tabs.
 
 ### Find & Kill Stale Dev Sessions
 
@@ -145,7 +169,7 @@ bun scripts/perf/run.mjs --bench audio-processing-app-e2e --mode real --runs 3 -
 
 - TypeScript: strict mode; explicit types; avoid `any`; camelCase filenames; PascalCase types
 - Rust: idiomatic; `#![deny(clippy::unwrap_used)]`, `#![warn(clippy::too_many_lines)]`; use `Result<T, AppError>` and `?`
-- Formatting: `rustfmt` defaults; TS via `tsc`/Vite; keep functions small and focused
+- Formatting: `rustfmt` for Rust; Biome for TS/JS/CSS/JSON; Prettier for `.svelte`; keep functions small and focused
 - Visibility: keep internals non-`pub` unless cross-module use requires it
 
 ### Repository-Specific Expectations
@@ -208,12 +232,16 @@ Cover art URL loading is treated as untrusted input. The app only fetches HTTPS 
 # Run dev with verbose backend logging
 RUST_LOG=debug bun run tauri dev
 
+# Full quality gate
+scripts/checks.sh standard
+
 # All tests + lints
 cargo test
 cargo test --tests
 cargo test --test unit_audio_buffer_tests
 cargo test --test integration_metadata_tests
 cargo clippy -- -D warnings
+bun run fmt:check
 
 # Path validation-focused tests
 cargo test path_validation

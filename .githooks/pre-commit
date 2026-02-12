@@ -1,13 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v cargo >/dev/null 2>&1; then
-  echo "[pre-commit] cargo not found; skipping cargo fmt."
-  exit 0
-fi
-
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-echo "[pre-commit] cargo fmt --all -- --check"
-cargo fmt --all -- --check
+if command -v cargo >/dev/null 2>&1; then
+  echo "[pre-commit] cargo fmt --all -- --check"
+  cargo fmt --all -- --check
+else
+  echo "[pre-commit] cargo not found; skipping cargo fmt."
+fi
+
+mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=ACMR)
+if [[ ${#staged_files[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+mapfile -t biome_files < <(
+  printf "%s\n" "${staged_files[@]}" \
+    | rg -N '\.(ts|tsx|js|jsx|mjs|cjs|json|jsonc|css)$' \
+    | rg -v '^src/lib/generated/' \
+    | rg -v '^src-tauri/' \
+    || true
+)
+
+if [[ ${#biome_files[@]} -gt 0 ]]; then
+  if ! command -v bunx >/dev/null 2>&1; then
+    echo "[pre-commit] bunx not found; cannot run Biome formatting checks." >&2
+    exit 1
+  fi
+  echo "[pre-commit] biome format (staged frontend files)"
+  bunx @biomejs/biome format --no-errors-on-unmatched "${biome_files[@]}"
+fi
+
+mapfile -t svelte_files < <(
+  printf "%s\n" "${staged_files[@]}" | rg -N '\.svelte$' || true
+)
+
+if [[ ${#svelte_files[@]} -gt 0 ]]; then
+  if ! command -v bunx >/dev/null 2>&1; then
+    echo "[pre-commit] bunx not found; cannot run Prettier checks." >&2
+    exit 1
+  fi
+  echo "[pre-commit] prettier --check (staged .svelte files)"
+  bunx prettier --check "${svelte_files[@]}"
+fi
