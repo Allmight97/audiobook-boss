@@ -90,6 +90,9 @@ run_quick() {
   log_step "cargo fmt --all -- --check"
   cargo fmt --all -- --check
 
+  # FALLBACK[FB-018]: Keep Prettier checks for .svelte while Biome Svelte formatting
+  # support remains a release-risky surface for this repo. issue=#219
+  # sunset=2026-06-30
   log_step "bun run fmt:check"
   bun run fmt:check
 
