@@ -1,53 +1,53 @@
 {
-  "version": 1,
-  "mode": "real",
-  "warn_threshold_pct": 15,
-  "updated_at": "2026-02-07T01:42:28.147Z",
-  "benchmarks": {
-    "statuspanel-render-lookup": {
-      "metric_type": "duration_ms",
-      "direction": "lower_is_better",
-      "median": 10.45,
-      "p95": 10.828,
-      "stddev": 0.2,
-      "updated_at": "2026-02-06T03:40:43.514Z",
-      "git_sha": "4c73174"
-    },
-    "statuspanel-event-throughput": {
-      "metric_type": "events_per_second",
-      "direction": "higher_is_better",
-      "median": 196783.142,
-      "p95": 202349.202,
-      "stddev": 3498.62,
-      "updated_at": "2026-02-06T03:40:43.514Z",
-      "git_sha": "4c73174"
-    },
-    "metadata-lookup-latency": {
-      "metric_type": "duration_ms",
-      "direction": "lower_is_better",
-      "median": 17.321,
-      "p95": 18.094,
-      "stddev": 0.437,
-      "updated_at": "2026-02-06T03:40:43.514Z",
-      "git_sha": "4c73174"
-    },
-    "audio-processing-throughput": {
-      "metric_type": "realtime_factor",
-      "direction": "higher_is_better",
-      "median": 184.12,
-      "p95": 184.409,
-      "stddev": 0.551,
-      "updated_at": "2026-02-07T01:42:28.147Z",
-      "git_sha": "d815728"
-    },
-    "audio-processing-app-e2e": {
-      "metric_type": "realtime_factor",
-      "direction": "higher_is_better",
-      "median": 162.18,
-      "p95": 162.95,
-      "stddev": 0.712,
-      "updated_at": "2026-02-07T01:42:28.147Z",
-      "git_sha": "d815728"
-    }
-  }
+	"version": 1,
+	"mode": "real",
+	"warn_threshold_pct": 15,
+	"updated_at": "2026-02-07T01:42:28.147Z",
+	"benchmarks": {
+		"statuspanel-render-lookup": {
+			"metric_type": "duration_ms",
+			"direction": "lower_is_better",
+			"median": 10.45,
+			"p95": 10.828,
+			"stddev": 0.2,
+			"updated_at": "2026-02-06T03:40:43.514Z",
+			"git_sha": "4c73174"
+		},
+		"statuspanel-event-throughput": {
+			"metric_type": "events_per_second",
+			"direction": "higher_is_better",
+			"median": 196783.142,
+			"p95": 202349.202,
+			"stddev": 3498.62,
+			"updated_at": "2026-02-06T03:40:43.514Z",
+			"git_sha": "4c73174"
+		},
+		"metadata-lookup-latency": {
+			"metric_type": "duration_ms",
+			"direction": "lower_is_better",
+			"median": 17.321,
+			"p95": 18.094,
+			"stddev": 0.437,
+			"updated_at": "2026-02-06T03:40:43.514Z",
+			"git_sha": "4c73174"
+		},
+		"audio-processing-throughput": {
+			"metric_type": "realtime_factor",
+			"direction": "higher_is_better",
+			"median": 184.12,
+			"p95": 184.409,
+			"stddev": 0.551,
+			"updated_at": "2026-02-07T01:42:28.147Z",
+			"git_sha": "d815728"
+		},
+		"audio-processing-app-e2e": {
+			"metric_type": "realtime_factor",
+			"direction": "higher_is_better",
+			"median": 162.18,
+			"p95": 162.95,
+			"stddev": 0.712,
+			"updated_at": "2026-02-07T01:42:28.147Z",
+			"git_sha": "d815728"
+		}
+	}
 }

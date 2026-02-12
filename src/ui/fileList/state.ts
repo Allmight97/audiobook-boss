@@ -11,70 +11,70 @@ let orderLocked: boolean = false;
 
 // Minimal setters for actions module
 export function setCurrentFileList(fileList: FileListInfo | null): void {
-    currentFileList = fileList;
+	currentFileList = fileList;
 }
 
 export function setSelectedIndex(index: number): void {
-    selectedFileIndex = index;
+	selectedFileIndex = index;
 }
 
 export function getCurrentFileList(): FileListInfo | null {
-    return currentFileList;
+	return currentFileList;
 }
 
 export function getSelectedFileIndex(): number {
-    return selectedFileIndex;
+	return selectedFileIndex;
 }
 
 // Multi-select accessors
 export function getSelectedFileIndices(): Set<number> {
-    return selectedFileIndices;
+	return selectedFileIndices;
 }
 
 export function setSelectedFileIndices(indices: Set<number> | number[]): void {
-    selectedFileIndices.clear();
-    const arr = Array.isArray(indices) ? indices : Array.from(indices);
-    arr.forEach(i => selectedFileIndices.add(i));
+	selectedFileIndices.clear();
+	const arr = Array.isArray(indices) ? indices : Array.from(indices);
+	arr.forEach((i) => selectedFileIndices.add(i));
 }
 
 export function addToSelectedIndices(index: number): void {
-    selectedFileIndices.add(index);
+	selectedFileIndices.add(index);
 }
 
 export function removeFromSelectedIndices(index: number): void {
-    selectedFileIndices.delete(index);
+	selectedFileIndices.delete(index);
 }
 
 export function clearSelectedIndices(): void {
-    selectedFileIndices.clear();
+	selectedFileIndices.clear();
 }
 
 export function getSortAscending(): boolean {
-    return sortAscending;
+	return sortAscending;
 }
 
 export function setSortAscending(ascending: boolean): void {
-    sortAscending = ascending;
+	sortAscending = ascending;
 }
 
 export function setOrderLocked(locked: boolean): void {
-    orderLocked = locked;
+	orderLocked = locked;
 }
 
 export function isOrderLocked(): boolean {
-    return orderLocked;
+	return orderLocked;
 }
 
 // State validation utilities
 export function hasFiles(): boolean {
-    return currentFileList !== null && currentFileList.files.length > 0;
+	return currentFileList !== null && currentFileList.files.length > 0;
 }
 
 export function isValidIndex(index: number): boolean {
-    if (!currentFileList) return false;
-    return index >= 0 && index < currentFileList.files.length;
+	if (!currentFileList) return false;
+	return index >= 0 && index < currentFileList.files.length;
 }
 
 export function getFileCount(): number {
-    return currentFileList?.files.length || 0;
+	return currentFileList?.files.length || 0;
 }

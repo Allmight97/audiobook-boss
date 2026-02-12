@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { initOutputPanel } from "../outputPanel";
+import { beforeEach, describe, expect, it } from 'vitest';
+import { initOutputPanel } from '../outputPanel';
 
-describe("OutputPanel island mount", () => {
-  beforeEach(() => {
-    document.body.innerHTML = `
+describe('OutputPanel island mount', () => {
+	beforeEach(() => {
+		document.body.innerHTML = `
       <div id="output-panel-root"></div>
       <input id="meta-title" value="" />
       <input id="meta-author" value="" />
@@ -18,14 +18,14 @@ describe("OutputPanel island mount", () => {
       <div id="meta-series-part-warning" hidden></div>
       <div id="meta-subseries-part-warning" hidden></div>
     `;
-  });
+	});
 
-  it("mounts output directory controls and renders default preview text", () => {
-    initOutputPanel();
+	it('mounts output directory controls and renders default preview text', () => {
+		initOutputPanel();
 
-    const preview = document.getElementById("output-preview-text");
-    expect(preview).toBeTruthy();
-    expect(preview?.textContent).toBe("Select output directory...");
-    expect(document.getElementById("output-dir-browse")).toBeTruthy();
-  });
+		const preview = document.getElementById('output-preview-text');
+		expect(preview).toBeTruthy();
+		expect(preview?.textContent).toBe('Select output directory...');
+		expect(document.getElementById('output-dir-browse')).toBeTruthy();
+	});
 });

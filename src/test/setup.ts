@@ -11,46 +11,46 @@ import { vi } from 'vitest';
 
 // Mock Tauri's invoke API
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
-    console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
-    return Promise.resolve(undefined);
-  }),
-  Channel: class MockChannel {
-    // Minimal placeholder required by generated tauri-specta bindings import surface.
-  },
+	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
+		console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
+		return Promise.resolve(undefined);
+	}),
+	Channel: class MockChannel {
+		// Minimal placeholder required by generated tauri-specta bindings import surface.
+	},
 }));
 
 // Mock Tauri's event API
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn().mockImplementation((event: string, _handler: unknown) => {
-    console.warn(`[Test Mock] Unhandled listen: ${event}`);
-    return Promise.resolve(() => {
-      /* unlisten */
-    });
-  }),
-  emit: vi.fn().mockResolvedValue(undefined),
+	listen: vi.fn().mockImplementation((event: string, _handler: unknown) => {
+		console.warn(`[Test Mock] Unhandled listen: ${event}`);
+		return Promise.resolve(() => {
+			/* unlisten */
+		});
+	}),
+	emit: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock Tauri's dialog plugin
 vi.mock('@tauri-apps/plugin-dialog', () => ({
-  open: vi.fn().mockResolvedValue(null),
-  save: vi.fn().mockResolvedValue(null),
-  message: vi.fn().mockResolvedValue(undefined),
-  ask: vi.fn().mockResolvedValue(false),
-  confirm: vi.fn().mockResolvedValue(false),
+	open: vi.fn().mockResolvedValue(null),
+	save: vi.fn().mockResolvedValue(null),
+	message: vi.fn().mockResolvedValue(undefined),
+	ask: vi.fn().mockResolvedValue(false),
+	confirm: vi.fn().mockResolvedValue(false),
 }));
 
 // Mock Tauri's opener plugin
 vi.mock('@tauri-apps/plugin-opener', () => ({
-  openPath: vi.fn().mockResolvedValue(undefined),
-  openUrl: vi.fn().mockResolvedValue(undefined),
+	openPath: vi.fn().mockResolvedValue(undefined),
+	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Setup window.__TAURI_INTERNALS__ to false for tests
 // This ensures bridge.ts uses the mock path
 Object.defineProperty(window, '__TAURI_INTERNALS__', {
-  value: undefined,
-  writable: true,
+	value: undefined,
+	writable: true,
 });
 
 // Set import.meta.env.DEV to true for tests
@@ -59,29 +59,27 @@ vi.stubEnv('DEV', true);
 
 const storage = new Map<string, string>();
 const localStorageMock = {
-  getItem: (key: string): string | null =>
-    storage.has(key) ? storage.get(key)! : null,
-  setItem: (key: string, value: string): void => {
-    storage.set(key, value);
-  },
-  removeItem: (key: string): void => {
-    storage.delete(key);
-  },
-  clear: (): void => {
-    storage.clear();
-  },
-  key: (index: number): string | null =>
-    Array.from(storage.keys())[index] ?? null,
-  get length(): number {
-    return storage.size;
-  },
+	getItem: (key: string): string | null => (storage.has(key) ? storage.get(key)! : null),
+	setItem: (key: string, value: string): void => {
+		storage.set(key, value);
+	},
+	removeItem: (key: string): void => {
+		storage.delete(key);
+	},
+	clear: (): void => {
+		storage.clear();
+	},
+	key: (index: number): string | null => Array.from(storage.keys())[index] ?? null,
+	get length(): number {
+		return storage.size;
+	},
 };
 
 Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  configurable: true,
+	value: localStorageMock,
+	configurable: true,
 });
 Object.defineProperty(globalThis, 'localStorage', {
-  value: localStorageMock,
-  configurable: true,
+	value: localStorageMock,
+	configurable: true,
 });

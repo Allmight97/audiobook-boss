@@ -1,71 +1,71 @@
 {
-  "$schema": "https://btca.dev/btca.schema.json",
-  "resources": [
-    {
-      "type": "git",
-      "name": "tauri",
-      "url": "https://github.com/tauri-apps/tauri",
-      "branch": "dev",
-      "searchPath": "crates/tauri/src",
-      "specialNotes": "Tauri v2 command handlers, event emission, window management, async runtime bridge"
-    },
-    {
-      "type": "git",
-      "name": "ffmpeg-next",
-      "url": "https://github.com/zmwangx/rust-ffmpeg",
-      "branch": "master",
-      "searchPath": "src",
-      "specialNotes": "FFmpeg Rust bindings for audio encoding, decoding, resampling. Focus on codec, format, frame, and packet modules"
-    },
-    {
-      "type": "git",
-      "name": "mp4ameta",
-      "url": "https://github.com/Saecki/rust-mp4ameta",
-      "branch": "main",
-      "searchPath": "src",
-      "specialNotes": "MP4/M4B/M4A metadata API. Focus on Tag, FreeformIdent, and atom handling for iTunes-compatible audiobook metadata"
-    },
-    {
-      "type": "git",
-      "name": "tokio",
-      "url": "https://github.com/tokio-rs/tokio",
-      "branch": "master",
-      "searchPath": "tokio/src",
-      "specialNotes": "Tokio async runtime. Focus on spawn_blocking, task cancellation, Semaphore for job concurrency management"
-    },
-    {
-      "type": "git",
-      "name": "vitest",
-      "url": "https://github.com/vitest-dev/vitest",
-      "branch": "main",
-      "searchPath": "packages/vitest/src",
-      "specialNotes": "Vitest testing framework. Focus on mocking (vi.fn, vi.mock), async test patterns, and JSDOM integration"
-    },
-    {
-      "type": "git",
-      "name": "serde",
-      "url": "https://github.com/serde-rs/serde",
-      "branch": "master",
-      "searchPath": "serde/src",
-      "specialNotes": "Serde serialization. Focus on derive macros, field attributes (rename, default, skip), and enum representation"
-    },
-    {
-      "type": "git",
-      "name": "serde-derive",
-      "url": "https://github.com/serde-rs/serde",
-      "branch": "master",
-      "searchPath": "serde_derive/src",
-      "specialNotes": "Serde derive macros. Focus on attribute parsing, container/field attrs, and codegen"
-    },
-    {
-      "type": "git",
-      "name": "typescript",
-      "url": "https://github.com/microsoft/TypeScript",
-      "branch": "main",
-      "searchPath": "src",
-      "specialNotes": "TypeScript compiler and type system. Focus on type inference, utility types, strict mode, and discriminated unions"
-    }
-  ],
-  "model": "claude-haiku-4.5",
-  "provider": "github-copilot"
+	"$schema": "https://btca.dev/btca.schema.json",
+	"resources": [
+		{
+			"type": "git",
+			"name": "tauri",
+			"url": "https://github.com/tauri-apps/tauri",
+			"branch": "dev",
+			"searchPath": "crates/tauri/src",
+			"specialNotes": "Tauri v2 command handlers, event emission, window management, async runtime bridge"
+		},
+		{
+			"type": "git",
+			"name": "ffmpeg-next",
+			"url": "https://github.com/zmwangx/rust-ffmpeg",
+			"branch": "master",
+			"searchPath": "src",
+			"specialNotes": "FFmpeg Rust bindings for audio encoding, decoding, resampling. Focus on codec, format, frame, and packet modules"
+		},
+		{
+			"type": "git",
+			"name": "mp4ameta",
+			"url": "https://github.com/Saecki/rust-mp4ameta",
+			"branch": "main",
+			"searchPath": "src",
+			"specialNotes": "MP4/M4B/M4A metadata API. Focus on Tag, FreeformIdent, and atom handling for iTunes-compatible audiobook metadata"
+		},
+		{
+			"type": "git",
+			"name": "tokio",
+			"url": "https://github.com/tokio-rs/tokio",
+			"branch": "master",
+			"searchPath": "tokio/src",
+			"specialNotes": "Tokio async runtime. Focus on spawn_blocking, task cancellation, Semaphore for job concurrency management"
+		},
+		{
+			"type": "git",
+			"name": "vitest",
+			"url": "https://github.com/vitest-dev/vitest",
+			"branch": "main",
+			"searchPath": "packages/vitest/src",
+			"specialNotes": "Vitest testing framework. Focus on mocking (vi.fn, vi.mock), async test patterns, and JSDOM integration"
+		},
+		{
+			"type": "git",
+			"name": "serde",
+			"url": "https://github.com/serde-rs/serde",
+			"branch": "master",
+			"searchPath": "serde/src",
+			"specialNotes": "Serde serialization. Focus on derive macros, field attributes (rename, default, skip), and enum representation"
+		},
+		{
+			"type": "git",
+			"name": "serde-derive",
+			"url": "https://github.com/serde-rs/serde",
+			"branch": "master",
+			"searchPath": "serde_derive/src",
+			"specialNotes": "Serde derive macros. Focus on attribute parsing, container/field attrs, and codegen"
+		},
+		{
+			"type": "git",
+			"name": "typescript",
+			"url": "https://github.com/microsoft/TypeScript",
+			"branch": "main",
+			"searchPath": "src",
+			"specialNotes": "TypeScript compiler and type system. Focus on type inference, utility types, strict mode, and discriminated unions"
+		}
+	],
+	"model": "claude-haiku-4.5",
+	"provider": "github-copilot"
 }

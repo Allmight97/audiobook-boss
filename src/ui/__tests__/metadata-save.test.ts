@@ -5,22 +5,22 @@ let coverRemoval = false;
 let hasCustomCoverArt = false;
 
 vi.mock('../coverArt', () => ({
-  getCurrentCoverArt: () => coverArtBytes,
-  getHasCustomCoverArt: () => hasCustomCoverArt,
-  isCoverArtRemovalRequested: () => coverRemoval,
-  setCoverArt: () => {},
+	getCurrentCoverArt: () => coverArtBytes,
+	getHasCustomCoverArt: () => hasCustomCoverArt,
+	isCoverArtRemovalRequested: () => coverRemoval,
+	setCoverArt: () => {},
 }));
 
 import { readMetadataForm } from '../metadataForm';
 
 const setField = (id: string, value: string) => {
-  const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-  if (el) el.value = value;
+	const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+	if (el) el.value = value;
 };
 
 describe('readMetadataForm (single mode)', () => {
-  beforeEach(() => {
-    document.body.innerHTML = `
+	beforeEach(() => {
+		document.body.innerHTML = `
       <div id="metadata-form">
         <input id="meta-title" />
         <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
@@ -44,64 +44,64 @@ describe('readMetadataForm (single mode)', () => {
         <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
       </div>
     `;
-    coverArtBytes = null;
-    coverRemoval = false;
-    hasCustomCoverArt = false;
-  });
+		coverArtBytes = null;
+		coverRemoval = false;
+		hasCustomCoverArt = false;
+	});
 
-  it('maps form fields to metadata and includes cover art bytes', () => {
-    setField('meta-title', 'Title');
-    setField('meta-author', 'Author');
-    setField('meta-narrator', 'Narrator');
-    setField('meta-year', '2024');
-    setField('meta-genre', 'Fiction');
-    setField('meta-series', 'Series');
-    setField('meta-series-part', '2');
-    setField('meta-subseries', 'Sub-series');
-    setField('meta-subseries-part', '4');
-    setField('meta-description', 'Desc');
-    coverArtBytes = [1, 2, 3];
+	it('maps form fields to metadata and includes cover art bytes', () => {
+		setField('meta-title', 'Title');
+		setField('meta-author', 'Author');
+		setField('meta-narrator', 'Narrator');
+		setField('meta-year', '2024');
+		setField('meta-genre', 'Fiction');
+		setField('meta-series', 'Series');
+		setField('meta-series-part', '2');
+		setField('meta-subseries', 'Sub-series');
+		setField('meta-subseries-part', '4');
+		setField('meta-description', 'Desc');
+		coverArtBytes = [1, 2, 3];
 
-    const metadata = readMetadataForm({ mode: 'single' });
+		const metadata = readMetadataForm({ mode: 'single' });
 
-    expect(metadata).toMatchObject({
-      title: 'Title',
-      album: 'Title',
-      artist: 'Author',
-      composer: 'Narrator',
-      date: 2024,
-      genre: 'Fiction',
-      series: 'Series',
-      series_part: '2',
-      subseries: 'Sub-series',
-      subseries_part: '4',
-      description: 'Desc',
-      cover_art: [1, 2, 3],
-    });
-  });
+		expect(metadata).toMatchObject({
+			title: 'Title',
+			album: 'Title',
+			artist: 'Author',
+			composer: 'Narrator',
+			date: 2024,
+			genre: 'Fiction',
+			series: 'Series',
+			series_part: '2',
+			subseries: 'Sub-series',
+			subseries_part: '4',
+			description: 'Desc',
+			cover_art: [1, 2, 3],
+		});
+	});
 
-  it('emits empty cover_art array when removal requested', () => {
-    coverRemoval = true;
+	it('emits empty cover_art array when removal requested', () => {
+		coverRemoval = true;
 
-    const metadata = readMetadataForm({ mode: 'single' });
+		const metadata = readMetadataForm({ mode: 'single' });
 
-    expect(metadata.cover_art).toEqual([]);
-  });
+		expect(metadata.cover_art).toEqual([]);
+	});
 
-  it('includes empty strings for clearable metadata fields', () => {
-    const metadata = readMetadataForm({ mode: 'single' });
+	it('includes empty strings for clearable metadata fields', () => {
+		const metadata = readMetadataForm({ mode: 'single' });
 
-    expect(metadata.series).toBe('');
-    expect(metadata.series_part).toBe('');
-    expect(metadata.subseries).toBe('');
-    expect(metadata.subseries_part).toBe('');
-    expect(metadata.description).toBe('');
-  });
+		expect(metadata.series).toBe('');
+		expect(metadata.series_part).toBe('');
+		expect(metadata.subseries).toBe('');
+		expect(metadata.subseries_part).toBe('');
+		expect(metadata.description).toBe('');
+	});
 });
 
 describe('readMetadataForm (multi mode)', () => {
-  beforeEach(() => {
-    document.body.innerHTML = `
+	beforeEach(() => {
+		document.body.innerHTML = `
       <div id="metadata-form" data-multi-select="true">
         <input id="meta-title" />
         <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
@@ -125,40 +125,40 @@ describe('readMetadataForm (multi mode)', () => {
         <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
       </div>
     `;
-    coverArtBytes = null;
-    coverRemoval = false;
-    hasCustomCoverArt = false;
-  });
+		coverArtBytes = null;
+		coverRemoval = false;
+		hasCustomCoverArt = false;
+	});
 
-  it('uses bulk blank actions for multi-select', () => {
-    const yearAction = document.getElementById('meta-year-action') as HTMLSelectElement;
-    yearAction.value = 'blank';
+	it('uses bulk blank actions for multi-select', () => {
+		const yearAction = document.getElementById('meta-year-action') as HTMLSelectElement;
+		yearAction.value = 'blank';
 
-    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 
-    expect(metadata.date).toBe(0);
-  });
+		expect(metadata.date).toBe(0);
+	});
 
-  it('applies edited values in multi-select mode', () => {
-    const titleInput = document.getElementById('meta-title') as HTMLInputElement;
-    titleInput.value = 'New Title';
-    titleInput.dataset.dirty = 'true';
+	it('applies edited values in multi-select mode', () => {
+		const titleInput = document.getElementById('meta-title') as HTMLInputElement;
+		titleInput.value = 'New Title';
+		titleInput.dataset.dirty = 'true';
 
-    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 
-    expect(metadata).toMatchObject({
-      title: 'New Title',
-      album: 'New Title',
-    });
-  });
+		expect(metadata).toMatchObject({
+			title: 'New Title',
+			album: 'New Title',
+		});
+	});
 
-  it('ignores cover art changes in multi-select', () => {
-    coverArtBytes = [1, 2, 3];
-    coverRemoval = true;
-    hasCustomCoverArt = true;
+	it('ignores cover art changes in multi-select', () => {
+		coverArtBytes = [1, 2, 3];
+		coverRemoval = true;
+		hasCustomCoverArt = true;
 
-    const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
+		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 
-    expect(metadata.cover_art).toBeUndefined();
-  });
+		expect(metadata.cover_art).toBeUndefined();
+	});
 });
