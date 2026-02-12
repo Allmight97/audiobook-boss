@@ -26,6 +26,7 @@ Required fields per fallback:
 | FB-015 | `src/lib/bridge.ts` | non-Tauri runtime requires DEV mocks / non-DEV no-op rejection path | bridge init + non-Tauri warning logs | 2026-06-30 (revalidate) | #195 | Active |
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe disabled/fails and synthetic fallback is used | benchmark result details include `fixture-fallback` + reason | 2026-06-30 (revalidate) | #195 | Active |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifact files missing (`ENOENT`) | report output demonstrates empty baseline/history bootstrap path | 2026-06-30 (revalidate) | #195 | Active |
+| FB-018 | `.prettierrc`, `.prettierignore`, `scripts/checks.sh`, `.githooks/pre-commit` | `.svelte` formatting remains on Prettier while Biome HTML/Svelte support is treated as release-risky for this repo | `bun run fmt:check` output + pre-commit `prettier --check` step signal | 2026-06-30 (revalidate) | #219 | Active |
 
 ## Migration Hooks (Svelte + Tailwind Track)
 

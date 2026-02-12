@@ -72,7 +72,7 @@ To maintain the integrity of "The Bridge", this repo treats generated IPC bindin
 
 - **What it does**: `scripts/check-generated-bindings.sh` regenerates `src/lib/generated/tauri.ts` and fails on drift.
 - **Why it matters**: It prevents silent TS↔Rust contract drift by requiring committed generated bindings to match command/event definitions.
-- **Usage**: Run `scripts/checks.sh standard` from the repository root (or `bun run bindings:check` for drift-only verification).
+- **Usage**: Run `scripts/checks.sh standard` from the repository root (includes frontend format checks via `bun run fmt:check`), or `bun run bindings:check` for drift-only verification.
 
 ---
 

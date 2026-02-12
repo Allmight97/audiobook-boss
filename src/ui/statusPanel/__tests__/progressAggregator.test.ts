@@ -1,8 +1,8 @@
-import { describe, expect, beforeEach, it } from "vitest";
-import { StatusPanel } from "../logic";
+import { describe, expect, beforeEach, it } from 'vitest';
+import { StatusPanel } from '../logic';
 
 function setupDom() {
-  document.body.innerHTML = `
+	document.body.innerHTML = `
     <div id="progress-bar"></div>
     <div id="percentage-processed"></div>
     <div id="status-text"></div>
@@ -16,39 +16,39 @@ function setupDom() {
   `;
 }
 
-describe("StatusPanel aggregate progress", () => {
-  beforeEach(() => {
-    setupDom();
-  });
+describe('StatusPanel aggregate progress', () => {
+	beforeEach(() => {
+		setupDom();
+	});
 
-  it("computes simple averages across active and completed jobs", () => {
-    const panel = new StatusPanel();
-    const jobProgress = new Map<string, any>();
-    jobProgress.set("job-1", {
-      jobId: "job-1",
-      label: "File One",
-      status: "processing",
-      stage: "converting",
-      percentage: 50,
-      message: "Halfway",
-      lastUpdate: Date.now(),
-    });
-    jobProgress.set("job-2", {
-      jobId: "job-2",
-      label: "File Two",
-      status: "completed",
-      stage: "completed",
-      percentage: 100,
-      message: "Done",
-      lastUpdate: Date.now(),
-    });
+	it('computes simple averages across active and completed jobs', () => {
+		const panel = new StatusPanel();
+		const jobProgress = new Map<string, any>();
+		jobProgress.set('job-1', {
+			jobId: 'job-1',
+			label: 'File One',
+			status: 'processing',
+			stage: 'converting',
+			percentage: 50,
+			message: 'Halfway',
+			lastUpdate: Date.now(),
+		});
+		jobProgress.set('job-2', {
+			jobId: 'job-2',
+			label: 'File Two',
+			status: 'completed',
+			stage: 'completed',
+			percentage: 100,
+			message: 'Done',
+			lastUpdate: Date.now(),
+		});
 
-    (panel as any).jobProgress = jobProgress;
-    const aggregate = (panel as any).calculateAggregateProgressAndStage().aggregate;
+		(panel as any).jobProgress = jobProgress;
+		const aggregate = (panel as any).calculateAggregateProgressAndStage().aggregate;
 
-    expect(aggregate.activeJobs).toBe(1);
-    expect(aggregate.queuedJobs).toBe(0);
-    expect(aggregate.completedJobs).toBe(1);
-    expect(aggregate.overallPercentage).toBeCloseTo(75);
-  });
+		expect(aggregate.activeJobs).toBe(1);
+		expect(aggregate.queuedJobs).toBe(0);
+		expect(aggregate.completedJobs).toBe(1);
+		expect(aggregate.overallPercentage).toBeCloseTo(75);
+	});
 });

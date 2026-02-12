@@ -1,38 +1,32 @@
-import { bridge } from "../lib/bridge";
-import { mount, unmount } from "svelte";
-import type { AudioFile } from "../types/audio";
-import type {
-  AudiobookMetadata,
-  MetadataSource,
-  OnlineMetadataResult,
-} from "../types/metadata";
-import { applyMetadataToForm, readMetadataForm } from "./metadataForm";
-import { onMetadataChange } from "./outputPanel";
-import { updateTagPreview } from "./tagPreview";
-import { clearCoverArt, setCoverArt, setCustomCoverArt } from "./coverArt";
-import { getMetadataForFile, setMetadataForFile } from "./metadataState";
-import { getCurrentFileList } from "./fileList";
-import { selectFile } from "./fileList/actions";
-import { getSelectedFileIndices } from "./fileList/state";
-import MetadataLookupIsland from "./metadataLookup/MetadataLookupIsland.svelte";
+import { bridge } from '../lib/bridge';
+import { mount, unmount } from 'svelte';
+import type { AudioFile } from '../types/audio';
+import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
+import { applyMetadataToForm, readMetadataForm } from './metadataForm';
+import { onMetadataChange } from './outputPanel';
+import { updateTagPreview } from './tagPreview';
+import { clearCoverArt, setCoverArt, setCustomCoverArt } from './coverArt';
+import { getMetadataForFile, setMetadataForFile } from './metadataState';
+import { getCurrentFileList } from './fileList';
+import { selectFile } from './fileList/actions';
+import { getSelectedFileIndices } from './fileList/state';
+import MetadataLookupIsland from './metadataLookup/MetadataLookupIsland.svelte';
 
-const DEFAULT_SOURCES: MetadataSource[] = ["audnexus"];
-const METADATA_LOOKUP_ROOT_ID = "metadata-lookup-root";
+const DEFAULT_SOURCES: MetadataSource[] = ['audnexus'];
+const METADATA_LOOKUP_ROOT_ID = 'metadata-lookup-root';
 
-type ApplyMode = "current" | "queue";
+type ApplyMode = 'current' | 'queue';
 
 type LookupQueueItem = {
-  file: AudioFile;
-  index: number;
+	file: AudioFile;
+	index: number;
 };
 
-type QueueCoverState =
-  | { intent: "keep" }
-  | { intent: "replace"; bytes: number[] };
+type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
 
 type QueueItemState = {
-  metadataPatch: Partial<AudiobookMetadata>;
-  cover: QueueCoverState;
+	metadataPatch: Partial<AudiobookMetadata>;
+	cover: QueueCoverState;
 };
 
 let lookupQueue: LookupQueueItem[] = [];
@@ -43,564 +37,549 @@ let mountedMetadataLookupRoot: HTMLElement | null = null;
 let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
 
 function mountMetadataLookupIsland(): void {
-  const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
-  if (!lookupRoot) return;
+	const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
+	if (!lookupRoot) return;
 
-  if (
-    mountedMetadataLookupIsland &&
-    mountedMetadataLookupRoot === lookupRoot &&
-    lookupRoot.childElementCount > 0
-  ) {
-    return;
-  }
+	if (
+		mountedMetadataLookupIsland &&
+		mountedMetadataLookupRoot === lookupRoot &&
+		lookupRoot.childElementCount > 0
+	) {
+		return;
+	}
 
-  if (mountedMetadataLookupIsland) {
-    void unmount(mountedMetadataLookupIsland);
-    mountedMetadataLookupIsland = null;
-  }
+	if (mountedMetadataLookupIsland) {
+		void unmount(mountedMetadataLookupIsland);
+		mountedMetadataLookupIsland = null;
+	}
 
-  lookupRoot.innerHTML = "";
-  mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
-    target: lookupRoot,
-  });
-  mountedMetadataLookupRoot = lookupRoot;
+	lookupRoot.innerHTML = '';
+	mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
+		target: lookupRoot,
+	});
+	mountedMetadataLookupRoot = lookupRoot;
 }
 
 function getModal(): HTMLElement | null {
-  return document.getElementById("metadata-lookup-modal");
+	return document.getElementById('metadata-lookup-modal');
 }
 
 function getResultsContainer(): HTMLElement | null {
-  return document.getElementById("metadata-lookup-results");
+	return document.getElementById('metadata-lookup-results');
 }
 
 function getSearchInput(): HTMLInputElement | null {
-  const el = document.getElementById("metadata-lookup-query");
-  return el instanceof HTMLInputElement ? el : null;
+	const el = document.getElementById('metadata-lookup-query');
+	return el instanceof HTMLInputElement ? el : null;
 }
 
 function getSourceSelect(): HTMLSelectElement | null {
-  const el = document.getElementById("metadata-lookup-source");
-  return el instanceof HTMLSelectElement ? el : null;
+	const el = document.getElementById('metadata-lookup-source');
+	return el instanceof HTMLSelectElement ? el : null;
 }
 
 function getApplyModeSelect(): HTMLSelectElement | null {
-  const el = document.getElementById("metadata-lookup-apply-mode");
-  return el instanceof HTMLSelectElement ? el : null;
+	const el = document.getElementById('metadata-lookup-apply-mode');
+	return el instanceof HTMLSelectElement ? el : null;
 }
 
 function getCoverArtToggle(): HTMLInputElement | null {
-  const el = document.getElementById("metadata-lookup-cover-toggle");
-  return el instanceof HTMLInputElement ? el : null;
+	const el = document.getElementById('metadata-lookup-cover-toggle');
+	return el instanceof HTMLInputElement ? el : null;
 }
 
 function getSkipButton(): HTMLButtonElement | null {
-  const el = document.getElementById("metadata-lookup-skip-btn");
-  return el instanceof HTMLButtonElement ? el : null;
+	const el = document.getElementById('metadata-lookup-skip-btn');
+	return el instanceof HTMLButtonElement ? el : null;
 }
 
 function shouldReplaceCoverArt(): boolean {
-  const toggle = getCoverArtToggle();
-  return toggle ? toggle.checked : false;
+	const toggle = getCoverArtToggle();
+	return toggle ? toggle.checked : false;
 }
 
 function getStatusEl(): HTMLElement | null {
-  return document.getElementById("metadata-lookup-status");
+	return document.getElementById('metadata-lookup-status');
 }
 
 function getQueueContextEl(): HTMLElement | null {
-  return document.getElementById("metadata-lookup-context");
+	return document.getElementById('metadata-lookup-context');
 }
 
-function setStatus(message: string, variant: "error" | "success" | "info" = "info"): void {
-  const statusEl = getStatusEl();
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.classList.toggle("is-error", variant === "error");
-  statusEl.classList.toggle("is-success", variant === "success");
+function setStatus(message: string, variant: 'error' | 'success' | 'info' = 'info'): void {
+	const statusEl = getStatusEl();
+	if (!statusEl) return;
+	statusEl.textContent = message;
+	statusEl.classList.toggle('is-error', variant === 'error');
+	statusEl.classList.toggle('is-success', variant === 'success');
 }
 
 function showModal(): void {
-  const modal = getModal();
-  if (!modal) return;
-  modal.classList.add("open");
+	const modal = getModal();
+	if (!modal) return;
+	modal.classList.add('open');
 }
 
 function hideModal(): void {
-  const modal = getModal();
-  if (!modal) return;
-  modal.classList.remove("open");
+	const modal = getModal();
+	if (!modal) return;
+	modal.classList.remove('open');
 }
 
 function formatFileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
+	return path.split(/[\\/]/).pop() ?? path;
 }
 
 function isTrackLikeTitle(value: string): boolean {
-  return /^(chapter|track|disc|disk|episode)\s*\d+/i.test(value.trim());
+	return /^(chapter|track|disc|disk|episode)\s*\d+/i.test(value.trim());
 }
 
 function deriveQueryFromFile(file: AudioFile): string {
-  const stored = getMetadataForFile(file.path) ?? {};
-  const title = stored.title?.trim();
-  const album = stored.album?.trim();
-  const artist = stored.artist?.trim();
-  const composer = stored.composer?.trim();
+	const stored = getMetadataForFile(file.path) ?? {};
+	const title = stored.title?.trim();
+	const album = stored.album?.trim();
+	const artist = stored.artist?.trim();
+	const composer = stored.composer?.trim();
 
-  const queryTitle =
-    album && (!title || isTrackLikeTitle(title)) ? album : title ?? album;
+	const queryTitle = album && (!title || isTrackLikeTitle(title)) ? album : (title ?? album);
 
-  const parts: string[] = [];
-  if (queryTitle) parts.push(queryTitle);
-  if (artist) {
-    parts.push(artist);
-  } else if (composer) {
-    parts.push(composer);
-  }
-  if (parts.length > 0) return parts.join(" ");
+	const parts: string[] = [];
+	if (queryTitle) parts.push(queryTitle);
+	if (artist) {
+		parts.push(artist);
+	} else if (composer) {
+		parts.push(composer);
+	}
+	if (parts.length > 0) return parts.join(' ');
 
-  const rawName = formatFileName(file.path).replace(/\.[^.]+$/, "");
-  const cleaned = rawName.replace(/[._-]+/g, " ").trim();
-  return cleaned.replace(/^\d+\s*/, "").trim();
+	const rawName = formatFileName(file.path).replace(/\.[^.]+$/, '');
+	const cleaned = rawName.replace(/[._-]+/g, ' ').trim();
+	return cleaned.replace(/^\d+\s*/, '').trim();
 }
 
 function updateQueueContext(): void {
-  const contextEl = getQueueContextEl();
-  if (!contextEl) return;
-  if (lookupQueue.length === 0) {
-    contextEl.textContent = "No files selected.";
-    return;
-  }
+	const contextEl = getQueueContextEl();
+	if (!contextEl) return;
+	if (lookupQueue.length === 0) {
+		contextEl.textContent = 'No files selected.';
+		return;
+	}
 
-  const current = lookupQueue[queueIndex];
-  const label = `${queueIndex + 1} of ${lookupQueue.length}`;
-  contextEl.textContent = `${label} • ${formatFileName(current.file.path)}`;
+	const current = lookupQueue[queueIndex];
+	const label = `${queueIndex + 1} of ${lookupQueue.length}`;
+	contextEl.textContent = `${label} • ${formatFileName(current.file.path)}`;
 }
 
 function updateApplyModeOptions(): void {
-  const applySelect = getApplyModeSelect();
-  if (!applySelect) return;
+	const applySelect = getApplyModeSelect();
+	if (!applySelect) return;
 
-  const multi = lookupQueue.length > 1;
-  applySelect.innerHTML = "";
+	const multi = lookupQueue.length > 1;
+	applySelect.innerHTML = '';
 
-  const currentOption = document.createElement("option");
-  currentOption.value = "current";
-  currentOption.textContent = multi ? "Apply to current file" : "Apply to file";
-  applySelect.appendChild(currentOption);
+	const currentOption = document.createElement('option');
+	currentOption.value = 'current';
+	currentOption.textContent = multi ? 'Apply to current file' : 'Apply to file';
+	applySelect.appendChild(currentOption);
 
-  if (multi) {
-    const queueOption = document.createElement("option");
-    queueOption.value = "queue";
-    queueOption.textContent = "Apply & next in queue";
-    applySelect.appendChild(queueOption);
+	if (multi) {
+		const queueOption = document.createElement('option');
+		queueOption.value = 'queue';
+		queueOption.textContent = 'Apply & next in queue';
+		applySelect.appendChild(queueOption);
 
-    applySelect.value = "queue";
-  } else {
-    applySelect.value = "current";
-  }
+		applySelect.value = 'queue';
+	} else {
+		applySelect.value = 'current';
+	}
 }
 
 function getApplyMode(): ApplyMode {
-  const select = getApplyModeSelect();
-  if (!select) return "current";
-  if (select.value === "queue") return "queue";
-  return "current";
+	const select = getApplyModeSelect();
+	if (!select) return 'current';
+	if (select.value === 'queue') return 'queue';
+	return 'current';
 }
 
 function resetResults(): void {
-  currentResults = [];
-  const container = getResultsContainer();
-  if (container) {
-    container.replaceChildren();
-  }
+	currentResults = [];
+	const container = getResultsContainer();
+	if (container) {
+		container.replaceChildren();
+	}
 }
 
 function buildQueueMetadataPatch(): Partial<AudiobookMetadata> {
-  return readMetadataForm({ mode: "single", includeCoverArt: false });
+	return readMetadataForm({ mode: 'single', includeCoverArt: false });
 }
 
 function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
-  if (!file.isValid) return;
-  const existing = getMetadataForFile(file.path) ?? {};
-  const merged: Partial<AudiobookMetadata> = {
-    ...existing,
-    ...state.metadataPatch,
-  };
-  if (state.cover.intent === "replace") {
-    merged.cover_art = state.cover.bytes;
-  }
+	if (!file.isValid) return;
+	const existing = getMetadataForFile(file.path) ?? {};
+	const merged: Partial<AudiobookMetadata> = {
+		...existing,
+		...state.metadataPatch,
+	};
+	if (state.cover.intent === 'replace') {
+		merged.cover_art = state.cover.bytes;
+	}
 
-  setMetadataForFile(file.path, merged, { markPending: true });
+	setMetadataForFile(file.path, merged, { markPending: true });
 }
 
 function restoreCoverArtForFile(file: AudioFile | null): void {
-  clearCoverArt();
-  if (!file?.isValid) return;
-  const stored = getMetadataForFile(file.path);
-  setCoverArt(stored?.cover_art ?? null);
+	clearCoverArt();
+	if (!file?.isValid) return;
+	const stored = getMetadataForFile(file.path);
+	setCoverArt(stored?.cover_art ?? null);
 }
 
-async function advanceQueue(reason: "applied" | "skipped"): Promise<void> {
-  if (lookupQueue.length === 0) return;
+async function advanceQueue(reason: 'applied' | 'skipped'): Promise<void> {
+	if (lookupQueue.length === 0) return;
 
-  if (queueIndex >= lookupQueue.length - 1) {
-    restoreCoverArtForFile(lookupQueue[queueIndex]?.file ?? null);
-    setStatus("Queue complete.", "success");
-    return;
-  }
+	if (queueIndex >= lookupQueue.length - 1) {
+		restoreCoverArtForFile(lookupQueue[queueIndex]?.file ?? null);
+		setStatus('Queue complete.', 'success');
+		return;
+	}
 
-  clearCoverArt();
-  queueIndex += 1;
-  updateQueueContext();
-  const nextItem = lookupQueue[queueIndex];
-  if (nextItem) {
-    await selectFile(
-      nextItem.index,
-      { multi: false, range: false },
-      { skipPersistPrevious: true }
-    );
-  }
+	clearCoverArt();
+	queueIndex += 1;
+	updateQueueContext();
+	const nextItem = lookupQueue[queueIndex];
+	if (nextItem) {
+		await selectFile(nextItem.index, { multi: false, range: false }, { skipPersistPrevious: true });
+	}
 
-  const searchInput = getSearchInput();
-  if (searchInput && nextItem) {
-    searchInput.value = deriveQueryFromFile(nextItem.file);
-  }
+	const searchInput = getSearchInput();
+	if (searchInput && nextItem) {
+		searchInput.value = deriveQueryFromFile(nextItem.file);
+	}
 
-  resetResults();
-  const message =
-    reason === "applied"
-      ? "Metadata applied. Ready for next search."
-      : "Skipped. Ready for next search.";
-  setStatus(message, reason === "applied" ? "success" : "info");
+	resetResults();
+	const message =
+		reason === 'applied'
+			? 'Metadata applied. Ready for next search.'
+			: 'Skipped. Ready for next search.';
+	setStatus(message, reason === 'applied' ? 'success' : 'info');
 }
 
 function renderResults(results: OnlineMetadataResult[]): void {
-  const container = getResultsContainer();
-  if (!container) return;
-  container.replaceChildren();
-  currentResults = results;
+	const container = getResultsContainer();
+	if (!container) return;
+	container.replaceChildren();
+	currentResults = results;
 
-  if (results.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "metadata-lookup-empty muted-text";
-    empty.textContent = "No matches found. Try another search.";
-    container.appendChild(empty);
-    return;
-  }
+	if (results.length === 0) {
+		const empty = document.createElement('div');
+		empty.className = 'metadata-lookup-empty muted-text';
+		empty.textContent = 'No matches found. Try another search.';
+		container.appendChild(empty);
+		return;
+	}
 
-  results.forEach((result, index) => {
-    const row = document.createElement("div");
-    row.className = "metadata-lookup-result";
+	results.forEach((result, index) => {
+		const row = document.createElement('div');
+		row.className = 'metadata-lookup-result';
 
-    const cover = document.createElement("div");
-    cover.className = "metadata-lookup-cover";
-    if (result.coverUrl) {
-      const img = document.createElement("img");
-      img.src = result.coverUrl;
-      img.alt = `${result.title} cover art`;
-      img.loading = "lazy";
-      cover.appendChild(img);
-    } else {
-      const placeholder = document.createElement("span");
-      placeholder.textContent = "No Art";
-      cover.appendChild(placeholder);
-    }
+		const cover = document.createElement('div');
+		cover.className = 'metadata-lookup-cover';
+		if (result.coverUrl) {
+			const img = document.createElement('img');
+			img.src = result.coverUrl;
+			img.alt = `${result.title} cover art`;
+			img.loading = 'lazy';
+			cover.appendChild(img);
+		} else {
+			const placeholder = document.createElement('span');
+			placeholder.textContent = 'No Art';
+			cover.appendChild(placeholder);
+		}
 
-    const details = document.createElement("div");
-    details.className = "metadata-lookup-details";
+		const details = document.createElement('div');
+		details.className = 'metadata-lookup-details';
 
-    const title = document.createElement("div");
-    title.className = "metadata-lookup-title";
-    title.textContent = result.title;
+		const title = document.createElement('div');
+		title.className = 'metadata-lookup-title';
+		title.textContent = result.title;
 
-    const authors = document.createElement("div");
-    authors.className = "metadata-lookup-meta";
-    authors.textContent = result.authors.length
-      ? `Author: ${result.authors.join(", ")}`
-      : "Author: —";
+		const authors = document.createElement('div');
+		authors.className = 'metadata-lookup-meta';
+		authors.textContent = result.authors.length
+			? `Author: ${result.authors.join(', ')}`
+			: 'Author: —';
 
-    const narrators = document.createElement("div");
-    narrators.className = "metadata-lookup-meta";
-    narrators.textContent = result.narrators.length
-      ? `Narrator: ${result.narrators.join(", ")}`
-      : "Narrator: —";
+		const narrators = document.createElement('div');
+		narrators.className = 'metadata-lookup-meta';
+		narrators.textContent = result.narrators.length
+			? `Narrator: ${result.narrators.join(', ')}`
+			: 'Narrator: —';
 
-    const extra = document.createElement("div");
-    const seriesLine = document.createElement("div");
-    seriesLine.className = "metadata-lookup-meta";
-    const seriesParts: string[] = [];
-    if (result.series) {
-      const label = result.seriesPart
-        ? `Series: ${result.series} #${result.seriesPart}`
-        : `Series: ${result.series}`;
-      seriesParts.push(label);
-    }
-    if (result.subseries) {
-      const label = result.subseriesPart
-        ? `Sub-series: ${result.subseries} #${result.subseriesPart}`
-        : `Sub-series: ${result.subseries}`;
-      seriesParts.push(label);
-    }
-    seriesLine.textContent = seriesParts.length ? seriesParts.join(" • ") : "Series: —";
+		const extra = document.createElement('div');
+		const seriesLine = document.createElement('div');
+		seriesLine.className = 'metadata-lookup-meta';
+		const seriesParts: string[] = [];
+		if (result.series) {
+			const label = result.seriesPart
+				? `Series: ${result.series} #${result.seriesPart}`
+				: `Series: ${result.series}`;
+			seriesParts.push(label);
+		}
+		if (result.subseries) {
+			const label = result.subseriesPart
+				? `Sub-series: ${result.subseries} #${result.subseriesPart}`
+				: `Sub-series: ${result.subseries}`;
+			seriesParts.push(label);
+		}
+		seriesLine.textContent = seriesParts.length ? seriesParts.join(' • ') : 'Series: —';
 
-    extra.className = "metadata-lookup-meta";
-    const year = result.publishedYear ? result.publishedYear.toString() : "—";
-    const duration = result.durationSeconds
-      ? `${Math.round(result.durationSeconds / 3600)}h`
-      : "—";
-    extra.textContent = `Year: ${year} • Length: ${duration}`;
+		extra.className = 'metadata-lookup-meta';
+		const year = result.publishedYear ? result.publishedYear.toString() : '—';
+		const duration = result.durationSeconds ? `${Math.round(result.durationSeconds / 3600)}h` : '—';
+		extra.textContent = `Year: ${year} • Length: ${duration}`;
 
-    const source = document.createElement("span");
-    source.className = "metadata-lookup-source";
-    source.textContent = result.audibleOnly ? "Audible-only" : "Audnexus";
-    if (result.audibleOnly) {
-      source.classList.add("is-fallback");
-    }
+		const source = document.createElement('span');
+		source.className = 'metadata-lookup-source';
+		source.textContent = result.audibleOnly ? 'Audible-only' : 'Audnexus';
+		if (result.audibleOnly) {
+			source.classList.add('is-fallback');
+		}
 
-    details.appendChild(title);
-    details.appendChild(authors);
-    details.appendChild(narrators);
-    details.appendChild(seriesLine);
-    details.appendChild(extra);
-    details.appendChild(source);
+		details.appendChild(title);
+		details.appendChild(authors);
+		details.appendChild(narrators);
+		details.appendChild(seriesLine);
+		details.appendChild(extra);
+		details.appendChild(source);
 
-    const applyButton = document.createElement("button");
-    applyButton.type = "button";
-    applyButton.className = "btn-pill btn-pill-secondary";
-    applyButton.textContent = "Use Metadata";
-    applyButton.dataset.index = index.toString();
+		const applyButton = document.createElement('button');
+		applyButton.type = 'button';
+		applyButton.className = 'btn-pill btn-pill-secondary';
+		applyButton.textContent = 'Use Metadata';
+		applyButton.dataset.index = index.toString();
 
-    const actions = document.createElement("div");
-    actions.className = "metadata-lookup-actions";
-    actions.appendChild(applyButton);
+		const actions = document.createElement('div');
+		actions.className = 'metadata-lookup-actions';
+		actions.appendChild(applyButton);
 
-    row.appendChild(cover);
-    row.appendChild(details);
-    row.appendChild(actions);
+		row.appendChild(cover);
+		row.appendChild(details);
+		row.appendChild(actions);
 
-    container.appendChild(row);
-  });
+		container.appendChild(row);
+	});
 }
 
 function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {
-  const metadata: Partial<AudiobookMetadata> = {
-    title: result.title,
-  };
+	const metadata: Partial<AudiobookMetadata> = {
+		title: result.title,
+	};
 
-  if (result.authors.length > 0) {
-    metadata.artist = result.authors.join(", ");
-  }
-  if (result.narrators.length > 0) {
-    metadata.composer = result.narrators.join(", ");
-  }
-  if (result.series) {
-    metadata.series = result.series;
-  }
-  if (result.seriesPart) {
-    metadata.series_part = result.seriesPart;
-  }
-  if (result.subseries) {
-    metadata.subseries = result.subseries;
-  }
-  if (result.subseriesPart) {
-    metadata.subseries_part = result.subseriesPart;
-  }
-  if (result.description) {
-    metadata.description = result.description;
-  }
-  if (result.publishedYear) {
-    metadata.date = result.publishedYear;
-  }
-  metadata.album = result.title;
+	if (result.authors.length > 0) {
+		metadata.artist = result.authors.join(', ');
+	}
+	if (result.narrators.length > 0) {
+		metadata.composer = result.narrators.join(', ');
+	}
+	if (result.series) {
+		metadata.series = result.series;
+	}
+	if (result.seriesPart) {
+		metadata.series_part = result.seriesPart;
+	}
+	if (result.subseries) {
+		metadata.subseries = result.subseries;
+	}
+	if (result.subseriesPart) {
+		metadata.subseries_part = result.subseriesPart;
+	}
+	if (result.description) {
+		metadata.description = result.description;
+	}
+	if (result.publishedYear) {
+		metadata.date = result.publishedYear;
+	}
+	metadata.album = result.title;
 
-  return metadata;
+	return metadata;
 }
 
 async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
-  if (!result.coverUrl) return null;
-  try {
-    const coverBytes = await bridge.loadCoverArtFromUrl(result.coverUrl);
-    setCustomCoverArt(coverBytes);
-    return coverBytes;
-  } catch (error) {
-    console.warn("Failed to load cover art from lookup:", error);
-    setStatus("Cover art failed to load from source.", "error");
-    return null;
-  }
+	if (!result.coverUrl) return null;
+	try {
+		const coverBytes = await bridge.loadCoverArtFromUrl(result.coverUrl);
+		setCustomCoverArt(coverBytes);
+		return coverBytes;
+	} catch (error) {
+		console.warn('Failed to load cover art from lookup:', error);
+		setStatus('Cover art failed to load from source.', 'error');
+		return null;
+	}
 }
 
 async function applyResult(result: OnlineMetadataResult): Promise<void> {
-  if (lookupQueue.length === 0) {
-    setStatus("Select at least one file before applying metadata.", "error");
-    return;
-  }
+	if (lookupQueue.length === 0) {
+		setStatus('Select at least one file before applying metadata.', 'error');
+		return;
+	}
 
-  const metadata = mapResultToMetadata(result);
-  const mode = getApplyMode();
+	const metadata = mapResultToMetadata(result);
+	const mode = getApplyMode();
 
-  const current = lookupQueue[queueIndex];
-  if (current) {
-    await selectFile(
-      current.index,
-      { multi: false, range: false },
-      { skipPersistPrevious: true }
-    );
-  }
+	const current = lookupQueue[queueIndex];
+	if (current) {
+		await selectFile(current.index, { multi: false, range: false }, { skipPersistPrevious: true });
+	}
 
-  applyMetadataToForm(metadata, { mode: "single", markDirty: true });
-  let queueCoverState: QueueCoverState = { intent: "keep" };
-  if (shouldReplaceCoverArt()) {
-    const coverBytes = await applyCoverArt(result);
-    if (coverBytes && coverBytes.length > 0) {
-      queueCoverState = { intent: "replace", bytes: coverBytes };
-    }
-  }
-  onMetadataChange();
-  updateTagPreview();
+	applyMetadataToForm(metadata, { mode: 'single', markDirty: true });
+	let queueCoverState: QueueCoverState = { intent: 'keep' };
+	if (shouldReplaceCoverArt()) {
+		const coverBytes = await applyCoverArt(result);
+		if (coverBytes && coverBytes.length > 0) {
+			queueCoverState = { intent: 'replace', bytes: coverBytes };
+		}
+	}
+	onMetadataChange();
+	updateTagPreview();
 
-  if (mode === "queue") {
-    if (current) {
-      const queueState: QueueItemState = {
-        metadataPatch: buildQueueMetadataPatch(),
-        cover: queueCoverState,
-      };
-      queueStateByFile.set(current.file.path, queueState);
-      persistQueueMetadata(current.file, queueState);
-    }
-    await advanceQueue("applied");
-    return;
-  }
+	if (mode === 'queue') {
+		if (current) {
+			const queueState: QueueItemState = {
+				metadataPatch: buildQueueMetadataPatch(),
+				cover: queueCoverState,
+			};
+			queueStateByFile.set(current.file.path, queueState);
+			persistQueueMetadata(current.file, queueState);
+		}
+		await advanceQueue('applied');
+		return;
+	}
 
-  setStatus("Metadata applied to form.", "success");
+	setStatus('Metadata applied to form.', 'success');
 }
 
 async function runSearch(): Promise<void> {
-  const queryInput = getSearchInput();
-  const sourceSelect = getSourceSelect();
-  if (!queryInput || !sourceSelect) return;
+	const queryInput = getSearchInput();
+	const sourceSelect = getSourceSelect();
+	if (!queryInput || !sourceSelect) return;
 
-  const query = queryInput.value.trim();
-  if (!query) {
-    setStatus("Enter a title, author, or ASIN to search.", "error");
-    return;
-  }
+	const query = queryInput.value.trim();
+	if (!query) {
+		setStatus('Enter a title, author, or ASIN to search.', 'error');
+		return;
+	}
 
-  const selectedSource = (sourceSelect.value as MetadataSource) || DEFAULT_SOURCES[0];
-  const sources = [selectedSource];
+	const selectedSource = (sourceSelect.value as MetadataSource) || DEFAULT_SOURCES[0];
+	const sources = [selectedSource];
 
-  setStatus("Searching metadata sources…", "info");
+	setStatus('Searching metadata sources…', 'info');
 
-  try {
-    const results = await bridge.searchOnlineMetadata({ query, sources, limit: 8 });
-    renderResults(results);
-    setStatus(`Found ${results.length} results.`, "success");
-  } catch (error) {
-    console.error("Metadata lookup failed:", error);
-    setStatus("Search failed. Check your query and try again.", "error");
-  }
+	try {
+		const results = await bridge.searchOnlineMetadata({ query, sources, limit: 8 });
+		renderResults(results);
+		setStatus(`Found ${results.length} results.`, 'success');
+	} catch (error) {
+		console.error('Metadata lookup failed:', error);
+		setStatus('Search failed. Check your query and try again.', 'error');
+	}
 }
 
 function openLookup(): void {
-  const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
-  lookupQueue = selectedIndices
-    .map((index) => {
-      const file = getCurrentFileList()?.files[index];
-      if (!file || !file.isValid) return null;
-      return { file, index };
-    })
-    .filter((item): item is LookupQueueItem => Boolean(item));
-  queueIndex = 0;
-  queueStateByFile.clear();
+	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
+	lookupQueue = selectedIndices
+		.map((index) => {
+			const file = getCurrentFileList()?.files[index];
+			if (!file || !file.isValid) return null;
+			return { file, index };
+		})
+		.filter((item): item is LookupQueueItem => Boolean(item));
+	queueIndex = 0;
+	queueStateByFile.clear();
 
-  if (lookupQueue.length === 0) {
-    setStatus("Select a valid file to search metadata.", "error");
-  } else {
-    const queryInput = getSearchInput();
-    if (queryInput) {
-      queryInput.value = deriveQueryFromFile(lookupQueue[0].file);
-    }
-    setStatus("", "info");
-  }
+	if (lookupQueue.length === 0) {
+		setStatus('Select a valid file to search metadata.', 'error');
+	} else {
+		const queryInput = getSearchInput();
+		if (queryInput) {
+			queryInput.value = deriveQueryFromFile(lookupQueue[0].file);
+		}
+		setStatus('', 'info');
+	}
 
-  updateQueueContext();
-  updateApplyModeOptions();
-  resetResults();
-  const skipButton = getSkipButton();
-  if (skipButton) {
-    skipButton.disabled = lookupQueue.length <= 1;
-  }
-  const coverToggle = getCoverArtToggle();
-  if (coverToggle) {
-    coverToggle.checked = false;
-  }
+	updateQueueContext();
+	updateApplyModeOptions();
+	resetResults();
+	const skipButton = getSkipButton();
+	if (skipButton) {
+		skipButton.disabled = lookupQueue.length <= 1;
+	}
+	const coverToggle = getCoverArtToggle();
+	if (coverToggle) {
+		coverToggle.checked = false;
+	}
 
-  showModal();
+	showModal();
 }
 
 export function initMetadataLookup(): void {
-  mountMetadataLookupIsland();
+	mountMetadataLookupIsland();
 
-  const openButton = document.getElementById(
-    "metadata-lookup-btn"
-  ) as HTMLButtonElement | null;
-  const closeButton = document.getElementById(
-    "metadata-lookup-close"
-  ) as HTMLButtonElement | null;
-  const searchButton = document.getElementById(
-    "metadata-lookup-search-btn"
-  ) as HTMLButtonElement | null;
-  const modal = getModal();
-  const skipButton = getSkipButton();
+	const openButton = document.getElementById('metadata-lookup-btn') as HTMLButtonElement | null;
+	const closeButton = document.getElementById('metadata-lookup-close') as HTMLButtonElement | null;
+	const searchButton = document.getElementById(
+		'metadata-lookup-search-btn',
+	) as HTMLButtonElement | null;
+	const modal = getModal();
+	const skipButton = getSkipButton();
 
-  if (openButton) {
-    openButton.addEventListener("click", openLookup);
-  }
+	if (openButton) {
+		openButton.addEventListener('click', openLookup);
+	}
 
-  if (closeButton) {
-    closeButton.addEventListener("click", hideModal);
-  }
+	if (closeButton) {
+		closeButton.addEventListener('click', hideModal);
+	}
 
-  if (modal) {
-    modal.addEventListener("click", (event) => {
-      if (event.target === modal) {
-        hideModal();
-      }
-    });
-  }
+	if (modal) {
+		modal.addEventListener('click', (event) => {
+			if (event.target === modal) {
+				hideModal();
+			}
+		});
+	}
 
-  if (searchButton) {
-    searchButton.addEventListener("click", () => {
-      void runSearch();
-    });
-  }
+	if (searchButton) {
+		searchButton.addEventListener('click', () => {
+			void runSearch();
+		});
+	}
 
-  if (skipButton) {
-    skipButton.addEventListener("click", () => {
-      void advanceQueue("skipped");
-    });
-  }
+	if (skipButton) {
+		skipButton.addEventListener('click', () => {
+			void advanceQueue('skipped');
+		});
+	}
 
-  const searchInput = getSearchInput();
-  if (searchInput) {
-    searchInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void runSearch();
-      }
-    });
-  }
+	const searchInput = getSearchInput();
+	if (searchInput) {
+		searchInput.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				void runSearch();
+			}
+		});
+	}
 
-  const results = getResultsContainer();
-  if (results) {
-    results.addEventListener("click", (event) => {
-      const target = event.target as HTMLElement;
-      const button = target.closest<HTMLButtonElement>("button[data-index]");
-      if (!button) return;
-      const index = Number(button.dataset.index ?? "-1");
-      const result = currentResults[index];
-      if (!result) return;
-      void applyResult(result);
-    });
-  }
+	const results = getResultsContainer();
+	if (results) {
+		results.addEventListener('click', (event) => {
+			const target = event.target as HTMLElement;
+			const button = target.closest<HTMLButtonElement>('button[data-index]');
+			if (!button) return;
+			const index = Number(button.dataset.index ?? '-1');
+			const result = currentResults[index];
+			if (!result) return;
+			void applyResult(result);
+		});
+	}
 }

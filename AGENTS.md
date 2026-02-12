@@ -92,7 +92,7 @@ Use this scale to rate the quality of code and solutions:
 **Tiered checks (run from repo root)**
 
 - **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
-  - Runs: `cargo fmt --check`, `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
+  - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
   - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
 - **Release (pre-release)**: `scripts/checks.sh release`
@@ -231,6 +231,9 @@ See `README.md` for build and run commands.
 Quick references (from `README.md`):
 - Dev mode: `bun run tauri dev` (Vite on port 1420)
 - Rust logging: `RUST_LOG=debug bun run tauri dev` (or `RUST_LOG=audiobook_boss=debug`)
+- Frontend format write: `bun run fmt`
+- Frontend format check: `bun run fmt:check`
+- Frontend changed-files cleanup: `bun run fmt:changed`
 - Rust lint: `cargo clippy -- -D warnings`
 - Path validation tests: `cargo test path_validation`
 - Stale dev sessions: `lsof -i :1420` then `pkill -f vite && pkill -f "tauri dev"`

@@ -12,8 +12,15 @@ on:
       - 'src-tauri/Cargo.toml'
       - 'src-tauri/Cargo.lock'
       - 'package.json'
-      - 'bun.lockb'
+      - 'bun.lock'
       - 'tsconfig.json'
+      - 'biome.json'
+      - '.prettierrc'
+      - '.prettierignore'
+      - 'mise.toml'
+      - 'rust-toolchain.toml'
+      - '.githooks/**'
+      - '.git-blame-ignore-revs'
       - 'scripts/**'
       - '.github/workflows/ci.yml'
       # Explicit exclusions (first-line defense)
@@ -51,8 +58,15 @@ jobs:
               - 'src-tauri/Cargo.toml'
               - 'src-tauri/Cargo.lock'
               - 'package.json'
-              - 'bun.lockb'
+              - 'bun.lock'
               - 'tsconfig.json'
+              - 'biome.json'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'mise.toml'
+              - 'rust-toolchain.toml'
+              - '.githooks/**'
+              - '.git-blame-ignore-revs'
               - 'scripts/**'
               - '.github/workflows/ci.yml'
 
@@ -64,7 +78,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: oven-sh/setup-bun@v2
+      - uses: jdx/mise-action@v3
+        with:
+          install: true
       
       - name: Install FFmpeg and Tools
         run: brew install ffmpeg pkg-config ripgrep
