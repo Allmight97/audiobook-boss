@@ -584,7 +584,8 @@ button {
 }
 
 /* Input fields and labels with theme support */
-label {
+label,
+.label {
 	display: block;
 	font-size: 0.875rem;
 	font-weight: 500;
@@ -1414,7 +1415,8 @@ textarea:hover:not(:focus) {
 }
 
 /* Compact form elements */
-label {
+label,
+.label {
 	font-size: 0.75rem;
 	margin-bottom: 0.15rem;
 }

@@ -28,7 +28,7 @@
       </p>
     </div>
     <div>
-      <label>Profile</label>
+      <span class="label">Profile</span>
       <div
         id="encoder-profile-display"
         class="profile-display"
