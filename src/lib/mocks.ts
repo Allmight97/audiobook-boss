@@ -1,3 +1,13 @@
+/**
+ * Dev-mode stub for the Tauri Rust backend.
+ *
+ * When the frontend runs outside a Tauri window (browser dev server, Vitest),
+ * bridge.ts lazy-loads this module to provide canned responses for every IPC
+ * command, a fake event emitter for progress/queue events, and mock native
+ * dialogs. Tree-shaken out of production builds.
+ *
+ * See bridge.ts `getMocks()` for the runtime gate (FB-015).
+ */
 import type { FileListInfo } from '../types/audio';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../types/metadata';
 import {
