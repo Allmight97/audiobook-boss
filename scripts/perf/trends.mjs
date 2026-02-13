@@ -26,7 +26,7 @@ const BENCH_UX_META = {
 	},
 	'audio-processing-throughput': {
 		area: 'Audio Encoding',
-		humanize: (median, mode, details) => {
+		humanize: (median, mode, _details) => {
 			if (!Number.isFinite(median)) return 'n/a';
 			if (mode === 'synthetic') {
 				return `${Math.round(median)} MiB/s`;

@@ -1,4 +1,4 @@
-import { AudioFile, formatDuration, formatFileSize } from '../../types/audio';
+import { type AudioFile, formatDuration, formatFileSize } from '../../types/audio';
 import { getCurrentFileList, isOrderLocked, getSelectedFileIndices } from './state';
 import { updateDropZoneState } from '../fileImport';
 
@@ -26,7 +26,7 @@ export function createFileListItem(file: AudioFile, index: number): HTMLElement 
 	item.setAttribute('draggable', isOrderLocked() ? 'false' : 'true');
 	item.setAttribute('role', 'listitem');
 
-	const fileName = file.path.split(/[\\\/]/).pop() || file.path;
+	const fileName = file.path.split(/[\\/]/).pop() || file.path;
 	item.setAttribute('aria-label', fileName);
 	const statusIcon = file.isValid ? '✓' : '✗';
 	const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';
@@ -72,7 +72,7 @@ export function updateFileListItem(item: HTMLElement, file: AudioFile, index: nu
 	item.setAttribute('draggable', isOrderLocked() ? 'false' : 'true');
 	item.setAttribute('role', 'listitem');
 
-	const fileName = file.path.split(/[\\\/]/).pop() || file.path;
+	const fileName = file.path.split(/[\\/]/).pop() || file.path;
 	item.setAttribute('aria-label', fileName);
 	const statusIcon = file.isValid ? '✓' : '✗';
 	const statusClass = file.isValid ? 'text-green-500' : 'text-red-500';

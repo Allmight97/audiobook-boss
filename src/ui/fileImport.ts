@@ -1,5 +1,5 @@
 import { bridge } from '../lib/bridge';
-import { FileListInfo } from '../types/audio';
+import type { FileListInfo } from '../types/audio';
 import { isFileDropEvent } from '../types/events';
 import { mount, unmount } from 'svelte';
 import { displayFileList, refreshFileListControlBindings } from './fileList';

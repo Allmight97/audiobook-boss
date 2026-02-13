@@ -1,5 +1,5 @@
 import { ENABLE_FDK } from './featureFlags';
-import { queryDom, EncoderDomCache } from './dom';
+import { queryDom, type EncoderDomCache } from './dom';
 import { loadState, saveState } from './state';
 import type { EncoderSettingsLike, EncoderFlavor, EncoderSettingsV2 } from '../../types/encoder';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
@@ -293,25 +293,27 @@ const enforceBitrateModeCompatibility = (encoder: EncoderFlavor): void => {
 	if (!select) return;
 
 	// Enable all options first
-	select.querySelectorAll('option').forEach((opt) => (opt.disabled = false));
+	for (const opt of select.querySelectorAll('option')) {
+		opt.disabled = false;
+	}
 
 	// Lock to encoder-specific mode
 	if (encoder === 'aac_at') {
 		select.value = 'cvbr';
-		select.querySelectorAll('option').forEach((opt) => {
+		for (const opt of select.querySelectorAll('option')) {
 			if (opt.value !== 'cvbr') opt.disabled = true;
-		});
+		}
 	} else if (encoder === 'native_aac') {
 		select.value = 'cbr';
-		select.querySelectorAll('option').forEach((opt) => {
+		for (const opt of select.querySelectorAll('option')) {
 			if (opt.value !== 'cbr') opt.disabled = true;
-		});
+		}
 	} else {
 		// FDK or auto (resolves to FDK)
 		select.value = 'vbr';
-		select.querySelectorAll('option').forEach((opt) => {
+		for (const opt of select.querySelectorAll('option')) {
 			if (opt.value !== 'vbr') opt.disabled = true;
-		});
+		}
 	}
 };
 

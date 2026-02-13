@@ -119,7 +119,7 @@ export const defaultEncoderSettings = (): EncoderSettings => getDefaultEncoderSe
 
 // Utility functions
 export const formatDuration = (seconds: number | undefined): string => {
-	if (seconds == null || isNaN(seconds)) {
+	if (seconds == null || Number.isNaN(seconds)) {
 		return '---';
 	}
 
@@ -134,7 +134,7 @@ export const formatDuration = (seconds: number | undefined): string => {
 };
 
 export const formatFileSize = (bytes: number | undefined): string => {
-	if (bytes == null || isNaN(bytes)) {
+	if (bytes == null || Number.isNaN(bytes)) {
 		return '---';
 	}
 

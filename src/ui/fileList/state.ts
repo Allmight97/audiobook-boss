@@ -1,4 +1,4 @@
-import { FileListInfo } from '../../types/audio';
+import type { FileListInfo } from '../../types/audio';
 
 let currentFileList: FileListInfo | null = null;
 let selectedFileIndex: number = -1;

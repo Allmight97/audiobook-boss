@@ -23,7 +23,7 @@ export interface OutputPanelState {
 /**
  * Current output panel state (module-level singleton)
  */
-let currentState: OutputPanelState = {
+const currentState: OutputPanelState = {
 	encoderSettings: { ...defaultEncoderSettings() },
 	sampleRate: { explicit: 22050 },
 	outputDirectory: '',
@@ -62,7 +62,7 @@ export function updateEncoderSettings(updates: Partial<EncoderSettings>): void {
  * Updates sample rate in state
  */
 export function updateSampleRate(value: string): void {
-	currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value) };
+	currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value, 10) };
 }
 
 /**
@@ -108,7 +108,7 @@ export function loadInitialState(): void {
 	if (bitrateSelect) {
 		currentState.encoderSettings = {
 			...currentState.encoderSettings,
-			bitrateKbps: parseInt(bitrateSelect.value) as EncoderSettings['bitrateKbps'],
+			bitrateKbps: parseInt(bitrateSelect.value, 10) as EncoderSettings['bitrateKbps'],
 		};
 	}
 

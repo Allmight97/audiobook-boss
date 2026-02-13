@@ -194,7 +194,7 @@ export async function startProcessing(
 		});
 
 		console.log('Processing completed successfully:', result);
-		if (result && result.previewFilePath) {
+		if (result?.previewFilePath) {
 			const seconds =
 				typeof result.previewActualSeconds === 'number'
 					? result.previewActualSeconds.toFixed(3)

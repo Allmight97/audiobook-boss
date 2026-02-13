@@ -24,7 +24,7 @@ import {
 export function handleBitrateChange(event: Event): void {
 	const target = event.target as HTMLSelectElement;
 	updateEncoderSettings({
-		bitrateKbps: parseInt(target.value) as EncoderSettings['bitrateKbps'],
+		bitrateKbps: parseInt(target.value, 10) as EncoderSettings['bitrateKbps'],
 	});
 	updateEstimatedSize();
 }

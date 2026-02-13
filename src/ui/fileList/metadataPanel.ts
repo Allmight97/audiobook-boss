@@ -1,4 +1,4 @@
-import { AudioFile, formatFileSize } from '../../types/audio';
+import { type AudioFile, formatFileSize } from '../../types/audio';
 import { bridge } from '../../lib/bridge';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { onMetadataChange } from '../outputPanel';

@@ -1,6 +1,11 @@
-import { FileListInfo } from '../types/audio';
-import { AudiobookMetadata, OnlineMetadataResult } from '../types/metadata';
-import { ProcessingProgressEvent, ProcessingQueueEvent, EVENTS, STAGES } from '../types/events';
+import type { FileListInfo } from '../types/audio';
+import type { AudiobookMetadata, OnlineMetadataResult } from '../types/metadata';
+import {
+	type ProcessingProgressEvent,
+	type ProcessingQueueEvent,
+	EVENTS,
+	STAGES,
+} from '../types/events';
 import type { OpenDialogOptions } from '@tauri-apps/plugin-dialog';
 
 // Mock Data
@@ -111,7 +116,9 @@ export function mockListen(event: string, handler: MockEventHandler): Promise<()
 function emitEvent(event: string, payload: unknown) {
 	const handlers = listeners.get(event);
 	if (handlers) {
-		handlers.forEach((h) => h({ payload }));
+		for (const h of handlers) {
+			h({ payload });
+		}
 	}
 }
 
