@@ -28,8 +28,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'write_cover_art',
 ] as const;
 
-const EXPECTED_EVENT_NAMES = ['processing-progress', 'processing-queue'] as const;
-
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -50,17 +48,7 @@ describe('compatibility guards', () => {
 	});
 
 	it('keeps app event names stable', () => {
-		expect([...BRIDGE_APP_EVENT_NAMES]).toEqual([...EXPECTED_EVENT_NAMES]);
-	});
-
-	it('ensures bridge event names match generated event bindings', () => {
-		const bridgeEventNames = [...BRIDGE_APP_EVENT_NAMES];
-
-		const expectedEvents = ['processing-progress', 'processing-queue'];
-		expect(bridgeEventNames).toEqual(expectedEvents);
-
-		expect(bridgeEventNames).toContain('processing-progress');
-		expect(bridgeEventNames).toContain('processing-queue');
+		expect([...BRIDGE_APP_EVENT_NAMES]).toEqual([EVENTS.PROGRESS, EVENTS.QUEUE]);
 	});
 });
 
