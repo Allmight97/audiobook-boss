@@ -1,28 +1,6 @@
-//! prepare.rs
+//! Preparation stage — validation, workspace setup, and sample rate detection.
 //!
-//! Phase 1 implementation module for the processor split (see
-//! docs/planning/processor_split_plan.md).
-//!
-//! Responsibilities (extracted from former monolithic `audio/processor.rs`):
-//!   - Input validation
-//!   - Workspace (temp directory + concat file) creation
-//!   - Sample rate detection
-//!   - Early progress stage emission
-//!
-//! Roadmap Notes:
-//!   - `detect_input_sample_rate` may move to a future analysis module
-//!     (see plan: Deferred Item P9-D2).
-//!   - Legacy adapters will delegate into the staged API after full split.
-//!
-//! Public Surface (indirect):
-//!   These functions are internal (`pub(crate)`) and re-exported selectively
-//!   by `processor::mod.rs` to preserve stable external API.
-//!
-//! Function Size Compliance:
-//!   All functions kept <60 LOC and cohesive. Helpers remain private unless
-//!   required across stage boundaries.
-//!
-//! Phase: 1 (Prepare Stage Extraction)
+//! Functions are `pub(crate)` and re-exported selectively by `processor::mod.rs`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -34,7 +12,6 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use super::ProcessingWorkflow;
 
 /// Detects the most common sample rate across provided files.
-/// Potential future extraction to dedicated analysis module (see roadmap P9-D2).
 pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
     if file_paths.is_empty() {
         return Err(AppError::InvalidInput(

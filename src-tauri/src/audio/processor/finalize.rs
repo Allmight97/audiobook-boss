@@ -1,49 +1,8 @@
-//! finalize.rs
+//! Finalization stage — metadata writing, output move, and cleanup.
 //!
-//! Phase 0 scaffold module for the processor split (see
-//! docs/planning/processor_split_plan.md).
-//!
-//! Purpose:
-//!   Hosts final movement to output path, cleanup (temporary directory removal),
-//!   and final reporting logic migrated from the former monolithic `audio/processor.rs`.
-//!   Metadata is written earlier via ffmpeg-next mux/remux, so `write_metadata_stage`
-//!   is intentionally a no-op.
-//!
-//! Target contents:
-//!   - write_metadata_stage (no-op; metadata handled during mux)
-//!   - complete_processing
-//!   - finalize_processing (orchestration combining the above)
-//!   - move_to_final_location
-//!   - cleanup_temp_directory_with_session
-//!
-//!
-//! Design Notes:
-//!   - All filesystem side-effects (rename/move + cleanup) centralized here
-//!     to confine IO + failure handling semantics to one layer.
-//!   - Metadata writing uses `crate::metadata::write_metadata`; this stage
-//!     emits UI progress events via `ProgressEmitter` (kept intact when moved).
-//!   - Cancellation checks should remain after each major sub‑step to avoid
-//!     doing unnecessary work if user aborts late.
-//!   - This module should not expose public API directly; `mod.rs` will
-//!     re‑export necessary orchestration functions to preserve stable surface.
-//!   - Keep each function under 60 LOC; extract small helpers only when they
-//!     demonstrably reduce cognitive complexity (avoid premature granularity).
-//!
-//! Migration Strategy (Phase 3):
-//!   1. Move pure helpers (`move_to_final_location`, `cleanup_temp_directory_with_session`).
-//!   2. Move metadata + completion stages.
-//!   3. Move the orchestration (`finalize_processing`) last to minimize interim
-//!      broken references.
-//!   4. Adjust imports (e.g. `use crate::errors::AppError`) locally; prefer
-//!      fully qualified paths sparingly to keep readability.
-//!   5. Run incremental compilation (Phase 6) after each move if desired.
-//!
-//! Legacy adapters referencing finalize helpers were removed during nuclear
-//! cleanup; no further gating required.
-//!
-//! Phase: 3 (Finalize Stage Extraction) - metadata writing, cleanup, and file movement
-//!
-//! NOTE: Orchestrator moved to mod.rs in Phase 5.
+//! All filesystem side-effects (rename/move + cleanup) are centralized here.
+//! Metadata is written during mux, so `write_metadata_stage` is a no-op.
+//! Cancellation checks run after each sub-step to avoid unnecessary work.
 
 // Imports
 use std::path::{Path, PathBuf};

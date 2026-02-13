@@ -1,29 +1,12 @@
-//! Audio processor module (split refactor - Phase 5 complete).
+//! Audio processor module.
 //!
-//! Current staged modules:
+//! Staged modules:
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
-//!   - execute.rs   : merge / ffmpeg execution logic
-//!   - finalize.rs  : metadata writing, move, cleanup
-//!   - selection.rs : engine selection type aliases (P1.3)
-//!   - mod.rs       : orchestrator and public API re-exports
+//!   - execute.rs   : merge / ffmpeg execution
+//!   - finalize.rs  : metadata writing, output move, cleanup
+//!   - selection.rs : engine selection
 //!
-//! Post-nuclear cleanup: processor split and single-engine architecture complete
-//!
-//! Post-nuclear cleanup: All legacy feature flags and dual-engine complexity removed.
-//! Single ffmpeg-next engine provides simplified, maintainable architecture.
-//!
-//! Status:
-//!   Phase 5 complete: Orchestrator consolidated in mod.rs, calling staged functions:
-//!   - prepare::validate_and_prepare
-//!   - execute::execute_processing  
-//!   - finalize::finalize_processing
-//!
-//! Public Surface (current):
-//!   - processor::detect_input_sample_rate
-//!   - processor::process_audiobook_with_context
-//!   - Single-engine processing with ffmpeg-next only
-//!
-//! Note: Monolithic file removal / full legacy isolation continues in subsequent phases.
+//! Single-engine architecture using ffmpeg-next (`FfmpegNextProcessor`).
 
 // Imports for orchestrator function
 use crate::audio::context::ProcessingContext;
@@ -34,11 +17,10 @@ use crate::metadata::AudiobookMetadata;
 use std::time::Duration;
 
 // Submodules
+pub mod encoder;
 pub mod engine;
 pub mod execute;
 pub mod finalize;
-// Legacy module removed during nuclear cleanup - single-engine architecture achieved
-pub mod encoder;
 pub mod frame_pipeline;
 pub mod plan;
 pub mod prepare;
@@ -46,9 +28,7 @@ pub mod preview_state;
 pub mod selection;
 pub mod streams;
 
-// Re-exports (current public / crate API)
-// Underlying items are currently pub(crate); visibility can be expanded if needed
-// Note: process_audiobook_with_context now implemented in this module (Phase 5)
+// Re-exports
 pub use engine::FfmpegNextProcessor;
 pub use plan::{MediaProcessingPlan, MediaProcessor};
 pub use prepare::detect_input_sample_rate;
@@ -57,9 +37,7 @@ pub use prepare::detect_input_sample_rate;
 pub use frame_pipeline::PreviewAction;
 pub use preview_state::{sanitize_chapter_title, ChapterMarker, PreviewState};
 
-// Single-engine architecture: only ffmpeg-next processor supported
-
-/// Internal workflow state passed between staged phases of processing.
+/// Internal workflow state passed between processing stages.
 ///
 /// This replaces ad-hoc tuples and keeps intermediate artifacts cohesive.
 /// Fields are intentionally minimal; additional items should only be added if
@@ -86,11 +64,11 @@ impl ProcessingWorkflow {
     }
 }
 
-/// Orchestrator: Main processing entrypoint (Phase 5: moved from finalize.rs)
+/// Main audiobook processing entrypoint.
 ///
 /// Coordinates the three-stage processing pipeline:
 /// 1. Validate & Prepare
-/// 2. Execute Processing  
+/// 2. Execute Processing
 /// 3. Finalize Processing
 pub async fn process_audiobook_with_context(
     context: ProcessingContext,
@@ -178,15 +156,3 @@ pub async fn process_audiobook_with_context(
     }
     Ok(result)
 }
-
-// NOTE (Phase 5 Complete):
-// - Preparation + validation + workflow construction migrated (prepare.rs)
-// - Execution layer extracted (execute.rs) with feature-gated processor selection
-// - Finalization logic migrated (finalize.rs)
-// Nuclear cleanup complete: simplified single-engine processing
-// - Orchestrator consolidated in mod.rs calling staged functions
-// Next Steps:
-//   Phase 6+: Compile & lint validation, test verification
-// Next Steps:
-//   Phase 2+: Refine execution module & ensure function size limits remain enforced
-//   Phase 5: Centralize re-exports here (including deprecated) and finalize public surface

@@ -1,7 +1,6 @@
 //! Engine selection module for media processing
 //!
-//! This module provides access to the single FFmpeg processing engine
-//! after the nuclear transition from dual-engine to ffmpeg-next only.
+//! Provides access to the single FFmpeg processing engine.
 //!
 //! ## Processing Engine
 //!
@@ -25,14 +24,14 @@ pub type DefaultProcessor = FfmpegNextProcessor;
 
 /// Returns a description of the currently selected engine for logging and diagnostics.
 ///
-/// After the nuclear transition, this always returns the same engine description.
+/// Always returns the current engine description.
 pub fn get_engine_description() -> &'static str {
     "FfmpegNextProcessor (single-engine)"
 }
 
 /// Creates an instance of the default media processor.
 ///
-/// After the nuclear transition, this always returns `FfmpegNextProcessor`.
+/// Returns a new `FfmpegNextProcessor` instance.
 pub fn create_default_processor() -> DefaultProcessor {
     FfmpegNextProcessor
 }

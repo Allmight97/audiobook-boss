@@ -1,6 +1,6 @@
 //! Sample accumulation to build exact encoder-sized frames without truncation.
-//! Phase 1 refactor: isolates frame sizing logic from main pipeline.
-//! Phase 2: format-aware storage for both F32 planar and S16 packed formats.
+//! Isolates frame sizing logic from the main pipeline. Supports F32 planar
+//! and S16 packed formats.
 //!
 //! ## Supported Formats
 //! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
