@@ -12,6 +12,10 @@ import {
 
 let draggedIndex: number | null = null;
 
+type DraggableFileListItem = HTMLElement & {
+	__dragStartHandler?: (event: DragEvent) => void;
+};
+
 export function initFileListEvents(): void {
 	const container = document.querySelector<HTMLElement>('.file-list-content');
 	if (!container) return;
@@ -38,13 +42,14 @@ export function setupDragStartHandlers(): void {
 
 	const items = container.querySelectorAll<HTMLElement>('.file-list-item');
 	items.forEach((item, index) => {
-		const existingHandler = (item as any).__dragStartHandler;
+		const draggableItem = item as DraggableFileListItem;
+		const existingHandler = draggableItem.__dragStartHandler;
 		if (existingHandler) {
 			item.removeEventListener('dragstart', existingHandler);
 		}
 
 		const handler = (e: DragEvent) => handleDragStart(e, index);
-		(item as any).__dragStartHandler = handler;
+		draggableItem.__dragStartHandler = handler;
 		item.addEventListener('dragstart', handler);
 	});
 }
