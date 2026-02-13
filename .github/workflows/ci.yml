@@ -87,7 +87,10 @@ jobs:
       
       - name: Install dependencies
         run: bun install
-        
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
       - name: Standard Checks (primary gate)
         run: scripts/checks.sh standard
 
