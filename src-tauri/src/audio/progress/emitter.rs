@@ -16,7 +16,7 @@ pub struct ProgressEmitter {
 }
 
 impl ProgressEmitter {
-    /// Creates a new progress emitter without job tracking (legacy/single-job mode)
+    /// Creates a new progress emitter without job tracking (single-job mode)
     pub fn new(window: Window) -> Self {
         Self {
             window: Some(window),

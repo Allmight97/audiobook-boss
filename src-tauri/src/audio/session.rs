@@ -33,7 +33,7 @@ impl std::fmt::Debug for CancellationSource {
 pub struct ProcessingSession {
     /// Unique identifier for this session
     id: Uuid,
-    /// Cancellation source (legacy or job registry)
+    /// Cancellation source (manual flag or job registry)
     cancellation: CancellationSource,
 }
 

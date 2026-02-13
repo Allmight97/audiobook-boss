@@ -18,7 +18,6 @@ pub mod path_validation;
 pub mod preview_config;
 pub mod processor;
 pub mod progress;
-// Removed progress_monitor (legacy shell monitoring) during nuclear cleanup
 pub mod session;
 pub mod settings;
 pub mod settings_encoder;
@@ -121,10 +120,7 @@ pub use settings::{validate_output_path, validate_sample_rate_config};
 // Core processor API (post-split staged)
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
 
-// Deprecated adapter - maintained for backward compatibility
-// Deprecated adapter re-export temporarily removed pending legacy module migration (Phase 4).
-
-// Core context - used in current implementation
+// Core context
 pub use context::ProcessingContext;
 
 // Builders and progress context always available after cleanup

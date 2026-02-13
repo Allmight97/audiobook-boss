@@ -69,7 +69,7 @@ impl FfmpegNextProcessor {
             stream_index
         );
 
-        // Update context indices for this file (P1.4) then process packets
+        // Update context indices for this file
         ctx.current_file_index = file_index;
         ctx.current_stream_index = stream_index;
         log::info!(
@@ -130,7 +130,7 @@ impl MediaProcessor for FfmpegNextProcessor {
                     passthrough,
                 )?;
 
-            // Validate metadata compatibility if provided (now active post-legacy purge)
+            // Validate metadata compatibility if provided
             if let Some(md) = metadata {
                 let warnings = crate::metadata::validate_metadata_compatibility(md);
                 for warning in warnings {
@@ -277,7 +277,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             )?;
             log::info!("✓ Encoding finalization completed successfully");
 
-            // Preserve output on success (Phase 11: re-enabled after legacy purge)
+            // Preserve output on success
             let _ = cleanup_guard.remove_path(&plan.output_path);
 
             if metadata.is_some() {

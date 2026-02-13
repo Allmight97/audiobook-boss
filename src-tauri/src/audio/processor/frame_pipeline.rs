@@ -34,7 +34,7 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) input_samples_total: &'a mut u64,
     pub(crate) encoded_samples_total: &'a mut u64,
     pub(crate) early_stop: &'a mut bool,
-    /// Adaptive preview state (None when not in preview mode or using legacy single-file preview)
+    /// Adaptive preview state (None when not in preview mode or using single-file preview)
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 
@@ -100,7 +100,7 @@ fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
     PreviewAction::Continue
 }
 
-/// Legacy single-file preview early-stop check (used when preview_state is None)
+/// Single-file preview early-stop check (used when preview_state is None)
 #[inline]
 fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) -> bool {
     // Skip if adaptive preview is active (handled by check_per_file_preview_stop)

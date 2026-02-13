@@ -2,7 +2,6 @@ use crate::errors::Result;
 use log::{debug, error};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-// Removed legacy process management (ProcessGuard) during nuclear cleanup
 
 /// RAII guard for automatic cleanup of temporary directories and files
 ///
@@ -144,5 +143,3 @@ impl Drop for CleanupGuard {
         }
     }
 }
-
-// ProcessGuard removed.
