@@ -1,6 +1,7 @@
 import { FileListInfo } from '../types/audio';
 import { AudiobookMetadata, OnlineMetadataResult } from '../types/metadata';
 import { ProcessingProgressEvent, ProcessingQueueEvent, EVENTS, STAGES } from '../types/events';
+import type { OpenDialogOptions } from '@tauri-apps/plugin-dialog';
 
 // Mock Data
 const MOCK_FILE_LIST: FileListInfo = {
@@ -89,12 +90,12 @@ const MOCK_COVER_ART_BYTES = [
 ];
 
 // Event Simulation Helpers
-type EventHandler = (event: any) => void;
-const listeners: Map<string, Set<EventHandler>> = new Map();
+type MockEventHandler = (event: { payload: unknown }) => void;
+const listeners: Map<string, Set<MockEventHandler>> = new Map();
 let mockJobCounter = 0;
 let mockMaxConcurrent = 2;
 
-export function mockListen(event: string, handler: EventHandler): Promise<() => void> {
+export function mockListen(event: string, handler: MockEventHandler): Promise<() => void> {
 	console.log(`[Bridge Mock] Listening for event: ${event}`);
 	if (!listeners.has(event)) {
 		listeners.set(event, new Set());
@@ -107,7 +108,7 @@ export function mockListen(event: string, handler: EventHandler): Promise<() => 
 	});
 }
 
-function emitEvent(event: string, payload: any) {
+function emitEvent(event: string, payload: unknown) {
 	const handlers = listeners.get(event);
 	if (handlers) {
 		handlers.forEach((h) => h({ payload }));
@@ -115,7 +116,7 @@ function emitEvent(event: string, payload: any) {
 }
 
 // Mock Command Implementations
-export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
+export async function mockInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
 	console.log(`[Bridge Mock] Invoke: ${cmd}`, args);
 
 	// Simulate network delay
@@ -123,28 +124,29 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
 
 	switch (cmd) {
 		case 'analyze_audio_files':
-			return MOCK_FILE_LIST as unknown as T;
+			return MOCK_FILE_LIST as unknown;
 
 		case 'read_audio_metadata':
-			return MOCK_METADATA as unknown as T;
+			return MOCK_METADATA as unknown;
 
 		case 'list_available_encoders':
 			return {
 				fdkAvailable: true,
 				aacAtAvailable: true,
 				nativeAacAvailable: true,
-			} as unknown as T;
+			} as unknown;
 
 		case 'get_max_concurrent_jobs':
-			return mockMaxConcurrent as unknown as T;
+			return mockMaxConcurrent as unknown;
 
 		case 'set_max_concurrent_jobs':
-			mockMaxConcurrent = args?.max_concurrent ?? mockMaxConcurrent;
-			return mockMaxConcurrent as unknown as T;
+			mockMaxConcurrent = (args?.max_concurrent as number) ?? mockMaxConcurrent;
+			return mockMaxConcurrent;
 
 		case 'process_audiobook_files_v2':
 			{
-				const inputFiles: string[] = args?.payload?.inputFiles ?? [];
+				const argsWithPayload = args?.payload as { inputFiles?: string[] } | undefined;
+				const inputFiles: string[] = argsWithPayload?.inputFiles ?? [];
 				emitEvent(EVENTS.QUEUE, {
 					items: inputFiles.map((filePath, index) => ({
 						input_index: index,
@@ -166,7 +168,7 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
 			return {
 				message: 'Processing started (mock)',
 				jobId: `mock-job-${mockJobCounter}`,
-			} as unknown as T;
+			} as unknown;
 
 		case 'cancel_processing':
 			emitEvent(EVENTS.PROGRESS, {
@@ -177,25 +179,25 @@ export async function mockInvoke<T>(cmd: string, args?: any): Promise<T> {
 				eta_seconds: 0,
 				job_id: args?.job_id,
 			} as ProcessingProgressEvent);
-			return undefined as unknown as T;
+			return undefined as unknown;
 
 		case 'load_cover_art_file':
 			// Return a small 1x1 transparent pixel as mock cover art
-			return MOCK_COVER_ART_BYTES as unknown as T;
+			return MOCK_COVER_ART_BYTES as unknown;
 
 		case 'load_cover_art_from_url':
-			return MOCK_COVER_ART_BYTES as unknown as T;
+			return MOCK_COVER_ART_BYTES as unknown;
 
 		case 'search_online_metadata':
-			return MOCK_LOOKUP_RESULTS as unknown as T;
+			return MOCK_LOOKUP_RESULTS as unknown;
 
 		default:
 			console.warn(`[Bridge Mock] Unhandled command: ${cmd}`);
-			return undefined as unknown as T;
+			return undefined as unknown;
 	}
 }
 
-export async function mockOpen(options?: any): Promise<string | string[] | null> {
+export async function mockOpen(options?: OpenDialogOptions): Promise<string | string[] | null> {
 	console.log(`[Bridge Mock] Open Dialog`, options);
 	if (options?.multiple) {
 		return ['/mock/path/file1.mp3', '/mock/path/file2.mp3'];
