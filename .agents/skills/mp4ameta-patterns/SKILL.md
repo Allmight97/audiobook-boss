@@ -28,7 +28,7 @@ use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 |-----------|----------|---------|
 | Bridge module | `src-tauri/src/metadata/mp4ameta_bridge.rs` | Read/write via mp4ameta |
 | Integration | `src-tauri/src/metadata/reader.rs` | Route MP4 containers to mp4ameta |
-| Test | `src-tauri/tests/mp4ameta_series_tags.rs` | Series tag verification |
+| Integration tests | `src-tauri/tests/integration_metadata_tests.rs` | Series tags, cover art, and metadata roundtrip verification |
 
 ## Container Detection
 
@@ -141,7 +141,7 @@ if let Some(ref series_part) = metadata.series_part {
     let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
     tag.set_data(ident, Data::Utf8(series_part.to_string()));
 
-    // Movement index (must be u16, non-zero)
+    // Movement index (must be positive u16; slash-form values are rejected)
     if let Some(index) = parse_series_part(series_part) {
         tag.set_movement_index(index);
         tag.set_show_movement();
@@ -149,11 +149,17 @@ if let Some(ref series_part) = metadata.series_part {
 }
 
 fn parse_series_part(value: &str) -> Option<u16> {
-    let raw = value.split('/').next()?.trim();  // Handle "1/5" format
+    let raw = value.trim();
+    if raw.is_empty() || raw.contains('/') {
+        return None;
+    }
     let parsed = raw.parse::<u16>().ok()?;
     if parsed == 0 { None } else { Some(parsed) }
 }
 ```
+
+`series_part` values containing `/` are rejected at validation boundaries, and the
+movement-index mirror only accepts positive `u16` values.
 
 ### Tag Mapping Summary
 
@@ -349,7 +355,7 @@ let write_cfg = WriteConfig {
 
 2. **Movement index is u16**: Values must be 1-65535. Zero is treated as "not set".
 
-3. **Series-part parsing**: Handle "1/5" format by splitting on `/` before parsing.
+3. **Series-part parsing**: Slash-form values (for example `1/5`) are rejected; movement index mirrors only positive `u16`.
 
 4. **File must exist**: `Tag::read_from_path` fails on non-existent files. Create container first with ffmpeg-next.
 
@@ -375,5 +381,5 @@ let write_cfg = WriteConfig {
 ### Codebase
 - [mp4ameta_bridge.rs](src-tauri/src/metadata/mp4ameta_bridge.rs) - Bridge implementation
 - [reader.rs](src-tauri/src/metadata/reader.rs) - Integration with ffmpeg fallback
-- [mp4ameta_series_tags.rs](src-tauri/tests/mp4ameta_series_tags.rs) - Series tag test
+- [integration_metadata_tests.rs](src-tauri/tests/integration_metadata_tests.rs) - Series tags, cover art, and metadata integration tests
 - [Skill: audiobook-metadata](../audiobook-metadata/SKILL.md) - Tag mapping and ABS compatibility

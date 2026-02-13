@@ -23,7 +23,7 @@ pub async fn process_job(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
 ) -> crate::errors::Result<()> {
     let (_job_id, _permit) = registry.register_job().await?;
-    let emitter = crate::audio::progress::reporter::ProgressEmitter::new(window);
+    let emitter = crate::audio::progress::ProgressEmitter::new(window);
 
     tokio::task::spawn_blocking(move || {
         // CPU-bound work here.
@@ -37,12 +37,11 @@ pub async fn process_job(
 
 ## Guardrails
 
-- Keep progress stages aligned with `ProgressEvent` expectations (`analyzing`, `converting`, `writing`, `completed`, `cancelled`).
+- Keep progress stages aligned with `ProgressEvent` expectations (`analyzing`, `converting`, `writing`, `completed`, `failed`, `cancelled`).
 - Ensure cancellation checks happen inside long loops to avoid delayed stop.
 
 ## Codebase Pointers
 
-- `src-tauri/src/audio/progress/reporter.rs`
+- `src-tauri/src/audio/progress/emitter.rs`
 - `src-tauri/src/audio/processor` (encoding pipeline)
 - `src-tauri/src/commands/audio.rs`
-

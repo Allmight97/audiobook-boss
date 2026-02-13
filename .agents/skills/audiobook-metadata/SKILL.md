@@ -30,8 +30,8 @@ Write BOTH tag formats for universal compatibility:
 
 | Tags | Read By | Purpose |
 |------|---------|---------|
-| `series` + `series-part` | ABS, Plex (via ffprobe) | Primary series tags |
-| `MVNM` + `MVIN` | Apple Books/iTunes | Movement tags for Apple ecosystem |
+| `series` + `series-part` + `----:com.apple.iTunes:SERIES` + `----:com.apple.iTunes:SERIES-PART` | ABS, Plex (via ffprobe), metadata readers | Canonical series keys plus freeform mirror |
+| `MVNM` + `MVIN` | Apple Books/iTunes | Movement mirror for Apple ecosystem |
 
 **Never write only MVNM/MVIN** — ABS will not see series info.
 
@@ -47,8 +47,11 @@ artist         → Author
 composer       → Narrator (ABS maps this correctly)
 series         → Series name (critical for ABS)
 series-part    → Book number in series (critical for ABS)
+----:com.apple.iTunes:SERIES      → Series name (freeform mirror)
+----:com.apple.iTunes:SERIES-PART → Book number (freeform mirror)
 MVNM           → Series name (for Apple Books)
 MVIN           → Book number (for Apple Books)
+show / episode_sort               → Legacy read compatibility only (do not write as primary mapping)
 ```
 
 ## Folder Structure
@@ -102,13 +105,13 @@ Expected ffprobe output should include:
 
 2. **ffmpeg MVNM/MVIN**: Standard `-metadata` flag may not write movement tags correctly. May need stream-level metadata or alternative tool. Test output with AtomicParsley.
 
-3. **Current show/episode_sort mapping**: Needs verification that ABS can read these fields. If not, must switch to `series`/`series-part` ffmetadata keys.
+3. **Legacy read compatibility**: `show`/`episode_sort` remain read fallbacks for older files only. Current write mapping is `series`/`series-part` with mirrored freeform (`----:com.apple.iTunes:SERIES*`) and movement (`MVNM`/`MVIN`) tags.
 
 ## Implementation Checklist
 
 When modifying metadata handling:
 
-- [ ] Write `series` and `series-part` atoms (ABS/Plex)
+- [ ] Write `series`/`series-part` and mirror to freeform `----:com.apple.iTunes:SERIES` / `----:com.apple.iTunes:SERIES-PART`
 - [ ] Write `MVNM` and `MVIN` atoms (Apple Books)
 - [ ] Use `composer` for narrator
 - [ ] Verify with ffprobe (series/series-part visible)

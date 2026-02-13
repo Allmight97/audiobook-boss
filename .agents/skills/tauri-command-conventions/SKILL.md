@@ -22,10 +22,11 @@ stale, use the `lib-research` skill (btca for source, Context7 for docs).
 
 | Type | Location |
 |------|----------|
-| Audio processing | `src-tauri/src/commands/audio.rs` |
+| Audio commands (Tauri entrypoints) | `src-tauri/src/commands/audio.rs` |
+| Audio processing orchestration | `src-tauri/src/commands/audio_processing.rs` |
 | Metadata operations | `src-tauri/src/commands/metadata.rs` |
 | System utilities | `src-tauri/src/commands/system.rs` |
-| Command registration | `src-tauri/src/ipc_contract.rs` → `collect_commands![]` |
+| Command registration + event contract | `src-tauri/src/ipc_contract.rs` → `builder()` |
 
 ## Basic Command Pattern
 
@@ -84,6 +85,15 @@ pub enum AppError {
     #[error("FFmpeg error: {0}")]
     Ffmpeg(#[from] ffmpeg_next::Error),
 
+    #[error("Process termination failed: {0}")]
+    ProcessTermination(String),
+
+    #[error("Temporary directory creation failed: {0}")]
+    TempDirectoryCreation(String),
+
+    #[error("Resource cleanup failed: {0}")]
+    ResourceCleanup(String),
+
     #[error("Operation failed: {0}")]
     General(String),
 
@@ -109,11 +119,16 @@ From `src-tauri/src/lib.rs`:
 
 ```rust
 // State definition
-pub type ManagedJobRegistry = Arc<JobRegistry>;
+pub type ManagedJobRegistry = Arc<audio::JobRegistry>;
+
+let job_registry: ManagedJobRegistry = Arc::new(audio::JobRegistry::auto());
+let specta_builder = ipc_contract::builder();
 
 // Registration in builder
 tauri::Builder::default()
-    .manage(Arc::new(JobRegistry::new(max_concurrent)))
+    .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_dialog::init())
+    .manage(job_registry)
     .invoke_handler(specta_builder.invoke_handler())
     .setup(move |app| {
         specta_builder.mount_events(app);
@@ -122,18 +137,18 @@ tauri::Builder::default()
 
 // Access in command
 #[tauri::command]
-pub async fn my_command(
+pub fn get_max_concurrent_jobs(
     registry: tauri::State<'_, ManagedJobRegistry>,
-) -> Result<()> {
+) -> usize {
     let max = registry.max_concurrent();
-    // ...
+    max
 }
 ```
 
 For mutable state, wrap in `Mutex`:
 
 ```rust
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 #[tauri::command]
 async fn with_mutex_state(
@@ -147,14 +162,14 @@ async fn with_mutex_state(
 
 ## Progress Event Emission
 
-From `src-tauri/src/audio/progress/reporter.rs`:
+From `src-tauri/src/audio/progress/emitter.rs`:
 
 ### Event Structure
 
 ```rust
 #[derive(Clone, Serialize)]
 pub struct ProgressEvent {
-    pub stage: String,           // "analyzing", "converting", "writing", "completed"
+    pub stage: String,           // "analyzing" | "converting" | "writing" | "completed" | "failed" | "cancelled"
     pub percentage: f32,         // 0-100
     pub message: String,         // Human-readable status
     pub current_file: Option<String>,
@@ -172,19 +187,23 @@ pub struct ProgressEvent {
 use tauri::{Emitter, Window};
 
 pub struct ProgressEmitter {
-    window: Window,
+    window: Option<Window>, // None in headless/perf runs
     job_id: Option<String>,
     input_index: Option<usize>,
 }
 
 impl ProgressEmitter {
     pub fn new(window: Window) -> Self { ... }
+    pub fn with_job_id(window: Window, job_id: String) -> Self { ... }
 
     pub fn with_context(
         window: Window,
         job_id: Option<String>,
         input_index: Option<usize>,
     ) -> Self { ... }
+
+    pub fn headless() -> Self { ... }
+    pub fn job_id(&self) -> Option<&str> { ... }
 
     pub fn emit_converting_progress(
         &self,
@@ -194,8 +213,14 @@ impl ProgressEmitter {
         eta_seconds: Option<f64>,
     ) {
         let event = ProgressEvent { ... };
-        let _ = self.window.emit("processing-progress", &event);
+        if let Some(window) = &self.window {
+            let _ = window.emit("processing-progress", &event);
+        }
     }
+
+    // Stage mapping includes:
+    // ProcessingStage::Failed(_) => "failed"
+    // emit_cancelled(...) emits stage = "cancelled"
 }
 ```
 
@@ -211,7 +236,7 @@ const PROGRESS_EVENT_NAME: &str = "processing-progress";
 
 ```typescript
 export interface ProgressEvent {
-  stage: 'analyzing' | 'converting' | 'writing' | 'completed' | 'cancelled';
+  stage: 'analyzing' | 'converting' | 'writing' | 'completed' | 'failed' | 'cancelled';
   percentage: number;
   message: string;
   current_file?: string;
@@ -255,15 +280,22 @@ try {
 In `src-tauri/src/ipc_contract.rs`:
 
 ```rust
-#[tauri_specta::collect_commands]
-pub fn builder() -> TauriSpectaBuilder<tauri::Wry> {
-    tauri_specta::Builder::new()
+use tauri_specta::{Builder, ErrorHandlingMode};
+
+pub fn builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
-            crate::commands::audio::analyze_audio_files,
-            crate::commands::audio::process_audiobook_files_v2,
-            crate::commands::metadata::read_audio_metadata,
+            crate::commands::analyze_audio_files,
+            crate::commands::process_audiobook_files_v2,
+            crate::commands::cancel_processing,
+            crate::commands::read_audio_metadata,
             // ... add new commands here
         ])
+        .events(tauri_specta::collect_events![
+            crate::audio::ProgressEvent,
+            crate::audio::QueueEvent,
+        ])
+        .error_handling(ErrorHandlingMode::Throw)
 }
 ```
 
@@ -289,9 +321,11 @@ pub struct ProcessV2Payload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,
+    /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<SampleRateConfig>,
     pub job_type: Option<JobType>,
-    pub use_subdir_pattern: Option<bool>,
+    /// Output naming configuration (defaults to ABS-compatible)
+    pub output_naming: Option<OutputNamingConfig>,
 }
 ```
 
@@ -348,7 +382,7 @@ pub async fn command_with_window(
 1. [ ] Add function with `#[tauri::command]` in appropriate `commands/*.rs`
 2. [ ] Return `Result<T>` using `crate::errors::Result`
 3. [ ] Map errors to `AppError` variants
-4. [ ] Register in `collect_commands![]` in `src-tauri/src/ipc_contract.rs`
+4. [ ] Register in `builder()` (`commands(...)` / `events(...)`) in `src-tauri/src/ipc_contract.rs`
 5. [ ] Regenerate bindings (`bun run bindings:generate`) and verify `src/lib/generated/tauri.ts`
 6. [ ] Run `scripts/checks.sh standard` to verify contract + behavior gates
 7. [ ] For progress-emitting commands, use `ProgressEmitter`
@@ -358,5 +392,6 @@ pub async fn command_with_window(
 - [Tauri 2.x Commands](https://v2.tauri.app/develop/calling-rust/)
 - [Tauri State Management](https://v2.tauri.app/develop/state-management/)
 - [Codebase: errors.rs](src-tauri/src/errors.rs)
-- [Codebase: progress reporter](src-tauri/src/audio/progress/reporter.rs)
+- [Codebase: progress emitter](src-tauri/src/audio/progress/emitter.rs)
+- [Codebase: IPC contract builder](src-tauri/src/ipc_contract.rs)
 - [Codebase: audio commands](src-tauri/src/commands/audio.rs)

@@ -30,7 +30,7 @@ Input → Decoder → Resampler (optional) → Accumulator → Encoder → Packe
 | Encoder setup | `audio/processor/encoder/context.rs` | `ff::codec::encoder::audio::Encoder` |
 | Frame processing | `audio/processor/frame_pipeline.rs` | `ff::frame::Audio` |
 | Packet writing | `audio/processor/encoder/write.rs` | `ff::Packet` |
-| Metadata | `metadata/ffmpeg_bridge.rs` | `ff::Dictionary` |
+| Metadata dictionary + wrappers | `metadata/ffmpeg_dict.rs` + `metadata/ffi.rs` | `ff::Dictionary` |
 
 ## Encoder Setup Pattern
 
@@ -128,7 +128,7 @@ resampler.run(&input_frame, &mut out)?;
 
 ## Metadata Dictionary Pattern
 
-From `metadata/ffmpeg_bridge.rs` (search for `metadata_to_ffmpeg_dict`):
+From `metadata/ffmpeg_dict.rs` (search for `metadata_to_ffmpeg_dict` and wrapper-based apply helpers):
 
 ```rust
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
@@ -147,22 +147,20 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     Ok(dict)
 }
 
-// Apply to output context
+// Apply to output context via metadata wrapper helper
 octx.set_metadata(dict);
 ```
 
 ## Cover Art Embedding (M4B)
 
-From `metadata/ffmpeg_bridge.rs` (search for `add_cover_art_stream_pre_header`):
+From `metadata/cover_art/embedding.rs` (search for `add_cover_art_stream_pre_header`) and
+`metadata/ffi.rs` (search for disposition helpers used by cover-art embedding):
 
 ```rust
 // 1. Add stream BEFORE write_header()
 let cover_stream_info = add_cover_art_stream_pre_header(&mut octx, cover_data);
 
-// 2. Set ATTACHED_PIC disposition via FFI (required for M4B)
-unsafe {
-    (*stream_ptr).disposition |= 0x0400;  // AV_DISPOSITION_ATTACHED_PIC
-}
+// 2. Set ATTACHED_PIC disposition via metadata/ffi.rs helper (required for M4B)
 
 // 3. Write header
 octx.write_header()?;
@@ -259,4 +257,6 @@ Before sending frame to encoder:
 - [context7: ffmpeg-next docs](/websites/rs_ffmpeg-next)
 - [Codebase: encoder setup](src-tauri/src/audio/processor/encoder/context.rs)
 - [Codebase: frame pipeline](src-tauri/src/audio/processor/frame_pipeline.rs)
-- [Codebase: metadata bridge](src-tauri/src/metadata/ffmpeg_bridge.rs)
+- [Codebase: metadata dictionary](src-tauri/src/metadata/ffmpeg_dict.rs)
+- [Codebase: cover art embedding](src-tauri/src/metadata/cover_art/embedding.rs)
+- [Codebase: metadata ffi helpers](src-tauri/src/metadata/ffi.rs)

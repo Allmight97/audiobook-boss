@@ -97,32 +97,27 @@ ffmpeg -i input.m4b \
 
 ## Writing with ffmpeg-next (Rust)
 
-audiobook-boss uses ffmpeg-next bindings. The current implementation in `ffmpeg_bridge.rs` uses:
+audiobook-boss uses ffmpeg-next bindings with a dual-write strategy so ABS/Plex and Apple Books both resolve series metadata.
 
 ```rust
-// Current approach (may not work with ABS)
-dict.set("show", series);           // TV show field
-dict.set("episode_sort", series_part); // Episode sort field
-```
-
-### Recommended approach for ABS compatibility
-
-The ffmetadata keys `series` and `series-part` should map to iTunes freeform atoms when writing to M4B containers:
-
-```rust
-// For ABS/Plex compatibility
+// Primary + mirrored keys written together
 dict.set("series", series_name);
+dict.set("----:com.apple.iTunes:SERIES", series_name);
+dict.set("MVNM", series_name);
+
 dict.set("series-part", book_number);
+dict.set("----:com.apple.iTunes:SERIES-PART", book_number);
+dict.set("MVIN", book_number);
 ```
 
-Test this by:
+`MVIN` should be a plain positive integer string. Slash-form values like `1/5` are rejected by validation and are not mirrored to movement index.
+
+Validation checklist:
 1. Creating an M4B with these tags
 2. Running `ffprobe -show_format output.m4b`
-3. Confirming `series` and `series-part` appear in the tags
+3. Confirming `series` and `series-part` appear in the tags (plus the freeform atom names)
 
-If ffmpeg-next doesn't map these correctly to iTunes atoms, you may need to:
-- Use raw ffmpeg CLI as a post-processing step
-- Investigate ffmpeg-next's dictionary/atom handling for M4B containers
+Legacy read compatibility remains (`show` / `episode_sort`) for older files, but write paths should use the dual-write keys above.
 
 ---
 

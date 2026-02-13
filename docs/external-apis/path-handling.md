@@ -11,17 +11,18 @@ Product scope: macOS-only shipping for now. Linux/Windows considerations are not
 ### Validation and canonicalization (used in this repo)
 
 - Reject CR/LF/NUL in paths before any FS calls.
+- Reject symlink inputs up front before extension/type checks.
 - Ensure the path exists and is a regular file.
 - Enforce extension allowlist: mp3, m4a, m4b, aac, wav, flac.
-- Accept symlinks, but canonicalize and log the resolved target.
+- Canonicalize accepted paths for normalized absolute-path handling.
 
 Benefits:
 - Prevents directory traversal and normalizes paths for stable logging and comparisons.
 
 ### Symlinks
 
-- Log a warning when encountering symlinks.
-- Canonicalize to the target path; proceed if the target is a regular file with an allowed extension.
+- Reject symlink inputs with a validation error.
+- Do not follow symlinks for audio or image validation paths.
 
 ### Atomic moves (rename) on macOS
 
@@ -44,5 +45,4 @@ Trade-off: Requires up to ~2x disk space during operation.
 
 - Windows: path separators, case-insensitivity, drive letters; `MoveFileEx` semantics for atomicity differ; long path handling.
 - Linux: similar to macOS for POSIX rename semantics; SELinux/AppArmor policy can affect FS ops.
-
 

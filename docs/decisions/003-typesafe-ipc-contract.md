@@ -5,7 +5,7 @@
 **Issue:** #193
 
 ## Context
-The app’s Rust↔TS IPC contract was maintained manually across command strings, payload types, and event payload docs. This created drift risk, especially ahead of planned framework migration work where stable contracts reduce rewrite risk.
+The app’s Rust↔TS IPC contract was maintained manually across command strings, payload types, and event payload docs. This created drift risk, including during the now-complete Svelte migration where stable contracts reduced rewrite risk, and now serves as an ongoing contract-stability guardrail.
 
 ## Decision
 Adopt `tauri-specta` + `specta` as the IPC contract source of truth:
@@ -19,7 +19,7 @@ Adopt `tauri-specta` + `specta` as the IPC contract source of truth:
 ### Pros
 - Stronger compile-time safety across Rust and TypeScript IPC boundaries.
 - Fewer runtime regressions from command/event contract drift.
-- Safer foundation for upcoming framework migration.
+- Ongoing contract-stability guardrail for post-migration frontend evolution.
 
 ### Cons
 - Added build/tooling dependency on tauri-specta/specta.
