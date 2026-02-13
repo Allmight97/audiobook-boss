@@ -21,8 +21,8 @@
 		"rules": {
 			"recommended": true,
 			"suspicious": {
-				"noExplicitAny": "off",
-				"useIterableCallbackReturn": "off"
+				"noExplicitAny": "warn",
+				"useIterableCallbackReturn": "warn"
 			}
 		}
 	},
