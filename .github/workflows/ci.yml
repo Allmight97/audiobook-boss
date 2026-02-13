@@ -39,7 +39,6 @@ permissions:
 jobs:
   # Fast check to determine if code actually changed (second-line defense for PRs)
   changes:
-    if: github.event_name == 'workflow_dispatch' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.filter.outputs.code }}
@@ -72,8 +71,8 @@ jobs:
 
   quality-gate:
     needs: changes
-    # Dependabot-only + fail-open when filter fails
-    if: github.event_name == 'workflow_dispatch' || (github.actor == 'dependabot[bot]' && (needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'))
+    # All PRs with code changes + fail-open when filter fails
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true' || needs.changes.result == 'failure'
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
       - uses: actions/checkout@v6
