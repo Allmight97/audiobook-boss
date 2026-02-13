@@ -12,6 +12,10 @@ import {
 
 let draggedIndex: number | null = null;
 
+type DraggableFileListItem = HTMLElement & {
+	__dragStartHandler?: (event: DragEvent) => void;
+};
+
 export function initFileListEvents(): void {
 	const container = document.querySelector<HTMLElement>('.file-list-content');
 	if (!container) return;
@@ -38,13 +42,14 @@ export function setupDragStartHandlers(): void {
 
 	const items = container.querySelectorAll<HTMLElement>('.file-list-item');
 	items.forEach((item, index) => {
-		const existingHandler = (item as any).__dragStartHandler;
+		const draggableItem = item as DraggableFileListItem;
+		const existingHandler = draggableItem.__dragStartHandler;
 		if (existingHandler) {
 			item.removeEventListener('dragstart', existingHandler);
 		}
 
 		const handler = (e: DragEvent) => handleDragStart(e, index);
-		(item as any).__dragStartHandler = handler;
+		draggableItem.__dragStartHandler = handler;
 		item.addEventListener('dragstart', handler);
 	});
 }
@@ -57,7 +62,7 @@ function handleFileListClick(e: Event): void {
 		e.stopPropagation();
 		e.preventDefault();
 		if (isOrderLocked()) return;
-		const index = parseInt(target.dataset.index || '-1');
+		const index = parseInt(target.dataset.index || '-1', 10);
 		if (index >= 0) {
 			removeFile(index);
 		}
@@ -68,7 +73,7 @@ function handleFileListClick(e: Event): void {
 		e.stopPropagation();
 		e.preventDefault();
 		if (isOrderLocked()) return;
-		const index = parseInt(target.dataset.index || '-1');
+		const index = parseInt(target.dataset.index || '-1', 10);
 		if (index > 0) {
 			moveFileUp(index);
 		}
@@ -79,7 +84,7 @@ function handleFileListClick(e: Event): void {
 		e.stopPropagation();
 		e.preventDefault();
 		if (isOrderLocked()) return;
-		const index = parseInt(target.dataset.index || '-1');
+		const index = parseInt(target.dataset.index || '-1', 10);
 		const fileList = getCurrentFileList();
 		if (index >= 0 && fileList && index < fileList.files.length - 1) {
 			moveFileDown(index);
@@ -89,7 +94,7 @@ function handleFileListClick(e: Event): void {
 
 	const fileItem = target.closest('.file-list-item') as HTMLElement;
 	if (fileItem) {
-		const index = parseInt(fileItem.dataset.index || '-1');
+		const index = parseInt(fileItem.dataset.index || '-1', 10);
 		if (index >= 0) {
 			const mouseEvent = e as MouseEvent;
 			const multi = mouseEvent.ctrlKey || mouseEvent.metaKey;
@@ -178,7 +183,7 @@ function handleDrop(e: DragEvent): void {
 	const dropTarget = target.closest('.file-list-item') as HTMLElement;
 	if (!dropTarget) return;
 
-	const dropIndex = parseInt(dropTarget.dataset.index || '-1');
+	const dropIndex = parseInt(dropTarget.dataset.index || '-1', 10);
 	if (dropIndex < 0 || dropIndex === draggedIndex) return;
 
 	reorderFiles(draggedIndex, dropIndex);

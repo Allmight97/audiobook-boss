@@ -29,7 +29,7 @@ export function getCurrentMetadata(): AudiobookMetadata {
 		artist: getElementValue('meta-author'),
 		album: title,
 		composer: getElementValue('meta-narrator'),
-		date: parseInt(getElementValue('meta-year')) || undefined,
+		date: parseInt(getElementValue('meta-year'), 10) || undefined,
 		genre: getElementValue('meta-genre'),
 		description: getElementValue('meta-description'),
 		series: getElementValue('meta-series'),

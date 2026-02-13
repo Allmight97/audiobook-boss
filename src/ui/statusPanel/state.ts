@@ -95,7 +95,6 @@ export function calculateAggregateProgressAndStage(
 			} else if (job.stage === 'writing') {
 				hasWriting = true;
 			}
-			continue;
 		}
 	}
 

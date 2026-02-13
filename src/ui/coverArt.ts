@@ -329,7 +329,7 @@ export function displayCoverArt(coverArtBytes: number[] | null): void {
  * Updates global state for metadata operations
  */
 function updateMetadataWithCoverArt(coverArtBytes: number[]): void {
-	(window as any).currentCoverArt = coverArtBytes;
+	window.currentCoverArt = coverArtBytes;
 }
 
 function showCoverArtError(message: string): void {
@@ -448,7 +448,7 @@ export function clearCoverArt(options?: { markRemoval?: boolean }): void {
 	const markRemoval = options?.markRemoval ?? false;
 	currentCoverArt = null;
 	displayCoverArt(null);
-	delete (window as any).currentCoverArt;
+	delete window.currentCoverArt;
 	coverArtRemovalRequested = markRemoval;
 	hasCustomCoverArt = false;
 	updateClearButtonVisibility();

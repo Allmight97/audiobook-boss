@@ -61,7 +61,6 @@ const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode => {
 			return { mode: 'vbr', value: 3 };
 		case 'aac_at':
 			return { mode: 'cvbr' };
-		case 'native_aac':
 		default:
 			return { mode: 'cbr' };
 	}

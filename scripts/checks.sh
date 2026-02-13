@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format + clippy + IPC binding drift + fallback policy enforcement
+# - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
 # - release: standard + release build
 #

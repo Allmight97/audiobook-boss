@@ -13,6 +13,7 @@ import { getAllMetadata, getMetadataForFile, setMetadataForFile } from '../metad
 import { stageMetadataToSelection } from '../fileList/actions';
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
+import { normalizeProcessingErrorMessage } from './errorHelpers';
 
 interface WindowWithEncoderProvider extends Window {
 	EncoderSettingsProvider?: () => EncoderSettingsLike;
@@ -194,7 +195,7 @@ export async function startProcessing(
 		});
 
 		console.log('Processing completed successfully:', result);
-		if (result && result.previewFilePath) {
+		if (result?.previewFilePath) {
 			const seconds =
 				typeof result.previewActualSeconds === 'number'
 					? result.previewActualSeconds.toFixed(3)
@@ -211,7 +212,7 @@ export async function startProcessing(
 			// Placeholder: UI messaging handled by progress events for now
 		}
 	} catch (error) {
-		const msg = String((error as any)?.message ?? error ?? '');
+		const msg = normalizeProcessingErrorMessage(error);
 		if (msg.toLowerCase().includes('cancelled')) {
 			return;
 		}

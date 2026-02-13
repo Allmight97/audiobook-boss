@@ -19,7 +19,7 @@ import {
  */
 function padPart(num: string): string {
 	const n = parseInt(num, 10);
-	if (isNaN(n) || n < 1) return '00';
+	if (Number.isNaN(n) || n < 1) return '00';
 	return n < 10 ? `0${n}` : `${n}`;
 }
 

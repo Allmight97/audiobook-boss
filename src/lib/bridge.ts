@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
-import { listen as tauriListen, UnlistenFn } from '@tauri-apps/api/event';
-import { open as tauriOpen, OpenDialogOptions } from '@tauri-apps/plugin-dialog';
+import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
+import { open as tauriOpen, type OpenDialogOptions } from '@tauri-apps/plugin-dialog';
 import { openPath as tauriOpenExternal } from '@tauri-apps/plugin-opener';
 
 import {
@@ -36,7 +36,7 @@ import type {
 } from '../types/metadata';
 
 // Check if we are running in a Tauri environment
-const isTauri = !!(window as any).__TAURI_INTERNALS__;
+const isTauri = !!window.__TAURI_INTERNALS__;
 console.log(`[Bridge] Initialized. isTauri=${isTauri}, DEV=${import.meta.env.DEV}`);
 
 const toOptional = <T>(value: T | null | undefined): T | undefined =>

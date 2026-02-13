@@ -17,7 +17,14 @@
 		"lineWidth": 100
 	},
 	"linter": {
-		"enabled": false
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"useIterableCallbackReturn": "warn"
+			}
+		}
 	},
 	"assist": {
 		"enabled": false
@@ -36,6 +43,26 @@
 		}
 	},
 	"overrides": [
+		{
+			"includes": ["index.html"],
+			"linter": {
+				"enabled": false
+			}
+		},
+		{
+			"includes": ["src/**/*.test.ts", "src/test/**/*.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noNonNullAssertion": "off"
+					},
+					"suspicious": {
+						"useIterableCallbackReturn": "off",
+						"noNonNullAssertedOptionalChain": "off"
+					}
+				}
+			}
+		},
 		{
 			"includes": [
 				"src/lib/generated/**",

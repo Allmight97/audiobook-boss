@@ -100,8 +100,8 @@ describe('renderJobList incremental updates', () => {
 		renderJobList(jobProgress, queueOrder, vi.fn());
 
 		const jobList = document.getElementById('job-list')!;
-		const row0 = document.getElementById('cancel-idx:0')!.parentElement!;
-		const row1 = document.getElementById('cancel-idx:1')!.parentElement!;
+		const row0 = document.getElementById('cancel-idx:0')?.parentElement!;
+		const row1 = document.getElementById('cancel-idx:1')?.parentElement!;
 		const row0Label = row0.querySelector('span')!;
 		const row1Label = row1.querySelector('span')!;
 
@@ -113,8 +113,8 @@ describe('renderJobList incremental updates', () => {
 		});
 		renderJobList(updated, queueOrder, vi.fn());
 
-		const nextRow0 = document.getElementById('cancel-idx:0')!.parentElement!;
-		const nextRow1 = document.getElementById('cancel-idx:1')!.parentElement!;
+		const nextRow0 = document.getElementById('cancel-idx:0')?.parentElement!;
+		const nextRow1 = document.getElementById('cancel-idx:1')?.parentElement!;
 		const orderedButtonIds = Array.from(jobList.querySelectorAll('button')).map(
 			(button) => button.id,
 		);

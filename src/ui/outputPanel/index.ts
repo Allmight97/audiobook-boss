@@ -5,7 +5,7 @@
  */
 import { mount, unmount } from 'svelte';
 import type { OutputConfig } from '../../types/audio';
-import { toBoundaryEncoderSettings, EncoderSettingsLike } from '../../types/encoder';
+import { toBoundaryEncoderSettings, type EncoderSettingsLike } from '../../types/encoder';
 import OutputPanelIsland from './OutputPanelIsland.svelte';
 import { getOutputNamingConfig, getState, loadInitialState } from './state';
 import { setupEventHandlers } from './handlers';
