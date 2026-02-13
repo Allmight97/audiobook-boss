@@ -12,7 +12,7 @@ export default defineConfig({
 
 		// Coverage configuration
 		coverage: {
-			provider: 'v8',
+			provider: 'istanbul',
 			reporter: ['text', 'html', 'lcov'],
 			reportsDirectory: './coverage/typescript',
 			include: ['src/**/*.ts', 'src/**/*.svelte'],
@@ -21,14 +21,13 @@ export default defineConfig({
 				'src/**/*.spec.ts',
 				'src/lib/mocks.ts', // Dev mocks, not production code
 			],
-			// Thresholds - start modest, increase as coverage improves
+			// Ratchet thresholds — baseline measured Feb 2026, rounded down ~3pt
+			// Increase as coverage improves; do not lower without justification
 			thresholds: {
-				// These are reporting thresholds, not blocking thresholds
-				// Set to 0 initially since we're starting from 0% coverage
-				statements: 0,
-				branches: 0,
-				functions: 0,
-				lines: 0,
+				statements: 60,
+				branches: 42,
+				functions: 56,
+				lines: 61,
 			},
 		},
 

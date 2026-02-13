@@ -94,6 +94,10 @@ jobs:
       - name: Standard Checks (primary gate)
         run: scripts/checks.sh standard
 
+      - name: Coverage threshold check
+        run: bun run test:coverage
+        continue-on-error: true
+
       - name: Module Size Check (informational)
         run: python3 scripts/analyze_code_lines.py
         continue-on-error: true
