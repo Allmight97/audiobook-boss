@@ -76,7 +76,8 @@ jobs:
     runs-on: macos-latest  # macOS for ffmpeg/tauri compat
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      # Keep in sync with rust-toolchain.toml channel
+      - uses: dtolnay/rust-toolchain@1.93
       - uses: jdx/mise-action@v3
         with:
           install: true
