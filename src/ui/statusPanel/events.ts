@@ -82,7 +82,7 @@ export async function listenForProgressEvents(
 	onProgress: (event: ProcessingProgressEvent) => void,
 ): Promise<() => void> {
 	return bridge.listen(EVENTS.PROGRESS, (event) => {
-		onProgress(event.payload as ProcessingProgressEvent);
+		onProgress(event.payload);
 	});
 }
 
@@ -90,6 +90,6 @@ export async function listenForQueueEvents(
 	onQueue: (event: ProcessingQueueEvent) => void,
 ): Promise<() => void> {
 	return bridge.listen(EVENTS.QUEUE, (event) => {
-		onQueue(event.payload as ProcessingQueueEvent);
+		onQueue(event.payload);
 	});
 }
