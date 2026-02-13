@@ -10,7 +10,7 @@
 # Tiers:
 # - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
-# - release: standard + release build
+# - release: standard + Tauri app bundling (validates real packaging path)
 #
 # The intent is behavior-first confidence:
 # if `scripts/checks.sh standard` is green, the branch is safe
@@ -122,8 +122,8 @@ run_standard() {
 run_release() {
   run_standard
 
-  log_step "cargo build --release -p audiobook-boss"
-  cargo build --release -p audiobook-boss
+  log_step "bun run app:build (Tauri app packaging)"
+  bun run app:build
 }
 
 case "$tier" in
