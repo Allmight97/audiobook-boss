@@ -36,7 +36,7 @@ import type {
 } from '../types/metadata';
 
 // Check if we are running in a Tauri environment
-const isTauri = !!(window as any).__TAURI_INTERNALS__;
+const isTauri = !!window.__TAURI_INTERNALS__;
 console.log(`[Bridge] Initialized. isTauri=${isTauri}, DEV=${import.meta.env.DEV}`);
 
 const toOptional = <T>(value: T | null | undefined): T | undefined =>
