@@ -194,7 +194,7 @@ export async function mockInvoke(cmd: string, args?: Record<string, unknown>): P
 				message: 'Cancelled by user',
 				current_file: '',
 				eta_seconds: 0,
-                                job_id: args?.job_id as string | undefined,
+				job_id: args?.job_id as string | undefined,
 			} as ProcessingProgressEvent);
 			return undefined as unknown;
 
