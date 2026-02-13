@@ -1,28 +1,11 @@
 //! execute.rs
 //!
-//! Phase 2 implementation module for the processor split (see
-//! docs/planning/processor_split_plan.md).
+//! Execution stage for audio processing.
 //!
-//! Responsibilities:
-//!   - Execute merge / conversion stage using selected MediaProcessor implementation
-//!   - Manage stage transition to Converting
-//!   - Perform cancellation checks post-execution
-//!   - Provide context-based (window/session) execution path
-//!
-//! Engine Selection (Post-Nuclear Phase 11):
-//!   All feature flags and shell fallbacks were removed. The only implementation is
-//!   `FfmpegNextProcessor` accessed through `selection::create_default_processor()`.
-//!   Remaining abstraction is intentionally minimal for future enhancements.
-//!
-//! Function Size Compliance:
-//!   All functions <60 LOC. A logging helper can be introduced later if
-//!   additional logging expands bodies near the threshold.
-//!
-//! Public Surface:
-//!   Functions are `pub(crate)` and invoked by orchestrator in `finalize.rs`
-//!   (temporary placement) and later re-exported through `processor::mod.rs`.
-//!
-//! Phase: 2 (Execute Stage Extraction)
+//! This module owns the conversion/merge boundary in the processing pipeline:
+//! it transitions progress into `Converting`, builds a `MediaProcessingPlan`,
+//! dispatches to the selected processor implementation, and performs
+//! cancellation checks before returning the merged output path.
 
 use std::path::{Path, PathBuf};
 
@@ -95,8 +78,7 @@ pub(crate) async fn merge_audio_files_with_context(
         total_duration,
     );
 
-    // Use centralized engine selection via create_default_processor function
-    // This abstracts away the feature flag logic and prepares for engine flip
+    // Centralized processor selection keeps execution flow decoupled from engine wiring.
     log::debug!("Using media processor: {}", get_engine_description());
     let processor = create_default_processor();
     processor
