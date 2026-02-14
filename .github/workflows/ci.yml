@@ -22,6 +22,7 @@ on:
       - '.githooks/**'
       - '.git-blame-ignore-revs'
       - 'scripts/**'
+      - '.cargo/**'
       - '.github/workflows/ci.yml'
       # Explicit exclusions (first-line defense)
       - '!docs/**'
@@ -67,6 +68,7 @@ jobs:
               - '.githooks/**'
               - '.git-blame-ignore-revs'
               - 'scripts/**'
+              - '.cargo/**'
               - '.github/workflows/ci.yml'
 
   quality-gate:
@@ -88,15 +90,25 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Cache cargo-audit binary
+        id: cache-cargo-audit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: ${{ runner.os }}-cargo-audit-v0.22.1
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        if: steps.cache-cargo-audit.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked --version 0.22.1
+
+      - name: Verify cargo-audit
+        run: cargo audit --version
 
       - name: Standard Checks (primary gate)
         run: scripts/checks.sh standard
 
       - name: Coverage threshold check
         run: bun run test:coverage
-        continue-on-error: true
 
       - name: Module Size Check (informational)
         run: python3 scripts/analyze_code_lines.py

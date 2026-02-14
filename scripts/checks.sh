@@ -118,12 +118,9 @@ run_standard() {
   log_step "bun run build"
   bun run build
 
-  if command -v cargo-audit >/dev/null 2>&1; then
-    log_step "cargo audit"
-    cargo audit
-  else
-    log_step "cargo audit (skipped: not installed — run 'cargo install cargo-audit')"
-  fi
+  require cargo-audit
+  log_step "cargo audit -D warnings"
+  cargo audit -D warnings
 }
 
 run_release() {
