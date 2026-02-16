@@ -2,15 +2,15 @@
 # Primary repo quality gate for humans + agents.
 #
 # Usage:
-#   scripts/checks.sh [quick|standard|release]
-#   scripts/checks.sh --tier quick|standard|release
+#   scripts/checks.sh [quick|standard|package]
+#   scripts/checks.sh --tier quick|standard|package
 #
 # Defaults to "standard".
 #
 # Tiers:
 # - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
-# - release: standard + Tauri app bundling (validates real packaging path)
+# - package: standard + Tauri app bundling (validates real packaging path)
 #
 # The intent is behavior-first confidence:
 # if `scripts/checks.sh standard` is green, the branch is safe
@@ -26,14 +26,14 @@ tier="standard"
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/checks.sh [quick|standard|release]
-  scripts/checks.sh --tier quick|standard|release
+  scripts/checks.sh [quick|standard|package]
+  scripts/checks.sh --tier quick|standard|package
 USAGE
 }
 
 if [[ $# -gt 0 ]]; then
   case "$1" in
-    quick|standard|release)
+    quick|standard|package)
       tier="$1"
       shift
       ;;
@@ -64,7 +64,7 @@ if [[ $# -gt 0 ]]; then
 fi
 
 case "$tier" in
-  quick|standard|release) ;;
+  quick|standard|package) ;;
   *)
     echo "[checks] Invalid tier: $tier" >&2
     usage
@@ -91,7 +91,7 @@ run_quick() {
   cargo fmt --all -- --check
 
   # FALLBACK[FB-018]: Keep Prettier checks for .svelte while Biome Svelte formatting
-  # support remains a release-risky surface for this repo. issue=#219
+  # support remains a migration-risky surface for this repo. issue=#219
   # sunset=2026-06-30
   log_step "bun run fmt:check"
   bun run fmt:check
@@ -123,7 +123,7 @@ run_standard() {
   cargo audit -D warnings
 }
 
-run_release() {
+run_package() {
   run_standard
 
   log_step "bun run app:build (Tauri app packaging)"
@@ -133,7 +133,7 @@ run_release() {
 case "$tier" in
   quick) run_quick ;;
   standard) run_standard ;;
-  release) run_release ;;
+  package) run_package ;;
 esac
 
 log_step "All checks passed."

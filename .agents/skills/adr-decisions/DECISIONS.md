@@ -30,13 +30,13 @@ Consequences:
 Links: `index.html`, `src/main.ts`, `src/styles.css`, `src/ui/metadataSaveState.ts`, `src/ui/fileList/actions.ts`
 
 ## 2026-01-17 — Adopt tiered testing checks
-Context: Agents needed a clear, non-redundant check loop for iteration, PR readiness, and releases.
-Decision: Define Quick/Standard/Release tiers and add scripts for Standard/Release while keeping Quick as the fast baseline.
+Context: Agents needed a clear, non-redundant check loop for iteration, PR readiness, and packaging.
+Decision: Define Quick/Standard/Package tiers and add scripts for Standard/Package while keeping Quick as the fast baseline.
 Consequences:
 - Faster AI iteration without skipping important gates.
 - Reduced redundancy (tsc runs via `bun run build` in Standard).
-- Clear release-only build step for `cargo build --release`.
-Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/checks.sh`, `docs/RELEASE_CHECKLIST.md`, `.codex/skills/release-and-contract-guardrails/SKILL.md`
+- Clear packaging-only build step for `cargo build --release`.
+Links: `AGENTS.md`, `src-tauri/AGENTS.md`, `scripts/checks.sh`, `.agents/skills/contract-guardrails/SKILL.md`
 
 ## 2026-01-17 — Relax inline test policy for private helpers
 Context: External-only tests made private helper coverage cumbersome while restoring tests for #159/#160.

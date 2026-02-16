@@ -6,16 +6,12 @@ You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist
 
 - Completion-first by default: prioritize changes that finish the work now.
 - No deferral/TODOs by default; defer only with a concrete, explicit blocker.
-- Release-prep/process guidance is contextual and only prioritized when explicitly requested for a task.
 - Prefer robust gates now over follow-up placeholders.
 - Use SWE jargon, but always tie it to concrete UX/outcome impact.
 
 ## Current Project Context
 
 **Status**: Svelte migration complete (PR #212, #214 merged). Current hardening work includes security and quality gate improvements.
-**Reference docs**: `docs/RELEASE_CHECKLIST.md` (release track, when relevant) + `docs/specs/frontend-framework-evaluation.md` (migration reference, complete)
-
-Use release checklist/process details only when the task explicitly targets release execution.
 
 ---
 
@@ -108,9 +104,9 @@ Use this scale to rate the quality of code and solutions:
   - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`), `cargo audit -D warnings` (policy from `.cargo/audit.toml`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
   - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
-- **Release (pre-release)**: `scripts/checks.sh release`
+- **Package**: `scripts/checks.sh package`
   - Runs Standard, then `bun run app:build` (Tauri app packaging path)
-  - Run before tagging/publishing a release
+  - Run before tagging/publishing
 
 **CI gate intent**:
 - TypeScript coverage thresholds are blocking.
@@ -153,7 +149,7 @@ Use this scale to rate the quality of code and solutions:
 
 **Agent guidance**:
 - Run perf when touching queue/progress rendering, metadata lookup paths, or audio processing paths
-- Treat perf as advisory during release prep unless user explicitly asks to gate merges
+- Treat perf as advisory unless user explicitly asks to gate merges
 
 ## Version & Changelog
 
@@ -191,7 +187,7 @@ When working on the following areas, load the matching skill and follow its guar
 | External library docs, API verification | `lib-research` |
 | Path handling and validation | `path-security-validation` |
 | Long-running jobs, cancellation, progress | `job-registry-and-progress` |
-| Releases and TS/Rust command parity | `release-and-contract-guardrails` |
+| TS/Rust contract parity | `contract-guardrails` |
 | Audiobook metadata and M4B tagging | `audiobook-metadata` |
 | FFmpeg-next encoder patterns | `ffmpeg-next-patterns` |
 | mp4ameta library patterns | `mp4ameta-patterns` |

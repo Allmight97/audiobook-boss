@@ -73,7 +73,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
     - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
   - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
 
-**Tiered checks**: Follow the repo-wide Standard/Release tiers in `AGENTS.md`. Use `scripts/checks.sh standard` (the default go-to) and `scripts/checks.sh release` from the repo root.
+**Tiered checks**: Follow the repo-wide Standard/Package tiers in `AGENTS.md`. Use `scripts/checks.sh standard` (the default go-to) and `scripts/checks.sh package` from the repo root.
 
 **Workspace note**: Run cargo commands from the repo root (workspace). No need to `cd src-tauri`.
 

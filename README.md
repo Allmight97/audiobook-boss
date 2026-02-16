@@ -97,7 +97,7 @@ bun run fmt:changed  # Changed-files cleanup loop (agent/human workflow)
 ```
 
 - Biome owns TS/JS/CSS/JSON and config file formatting.
-- Prettier is intentionally scoped to `.svelte` files during release prep.
+- Prettier is intentionally scoped to `.svelte` files (Biome does not yet support Svelte).
 - Frontend formatting in this repo uses tabs.
 - Optional blame hygiene for the baseline commit:
   - `git config blame.ignoreRevsFile .git-blame-ignore-revs`

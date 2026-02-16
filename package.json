@@ -11,7 +11,7 @@
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
 		"check": "scripts/checks.sh standard",
 		"check:quick": "scripts/checks.sh quick",
-		"check:release": "scripts/checks.sh release",
+		"check:package": "scripts/checks.sh package",
 		"check:fallback": "scripts/check-fallback-policy.sh",
 		"preview": "vite preview",
 		"tauri": "tauri",

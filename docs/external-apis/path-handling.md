@@ -41,7 +41,7 @@ Recommended finalize pattern (implemented in this repo):
 
 Trade-off: Requires up to ~2x disk space during operation.
 
-### Future platform notes (non-blocking for macOS release)
+### Future platform notes (deferred — macOS-only for now)
 
 - Windows: path separators, case-insensitivity, drive letters; `MoveFileEx` semantics for atomicity differ; long path handling.
 - Linux: similar to macOS for POSIX rename semantics; SELinux/AppArmor policy can affect FS ops.
