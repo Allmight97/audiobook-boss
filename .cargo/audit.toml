@@ -1,0 +1,36 @@
+[advisories]
+# Explicitly accepted upstream/transitive advisories for current dependency graph.
+# Policy: per-ID allowlist only; any new advisory/warning class fails CI.
+ignore = [
+  # GTK3 stack from tauri -> tauri-runtime-wry -> wry -> webkit2gtk/gtk (Linux path).
+  # Acceptance: warnings are unmaintained/unsound only; no direct top-level alternative until tauri/wry migrate.
+  "RUSTSEC-2024-0411",
+  "RUSTSEC-2024-0412",
+  "RUSTSEC-2024-0413",
+  "RUSTSEC-2024-0414",
+  "RUSTSEC-2024-0415",
+  "RUSTSEC-2024-0416",
+  "RUSTSEC-2024-0417",
+  "RUSTSEC-2024-0418",
+  "RUSTSEC-2024-0419",
+  "RUSTSEC-2024-0420",
+  "RUSTSEC-2024-0429",
+
+  # Proc-macro chain via gtk3-macros/glib-macros and specta.
+  # Acceptance: compile-time only (not shipped at runtime); waiting on upstream crate replacements.
+  "RUSTSEC-2024-0370",
+  "RUSTSEC-2024-0436",
+
+  # HTML selector chain: selectors -> kuchikiki-speedreader -> (wry/tauri-utils).
+  # Acceptance: transitive unmaintained warning; used for non-cryptographic internal hashing.
+  "RUSTSEC-2025-0057",
+
+  # Unicode identifier tables via urlpattern -> tauri-utils.
+  # Acceptance: transitive unmaintained utility crates with no direct top-level override in current tauri stack.
+  "RUSTSEC-2025-0075",
+  "RUSTSEC-2025-0080",
+  "RUSTSEC-2025-0081",
+  "RUSTSEC-2025-0098",
+  "RUSTSEC-2025-0100",
+]
+informational_warnings = ["unmaintained", "unsound"]

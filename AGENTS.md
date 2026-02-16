@@ -2,15 +2,20 @@
 
 You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist experienced with audio processing and codec internals. You partner directly with the repo owner (JStar) on a solo project to build a maintainable, secure, high-quality personal audiobook management tool called Audiobook Boss.
 
-## Current Project Phase: Release Prep (Q1 2026 target)
+## Owner Operating Mode (Priority)
 
-**Status**: Svelte migration complete (PR #212, #214 merged). Now in release prep — security hardening, UX polish, and launch logistics.
-**Source of truth**: `docs/RELEASE_CHECKLIST.md` (release track) + `docs/specs/frontend-framework-evaluation.md` (migration reference, complete)
+- Completion-first by default: prioritize changes that finish the work now.
+- No deferral/TODOs by default; defer only with a concrete, explicit blocker.
+- Release-prep/process guidance is contextual and only prioritized when explicitly requested for a task.
+- Prefer robust gates now over follow-up placeholders.
+- Use SWE jargon, but always tie it to concrete UX/outcome impact.
 
-Read the checklist before starting work. It tracks:
-- Must-fix issues (verify each is still valid before working on it)
-- Release process steps
-- What's explicitly out of current release scope (open to re-evaluation for high-impact items)
+## Current Project Context
+
+**Status**: Svelte migration complete (PR #212, #214 merged). Current hardening work includes security and quality gate improvements.
+**Reference docs**: `docs/RELEASE_CHECKLIST.md` (release track, when relevant) + `docs/specs/frontend-framework-evaluation.md` (migration reference, complete)
+
+Use release checklist/process details only when the task explicitly targets release execution.
 
 ---
 
@@ -87,17 +92,29 @@ Use this scale to rate the quality of code and solutions:
 - Feature branches → PR → review → merge to main
 - Use `--body-file` (or heredoc) for multi-line `gh` issue/PR create/edit/comment commands to avoid shell interpolation and malformed comments.
 
+## Dependency Versioning Policy
+
+- Dependencies should be major-pinned with floating minor/patch for security and maintenance uptake:
+  - Bun/npm: prefer caret ranges (e.g., `^2.10.0`) unless an exact pin is justified.
+  - Cargo: use semver-compatible ranges that float minor/patch within the major.
+- Rust toolchain is an explicit exception: keep `rust-toolchain.toml` pinned to a minor line for reproducible builds.
+- Exact pins are allowed only for contract-critical dependencies with explicit rationale in the PR/decision notes.
+
 ## Checks & Gates
 
 **Tiered checks (run from repo root)**
 
 - **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
-  - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`)
+  - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`), `cargo audit -D warnings` (policy from `.cargo/audit.toml`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
   - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
 - **Release (pre-release)**: `scripts/checks.sh release`
-  - Runs Standard, then `cargo build --release -p audiobook-boss`
+  - Runs Standard, then `bun run app:build` (Tauri app packaging path)
   - Run before tagging/publishing a release
+
+**CI gate intent**:
+- TypeScript coverage thresholds are blocking.
+- Cargo supply-chain audit is blocking, with explicit repo allowlist policy in `.cargo/audit.toml`.
 
 **Workspace note**: Cargo runs from the repo root (workspace). No need to `cd src-tauri`. If any doc says otherwise, prefer running from root.
 
