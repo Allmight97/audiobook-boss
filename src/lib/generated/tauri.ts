@@ -182,7 +182,7 @@ error: string | null }
  * - `artist` = Author (also written to AlbumArtist)
  * - `composer` = Narrator (also mirrored to freeform NARRATOR)
  * - `series` = Series name (freeform SERIES, mirrored to MVNM)
- * - `series_part` = Book number in series (freeform SERIES-PART, mirrored to MVIN)
+ * - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
  * - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
  */
 export type AudiobookMetadata = { 
@@ -231,7 +231,7 @@ description: string | null;
  */
 series: string | null; 
 /**
- * Book number in series (freeform SERIES-PART, mirrored to MVIN)
+ * Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
  */
 series_part: string | null; 
 /**
@@ -239,7 +239,7 @@ series_part: string | null;
  */
 subseries: string | null; 
 /**
- * Book number in sub-series (secondary series part)
+ * Series sequence / book # in sub-series (secondary series part)
  */
 subseries_part: string | null; 
 /**

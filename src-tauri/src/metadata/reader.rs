@@ -4,6 +4,14 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
 
+const SERIES_TAG_KEYS: [&str; 4] = ["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"];
+const SERIES_PART_TAG_KEYS: [&str; 4] = [
+    "series-part",
+    "----:com.apple.iTunes:SERIES-PART",
+    "episode_sort",
+    "MVIN",
+];
+
 /// Reads container-level metadata and attached cover art using ffmpeg-next.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
@@ -112,19 +120,8 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     // observe=covered via metadata fallback tests and migration fallback register
     // sunset=2026-05-31 issue=#202
     // Series metadata: prefer canonical tags, fall back to legacy/movement tags
-    let series_raw = first_tag(
-        &dict,
-        &["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"],
-    );
-    let series_part_raw = first_tag(
-        &dict,
-        &[
-            "series-part",
-            "----:com.apple.iTunes:SERIES-PART",
-            "episode_sort",
-            "MVIN",
-        ],
-    );
+    let series_raw = first_tag(&dict, &SERIES_TAG_KEYS);
+    let series_part_raw = first_tag(&dict, &SERIES_PART_TAG_KEYS);
     let (series, subseries) = split_series_list(series_raw.as_deref());
     let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
     metadata.series = series;
@@ -148,9 +145,15 @@ fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
     cover_art.filter(|bytes| !bytes.is_empty())
 }
 
+fn first_tag_with_lookup<F>(keys: &[&str], mut lookup: F) -> Option<String>
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    keys.iter().find_map(|key| lookup(key))
+}
+
 fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
-    keys.iter()
-        .find_map(|key| dict.get(key).map(str::to_string))
+    first_tag_with_lookup(keys, |key| dict.get(key).map(str::to_string))
 }
 
 /// Extracts the first attached picture (cover art) from the container streams.
@@ -172,4 +175,57 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     None
 }
 
-// tests are defined in `src-tauri/tests/metadata_reader.rs`
+#[cfg(test)]
+mod tests {
+    use super::{first_tag_with_lookup, SERIES_PART_TAG_KEYS};
+    use std::collections::BTreeMap;
+
+    // EXCEPTION: tiny helper inline test
+    #[test]
+    fn prefers_canonical_series_part_key() {
+        let tags = BTreeMap::from([
+            ("series-part", "1".to_string()),
+            ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
+            ("episode_sort", "3".to_string()),
+            ("MVIN", "4".to_string()),
+        ]);
+        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("1"));
+    }
+
+    // EXCEPTION: tiny helper inline test
+    #[test]
+    fn falls_back_to_itunes_series_part_key() {
+        let tags = BTreeMap::from([
+            ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
+            ("episode_sort", "3".to_string()),
+            ("MVIN", "4".to_string()),
+        ]);
+        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("2"));
+    }
+
+    // EXCEPTION: tiny helper inline test
+    #[test]
+    fn falls_back_to_episode_sort_before_mvin() {
+        let tags = BTreeMap::from([("episode_sort", "3".to_string()), ("MVIN", "4".to_string())]);
+        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("3"));
+    }
+
+    // EXCEPTION: tiny helper inline test
+    #[test]
+    fn falls_back_to_mvin_when_other_series_part_keys_are_missing() {
+        let tags = BTreeMap::from([("MVIN", "4".to_string())]);
+        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("4"));
+    }
+
+    // EXCEPTION: tiny helper inline test
+    #[test]
+    fn does_not_treat_part_as_series_part_key() {
+        let tags = BTreeMap::from([("part", "9".to_string())]);
+        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        assert!(selected.is_none());
+    }
+}

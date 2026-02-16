@@ -5,9 +5,9 @@
  * - artist = Author (©ART, also written to aART/AlbumArtist)
  * - composer = Narrator (©wrt/Composer)
  * - series = Series name (©mvn/MVNM)
- * - series_part = Book number in series (©mvi/MVIN)
+ * - series_part = Series sequence / book # within a series (©mvi/MVIN)
  * - subseries = Secondary series name (2nd entry in SERIES list)
- * - subseries_part = Secondary series number (2nd entry in SERIES-PART list)
+ * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
  * - album_sort = Computed TSOA for library sorting ("SERIES PP - TITLE")
  * - date = Publication year (©day)
  */
@@ -39,11 +39,11 @@ export interface AudiobookMetadata {
 	description?: string;
 	/** Series name (©mvn/MVNM) */
 	series?: string;
-	/** Book number in series (©mvi/MVIN) */
+	/** Series sequence / book # within a series (©mvi/MVIN) */
 	series_part?: string;
 	/** Sub-series name (secondary series) */
 	subseries?: string;
-	/** Book number in sub-series */
+	/** Series sequence / book # within a sub-series */
 	subseries_part?: string;
 	/** Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE" */
 	album_sort?: string;
