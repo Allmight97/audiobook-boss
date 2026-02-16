@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AudioBook Boss™ — Batch Audiobook Processing</title>
+  <meta name="description" content="AudioBook Boss™ — Batch audiobook processing and metadata management for personal libraries. Open source, built with Rust and Tauri.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="AudioBook Boss™">
+  <meta property="og:description" content="Batch audiobook processing and metadata management for personal libraries">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://audiobookboss.app">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- Ambient warm light -->
+  <div class="ambient-light" aria-hidden="true"></div>
+
+  <!-- Nav -->
+  <nav>
+    <div class="container nav-inner">
+      <div class="nav-brand">AudioBook <span>Boss</span></div>
+      <ul class="nav-links">
+        <li><a href="#features" class="nav-text-link">Features</a></li>
+        <li><a href="#open-source" class="nav-text-link">Open Source</a></li>
+        <li>
+          <a href="https://github.com/Allmight97/audiobook-boss" class="github-link" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge reveal">
+        <span class="dot" aria-hidden="true"></span>
+        In Development
+      </div>
+
+      <h1 class="reveal reveal-delay-1">AudioBook Boss<span class="tm">&trade;</span></h1>
+
+      <p class="hero-tagline reveal reveal-delay-2">
+        Batch audiobook processing and metadata management<br>
+        for personal libraries
+      </p>
+
+      <a href="https://github.com/Allmight97/audiobook-boss" class="hero-cta reveal reveal-delay-3" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 .2l2.1 5.1h5.4l-4.4 3.1 1.7 5.2L8 10.4l-4.8 3.2 1.7-5.2L.5 5.3h5.4z"/></svg>
+        Star on GitHub
+      </a>
+    </div>
+
+    <div class="hero-scroll" aria-hidden="true">
+      <span>Scroll</span>
+      <div class="chevron"></div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- Features -->
+  <section id="features">
+    <div class="container">
+      <div class="features-header">
+        <span class="label reveal">What It Does</span>
+        <h2 class="reveal reveal-delay-1">Your audiobooks, your way</h2>
+      </div>
+
+      <div class="features-grid">
+        <!-- Batch processing -->
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <h3>Batch Processing</h3>
+          <p>Merge multiple audio files into a single M4B audiobook. Process your entire library, not one file at a time.</p>
+        </div>
+
+        <!-- Metadata -->
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>Full Metadata Control</h3>
+          <p>Title, author, narrator, series, cover art. Edit everything before export. Compatible with Audiobookshelf, Plex, and Apple Books.</p>
+        </div>
+
+        <!-- Audio quality -->
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M2 12h2l3-6 4 12 4-8 3 4h4"/></svg>
+          </div>
+          <h3>Audio Quality Settings</h3>
+          <p>Configure AAC-LC encoding &mdash; bitrate, sample rate, and channel layout. Preview before committing to a full encode.</p>
+        </div>
+
+        <!-- Performance -->
+        <div class="feature-card reveal reveal-delay-4">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <h3>Rust-Powered Performance</h3>
+          <p>Built on ffmpeg-next with a native Rust audio pipeline. No shell wrappers, no overhead &mdash; direct codec access for maximum throughput.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- Built with -->
+  <section class="built-with">
+    <div class="container">
+      <span class="label reveal">Built With</span>
+      <h2 class="reveal reveal-delay-1">Serious tools for serious audio</h2>
+      <p class="reveal reveal-delay-2">A native desktop app, not an Electron wrapper. Small footprint, fast startup, full OS integration.</p>
+
+      <div class="tech-stack reveal reveal-delay-3">
+        <span class="tech-badge">
+          <span class="tech-color rust" aria-hidden="true"></span>Rust
+        </span>
+        <span class="tech-badge">
+          <span class="tech-color tauri" aria-hidden="true"></span>Tauri 2
+        </span>
+        <span class="tech-badge">
+          <span class="tech-color svelte" aria-hidden="true"></span>Svelte
+        </span>
+        <span class="tech-badge">
+          <span class="tech-color ffmpeg" aria-hidden="true"></span>ffmpeg-next
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- Open source -->
+  <section id="open-source" class="open-source">
+    <div class="container">
+      <div class="open-source-card reveal">
+        <h2>Open Source</h2>
+        <p>Licensed under Apache 2.0. Read the code, build from source, contribute.</p>
+        <a href="https://github.com/Allmight97/audiobook-boss" class="hero-cta" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <p class="license-note">Apache License 2.0 &mdash; use the code freely, but the AudioBook Boss&trade; name is protected.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <hr class="rule">
+  <footer>
+    <div class="container">
+      <div class="footer-brand">AudioBook Boss&trade;</div>
+      <p class="footer-legal">
+        &copy; 2025&ndash;2026 JStar. All rights reserved.<br>
+        AudioBook Boss is a trademark of JStar. Apache 2.0 licensed.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scroll reveal -->
+  <script>
+    // Intersection Observer for staggered reveals
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    );
+    reveals.forEach((el) => observer.observe(el));
+
+    // Nav scroll state
+    const nav = document.querySelector('nav');
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          nav.classList.toggle('scrolled', window.scrollY > 60);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    });
+  </script>
+</body>
+</html>
