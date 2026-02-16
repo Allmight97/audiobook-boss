@@ -2,35 +2,8 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      # Code paths that should trigger CI
-      - 'src/**'
-      - 'src-tauri/src/**'
-      - 'src-tauri/tests/**'
-      - 'src-tauri/Cargo.toml'
-      - 'src-tauri/Cargo.lock'
-      - 'package.json'
-      - 'bun.lock'
-      - 'tsconfig.json'
-      - 'biome.json'
-      - '.prettierrc'
-      - '.prettierignore'
-      - 'mise.toml'
-      - 'rust-toolchain.toml'
-      - '.githooks/**'
-      - '.git-blame-ignore-revs'
-      - 'scripts/**'
-      - '.cargo/**'
-      - '.github/workflows/ci.yml'
-      # Explicit exclusions (first-line defense)
-      - '!docs/**'
-      - '!.codex/**'
-      - '!.claude/**'
-      - '!.agent/**'
-      - '!**/*.md'
-      - '!**/.DS_Store'
+  # Local-first mode: disable automatic remote CI for PRs.
+  # Keep manual dispatch available for one-off verification when needed.
   workflow_dispatch:
 
 permissions:
