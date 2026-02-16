@@ -17,7 +17,7 @@ Required fields per fallback:
 | FB-005 | `src-tauri/src/audio/processor/encoder/options/native.rs` | legacy env alias `ABB_DISABLE_TWOOLOOP` still present in local setups | test coverage + encoder startup logs | 2026-03-31 | #200 | Active |
 | FB-006 | `src-tauri/src/audio/processor/engine.rs` | legacy `early_stop` path still toggled in preview loop | info log when branch is engaged | 2026-03-31 | #201 | Active |
 | FB-007 | `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs` | legacy movement tag fields are present without canonical series tags | metadata compatibility tests + register tracking | 2026-05-31 (revalidate) | #202 | Active |
-| FB-009 | `scripts/bench-statuspanel-render-lookup.mjs` | legacy local command still targets old perf entrypoint | grep/workflow checks for shim references | 2026-03-31 | #204 | Active |
+| FB-009 | `scripts/bench-statuspanel-render-lookup.mjs` | legacy local command still targets old perf entrypoint | grep/workflow checks for shim references | 2026-03-31 | #204 | Removed |
 | FB-010 | `src-tauri/src/audio/buffer.rs` | encoder reports zero frame size and accumulator must continue safely | warn log when default frame size `1024` is applied | 2026-06-30 (revalidate) | #195 | Active |
 | FB-011 | `src-tauri/src/audio/settings_encoder.rs` | requested encoder unavailable on current host/runtime | warn log with requested encoder + availability snapshot | 2026-06-30 (revalidate) | #195 | Active |
 | FB-012 | `src-tauri/src/audio/processor/finalize.rs` | atomic rename fails during final output move | warn rename failure + info copy-replace success logs | 2026-06-30 (revalidate) | #195 | Active |
