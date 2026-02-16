@@ -175,12 +175,12 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     None
 }
 
+// EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
     use super::{first_tag_with_lookup, SERIES_PART_TAG_KEYS};
     use std::collections::BTreeMap;
 
-    // EXCEPTION: tiny helper inline test
     #[test]
     fn prefers_canonical_series_part_key() {
         let tags = BTreeMap::from([
@@ -193,7 +193,6 @@ mod tests {
         assert_eq!(selected.as_deref(), Some("1"));
     }
 
-    // EXCEPTION: tiny helper inline test
     #[test]
     fn falls_back_to_itunes_series_part_key() {
         let tags = BTreeMap::from([
@@ -205,7 +204,6 @@ mod tests {
         assert_eq!(selected.as_deref(), Some("2"));
     }
 
-    // EXCEPTION: tiny helper inline test
     #[test]
     fn falls_back_to_episode_sort_before_mvin() {
         let tags = BTreeMap::from([("episode_sort", "3".to_string()), ("MVIN", "4".to_string())]);
@@ -213,7 +211,6 @@ mod tests {
         assert_eq!(selected.as_deref(), Some("3"));
     }
 
-    // EXCEPTION: tiny helper inline test
     #[test]
     fn falls_back_to_mvin_when_other_series_part_keys_are_missing() {
         let tags = BTreeMap::from([("MVIN", "4".to_string())]);
@@ -221,7 +218,6 @@ mod tests {
         assert_eq!(selected.as_deref(), Some("4"));
     }
 
-    // EXCEPTION: tiny helper inline test
     #[test]
     fn does_not_treat_part_as_series_part_key() {
         let tags = BTreeMap::from([("part", "9".to_string())]);
