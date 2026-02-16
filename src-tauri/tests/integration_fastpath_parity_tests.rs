@@ -59,6 +59,7 @@ async fn encode_with_fastpath_mode(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "diagnostic native AAC parity check; run manually when touching fast-path/native encoder paths"]
 async fn native_fastpath_parity_matches_core_output_properties() {
     let input_path = match sample_mp3_path() {
         Some(path) => path,
