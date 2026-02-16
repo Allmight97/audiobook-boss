@@ -1,4 +1,4 @@
-# Audiobook Boss — Repository Guidance
+# AudioBook Boss™ — Repository Guidance
 
 ## Overview
 
