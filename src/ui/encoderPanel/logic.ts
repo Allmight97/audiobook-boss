@@ -4,6 +4,7 @@ import { loadState, saveState } from './state';
 import type { EncoderSettingsLike, EncoderFlavor, EncoderSettingsV2 } from '../../types/encoder';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
 import { bridge } from '../../lib/bridge';
+import { resetAutoResolutionHints } from './autoResolutionHints';
 
 /** Debug logging - only active in development builds */
 const DEBUG = import.meta.env.DEV;
@@ -133,6 +134,7 @@ export const initializeEncoderPanelLogic = (): void => {
 	}
 
 	applyPersistedState();
+	resetAutoResolutionHints(dom);
 	hydrateAvailability().finally(() => {
 		syncEncoderUI();
 		persistState();

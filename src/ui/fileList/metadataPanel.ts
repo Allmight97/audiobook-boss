@@ -10,6 +10,10 @@ import {
 	populateMetadataFormSingle,
 	resetDirtyState,
 } from '../metadataForm';
+import {
+	renderAutoResolutionHints,
+	resetAutoResolutionHints,
+} from '../encoderPanel/autoResolutionHints';
 import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state';
 
 function setText(id: string, value: string): void {
@@ -126,6 +130,8 @@ export function updateFileProperties(
 }
 
 export async function showSingleSelection(file: AudioFile): Promise<void> {
+	renderAutoResolutionHints([file]);
+
 	const stored = getMetadataForFile(file.path);
 	if (stored) {
 		updateFileProperties(file, { skipMetadataLoad: true });
@@ -139,6 +145,8 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 }
 
 export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<void> {
+	renderAutoResolutionHints(selectedFiles);
+
 	const selectedCount = selectedFiles.length;
 
 	updatePropertiesContextMulti(selectedCount);
@@ -160,6 +168,8 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 }
 
 export function clearSelectionPanels(): void {
+	resetAutoResolutionHints();
+
 	clearPropertyValues();
 	clearPropertiesContext();
 	populateMetadataFormSingle({});
