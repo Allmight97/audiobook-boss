@@ -1,4 +1,5 @@
-import { describe, expect, beforeEach, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as dom from '../dom';
 import { StatusPanel } from '../logic';
 
 function setupDom() {
@@ -16,39 +17,61 @@ function setupDom() {
   `;
 }
 
+function getJobRows(): string[] {
+	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
+		(node) => node.textContent ?? '',
+	);
+}
+
 describe('StatusPanel aggregate progress', () => {
 	beforeEach(() => {
 		setupDom();
+		dom.resetStatusPanelDomCache();
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	it('computes simple averages across active and completed jobs', () => {
 		const panel = new StatusPanel();
-		const jobProgress = new Map<string, any>();
-		jobProgress.set('job-1', {
-			jobId: 'job-1',
-			label: 'File One',
-			status: 'processing',
+		(panel as any).handleQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		panel.updateProgress({
+			input_index: 0,
 			stage: 'converting',
 			percentage: 50,
 			message: 'Halfway',
-			lastUpdate: Date.now(),
-		});
-		jobProgress.set('job-2', {
-			jobId: 'job-2',
-			label: 'File Two',
-			status: 'completed',
+		} as any);
+		panel.updateProgress({
+			input_index: 1,
 			stage: 'completed',
 			percentage: 100,
 			message: 'Done',
-			lastUpdate: Date.now(),
+		} as any);
+		vi.advanceTimersByTime(20);
+
+		expect(panel.getCurrentStatus()).toEqual({
+			stage: 'converting',
+			percentage: 75,
+			message: 'Halfway',
 		});
-
-		(panel as any).jobProgress = jobProgress;
-		const aggregate = (panel as any).calculateAggregateProgressAndStage().aggregate;
-
-		expect(aggregate.activeJobs).toBe(1);
-		expect(aggregate.queuedJobs).toBe(0);
-		expect(aggregate.completedJobs).toBe(1);
-		expect(aggregate.overallPercentage).toBeCloseTo(75);
+		expect((document.getElementById('percentage-processed') as HTMLElement).textContent).toBe(
+			'75.0%',
+		);
+		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Converting');
+		expect(getJobRows()).toEqual([
+			'alpha.m4b • Converting (50.0%)',
+			'beta.m4b • Completed (100.0%)',
+		]);
 	});
 });

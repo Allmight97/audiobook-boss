@@ -88,6 +88,13 @@
         <option value="44100">44100 Hz</option>
         <option value="48000">48000 Hz</option>
       </select>
+      <p
+        id="output-samplerate-effective"
+        class="text-xs muted-text mt-0.5"
+        data-testid="auto-samplerate-hint"
+      >
+        Auto resolves from source audio.
+      </p>
     </div>
     <div>
       <label for="output-channels">Channels</label>
@@ -96,6 +103,13 @@
         <option value="mono">Mono</option>
         <option value="stereo">Stereo</option>
       </select>
+      <p
+        id="output-channels-effective"
+        class="text-xs muted-text mt-0.5"
+        data-testid="auto-channels-hint"
+      >
+        Auto resolves from source audio.
+      </p>
     </div>
     <div class="col-span-2 flex items-end"></div>
   </div>

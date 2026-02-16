@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as dom from '../dom';
 import { StatusPanel } from '../logic';
 
 function setupDom() {
@@ -20,6 +21,14 @@ function setupDom() {
 describe('StatusPanel resetToIdle', () => {
 	beforeEach(() => {
 		setupDom();
+		dom.resetStatusPanelDomCache();
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	it('clears state/timers and re-enables controls', () => {
@@ -33,17 +42,17 @@ describe('StatusPanel resetToIdle', () => {
 		maxConcurrent.disabled = true;
 		maxConcurrent.style.opacity = '0.5';
 
-		(panel as any).jobProgress.set('idx:0', {
-			inputIndex: 0,
-			label: 'alpha.m4b',
-			status: 'processing',
+		(panel as any).handleQueueSnapshot({
+			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
+			max_concurrent: 1,
+		});
+		panel.updateProgress({
+			input_index: 0,
+			stage: 'converting',
 			percentage: 25,
 			message: 'Working',
-			lastUpdate: Date.now(),
-		});
-		(panel as any).queueOrder = ['idx:0'];
-		(panel as any).lastProgressRenderByKey.set('idx:0', Date.now());
-		(panel as any).isProcessing = true;
+		} as any);
+		vi.advanceTimersByTime(20);
 
 		const progressUnlisten = vi.fn();
 		const queueUnlisten = vi.fn();
@@ -59,10 +68,15 @@ describe('StatusPanel resetToIdle', () => {
 		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 		expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
 
-		expect((panel as any).jobProgress.size).toBe(0);
-		expect((panel as any).queueOrder).toEqual([]);
-		expect((panel as any).lastProgressRenderByKey.size).toBe(0);
-		expect((panel as any).batchCompletionTimeout).toBeUndefined();
+		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Idle');
+		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
+			'Current Step: Ready to process audiobook',
+		);
+		expect((document.getElementById('percentage-processed') as HTMLElement).textContent).toBe(
+			'0.0%',
+		);
+		expect((document.querySelector('.art-thumbnail') as HTMLElement).textContent).toBe('Art');
 		expect(panel.isCurrentlyProcessing).toBe(false);
 		expect(panel.getCurrentStatus()).toEqual({
 			stage: 'idle',
@@ -74,6 +88,10 @@ describe('StatusPanel resetToIdle', () => {
 		expect(maxConcurrent.disabled).toBe(false);
 		expect(mergeToggle.style.opacity).toBe('1');
 		expect(maxConcurrent.style.opacity).toBe('1');
+
+		// Secondary internal check: cleanup maps are emptied.
+		expect((panel as any).jobProgress.size).toBe(0);
+		expect((panel as any).lastProgressRenderByKey.size).toBe(0);
 
 		clearTimeoutSpy.mockRestore();
 	});

@@ -74,8 +74,25 @@ function assertControlsEnabled() {
 	expect(maxConcurrent.style.opacity).toBe('1');
 }
 
+function assertControlsDisabled() {
+	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
+	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
+	expect(mergeToggle.disabled).toBe(true);
+	expect(maxConcurrent.disabled).toBe(true);
+}
+
 function emitProgressToActiveListeners(event: any) {
 	listenerState.progressCallbacks.forEach((callback) => callback(event));
+}
+
+function getStepText(): string {
+	return (document.getElementById('step-text') as HTMLElement).textContent ?? '';
+}
+
+function getJobRows(): string[] {
+	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
+		(node) => node.textContent ?? '',
+	);
 }
 
 describe('StatusPanel lifecycle', () => {
@@ -117,9 +134,7 @@ describe('StatusPanel lifecycle', () => {
 
 		expect(cancelButton.disabled).toBe(false);
 		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toContain(
-			'Cancellation requested…',
-		);
+		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
@@ -131,9 +146,7 @@ describe('StatusPanel lifecycle', () => {
 		await (panel as any).handleCancelAll();
 
 		expect(cancelButton.disabled).toBe(false);
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
-			'Error: Failed to cancel processing. Please try again.',
-		);
+		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
 		expect(consoleErrorSpy).toHaveBeenCalled();
 	});
 
@@ -194,12 +207,26 @@ describe('StatusPanel lifecycle', () => {
 			message: 'terminal-1',
 		} as any);
 
-		expect((panel as any).batchCompletionTimeout).toBeDefined();
+		expect(panel.isCurrentlyProcessing).toBe(true);
+		expect(getJobRows()).toHaveLength(2);
+		assertControlsDisabled();
+
 		vi.advanceTimersByTime(1999);
+		expect(panel.isCurrentlyProcessing).toBe(true);
 		expect(progressUnlisten).not.toHaveBeenCalled();
 		expect(queueUnlisten).not.toHaveBeenCalled();
 
 		vi.advanceTimersByTime(1);
+
+		assertControlsEnabled();
+		expect(panel.isCurrentlyProcessing).toBe(false);
+		expect(panel.getCurrentStatus()).toEqual({
+			stage: 'idle',
+			percentage: 0,
+			message: 'Ready to process audiobook',
+		});
+		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 
 		const expectedSpy =
 			expectedMethod === 'showSuccess'
@@ -210,12 +237,6 @@ describe('StatusPanel lifecycle', () => {
 		expect(expectedSpy).toHaveBeenCalledWith(expectedMessage);
 		expect(progressUnlisten).toHaveBeenCalledTimes(1);
 		expect(queueUnlisten).toHaveBeenCalledTimes(1);
-		assertControlsEnabled();
-		expect(panel.getCurrentStatus()).toEqual({
-			stage: 'idle',
-			percentage: 0,
-			message: 'Ready to process audiobook',
-		});
 	});
 
 	it.each([
@@ -261,6 +282,10 @@ describe('StatusPanel lifecycle', () => {
 			message,
 		} as any);
 
+		expect(panel.isCurrentlyProcessing).toBe(true);
+		expect(getJobRows()).toHaveLength(1);
+		assertControlsDisabled();
+
 		vi.advanceTimersByTime(1999);
 		expect(progressUnlisten).not.toHaveBeenCalled();
 		expect(queueUnlisten).not.toHaveBeenCalled();
@@ -282,13 +307,14 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
+		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});
 
 	it('shows cancellation requested before final cancelled summary in batch flow', async () => {
 		const panel = new StatusPanel();
 		seedDisabledControls();
 
-		const updateStepTextSpy = vi.spyOn(dom, 'updateStepText');
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
 		vi.spyOn(bridge, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
 
@@ -301,6 +327,8 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		await (panel as any).handleCancelAll();
+		expect(getStepText()).toContain('Cancellation requested…');
+		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
 
 		panel.updateProgress({
 			input_index: 0,
@@ -317,36 +345,14 @@ describe('StatusPanel lifecycle', () => {
 
 		vi.advanceTimersByTime(2000);
 
-		const requestedCallIndex = updateStepTextSpy.mock.calls.findIndex(
-			([message]) => String(message) === 'Current Step: Cancellation requested…',
-		);
-		const requestedCallOrder =
-			requestedCallIndex >= 0 ? updateStepTextSpy.mock.invocationCallOrder[requestedCallIndex] : -1;
-		const cancelledSummaryCallOrder = showInfoSpy.mock.invocationCallOrder[0] ?? -1;
-
-		expect(requestedCallOrder).toBeGreaterThan(0);
 		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
-		expect(cancelledSummaryCallOrder).toBeGreaterThan(0);
-		expect(requestedCallOrder).toBeLessThan(cancelledSummaryCallOrder);
+		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 	});
 
 	it('cleans up listeners on reset and restarts without duplicate active handlers', async () => {
 		const panel = new StatusPanel();
-		const updateProgressSpy = vi.spyOn(panel, 'updateProgress');
 
 		await (panel as any).startProgressListener();
-		expect(listenerState.progressCallbacks.size).toBe(1);
-		expect(listenerState.queueCallbacks.size).toBe(1);
-
-		(panel as any).resetToIdle();
-		expect(listenerState.progressUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.queueUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.progressCallbacks.size).toBe(0);
-		expect(listenerState.queueCallbacks.size).toBe(0);
-
-		await (panel as any).startProgressListener();
-		expect(listenerState.listenForProgressEventsMock).toHaveBeenCalledTimes(2);
-		expect(listenerState.listenForQueueEventsMock).toHaveBeenCalledTimes(2);
 		expect(listenerState.progressCallbacks.size).toBe(1);
 		expect(listenerState.queueCallbacks.size).toBe(1);
 
@@ -356,8 +362,43 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 35,
 			message: 'Converting',
 		});
+		vi.advanceTimersByTime(20);
+		expect(getJobRows()).toHaveLength(1);
+		expect(getStepText()).toBe('Current Step: Converting');
 
-		expect(updateProgressSpy).toHaveBeenCalledTimes(1);
+		(panel as any).resetToIdle();
+		expect(listenerState.progressUnlisteners[0]).toHaveBeenCalledTimes(1);
+		expect(listenerState.queueUnlisteners[0]).toHaveBeenCalledTimes(1);
+		expect(listenerState.progressCallbacks.size).toBe(0);
+		expect(listenerState.queueCallbacks.size).toBe(0);
+
+		const stepAfterReset = getStepText();
+		emitProgressToActiveListeners({
+			job_id: 'job-123',
+			stage: 'converting',
+			percentage: 50,
+			message: 'Still converting',
+		});
+		vi.advanceTimersByTime(20);
+		expect(getStepText()).toBe(stepAfterReset);
+
+		await (panel as any).startProgressListener();
+		expect(listenerState.listenForProgressEventsMock).toHaveBeenCalledTimes(2);
+		expect(listenerState.listenForQueueEventsMock).toHaveBeenCalledTimes(2);
+		expect(listenerState.progressCallbacks.size).toBe(1);
+		expect(listenerState.queueCallbacks.size).toBe(1);
+
+		emitProgressToActiveListeners({
+			job_id: 'job-456',
+			stage: 'converting',
+			percentage: 42,
+			message: 'Converting again',
+		});
+		vi.advanceTimersByTime(20);
+
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('(42.0%)');
+
 		(panel as any).resetToIdle();
 		expect(listenerState.progressUnlisteners[1]).toHaveBeenCalledTimes(1);
 		expect(listenerState.queueUnlisteners[1]).toHaveBeenCalledTimes(1);

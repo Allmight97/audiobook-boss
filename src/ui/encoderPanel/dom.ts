@@ -8,6 +8,8 @@ export interface EncoderDomCache {
 	qualityBitrateLabel?: HTMLElement | null;
 	profileDisplay?: HTMLElement | null;
 	estimatedBitrate?: HTMLElement | null;
+	sampleRateAutoHint?: HTMLElement | null;
+	channelsAutoHint?: HTMLElement | null;
 	encoderOptionsSection?: HTMLElement | null;
 	fdkOptions?: HTMLElement | null;
 	nativeOptions?: HTMLElement | null;
@@ -27,6 +29,8 @@ export const queryDom = (): EncoderDomCache => ({
 	qualityBitrateLabel: document.getElementById('quality-bitrate-label'),
 	profileDisplay: document.getElementById('encoder-profile-display'),
 	estimatedBitrate: document.getElementById('estimated-bitrate'),
+	sampleRateAutoHint: document.getElementById('output-samplerate-effective'),
+	channelsAutoHint: document.getElementById('output-channels-effective'),
 	encoderOptionsSection: document.getElementById('encoder-options-section'),
 	fdkOptions: document.getElementById('fdk-options'),
 	nativeOptions: document.getElementById('native-options'),

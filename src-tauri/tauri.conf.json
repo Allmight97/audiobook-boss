@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "audiobook-boss",
+  "productName": "AudioBook Boss",
   "version": "0.1.0",
   "identifier": "com.audiobook-boss",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "audiobook-boss",
+        "title": "AudioBook Boss",
         "width": 1600,
         "height": 1100,
         "minWidth": 800,

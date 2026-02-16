@@ -4,8 +4,9 @@ use audiobook_boss_lib::audio::preview_config::PreviewConfig;
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
+use clap::Parser;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,6 +20,41 @@ struct CliArgs {
     fdk_vbr: u8,
     fdk_afterburner: bool,
     native_twoloop: bool,
+    preview_seconds: Option<f64>,
+}
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "perf_app_e2e",
+    disable_help_flag = true,
+    disable_version_flag = true
+)]
+struct CliParser {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
+    #[arg(long, default_value = "native_aac", value_parser = parse_encoder)]
+    encoder: EncoderType,
+    #[arg(long = "bitrate-kbps", default_value_t = 64)]
+    bitrate_kbps: u16,
+    #[arg(long = "fdk-vbr", default_value_t = 3)]
+    fdk_vbr: u8,
+    #[arg(
+        long = "fdk-afterburner",
+        action = clap::ArgAction::Set,
+        default_value_t = true,
+        value_parser = parse_bool_flag
+    )]
+    fdk_afterburner: bool,
+    #[arg(
+        long = "native-twoloop",
+        action = clap::ArgAction::Set,
+        default_value_t = true,
+        value_parser = parse_bool_flag
+    )]
+    native_twoloop: bool,
+    #[arg(long = "preview-seconds")]
     preview_seconds: Option<f64>,
 }
 
@@ -45,85 +81,36 @@ fn parse_bool_flag(value: &str) -> Result<bool, String> {
     }
 }
 
-fn parse_args() -> Result<CliArgs, String> {
-    let mut values: HashMap<String, String> = HashMap::new();
-    let mut args = std::env::args().skip(1);
-
-    while let Some(arg) = args.next() {
-        if !arg.starts_with("--") {
-            return Err(format!("Unexpected argument '{arg}'"));
-        }
-        let key = arg.trim_start_matches("--").to_string();
-        let value = args
-            .next()
-            .ok_or_else(|| format!("Missing value for --{key}"))?;
-        values.insert(key, value);
+fn parse_encoder(value: &str) -> Result<EncoderType, String> {
+    match value {
+        "native_aac" => Ok(EncoderType::NativeAac),
+        "aac_at" => Ok(EncoderType::AacAt),
+        "fdk_he_aac" => Ok(EncoderType::FdkHeAac),
+        "auto" => Ok(EncoderType::Auto),
+        other => Err(format!("Unsupported --encoder '{other}'")),
     }
+}
 
-    let input = values
-        .remove("input")
-        .ok_or_else(|| "Missing --input".to_string())
-        .map(PathBuf::from)?;
-    let output = values
-        .remove("output")
-        .ok_or_else(|| "Missing --output".to_string())
-        .map(PathBuf::from)?;
-
-    let encoder = match values
-        .remove("encoder")
-        .unwrap_or_else(|| "native_aac".to_string())
-        .as_str()
-    {
-        "native_aac" => EncoderType::NativeAac,
-        "aac_at" => EncoderType::AacAt,
-        "fdk_he_aac" => EncoderType::FdkHeAac,
-        "auto" => EncoderType::Auto,
-        other => return Err(format!("Unsupported --encoder '{other}'")),
-    };
-
-    let bitrate_kbps = values
-        .remove("bitrate-kbps")
-        .unwrap_or_else(|| "64".to_string())
-        .parse::<u16>()
-        .map_err(|e| format!("Invalid --bitrate-kbps: {e}"))?;
-    let fdk_vbr = values
-        .remove("fdk-vbr")
-        .unwrap_or_else(|| "3".to_string())
-        .parse::<u8>()
-        .map_err(|e| format!("Invalid --fdk-vbr: {e}"))?;
-    let fdk_afterburner = parse_bool_flag(
-        &values
-            .remove("fdk-afterburner")
-            .unwrap_or_else(|| "1".to_string()),
-    )?;
-    let native_twoloop = parse_bool_flag(
-        &values
-            .remove("native-twoloop")
-            .unwrap_or_else(|| "1".to_string()),
-    )?;
-    let preview_seconds = values
-        .remove("preview-seconds")
-        .map(|v| {
-            v.parse::<f64>()
-                .map_err(|e| format!("Invalid --preview-seconds: {e}"))
-        })
-        .transpose()?;
-
-    if !values.is_empty() {
-        let unknown = values.keys().cloned().collect::<Vec<_>>().join(", ");
-        return Err(format!("Unknown arguments: {unknown}"));
-    }
-
+fn parse_args_from<I, T>(args: I) -> Result<CliArgs, String>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    let parsed = CliParser::try_parse_from(args).map_err(|err| err.to_string())?;
     Ok(CliArgs {
-        input,
-        output,
-        encoder,
-        bitrate_kbps,
-        fdk_vbr,
-        fdk_afterburner,
-        native_twoloop,
-        preview_seconds,
+        input: parsed.input,
+        output: parsed.output,
+        encoder: parsed.encoder,
+        bitrate_kbps: parsed.bitrate_kbps,
+        fdk_vbr: parsed.fdk_vbr,
+        fdk_afterburner: parsed.fdk_afterburner,
+        native_twoloop: parsed.native_twoloop,
+        preview_seconds: parsed.preview_seconds,
     })
+}
+
+fn parse_args() -> Result<CliArgs, String> {
+    parse_args_from(std::env::args_os())
 }
 
 fn derive_preview_output_path(path: &Path) -> PathBuf {
@@ -245,4 +232,103 @@ async fn run() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<CliArgs, String> {
+        parse_args_from(args.iter().copied())
+    }
+
+    #[test]
+    fn parser_requires_input_and_output() {
+        let err = parse(&["perf_app_e2e"]).expect_err("parser should require --input and --output");
+        assert!(
+            err.contains("--input"),
+            "error should mention missing --input, got: {err}"
+        );
+        assert!(
+            err.contains("--output"),
+            "error should mention missing --output, got: {err}"
+        );
+    }
+
+    #[test]
+    fn parser_applies_expected_defaults() {
+        let args = parse(&[
+            "perf_app_e2e",
+            "--input",
+            "/tmp/input.m4b",
+            "--output",
+            "/tmp/output.m4b",
+        ])
+        .expect("parser should accept required args only");
+
+        assert_eq!(args.encoder, EncoderType::NativeAac);
+        assert_eq!(args.bitrate_kbps, 64);
+        assert_eq!(args.fdk_vbr, 3);
+        assert!(args.fdk_afterburner);
+        assert!(args.native_twoloop);
+        assert_eq!(args.preview_seconds, None);
+    }
+
+    #[test]
+    fn parser_rejects_invalid_encoder() {
+        let err = parse(&[
+            "perf_app_e2e",
+            "--input",
+            "/tmp/input.m4b",
+            "--output",
+            "/tmp/output.m4b",
+            "--encoder",
+            "bad_codec",
+        ])
+        .expect_err("parser should reject unsupported encoder values");
+        assert!(
+            err.contains("Unsupported --encoder 'bad_codec'"),
+            "error should surface contract message for invalid encoder, got: {err}"
+        );
+    }
+
+    #[test]
+    fn parser_rejects_invalid_bool_values() {
+        let err = parse(&[
+            "perf_app_e2e",
+            "--input",
+            "/tmp/input.m4b",
+            "--output",
+            "/tmp/output.m4b",
+            "--native-twoloop",
+            "maybe",
+        ])
+        .expect_err("parser should reject invalid bool values");
+        assert!(
+            err.contains("Invalid boolean value 'maybe'"),
+            "error should include invalid-bool contract detail, got: {err}"
+        );
+    }
+
+    #[test]
+    fn parser_rejects_unknown_flags() {
+        let err = parse(&[
+            "perf_app_e2e",
+            "--input",
+            "/tmp/input.m4b",
+            "--output",
+            "/tmp/output.m4b",
+            "--not-a-real-flag",
+            "1",
+        ])
+        .expect_err("parser should reject unknown flags");
+        assert!(
+            err.contains("--not-a-real-flag"),
+            "error should mention the unknown flag, got: {err}"
+        );
+        assert!(
+            err.to_lowercase().contains("unexpected argument"),
+            "error should classify the input as an unknown argument, got: {err}"
+        );
+    }
 }
