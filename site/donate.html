@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support AudioBook Boss™</title>
+  <meta name="description" content="Support AudioBook Boss™ development — GitHub Sponsors, Ko-fi, or Bitcoin.">
+
+  <meta property="og:title" content="Support AudioBook Boss™">
+  <meta property="og:description" content="Help fund open source audiobook processing">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://audiobookboss.app/donate">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .donate-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 8rem 0 4rem;
+    }
+
+    .donate-header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+    }
+
+    .donate-header h1 {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      color: var(--text-hero);
+      margin-bottom: 0.8rem;
+    }
+
+    .donate-header p {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      font-style: italic;
+      color: var(--text-secondary);
+      max-width: 44ch;
+      margin: 0 auto;
+    }
+
+    .donate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      max-width: 960px;
+      margin: 0 auto 3rem;
+    }
+
+    .donate-card {
+      padding: 2.2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      text-align: center;
+      transition: all 0.4s var(--ease-out-expo);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .donate-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .donate-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .donate-card:hover::before {
+      opacity: 1;
+    }
+
+    .donate-card .card-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: rgba(196, 136, 78, 0.08);
+      border: 1px solid rgba(196, 136, 78, 0.15);
+      color: var(--accent);
+    }
+
+    .donate-card .card-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    .donate-card h3 {
+      font-size: 1.3rem;
+      color: var(--text-hero);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .donate-card .card-desc {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.4rem;
+      line-height: 1.6;
+    }
+
+    .donate-card .card-fee {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 1.2rem;
+    }
+
+    .donate-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.6rem;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+      color: var(--bg-deep);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: all 0.3s var(--ease-out-expo);
+      box-shadow: 0 2px 12px rgba(196, 136, 78, 0.15);
+    }
+
+    .donate-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(196, 136, 78, 0.25);
+      color: var(--bg-deep);
+    }
+
+    /* BTC-specific */
+    .btc-address {
+      font-family: "Outfit", monospace;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      word-break: break-all;
+      margin: 0.8rem 0;
+      cursor: pointer;
+      transition: border-color 0.3s;
+      position: relative;
+    }
+
+    .btc-address:hover {
+      border-color: var(--border-hover);
+    }
+
+    .btc-address .copy-hint {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    .back-link a {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+
+    .back-link a:hover {
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="ambient-light" aria-hidden="true"></div>
+
+  <!-- Nav -->
+  <nav>
+    <div class="container nav-inner">
+      <a href="./" style="text-decoration:none">
+        <div class="nav-brand">AudioBook <span>Boss</span></div>
+      </a>
+      <ul class="nav-links">
+        <li>
+          <a href="https://github.com/Allmight97/audiobook-boss" class="github-link" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="donate-page">
+    <div class="container">
+      <div class="donate-header reveal">
+        <h1>Support the Project</h1>
+        <p>AudioBook Boss is free, open source, and built by one person. Every contribution helps.</p>
+      </div>
+
+      <div class="donate-grid">
+        <!-- GitHub Sponsors -->
+        <div class="donate-card reveal reveal-delay-1">
+          <div class="card-icon">
+            <svg viewBox="0 0 16 16"><path d="M4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.565 20.565 0 008 13.393a20.561 20.561 0 003.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.75.75 0 01-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5z"/></svg>
+          </div>
+          <h3>GitHub Sponsors</h3>
+          <p class="card-desc">Monthly or one-time sponsorship directly through GitHub.</p>
+          <p class="card-fee">0% platform fee</p>
+          <a href="https://github.com/sponsors/Allmight97" class="donate-btn" target="_blank" rel="noopener">
+            Sponsor on GitHub
+          </a>
+        </div>
+
+        <!-- Ko-fi -->
+        <div class="donate-card reveal reveal-delay-2">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          </div>
+          <h3>Ko-fi</h3>
+          <p class="card-desc">Buy me a coffee or set up monthly support via PayPal.</p>
+          <p class="card-fee">0% platform fee</p>
+          <a href="https://ko-fi.com/jstar97" class="donate-btn" target="_blank" rel="noopener">
+            Support on Ko-fi
+          </a>
+        </div>
+
+        <!-- Bitcoin -->
+        <div class="donate-card reveal reveal-delay-3">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path d="M14.24 10.56c-.31 1.24-2.24.73-2.88.58l.55-2.18c.64.16 2.67.47 2.33 1.6zm-2.58 3.12c-.64.16-3.08.77-3.39-.47-.32-1.28 2.11-1.73 2.84-1.85l-.55 2.18.1.14zm7.54-5.09c-.36-2.57-2.77-3.33-5.29-3.57l.73-2.88-1.73-.44-.71 2.8c-.45-.11-.92-.22-1.38-.32l.72-2.82-1.73-.44-.73 2.88c-.37-.08-.74-.17-1.1-.25l-2.38-.6-.47 1.84s1.29.3 1.26.31c.7.18.83.64.81 1.01l-.82 3.25c.05.01.11.03.18.06l-.18-.05-1.15 4.56c-.09.21-.3.54-.79.41.02.02-1.26-.31-1.26-.31l-.86 1.97 2.25.56c.42.1.83.21 1.23.31l-.74 2.93 1.73.43.73-2.89c.47.13.93.25 1.38.36l-.72 2.87 1.73.43.74-2.92c3.05.58 5.35.35 6.31-2.41.78-2.22-.04-3.5-1.64-4.34 1.17-.27 2.04-1.04 2.28-2.63z"/></svg>
+          </div>
+          <h3>Bitcoin</h3>
+          <p class="card-desc">Send BTC directly. No middleman, no fees.</p>
+          <p class="card-fee">0% fees</p>
+          <!-- TODO: Replace with your BTC address -->
+          <div class="btc-address" onclick="navigator.clipboard.writeText(this.dataset.address).then(() => { this.querySelector('.copy-hint').textContent = 'Copied!'; setTimeout(() => { this.querySelector('.copy-hint').textContent = 'Click to copy'; }, 2000); })" data-address="YOUR_BTC_ADDRESS_HERE">
+            YOUR_BTC_ADDRESS_HERE
+            <span class="copy-hint">Click to copy</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="back-link reveal">
+        <a href="./">&larr; Back to AudioBook Boss</a>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+  <footer>
+    <div class="container">
+      <div class="footer-brand">AudioBook Boss&trade;</div>
+      <p class="footer-legal">
+        &copy; 2025&ndash;2026 JStar. All rights reserved.<br>
+        AudioBook Boss is a trademark of JStar. Apache 2.0 licensed.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    );
+    reveals.forEach((el) => observer.observe(el));
+
+    const nav = document.querySelector('nav');
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          nav.classList.toggle('scrolled', window.scrollY > 60);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    });
+  </script>
+</body>
+</html>
