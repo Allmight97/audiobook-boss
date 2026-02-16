@@ -103,6 +103,18 @@ function click(id: string): void {
 	el.click();
 }
 
+function getStatusText(): string {
+	return (document.getElementById('metadata-lookup-status') as HTMLElement).textContent ?? '';
+}
+
+function getContextText(): string {
+	return (document.getElementById('metadata-lookup-context') as HTMLElement).textContent ?? '';
+}
+
+function getQueryValue(): string {
+	return (document.getElementById('metadata-lookup-query') as HTMLInputElement).value;
+}
+
 async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -187,12 +199,10 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
-		const first = context.metadataByFile.get('/books/alpha.m4b');
-		expect(first.cover_art).toEqual([9, 9, 9]);
-
-		const firstPathWrites = context.selectFileMock.mock.calls.filter(([index]) => index === 1);
-		expect(firstPathWrites.length).toBeGreaterThanOrEqual(1);
-		expect(firstPathWrites[0]?.[2]).toEqual({ skipPersistPrevious: true });
+		expect(getContextText()).toBe('2 of 2 • beta.m4b');
+		expect(getStatusText()).toBe('Metadata applied. Ready for next search.');
+		expect(getQueryValue()).toBe('Beta Existing');
+		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.objectContaining({
@@ -203,6 +213,11 @@ describe('metadata lookup queue cover art isolation', () => {
 			{ markPending: true },
 		);
 		expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
+
+		// Secondary check: queue navigation uses non-persisting selection handoff.
+		const firstPathWrites = context.selectFileMock.mock.calls.filter(([index]) => index === 1);
+		expect(firstPathWrites.length).toBeGreaterThanOrEqual(1);
+		expect(firstPathWrites[0]?.[2]).toEqual({ skipPersistPrevious: true });
 	});
 
 	it('preserves existing cover art when replace toggle is disabled', async () => {
@@ -213,8 +228,13 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
-		const first = context.metadataByFile.get('/books/alpha.m4b');
-		expect(first.cover_art).toEqual([1, 1, 1]);
+		expect(context.loadCoverArtFromUrlMock).not.toHaveBeenCalled();
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/alpha.m4b',
+			expect.objectContaining({ cover_art: [1, 1, 1] }),
+			{ markPending: true },
+		);
+		expect(getStatusText()).toBe('Metadata applied. Ready for next search.');
 	});
 
 	it('applies mixed keep/replace decisions per file without bleed', async () => {
@@ -227,26 +247,35 @@ describe('metadata lookup queue cover art isolation', () => {
 		toggle.checked = false;
 		await runSearchAndApply();
 
-		const first = context.metadataByFile.get('/books/alpha.m4b');
-		const second = context.metadataByFile.get('/books/beta.m4b');
-		expect(first.cover_art).toEqual([9, 9, 9]);
-		expect(second.cover_art).toEqual([2, 2, 2]);
-		const pendingCalls = context.setMetadataForFileMock.mock.calls.map((call) => call[2]);
-		expect(pendingCalls).toEqual(
-			expect.arrayContaining([{ markPending: true }, { markPending: true }]),
+		const writesByPath = new Map<string, any>();
+		context.setMetadataForFileMock.mock.calls.forEach(([filePath, metadata]) => {
+			writesByPath.set(filePath, metadata);
+		});
+
+		expect(writesByPath.get('/books/alpha.m4b')).toEqual(
+			expect.objectContaining({ cover_art: [9, 9, 9] }),
 		);
+		expect(writesByPath.get('/books/beta.m4b')).toEqual(
+			expect.objectContaining({ cover_art: [2, 2, 2] }),
+		);
+		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
+		expect(context.setCoverArtMock).toHaveBeenLastCalledWith([2, 2, 2]);
+		expect(getStatusText()).toBe('Queue complete.');
 	});
 
 	it('does not mutate metadata when skipping queue item', async () => {
 		await initLookup();
 
-		const beforeFirst = context.metadataByFile.get('/books/alpha.m4b');
-		const beforeSecond = context.metadataByFile.get('/books/beta.m4b');
-
 		click('metadata-lookup-skip-btn');
 		await flushAsync();
 
-		expect(context.metadataByFile.get('/books/alpha.m4b')).toEqual(beforeFirst);
-		expect(context.metadataByFile.get('/books/beta.m4b')).toEqual(beforeSecond);
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(getStatusText()).toBe('Skipped. Ready for next search.');
+		expect(getContextText()).toBe('2 of 2 • beta.m4b');
+		expect(context.selectFileMock).toHaveBeenCalledWith(
+			1,
+			{ multi: false, range: false },
+			{ skipPersistPrevious: true },
+		);
 	});
 });

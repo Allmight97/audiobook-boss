@@ -1,4 +1,5 @@
-import { describe, expect, beforeEach, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import * as dom from '../dom';
 import { StatusPanel } from '../logic';
 
 function setupDom() {
@@ -16,9 +17,22 @@ function setupDom() {
   `;
 }
 
+function getJobRows(): string[] {
+	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
+		(node) => node.textContent ?? '',
+	);
+}
+
+async function flushRenderFrame(): Promise<void> {
+	await new Promise<void>((resolve) => {
+		requestAnimationFrame(() => resolve());
+	});
+}
+
 describe('StatusPanel queue snapshot', () => {
 	beforeEach(() => {
 		setupDom();
+		dom.resetStatusPanelDomCache();
 	});
 
 	it('initializes queued items in order', () => {
@@ -31,17 +45,22 @@ describe('StatusPanel queue snapshot', () => {
 			max_concurrent: 2,
 		});
 
-		const job0 = (panel as any).jobProgress.get('idx:0');
-		const job1 = (panel as any).jobProgress.get('idx:1');
+		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
+		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Analyzing');
+		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
+			'Current Step: Queued 2 files',
+		);
+		expect(panel.getCurrentStatus()).toEqual({
+			stage: 'analyzing',
+			percentage: 0,
+			message: 'Queued 2 files',
+		});
 
-		expect(job0?.status).toBe('queued');
-		expect(job1?.status).toBe('queued');
-		expect(job0?.label).toBe('alpha.m4b');
-		expect(job1?.label).toBe('beta.m4b');
+		// Secondary internal check: queue order contract remains stable.
 		expect((panel as any).queueOrder).toEqual(['idx:0', 'idx:1']);
 	});
 
-	it('applies queue snapshot order/labels after early progress arrives', () => {
+	it('applies queue snapshot order/labels after early progress arrives', async () => {
 		const panel = new StatusPanel();
 
 		panel.updateProgress({
@@ -50,9 +69,13 @@ describe('StatusPanel queue snapshot', () => {
 			percentage: 45,
 			message: 'working',
 		} as any);
+		await flushRenderFrame();
 
-		expect((panel as any).queueOrder).toEqual(['idx:1']);
-		expect((panel as any).jobProgress.get('idx:1')?.status).toBe('processing');
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('Converting (45.0%)');
+		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
+			'Current Step: working',
+		);
 
 		(panel as any).handleQueueSnapshot({
 			items: [
@@ -63,18 +86,21 @@ describe('StatusPanel queue snapshot', () => {
 			max_concurrent: 2,
 		});
 
-		const job2 = (panel as any).jobProgress.get('idx:2');
-		const job1 = (panel as any).jobProgress.get('idx:1');
-		const job0 = (panel as any).jobProgress.get('idx:0');
+		expect(getJobRows()).toEqual([
+			'gamma.m4b • Queued • #1 of 3',
+			'beta.m4b • Queued • #2 of 3',
+			'alpha.m4b • Queued • #3 of 3',
+		]);
+		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
+			'Current Step: Queued 3 files',
+		);
+		expect(panel.getCurrentStatus()).toEqual({
+			stage: 'analyzing',
+			percentage: 0,
+			message: 'Queued 3 files',
+		});
 
+		// Secondary internal check: snapshot order tracking still follows backend order.
 		expect((panel as any).queueOrder).toEqual(['idx:2', 'idx:1', 'idx:0']);
-		expect(job2?.label).toBe('gamma.m4b');
-		expect(job1?.label).toBe('beta.m4b');
-		expect(job0?.label).toBe('alpha.m4b');
-		expect(job2?.status).toBe('queued');
-		expect(job1?.status).toBe('queued');
-		expect(job0?.status).toBe('queued');
-		expect(job1?.percentage).toBe(0);
-		expect(job1?.message).toBe('Queued');
 	});
 });

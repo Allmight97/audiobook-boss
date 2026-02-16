@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as dom from './dom';
 import { StatusPanel } from './logic';
 
 function setupDom() {
@@ -17,12 +18,38 @@ function setupDom() {
   `;
 }
 
+function getJobRows(): string[] {
+	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
+		(node) => node.textContent ?? '',
+	);
+}
+
+function getStepText(): string {
+	return (document.getElementById('step-text') as HTMLElement).textContent ?? '';
+}
+
+function getStatusText(): string {
+	return (document.getElementById('status-text') as HTMLElement).textContent ?? '';
+}
+
+function getPercentageText(): string {
+	return (document.getElementById('percentage-processed') as HTMLElement).textContent ?? '';
+}
+
 describe('StatusPanel progress throttling', () => {
 	beforeEach(() => {
 		setupDom();
+		dom.resetStatusPanelDomCache();
+		vi.useFakeTimers();
 	});
 
-	it('throttles rapid non-terminal progress events', async () => {
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	it('throttles rapid non-terminal progress events', () => {
 		const panel = new StatusPanel();
 
 		const evt = {
@@ -33,19 +60,24 @@ describe('StatusPanel progress throttling', () => {
 		} as any;
 
 		panel.updateProgress(evt);
-		let job = (panel as any).jobProgress.get('job:job-1');
-		expect(job?.percentage).toBe(10);
+		vi.advanceTimersByTime(20);
+		expect(getPercentageText()).toBe('10.0%');
+		expect(getStepText()).toBe('Current Step: ten');
 
 		const evt2 = { ...evt, percentage: 20, message: 'twenty' };
 		panel.updateProgress(evt2);
-		job = (panel as any).jobProgress.get('job:job-1');
-		expect(job?.percentage).toBe(10);
+		vi.advanceTimersByTime(20);
+		expect(getPercentageText()).toBe('10.0%');
+		expect(getStepText()).toBe('Current Step: ten');
 
-		await new Promise((resolve) => setTimeout(resolve, 1050));
+		vi.advanceTimersByTime(1050);
 		const evt3 = { ...evt, percentage: 30, message: 'thirty' };
 		panel.updateProgress(evt3);
-		const updated = (panel as any).jobProgress.get('job:job-1');
-		expect(updated?.percentage).toBe(30);
+		vi.advanceTimersByTime(20);
+
+		expect(getPercentageText()).toBe('30.0%');
+		expect(getStepText()).toBe('Current Step: thirty');
+		expect(getJobRows()[0]).toContain('(30.0%)');
 	});
 
 	it('does not throttle different jobs within the same window', () => {
@@ -67,11 +99,17 @@ describe('StatusPanel progress throttling', () => {
 
 		panel.updateProgress(evt1);
 		panel.updateProgress(evt2);
+		vi.advanceTimersByTime(20);
 
-		const job1 = (panel as any).jobProgress.get('job:job-1');
-		const job2 = (panel as any).jobProgress.get('job:job-2');
-		expect(job1?.percentage).toBe(10);
-		expect(job2?.percentage).toBe(20);
+		expect(getStatusText()).toBe('Converting');
+		expect(getStepText()).toBe('Current Step: Processing 2 files');
+		expect(panel.getCurrentStatus().percentage).toBe(15);
+		expect(getJobRows()).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining('(10.0%)'),
+				expect.stringContaining('(20.0%)'),
+			]),
+		);
 	});
 
 	it('does not throttle terminal events inside the throttle window', () => {
@@ -92,6 +130,7 @@ describe('StatusPanel progress throttling', () => {
 			message: 'processing',
 		} as any;
 		panel.updateProgress(progress);
+		vi.advanceTimersByTime(20);
 
 		const terminal = {
 			...progress,
@@ -101,9 +140,9 @@ describe('StatusPanel progress throttling', () => {
 		};
 		panel.updateProgress(terminal);
 
-		const job = (panel as any).jobProgress.get('idx:0');
-		expect(job?.status).toBe('completed');
-		expect(job?.percentage).toBe(100);
-		expect(job?.message).toBe('done');
+		expect(getJobRows()[0]).toBe('alpha.m4b • Completed (100.0%)');
+		expect(getStatusText()).toBe('Analyzing');
+		expect(getStepText()).toBe('Current Step: Queued 1 file');
+		expect(getPercentageText()).toBe('100.0%');
 	});
 });
