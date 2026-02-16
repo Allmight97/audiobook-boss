@@ -57,8 +57,14 @@ export function bindStatusPanelDomEvents(handlers: StatusPanelEventHandlers): vo
 			});
 		});
 
-		document.addEventListener('click', () => {
-			previewDropdown.style.display = 'none';
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			if (!(target instanceof Node)) return;
+			const clickedOutsideDropdown =
+				!previewDropdown.contains(target) && !previewDropdownToggle.contains(target);
+			if (clickedOutsideDropdown) {
+				previewDropdown.style.display = 'none';
+			}
 		});
 	}
 
