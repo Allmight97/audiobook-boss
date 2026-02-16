@@ -67,7 +67,7 @@
     </div>
     <input type="text" id="meta-series-part" placeholder="#" />
     <div id="meta-series-part-warning" class="text-xs warning-text" hidden>
-      Series detected - add book # for ABS ordering.
+      Series detected - add Book # (series sequence) for ABS ordering.
     </div>
   </div>
   <div class="col-span-2">
@@ -98,7 +98,7 @@
     </div>
     <input type="text" id="meta-subseries-part" placeholder="#" />
     <div id="meta-subseries-part-warning" class="text-xs warning-text" hidden>
-      Sub-series detected - add sub-series # for ABS ordering.
+      Sub-series detected - add sub-series # (series sequence) for ABS ordering.
     </div>
   </div>
   <div class="col-span-1">

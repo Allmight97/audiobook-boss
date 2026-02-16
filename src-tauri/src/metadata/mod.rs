@@ -26,7 +26,7 @@ pub mod passthrough;
 /// - `artist` = Author (also written to AlbumArtist)
 /// - `composer` = Narrator (also mirrored to freeform NARRATOR)
 /// - `series` = Series name (freeform SERIES, mirrored to MVNM)
-/// - `series_part` = Book number in series (freeform SERIES-PART, mirrored to MVIN)
+/// - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
 /// - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
@@ -52,11 +52,11 @@ pub struct AudiobookMetadata {
     pub description: Option<String>,
     /// Series name (freeform SERIES, mirrored to MVNM)
     pub series: Option<String>,
-    /// Book number in series (freeform SERIES-PART, mirrored to MVIN)
+    /// Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
     pub series_part: Option<String>,
     /// Sub-series name (secondary series)
     pub subseries: Option<String>,
-    /// Book number in sub-series (secondary series part)
+    /// Series sequence / book # in sub-series (secondary series part)
     pub subseries_part: Option<String>,
     /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
     pub album_sort: Option<String>,
@@ -99,7 +99,7 @@ impl Default for AudiobookMetadata {
 pub(crate) fn validate_series_part(series_part: &str) -> Result<()> {
     if series_part.contains('/') {
         return Err(AppError::InvalidInput(
-            "Series part must not include '/'. Use a plain number like 24.".to_string(),
+            "Series sequence must not include '/'. Use a plain number like 24.".to_string(),
         ));
     }
     Ok(())

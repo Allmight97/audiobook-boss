@@ -2,10 +2,11 @@
  * Metadata validation helpers for UI workflows.
  */
 
-const SERIES_PART_INVALID_MESSAGE = "Series # cannot include '/'. Use a plain number like 24.";
+const SERIES_PART_INVALID_MESSAGE =
+	"Series sequence (#) cannot include '/'. Use a plain number like 24.";
 
 const SUBSERIES_PART_INVALID_MESSAGE =
-	"Sub-series # cannot include '/'. Use a plain number like 24.";
+	"Sub-series sequence (#) cannot include '/'. Use a plain number like 24.";
 
 export function getSeriesPartValidationError(value: string | undefined): string | null {
 	if (!value) return null;

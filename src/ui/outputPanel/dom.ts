@@ -67,13 +67,14 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 		seriesPartValue === subseriesPartValue;
 
 	if (shouldShowDuplicate) {
-		warning.textContent = 'Book # matches sub-series #. Update if you want global ordering.';
+		warning.textContent =
+			'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.';
 		warning.toggleAttribute('hidden', false);
 		return;
 	}
 
 	const shouldShow = seriesValue.length > 0 && seriesPartValue.length === 0;
-	warning.textContent = 'Series detected - add book # for ABS ordering.';
+	warning.textContent = 'Series detected - add Book # (series sequence) for ABS ordering.';
 	warning.toggleAttribute('hidden', !shouldShow);
 }
 
@@ -92,7 +93,8 @@ export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
 	}
 
 	const shouldShow = subseriesValue.length > 0 && subseriesPartValue.length === 0;
-	warning.textContent = 'Sub-series detected - add sub-series # for ABS ordering.';
+	warning.textContent =
+		'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
 	warning.toggleAttribute('hidden', !shouldShow);
 }
 
