@@ -74,7 +74,7 @@ Use this scale to rate the quality of code and solutions:
 4. `README.md` — human-facing overview
 5. `docs/external-apis/*.md` — ffmpeg-next, tauri, path handling
 
-**For external library research**: Load the `lib-research` skill.
+**For external library research & code/PR/local-branch audits**: Load the `lib-research` skill.
 
 ---
 
@@ -84,6 +84,7 @@ Use this scale to rate the quality of code and solutions:
 - `jj` (Jujutsu) is colocated with git and available for complex history rewriting (`jj split`, `jj squash`, `jj rebase`). Prefer git for simple PRs.
 - Optional: enable repo hooks with `git config core.hooksPath .githooks`.
 - Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates** tiers). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
+- During code audit, PR review, or local-branch review, run `lib-research` as a planning primitive whenever findings depend on external-library/API behavior.
 - Automated PR review via GitHub agent (Gemini) is optional when using PR flow. CI remains optional/manual and non-gating unless explicitly requested for a task.
 - PR reviews: always read inline review comments via API (e.g., `gh api /repos/<org>/<repo>/pulls/<n>/comments`) or other methods that include line comments; `gh pr view --comments` shows only top-level threads.
 - Feature branches → PR → review → merge to main
@@ -104,6 +105,7 @@ Use this scale to rate the quality of code and solutions:
 - **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
   - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`), `cargo audit -D warnings` (policy from `.cargo/audit.toml`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
+  - Audit gate: for code/PR/local-branch audits, validate external-library claims via `lib-research` before final recommendations.
   - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.
 - **Package**: `scripts/checks.sh package`
   - Runs Standard, then `bun run app:build` (Tauri app packaging path)
@@ -185,7 +187,7 @@ When working on the following areas, load the matching skill and follow its guar
 
 | Area | Skill |
 |------|-------|
-| External library docs, API verification | `lib-research` |
+| External library docs, API verification, audit-time spec validation | `lib-research` |
 | Path handling and validation | `path-security-validation` |
 | Long-running jobs, cancellation, progress | `job-registry-and-progress` |
 | TS/Rust contract parity | `contract-guardrails` |
