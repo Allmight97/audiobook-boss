@@ -213,11 +213,10 @@ export async function startProcessing(
 		}
 	} catch (error) {
 		const msg = normalizeProcessingErrorMessage(error);
-		if (msg.toLowerCase().includes('cancelled')) {
-			return;
+		if (!msg.toLowerCase().includes('cancelled')) {
+			console.error('Processing failed:', error);
+			dom.showError(`Processing failed: ${msg}`);
 		}
-		console.error('Processing failed:', error);
-		dom.showError(`Processing failed: ${msg}`);
 		context.resetToIdle();
 	}
 }

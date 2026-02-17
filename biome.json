@@ -70,7 +70,8 @@
 				"target/**",
 				"dist/**",
 				"coverage/**",
-				"scripts/perf/results/**"
+				"scripts/perf/results/**",
+				"site/**"
 			],
 			"formatter": {
 				"enabled": false
