@@ -1,0 +1,15 @@
+interface:
+  display_name: "Library Research"
+  short_description: "Spec-planning primitive for external library/API decisions"
+  default_prompt: "Use $lib-research as a planning primitive before implementation and during code/PR/local-branch audits: classify agent need (spec-snippet/spec-verify/spec-synthesis), run the minimal high-value Exa path, and return spec-ready recommendations with constraints, tests, and sources."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "exa"
+      description: "Exa MCP server for snippet retrieval, verification, crawl, and deep synthesis"
+      transport: "streamable_http"
+      url: "https://mcp.exa.ai/mcp?tools=get_code_context_exa,web_search_exa,web_search_advanced_exa,crawling_exa,deep_researcher_start,deep_researcher_check"
+
+policy:
+  allow_implicit_invocation: true
