@@ -15,6 +15,13 @@ const context = vi.hoisted(() => ({
 	hasDirtyMetadataFieldsMock: vi.fn(),
 	getAllMetadataMock: vi.fn(),
 	getMetadataForFileMock: vi.fn(),
+	hasMeaningfulMetadataMock: vi.fn((metadata: Record<string, unknown>) =>
+		Object.entries(metadata).some(([key, value]) =>
+			Array.isArray(value)
+				? key === 'cover_art' || value.length > 0
+				: value != null && String(value).trim().length > 0,
+		),
+	),
 	setMetadataForFileMock: vi.fn(),
 	stageMetadataToSelectionMock: vi.fn(),
 }));
@@ -53,6 +60,7 @@ vi.mock('../../metadataForm', () => ({
 vi.mock('../../metadataState', () => ({
 	getAllMetadata: context.getAllMetadataMock,
 	getMetadataForFile: context.getMetadataForFileMock,
+	hasMeaningfulMetadata: context.hasMeaningfulMetadataMock,
 	setMetadataForFile: context.setMetadataForFileMock,
 }));
 
@@ -88,6 +96,7 @@ describe('startProcessing metadata staging', () => {
 		context.hasDirtyMetadataFieldsMock.mockReset();
 		context.getAllMetadataMock.mockReset();
 		context.getMetadataForFileMock.mockReset();
+		context.hasMeaningfulMetadataMock.mockReset();
 		context.setMetadataForFileMock.mockReset();
 		context.stageMetadataToSelectionMock.mockReset();
 
@@ -109,6 +118,13 @@ describe('startProcessing metadata staging', () => {
 		context.getJobTypeMock.mockReturnValue('merge');
 		context.getAllMetadataMock.mockReturnValue({});
 		context.getMetadataForFileMock.mockReturnValue(undefined);
+		context.hasMeaningfulMetadataMock.mockImplementation((metadata: Record<string, unknown>) =>
+			Object.entries(metadata).some(([key, value]) =>
+				Array.isArray(value)
+					? key === 'cover_art' || value.length > 0
+					: value != null && String(value).trim().length > 0,
+			),
+		);
 		context.processAudiobookFilesV2Mock.mockResolvedValue({
 			message: 'ok',
 			jobId: 'job-1',
@@ -146,6 +162,22 @@ describe('startProcessing metadata staging', () => {
 				metadata: {
 					'/books/a.m4b': { title: 'Edited Title' },
 				},
+			}),
+		);
+	});
+
+	it('does not stage dirty-but-empty metadata for merge payload', async () => {
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ title: '   ' });
+
+		await startProcessing(processingContext());
+
+		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
+		expect(context.hasMeaningfulMetadataMock).toHaveBeenCalledWith({ title: '   ' });
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: null,
 			}),
 		);
 	});

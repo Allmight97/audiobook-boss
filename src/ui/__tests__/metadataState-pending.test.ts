@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	clearMetadataState,
 	clearPendingMetadataForFile,
+	hasMeaningfulMetadata,
 	getPendingMetadataEntries,
 	hasPendingMetadataChanges,
+	metadataEqualsNullish,
 	removeMetadataForFile,
 	setMetadataForFile,
 } from '../metadataState';
@@ -35,5 +37,18 @@ describe('metadataState pending draft tracking', () => {
 		setMetadataForFile('/a.mp3', { title: 'Book A' }, { markPending: true });
 		removeMetadataForFile('/a.mp3');
 		expect(hasPendingMetadataChanges()).toBe(false);
+	});
+
+	it('treats null and undefined as equivalent for metadata comparison', () => {
+		expect(metadataEqualsNullish({ title: undefined }, { title: null })).toBe(true);
+		expect(metadataEqualsNullish({ series_part: '1.0' }, { series_part: '1.0' })).toBe(true);
+		expect(metadataEqualsNullish({ series_part: '1.0' }, { series_part: null })).toBe(false);
+	});
+
+	it('only marks metadata as meaningful when values carry write intent', () => {
+		expect(hasMeaningfulMetadata({ title: undefined, artist: null })).toBe(false);
+		expect(hasMeaningfulMetadata({ title: '   ' })).toBe(false);
+		expect(hasMeaningfulMetadata({ title: 'Book A' })).toBe(true);
+		expect(hasMeaningfulMetadata({ cover_art: [] })).toBe(true);
 	});
 });

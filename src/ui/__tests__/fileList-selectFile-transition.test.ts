@@ -19,6 +19,7 @@ vi.mock('../metadataForm', () => ({
 vi.mock('../metadataState', () => ({
 	clearMetadataState: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
+	metadataEqualsNullish: vi.fn(() => false),
 	removeMetadataForFile: vi.fn(),
 	setMetadataForFile: context.setMetadataForFileMock,
 }));
