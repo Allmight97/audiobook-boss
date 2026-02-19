@@ -81,7 +81,6 @@ Use this scale to rate the quality of code and solutions:
 ## Workflow Dynamics
 
 - Prefer staging coherent units of work and committing at logical stopping points.
-- `jj` (Jujutsu) is colocated with git and available for complex history rewriting (`jj split`, `jj squash`, `jj rebase`). Prefer git for simple PRs.
 - Optional: enable repo hooks with `git config core.hooksPath .githooks`.
 - Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates** tiers). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
 - During code audit, PR review, or local-branch review, run `lib-research` as a planning primitive whenever findings depend on external-library/API behavior.
