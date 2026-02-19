@@ -172,7 +172,7 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::first_tag_with_lookup;
-    use crate::metadata::tag_registry::SERIES_PART_READ_KEYS;
+    use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
     use std::collections::BTreeMap;
 
     #[test]
@@ -217,5 +217,22 @@ mod tests {
         let tags = BTreeMap::from([("part", "9".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert!(selected.is_none());
+    }
+
+    #[test]
+    fn falls_back_to_show_before_movement_name_for_series() {
+        let tags = BTreeMap::from([
+            ("show", "Show Series".to_string()),
+            ("MVNM", "Movement".to_string()),
+        ]);
+        let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("Show Series"));
+    }
+
+    #[test]
+    fn falls_back_to_movement_name_for_series_when_other_keys_are_missing() {
+        let tags = BTreeMap::from([("MVNM", "Movement".to_string())]);
+        let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
+        assert_eq!(selected.as_deref(), Some("Movement"));
     }
 }

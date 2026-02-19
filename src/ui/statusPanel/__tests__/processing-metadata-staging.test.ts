@@ -181,4 +181,42 @@ describe('startProcessing metadata staging', () => {
 			}),
 		);
 	});
+
+	it('filters meaningless batch metadata entries before invoking processing', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataMock.mockReturnValue({
+			'/books/a.m4b': { title: '   ' },
+			'/books/b.m4b': { series: 'Series B' },
+		});
+
+		await startProcessing(processingContext());
+
+		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: {
+					'/books/b.m4b': { series: 'Series B' },
+				},
+			}),
+		);
+	});
+
+	it('sends null batch metadata when all stored entries are meaningless', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataMock.mockReturnValue({
+			'/books/a.m4b': { title: '   ' },
+			'/books/b.m4b': { title: null },
+		});
+
+		await startProcessing(processingContext());
+
+		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: null,
+			}),
+		);
+	});
 });
