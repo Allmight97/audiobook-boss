@@ -95,7 +95,8 @@ describe('bridge nullish adapters', () => {
 			cover_art: undefined,
 		});
 
-		const [commandName, args] = mockInvoke.mock.calls.at(-1) as [
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
 			string,
 			{ filePath: string; metadata: Record<string, unknown> },
 		];
@@ -166,7 +167,8 @@ describe('bridge nullish adapters', () => {
 			previewSeconds: undefined,
 		});
 
-		const [commandName, args] = mockInvoke.mock.calls.at(-1) as [
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
 			string,
 			{
 				payload: Record<string, unknown>;
@@ -188,24 +190,24 @@ describe('bridge nullish adapters', () => {
 	it('normalizes nullish progress-event payload fields from generated listeners', async () => {
 		const { listen } = await import('@tauri-apps/api/event');
 		const mockListen = vi.mocked(listen);
-		mockListen.mockImplementationOnce(
-			async (_event, handler: (event: { payload: unknown }) => void) => {
-				handler({
-					payload: {
-						stage: 'converting',
-						percentage: 42,
-						message: 'Working',
-						current_file: null,
-						eta_seconds: null,
-						job_id: null,
-						input_index: null,
-					},
-				});
-				return () => {
-					/* unlisten */
-				};
-			},
-		);
+		mockListen.mockImplementationOnce((async (_event, handler) => {
+			(handler as (event: { event: string; id: number; payload: unknown }) => void)({
+				event: 'processing-progress',
+				id: 1,
+				payload: {
+					stage: 'converting',
+					percentage: 42,
+					message: 'Working',
+					current_file: null,
+					eta_seconds: null,
+					job_id: null,
+					input_index: null,
+				},
+			});
+			return () => {
+				/* unlisten */
+			};
+		}) as typeof listen);
 
 		const { bridge } = await import('./bridge');
 		let received:
