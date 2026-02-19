@@ -19,8 +19,12 @@ pub const SERIES_PART_FREEFORM_NAME: &str = "SERIES-PART";
 
 // Read precedence for legacy compatibility.
 pub const SERIES_READ_KEYS: [&str; 4] = [SERIES, ITUNES_SERIES, SHOW, MOVEMENT_NAME];
-pub const SERIES_PART_READ_KEYS: [&str; 4] =
-    [SERIES_PART, ITUNES_SERIES_PART, EPISODE_SORT, MOVEMENT_INDEX];
+pub const SERIES_PART_READ_KEYS: [&str; 4] = [
+    SERIES_PART,
+    ITUNES_SERIES_PART,
+    EPISODE_SORT,
+    MOVEMENT_INDEX,
+];
 
 // Keys that should be removed when caller explicitly clears series metadata.
 pub const SERIES_CLEAR_KEYS: [&str; 4] = SERIES_READ_KEYS;
@@ -31,8 +35,8 @@ mod tests {
     use super::{
         EPISODE_SORT, ITUNES_MEAN, ITUNES_SERIES, ITUNES_SERIES_PART, MOVEMENT_INDEX,
         MOVEMENT_NAME, SERIES, SERIES_CLEAR_KEYS, SERIES_FREEFORM_NAME, SERIES_PART,
-        SERIES_PART_CLEAR_KEYS, SERIES_PART_FREEFORM_NAME, SERIES_PART_READ_KEYS,
-        SERIES_READ_KEYS, SHOW,
+        SERIES_PART_CLEAR_KEYS, SERIES_PART_FREEFORM_NAME, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
+        SHOW,
     };
 
     #[test]
@@ -43,7 +47,12 @@ mod tests {
         );
         assert_eq!(
             SERIES_PART_READ_KEYS,
-            [SERIES_PART, ITUNES_SERIES_PART, EPISODE_SORT, MOVEMENT_INDEX],
+            [
+                SERIES_PART,
+                ITUNES_SERIES_PART,
+                EPISODE_SORT,
+                MOVEMENT_INDEX
+            ],
         );
         assert_eq!(SERIES_CLEAR_KEYS, SERIES_READ_KEYS);
         assert_eq!(SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS);

@@ -1,7 +1,7 @@
 //! Metadata reading via ffmpeg-next
 use super::{mp4ameta_bridge, split_series_list, AudiobookMetadata};
-use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use ffmpeg_next as ff;
 use std::path::Path;
 

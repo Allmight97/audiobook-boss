@@ -273,7 +273,10 @@ async fn writes_series_tags_with_mp4ameta() {
     assert_eq!(tag.movement_index(), Some(7));
 
     // Canonical read keys should be visible through ffmpeg metadata lookup.
-    assert_eq!(ffmpeg_tag(&output, "series").as_deref(), Some("Dungeon Crawler Carl"));
+    assert_eq!(
+        ffmpeg_tag(&output, "series").as_deref(),
+        Some("Dungeon Crawler Carl")
+    );
     assert_eq!(ffmpeg_tag(&output, "series-part").as_deref(), Some("7"));
 }
 

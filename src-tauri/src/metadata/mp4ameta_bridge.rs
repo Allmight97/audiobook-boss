@@ -1,9 +1,7 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
+use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{build_series_list, split_series_list, AudiobookMetadata};
-use crate::metadata::tag_registry::{
-    ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME,
-};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
 
