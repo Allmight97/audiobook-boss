@@ -1,32 +1,23 @@
 // TypeScript interfaces for audio processing
+import type {
+	AudioFile as GeneratedAudioFile,
+	FileListInfo as GeneratedFileListInfo,
+	JobType as GeneratedJobType,
+	OutputNamingConfig as GeneratedOutputNamingConfig,
+	ProcessCommandResult as GeneratedProcessCommandResult,
+	ProcessV2Payload as GeneratedProcessV2Payload,
+	SampleRateConfig as GeneratedSampleRateConfig,
+} from '../lib/generated/tauri';
+import type { NullToOptionalDeep } from './ipc';
 
-export interface AudioFile {
-	path: string;
-	size?: number;
-	duration?: number;
-	format?: string;
-	bitrate?: number;
-	sampleRate?: number;
-	channels?: number;
-	isValid: boolean;
-	error?: string;
-}
+export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
 
-export interface FileListInfo {
-	files: AudioFile[];
-	totalDuration: number;
-	totalSize: number;
-	validCount: number;
-	invalidCount: number;
-}
+export type FileListInfo = NullToOptionalDeep<GeneratedFileListInfo>;
 
-export type SampleRateConfig = 'auto' | { explicit: number };
+export type SampleRateConfig = GeneratedSampleRateConfig;
 
 // Output naming options for folder/filename generation
-export interface OutputNamingConfig {
-	absCompatible: boolean;
-	includeYear: boolean;
-}
+export type OutputNamingConfig = GeneratedOutputNamingConfig;
 
 // Combined UI output configuration used by the UI boundary
 export interface OutputConfig {
@@ -59,8 +50,10 @@ export interface PreviewRequest {
 }
 
 export interface ProcessCommandResult {
-	message: string;
-	previewFilePath?: string;
+	message: NullToOptionalDeep<GeneratedProcessCommandResult>['message'];
+	previewFilePath?: NullToOptionalDeep<GeneratedProcessCommandResult>['previewFilePath'];
+	previewActualSeconds?: NullToOptionalDeep<GeneratedProcessCommandResult>['previewActualSeconds'];
+	jobId?: NullToOptionalDeep<GeneratedProcessCommandResult>['jobId'];
 }
 
 // Encoder v2 types (Enhanced engine)
@@ -88,17 +81,12 @@ export interface EncoderSettings {
 }
 
 // Job Type for batch processing (Issue #81)
-export type JobType = 'merge' | 'batch';
+export type JobType = GeneratedJobType;
 
 // Complete processing payload
-export interface ProcessV2Payload {
-	inputFiles: string[];
-	outputDir: string;
+export type ProcessV2Payload = Omit<NullToOptionalDeep<GeneratedProcessV2Payload>, 'settings'> & {
 	settings: EncoderSettings;
-	sampleRate?: SampleRateConfig;
-	jobType?: JobType; // Optional pending backend support
-	outputNaming?: OutputNamingConfig;
-}
+};
 
 // Default encoder settings with runtime auto resolution.
 // Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.

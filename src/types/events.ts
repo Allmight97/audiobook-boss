@@ -9,6 +9,12 @@
  * Purpose: Preserve exact behavior during refactoring
  */
 
+import type {
+	ProgressEvent as GeneratedProgressEvent,
+	QueueEvent as GeneratedQueueEvent,
+} from '../lib/generated/tauri';
+import type { NullToOptionalDeep } from './ipc';
+
 // ============================================================================
 // EVENT CONSTANTS (P0.5.3)
 // ============================================================================
@@ -45,33 +51,14 @@ export const STAGES = {
  * - Metadata writing
  * - Process completion/failure/cancellation
  */
-export interface ProcessingProgressEvent {
+type GeneratedProgressEventForUi = NullToOptionalDeep<GeneratedProgressEvent>;
+
+export type ProcessingProgressEvent = Omit<GeneratedProgressEventForUi, 'stage'> & {
 	/** Processing stage identifier */
 	stage: keyof typeof STAGES;
+};
 
-	/** Progress percentage (0.0 to 100.0) */
-	percentage: number;
-
-	/** Human-readable status message */
-	message: string;
-
-	/** Currently processing file (optional) */
-	current_file?: string;
-
-	/** Estimated time remaining in seconds (optional) */
-	eta_seconds?: number;
-
-	/** Job identifier for parallel batch processing (optional, added in issue #71) */
-	job_id?: string;
-
-	/** Original input index for batch processing (optional, added in issue #71) */
-	input_index?: number;
-}
-
-export interface ProcessingQueueItem {
-	input_index: number;
-	file_path: string;
-}
+export type ProcessingQueueItem = NullToOptionalDeep<GeneratedQueueEvent>['items'][number];
 
 /**
  * Queue snapshot event emitted by Rust backend during batch processing
@@ -79,10 +66,7 @@ export interface ProcessingQueueItem {
  * Source: src-tauri/src/commands/audio_processing.rs
  * Handler: src/ui/statusPanel/events.ts (listen(EVENTS.QUEUE))
  */
-export interface ProcessingQueueEvent {
-	items: ProcessingQueueItem[];
-	max_concurrent: number;
-}
+export type ProcessingQueueEvent = NullToOptionalDeep<GeneratedQueueEvent>;
 
 // ============================================================================
 // TAURI BUILT-IN EVENTS (Tauri Framework → Frontend)

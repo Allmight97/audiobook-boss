@@ -7,7 +7,6 @@ import {
 	commands as generatedCommands,
 	events as generatedEvents,
 	type AudiobookMetadata as GeneratedAudiobookMetadata,
-	type AudioFile as GeneratedAudioFile,
 	type FileListInfo as GeneratedFileListInfo,
 	type MetadataSource as GeneratedMetadataSource,
 	type OnlineMetadataResult as GeneratedOnlineMetadataResult,
@@ -23,7 +22,6 @@ import type {
 	ProcessingQueueEvent,
 } from '../types/events';
 import type {
-	AudioFile as LegacyAudioFile,
 	EncoderSettings,
 	FileListInfo as LegacyFileListInfo,
 	ProcessCommandResult as LegacyProcessCommandResult,
@@ -39,138 +37,141 @@ import type {
 const isTauri = !!window.__TAURI_INTERNALS__;
 console.log(`[Bridge] Initialized. isTauri=${isTauri}, DEV=${import.meta.env.DEV}`);
 
-const toOptional = <T>(value: T | null | undefined): T | undefined =>
-	value == null ? undefined : value;
+type PlainRecord = Record<string, unknown>;
+
+const METADATA_FIELDS = [
+	'title',
+	'artist',
+	'album',
+	'composer',
+	'genre',
+	'date',
+	'track',
+	'disk',
+	'comment',
+	'description',
+	'series',
+	'series_part',
+	'subseries',
+	'subseries_part',
+	'album_sort',
+	'cover_art',
+] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
+
+const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
+	'sampleRate',
+	'jobType',
+	'outputNaming',
+] as const satisfies readonly (keyof GeneratedProcessV2Payload)[];
+
+const isPlainRecord = (value: unknown): value is PlainRecord =>
+	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function normalizeNullish<T>(value: T): T {
+	if (value == null) {
+		return undefined as T;
+	}
+	if (Array.isArray(value)) {
+		return value.map((entry) => normalizeNullish(entry)) as T;
+	}
+	if (isPlainRecord(value)) {
+		const normalized: PlainRecord = {};
+		for (const [key, entryValue] of Object.entries(value)) {
+			const converted = normalizeNullish(entryValue);
+			if (converted !== undefined) {
+				normalized[key] = converted;
+			}
+		}
+		return normalized as T;
+	}
+	return value;
+}
+
+function denormalizeNullish<T>(value: T): T {
+	if (value === undefined) {
+		return null as T;
+	}
+	if (Array.isArray(value)) {
+		return value.map((entry) => denormalizeNullish(entry)) as T;
+	}
+	if (isPlainRecord(value)) {
+		const normalized: PlainRecord = {};
+		for (const [key, entryValue] of Object.entries(value)) {
+			normalized[key] = denormalizeNullish(entryValue);
+		}
+		return normalized as T;
+	}
+	return value;
+}
+
+function toNullableShape<T extends PlainRecord, K extends keyof T>(
+	input: Partial<Record<K, unknown>>,
+	keys: readonly K[],
+): Pick<T, K> {
+	const output = {} as Pick<T, K>;
+	for (const key of keys) {
+		const value = input[key];
+		(output as PlainRecord)[key as string] = value === undefined ? null : denormalizeNullish(value);
+	}
+	return output;
+}
 
 function normalizeMetadata(metadata: GeneratedAudiobookMetadata): LegacyAudiobookMetadata {
-	return {
-		title: toOptional(metadata.title),
-		artist: toOptional(metadata.artist),
-		album: toOptional(metadata.album),
-		composer: toOptional(metadata.composer),
-		genre: toOptional(metadata.genre),
-		date: toOptional(metadata.date),
-		track: toOptional(metadata.track),
-		disk: toOptional(metadata.disk),
-		comment: toOptional(metadata.comment),
-		description: toOptional(metadata.description),
-		series: toOptional(metadata.series),
-		series_part: toOptional(metadata.series_part),
-		subseries: toOptional(metadata.subseries),
-		subseries_part: toOptional(metadata.subseries_part),
-		album_sort: toOptional(metadata.album_sort),
-		cover_art: toOptional(metadata.cover_art),
-	};
+	return normalizeNullish(metadata) as LegacyAudiobookMetadata;
 }
 
 function denormalizeMetadata(
 	metadata: Partial<LegacyAudiobookMetadata>,
 ): GeneratedAudiobookMetadata {
-	return {
-		title: metadata.title ?? null,
-		artist: metadata.artist ?? null,
-		album: metadata.album ?? null,
-		composer: metadata.composer ?? null,
-		genre: metadata.genre ?? null,
-		date: metadata.date ?? null,
-		track: metadata.track ?? null,
-		disk: metadata.disk ?? null,
-		comment: metadata.comment ?? null,
-		description: metadata.description ?? null,
-		series: metadata.series ?? null,
-		series_part: metadata.series_part ?? null,
-		subseries: metadata.subseries ?? null,
-		subseries_part: metadata.subseries_part ?? null,
-		album_sort: metadata.album_sort ?? null,
-		cover_art: metadata.cover_art ?? null,
-	};
-}
-
-function normalizeAudioFile(file: GeneratedAudioFile): LegacyAudioFile {
-	return {
-		path: file.path,
-		size: toOptional(file.size),
-		duration: toOptional(file.duration),
-		format: toOptional(file.format),
-		bitrate: toOptional(file.bitrate),
-		sampleRate: toOptional(file.sampleRate),
-		channels: toOptional(file.channels),
-		isValid: file.isValid,
-		error: toOptional(file.error),
-	};
+	return toNullableShape<GeneratedAudiobookMetadata, (typeof METADATA_FIELDS)[number]>(
+		metadata as Partial<Record<(typeof METADATA_FIELDS)[number], unknown>>,
+		METADATA_FIELDS,
+	) as GeneratedAudiobookMetadata;
 }
 
 function normalizeFileList(info: GeneratedFileListInfo): LegacyFileListInfo {
-	return {
-		files: info.files.map(normalizeAudioFile),
-		totalDuration: info.totalDuration,
-		totalSize: info.totalSize,
-		validCount: info.validCount,
-		invalidCount: info.invalidCount,
-	};
+	return normalizeNullish(info) as LegacyFileListInfo;
 }
 
 function normalizeLookupResult(result: GeneratedOnlineMetadataResult): LegacyOnlineMetadataResult {
-	return {
-		source: result.source as LegacyMetadataSource,
-		sourceId: result.sourceId,
-		title: result.title,
-		authors: result.authors,
-		narrators: result.narrators,
-		series: toOptional(result.series),
-		seriesPart: toOptional(result.seriesPart),
-		subseries: toOptional(result.subseries),
-		subseriesPart: toOptional(result.subseriesPart),
-		description: toOptional(result.description),
-		publishedYear: toOptional(result.publishedYear),
-		durationSeconds: toOptional(result.durationSeconds),
-		coverUrl: toOptional(result.coverUrl),
-		audibleOnly: toOptional(result.audibleOnly),
-	};
+	return normalizeNullish(result) as LegacyOnlineMetadataResult;
 }
 
 function denormalizeProcessPayload(payload: LegacyProcessV2Payload): GeneratedProcessV2Payload {
+	const nullableFields = toNullableShape<
+		GeneratedProcessV2Payload,
+		(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number]
+	>(
+		payload as Partial<Record<(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number], unknown>>,
+		PROCESS_PAYLOAD_NULLABLE_FIELDS,
+	);
 	return {
 		inputFiles: payload.inputFiles,
 		outputDir: payload.outputDir,
-		settings: payload.settings,
-		sampleRate: payload.sampleRate ?? null,
-		jobType: payload.jobType ?? null,
-		outputNaming: payload.outputNaming ?? null,
+		settings: payload.settings as GeneratedProcessV2Payload['settings'],
+		...nullableFields,
 	};
 }
 
 function normalizeProcessResult(
 	result: GeneratedProcessCommandResult,
 ): LegacyProcessCommandResult & { previewActualSeconds?: number; jobId: string } {
-	return {
-		message: result.message,
-		previewFilePath: toOptional(result.previewFilePath),
-		previewActualSeconds: toOptional(result.previewActualSeconds),
-		jobId: result.jobId,
+	return normalizeNullish(result) as LegacyProcessCommandResult & {
+		previewActualSeconds?: number;
+		jobId: string;
 	};
 }
 
 function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {
+	const normalized = normalizeNullish(payload) as ProcessingProgressEvent;
 	return {
+		...normalized,
 		stage: payload.stage as ProcessingProgressEvent['stage'],
-		percentage: payload.percentage,
-		message: payload.message,
-		current_file: toOptional(payload.current_file),
-		eta_seconds: toOptional(payload.eta_seconds),
-		job_id: toOptional(payload.job_id),
-		input_index: toOptional(payload.input_index),
 	};
 }
 
 function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
-	return {
-		items: payload.items.map((item) => ({
-			input_index: item.input_index,
-			file_path: item.file_path,
-		})),
-		max_concurrent: payload.max_concurrent,
-	};
+	return normalizeNullish(payload) as ProcessingQueueEvent;
 }
 
 type LegacyMetadataPayload = Record<string, Partial<LegacyAudiobookMetadata>>;
