@@ -9,7 +9,12 @@ import { getSelectedFileIndices } from '../fileList/state';
 import { getCurrentOutputConfig } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
-import { getAllMetadata, getMetadataForFile, setMetadataForFile } from '../metadataState';
+import {
+	getAllMetadata,
+	getMetadataForFile,
+	hasMeaningfulMetadata,
+	setMetadataForFile,
+} from '../metadataState';
 import { stageMetadataToSelection } from '../fileList/actions';
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
@@ -103,7 +108,7 @@ export async function startProcessing(
 					selectedFileIndex >= 0
 						? fileList.files[selectedFileIndex]
 						: fileList.files.find((file) => file.isValid);
-				if (activeFile?.isValid && Object.keys(currentMetadata).length > 0) {
+				if (activeFile?.isValid && hasMeaningfulMetadata(currentMetadata)) {
 					setMetadataForFile(activeFile.path, currentMetadata);
 				}
 			}
@@ -175,7 +180,7 @@ export async function startProcessing(
 
 		let metadataPayload: Record<string, Partial<AudiobookMetadata>> | null = null;
 		if (v2Payload.jobType === 'merge') {
-			if (v2Payload.inputFiles.length > 0 && Object.keys(currentMetadata).length > 0) {
+			if (v2Payload.inputFiles.length > 0 && hasMeaningfulMetadata(currentMetadata)) {
 				metadataPayload = {
 					[v2Payload.inputFiles[0]]: currentMetadata,
 				};
@@ -183,7 +188,7 @@ export async function startProcessing(
 		} else {
 			const storedMetadata = getAllMetadata();
 			const filteredMetadata = Object.fromEntries(
-				Object.entries(storedMetadata).filter(([, value]) => Object.keys(value).length > 0),
+				Object.entries(storedMetadata).filter(([, value]) => hasMeaningfulMetadata(value)),
 			);
 			metadataPayload = Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
 		}

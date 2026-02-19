@@ -3,6 +3,7 @@ import { onFileListChange, onMetadataChange } from '../outputPanel';
 import {
 	clearMetadataState,
 	getMetadataForFile,
+	metadataEqualsNullish,
 	removeMetadataForFile,
 	setMetadataForFile,
 } from '../metadataState';
@@ -65,18 +66,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	void autoUpdateCoverArtFromFirstValidFile();
 }
 
-function metadataEquals(a: Partial<AudiobookMetadata>, b: Partial<AudiobookMetadata>): boolean {
-	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-	for (const key of keys) {
-		const aValue = a[key as keyof AudiobookMetadata];
-		const bValue = b[key as keyof AudiobookMetadata];
-		if (JSON.stringify(aValue) !== JSON.stringify(bValue)) {
-			return false;
-		}
-	}
-	return true;
-}
-
 function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | null {
 	const seriesPartError = getSeriesPartValidationError(
 		typeof changes.series_part === 'string' ? changes.series_part : undefined,
@@ -103,7 +92,7 @@ function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
 
 	const existing = getMetadataForFile(file.path) ?? {};
 	const merged = { ...existing, ...metadata };
-	if (metadataEquals(existing, merged)) {
+	if (metadataEqualsNullish(existing, merged)) {
 		return false;
 	}
 
@@ -246,7 +235,7 @@ export async function stageMetadataToSelection(options?: {
 	selectedFiles.forEach((file) => {
 		const existing = getMetadataForFile(file.path) ?? {};
 		const merged = { ...existing, ...changes };
-		if (!metadataEquals(existing, merged)) {
+		if (!metadataEqualsNullish(existing, merged)) {
 			setMetadataForFile(file.path, merged, { markPending: true });
 		}
 	});
