@@ -135,7 +135,7 @@ describe('selectFile transition options', () => {
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			{ title: 'Persisted Title' },
-			{ markPending: true },
+			expect.objectContaining({ markPending: true }),
 		);
 	});
 });

@@ -8,6 +8,11 @@ import {
 	setMetadataForFile,
 } from '../metadataState';
 import {
+	applyMetadataIntentPatch,
+	buildMetadataIntentPatchFromMetadata,
+	hasActionableMetadataIntentPatch,
+} from '../../types/metadataIntent';
+import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
@@ -91,12 +96,19 @@ function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
 	}
 
 	const existing = getMetadataForFile(file.path) ?? {};
-	const merged = { ...existing, ...metadata };
+	const intentPatch = buildMetadataIntentPatchFromMetadata(metadata);
+	if (!hasActionableMetadataIntentPatch(intentPatch)) {
+		return false;
+	}
+	const merged = applyMetadataIntentPatch(existing, intentPatch);
 	if (metadataEqualsNullish(existing, merged)) {
 		return false;
 	}
 
-	setMetadataForFile(file.path, merged, { markPending: true });
+	setMetadataForFile(file.path, merged, {
+		markPending: true,
+		intentPatch,
+	});
 	resetDirtyState();
 	onMetadataChange();
 	return true;
@@ -231,12 +243,19 @@ export async function stageMetadataToSelection(options?: {
 	}
 
 	await ensureMetadataForFiles(selectedFiles);
+	const intentPatch = buildMetadataIntentPatchFromMetadata(changes);
+	if (!hasActionableMetadataIntentPatch(intentPatch)) {
+		return false;
+	}
 
 	selectedFiles.forEach((file) => {
 		const existing = getMetadataForFile(file.path) ?? {};
-		const merged = { ...existing, ...changes };
+		const merged = applyMetadataIntentPatch(existing, intentPatch);
 		if (!metadataEqualsNullish(existing, merged)) {
-			setMetadataForFile(file.path, merged, { markPending: true });
+			setMetadataForFile(file.path, merged, {
+				markPending: true,
+				intentPatch,
+			});
 		}
 	});
 

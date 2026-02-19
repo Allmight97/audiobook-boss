@@ -29,6 +29,7 @@ If you are an AI coding agent, start with the project’s agent guide in `AGENTS
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
 2. Processing Pipeline: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events via Tauri window
 3. Metadata Flow: MP4/M4B read/write via `mp4ameta` (ffmpeg fallback for gaps) → `AudiobookMetadata` → `mp4ameta` write during metadata-only edits and finalize; non-MP4 stays on ffmpeg-next
+4. Metadata Edit Intent Flow (frontend): metadata form edits are modeled as canonical patch ops (`set | clear | noop`) and compiled at the bridge boundary to current Rust payload semantics (`''`, `0`, `[]` clear sentinels).
 
 ## Commands & Integration Points
 
@@ -86,7 +87,9 @@ bun run bindings:check     # Verify generated bindings are up to date
 Source of truth:
 - Rust contract builder: `src-tauri/src/ipc_contract.rs`
 - Generated bindings: `src/lib/generated/tauri.ts`
-- UI compatibility adapter: `src/lib/bridge.ts`
+- UI compatibility adapter (thin boundary): `src/lib/bridge.ts`
+  - Invariant: clear intent must never be dropped by frontend emptiness heuristics.
+  - Metadata clear mapping today: `string -> ''`, `date -> 0`, `cover_art -> []`.
 
 ### Formatting
 

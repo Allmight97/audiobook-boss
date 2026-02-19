@@ -1,26 +1,16 @@
 import type { AudiobookMetadata } from '../types/metadata';
+import type { MetadataIntentPatch } from '../types/metadataIntent';
+import {
+	buildMetadataIntentPatchFromMetadata,
+	hasActionableMetadataIntentPatch,
+	mergeMetadataIntentPatches,
+} from '../types/metadataIntent';
 
 const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
+const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
 const pendingSavePaths = new Set<string>();
 
 const isNullish = (value: unknown): value is null | undefined => value == null;
-
-function hasMeaningfulMetadataEntry(key: string, value: unknown): boolean {
-	if (isNullish(value)) {
-		return false;
-	}
-	if (typeof value === 'string') {
-		return value.trim().length > 0;
-	}
-	if (Array.isArray(value)) {
-		// cover_art=[] is intentional and means "remove cover art"
-		if (key === 'cover_art') {
-			return true;
-		}
-		return value.length > 0;
-	}
-	return true;
-}
 
 function metadataValuesEqual(a: unknown, b: unknown): boolean {
 	if (isNullish(a) && isNullish(b)) {
@@ -37,6 +27,7 @@ function metadataValuesEqual(a: unknown, b: unknown): boolean {
 
 type SetMetadataOptions = {
 	markPending?: boolean;
+	intentPatch?: MetadataIntentPatch;
 };
 
 export function setMetadataForFile(
@@ -46,6 +37,11 @@ export function setMetadataForFile(
 ): void {
 	metadataByFile.set(filePath, metadata);
 	if (options?.markPending) {
+		const nextPatch = options.intentPatch ?? buildMetadataIntentPatchFromMetadata(metadata);
+		if (hasActionableMetadataIntentPatch(nextPatch)) {
+			const existing = metadataIntentByFile.get(filePath) ?? {};
+			metadataIntentByFile.set(filePath, mergeMetadataIntentPatches(existing, nextPatch));
+		}
 		pendingSavePaths.add(filePath);
 	}
 }
@@ -58,8 +54,12 @@ export function getAllMetadata(): Record<string, Partial<AudiobookMetadata>> {
 	return Object.fromEntries(metadataByFile.entries());
 }
 
-export function hasMeaningfulMetadata(metadata: Partial<AudiobookMetadata>): boolean {
-	return Object.entries(metadata).some(([key, value]) => hasMeaningfulMetadataEntry(key, value));
+export function getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
+	return metadataIntentByFile.get(filePath);
+}
+
+export function getAllMetadataIntentPatches(): Record<string, MetadataIntentPatch> {
+	return Object.fromEntries(metadataIntentByFile.entries());
 }
 
 export function metadataEqualsNullish(
@@ -83,24 +83,36 @@ export function getPendingMetadataEntries(): Array<[string, Partial<AudiobookMet
 		.filter((entry): entry is [string, Partial<AudiobookMetadata>] => Boolean(entry[1]));
 }
 
+export function getPendingMetadataIntentEntries(): Array<[string, MetadataIntentPatch]> {
+	return Array.from(pendingSavePaths)
+		.map((filePath) => [filePath, metadataIntentByFile.get(filePath)] as const)
+		.filter((entry): entry is [string, MetadataIntentPatch] => Boolean(entry[1]));
+}
+
 export function hasPendingMetadataChanges(): boolean {
 	return pendingSavePaths.size > 0;
 }
 
 export function clearPendingMetadataForFile(filePath: string): void {
 	pendingSavePaths.delete(filePath);
+	metadataIntentByFile.delete(filePath);
 }
 
 export function clearPendingMetadataForFiles(filePaths: string[]): void {
-	filePaths.forEach((filePath) => pendingSavePaths.delete(filePath));
+	filePaths.forEach((filePath) => {
+		pendingSavePaths.delete(filePath);
+		metadataIntentByFile.delete(filePath);
+	});
 }
 
 export function removeMetadataForFile(filePath: string): void {
 	metadataByFile.delete(filePath);
+	metadataIntentByFile.delete(filePath);
 	pendingSavePaths.delete(filePath);
 }
 
 export function clearMetadataState(): void {
 	metadataByFile.clear();
+	metadataIntentByFile.clear();
 	pendingSavePaths.clear();
 }

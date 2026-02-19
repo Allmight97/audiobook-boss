@@ -1,9 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const context = vi.hoisted(() => ({
-	saveMetadataToFileMock: vi.fn(),
+	saveMetadataIntentToFileMock: vi.fn(),
 	persistPendingDraftsMock: vi.fn(async () => false),
-	getPendingEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
+	getPendingIntentEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
 	clearPendingMock: vi.fn(),
 	resetDirtyStateMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(() => ({
@@ -17,7 +17,7 @@ const context = vi.hoisted(() => ({
 
 vi.mock('../../lib/bridge', () => ({
 	bridge: {
-		saveMetadataToFile: context.saveMetadataToFileMock,
+		saveMetadataIntentToFile: context.saveMetadataIntentToFileMock,
 	},
 }));
 
@@ -47,7 +47,7 @@ vi.mock('../fileList/actions', () => ({
 }));
 
 vi.mock('../metadataState', () => ({
-	getPendingMetadataEntries: () => context.getPendingEntriesMock(),
+	getPendingMetadataIntentEntries: () => context.getPendingIntentEntriesMock(),
 	clearPendingMetadataForFile: context.clearPendingMock,
 }));
 
@@ -86,11 +86,11 @@ describe('metadata save pending flow', () => {
 	});
 
 	beforeEach(() => {
-		context.saveMetadataToFileMock.mockReset();
+		context.saveMetadataIntentToFileMock.mockReset();
 		context.persistPendingDraftsMock.mockReset();
 		context.clearPendingMock.mockReset();
 		context.resetDirtyStateMock.mockReset();
-		context.getPendingEntriesMock.mockReset();
+		context.getPendingIntentEntriesMock.mockReset();
 		context.metadataSaveInProgress = false;
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [
@@ -103,16 +103,16 @@ describe('metadata save pending flow', () => {
 
 	it('saves all pending entries and clears pending markers on success', async () => {
 		context.persistPendingDraftsMock.mockResolvedValue(true);
-		context.getPendingEntriesMock.mockReturnValue([
-			['/books/a.m4b', { title: 'A' }],
-			['/books/b.m4b', { title: 'B' }],
+		context.getPendingIntentEntriesMock.mockReturnValue([
+			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],
+			['/books/b.m4b', { title: { op: 'set', value: 'B' } }],
 		]);
-		context.saveMetadataToFileMock.mockResolvedValue(undefined);
+		context.saveMetadataIntentToFileMock.mockResolvedValue(undefined);
 
 		getSaveButton().click();
 
 		await vi.waitFor(() => {
-			expect(context.saveMetadataToFileMock).toHaveBeenCalledTimes(2);
+			expect(context.saveMetadataIntentToFileMock).toHaveBeenCalledTimes(2);
 		});
 		expect(context.persistPendingDraftsMock).toHaveBeenCalledWith({ showStatus: false });
 		expect(context.clearPendingMock).toHaveBeenCalledTimes(2);
@@ -124,18 +124,18 @@ describe('metadata save pending flow', () => {
 
 	it('retains failed files in pending state and surfaces partial failure summary', async () => {
 		context.persistPendingDraftsMock.mockResolvedValue(true);
-		context.getPendingEntriesMock.mockReturnValue([
-			['/books/a.m4b', { title: 'A' }],
-			['/books/b.m4b', { title: 'B' }],
+		context.getPendingIntentEntriesMock.mockReturnValue([
+			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],
+			['/books/b.m4b', { title: { op: 'set', value: 'B' } }],
 		]);
-		context.saveMetadataToFileMock
+		context.saveMetadataIntentToFileMock
 			.mockResolvedValueOnce(undefined)
 			.mockRejectedValueOnce(new Error('write failed'));
 
 		getSaveButton().click();
 
 		await vi.waitFor(() => {
-			expect(context.saveMetadataToFileMock).toHaveBeenCalledTimes(2);
+			expect(context.saveMetadataIntentToFileMock).toHaveBeenCalledTimes(2);
 		});
 		expect(context.clearPendingMock).toHaveBeenCalledTimes(1);
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/a.m4b');
@@ -144,7 +144,7 @@ describe('metadata save pending flow', () => {
 
 	it('shows explicit status when there are no pending metadata changes', async () => {
 		context.persistPendingDraftsMock.mockResolvedValue(false);
-		context.getPendingEntriesMock.mockReturnValue([]);
+		context.getPendingIntentEntriesMock.mockReturnValue([]);
 
 		getSaveButton().click();
 
@@ -153,7 +153,7 @@ describe('metadata save pending flow', () => {
 				showStatus: false,
 			});
 		});
-		expect(context.saveMetadataToFileMock).not.toHaveBeenCalled();
+		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
 		expect(getStatusText().textContent).toBe('No pending metadata changes');
 	});
 });

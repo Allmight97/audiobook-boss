@@ -32,6 +32,7 @@ import type {
 	MetadataSource as LegacyMetadataSource,
 	OnlineMetadataResult as LegacyOnlineMetadataResult,
 } from '../types/metadata';
+import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../types/metadataIntent';
 
 // Check if we are running in a Tauri environment
 const isTauri = !!window.__TAURI_INTERNALS__;
@@ -175,6 +176,7 @@ function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent
 }
 
 type LegacyMetadataPayload = Record<string, Partial<LegacyAudiobookMetadata>>;
+type LegacyMetadataIntentPayload = Record<string, MetadataIntentPatch>;
 
 const commandInvokers = {
 	ping: (_args?: undefined) => generatedCommands.ping(),
@@ -189,8 +191,16 @@ const commandInvokers = {
 		generatedCommands.loadCoverArtFile(args.filePath),
 	load_cover_art_from_url: (args: { url: string }) =>
 		generatedCommands.loadCoverArtFromUrl(args.url),
-	save_metadata_to_file: (args: { filePath: string; metadata: Partial<LegacyAudiobookMetadata> }) =>
-		generatedCommands.saveMetadataToFile(args.filePath, denormalizeMetadata(args.metadata)),
+	save_metadata_to_file: (args: {
+		filePath: string;
+		metadata?: Partial<LegacyAudiobookMetadata>;
+		metadataIntent?: MetadataIntentPatch;
+	}) => {
+		const metadata = args.metadataIntent
+			? compileMetadataIntentPatch(args.metadataIntent)
+			: (args.metadata ?? {});
+		return generatedCommands.saveMetadataToFile(args.filePath, denormalizeMetadata(metadata));
+	},
 	search_online_metadata: (args: {
 		query: string;
 		sources?: LegacyMetadataSource[] | null;
@@ -214,11 +224,21 @@ const commandInvokers = {
 	process_audiobook_files_v2: (args: {
 		payload: LegacyProcessV2Payload;
 		metadata?: LegacyMetadataPayload | null;
+		metadataIntent?: LegacyMetadataIntentPayload | null;
 		previewSeconds?: number | null;
 	}) => {
-		const metadataPayload = args.metadata
+		const metadataFromIntent = args.metadataIntent
 			? Object.fromEntries(
-					Object.entries(args.metadata).map(([path, value]) => [path, denormalizeMetadata(value)]),
+					Object.entries(args.metadataIntent).map(([path, value]) => [
+						path,
+						compileMetadataIntentPatch(value),
+					]),
+				)
+			: null;
+		const metadataSource = metadataFromIntent ?? args.metadata ?? null;
+		const metadataPayload = metadataSource
+			? Object.fromEntries(
+					Object.entries(metadataSource).map(([path, value]) => [path, denormalizeMetadata(value)]),
 				)
 			: null;
 
@@ -291,6 +311,11 @@ export const bridge = {
 		metadata: Partial<LegacyAudiobookMetadata>,
 	): Promise<BridgeCommandResult<'save_metadata_to_file'>> =>
 		invokeCommand('save_metadata_to_file', { filePath, metadata }),
+	saveMetadataIntentToFile: (
+		filePath: string,
+		metadataIntent: MetadataIntentPatch,
+	): Promise<BridgeCommandResult<'save_metadata_to_file'>> =>
+		invokeCommand('save_metadata_to_file', { filePath, metadataIntent }),
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources?: LegacyMetadataSource[] | null;
@@ -314,6 +339,7 @@ export const bridge = {
 	processAudiobookFilesV2: (args: {
 		payload: LegacyProcessV2Payload;
 		metadata?: LegacyMetadataPayload | null;
+		metadataIntent?: LegacyMetadataIntentPayload | null;
 		previewSeconds?: number | null;
 	}): Promise<BridgeCommandResult<'process_audiobook_files_v2'>> =>
 		invokeCommand('process_audiobook_files_v2', args),

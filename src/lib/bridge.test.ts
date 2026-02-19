@@ -108,6 +108,31 @@ describe('bridge nullish adapters', () => {
 		expect(args.metadata.cover_art).toBeNull();
 	});
 
+	it('compiles metadata intent patch on save before denormalization', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce(null);
+
+		const { bridge } = await import('./bridge');
+		await bridge.saveMetadataIntentToFile('/books/a.m4b', {
+			title: { op: 'clear' },
+			series_part: { op: 'set', value: '2.0' },
+			cover_art: { op: 'clear' },
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{ filePath: string; metadata: Record<string, unknown> },
+		];
+		expect(commandName).toBe('save_metadata_to_file');
+		expect(args.filePath).toBe('/books/a.m4b');
+		expect(args.metadata.title).toBe('');
+		expect(args.metadata.series_part).toBe('2.0');
+		expect(args.metadata.cover_art).toEqual([]);
+		expect(args.metadata.artist).toBeNull();
+	});
+
 	it('normalizes nullable metadata fields from backend responses', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -185,6 +210,47 @@ describe('bridge nullish adapters', () => {
 		expect(args.previewSeconds).toBeNull();
 		expect(result.previewFilePath).toBeUndefined();
 		expect(result.previewActualSeconds).toBeUndefined();
+	});
+
+	it('compiles metadata intent map for process command payload', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			message: 'ok',
+			previewFilePath: null,
+			previewActualSeconds: null,
+			jobId: 'job-1',
+		});
+
+		const { bridge } = await import('./bridge');
+		await bridge.processAudiobookFilesV2({
+			payload: {
+				inputFiles: ['/books/a.m4b'],
+				outputDir: '/tmp/out',
+				settings: defaultEncoderSettings(),
+				sampleRate: undefined,
+				jobType: 'merge',
+				outputNaming: undefined,
+			},
+			metadataIntent: {
+				'/books/a.m4b': {
+					title: { op: 'clear' },
+					artist: { op: 'set', value: 'Author X' },
+				},
+			},
+			previewSeconds: undefined,
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [, args] = lastCall as [
+			string,
+			{
+				metadata: Record<string, Record<string, unknown>>;
+			},
+		];
+		expect(args.metadata['/books/a.m4b']?.title).toBe('');
+		expect(args.metadata['/books/a.m4b']?.artist).toBe('Author X');
+		expect(args.metadata['/books/a.m4b']?.series).toBeNull();
 	});
 
 	it('normalizes nullish progress-event payload fields from generated listeners', async () => {

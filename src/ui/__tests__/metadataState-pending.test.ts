@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	clearMetadataState,
 	clearPendingMetadataForFile,
-	hasMeaningfulMetadata,
+	getPendingMetadataIntentEntries,
 	getPendingMetadataEntries,
 	hasPendingMetadataChanges,
 	metadataEqualsNullish,
 	removeMetadataForFile,
 	setMetadataForFile,
 } from '../metadataState';
+import { buildMetadataIntentPatchFromMetadata } from '../../types/metadataIntent';
 
 describe('metadataState pending draft tracking', () => {
 	beforeEach(() => {
@@ -22,9 +23,19 @@ describe('metadataState pending draft tracking', () => {
 	});
 
 	it('tracks pending entries when explicitly marked', () => {
-		setMetadataForFile('/a.mp3', { title: 'Book A' }, { markPending: true });
+		setMetadataForFile(
+			'/a.mp3',
+			{ title: 'Book A' },
+			{
+				markPending: true,
+				intentPatch: buildMetadataIntentPatchFromMetadata({ title: 'Book A' }),
+			},
+		);
 		expect(hasPendingMetadataChanges()).toBe(true);
 		expect(getPendingMetadataEntries()).toEqual([['/a.mp3', { title: 'Book A' }]]);
+		expect(getPendingMetadataIntentEntries()).toEqual([
+			['/a.mp3', { title: { op: 'set', value: 'Book A' } }],
+		]);
 	});
 
 	it('clears pending state after successful save', () => {
@@ -53,14 +64,17 @@ describe('metadataState pending draft tracking', () => {
 		).toBe(false);
 	});
 
-	it('only marks metadata as meaningful when values carry write intent', () => {
-		expect(
-			hasMeaningfulMetadata({ title: undefined, artist: null } as unknown as Parameters<
-				typeof hasMeaningfulMetadata
-			>[0]),
-		).toBe(false);
-		expect(hasMeaningfulMetadata({ title: '   ' })).toBe(false);
-		expect(hasMeaningfulMetadata({ title: 'Book A' })).toBe(true);
-		expect(hasMeaningfulMetadata({ cover_art: [] })).toBe(true);
+	it('tracks explicit clear intent in pending patch entries', () => {
+		setMetadataForFile(
+			'/a.mp3',
+			{ title: '' },
+			{
+				markPending: true,
+				intentPatch: buildMetadataIntentPatchFromMetadata({ title: '' }),
+			},
+		);
+		expect(getPendingMetadataIntentEntries()).toEqual([['/a.mp3', { title: { op: 'clear' } }]]);
+		clearPendingMetadataForFile('/a.mp3');
+		expect(getPendingMetadataIntentEntries()).toEqual([]);
 	});
 });
