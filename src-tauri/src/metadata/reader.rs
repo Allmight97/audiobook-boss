@@ -1,16 +1,9 @@
 //! Metadata reading via ffmpeg-next
 use super::{mp4ameta_bridge, split_series_list, AudiobookMetadata};
+use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
-
-const SERIES_TAG_KEYS: [&str; 4] = ["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"];
-const SERIES_PART_TAG_KEYS: [&str; 4] = [
-    "series-part",
-    "----:com.apple.iTunes:SERIES-PART",
-    "episode_sort",
-    "MVIN",
-];
 
 /// Reads container-level metadata and attached cover art using ffmpeg-next.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
@@ -120,8 +113,8 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     // observe=covered via metadata fallback tests and migration fallback register
     // sunset=2026-05-31 issue=#202
     // Series metadata: prefer canonical tags, fall back to legacy/movement tags
-    let series_raw = first_tag(&dict, &SERIES_TAG_KEYS);
-    let series_part_raw = first_tag(&dict, &SERIES_PART_TAG_KEYS);
+    let series_raw = first_tag(&dict, &SERIES_READ_KEYS);
+    let series_part_raw = first_tag(&dict, &SERIES_PART_READ_KEYS);
     let (series, subseries) = split_series_list(series_raw.as_deref());
     let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
     metadata.series = series;
@@ -178,7 +171,8 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
-    use super::{first_tag_with_lookup, SERIES_PART_TAG_KEYS};
+    use super::first_tag_with_lookup;
+    use crate::metadata::tag_registry::SERIES_PART_READ_KEYS;
     use std::collections::BTreeMap;
 
     #[test]
@@ -189,7 +183,7 @@ mod tests {
             ("episode_sort", "3".to_string()),
             ("MVIN", "4".to_string()),
         ]);
-        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("1"));
     }
 
@@ -200,28 +194,28 @@ mod tests {
             ("episode_sort", "3".to_string()),
             ("MVIN", "4".to_string()),
         ]);
-        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("2"));
     }
 
     #[test]
     fn falls_back_to_episode_sort_before_mvin() {
         let tags = BTreeMap::from([("episode_sort", "3".to_string()), ("MVIN", "4".to_string())]);
-        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("3"));
     }
 
     #[test]
     fn falls_back_to_mvin_when_other_series_part_keys_are_missing() {
         let tags = BTreeMap::from([("MVIN", "4".to_string())]);
-        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("4"));
     }
 
     #[test]
     fn does_not_treat_part_as_series_part_key() {
         let tags = BTreeMap::from([("part", "9".to_string())]);
-        let selected = first_tag_with_lookup(&SERIES_PART_TAG_KEYS, |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert!(selected.is_none());
     }
 }
