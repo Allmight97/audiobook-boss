@@ -11,7 +11,7 @@ import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import * as dom from './dom';
 import { setJobControlsEnabled } from '../jobControls';
-import { bindStatusPanelDomEvents, listenForProgressEvents, listenForQueueEvents } from './events';
+import { listenForProgressEvents, listenForQueueEvents } from './events';
 import {
 	buildQueueLabels,
 	extractFilenameFromProgress,
@@ -41,7 +41,6 @@ export class StatusPanel {
 	private queueUnlisten?: () => void;
 	private isProcessing: boolean = false;
 	private currentStatus: ProcessingStatus;
-	private previewDuration: number = 30;
 	/** Per-job progress tracking for parallel batch processing */
 	private jobProgress: Map<string, JobProgress> = new Map();
 	private queueOrder: string[] = [];
@@ -50,6 +49,7 @@ export class StatusPanel {
 	private batchCompletionTimeout?: number;
 	private currentJobType: 'merge' | 'batch' | null = null;
 	private lastCoverArtPath: string | null = null;
+	private onMaxConcurrentUpdated: () => void;
 	/** Track pending render to coalesce rAF batches */
 	private pendingRender = false;
 	/** Latest progress event data for deferred rendering */
@@ -57,10 +57,11 @@ export class StatusPanel {
 
 	constructor() {
 		this.currentStatus = createInitialStatus();
+		this.onMaxConcurrentUpdated = () => this.updateConcurrencyIndicator();
 
 		this.initializeElements();
-		this.setupEventHandlers();
 		// initialized in main.ts now: this.initializeMaxConcurrentControl();
+		document.addEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 
 		// Ensure event listeners are cleaned up if the window unloads
 		window.addEventListener('beforeunload', () => {
@@ -72,6 +73,7 @@ export class StatusPanel {
 				this.queueUnlisten();
 				this.queueUnlisten = undefined;
 			}
+			document.removeEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 		});
 	}
 
@@ -88,17 +90,6 @@ export class StatusPanel {
 
 		// Initialize art thumbnail to placeholder
 		dom.resetArtThumbnail();
-	}
-
-	private setupEventHandlers(): void {
-		bindStatusPanelDomEvents({
-			onPreview: (duration) => this.startProcessing({ previewSeconds: duration }),
-			getPreviewDuration: () => this.previewDuration,
-			setPreviewDuration: (duration) => {
-				this.previewDuration = duration;
-			},
-			onUpdateConcurrencyIndicator: () => this.updateConcurrencyIndicator(),
-		});
 	}
 
 	// MaxConcurrent control moved to src/ui/jobControls.ts

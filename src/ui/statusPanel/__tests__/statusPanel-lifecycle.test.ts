@@ -36,7 +36,6 @@ const listenerState = vi.hoisted(() => {
 });
 
 vi.mock('../events', () => ({
-	bindStatusPanelDomEvents: vi.fn(),
 	listenForProgressEvents: listenerState.listenForProgressEventsMock,
 	listenForQueueEvents: listenerState.listenForQueueEventsMock,
 }));

@@ -18,6 +18,10 @@
 	import { initMetadataLookup } from './ui/metadataLookup';
 	import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from './ui/metadataState';
 	import { isMetadataSaveInProgress, setMetadataSaveInProgress } from './ui/metadataSaveState';
+	let previewDuration = 30;
+	let previewDropdownOpen = false;
+	let previewDropdownElement: HTMLDivElement | null = null;
+	let previewDropdownToggleElement: HTMLButtonElement | null = null;
 
 	function setUserStatusMessage(
 		statusText: HTMLElement | null,
@@ -127,6 +131,37 @@
 		}
 	}
 
+	function startPreviewAudio(duration: number): void {
+		const panel = getStatusPanel();
+		if (!panel) return;
+		void panel.startProcessing({ previewSeconds: duration });
+	}
+
+	function handlePreviewButtonClick(): void {
+		startPreviewAudio(previewDuration);
+	}
+
+	function handlePreviewDropdownToggle(event: MouseEvent): void {
+		event.stopPropagation();
+		previewDropdownOpen = !previewDropdownOpen;
+	}
+
+	function handlePreviewDurationSelect(duration: number): void {
+		previewDuration = duration;
+		previewDropdownOpen = false;
+		startPreviewAudio(duration);
+	}
+
+	function handleWindowClick(event: MouseEvent): void {
+		if (!previewDropdownOpen) return;
+		const target = event.target;
+		if (!(target instanceof Node)) return;
+		if (previewDropdownElement?.contains(target) || previewDropdownToggleElement?.contains(target)) {
+			return;
+		}
+		previewDropdownOpen = false;
+	}
+
 	onMount(() => {
 		setMetadataFormSaveHandler(() => {
 			void saveMetadataFromUI();
@@ -146,7 +181,7 @@
 	});
 </script>
 
-<svelte:window on:keydown={handleGlobalKeyDown} />
+<svelte:window on:keydown={handleGlobalKeyDown} on:click={handleWindowClick} />
 
 <div class="main-container">
 	<div class="panel input-panel">
@@ -218,17 +253,39 @@
 					<div class="section-header justify-between">
 						<h3>Preview Audio and Metadata Tags</h3>
 						<div class="split-button">
-							<button id="preview-button" class="btn-pill btn-pill-primary split-main">
+							<button
+								id="preview-button"
+								class="btn-pill btn-pill-primary split-main"
+								on:click={handlePreviewButtonClick}
+							>
 								Preview Audio
 							</button>
-							<button id="preview-dropdown-toggle" class="btn-pill btn-pill-primary split-caret">
+							<button
+								id="preview-dropdown-toggle"
+								class="btn-pill btn-pill-primary split-caret"
+								bind:this={previewDropdownToggleElement}
+								on:click={handlePreviewDropdownToggle}
+							>
 								▼
 							</button>
-							<div id="preview-dropdown" class="split-dropdown">
-								<button class="split-option" data-duration="15">15 seconds</button>
-								<button class="split-option" data-duration="30">30 seconds</button>
-								<button class="split-option" data-duration="45">45 seconds</button>
-								<button class="split-option" data-duration="60">60 seconds</button>
+							<div
+								id="preview-dropdown"
+								class="split-dropdown"
+								style={`display: ${previewDropdownOpen ? 'block' : 'none'}`}
+								bind:this={previewDropdownElement}
+							>
+								<button class="split-option" data-duration="15" on:click={() => handlePreviewDurationSelect(15)}
+									>15 seconds</button
+								>
+								<button class="split-option" data-duration="30" on:click={() => handlePreviewDurationSelect(30)}
+									>30 seconds</button
+								>
+								<button class="split-option" data-duration="45" on:click={() => handlePreviewDurationSelect(45)}
+									>45 seconds</button
+								>
+								<button class="split-option" data-duration="60" on:click={() => handlePreviewDurationSelect(60)}
+									>60 seconds</button
+								>
 							</div>
 						</div>
 					</div>
