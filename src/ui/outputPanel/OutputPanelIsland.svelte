@@ -1,3 +1,15 @@
+<script lang="ts">
+	import {
+		handleAbsCompatibleChange,
+		handleAbsIncludeYearChange,
+		handleDirectoryBrowse,
+	} from './handlers';
+
+	function handleBrowseClick(): void {
+		void handleDirectoryBrowse();
+	}
+</script>
+
 <div>
   <div class="section-header">
     <h3>Output Directory</h3>
@@ -14,6 +26,7 @@
       <button
         id="output-dir-browse"
         class="btn-pill btn-pill-primary-soft"
+        on:click={handleBrowseClick}
       >
         Browse…
       </button>
@@ -33,6 +46,7 @@
             type="checkbox"
             id="output-abs-structure"
             checked
+            on:change={handleAbsCompatibleChange}
           />
           ABS-compatible structure
           ([Author]/[Series]/[Book # - Title]/)
@@ -46,7 +60,11 @@
       </div>
       <div class="path-option-row" id="output-abs-options">
         <label class="checkbox-label text-xs mt-0">
-          <input type="checkbox" id="output-abs-include-year" />
+          <input
+            type="checkbox"
+            id="output-abs-include-year"
+            on:change={handleAbsIncludeYearChange}
+          />
           Include year segment (YYYY)
         </label>
         <span id="output-abs-hint" class="text-xs muted-text">

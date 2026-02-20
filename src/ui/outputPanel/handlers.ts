@@ -117,41 +117,10 @@ export function setupSettingsHandlers(): void {
 }
 
 /**
- * Sets up directory selection event handlers
- */
-export function setupDirectoryHandlers(): void {
-	const browseButton = document.getElementById('output-dir-browse') as HTMLButtonElement;
-
-	if (browseButton) {
-		browseButton.addEventListener('click', handleDirectoryBrowse);
-	}
-}
-
-/**
- * Sets up naming option event handlers
- */
-export function setupNamingHandlers(): void {
-	const absStructureCheckbox = document.getElementById('output-abs-structure') as HTMLInputElement;
-	const absIncludeYearCheckbox = document.getElementById(
-		'output-abs-include-year',
-	) as HTMLInputElement;
-
-	if (absStructureCheckbox) {
-		absStructureCheckbox.addEventListener('change', handleAbsCompatibleChange);
-	}
-
-	if (absIncludeYearCheckbox) {
-		absIncludeYearCheckbox.addEventListener('change', handleAbsIncludeYearChange);
-	}
-}
-
-/**
  * Sets up all event handlers for output settings controls
  */
 export function setupEventHandlers(): void {
 	setupSettingsHandlers();
-	setupDirectoryHandlers();
-	setupNamingHandlers();
 
 	document.addEventListener('abb:job-type-changed', () => {
 		updateOutputPath();
