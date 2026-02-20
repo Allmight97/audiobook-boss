@@ -152,6 +152,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 
 		clearButton?.click();
+		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
 		expect(clearButton?.style.display).toBe('none');

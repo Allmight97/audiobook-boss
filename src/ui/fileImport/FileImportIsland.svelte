@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { formatDuration, formatFileSize } from '../../types/audio';
 	import { clearAllFiles, toggleFileSort } from '../fileList';
 	import {
 		onFileListClick,
@@ -9,6 +10,7 @@
 		onFileListDrop,
 		onFileListKeyDown,
 	} from '../fileList/events';
+	import { fileListViewState } from '../fileList/viewState.svelte';
 	import type { DragDropContext } from './handlers';
 	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
 	import { fileImportUiState } from './state.svelte';
@@ -44,6 +46,17 @@
 	function handleClearClick(): void {
 		clearAllFiles();
 	}
+
+	function getFileName(path: string): string {
+		return path.split(/[\\/]/).pop() || path;
+	}
+
+	function formatFileDetails(file: (typeof fileListViewState.files)[number]): string {
+		if (file.isValid && file.duration && file.size) {
+			return `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}`;
+		}
+		return `Error: ${file.error || 'Invalid file'}`;
+	}
 </script>
 
 <svelte:window on:keydown={onFileListKeyDown} />
@@ -51,11 +64,13 @@
 <div class="flex flex-col gap-2 mb-2">
   <div class="flex items-center justify-end gap-2">
     <div class="flex items-center gap-2 mr-auto self-center pl-1">
-      <span class="text-xs muted-text italic" id="file-count-display">0 files</span>
+      <span class="text-xs muted-text italic" id="file-count-display">
+        {fileListViewState.files.length} {fileListViewState.files.length === 1 ? 'file' : 'files'}
+      </span>
       <span
         class="text-xs muted-text italic"
         id="file-order-lock"
-        style="display: none"
+        style:display={fileListViewState.orderLockVisible ? 'inline' : 'none'}
         data-testid="file-order-lock"
       >
         Order locked while processing
@@ -64,14 +79,17 @@
     <button
       id="sort-toggle-btn"
       class="btn-pill btn-pill-secondary"
+      style:display={fileListViewState.showSortButton ? 'block' : 'none'}
+      disabled={fileListViewState.sortDisabled}
       on:click={handleSortClick}
     >
-      Sort: A-Z
+      {fileListViewState.sortLabel}
     </button>
     <button
       id="clear-files-btn"
       class="btn-pill btn-pill-secondary"
-      style="display: none"
+      style:display={fileListViewState.showClearButton ? 'block' : 'none'}
+      disabled={fileListViewState.clearDisabled}
       on:click={handleClearClick}
     >
       Clear
@@ -118,6 +136,42 @@
     on:drop={onFileListDrop}
     on:dragend={onFileListDragEnd}
   >
-    <!-- File items rendered here -->
+    {#each fileListViewState.files as file, index (file.path)}
+      <div
+        class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
+        class:selected={fileListViewState.selectedIndices.includes(index)}
+        data-index={index}
+        draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
+        role="listitem"
+        aria-label={getFileName(file.path)}
+      >
+        <div class="file-item-content">
+          <div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
+            {file.isValid ? '✓' : '✗'}
+          </div>
+          <div class="file-info">
+            <div class="file-name">{getFileName(file.path)}</div>
+            <div class="file-details">{formatFileDetails(file)}</div>
+          </div>
+          <button
+            class="move-up-btn"
+            data-index={index}
+            disabled={index === 0 || fileListViewState.orderLockVisible}
+          >
+            ▲
+          </button>
+          <button
+            class="move-down-btn"
+            data-index={index}
+            disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
+          >
+            ▼
+          </button>
+          <button class="remove-file-btn" data-index={index} disabled={fileListViewState.orderLockVisible}>
+            ×
+          </button>
+        </div>
+      </div>
+    {/each}
   </div>
 </div>
