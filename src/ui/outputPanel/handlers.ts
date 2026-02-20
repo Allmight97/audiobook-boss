@@ -3,7 +3,12 @@
  */
 import { tauriClient } from '../../lib/tauri/client';
 import { updateOutputDirectory, updateAbsCompatible, updateAbsIncludeYear } from './state';
-import { updateOutputPath, updateEstimatedSize, updateNamingOptionState, showOutputError } from './dom';
+import {
+	updateOutputPath,
+	updateEstimatedSize,
+	updateNamingOptionState,
+	showOutputError,
+} from './dom';
 
 /**
  * Handles directory browse button click

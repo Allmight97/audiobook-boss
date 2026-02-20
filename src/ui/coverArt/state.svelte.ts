@@ -30,7 +30,10 @@ export function setCoverArtLoading(isLoading: boolean): void {
 	coverArtUiState.isLoading = isLoading;
 }
 
-export function setCoverArtMessage(message: string, variant: Exclude<CoverArtMessageVariant, null>): void {
+export function setCoverArtMessage(
+	message: string,
+	variant: Exclude<CoverArtMessageVariant, null>,
+): void {
 	coverArtUiState.messageText = message;
 	coverArtUiState.messageVariant = variant;
 	coverArtUiState.messageVisible = true;

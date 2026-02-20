@@ -206,11 +206,7 @@ function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
 		) {
 			mimeType = 'image/webp';
 		}
-	} else if (
-		coverArtBytes.length >= 2 &&
-		coverArtBytes[0] === 0x89 &&
-		coverArtBytes[1] === 0x50
-	) {
+	} else if (coverArtBytes.length >= 2 && coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
 		mimeType = 'image/png';
 	}
 

@@ -1,11 +1,7 @@
 /**
  * Output panel state management
  */
-import type {
-	EncoderSettings,
-	SampleRateConfig,
-	OutputNamingConfig,
-} from '../../types/audio';
+import type { EncoderSettings, SampleRateConfig, OutputNamingConfig } from '../../types/audio';
 import { defaultEncoderSettings } from '../../types/audio';
 
 /**
