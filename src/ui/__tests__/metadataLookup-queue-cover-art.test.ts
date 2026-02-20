@@ -80,20 +80,7 @@ vi.mock('../tagPreview', () => ({
 
 function setupDom(): void {
 	document.body.innerHTML = `
-    <button id="metadata-lookup-btn">Open</button>
-    <button id="metadata-lookup-close">Close</button>
-    <button id="metadata-lookup-search-btn">Search</button>
-    <button id="metadata-lookup-skip-btn">Skip</button>
-    <input id="metadata-lookup-query" />
-    <select id="metadata-lookup-source">
-      <option value="audnexus">audnexus</option>
-    </select>
-    <select id="metadata-lookup-apply-mode"></select>
-    <input id="metadata-lookup-cover-toggle" type="checkbox" />
-    <div id="metadata-lookup-status"></div>
-    <div id="metadata-lookup-context"></div>
-    <div id="metadata-lookup-results"></div>
-    <div id="metadata-lookup-modal"></div>
+    <div id="metadata-lookup-root"></div>
   `;
 }
 
@@ -118,12 +105,15 @@ function getQueryValue(): string {
 async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 	await Promise.resolve();
+	await Promise.resolve();
+	await Promise.resolve();
 }
 
 async function initLookup(): Promise<void> {
 	const module = await import('../metadataLookup');
 	module.initMetadataLookup();
-	click('metadata-lookup-btn');
+	module.openMetadataLookup();
+	await flushAsync();
 }
 
 async function runSearchAndApply(): Promise<void> {
@@ -196,6 +186,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		const toggle = document.getElementById('metadata-lookup-cover-toggle') as HTMLInputElement;
 		toggle.checked = true;
+		toggle.dispatchEvent(new Event('change'));
 
 		await runSearchAndApply();
 
@@ -225,6 +216,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		const toggle = document.getElementById('metadata-lookup-cover-toggle') as HTMLInputElement;
 		toggle.checked = false;
+		toggle.dispatchEvent(new Event('change'));
 
 		await runSearchAndApply();
 
@@ -242,9 +234,11 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		const toggle = document.getElementById('metadata-lookup-cover-toggle') as HTMLInputElement;
 		toggle.checked = true;
+		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
 
 		toggle.checked = false;
+		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
 
 		const writesByPath = new Map<string, any>();

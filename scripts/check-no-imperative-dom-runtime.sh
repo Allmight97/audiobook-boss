@@ -20,6 +20,8 @@ runtime_scope=(
   -g 'src/lib/**'
   -g 'src/ui/jobControls.ts'
   -g 'src/ui/jobControls/**'
+  -g 'src/ui/metadataLookup.ts'
+  -g 'src/ui/metadataLookup/**'
   -g '!src/lib/generated/**'
   -g '!src/**/*.test.*'
   -g '!src/**/__tests__/**'

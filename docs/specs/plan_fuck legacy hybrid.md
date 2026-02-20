@@ -23,9 +23,9 @@ Outcome framing: user-facing flows run on the new IPC boundary, but maintainabil
 | 1. Testing / harness foundation | completed | Harness entry exists (`src/harness-main.ts`, `src/HarnessApp.svelte`); Vitest setup and frontend tests active (`src/test/setup.ts`, `src/ui/**/__tests__`). | Continue coverage as migration closes remaining legacy surfaces. |
 | 2. App shell + state model | partial | `src/App.svelte` is root composition and `src/main.ts` is mount-only. | Move state ownership from module singletons/DOM flows to feature stores (`.svelte.ts`) across remaining runtime features. |
 | 3. Wave 1 (encoder/output/job/cover) | partial | Svelte islands exist (`src/ui/*/*Island.svelte` for encoder/output/job/cover); `jobControls` runtime path is store/island-driven (`src/ui/jobControls.ts`, `src/ui/jobControls/state.svelte.ts`, `src/ui/jobControls/JobControlsIsland.svelte`). | Retire remaining imperative DOM orchestration in `src/ui/encoderPanel/**`, `src/ui/outputPanel/**`, and `src/ui/coverArt.ts`. |
-| 4. Wave 2 (import/list/metadata/tag/lookup) | partial | Island components exist for key surfaces (`FileImportIsland.svelte`, `MetadataFormFieldsIsland.svelte`, `MetadataLookupIsland.svelte`, `TagPreviewIsland.svelte`). | Complete migration away from imperative DOM-heavy modules (`src/ui/fileImport.ts`, `src/ui/fileList/**`, `src/ui/metadataForm.ts`, `src/ui/metadataLookup.ts`, `src/ui/tagPreview.ts`). |
+| 4. Wave 2 (import/list/metadata/tag/lookup) | partial | `metadataLookup` runtime path is store/island-driven (`src/ui/metadataLookup.ts`, `src/ui/metadataLookup/state.svelte.ts`, `src/ui/metadataLookup/MetadataLookupIsland.svelte`), and metadata form trigger is Svelte-wired (`src/ui/metadataForm/MetadataFormFieldsIsland.svelte`). | Complete migration away from remaining imperative DOM-heavy modules (`src/ui/fileImport.ts`, `src/ui/fileList/**`, `src/ui/metadataForm.ts`, `src/ui/tagPreview.ts`). |
 | 5. Processing/status/save flow | partial | Status panel island exists (`src/ui/statusPanel/StatusPanelIsland.svelte`) and queue/progress flow is typed through `tauriClient.listen`. | Finish removing legacy status DOM renderer/orchestrator layers (`src/ui/statusPanel/dom.ts`, `src/ui/statusPanel/events.ts`, `src/App.svelte` save orchestration coupling). |
-| 6. Legacy retirement + enforcement | partial | `src/lib/bridge.ts` is retired; boundary is now `src/lib/tauri/client.ts`; no-bridge script wired in checks; no-imperative guard now includes migrated `jobControls` runtime paths. | Expand no-new imperative DOM policy to each additional feature path as modules are migrated. |
+| 6. Legacy retirement + enforcement | partial | `src/lib/bridge.ts` is retired; boundary is now `src/lib/tauri/client.ts`; no-bridge script wired in checks; no-imperative guard now includes migrated `jobControls` + `metadataLookup` runtime paths. | Expand no-new imperative DOM policy to each additional feature path as modules are migrated. |
 | 7. Hardening + merge | partial | `scripts/checks.sh standard` passes on current branch head after jobControls migration + test updates. | Run `scripts/checks.sh package` and merge smoke matrix once remaining legacy runtime modules are retired. |
 
 ## Milestone Rollup (Completed / Partial / Remaining)
@@ -39,6 +39,9 @@ Outcome framing: user-facing flows run on the new IPC boundary, but maintainabil
 - Existing guardrail: banned bridge imports (`scripts/check-no-bridge-imports.sh`).
 - `jobControls` moved from imperative DOM wiring to reactive island/store boundary (`src/ui/jobControls.ts`, `src/ui/jobControls/state.svelte.ts`, `src/ui/jobControls/JobControlsIsland.svelte`).
 - Guardrail ratchet applied for migrated lane: `scripts/check-no-imperative-dom-runtime.sh` now scans `jobControls` runtime paths.
+- `metadataLookup` moved from imperative DOM rendering/listeners to reactive store/island flow (`src/ui/metadataLookup.ts`, `src/ui/metadataLookup/state.svelte.ts`, `src/ui/metadataLookup/MetadataLookupIsland.svelte`).
+- Metadata lookup trigger is now Svelte-owned (`src/ui/metadataForm/MetadataFormFieldsIsland.svelte`) instead of module-attached DOM listener.
+- Guardrail ratchet extended: `scripts/check-no-imperative-dom-runtime.sh` now scans `metadataLookup` runtime paths.
 
 ### Partial
 

@@ -1,3 +1,7 @@
+<script lang="ts">
+	import { openMetadataLookup } from '../metadataLookup';
+</script>
+
 <div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
   <div class="col-span-3">
     <div class="meta-field-header">
@@ -131,6 +135,8 @@
     id="metadata-lookup-btn"
     class="btn-pill btn-pill-secondary"
     data-testid="metadata-lookup-btn"
+    type="button"
+    on:click={openMetadataLookup}
   >
     Find Metadata
   </button>
