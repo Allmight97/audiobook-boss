@@ -162,20 +162,6 @@ export function updateProcessButton(_isProcessing: boolean): void {
  */
 export function displayCoverArt(dataUrl: string): void {
 	setStatusPanelCoverArtDataUrl(dataUrl);
-
-	const elements = cachedElements || initializeElements();
-	if (!elements) return;
-	if (elements.artThumbnail.dataset.svelteOwned === 'true') return;
-
-	const coverArtImage = document.createElement('img');
-	coverArtImage.src = dataUrl;
-	coverArtImage.alt = 'Cover Art';
-	coverArtImage.style.width = '100%';
-	coverArtImage.style.height = '100%';
-	coverArtImage.style.objectFit = 'cover';
-	coverArtImage.style.borderRadius = '0.25rem';
-
-	elements.artThumbnail.replaceChildren(coverArtImage);
 }
 
 /**
@@ -183,15 +169,6 @@ export function displayCoverArt(dataUrl: string): void {
  */
 export function resetArtThumbnail(): void {
 	setStatusPanelCoverArtDataUrl(null);
-
-	const elements = cachedElements || initializeElements();
-	if (!elements) return;
-	if (elements.artThumbnail.dataset.svelteOwned === 'true') return;
-
-	const placeholder = document.createElement('span');
-	placeholder.textContent = 'Art';
-
-	elements.artThumbnail.replaceChildren(placeholder);
 }
 
 /**

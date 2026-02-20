@@ -3,6 +3,7 @@ import { tauriClient } from '../../../lib/tauri/client';
 import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
+import { statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -83,7 +84,7 @@ describe('StatusPanel resetToIdle', () => {
 		expect((document.getElementById('percentage-processed') as HTMLElement).textContent).toBe(
 			'0.0%',
 		);
-		expect((document.querySelector('.art-thumbnail') as HTMLElement).textContent).toBe('Art');
+		expect(statusPanelViewState.coverArtDataUrl).toBeNull();
 		expect(panel.isCurrentlyProcessing).toBe(false);
 		expect(panel.getCurrentStatus()).toEqual({
 			stage: 'idle',

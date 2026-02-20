@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type DomModule = typeof import('../dom');
+type ViewStateModule = typeof import('../viewState.svelte');
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -18,32 +19,23 @@ function setupDom() {
 
 describe('statusPanel cover art DOM rendering', () => {
 	let domModule: DomModule;
+	let viewStateModule: ViewStateModule;
 
 	beforeEach(async () => {
 		setupDom();
 		vi.resetModules();
 		domModule = await import('../dom');
+		viewStateModule = await import('../viewState.svelte');
 	});
 
-	it('renders one img for cover art and resets to the placeholder span', () => {
+	it('syncs cover art changes into reactive view state', () => {
 		const dataUrl = 'data:image/png;base64,Zm9v';
 
 		domModule.displayCoverArt(dataUrl);
-
-		const artThumbnail = document.querySelector('.art-thumbnail') as HTMLElement;
-		const images = artThumbnail.querySelectorAll('img');
-		expect(images).toHaveLength(1);
-		expect(images[0].getAttribute('src')).toBe(dataUrl);
-		expect(images[0].getAttribute('alt')).toBe('Cover Art');
-		expect(artThumbnail.children).toHaveLength(1);
+		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBe(dataUrl);
 
 		domModule.resetArtThumbnail();
-
-		const placeholderSpans = artThumbnail.querySelectorAll('span');
-		expect(artThumbnail.querySelectorAll('img')).toHaveLength(0);
-		expect(placeholderSpans).toHaveLength(1);
-		expect(placeholderSpans[0].textContent).toBe('Art');
-		expect(artThumbnail.children).toHaveLength(1);
+		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBeNull();
 	});
 
 	it('does not overwrite user-locked status text until lock expires', () => {
