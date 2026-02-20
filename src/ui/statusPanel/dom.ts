@@ -4,6 +4,8 @@
  * This module handles all direct DOM interactions and UI state updates.
  * Keeps DOM concerns separated from business logic.
  */
+import { setStatusPanelCoverArtDataUrl, setStatusPanelJobItems } from './viewState.svelte';
+import type { JobListItem } from './viewTypes';
 
 /**
  * Cached DOM elements for the status panel
@@ -159,8 +161,11 @@ export function updateProcessButton(_isProcessing: boolean): void {
  * @param dataUrl - Base64 data URL of the image
  */
 export function displayCoverArt(dataUrl: string): void {
+	setStatusPanelCoverArtDataUrl(dataUrl);
+
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
+	if (elements.artThumbnail.dataset.svelteOwned === 'true') return;
 
 	const coverArtImage = document.createElement('img');
 	coverArtImage.src = dataUrl;
@@ -177,8 +182,11 @@ export function displayCoverArt(dataUrl: string): void {
  * Reset art thumbnail to placeholder state
  */
 export function resetArtThumbnail(): void {
+	setStatusPanelCoverArtDataUrl(null);
+
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
+	if (elements.artThumbnail.dataset.svelteOwned === 'true') return;
 
 	const placeholder = document.createElement('span');
 	placeholder.textContent = 'Art';
@@ -240,16 +248,6 @@ export function showInfo(message: string): void {
 /**
  * Render the active job list with optional per-job cancel affordances
  */
-export type JobListItem = {
-	key: string;
-	label: string;
-	statusText: string;
-	percentage?: number;
-	canCancel: boolean;
-	cancelId?: string;
-	onCancel?: (id: string) => void;
-};
-
 type JobSnapshot = {
 	label: string;
 	statusText: string;
@@ -362,8 +360,15 @@ function serializeJobs(jobs: JobListItem[]): string {
 }
 
 export function renderJobList(jobs: JobListItem[]): void {
+	setStatusPanelJobItems(jobs);
+
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
+	if (elements.jobList.dataset.svelteOwned === 'true') {
+		jobListState.rows.clear();
+		jobListState.serialized = '';
+		return;
+	}
 
 	if (jobs.length === 0) {
 		if (elements.jobList.childElementCount > 0) {

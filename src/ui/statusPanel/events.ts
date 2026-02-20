@@ -1,11 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import * as dom from './dom';
-
 interface StatusPanelEventHandlers {
-	onProcess: () => Promise<void>;
-	onCancelAll: () => Promise<void>;
 	onPreview: (duration: number) => Promise<void>;
 	getPreviewDuration: () => number;
 	setPreviewDuration: (duration: number) => void;
@@ -13,7 +9,6 @@ interface StatusPanelEventHandlers {
 }
 
 export function bindStatusPanelDomEvents(handlers: StatusPanelEventHandlers): void {
-	const processButton = dom.getProcessButton();
 	const previewButton = document.getElementById('preview-button') as HTMLButtonElement | null;
 	const previewDropdownToggle = document.getElementById(
 		'preview-dropdown-toggle',
@@ -22,19 +17,6 @@ export function bindStatusPanelDomEvents(handlers: StatusPanelEventHandlers): vo
 	const advancedToggle = document.getElementById(
 		'advanced-settings-toggle',
 	) as HTMLButtonElement | null;
-
-	if (processButton) {
-		processButton.addEventListener('click', () => {
-			void handlers.onProcess();
-		});
-	}
-
-	const cancelAllButton = dom.getCancelAllButton();
-	if (cancelAllButton) {
-		cancelAllButton.addEventListener('click', () => {
-			void handlers.onCancelAll();
-		});
-	}
 
 	if (previewButton) {
 		previewButton.addEventListener('click', () => {

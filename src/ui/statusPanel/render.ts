@@ -2,7 +2,7 @@ import { getMaxConcurrentStatus } from '../jobControls';
 import * as dom from './dom';
 import { formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
-import type { JobListItem } from './dom';
+import type { JobListItem } from './viewTypes';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
 	dom.updateProgressBar(status.percentage);

@@ -92,8 +92,6 @@ export class StatusPanel {
 
 	private setupEventHandlers(): void {
 		bindStatusPanelDomEvents({
-			onProcess: () => this.startProcessing(),
-			onCancelAll: () => this.handleCancelAll(),
 			onPreview: (duration) => this.startProcessing({ previewSeconds: duration }),
 			getPreviewDuration: () => this.previewDuration,
 			setPreviewDuration: (duration) => {
@@ -360,6 +358,10 @@ export class StatusPanel {
 		}
 	}
 
+	public async requestCancelAll(): Promise<void> {
+		return this.handleCancelAll();
+	}
+
 	private async cancelJob(jobId: string): Promise<void> {
 		try {
 			await tauriClient.cancelProcessing(jobId);
@@ -534,4 +536,16 @@ export function initStatusPanel(): StatusPanel {
 
 export function getStatusPanel(): StatusPanel | null {
 	return statusPanelInstance;
+}
+
+export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {
+	const panel = getStatusPanel();
+	if (!panel) return;
+	void panel.startProcessing(options);
+}
+
+export function triggerCancelAllFromStatusPanel(): void {
+	const panel = getStatusPanel();
+	if (!panel) return;
+	void panel.requestCancelAll();
 }
