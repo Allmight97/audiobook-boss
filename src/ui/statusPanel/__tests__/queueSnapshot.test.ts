@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
+import { statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -18,9 +19,11 @@ function setupDom() {
 }
 
 function getJobRows(): string[] {
-	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
-		(node) => node.textContent ?? '',
-	);
+	return statusPanelViewState.jobItems.map((item) => {
+		const percentage =
+			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
+		return `${item.label} • ${item.statusText}${percentage}`;
+	});
 }
 
 async function flushRenderFrame(): Promise<void> {

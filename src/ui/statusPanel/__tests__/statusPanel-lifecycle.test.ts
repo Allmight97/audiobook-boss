@@ -4,6 +4,7 @@ import { STAGES } from '../../../types/events';
 import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
+import { statusPanelViewState } from '../viewState.svelte';
 
 const listenerState = vi.hoisted(() => {
 	const progressCallbacks = new Set<(event: any) => void>();
@@ -84,9 +85,11 @@ function getStepText(): string {
 }
 
 function getJobRows(): string[] {
-	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
-		(node) => node.textContent ?? '',
-	);
+	return statusPanelViewState.jobItems.map((item) => {
+		const percentage =
+			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
+		return `${item.label} • ${item.statusText}${percentage}`;
+	});
 }
 
 async function flushAsync(): Promise<void> {
