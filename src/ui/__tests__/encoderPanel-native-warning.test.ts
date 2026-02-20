@@ -4,8 +4,8 @@ const context = vi.hoisted(() => ({
 	listAvailableEncodersMock: vi.fn(),
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		listAvailableEncoders: context.listAvailableEncodersMock,
 	},
 }));

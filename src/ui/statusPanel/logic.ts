@@ -5,7 +5,7 @@
  * processing coordination, and state management.
  */
 
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import { STAGES } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
@@ -345,7 +345,7 @@ export class StatusPanel {
 	private async handleCancelAll(): Promise<void> {
 		dom.setCancelAllButtonPending(true);
 		try {
-			await bridge.cancelProcessing();
+			await tauriClient.cancelProcessing();
 			// Do not set final cancelled state here; wait for backend events
 			this.updateStatus({
 				stage: this.currentStatus.stage,
@@ -362,7 +362,7 @@ export class StatusPanel {
 
 	private async cancelJob(jobId: string): Promise<void> {
 		try {
-			await bridge.cancelProcessing(jobId);
+			await tauriClient.cancelProcessing(jobId);
 		} catch (error) {
 			console.error(`Failed to cancel job ${jobId}:`, error);
 			dom.showError(`Failed to cancel job ${jobId}`);

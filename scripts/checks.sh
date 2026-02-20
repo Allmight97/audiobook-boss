@@ -102,6 +102,9 @@ run_quick() {
   log_step "scripts/check-generated-bindings.sh"
   bash scripts/check-generated-bindings.sh
 
+  log_step "scripts/check-no-bridge-imports.sh"
+  bash scripts/check-no-bridge-imports.sh
+
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh
 }

@@ -1,4 +1,4 @@
-import { bridge } from '../../../lib/bridge';
+import { tauriClient } from '../../../lib/tauri/client';
 import { convertBytesToDataUrl } from '../formatting';
 
 export function shouldSkipCoverArtRead(lastCoverArtPath: string | null, filePath: string): boolean {
@@ -6,7 +6,7 @@ export function shouldSkipCoverArtRead(lastCoverArtPath: string | null, filePath
 }
 
 export async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
-	const metadata = await bridge.readAudioMetadata(filePath);
+	const metadata = await tauriClient.readAudioMetadata(filePath);
 
 	if (!metadata.cover_art || metadata.cover_art.length === 0) {
 		return null;

@@ -15,8 +15,8 @@ const context = vi.hoisted(() => ({
 	metadataSaveInProgress: false,
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		saveMetadataIntentToFile: context.saveMetadataIntentToFileMock,
 	},
 }));
@@ -77,12 +77,12 @@ function getStatusText(): HTMLElement {
 describe('metadata save pending flow', () => {
 	beforeAll(async () => {
 		document.body.innerHTML = `
+      <div id="app"></div>
       <button id="metadata-save-btn">Save All Changes</button>
       <div id="status-text">Idle</div>
     `;
 
 		await import('../../main');
-		document.dispatchEvent(new Event('DOMContentLoaded'));
 	});
 
 	beforeEach(() => {
@@ -154,6 +154,8 @@ describe('metadata save pending flow', () => {
 			});
 		});
 		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
-		expect(getStatusText().textContent).toBe('No pending metadata changes');
+		await vi.waitFor(() => {
+			expect(getStatusText().textContent).toBe('No pending metadata changes');
+		});
 	});
 });

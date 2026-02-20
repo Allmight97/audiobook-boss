@@ -20,8 +20,8 @@ const context = vi.hoisted(() => ({
 	stageMetadataToSelectionMock: vi.fn(),
 }));
 
-vi.mock('../../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../../lib/tauri/client', () => ({
+	tauriClient: {
 		processAudiobookFilesV2: context.processAudiobookFilesV2Mock,
 		readAudioMetadata: context.readAudioMetadataMock,
 	},

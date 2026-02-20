@@ -16,11 +16,7 @@ export default defineConfig({
 			reporter: ['text', 'html', 'lcov'],
 			reportsDirectory: './coverage/typescript',
 			include: ['src/**/*.ts', 'src/**/*.svelte'],
-			exclude: [
-				'src/**/*.test.ts',
-				'src/**/*.spec.ts',
-				'src/lib/mocks.ts', // Dev mocks, not production code
-			],
+			exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
 			// Ratchet thresholds — baseline measured Feb 2026, rounded down ~3pt
 			// Increase as coverage improves; do not lower without justification
 			thresholds: {

@@ -2,7 +2,7 @@
  * Event handlers for output panel controls
  */
 import type { EncoderSettings } from '../../types/audio';
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import {
 	updateEncoderSettings,
 	updateSampleRate,
@@ -52,7 +52,7 @@ export function handleChannelsChange(event: Event): void {
  */
 export async function handleDirectoryBrowse(): Promise<void> {
 	try {
-		const selectedPath = await bridge.open({
+		const selectedPath = await tauriClient.open({
 			directory: true,
 			multiple: false,
 			title: 'Select Output Directory',

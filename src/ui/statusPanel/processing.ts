@@ -1,4 +1,4 @@
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import type { EncoderSettings, OutputConfig } from '../../types/audio';
 import { defaultEncoderSettings, VALID_ENCODER_BITRATES } from '../../types/audio';
 import { toBoundaryEncoderSettings } from '../../types/encoder';
@@ -181,7 +181,7 @@ export async function startProcessing(
 				await Promise.all(
 					missingMetadata.map(async (filePath) => {
 						try {
-							const metadata = await bridge.readAudioMetadata(filePath);
+							const metadata = await tauriClient.readAudioMetadata(filePath);
 							setMetadataForFile(filePath, metadata);
 						} catch (error) {
 							console.warn('Failed to load metadata for batch file:', filePath, error);
@@ -213,7 +213,7 @@ export async function startProcessing(
 			metadataPayload = Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
 		}
 
-		const result = await bridge.processAudiobookFilesV2({
+		const result = await tauriClient.processAudiobookFilesV2({
 			payload: v2Payload,
 			metadata: metadataPayload,
 			previewSeconds: options?.previewSeconds,
@@ -227,7 +227,7 @@ export async function startProcessing(
 					: '≈30';
 			console.log(`Preview file created at: ${result.previewFilePath} (${seconds}s)`);
 			try {
-				await bridge.openExternal(result.previewFilePath);
+				await tauriClient.openExternal(result.previewFilePath);
 			} catch (error) {
 				console.warn('Failed to open preview file automatically:', error);
 			}

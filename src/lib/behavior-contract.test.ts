@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bridge, BRIDGE_APP_EVENT_NAMES, BRIDGE_COMMAND_NAMES } from './bridge';
+import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri/client';
 import { defaultEncoderSettings, type ProcessV2Payload } from '../types/audio';
 import {
 	EVENTS,
@@ -44,17 +44,17 @@ async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<voi
 
 describe('compatibility guards', () => {
 	it('keeps legacy command names stable', () => {
-		expect([...BRIDGE_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
+		expect([...TAURI_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
 	});
 
 	it('keeps app event names stable', () => {
-		expect([...BRIDGE_APP_EVENT_NAMES]).toEqual([EVENTS.PROGRESS, EVENTS.QUEUE]);
+		expect([...TAURI_APP_EVENT_NAMES]).toEqual([EVENTS.PROGRESS, EVENTS.QUEUE]);
 	});
 });
 
 describe('behavior-first IPC smoke', () => {
 	it('preserves analyze outcome contract', async () => {
-		const result = await bridge.analyzeAudioFiles([
+		const result = await tauriClient.analyzeAudioFiles([
 			'/mock/path/chapter1.mp3',
 			'/mock/path/chapter2.mp3',
 		]);
@@ -66,7 +66,7 @@ describe('behavior-first IPC smoke', () => {
 	});
 
 	it('preserves metadata lookup outcome contract', async () => {
-		const results = await bridge.searchOnlineMetadata({
+		const results = await tauriClient.searchOnlineMetadata({
 			query: 'mock search',
 			sources: ['audnexus'],
 			limit: 8,
@@ -81,10 +81,10 @@ describe('behavior-first IPC smoke', () => {
 		const progressEvents: ProcessingProgressEvent[] = [];
 		const queueEvents: ProcessingQueueEvent[] = [];
 
-		const unlistenProgress = await bridge.listen(EVENTS.PROGRESS, (event) => {
+		const unlistenProgress = await tauriClient.listen(EVENTS.PROGRESS, (event) => {
 			progressEvents.push(event.payload);
 		});
-		const unlistenQueue = await bridge.listen(EVENTS.QUEUE, (event) => {
+		const unlistenQueue = await tauriClient.listen(EVENTS.QUEUE, (event) => {
 			queueEvents.push(event.payload);
 		});
 
@@ -100,14 +100,14 @@ describe('behavior-first IPC smoke', () => {
 			},
 		};
 
-		await bridge.processAudiobookFilesV2({
+		await tauriClient.processAudiobookFilesV2({
 			payload,
 			metadata: null,
 			previewSeconds: null,
 		});
 
 		await sleep(250);
-		await bridge.cancelProcessing('mock-job-1');
+		await tauriClient.cancelProcessing('mock-job-1');
 
 		await waitFor(
 			() =>
@@ -138,11 +138,11 @@ describe('behavior-first IPC smoke', () => {
 
 	it('preserves cancellation terminal event behavior', async () => {
 		const progressEvents: ProcessingProgressEvent[] = [];
-		const unlisten = await bridge.listen(EVENTS.PROGRESS, (event) => {
+		const unlisten = await tauriClient.listen(EVENTS.PROGRESS, (event) => {
 			progressEvents.push(event.payload);
 		});
 
-		await bridge.cancelProcessing('mock-job-1');
+		await tauriClient.cancelProcessing('mock-job-1');
 
 		await waitFor(() => progressEvents.some((event) => event.stage === STAGES.cancelled), 2_000);
 

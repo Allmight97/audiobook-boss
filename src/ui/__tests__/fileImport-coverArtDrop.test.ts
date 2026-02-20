@@ -7,8 +7,8 @@ const { analyzeAudioFilesMock, readAudioMetadataMock, listeners } = vi.hoisted((
 	listeners: {} as Record<string, (payload: any) => void>,
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		listen: vi.fn((event: string, cb: any) => {
 			listeners[event] = cb;
 		}),

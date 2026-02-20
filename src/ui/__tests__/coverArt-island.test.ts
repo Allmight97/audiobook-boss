@@ -6,8 +6,8 @@ import {
 	setCoverArt,
 } from '../coverArt';
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		listen: vi.fn(),
 		open: vi.fn(),
 		loadCoverArtFile: vi.fn(),

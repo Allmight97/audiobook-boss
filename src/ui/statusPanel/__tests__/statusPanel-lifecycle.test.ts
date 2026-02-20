@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bridge } from '../../../lib/bridge';
+import { tauriClient } from '../../../lib/tauri/client';
 import { STAGES } from '../../../types/events';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
@@ -123,7 +123,9 @@ describe('StatusPanel lifecycle', () => {
 		const inFlightCancel = new Promise<void>((resolve) => {
 			resolveCancel = resolve;
 		});
-		const cancelSpy = vi.spyOn(bridge, 'cancelProcessing').mockReturnValue(inFlightCancel as any);
+		const cancelSpy = vi
+			.spyOn(tauriClient, 'cancelProcessing')
+			.mockReturnValue(inFlightCancel as any);
 
 		const cancelRequest = (panel as any).handleCancelAll();
 		expect(cancelSpy).toHaveBeenCalledTimes(1);
@@ -141,7 +143,9 @@ describe('StatusPanel lifecycle', () => {
 		const panel = new StatusPanel();
 		const cancelButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-		vi.spyOn(bridge, 'cancelProcessing').mockRejectedValue(new Error('bridge cancellation failed'));
+		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
+			new Error('tauriClient cancellation failed'),
+		);
 
 		await (panel as any).handleCancelAll();
 
@@ -316,7 +320,7 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
-		vi.spyOn(bridge, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
+		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
 
 		(panel as any).handleQueueSnapshot({
 			items: [

@@ -3,7 +3,7 @@ import { queryDom, type EncoderDomCache } from './dom';
 import { loadState, saveState } from './state';
 import type { EncoderSettingsLike, EncoderFlavor, EncoderSettingsV2 } from '../../types/encoder';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 
 /** Debug logging - only active in development builds */
@@ -213,7 +213,7 @@ const persistState = (): void => {
 
 const hydrateAvailability = async (): Promise<void> => {
 	try {
-		cachedAvailability = await bridge.listAvailableEncoders();
+		cachedAvailability = await tauriClient.listAvailableEncoders();
 		debugLog('Encoder availability:', cachedAvailability);
 	} catch (error) {
 		console.warn('Failed to load encoder availability', error);

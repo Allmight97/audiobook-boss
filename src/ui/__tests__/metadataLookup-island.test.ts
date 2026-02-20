@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		searchOnlineMetadata: vi.fn(),
 		loadCoverArtFromUrl: vi.fn(),
 	},

@@ -6,7 +6,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 - Rust contract builder: `src-tauri/src/ipc_contract.rs`
 - Generated TypeScript bindings: `src/lib/generated/tauri.ts`
-- UI bridge adapter (legacy compatibility): `src/lib/bridge.ts`
+- UI TypeScript boundary adapter: `src/lib/tauri/client.ts`
 - Export command: `bun run bindings:generate`
 - Drift check: `bun run bindings:check`
 
@@ -80,6 +80,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 ### Contract sources
 
 - Generated source of truth: `src/lib/generated/tauri.ts`
+- UI boundary adapter: `src/lib/tauri/client.ts`
 - UI compatibility types: `src/types/audio.ts`, `src/types/metadata.ts`, `src/types/events.ts`
 
 ### Backend → frontend events

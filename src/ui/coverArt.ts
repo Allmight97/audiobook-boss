@@ -1,4 +1,4 @@
-import { bridge } from '../lib/bridge';
+import { tauriClient } from '../lib/tauri/client';
 import { isFileDropEvent } from '../types/events';
 import { mount, unmount } from 'svelte';
 import CoverArtIsland from './coverArt/CoverArtIsland.svelte';
@@ -96,7 +96,7 @@ export function initCoverArt(): void {
 	});
 
 	// Handle Global Drag & Drop (Tauri Event) for Cover Art
-	bridge.listen('tauri://drag-drop', async (event) => {
+	tauriClient.listen('tauri://drag-drop', async (event) => {
 		if (!isFileDropEvent(event.payload)) return;
 		const { position, paths } = event.payload;
 
@@ -184,7 +184,7 @@ function updateClearButtonVisibility(): void {
  */
 async function handleLoadCoverArt(): Promise<void> {
 	try {
-		const selectedFile = await bridge.open({
+		const selectedFile = await tauriClient.open({
 			multiple: false,
 			directory: false,
 			title: 'Select Cover Art Image',
@@ -233,7 +233,7 @@ async function handleLoadCoverArtFromInput(input: HTMLInputElement): Promise<voi
  */
 async function loadCoverArtFile(filePath: string): Promise<void> {
 	try {
-		const imageData = await bridge.loadCoverArtFile(filePath);
+		const imageData = await tauriClient.loadCoverArtFile(filePath);
 
 		applyLoadedCoverArt(imageData);
 
@@ -248,7 +248,7 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
 	try {
 		setCoverArtLoading(true);
 		clearCoverArtMessage();
-		const imageData = await bridge.loadCoverArtFromUrl(url);
+		const imageData = await tauriClient.loadCoverArtFromUrl(url);
 
 		applyLoadedCoverArt(imageData);
 		showCoverArtMessage('Cover art loaded from URL.', 'success');

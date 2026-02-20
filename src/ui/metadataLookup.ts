@@ -1,4 +1,4 @@
-import { bridge } from '../lib/bridge';
+import { tauriClient } from '../lib/tauri/client';
 import { mount, unmount } from 'svelte';
 import type { AudioFile } from '../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
@@ -419,7 +419,7 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
 async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
 	if (!result.coverUrl) return null;
 	try {
-		const coverBytes = await bridge.loadCoverArtFromUrl(result.coverUrl);
+		const coverBytes = await tauriClient.loadCoverArtFromUrl(result.coverUrl);
 		setCustomCoverArt(coverBytes);
 		return coverBytes;
 	} catch (error) {
@@ -487,7 +487,7 @@ async function runSearch(): Promise<void> {
 	setStatus('Searching metadata sources…', 'info');
 
 	try {
-		const results = await bridge.searchOnlineMetadata({ query, sources, limit: 8 });
+		const results = await tauriClient.searchOnlineMetadata({ query, sources, limit: 8 });
 		renderResults(results);
 		setStatus(`Found ${results.length} results.`, 'success');
 	} catch (error) {

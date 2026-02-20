@@ -1,5 +1,5 @@
 import { type AudioFile, formatFileSize } from '../../types/audio';
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { onMetadataChange } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
@@ -89,7 +89,7 @@ async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMe
 	if (existing) return existing;
 
 	try {
-		const metadata = await bridge.readAudioMetadata(file.path);
+		const metadata = await tauriClient.readAudioMetadata(file.path);
 		setMetadataForFile(file.path, metadata);
 		return metadata;
 	} catch (error) {
@@ -189,7 +189,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 			setCoverArt(null);
 			return;
 		}
-		const metadata = await bridge.readAudioMetadata(firstValid.path);
+		const metadata = await tauriClient.readAudioMetadata(firstValid.path);
 		setCoverArt(metadata.cover_art || null);
 	} catch (error) {
 		setCoverArt(null);

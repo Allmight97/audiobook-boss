@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getJobType, initJobControls, setJobControlsEnabled } from '../jobControls';
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		setMaxConcurrentJobs: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
-const setMaxConcurrentJobsMock = vi.mocked(bridge.setMaxConcurrentJobs);
+const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
 
 function setupDomRoot() {
 	document.body.innerHTML = '<div id="job-controls-root"></div>';

@@ -1,4 +1,4 @@
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import * as dom from './dom';
@@ -87,7 +87,7 @@ export function bindStatusPanelDomEvents(handlers: StatusPanelEventHandlers): vo
 export async function listenForProgressEvents(
 	onProgress: (event: ProcessingProgressEvent) => void,
 ): Promise<() => void> {
-	return bridge.listen(EVENTS.PROGRESS, (event) => {
+	return tauriClient.listen(EVENTS.PROGRESS, (event) => {
 		onProgress(event.payload);
 	});
 }
@@ -95,7 +95,7 @@ export async function listenForProgressEvents(
 export async function listenForQueueEvents(
 	onQueue: (event: ProcessingQueueEvent) => void,
 ): Promise<() => void> {
-	return bridge.listen(EVENTS.QUEUE, (event) => {
+	return tauriClient.listen(EVENTS.QUEUE, (event) => {
 		onQueue(event.payload);
 	});
 }

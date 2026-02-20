@@ -22,8 +22,8 @@ const context = vi.hoisted(() => ({
 	activeIndex: 0,
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		searchOnlineMetadata: context.searchOnlineMetadataMock,
 		loadCoverArtFromUrl: context.loadCoverArtFromUrlMock,
 	},

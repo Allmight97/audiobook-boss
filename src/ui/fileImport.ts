@@ -1,4 +1,4 @@
-import { bridge } from '../lib/bridge';
+import { tauriClient } from '../lib/tauri/client';
 import type { FileListInfo } from '../types/audio';
 import { isFileDropEvent } from '../types/events';
 import { mount, unmount } from 'svelte';
@@ -51,7 +51,7 @@ function setupDragDropHandlers(): void {
 
 	// Listen for the Tauri file drop event
 	// Payload is now { paths: string[], position: { x, y } }
-	bridge.listen('tauri://drag-drop', async (event) => {
+	tauriClient.listen('tauri://drag-drop', async (event) => {
 		dropZoneHeader?.classList.remove('drag-over');
 		if (isFileDropEvent(event.payload)) {
 			// Ignore drops that target the cover art area to prevent importing images as audio
@@ -77,12 +77,12 @@ function setupDragDropHandlers(): void {
 		}
 	});
 
-	bridge.listen('tauri://drag-enter', () => {
+	tauriClient.listen('tauri://drag-enter', () => {
 		// Add drag-over class to header for visual feedback
 		dropZoneHeader?.classList.add('drag-over');
 	});
 
-	bridge.listen('tauri://drag-leave', () => {
+	tauriClient.listen('tauri://drag-leave', () => {
 		dropZoneHeader?.classList.remove('drag-over');
 	});
 }
@@ -129,7 +129,7 @@ async function handleClickToSelect(): Promise<void> {
 		return;
 	}
 	try {
-		const selected = await bridge.open({
+		const selected = await tauriClient.open({
 			multiple: true,
 			directory: false,
 			filters: [
@@ -146,7 +146,7 @@ async function handleClickToSelect(): Promise<void> {
 			await processFilePaths([selected]);
 		}
 	} catch (error) {
-		showError(`Failed to bridge.open file dialog: ${error}`);
+		showError(`Failed to tauriClient.open file dialog: ${error}`);
 	}
 }
 
@@ -161,7 +161,7 @@ async function processFilePaths(filePaths: string[]): Promise<void> {
 	if (filePaths.length === 0) return;
 
 	try {
-		const fileListInfo: FileListInfo = await bridge.analyzeAudioFiles(filePaths);
+		const fileListInfo: FileListInfo = await tauriClient.analyzeAudioFiles(filePaths);
 		displayFileList(fileListInfo);
 		clearError();
 	} catch (error) {

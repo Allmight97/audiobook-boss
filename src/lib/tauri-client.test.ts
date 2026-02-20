@@ -1,64 +1,54 @@
 /**
- * Tests for the Tauri bridge abstraction.
+ * Tests for the Tauri tauri client boundary.
  *
- * These tests verify that the bridge correctly routes calls
- * to either real Tauri APIs or mocks based on environment.
+ * These tests verify boundary normalization and command/event wiring
+ * against mocked Tauri APIs.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { defaultEncoderSettings } from '../types/audio';
 
 // Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
-describe('bridge', () => {
+describe('tauriClient', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	describe('environment detection', () => {
-		it('should detect non-Tauri environment in tests', () => {
-			// In test environment, __TAURI_INTERNALS__ should be undefined
-			expect(
-				(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__,
-			).toBeUndefined();
-		});
-	});
-
 	describe('typed command helpers', () => {
 		it('should be importable', async () => {
-			// Dynamic import to test module loading
-			const { bridge } = await import('./bridge');
-			expect(bridge).toBeDefined();
-			expect(typeof bridge.analyzeAudioFiles).toBe('function');
-			expect(typeof bridge.processAudiobookFilesV2).toBe('function');
-			expect(typeof bridge.cancelProcessing).toBe('function');
+			const { tauriClient } = await import('./tauri/client');
+			expect(tauriClient).toBeDefined();
+			expect(typeof tauriClient.analyzeAudioFiles).toBe('function');
+			expect(typeof tauriClient.processAudiobookFilesV2).toBe('function');
+			expect(typeof tauriClient.cancelProcessing).toBe('function');
 		});
 	});
 
 	describe('listen', () => {
 		it('should be importable', async () => {
-			const { bridge } = await import('./bridge');
-			expect(typeof bridge.listen).toBe('function');
+			const { tauriClient } = await import('./tauri/client');
+			expect(typeof tauriClient.listen).toBe('function');
 		});
 	});
 
 	describe('open', () => {
 		it('should be importable', async () => {
-			const { bridge } = await import('./bridge');
-			expect(typeof bridge.open).toBe('function');
+			const { tauriClient } = await import('./tauri/client');
+			expect(typeof tauriClient.open).toBe('function');
 		});
 	});
 
 	describe('openExternal', () => {
 		it('should be importable', async () => {
-			const { bridge } = await import('./bridge');
-			expect(typeof bridge.openExternal).toBe('function');
+			const { tauriClient } = await import('./tauri/client');
+			expect(typeof tauriClient.openExternal).toBe('function');
 		});
 	});
 });
 
 // Example of how to test with custom mock implementations
-describe('bridge with custom mocks', () => {
+describe('tauriClient with custom mocks', () => {
 	it('example: mock invoke to return specific data', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -72,15 +62,10 @@ describe('bridge with custom mocks', () => {
 	});
 });
 
-describe('bridge nullish adapters', () => {
+describe('tauriClient nullish adapters', () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
-		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-	});
-
-	afterEach(() => {
-		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
 	});
 
 	it('denormalizes metadata fields to nullable generated shape on save', async () => {
@@ -88,8 +73,8 @@ describe('bridge nullish adapters', () => {
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce(null);
 
-		const { bridge } = await import('./bridge');
-		await bridge.saveMetadataToFile('/books/a.m4b', {
+		const { tauriClient } = await import('./tauri/client');
+		await tauriClient.saveMetadataToFile('/books/a.m4b', {
 			title: undefined,
 			series_part: '1.0',
 			cover_art: undefined,
@@ -113,8 +98,8 @@ describe('bridge nullish adapters', () => {
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce(null);
 
-		const { bridge } = await import('./bridge');
-		await bridge.saveMetadataIntentToFile('/books/a.m4b', {
+		const { tauriClient } = await import('./tauri/client');
+		await tauriClient.saveMetadataIntentToFile('/books/a.m4b', {
 			title: { op: 'clear' },
 			series_part: { op: 'set', value: '2.0' },
 			cover_art: { op: 'clear' },
@@ -155,8 +140,8 @@ describe('bridge nullish adapters', () => {
 			cover_art: null,
 		});
 
-		const { bridge } = await import('./bridge');
-		const metadata = await bridge.readAudioMetadata('/books/a.m4b');
+		const { tauriClient } = await import('./tauri/client');
+		const metadata = await tauriClient.readAudioMetadata('/books/a.m4b');
 		expect(metadata.title).toBe('Book A');
 		expect(metadata.artist).toBeUndefined();
 		expect(metadata.series).toBeUndefined();
@@ -173,8 +158,8 @@ describe('bridge nullish adapters', () => {
 			jobId: 'job-1',
 		});
 
-		const { bridge } = await import('./bridge');
-		const result = await bridge.processAudiobookFilesV2({
+		const { tauriClient } = await import('./tauri/client');
+		const result = await tauriClient.processAudiobookFilesV2({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
@@ -222,8 +207,8 @@ describe('bridge nullish adapters', () => {
 			jobId: 'job-1',
 		});
 
-		const { bridge } = await import('./bridge');
-		await bridge.processAudiobookFilesV2({
+		const { tauriClient } = await import('./tauri/client');
+		await tauriClient.processAudiobookFilesV2({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
@@ -275,7 +260,7 @@ describe('bridge nullish adapters', () => {
 			};
 		}) as typeof listen);
 
-		const { bridge } = await import('./bridge');
+		const { tauriClient } = await import('./tauri/client');
 		let received:
 			| {
 					current_file?: string;
@@ -285,7 +270,7 @@ describe('bridge nullish adapters', () => {
 			  }
 			| undefined;
 
-		await bridge.listen('processing-progress', (event) => {
+		await tauriClient.listen('processing-progress', (event) => {
 			received = event.payload as typeof received;
 		});
 
