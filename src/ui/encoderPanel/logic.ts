@@ -72,6 +72,10 @@ const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	return 'native_aac';
 };
 
+const emitEncoderSettingsChanged = (): void => {
+	document.dispatchEvent(new Event('abb:encoder-settings-changed'));
+};
+
 /**
  * Reads the current encoder settings from the DOM
  */
@@ -178,23 +182,34 @@ const attachEventListeners = (): void => {
 	dom.encoderSelect?.addEventListener('change', () => {
 		syncEncoderUI();
 		persistState();
+		emitEncoderSettingsChanged();
 	});
 	dom.bitrateModeSelect?.addEventListener('change', () => {
 		syncQualityBitrateVisibility();
 		updateEstimatedBitrate();
 		persistState();
+		emitEncoderSettingsChanged();
 	});
-	dom.channelsSelect?.addEventListener('change', persistState);
+	dom.channelsSelect?.addEventListener('change', () => {
+		persistState();
+		emitEncoderSettingsChanged();
+	});
 	dom.qualitySelect?.addEventListener('change', () => {
 		updateEstimatedBitrate();
 		persistState();
+		emitEncoderSettingsChanged();
 	});
 	dom.bitrateSelect?.addEventListener('change', () => {
 		updateEstimatedBitrate();
 		persistState();
+		emitEncoderSettingsChanged();
 	});
 	dom.fdkAfterburner?.addEventListener('change', persistState);
 	dom.nativeTwoloop?.addEventListener('change', persistState);
+	dom.sampleRateSelect?.addEventListener('change', () => {
+		persistState();
+		emitEncoderSettingsChanged();
+	});
 };
 
 /** Debounced state persistence to prevent localStorage thrashing */

@@ -2,6 +2,7 @@ export interface EncoderDomCache {
 	root?: HTMLElement | null;
 	encoderSelect?: HTMLSelectElement | null;
 	bitrateModeSelect?: HTMLSelectElement | null;
+	sampleRateSelect?: HTMLSelectElement | null;
 	channelsSelect?: HTMLSelectElement | null;
 	qualitySelect?: HTMLSelectElement | null;
 	bitrateSelect?: HTMLSelectElement | null;
@@ -23,6 +24,7 @@ export const queryDom = (): EncoderDomCache => ({
 	root: document.getElementById('encoder-settings-panel'),
 	encoderSelect: document.getElementById('adv-encoder') as HTMLSelectElement | null,
 	bitrateModeSelect: document.getElementById('adv-bitrate-mode') as HTMLSelectElement | null,
+	sampleRateSelect: document.getElementById('output-samplerate') as HTMLSelectElement | null,
 	channelsSelect: document.getElementById('output-channels') as HTMLSelectElement | null,
 	qualitySelect: document.getElementById('output-quality') as HTMLSelectElement | null,
 	bitrateSelect: document.getElementById('output-bitrate') as HTMLSelectElement | null,

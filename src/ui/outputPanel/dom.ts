@@ -3,6 +3,7 @@
  */
 import type { AudiobookMetadata } from '../../types/metadata';
 import { formatFileSize } from '../../types/audio';
+import { toBoundaryEncoderSettings, type EncoderSettingsLike } from '../../types/encoder';
 import { getCurrentFileList } from '../fileList';
 import { getCurrentCoverArt } from '../coverArt';
 import { getState } from './state';
@@ -11,6 +12,10 @@ import {
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
 import { calculateOutputPath } from './pathBuilder';
+
+type WindowWithEncoderProvider = Window & {
+	EncoderSettingsProvider?: () => EncoderSettingsLike;
+};
 
 /**
  * Gets current metadata from the metadata panel DOM elements
@@ -156,11 +161,20 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
 		return 0;
 	}
 
+	let encoderSettings = state.encoderSettings;
+	const provider = (window as WindowWithEncoderProvider).EncoderSettingsProvider;
+	if (typeof provider === 'function') {
+		const raw = provider();
+		if (raw) {
+			encoderSettings = toBoundaryEncoderSettings(raw);
+		}
+	}
+
 	// Base calculation: duration * bitrate / 8 (convert bits to bytes)
-	let sizeBytes = (totalDurationSeconds * state.encoderSettings.bitrateKbps * 1000) / 8;
+	let sizeBytes = (totalDurationSeconds * encoderSettings.bitrateKbps * 1000) / 8;
 
 	// Adjust for stereo (roughly 1.5x mono at same bitrate)
-	if (state.encoderSettings.channels === 'stereo') {
+	if (encoderSettings.channels === 'stereo') {
 		sizeBytes *= 1.5;
 	}
 
