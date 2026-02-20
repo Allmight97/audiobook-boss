@@ -19,6 +19,10 @@
 		if (!item.canCancel || !item.cancelId || !item.onCancel) return;
 		item.onCancel(item.cancelId);
 	}
+
+	function getProgressText(): string {
+		return `${statusPanelViewState.progressPercentage.toFixed(1)}%`;
+	}
 </script>
 
 <div class="panel status-panel">
@@ -40,17 +44,27 @@
           >Progress:
           <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
           →
-          <span class="property-value" id="percentage-processed">--%</span></span
+          <span class="property-value" id="percentage-processed">{getProgressText()}</span></span
         >
-        <span id="status-text" class="text-xs font-semibold">Idle</span>
+        <span id="status-text" class="text-xs font-semibold">{statusPanelViewState.statusText}</span>
       </div>
       <div class="progress-bar-bg">
-        <div id="progress-bar" class="progress-bar-fg" style="width: 0%"></div>
+        <div
+          id="progress-bar"
+          class="progress-bar-fg"
+          style={`width: ${statusPanelViewState.progressPercentage}%`}
+        ></div>
       </div>
-      <div id="step-text" class="text-xs muted-text mt-0.5">
-        Current Step: Waiting for files...
+      <div
+        id="step-text"
+        class="text-xs muted-text mt-0.5"
+        style={`color: ${statusPanelViewState.stepColor}`}
+      >
+        {statusPanelViewState.stepText}
       </div>
-      <div id="concurrency-status" class="text-xs muted-text mt-1"></div>
+      <div id="concurrency-status" class="text-xs muted-text mt-1">
+        {statusPanelViewState.concurrencyText}
+      </div>
       <div id="job-list" class="text-xs muted-text mt-1" data-svelte-owned="true">
         {#each statusPanelViewState.jobItems as item (item.key)}
           <div class="flex items-center justify-between gap-2 mb-1">
@@ -59,7 +73,9 @@
               id={"cancel-" + item.key}
               class="button-secondary"
               style="padding: 0.1rem 0.4rem;"
-              disabled={!item.canCancel || !item.cancelId || !item.onCancel}
+              disabled={
+                statusPanelViewState.cancelAllPending || !item.canCancel || !item.cancelId || !item.onCancel
+              }
               on:click={() => handleCancelJob(item)}
             >
               Cancel
@@ -82,6 +98,7 @@
       <button
         id="cancel-all-button"
         class="btn-pill btn-pill-secondary"
+        disabled={statusPanelViewState.cancelAllPending}
         on:click={handleCancelAllClick}
       >
         Cancel

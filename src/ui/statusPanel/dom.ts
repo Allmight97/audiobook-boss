@@ -4,7 +4,16 @@
  * This module handles all direct DOM interactions and UI state updates.
  * Keeps DOM concerns separated from business logic.
  */
-import { setStatusPanelCoverArtDataUrl, setStatusPanelJobItems } from './viewState.svelte';
+import {
+	setStatusPanelCancelAllPending,
+	setStatusPanelConcurrencyText,
+	setStatusPanelCoverArtDataUrl,
+	setStatusPanelJobItems,
+	setStatusPanelProgressPercentage,
+	setStatusPanelStatusText,
+	setStatusPanelStepColor,
+	setStatusPanelStepText,
+} from './viewState.svelte';
 import type { JobListItem } from './viewTypes';
 
 /**
@@ -78,6 +87,8 @@ export function initializeElements(): StatusPanelElements | null {
  * @param percentage - Progress percentage (0-100)
  */
 export function updateProgressBar(percentage: number): void {
+	setStatusPanelProgressPercentage(percentage);
+
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
 
@@ -111,6 +122,7 @@ export function updateStatusText(statusText: string): void {
 		delete elements.statusText.dataset.userStatusLockUntil;
 	}
 
+	setStatusPanelStatusText(statusText);
 	elements.statusText.textContent = statusText;
 }
 
@@ -122,13 +134,12 @@ export function updateStatusText(statusText: string): void {
 export function updateStepText(message: string, color?: string): void {
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
+	const resolvedColor = color ?? 'var(--text-primary)';
 
+	setStatusPanelStepText(message);
+	setStatusPanelStepColor(resolvedColor);
 	elements.stepText.textContent = message;
-	if (color) {
-		elements.stepText.style.color = color;
-	} else {
-		elements.stepText.style.color = 'var(--text-primary)';
-	}
+	elements.stepText.style.color = resolvedColor;
 }
 
 /**
@@ -136,6 +147,8 @@ export function updateStepText(message: string, color?: string): void {
  * @param message - Concurrency message to display
  */
 export function updateConcurrencyStatus(message: string): void {
+	setStatusPanelConcurrencyText(message);
+
 	const elements = cachedElements || initializeElements();
 	if (!elements) return;
 
@@ -192,6 +205,8 @@ export function getCancelAllButton(): HTMLButtonElement | null {
  * Toggle cancel-all button pending state while cancellation request is in flight.
  */
 export function setCancelAllButtonPending(isPending: boolean): void {
+	setStatusPanelCancelAllPending(isPending);
+
 	const cancelButton = getCancelAllButton();
 	if (!cancelButton) return;
 
