@@ -10,7 +10,7 @@ import { initMetadataFormEvents, resetDirtyState } from './ui/metadataForm';
 import { initTagPreview } from './ui/tagPreview';
 import { initJobControls } from './ui/jobControls';
 import { initMetadataLookup } from './ui/metadataLookup';
-import { clearPendingMetadataForFile, getPendingMetadataEntries } from './ui/metadataState';
+import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from './ui/metadataState';
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from './ui/metadataSaveState';
 
 // Initialize UI components when DOM is ready
@@ -96,7 +96,7 @@ async function saveMetadataFromUI(): Promise<void> {
 		const validFilePaths = new Set(
 			fileList.files.filter((file) => file.isValid).map((file) => file.path),
 		);
-		const pendingEntries = getPendingMetadataEntries().filter(([filePath]) =>
+		const pendingEntries = getPendingMetadataIntentEntries().filter(([filePath]) =>
 			validFilePaths.has(filePath),
 		);
 		if (pendingEntries.length === 0) {
@@ -112,11 +112,11 @@ async function saveMetadataFromUI(): Promise<void> {
 		let failureCount = 0;
 		const failedFiles: string[] = [];
 
-		for (const [index, [filePath, metadata]] of pendingEntries.entries()) {
+		for (const [index, [filePath, metadataIntent]] of pendingEntries.entries()) {
 			setUserStatusMessage(statusText, `Saving ${index + 1}/${pendingEntries.length}...`, 1200);
 
 			try {
-				await bridge.saveMetadataToFile(filePath, metadata);
+				await bridge.saveMetadataIntentToFile(filePath, metadataIntent);
 				clearPendingMetadataForFile(filePath);
 				successCount++;
 			} catch (error) {

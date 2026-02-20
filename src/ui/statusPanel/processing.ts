@@ -9,8 +9,18 @@ import { getSelectedFileIndices } from '../fileList/state';
 import { getCurrentOutputConfig } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
-import { getAllMetadata, getMetadataForFile, setMetadataForFile } from '../metadataState';
+import {
+	getAllMetadata,
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	setMetadataForFile,
+} from '../metadataState';
 import { stageMetadataToSelection } from '../fileList/actions';
+import {
+	applyMetadataIntentPatch,
+	buildMetadataIntentPatchFromMetadata,
+	hasActionableMetadataIntentPatch,
+} from '../../types/metadataIntent';
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
 import { normalizeProcessingErrorMessage } from './errorHelpers';
@@ -98,13 +108,21 @@ export async function startProcessing(
 		if (selectionCount <= 1) {
 			if (hasDirtyMetadataFields()) {
 				const selectedFileIndex = getSelectedFileIndex();
-				currentMetadata = readMetadataForm({ mode: 'single' });
+				const formMetadata = readMetadataForm({ mode: 'single' });
+				const intentPatch = buildMetadataIntentPatchFromMetadata(formMetadata);
 				const activeFile =
 					selectedFileIndex >= 0
 						? fileList.files[selectedFileIndex]
 						: fileList.files.find((file) => file.isValid);
-				if (activeFile?.isValid && Object.keys(currentMetadata).length > 0) {
-					setMetadataForFile(activeFile.path, currentMetadata);
+				if (activeFile?.isValid && hasActionableMetadataIntentPatch(intentPatch)) {
+					const existing = getMetadataForFile(activeFile.path) ?? {};
+					currentMetadata = applyMetadataIntentPatch(existing, intentPatch);
+					setMetadataForFile(activeFile.path, currentMetadata, {
+						markPending: true,
+						intentPatch,
+					});
+				} else {
+					currentMetadata = formMetadata;
 				}
 			}
 		}
@@ -175,9 +193,16 @@ export async function startProcessing(
 
 		let metadataPayload: Record<string, Partial<AudiobookMetadata>> | null = null;
 		if (v2Payload.jobType === 'merge') {
-			if (v2Payload.inputFiles.length > 0 && Object.keys(currentMetadata).length > 0) {
+			const mergeKey = v2Payload.inputFiles[0];
+			const mergeIntentPatch = mergeKey ? getMetadataIntentPatchForFile(mergeKey) : undefined;
+			if (
+				mergeKey &&
+				v2Payload.inputFiles.length > 0 &&
+				hasActionableMetadataIntentPatch(mergeIntentPatch)
+			) {
+				const mergeMetadata = getMetadataForFile(mergeKey) ?? currentMetadata;
 				metadataPayload = {
-					[v2Payload.inputFiles[0]]: currentMetadata,
+					[mergeKey]: mergeMetadata,
 				};
 			}
 		} else {

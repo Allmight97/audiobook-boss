@@ -141,6 +141,12 @@ fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
     octx.write_trailer().expect("write trailer");
 }
 
+fn ffmpeg_tag(path: &Path, key: &str) -> Option<String> {
+    ff::init().expect("ffmpeg init");
+    let ictx = ff::format::input(path).expect("open container");
+    ictx.metadata().get(key).map(str::to_string)
+}
+
 // ============================================================================
 // Basic metadata reading error handling
 // ============================================================================
@@ -265,6 +271,13 @@ async fn writes_series_tags_with_mp4ameta() {
     assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
     assert_eq!(tag.movement_index(), Some(7));
+
+    // Canonical read keys should be visible through ffmpeg metadata lookup.
+    assert_eq!(
+        ffmpeg_tag(&output, "series").as_deref(),
+        Some("Dungeon Crawler Carl")
+    );
+    assert_eq!(ffmpeg_tag(&output, "series-part").as_deref(), Some("7"));
 }
 
 #[tokio::test]
@@ -406,6 +419,62 @@ async fn preserves_series_tags_on_metadata_only_save() {
         read_back.album_sort.as_deref(),
         Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")
     );
+}
+
+#[tokio::test]
+async fn clearing_series_fields_removes_mirrors_and_canonical_reads() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("series-clear.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("Clear Series".into()),
+            series: Some("Dungeon Crawler Carl".into()),
+            series_part: Some("7".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("seed metadata");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            series: Some(String::new()),
+            series_part: Some(String::new()),
+            subseries: Some(String::new()),
+            subseries_part: Some(String::new()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("clear series metadata");
+
+    let tag = Tag::read_from_path(&output).expect("read tag");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+
+    assert!(tag.strings_of(&series_ident).next().is_none());
+    assert!(tag.strings_of(&part_ident).next().is_none());
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
+
+    assert!(ffmpeg_tag(&output, "series").is_none());
+    assert!(ffmpeg_tag(&output, "series-part").is_none());
+    assert!(ffmpeg_tag(&output, "show").is_none());
+    assert!(ffmpeg_tag(&output, "episode_sort").is_none());
+
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert!(read_back.series.is_none());
+    assert!(read_back.series_part.is_none());
+    assert!(read_back.subseries.is_none());
+    assert!(read_back.subseries_part.is_none());
 }
 
 #[tokio::test]

@@ -3,12 +3,12 @@
 ## Summary
 - Scope remains: item `1` + item `2` in this session, item `3` deferred.
 - Execution remains: new local branch, git-first commit slicing, no PR push until full checks pass.
-- Key revision: item `2` will be a full consolidation of duplication debt, but with explicit UX-stability guardrails for null/undefined semantics.
+- Key revision: item `2` now hardens metadata edits with canonical frontend intent semantics (`set | clear | noop`) plus explicit UX-stability guardrails for null/undefined handling.
 
 ## Pressure Test Outcomes (What Changed)
 1. Item `2` risk was under-specified at UI callsite level.
 - High-risk semantics exist in `/Users/jstar/Projects/audiobook-boss/src/ui/fileList/actions.ts:68` (`metadataEquals` via `JSON.stringify`) and `/Users/jstar/Projects/audiobook-boss/src/ui/statusPanel/processing.ts:106` + `/Users/jstar/Projects/audiobook-boss/src/ui/statusPanel/processing.ts:186` (`Object.keys(...).length > 0` gating).
-- Plan now includes explicit nullish-normalization and meaningful-field helpers before/while consolidating bridge types.
+- Plan now includes explicit nullish-normalization plus canonical metadata intent patch ops so clear-only edits survive staging/processing/save.
 2. Item `2` “replace `src/types/*` wholesale” was too blunt.
 - `/Users/jstar/Projects/audiobook-boss/src/types/audio.ts`, `/Users/jstar/Projects/audiobook-boss/src/types/metadata.ts`, and `/Users/jstar/Projects/audiobook-boss/src/types/events.ts` contain UI-domain types/constants/helpers beyond raw IPC DTOs.
 - Plan now separates IPC boundary DTOs from UI-domain types instead of nuking files wholesale.
@@ -25,8 +25,8 @@
 - Introduce explicit IPC-boundary type surface derived from `/Users/jstar/Projects/audiobook-boss/src/lib/generated/tauri.ts`.
 - Keep UI-domain files, but remove duplicated field-by-field DTO declarations where they mirror generated IPC types.
 4. Bridge interface:
-- Keep existing bridge public methods stable.
-- Replace per-field normalization boilerplate with reusable nullish adapters, while preserving current command payload shapes.
+- Keep existing bridge command names stable.
+- Keep bridge thin and focused on high-risk boundary adaptation (metadata intent compile, nullish/event normalization, and dev/test seam).
 
 ## Implementation Plan
 
@@ -53,18 +53,19 @@
 ### C) Item 2 (Full Consolidation, UX-Safe)
 1. Add shared nullish adapters and helpers in bridge layer.
 - Replace hand-written per-field conversion in `/Users/jstar/Projects/audiobook-boss/src/lib/bridge.ts`.
-2. Introduce “meaningful metadata” helpers and swap brittle emptiness checks.
+2. Introduce canonical metadata intent patch ops (`set | clear | noop`) and remove brittle emptiness heuristics from processing/save gating.
 - Update logic in:
 `/Users/jstar/Projects/audiobook-boss/src/ui/fileList/actions.ts`
 and
 `/Users/jstar/Projects/audiobook-boss/src/ui/statusPanel/processing.ts`
-to treat `null`/`undefined` consistently and prevent false-dirty/always-send metadata behavior.
+to preserve clear intent and prevent false-noop behavior in merge/batch/save paths.
 3. Consolidate duplicated IPC DTOs.
 - Derive boundary DTO types from generated bindings.
 - Keep UI-domain helper types/constants in place where they are not pure DTO mirrors.
 4. Update mocks and callsites for contract parity.
 - `/Users/jstar/Projects/audiobook-boss/src/lib/mocks.ts`
 - any impacted UI modules using metadata/audio/event payload shapes.
+5. Keep bridge-removal analysis out of this implementation PR; track it separately in Issue #236.
 
 ### D) Item 3
 1. Deferred (no rename/doc changes in this session).
@@ -77,7 +78,7 @@ to treat `null`/`undefined` consistently and prevent false-dirty/always-send met
 - Expand `/Users/jstar/Projects/audiobook-boss/src/lib/bridge.test.ts` to assert null/undefined roundtrip behavior for metadata/process payloads/events.
 3. UI behavior regression
 - Add tests covering:
-`metadataEquals` nullish equivalence and meaningful-metadata gating in status processing flow.
+metadata intent compile behavior and clear-intent preservation in status processing + pending-save flows.
 4. Keep existing contract/event guards green
 - `/Users/jstar/Projects/audiobook-boss/src/lib/behavior-contract.test.ts`
 - `/Users/jstar/Projects/audiobook-boss/src/lib/bridge.generated-event-bindings.test.ts`
@@ -100,3 +101,7 @@ to treat `null`/`undefined` consistently and prevent false-dirty/always-send met
 2. No version bump or changelog edits in this session.
 3. No new fallbacks/shims introduced.
 4. Prioritize behavior parity and regression resistance over broad stylistic refactors.
+
+## Follow-up Tracking
+
+- Bridge-removal feasibility (post-canonicalization): Issue #236

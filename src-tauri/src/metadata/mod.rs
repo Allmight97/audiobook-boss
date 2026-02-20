@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::errors::{AppError, Result};
 
 pub mod reader;
+pub(crate) mod tag_registry;
 
 // FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
 mod cover_art;

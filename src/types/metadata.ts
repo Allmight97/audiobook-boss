@@ -12,44 +12,18 @@
  * - date = Publication year (©day)
  */
 
+import type {
+	AudiobookMetadata as GeneratedAudiobookMetadata,
+	MetadataSource as GeneratedMetadataSource,
+	OnlineMetadataResult as GeneratedOnlineMetadataResult,
+} from '../lib/generated/tauri';
+import type { NullToOptionalDeep } from './ipc';
+
 /**
  * Represents metadata for an audiobook file
  * Matches Rust backend AudiobookMetadata structure
  */
-export interface AudiobookMetadata {
-	/** Title of the audiobook (©nam) */
-	title?: string;
-	/** Author of the book (©ART, also written to aART/AlbumArtist) */
-	artist?: string;
-	/** Album name - typically same as title for audiobooks (©alb) */
-	album?: string;
-	/** Narrator of the audiobook (©wrt/Composer) */
-	composer?: string;
-	/** Genre of the book (©gen) */
-	genre?: string;
-	/** Publication year (©day) */
-	date?: number;
-	/** Track number (chapter number, total chapters) */
-	track?: [number, number | null];
-	/** Disk number (rarely used for audiobooks) */
-	disk?: [number, number | null];
-	/** Comment field (©cmt) - short note, distinct from description */
-	comment?: string;
-	/** Description or synopsis (desc) */
-	description?: string;
-	/** Series name (©mvn/MVNM) */
-	series?: string;
-	/** Series sequence / book # within a series (©mvi/MVIN) */
-	series_part?: string;
-	/** Sub-series name (secondary series) */
-	subseries?: string;
-	/** Series sequence / book # within a sub-series */
-	subseries_part?: string;
-	/** Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE" */
-	album_sort?: string;
-	/** Cover art as raw bytes from backend */
-	cover_art?: number[];
-}
+export type AudiobookMetadata = NullToOptionalDeep<GeneratedAudiobookMetadata>;
 
 /** Per-file metadata map keyed by input path */
 export type AudiobookMetadataMap = Record<string, AudiobookMetadata>;
@@ -79,21 +53,6 @@ export interface WriteCoverArtParams {
 	coverData: number[]; // byte array
 }
 
-export type MetadataSource = 'audnexus';
+export type MetadataSource = GeneratedMetadataSource;
 
-export interface OnlineMetadataResult {
-	source: MetadataSource;
-	sourceId: string;
-	title: string;
-	authors: string[];
-	narrators: string[];
-	series?: string;
-	seriesPart?: string;
-	subseries?: string;
-	subseriesPart?: string;
-	description?: string;
-	publishedYear?: number;
-	durationSeconds?: number;
-	coverUrl?: string;
-	audibleOnly?: boolean;
-}
+export type OnlineMetadataResult = NullToOptionalDeep<GeneratedOnlineMetadataResult>;

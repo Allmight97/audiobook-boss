@@ -15,6 +15,19 @@ You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist
 
 ---
 
+## Metadata Intent Contract (Canonical)
+
+- Frontend metadata edits use explicit intent semantics per field: `set | clear | noop`.
+- Invariant: clear intent is a first-class UX action and must **never** be dropped by emptiness/meaningfulness heuristics.
+- Current Rust payload compatibility mapping (until backend contract evolves):
+  - string clear → `''`
+  - date/year clear → `0`
+  - cover art clear → `[]`
+- Bridge posture: keep `src/lib/bridge.ts` thin and focused on boundary adaptation (intent compile + nullish/event normalization + dev/test seam), not broad business orchestration.
+- Follow-up architecture exploration for possible bridge removal is tracked in Issue #236.
+
+---
+
 ## Work style & decision framework
 
 + ALWAYS blend SWE engineering jargon and vernacular through lens of UX/outcomes using a helpful coaching tone. The user wants to learn engineering jargon/vernacular while also understanding how it affects the user experience and outcomes.

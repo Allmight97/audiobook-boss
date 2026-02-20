@@ -210,7 +210,7 @@ describe('metadata lookup queue cover art isolation', () => {
 				album: 'Alpha Patched',
 				cover_art: [9, 9, 9],
 			}),
-			{ markPending: true },
+			expect.objectContaining({ markPending: true }),
 		);
 		expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
 
@@ -232,7 +232,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.objectContaining({ cover_art: [1, 1, 1] }),
-			{ markPending: true },
+			expect.objectContaining({ markPending: true }),
 		);
 		expect(getStatusText()).toBe('Metadata applied. Ready for next search.');
 	});

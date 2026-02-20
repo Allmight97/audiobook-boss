@@ -43,6 +43,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - **Contract Guard**: Maintain TS ↔ Rust command parity through tauri-specta generated bindings (`src/lib/generated/tauri.ts`) and drift checks (`scripts/check-generated-bindings.sh`).
 - **Bindings Export Patching**: Generated-file post-processing must be robust (append or syntax-aware) and must not rely on brittle import-string replacement.
 - **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
+- **Metadata clear compatibility**: frontend currently compiles clear intent to explicit sentinel values (`''`, `0`, `[]`) before Rust command dispatch; backend should continue treating omitted/`None` as no-op and explicit sentinels as clear.
 
 ---
 

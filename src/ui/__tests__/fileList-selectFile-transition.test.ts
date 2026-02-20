@@ -19,6 +19,7 @@ vi.mock('../metadataForm', () => ({
 vi.mock('../metadataState', () => ({
 	clearMetadataState: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
+	metadataEqualsNullish: vi.fn(() => false),
 	removeMetadataForFile: vi.fn(),
 	setMetadataForFile: context.setMetadataForFileMock,
 }));
@@ -134,7 +135,7 @@ describe('selectFile transition options', () => {
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			{ title: 'Persisted Title' },
-			{ markPending: true },
+			expect.objectContaining({ markPending: true }),
 		);
 	});
 });

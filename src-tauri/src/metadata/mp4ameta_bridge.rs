@@ -1,10 +1,9 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
+use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{build_series_list, split_series_list, AudiobookMetadata};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
-
-const ITUNES_MEAN: &str = "com.apple.iTunes";
 
 pub fn is_mp4_container(path: &Path) -> bool {
     let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
@@ -150,7 +149,7 @@ fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
         .filter(|value| !value.is_empty());
 
     if metadata.series.is_some() {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
         tag.remove_movement();
@@ -167,7 +166,7 @@ fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
     }
 
     if metadata.series_part.is_some() {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
         tag.remove_movement_index();
@@ -261,7 +260,7 @@ fn apply_album_sort(
 
 fn read_series_raw(tag: &Tag) -> Option<String> {
     let series = {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };
@@ -273,7 +272,7 @@ fn read_series_raw(tag: &Tag) -> Option<String> {
 
 fn read_series_part_raw(tag: &Tag) -> Option<String> {
     let series_part = {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, "SERIES-PART");
+        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };

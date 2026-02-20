@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-19 — Canonical metadata intent with thin bridge boundary
+Context: Metadata clear-intent regressed when processing/save flows relied on emptiness heuristics that treated clear-only edits as non-actionable.
+Decision: Adopt frontend metadata patch ops (`set|clear|noop`) as canonical intent and compile them at a thin bridge boundary to current Rust clear sentinels, while deferring bridge-removal exploration to a follow-up issue.
+Consequences:
+- Preserves deterministic clear UX across single/multi/merge/batch/save flows.
+- Reduces semantic drift from value-meaningfulness heuristics.
+- Keeps current Rust IPC stable while still narrowing bridge responsibility.
+Links: docs/decisions/005-metadata-intent-patch-ops-thin-bridge.md, src/types/metadataIntent.ts, src/ui/metadataState.ts, src/lib/bridge.ts, #235, #236
+
 ## 2026-02-16 — ffmpeg-next Core with CLI Escape-Hatch Policy
 Context: Issue #192 requested a durable decision record for engine strategy. The runtime codebase already enforces `FfmpegNextProcessor` as the production path while CLI `ffmpeg` remains in perf tooling for attribution.
 Decision: Accept the existing implementation as policy: `ffmpeg-next` is the core production engine; CLI usage is an explicit escape hatch for benchmarking/diagnostics, not a parallel runtime engine.

@@ -15,6 +15,14 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
 - Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings.
 
+### Metadata Editing Contract
+
+- Canonical frontend metadata edit semantics are patch ops: `set | clear | noop`.
+- Treat “clear” as explicit user intent, not an empty-value heuristic.
+- Do not filter out clear-only edits in processing/save flows.
+- Compile metadata intent to current Rust payload shape at boundary adapters (bridge), not inside scattered UI callsites.
+- Current clear mapping: string fields → `''`, date/year → `0`, cover art removal → `[]`.
+
 ---
 
 ## Frontend Testability

@@ -2,6 +2,11 @@ import { bridge } from '../lib/bridge';
 import { mount, unmount } from 'svelte';
 import type { AudioFile } from '../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
+import {
+	applyMetadataIntentPatch,
+	buildMetadataIntentPatchFromMetadata,
+	type MetadataIntentPatch,
+} from '../types/metadataIntent';
 import { applyMetadataToForm, readMetadataForm } from './metadataForm';
 import { onMetadataChange } from './outputPanel';
 import { updateTagPreview } from './tagPreview';
@@ -25,7 +30,7 @@ type LookupQueueItem = {
 type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
 
 type QueueItemState = {
-	metadataPatch: Partial<AudiobookMetadata>;
+	metadataPatch: MetadataIntentPatch;
 	cover: QueueCoverState;
 };
 
@@ -209,22 +214,29 @@ function resetResults(): void {
 	}
 }
 
-function buildQueueMetadataPatch(): Partial<AudiobookMetadata> {
-	return readMetadataForm({ mode: 'single', includeCoverArt: false });
+function buildQueueMetadataPatch(): MetadataIntentPatch {
+	return buildMetadataIntentPatchFromMetadata(
+		readMetadataForm({ mode: 'single', includeCoverArt: false }),
+	);
 }
 
 function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
 	if (!file.isValid) return;
 	const existing = getMetadataForFile(file.path) ?? {};
-	const merged: Partial<AudiobookMetadata> = {
-		...existing,
-		...state.metadataPatch,
-	};
+	const merged: Partial<AudiobookMetadata> = applyMetadataIntentPatch(
+		existing,
+		state.metadataPatch,
+	);
+	const intentPatch: MetadataIntentPatch = { ...state.metadataPatch };
 	if (state.cover.intent === 'replace') {
 		merged.cover_art = state.cover.bytes;
+		intentPatch.cover_art = { op: 'set', value: state.cover.bytes };
 	}
 
-	setMetadataForFile(file.path, merged, { markPending: true });
+	setMetadataForFile(file.path, merged, {
+		markPending: true,
+		intentPatch,
+	});
 }
 
 function restoreCoverArtForFile(file: AudioFile | null): void {

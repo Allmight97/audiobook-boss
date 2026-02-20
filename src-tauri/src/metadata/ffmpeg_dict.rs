@@ -2,6 +2,10 @@
 
 use super::{build_series_list, compute_album_sort, split_series_list, AudiobookMetadata};
 use crate::errors::Result;
+use crate::metadata::tag_registry::{
+    ITUNES_SERIES, ITUNES_SERIES_PART, MOVEMENT_INDEX, MOVEMENT_NAME, SERIES, SERIES_CLEAR_KEYS,
+    SERIES_PART, SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
+};
 use ffmpeg_next as ff;
 
 use super::cover_art::format::{
@@ -83,20 +87,20 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     );
 
     if let Some(series) = series_value.as_deref() {
-        dict.set("series", series);
-        dict.set("----:com.apple.iTunes:SERIES", series);
+        dict.set(SERIES, series);
+        dict.set(ITUNES_SERIES, series);
     }
     if let Some(primary_series) = primary_series {
-        dict.set("MVNM", primary_series);
+        dict.set(MOVEMENT_NAME, primary_series);
     }
 
     // Book # metadata: dual-write for ABS/Plex + Apple Books
     if let Some(series_part) = series_part_value.as_deref() {
-        dict.set("series-part", series_part);
-        dict.set("----:com.apple.iTunes:SERIES-PART", series_part);
+        dict.set(SERIES_PART, series_part);
+        dict.set(ITUNES_SERIES_PART, series_part);
     }
     if let Some(primary_series_part) = primary_series_part {
-        dict.set("MVIN", primary_series_part);
+        dict.set(MOVEMENT_INDEX, primary_series_part);
     }
 
     // TSOA → sort_album for library sorting
@@ -146,12 +150,7 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
         .as_deref()
         .map(|value| value.trim().is_empty())
         .unwrap_or(false);
-    if series_clear
-        && matches!(
-            key,
-            "series" | "----:com.apple.iTunes:SERIES" | "MVNM" | "show"
-        )
-    {
+    if series_clear && SERIES_CLEAR_KEYS.contains(&key) {
         return true;
     }
 
@@ -160,12 +159,7 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
         .as_deref()
         .map(|value| value.trim().is_empty())
         .unwrap_or(false);
-    if series_part_clear
-        && matches!(
-            key,
-            "series-part" | "----:com.apple.iTunes:SERIES-PART" | "MVIN" | "episode_sort"
-        )
-    {
+    if series_part_clear && SERIES_PART_CLEAR_KEYS.contains(&key) {
         return true;
     }
 
@@ -195,19 +189,8 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
 }
 
 fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
-    let series = first_tag(
-        dict,
-        &["series", "----:com.apple.iTunes:SERIES", "MVNM", "show"],
-    );
-    let series_part = first_tag(
-        dict,
-        &[
-            "series-part",
-            "----:com.apple.iTunes:SERIES-PART",
-            "MVIN",
-            "episode_sort",
-        ],
-    );
+    let series = first_tag(dict, &SERIES_READ_KEYS);
+    let series_part = first_tag(dict, &SERIES_PART_READ_KEYS);
     let title = dict.get("title").map(str::to_string);
 
     let (primary_series, _) = split_series_list(series.as_deref());

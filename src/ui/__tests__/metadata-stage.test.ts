@@ -5,6 +5,7 @@ import {
 	clearMetadataState,
 	getMetadataForFile,
 	getPendingMetadataEntries,
+	setMetadataForFile,
 } from '../metadataState';
 import type { FileListInfo } from '../../types/audio';
 
@@ -73,5 +74,17 @@ describe('stageMetadataToSelection', () => {
 			['/a.mp3', { series: 'Series X' }],
 			['/b.mp3', { series: 'Series X' }],
 		]);
+	});
+
+	it('skips pending writes when staged metadata is nullish-equivalent to existing drafts', async () => {
+		setMetadataForFile('/a.mp3', { series: 'Series X' });
+		setMetadataForFile('/b.mp3', { series: 'Series X' });
+
+		const didStage = await stageMetadataToSelection({ showStatus: false });
+
+		expect(didStage).toBe(true);
+		expect(getMetadataForFile('/a.mp3')).toMatchObject({ series: 'Series X' });
+		expect(getMetadataForFile('/b.mp3')).toMatchObject({ series: 'Series X' });
+		expect(getPendingMetadataEntries()).toEqual([]);
 	});
 });
