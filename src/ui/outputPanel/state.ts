@@ -3,7 +3,6 @@
  */
 import type {
 	EncoderSettings,
-	EncoderChannelConfig,
 	SampleRateConfig,
 	OutputNamingConfig,
 } from '../../types/audio';
@@ -49,32 +48,6 @@ export function getOutputNamingConfig(): OutputNamingConfig {
 }
 
 /**
- * Updates encoder settings in state
- */
-export function updateEncoderSettings(updates: Partial<EncoderSettings>): void {
-	currentState.encoderSettings = {
-		...currentState.encoderSettings,
-		...updates,
-	};
-}
-
-/**
- * Updates sample rate in state
- */
-export function updateSampleRate(value: string): void {
-	currentState.sampleRate = value === 'auto' ? 'auto' : { explicit: parseInt(value, 10) };
-}
-
-/**
- * Updates channels in state
- */
-export function updateChannels(value: string): void {
-	const channels: EncoderChannelConfig =
-		value === 'mono' ? 'mono' : value === 'stereo' ? 'stereo' : 'auto';
-	currentState.encoderSettings = { ...currentState.encoderSettings, channels };
-}
-
-/**
  * Updates output directory in state
  */
 export function updateOutputDirectory(path: string): void {
@@ -99,26 +72,8 @@ export function updateAbsIncludeYear(enabled: boolean): void {
  * Loads initial state from DOM elements
  */
 export function loadInitialState(): void {
-	const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;
-	const sampleRateSelect = document.getElementById('output-samplerate') as HTMLSelectElement;
-	const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
 	const absStructureCheckbox = document.getElementById('output-abs-structure') as HTMLInputElement;
 	const absYearCheckbox = document.getElementById('output-abs-include-year') as HTMLInputElement;
-
-	if (bitrateSelect) {
-		currentState.encoderSettings = {
-			...currentState.encoderSettings,
-			bitrateKbps: parseInt(bitrateSelect.value, 10) as EncoderSettings['bitrateKbps'],
-		};
-	}
-
-	if (sampleRateSelect) {
-		updateSampleRate(sampleRateSelect.value);
-	}
-
-	if (channelsSelect) {
-		updateChannels(channelsSelect.value);
-	}
 
 	if (absStructureCheckbox) {
 		currentState.absCompatible = absStructureCheckbox.checked;
