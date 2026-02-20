@@ -1,35 +1,30 @@
 import { tauriClient } from '../lib/tauri/client';
 import type { JobType } from '../types/audio';
-import { mount, unmount } from 'svelte';
+import { flushSync, mount, unmount } from 'svelte';
 import JobControlsIsland from './jobControls/JobControlsIsland.svelte';
+import { jobControlsState } from './jobControls/state.svelte';
 
 const JOB_CONTROLS_ROOT_ID = 'job-controls-root';
-const MERGE_TOGGLE_ID = 'merge-mode-toggle';
-const MAX_CONCURRENT_SELECT_ID = 'max-concurrent-select';
-const MAX_CONCURRENT_EFFECTIVE_ID = 'max-concurrent-effective';
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
 
-let effectiveMaxConcurrent: number | null = null;
-let maxConcurrentSelection: string = 'auto';
 let mountedControlsRoot: HTMLElement | null = null;
 let mountedControlsIsland: Parameters<typeof unmount>[0] | null = null;
 
 export function initJobControls(): void {
-	mountJobControlsIsland();
+	if (!mountJobControlsIsland()) return;
 	initializeMaxConcurrentControl();
-	initializeJobTypeControl();
 }
 
-function mountJobControlsIsland(): void {
+function mountJobControlsIsland(): boolean {
 	const controlsRoot = document.getElementById(JOB_CONTROLS_ROOT_ID);
-	if (!controlsRoot) return;
+	if (!controlsRoot) return false;
 
 	if (
 		mountedControlsIsland &&
 		mountedControlsRoot === controlsRoot &&
 		controlsRoot.childElementCount > 0
 	) {
-		return;
+		return true;
 	}
 
 	if (mountedControlsIsland) {
@@ -37,51 +32,49 @@ function mountJobControlsIsland(): void {
 		mountedControlsIsland = null;
 	}
 
-	mountedControlsIsland = mount(JobControlsIsland, { target: controlsRoot });
+	mountedControlsIsland = mount(JobControlsIsland, {
+		target: controlsRoot,
+		props: {
+			onMergeModeChange: handleMergeModeChange,
+			onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
+		},
+	});
 	mountedControlsRoot = controlsRoot;
-}
-
-function initializeJobTypeControl(): void {
-	const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement | null;
-	if (!toggle) return;
-
-	if (toggle.dataset.jobTypeBound !== 'true') {
-		// Potential: Restore saved preference if we want to persist it
-		toggle.addEventListener('change', () => {
-			document.dispatchEvent(new Event('abb:job-type-changed'));
-		});
-		toggle.dataset.jobTypeBound = 'true';
-	}
+	return true;
 }
 
 function initializeMaxConcurrentControl(): void {
-	const select = document.getElementById(MAX_CONCURRENT_SELECT_ID) as HTMLSelectElement | null;
-	if (!select) return;
-
-	// Restore saved preference
 	const saved = readMaxConcurrentPreference();
-	select.value = saved;
-	maxConcurrentSelection = saved;
-
-	if (select.dataset.maxConcurrentBound !== 'true') {
-		select.addEventListener('change', () => {
-			const value = select.value;
-			maxConcurrentSelection = value;
-			writeMaxConcurrentPreference(value);
-			void pushMaxConcurrentToBackend(value);
-		});
-		select.dataset.maxConcurrentBound = 'true';
-	}
+	jobControlsState.maxConcurrentSelection = saved;
 
 	// Push initial selection
 	void pushMaxConcurrentToBackend(saved);
 }
 
+function handleMergeModeChange(checked: boolean): void {
+	setJobType(checked ? 'merge' : 'batch', true);
+}
+
+function handleMaxConcurrentSelectionChange(value: string): void {
+	jobControlsState.maxConcurrentSelection = value;
+	writeMaxConcurrentPreference(value);
+	void pushMaxConcurrentToBackend(value);
+}
+
+function setJobType(jobType: JobType, emitChangeEvent: boolean): void {
+	jobControlsState.jobType = jobType;
+	if (emitChangeEvent) {
+		document.dispatchEvent(new Event('abb:job-type-changed'));
+	}
+}
+
+export function setJobTypeSelection(jobType: JobType): void {
+	setJobType(jobType, false);
+}
+
 // Read current value
 export function getJobType(): JobType {
-	const toggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement | null;
-	if (!toggle) return 'batch';
-	return toggle.checked ? 'merge' : 'batch';
+	return jobControlsState.jobType;
 }
 
 export function getMaxConcurrentStatus(): {
@@ -89,41 +82,27 @@ export function getMaxConcurrentStatus(): {
 	selection: string;
 } {
 	return {
-		effective: effectiveMaxConcurrent,
-		selection: maxConcurrentSelection,
+		effective: jobControlsState.effectiveMaxConcurrent,
+		selection: jobControlsState.maxConcurrentSelection,
 	};
 }
 
 export function setJobControlsEnabled(enabled: boolean): void {
-	const mergeToggle = document.getElementById(MERGE_TOGGLE_ID) as HTMLInputElement | null;
-	const maxConcurrentSelect = document.getElementById(
-		MAX_CONCURRENT_SELECT_ID,
-	) as HTMLSelectElement | null;
-
-	if (mergeToggle) {
-		mergeToggle.disabled = !enabled;
-		mergeToggle.style.opacity = enabled ? '1' : '0.5';
-	}
-
-	if (maxConcurrentSelect) {
-		maxConcurrentSelect.disabled = !enabled;
-		maxConcurrentSelect.style.opacity = enabled ? '1' : '0.5';
-	}
+	flushSync(() => {
+		jobControlsState.controlsEnabled = enabled;
+	});
 }
 
 function updateMaxConcurrentIndicator(): void {
-	const indicator = document.getElementById(MAX_CONCURRENT_EFFECTIVE_ID) as HTMLElement | null;
-	if (!indicator) return;
-
-	if (effectiveMaxConcurrent === null) {
-		indicator.textContent = '';
+	if (jobControlsState.effectiveMaxConcurrent === null) {
+		jobControlsState.effectiveLabel = '';
 		return;
 	}
 
-	if (maxConcurrentSelection === 'auto') {
-		indicator.textContent = `Auto → ${effectiveMaxConcurrent}`;
+	if (jobControlsState.maxConcurrentSelection === 'auto') {
+		jobControlsState.effectiveLabel = `Auto → ${jobControlsState.effectiveMaxConcurrent}`;
 	} else {
-		indicator.textContent = `Max ${effectiveMaxConcurrent}`;
+		jobControlsState.effectiveLabel = `Max ${jobControlsState.effectiveMaxConcurrent}`;
 	}
 }
 
@@ -171,11 +150,11 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
 		if (!Number.isFinite(effective)) {
 			return;
 		}
-		effectiveMaxConcurrent = effective;
+		jobControlsState.effectiveMaxConcurrent = effective;
 		updateMaxConcurrentIndicator();
 		document.dispatchEvent(
 			new CustomEvent('abb:max-concurrent-updated', {
-				detail: { effective, selection: maxConcurrentSelection },
+				detail: { effective, selection: jobControlsState.maxConcurrentSelection },
 			}),
 		);
 	} catch (error) {

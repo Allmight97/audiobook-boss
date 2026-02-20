@@ -1,80 +1,76 @@
 ## Tauri v2 IPC and event patterns (frontend <-> Rust)
 
 ### Where used
-- `src-tauri/src/audio/progress/reporter.rs` (emit `processing-progress`)
-- `src-tauri/src/commands/audio_processing.rs` (emit `processing-queue`)
-- `src/types/events.ts` (event names and payload types)
-- `src/ui/statusPanel` (progress listener and UI rendering)
-- `src/main.ts` (test commands using `invoke`)
+- Frontend boundary adapter: `src/lib/tauri/client.ts`
+- Event contracts: `src/types/events.ts`
+- Runtime listeners: `src/ui/statusPanel/events.ts`
+- Progress emission and cadence: `src-tauri/src/audio/progress/*`, `src-tauri/src/audio/processor/frame_pipeline.rs`
+- Queue snapshot emission: `src-tauri/src/commands/audio_processing.rs`
+
+### Runtime migration posture
+
+- Commands/events are centralized through `tauriClient`.
+- UI runtime is still hybrid (Svelte islands + legacy imperative modules in `src/ui/**`).
+- Guardrail direction: no new direct imperative DOM orchestration in migrated runtime entry paths; retire legacy modules incrementally.
 
 ### Event listen/unlisten lifecycle
 
-- Install listeners on demand (e.g., when processing starts) and unlisten when returning to idle.
-- Store the `unlisten` function and call it exactly once during cleanup.
+- Install listeners on demand (for example when processing starts) and unlisten when returning to idle.
+- Store each `unlisten` function and call it exactly once during cleanup.
 
 ```ts
-let cancelUnlisten: (() => void) | undefined;
-if (cancelUnlisten) cancelUnlisten();
-cancelUnlisten = await listen(EVENTS.PROGRESS, (event) => updateProgress(event.payload));
+let progressUnlisten: (() => void) | undefined;
+if (progressUnlisten) progressUnlisten();
+progressUnlisten = await tauriClient.listen(EVENTS.PROGRESS, (event) => updateProgress(event.payload));
 // ... on idle/teardown
-if (cancelUnlisten) { cancelUnlisten(); cancelUnlisten = undefined; }
+if (progressUnlisten) {
+  progressUnlisten();
+  progressUnlisten = undefined;
+}
 ```
 
 ### Emission cadence and payloads
 
-- Backend throttles progress emits to ~500ms to reduce UI load.
-- Keep payloads minimal (primitives + short strings). Avoid large binary payloads through events.
-  - Throttling is implemented in `src-tauri/src/audio/processor/frame_pipeline.rs`.
-- `current_file` is a human-readable label (filename + index) for batch progress displays.
-- `input_index` is an optional stable index into the original input list (used to map progress to file metadata/cover art).
-- `processing-queue` emits queue snapshots (`items`, `max_concurrent`) to keep UI queue order aligned with backend scheduling.
-
-### Perf observability touchpoints
-
-- Perf runner: `bun scripts/perf/run.mjs`.
-- Relevant benches for this contract surface:
-  - `statuspanel-render-lookup`
-  - `statuspanel-event-throughput`
-  - `metadata-lookup-latency`
-- Recommended command:
-  - `bun run perf` (or manually: `bun scripts/perf/run.mjs --all --mode synthetic --runs 9 --compare-baseline --append-history`)
-- Trend artifacts:
-  - `scripts/perf/results/history.ndjson`
-  - `scripts/perf/results/latest.md`
-- App-vs-encoder attribution is surfaced in `scripts/perf/results/latest.md` (via `rtf_app`, `rtf_cli`, and `overhead_ratio`).
-- Threshold semantics:
-  - `warn`: >15% regression vs baseline in the wrong direction
-  - `improved`: >15% improvement vs baseline
+- Backend throttles progress emits with `PROGRESS_EMIT_INTERVAL_MS=1000` (currently 1 second) to reduce UI churn.
+- Keep event payloads minimal (primitives + short strings). Avoid large binary payloads through events.
+- `current_file` is a human-readable label for active progress display.
+- `input_index` is an optional stable index into the original input list for deterministic metadata/file mapping.
+- `processing-queue` emits queue snapshots (`items`, `max_concurrent`) so UI queue order tracks backend scheduling.
 
 ### Progress stage mapping
 
 | Stage (ProcessingStage / ProgressEvent.stage) | Percentage range | Notes |
 | --- | --- | --- |
-| analyzing | 0–10% | Validation, temp-workspace setup |
-| converting | 10–80% | Encoder-driven progress (clamped) derived from total duration |
-| writing | 80–95% | Metadata write and container finalize |
-| completed | 95–100% | Final move/cleanup (95–98%), completion (100%) |
-| failed | 0% | Emitted with error message on failure |
-| cancelled | 0% | Special-case stage emitted by `emit_cancelled` |
-
-- The backend clamps converting progress at 80% to avoid prematurely reaching the metadata range.
-- See `src/types/events.ts` for the TypeScript contract and helper guards.
+| analyzing | 0-10% | Validation and setup |
+| converting | 10-80% | Encoder-driven progress |
+| writing | 80-95% | Metadata/container finalize |
+| completed | 95-100% | Final move/cleanup then completion |
+| failed | 0% | Emitted with error message |
+| cancelled | 0% | Emitted by cancel path |
 
 ### Cancellation and error propagation
 
-- Use `invoke('cancel_processing')` to request cancellation; the backend should emit a `cancelled` event.
-- Surface backend errors via `invoke` rejection; show user-friendly messages.
+- Use `tauriClient.cancelProcessing(jobId?)` to request cancellation.
+- Backend should emit terminal cancellation progress state for UI alignment.
+- Surface backend command failures via rejected promises with user-safe messaging.
 
 ### Window lifecycle
 
 - On window unload, ensure listeners are unregistered to prevent leaks:
 
 ```ts
-window.addEventListener('beforeunload', () => { if (cancelUnlisten) cancelUnlisten(); });
+window.addEventListener('beforeunload', () => {
+  if (progressUnlisten) progressUnlisten();
+});
 ```
 
-### References
+### Perf observability touchpoints
 
-- Tauri v2 API: `@tauri-apps/api` – events and core invoke
-  - Events: `@tauri-apps/api/event`
-  - Commands: `@tauri-apps/api/core`
+- Runner: `bun scripts/perf/run.mjs`
+- Contract-sensitive benches:
+  - `statuspanel-render-lookup`
+  - `statuspanel-event-throughput`
+  - `metadata-lookup-latency`
+- Trend artifacts:
+  - `scripts/perf/results/history.ndjson`
+  - `scripts/perf/results/latest.md`

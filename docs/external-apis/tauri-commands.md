@@ -2,6 +2,12 @@
 
 This guide expands on the lightweight index by summarizing the public Tauri IPC the app exposes, the Rust modules that implement them, and the UI surfaces that depend on each command or event.
 
+## Frontend call path (current contract)
+
+- Runtime calls route through `src/lib/tauri/client.ts` (`tauriClient`).
+- Typical flow: `src/App.svelte` -> `src/ui/**` feature modules -> `tauriClient` -> generated bindings (`src/lib/generated/tauri.ts`) -> Rust commands.
+- Migration posture is hybrid: islands are present, but some runtime features still depend on legacy imperative modules.
+
 ## Contract generation
 
 - Rust contract builder: `src-tauri/src/ipc_contract.rs`
@@ -12,23 +18,23 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Command matrix
 
-| Command | Rust implementation | Primary consumers |
+| Command | Rust implementation | Primary consumers (via `tauriClient`) |
 | --- | --- | --- |
-| `ping`, `echo` | `src-tauri/src/commands/system.rs` | Console smoke tests via `window.testCommands` |
-| `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and console harness |
-| `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport` |
+| `ping`, `echo` | `src-tauri/src/commands/system.rs` | Integration smoke tests and ad-hoc debug invocation |
+| `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and QA diagnostics |
+| `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport.ts` |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
-| `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `StatusPanel` start/preview flows, providing EncoderSettings v2 |
-| `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel cancel-all and per-job cancel |
+| `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `src/ui/statusPanel/processing.ts` start/preview flows |
+| `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/statusPanel/logic.ts` cancel-all and per-job cancel |
 | `list_available_encoders` | `src-tauri/src/commands/audio.rs` | Used by UI to surface encoder guidance |
-| `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
-| `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | StatusPanel “Max concurrent conversions” selector |
+| `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/jobControls.ts` |
+| `set_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/jobControls.ts` |
 | `read_audio_metadata` | `src-tauri/src/commands/metadata.rs` → `metadata::reader` (mp4ameta for MP4/M4B, ffmpeg fallback) | File list metadata pane, cover-art thumbnail refresh |
 | `save_metadata_to_file` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Metadata-only editing (Cmd+S workflow) |
 | `write_cover_art` | `src-tauri/src/commands/metadata.rs` (mp4ameta for MP4/M4B, ffmpeg for others) | Console/testing only |
-| `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt` "Load Cover Art" button |
-| `load_cover_art_from_url` | `src-tauri/src/commands/metadata.rs` | `src/ui/coverArt`, `src/ui/metadataLookup` |
-| `search_online_metadata` | `src-tauri/src/commands/metadata_lookup/mod.rs` | `src/ui/metadataLookup` |
+| `load_cover_art_file` | `src-tauri/src/commands/metadata.rs` → filesystem load + validation | `src/ui/coverArt.ts` "Load Cover Art" action |
+| `load_cover_art_from_url` | `src-tauri/src/commands/metadata.rs` | `src/ui/coverArt.ts`, `src/ui/metadataLookup.ts` |
+| `search_online_metadata` | `src-tauri/src/commands/metadata_lookup/mod.rs` | `src/ui/metadataLookup.ts` |
 
 ### Command payloads & returns
 
@@ -85,13 +91,13 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 
 ### Backend → frontend events
 
-- `processing-progress` (emitted from `src-tauri/src/audio/progress/reporter.rs`) drives the StatusPanel state machine via `src/types/events.ts` contracts and the listener installed in `src/ui/statusPanel`. Payload includes optional `job_id` and `input_index` to support multiple concurrent jobs and stable file mapping.
-  - Emission throttling (~200ms) originates in `src-tauri/src/audio/processor/frame_pipeline.rs`.
-- `processing-queue` (emitted from `src-tauri/src/commands/audio_processing.rs`) provides queue snapshots consumed by `src/ui/statusPanel`.
+- `processing-progress` (emitted from `src-tauri/src/audio/progress/*`) drives the StatusPanel state machine via `src/types/events.ts` contracts and listeners installed through `tauriClient.listen`.
+  - Emission throttling currently uses `PROGRESS_EMIT_INTERVAL_MS=1000` in `src-tauri/src/audio/processor/frame_pipeline.rs`.
+- `processing-queue` (emitted from `src-tauri/src/commands/audio_processing.rs`) provides queue snapshots consumed by `src/ui/statusPanel/events.ts`.
 
 ### Frontend harness for QA
 
-- `window.testCommands` in `src/main.ts` exposes select commands for manual QA (ping/echo/validation/metadata); production UI flows depend on the modules listed above rather than the harness itself.
+- Harness runtime is mounted via `src/harness-main.ts` and `src/HarnessApp.svelte` for isolated component iteration; production runtime remains `src/main.ts` + `src/App.svelte`.
 
 ### Notes on scope
 

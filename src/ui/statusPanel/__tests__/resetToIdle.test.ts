@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { tauriClient } from '../../../lib/tauri/client';
+import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
 
@@ -13,16 +15,24 @@ function setupDom() {
     <button id="cancel-all-button"></button>
     <div class="art-thumbnail"></div>
     <div id="job-list"></div>
-    <input id="merge-mode-toggle" type="checkbox" />
-    <select id="max-concurrent-select"></select>
+    <div id="job-controls-root"></div>
   `;
 }
 
+async function flushAsync(): Promise<void> {
+	await Promise.resolve();
+	await Promise.resolve();
+}
+
 describe('StatusPanel resetToIdle', () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		setupDom();
 		dom.resetStatusPanelDomCache();
 		vi.useFakeTimers();
+		vi.spyOn(tauriClient, 'setMaxConcurrentJobs').mockResolvedValue(4);
+		setJobTypeSelection('batch');
+		initJobControls();
+		await flushAsync();
 	});
 
 	afterEach(() => {
@@ -37,10 +47,7 @@ describe('StatusPanel resetToIdle', () => {
 
 		const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
 		const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
-		mergeToggle.disabled = true;
-		mergeToggle.style.opacity = '0.5';
-		maxConcurrent.disabled = true;
-		maxConcurrent.style.opacity = '0.5';
+		setJobControlsEnabled(false);
 
 		(panel as any).handleQueueSnapshot({
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],

@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + fallback policy enforcement
+# - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + runtime guardrails + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
@@ -104,6 +104,9 @@ run_quick() {
 
   log_step "scripts/check-no-bridge-imports.sh"
   bash scripts/check-no-bridge-imports.sh
+
+  log_step "scripts/check-no-imperative-dom-runtime.sh"
+  bash scripts/check-no-imperative-dom-runtime.sh
 
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh

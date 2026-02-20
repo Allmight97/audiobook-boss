@@ -7,6 +7,7 @@
  * - Global test utilities
  */
 
+import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
