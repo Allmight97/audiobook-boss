@@ -22,45 +22,12 @@ let mountedCoverArtIsland: Parameters<typeof unmount>[0] | null = null;
 export function initCoverArt(): void {
 	mountCoverArtIsland();
 
-	const coverArtArea = document.getElementById('cover-art-area');
 	const coverArtUrlInput = document.getElementById(
 		'cover-art-url-input',
 	) as HTMLInputElement | null;
 	const coverArtUrlButton = document.getElementById(
 		'cover-art-url-load-btn',
 	) as HTMLButtonElement | null;
-
-	if (coverArtArea) {
-		// Click Handler (Load or Clear via delegation)
-		coverArtArea.addEventListener('click', (e) => {
-			const target = e.target as HTMLElement;
-			// If clicked the clear button
-			if (target.closest('.cover-art-clear-btn') || target.id === 'cover-art-clear-btn') {
-				e.stopPropagation();
-				handleClearCoverArt();
-				return;
-			}
-			// Otherwise, load cover art
-			handleLoadCoverArt();
-		});
-
-		coverArtArea.addEventListener('mouseenter', () => {
-			isCoverArtAreaHovered = true;
-		});
-		coverArtArea.addEventListener('mouseleave', () => {
-			isCoverArtAreaHovered = false;
-		});
-
-		// Drag Visuals
-		coverArtArea.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			coverArtArea.classList.add('drag-over');
-		});
-		coverArtArea.addEventListener('dragleave', (e) => {
-			e.preventDefault();
-			coverArtArea.classList.remove('drag-over');
-		});
-	}
 
 	if (coverArtUrlInput) {
 		coverArtUrlInput.addEventListener('keydown', (event) => {
@@ -144,7 +111,18 @@ function mountCoverArtIsland(): void {
 		mountedCoverArtIsland = null;
 	}
 
-	mountedCoverArtIsland = mount(CoverArtIsland, { target: coverArtRoot });
+	mountedCoverArtIsland = mount(CoverArtIsland, {
+		target: coverArtRoot,
+		props: {
+			onLoadFromFile: () => {
+				void handleLoadCoverArt();
+			},
+			onClearCoverArt: handleClearCoverArt,
+			onHoverChange: (isHovered: boolean) => {
+				isCoverArtAreaHovered = isHovered;
+			},
+		},
+	});
 	mountedCoverArtRoot = coverArtRoot;
 }
 
