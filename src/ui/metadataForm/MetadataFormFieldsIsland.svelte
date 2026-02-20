@@ -1,8 +1,38 @@
 <script lang="ts">
 	import { openMetadataLookup } from '../metadataLookup';
+
+	type MetadataFieldHandler = (id: string) => void;
+
+	export let onFieldInput: MetadataFieldHandler;
+	export let onActionChange: MetadataFieldHandler;
+
+	function handleMetadataFieldInput(event: Event): void {
+		const target = event.target;
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			if (!target.id.startsWith('meta-')) return;
+			onFieldInput?.(target.id);
+		}
+	}
+
+	function handleMetadataFieldChange(event: Event): void {
+		const target = event.target;
+		if (target instanceof HTMLSelectElement) {
+			if (!target.classList.contains('meta-apply-select')) return;
+			onActionChange?.(target.id);
+			return;
+		}
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			if (!target.id.startsWith('meta-')) return;
+			onFieldInput?.(target.id);
+		}
+	}
 </script>
 
-<div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
+<div
+	class="grid grid-cols-4 gap-x-3 gap-y-1.5"
+	on:input={handleMetadataFieldInput}
+	on:change={handleMetadataFieldChange}
+>
   <div class="col-span-3">
     <div class="meta-field-header">
       <label for="meta-title">Book Title</label>

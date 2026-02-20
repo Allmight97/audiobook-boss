@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calculateTSOA, initTagPreview, updateTagPreview } from '../tagPreview';
+import {
+	resetMetadataFormPreviewState,
+	setMetadataFormPreviewValueByInputId,
+} from '../metadataForm/previewState.svelte';
 
 function setupDom(initialValues: Record<string, string> = {}): void {
 	const value = (id: string): string => initialValues[id] ?? '';
@@ -16,6 +20,24 @@ function setupDom(initialValues: Record<string, string> = {}): void {
     <input id="meta-genre" value="${value('meta-genre')}" />
     <div id="tag-preview-root"></div>
   `;
+
+	resetMetadataFormPreviewState();
+	const previewInputIds = [
+		'meta-title',
+		'meta-author',
+		'meta-narrator',
+		'meta-series',
+		'meta-series-part',
+		'meta-subseries',
+		'meta-subseries-part',
+		'meta-year',
+		'meta-genre',
+	];
+	for (const inputId of previewInputIds) {
+		const element = document.getElementById(inputId) as HTMLInputElement | null;
+		if (!element) continue;
+		setMetadataFormPreviewValueByInputId(inputId, element.value);
+	}
 }
 
 function getFieldValue(field: string): string {
@@ -89,7 +111,7 @@ describe('tagPreview', () => {
 		expect(getFieldValue('tsoa')).toBe('The Mistborn Saga 01 - Mistborn');
 	});
 
-	it('updates rendered values on metadata input events', async () => {
+	it('updates rendered values after metadata preview state changes', async () => {
 		initTagPreview();
 		await flushRender();
 
@@ -99,9 +121,10 @@ describe('tagPreview', () => {
 		input('meta-title').value = '  Way of Kings  ';
 		input('meta-series').value = '  Stormlight  ';
 		input('meta-series-part').value = '4';
-		input('meta-title').dispatchEvent(new Event('input'));
-		input('meta-series').dispatchEvent(new Event('input'));
-		input('meta-series-part').dispatchEvent(new Event('input'));
+		setMetadataFormPreviewValueByInputId('meta-title', input('meta-title').value);
+		setMetadataFormPreviewValueByInputId('meta-series', input('meta-series').value);
+		setMetadataFormPreviewValueByInputId('meta-series-part', input('meta-series-part').value);
+		updateTagPreview();
 		await flushRender();
 
 		expect(getFieldValue('title')).toBe('Way of Kings');
@@ -110,7 +133,8 @@ describe('tagPreview', () => {
 		expect(getFieldValue('tsoa')).toBe('Stormlight 04 - Way of Kings');
 
 		input('meta-series').value = '';
-		input('meta-series').dispatchEvent(new Event('input'));
+		setMetadataFormPreviewValueByInputId('meta-series', input('meta-series').value);
+		updateTagPreview();
 		await flushRender();
 
 		expect(getFieldValue('series')).toBe('—');
@@ -122,6 +146,7 @@ describe('tagPreview', () => {
 		await flushRender();
 
 		input('meta-author').value = 'Robin Hobb';
+		setMetadataFormPreviewValueByInputId('meta-author', input('meta-author').value);
 		updateTagPreview();
 		await flushRender();
 
@@ -147,7 +172,8 @@ describe('tagPreview', () => {
 		expect(document.querySelectorAll('[data-field="title"]').length).toBe(1);
 
 		input('meta-title').value = 'Dune';
-		input('meta-title').dispatchEvent(new Event('input'));
+		setMetadataFormPreviewValueByInputId('meta-title', input('meta-title').value);
+		updateTagPreview();
 		await flushRender();
 
 		expect(getFieldValue('title')).toBe('Dune');

@@ -1,6 +1,6 @@
 import { type AudioFile, formatDuration, formatFileSize } from '../../types/audio';
 import { getCurrentFileList, isOrderLocked, getSelectedFileIndices } from './state';
-import { updateDropZoneState } from '../fileImport';
+import { setFileImportHasFiles } from '../fileImport/state.svelte';
 
 // Cached DOM elements (stable roots only)
 let sortButton: HTMLElement | null = null;
@@ -120,7 +120,7 @@ export function updateFileListDOM(): void {
 	const hasFiles = fileList.files.length > 0;
 
 	// Update drop zone state
-	updateDropZoneState(hasFiles);
+	setFileImportHasFiles(hasFiles);
 
 	// If no files, clear container
 	if (!hasFiles) {
@@ -206,7 +206,7 @@ export function clearContainer(): void {
 	if (container) {
 		container.innerHTML = '';
 	}
-	updateDropZoneState(false);
+	setFileImportHasFiles(false);
 }
 
 export function showEmptyState(): void {

@@ -26,7 +26,7 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		if (!titleInput || !titleAction) return;
 
 		titleInput.value = 'Dune';
-		titleInput.dispatchEvent(new Event('input'));
+		titleInput.dispatchEvent(new Event('input', { bubbles: true }));
 
 		expect(titleInput.dataset.dirty).toBe('true');
 		expect(titleAction.value).toBe('keep');

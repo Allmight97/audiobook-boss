@@ -29,6 +29,7 @@ import {
 	setOrderLocked,
 } from './state';
 import {
+	initDOMCache,
 	updateFileListDOM,
 	updateTotalStats,
 	updateSelection,
@@ -37,7 +38,6 @@ import {
 	showEmptyState,
 	setOrderLockNotice,
 } from './dom';
-import { initFileListEvents, setupDragStartHandlers } from './events';
 import {
 	clearSelection,
 	handleSelection,
@@ -58,9 +58,9 @@ import {
 export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataState();
 	setCurrentFileList(fileListInfo);
+	initDOMCache();
 
 	updateFileListDOM();
-	initFileListEvents();
 
 	updateTotalStats();
 	updateButtonVisibility();
@@ -355,7 +355,6 @@ export function moveFileUp(index: number): void {
 	swapSelectionIndices(index, index - 1);
 
 	updateFileListDOM();
-	setupDragStartHandlers();
 	onFileListChange();
 
 	const selectedFiles = getSelectedFiles();
@@ -378,7 +377,6 @@ export function moveFileDown(index: number): void {
 	swapSelectionIndices(index, index + 1);
 
 	updateFileListDOM();
-	setupDragStartHandlers();
 	onFileListChange();
 
 	const selectedFiles = getSelectedFiles();
@@ -412,7 +410,6 @@ export function toggleFileSort(): void {
 	updateButtonVisibility();
 
 	updateFileListDOM();
-	setupDragStartHandlers();
 	onFileListChange();
 }
 
@@ -458,7 +455,6 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 
 	updateFileListDOM();
 	onFileListChange();
-	setupDragStartHandlers();
 
 	const selectedFiles = getSelectedFiles();
 	if (selectedFiles.length === 1) {
