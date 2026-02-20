@@ -14,6 +14,7 @@ import MetadataFormFieldsIsland from './metadataForm/MetadataFormFieldsIsland.sv
 import { updateTagPreview } from './tagPreview';
 
 export type MetadataFormMode = 'single' | 'multi';
+type MetadataFormSaveHandler = () => void;
 
 type FieldConfig = {
 	inputId: string;
@@ -64,6 +65,7 @@ const METADATA_FORM_FIELDS_ROOT_ID = 'metadata-form-fields-root';
 
 let mountedMetadataFieldsRoot: HTMLElement | null = null;
 let mountedMetadataFieldsIsland: Parameters<typeof unmount>[0] | null = null;
+let onSaveMetadataHandler: MetadataFormSaveHandler | null = null;
 
 function getMetadataForm(): HTMLElement | null {
 	return document.getElementById('metadata-form');
@@ -163,9 +165,16 @@ function mountMetadataFieldsIsland(_form: HTMLElement): void {
 		props: {
 			onFieldInput: onMetadataFormFieldInput,
 			onActionChange: onMetadataFormActionSelectChange,
+			onSaveMetadata: () => {
+				onSaveMetadataHandler?.();
+			},
 		},
 	});
 	mountedMetadataFieldsRoot = fieldsRoot;
+}
+
+export function setMetadataFormSaveHandler(handler: MetadataFormSaveHandler): void {
+	onSaveMetadataHandler = handler;
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {

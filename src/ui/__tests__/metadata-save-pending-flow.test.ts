@@ -13,6 +13,7 @@ const context = vi.hoisted(() => ({
 		],
 	})),
 	metadataSaveInProgress: false,
+	saveMetadataHandler: null as null | (() => void),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -34,8 +35,18 @@ vi.mock('../statusPanel/index', () => ({
 }));
 
 vi.mock('../metadataForm', () => ({
-	initMetadataFormEvents: vi.fn(),
+	initMetadataFormEvents: vi.fn(() => {
+		const saveButton = document.getElementById('metadata-save-btn');
+		if (saveButton instanceof HTMLButtonElement) {
+			saveButton.onclick = () => {
+				context.saveMetadataHandler?.();
+			};
+		}
+	}),
 	resetDirtyState: context.resetDirtyStateMock,
+	setMetadataFormSaveHandler: (handler: () => void) => {
+		context.saveMetadataHandler = handler;
+	},
 }));
 
 vi.mock('../fileList', () => ({

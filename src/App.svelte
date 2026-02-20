@@ -8,7 +8,11 @@
 	import { initStatusPanel, getStatusPanel } from './ui/statusPanel/index';
 	import { initEncoderPanel } from './ui/encoderPanel';
 	import { initCoverArt } from './ui/coverArt';
-	import { initMetadataFormEvents, resetDirtyState } from './ui/metadataForm';
+	import {
+		initMetadataFormEvents,
+		resetDirtyState,
+		setMetadataFormSaveHandler,
+	} from './ui/metadataForm';
 	import { initTagPreview } from './ui/tagPreview';
 	import { initJobControls } from './ui/jobControls';
 	import { initMetadataLookup } from './ui/metadataLookup';
@@ -116,7 +120,18 @@
 		}
 	}
 
+	function handleGlobalKeyDown(event: KeyboardEvent): void {
+		if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+			event.preventDefault();
+			void saveMetadataFromUI();
+		}
+	}
+
 	onMount(() => {
+		setMetadataFormSaveHandler(() => {
+			void saveMetadataFromUI();
+		});
+
 		initFileImport();
 		initEncoderPanel();
 		initOutputPanel();
@@ -127,28 +142,11 @@
 		initMetadataLookup();
 		initJobControls();
 
-		const saveButton = document.getElementById('metadata-save-btn') as HTMLButtonElement | null;
-		if (saveButton) {
-			saveButton.addEventListener('click', () => {
-				void saveMetadataFromUI();
-			});
-		}
-
-		const keyHandler = (event: KeyboardEvent): void => {
-			if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-				event.preventDefault();
-				void saveMetadataFromUI();
-			}
-		};
-		document.addEventListener('keydown', keyHandler);
-
 		console.log('UI initialized');
-
-		return () => {
-			document.removeEventListener('keydown', keyHandler);
-		};
 	});
 </script>
+
+<svelte:window on:keydown={handleGlobalKeyDown} />
 
 <div class="main-container">
 	<div class="panel input-panel">

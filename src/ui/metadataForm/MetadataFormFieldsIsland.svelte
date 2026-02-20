@@ -2,9 +2,11 @@
 	import { openMetadataLookup } from '../metadataLookup';
 
 	type MetadataFieldHandler = (id: string) => void;
+	type MetadataSaveHandler = () => void;
 
 	export let onFieldInput: MetadataFieldHandler;
 	export let onActionChange: MetadataFieldHandler;
+	export let onSaveMetadata: MetadataSaveHandler;
 
 	function handleMetadataFieldInput(event: Event): void {
 		const target = event.target;
@@ -170,7 +172,12 @@
   >
     Find Metadata
   </button>
-  <button id="metadata-save-btn" class="btn-pill btn-pill-primary" data-testid="metadata-save-btn">
+  <button
+    id="metadata-save-btn"
+    class="btn-pill btn-pill-primary"
+    data-testid="metadata-save-btn"
+    on:click={onSaveMetadata}
+  >
     Save All Changes
   </button>
 </div>
