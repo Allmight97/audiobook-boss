@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+// EXCEPTION: bridge boundary adapter intentionally exceeds 400 LOC while it centralizes
+// IPC nullish normalization, metadata intent compilation, and dev/test runtime seams.
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open as tauriOpen, type OpenDialogOptions } from '@tauri-apps/plugin-dialog';
 import { openPath as tauriOpenExternal } from '@tauri-apps/plugin-opener';
@@ -68,12 +70,28 @@ const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
 const isPlainRecord = (value: unknown): value is PlainRecord =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
+function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
+	for (const entry of value) {
+		if (entry == null || typeof entry === 'object') {
+			return false;
+		}
+	}
+	return true;
+}
+
 function normalizeNullish<T>(value: T): T {
 	if (value == null) {
 		return undefined as T;
 	}
 	if (Array.isArray(value)) {
-		return value.map((entry) => normalizeNullish(entry)) as T;
+		if (isScalarArrayWithoutNullish(value)) {
+			return value as T;
+		}
+		const normalized = new Array<unknown>(value.length);
+		for (const [index, entry] of value.entries()) {
+			normalized[index] = normalizeNullish(entry);
+		}
+		return normalized as T;
 	}
 	if (isPlainRecord(value)) {
 		const normalized: PlainRecord = {};
@@ -93,7 +111,14 @@ function denormalizeNullish<T>(value: T): T {
 		return null as T;
 	}
 	if (Array.isArray(value)) {
-		return value.map((entry) => denormalizeNullish(entry)) as T;
+		if (isScalarArrayWithoutNullish(value)) {
+			return value as T;
+		}
+		const normalized = new Array<unknown>(value.length);
+		for (const [index, entry] of value.entries()) {
+			normalized[index] = denormalizeNullish(entry);
+		}
+		return normalized as T;
 	}
 	if (isPlainRecord(value)) {
 		const normalized: PlainRecord = {};

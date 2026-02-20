@@ -20,7 +20,24 @@ function metadataValuesEqual(a: unknown, b: unknown): boolean {
 		if (a.length !== b.length) {
 			return false;
 		}
-		return a.every((entry, index) => metadataValuesEqual(entry, b[index]));
+		for (const [index, entry] of a.entries()) {
+			const candidate = b[index];
+			const entryIsObject = typeof entry === 'object' && entry !== null;
+			const candidateIsObject = typeof candidate === 'object' && candidate !== null;
+			if (!entryIsObject && !candidateIsObject) {
+				if (isNullish(entry) && isNullish(candidate)) {
+					continue;
+				}
+				if (entry !== candidate) {
+					return false;
+				}
+				continue;
+			}
+			if (!metadataValuesEqual(entry, candidate)) {
+				return false;
+			}
+		}
+		return true;
 	}
 	return a === b;
 }
