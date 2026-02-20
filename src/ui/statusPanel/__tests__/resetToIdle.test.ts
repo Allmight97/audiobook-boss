@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
 import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
-import * as dom from '../dom';
 import { StatusPanel } from '../logic';
-import { statusPanelViewState } from '../viewState.svelte';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -28,7 +27,7 @@ async function flushAsync(): Promise<void> {
 describe('StatusPanel resetToIdle', () => {
 	beforeEach(async () => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 		vi.useFakeTimers();
 		vi.spyOn(tauriClient, 'setMaxConcurrentJobs').mockResolvedValue(4);
 		setJobTypeSelection('batch');
@@ -76,14 +75,10 @@ describe('StatusPanel resetToIdle', () => {
 		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 		expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
 
-		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
-		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Idle');
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
-			'Current Step: Ready to process audiobook',
-		);
-		expect((document.getElementById('percentage-processed') as HTMLElement).textContent).toBe(
-			'0.0%',
-		);
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
+		expect(statusPanelViewState.statusText).toBe('Idle');
+		expect(statusPanelViewState.stepText).toBe('Current Step: Ready to process audiobook');
+		expect(statusPanelViewState.progressPercentage).toBe(0);
 		expect(statusPanelViewState.coverArtDataUrl).toBeNull();
 		expect(panel.isCurrentlyProcessing).toBe(false);
 		expect(panel.getCurrentStatus()).toEqual({

@@ -3,12 +3,7 @@
  */
 import { tauriClient } from '../../lib/tauri/client';
 import { updateOutputDirectory, updateAbsCompatible, updateAbsIncludeYear } from './state';
-import {
-	updateOutputPath,
-	updateEstimatedSize,
-	updateNamingOptionState,
-	showOutputError,
-} from './dom';
+import { updateOutputPath, updateNamingOptionState, showOutputError } from './dom';
 
 /**
  * Handles directory browse button click
@@ -64,9 +59,5 @@ export function handleAbsIncludeYearChange(event: Event): void {
 export function setupEventHandlers(): void {
 	document.addEventListener('abb:job-type-changed', () => {
 		updateOutputPath();
-	});
-
-	document.addEventListener('abb:encoder-settings-changed', () => {
-		updateEstimatedSize();
 	});
 }

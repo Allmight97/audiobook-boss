@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { openMetadataLookup } from '../metadataLookup';
+	import { metadataSaveInProgressStore } from '../metadataSaveState';
 
 	type MetadataFieldHandler = (id: string) => void;
 	type MetadataSaveHandler = () => void;
@@ -176,6 +177,7 @@
     id="metadata-save-btn"
     class="btn-pill btn-pill-primary"
     data-testid="metadata-save-btn"
+    disabled={$metadataSaveInProgressStore}
     on:click={onSaveMetadata}
   >
     Save All Changes

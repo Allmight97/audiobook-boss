@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import * as dom from '../dom';
 import { StatusPanel } from '../logic';
-import { statusPanelViewState } from '../viewState.svelte';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -35,7 +34,7 @@ async function flushRenderFrame(): Promise<void> {
 describe('StatusPanel queue snapshot', () => {
 	beforeEach(() => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 	});
 
 	it('initializes queued items in order', () => {
@@ -49,10 +48,8 @@ describe('StatusPanel queue snapshot', () => {
 		});
 
 		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
-		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Analyzing');
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
-			'Current Step: Queued 2 files',
-		);
+		expect(statusPanelViewState.statusText).toBe('Analyzing');
+		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 2 files');
 		expect(panel.getCurrentStatus()).toEqual({
 			stage: 'analyzing',
 			percentage: 0,
@@ -76,9 +73,7 @@ describe('StatusPanel queue snapshot', () => {
 
 		expect(getJobRows()).toHaveLength(1);
 		expect(getJobRows()[0]).toContain('Converting (45.0%)');
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
-			'Current Step: working',
-		);
+		expect(statusPanelViewState.stepText).toBe('Current Step: working');
 
 		(panel as any).handleQueueSnapshot({
 			items: [
@@ -94,9 +89,7 @@ describe('StatusPanel queue snapshot', () => {
 			'beta.m4b • Queued • #2 of 3',
 			'alpha.m4b • Queued • #3 of 3',
 		]);
-		expect((document.getElementById('step-text') as HTMLElement).textContent).toBe(
-			'Current Step: Queued 3 files',
-		);
+		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 3 files');
 		expect(panel.getCurrentStatus()).toEqual({
 			stage: 'analyzing',
 			percentage: 0,

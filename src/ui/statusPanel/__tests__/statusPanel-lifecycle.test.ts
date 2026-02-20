@@ -4,7 +4,7 @@ import { STAGES } from '../../../types/events';
 import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
-import { statusPanelViewState } from '../viewState.svelte';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 const listenerState = vi.hoisted(() => {
 	const progressCallbacks = new Set<(event: any) => void>();
@@ -81,7 +81,7 @@ function emitProgressToActiveListeners(event: any) {
 }
 
 function getStepText(): string {
-	return (document.getElementById('step-text') as HTMLElement).textContent ?? '';
+	return statusPanelViewState.stepText;
 }
 
 function getJobRows(): string[] {
@@ -100,7 +100,7 @@ async function flushAsync(): Promise<void> {
 describe('StatusPanel lifecycle', () => {
 	beforeEach(async () => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 		vi.useFakeTimers();
 		vi.spyOn(tauriClient, 'setMaxConcurrentJobs').mockResolvedValue(4);
 		setJobTypeSelection('batch');
@@ -123,7 +123,6 @@ describe('StatusPanel lifecycle', () => {
 
 	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
 		const panel = new StatusPanel();
-		const cancelButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
 
 		let resolveCancel!: () => void;
 		const inFlightCancel = new Promise<void>((resolve) => {
@@ -135,19 +134,18 @@ describe('StatusPanel lifecycle', () => {
 
 		const cancelRequest = (panel as any).handleCancelAll();
 		expect(cancelSpy).toHaveBeenCalledTimes(1);
-		expect(cancelButton.disabled).toBe(true);
+		expect(statusPanelViewState.cancelAllPending).toBe(true);
 
 		resolveCancel();
 		await cancelRequest;
 
-		expect(cancelButton.disabled).toBe(false);
+		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
 		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
 		const panel = new StatusPanel();
-		const cancelButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
 			new Error('tauriClient cancellation failed'),
@@ -155,7 +153,7 @@ describe('StatusPanel lifecycle', () => {
 
 		await (panel as any).handleCancelAll();
 
-		expect(cancelButton.disabled).toBe(false);
+		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
 		expect(consoleErrorSpy).toHaveBeenCalled();
 	});
@@ -235,7 +233,7 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
-		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 
 		const expectedSpy =
@@ -317,7 +315,7 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
-		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});
 

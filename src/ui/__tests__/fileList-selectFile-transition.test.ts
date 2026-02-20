@@ -25,8 +25,8 @@ vi.mock('../metadataState', () => ({
 }));
 
 vi.mock('../outputPanel', () => ({
-	onFileListChange: vi.fn(),
-	onMetadataChange: vi.fn(),
+	updateEstimatedSize: vi.fn(),
+	updateOutputPath: vi.fn(),
 }));
 
 vi.mock('../metadataValidation', () => ({

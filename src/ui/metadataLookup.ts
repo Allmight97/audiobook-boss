@@ -8,7 +8,7 @@ import {
 	type MetadataIntentPatch,
 } from '../types/metadataIntent';
 import { applyMetadataToForm, readMetadataForm } from './metadataForm';
-import { onMetadataChange } from './outputPanel';
+import { updateEstimatedSize, updateOutputPath } from './outputPanel';
 import { updateTagPreview } from './tagPreview';
 import { clearCoverArt, setCoverArt, setCustomCoverArt } from './coverArt';
 import { getMetadataForFile, setMetadataForFile } from './metadataState';
@@ -43,6 +43,11 @@ let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
 let mountedMetadataLookupRoot: HTMLElement | null = null;
 let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
+
+function refreshOutputForMetadataChange(): void {
+	updateOutputPath();
+	updateEstimatedSize();
+}
 
 function mountMetadataLookupIsland(): void {
 	const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
@@ -266,7 +271,7 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 			queueCoverState = { intent: 'replace', bytes: coverBytes };
 		}
 	}
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 
 	if (mode === 'queue') {

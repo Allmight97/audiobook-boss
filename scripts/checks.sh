@@ -108,6 +108,9 @@ run_quick() {
   log_step "scripts/check-no-imperative-dom-runtime.sh"
   bash scripts/check-no-imperative-dom-runtime.sh
 
+  log_step "scripts/check-no-legacy-test-contracts.sh"
+  bash scripts/check-no-legacy-test-contracts.sh
+
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh
 }

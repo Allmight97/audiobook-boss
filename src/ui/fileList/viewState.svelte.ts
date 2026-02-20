@@ -9,6 +9,7 @@ type FileListViewState = {
 	sortDisabled: boolean;
 	clearDisabled: boolean;
 	orderLockVisible: boolean;
+	combinedSizeText: string;
 };
 
 const EMPTY_STATE: FileListViewState = {
@@ -20,6 +21,7 @@ const EMPTY_STATE: FileListViewState = {
 	sortDisabled: false,
 	clearDisabled: false,
 	orderLockVisible: false,
+	combinedSizeText: '--- MB',
 };
 
 export const fileListViewState = $state<FileListViewState>({ ...EMPTY_STATE });
@@ -61,4 +63,9 @@ export function resetFileListViewState(): void {
 	fileListViewState.sortDisabled = EMPTY_STATE.sortDisabled;
 	fileListViewState.clearDisabled = EMPTY_STATE.clearDisabled;
 	fileListViewState.orderLockVisible = EMPTY_STATE.orderLockVisible;
+	fileListViewState.combinedSizeText = EMPTY_STATE.combinedSizeText;
+}
+
+export function setFileListCombinedSizeText(value: string): void {
+	fileListViewState.combinedSizeText = value;
 }

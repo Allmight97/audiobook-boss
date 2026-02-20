@@ -34,7 +34,9 @@ export function getSelectedFileIndices(): Set<number> {
 export function setSelectedFileIndices(indices: Set<number> | number[]): void {
 	selectedFileIndices.clear();
 	const arr = Array.isArray(indices) ? indices : Array.from(indices);
-	arr.forEach((i) => selectedFileIndices.add(i));
+	arr.forEach((i) => {
+		selectedFileIndices.add(i);
+	});
 }
 
 export function addToSelectedIndices(index: number): void {

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderJobList } from '../render';
-import * as dom from '../dom';
 import type { JobProgress } from '../state';
-import { statusPanelViewState } from '../viewState.svelte';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -42,8 +41,7 @@ function cloneJobProgress(source: Map<string, JobProgress>): Map<string, JobProg
 describe('renderJobList incremental updates', () => {
 	beforeEach(() => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
-		statusPanelViewState.jobItems = [];
+		resetStatusPanelViewState();
 	});
 
 	it('keeps reactive job items stable when payload values are unchanged', () => {

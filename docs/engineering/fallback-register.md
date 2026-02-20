@@ -21,14 +21,13 @@ Required fields per fallback:
 | FB-011 | `src-tauri/src/audio/settings_encoder.rs` | requested encoder unavailable on current host/runtime | warn log with requested encoder + availability snapshot | 2026-06-30 (revalidate) | #195 | Active |
 | FB-012 | `src-tauri/src/audio/processor/finalize.rs` | atomic rename fails during final output move | warn rename failure + info copy-replace success logs | 2026-06-30 (revalidate) | #195 | Active |
 | FB-013 | `src/ui/encoderPanel/state.ts` | localStorage read/write blocked or invalid | console warn markers for load/save fallback paths | 2026-06-30 (revalidate) | #195 | Active |
-| FB-014 | `src/ui/statusPanel/processing.ts` | encoder settings provider unavailable in runtime context | console warn when sanitized defaults are injected | 2026-06-30 (revalidate) | #195 | Active |
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe disabled/fails and synthetic fallback is used | benchmark result details include `fixture-fallback` + reason | 2026-06-30 (revalidate) | #195 | Active |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifact files missing (`ENOENT`) | report output demonstrates empty baseline/history bootstrap path | 2026-06-30 (revalidate) | #195 | Active |
 | FB-018 | `.prettierrc`, `.prettierignore`, `scripts/checks.sh`, `.githooks/pre-commit` | `.svelte` formatting remains on Prettier while Biome HTML/Svelte support is treated as migration-risky for this repo | `bun run fmt:check` output + pre-commit `prettier --check` step signal | 2026-06-30 (revalidate) | #219 | Active |
 
 ## Migration Hooks (Svelte + Tailwind Track)
 
-- FB-014 should be re-evaluated during framework migration once component-level state management replaces global provider/runtime branching.
+- Encoder settings provider fallback was removed on `feat/zero-legacy-svelte-cutover`; processing now reads canonical store-backed output config directly.
 - Framework migration PR checklist must include:
   - no new dual-key fallback aliases,
   - explicit review of active FB-* entries,

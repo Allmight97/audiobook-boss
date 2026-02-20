@@ -183,7 +183,6 @@ function applyLoadedCoverArt(imageData: number[]): void {
 	coverArtRemovalRequested = false;
 
 	displayCoverArt(imageData);
-	updateMetadataWithCoverArt(imageData);
 }
 
 function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
@@ -222,13 +221,6 @@ export function displayCoverArt(coverArtBytes: number[] | null): void {
 		return;
 	}
 	setCoverArtDataUrl(null);
-}
-
-/**
- * Updates global state for metadata operations
- */
-function updateMetadataWithCoverArt(coverArtBytes: number[]): void {
-	window.currentCoverArt = coverArtBytes;
 }
 
 function showCoverArtError(message: string): void {
@@ -304,7 +296,6 @@ export function clearCoverArt(options?: { markRemoval?: boolean }): void {
 	const markRemoval = options?.markRemoval ?? false;
 	currentCoverArt = null;
 	displayCoverArt(null);
-	delete window.currentCoverArt;
 	coverArtRemovalRequested = markRemoval;
 	hasCustomCoverArt = false;
 	setCoverArtUrlInputValue('');

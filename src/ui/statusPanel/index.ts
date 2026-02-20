@@ -7,7 +7,13 @@
 
 import { mount, unmount } from 'svelte';
 import StatusPanelIsland from './StatusPanelIsland.svelte';
-import { StatusPanel, getStatusPanel, initStatusPanel as initStatusPanelLogic } from './logic';
+import {
+	StatusPanel,
+	clearStatusPanelTransientStatusLock,
+	getStatusPanel,
+	initStatusPanel as initStatusPanelLogic,
+	pushStatusPanelTransientStatus,
+} from './logic';
 
 const STATUS_PANEL_ROOT_ID = 'status-panel-root';
 
@@ -40,4 +46,9 @@ export function initStatusPanel(): StatusPanel {
 	return initStatusPanelLogic();
 }
 
-export { StatusPanel, getStatusPanel };
+export {
+	StatusPanel,
+	clearStatusPanelTransientStatusLock,
+	getStatusPanel,
+	pushStatusPanelTransientStatus,
+};

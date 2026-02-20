@@ -7,8 +7,8 @@ cd "$repo_root"
 
 # Scope posture:
 # - Guard migrated runtime entry surfaces and boundary code.
-# - Intentionally do not scan legacy `src/ui/**` yet; those modules are tracked
-#   migration debt on the zero-legacy cutover branch.
+# - Includes zero-legacy cutover lanes (status, output, file actions, metadata lookup,
+#   metadata form, job controls, file import, tag preview, file-list view-state bridge).
 #
 # False-positive posture:
 # - Exclude test/support/generated paths so jsdom fixture setup does not trip
@@ -20,6 +20,10 @@ runtime_scope=(
   -g 'src/lib/**'
   -g 'src/ui/jobControls.ts'
   -g 'src/ui/jobControls/**'
+  -g 'src/ui/statusPanel.ts'
+  -g 'src/ui/statusPanel/**'
+  -g 'src/ui/outputPanel.ts'
+  -g 'src/ui/outputPanel/**'
   -g 'src/ui/metadataLookup.ts'
   -g 'src/ui/metadataLookup/**'
   -g 'src/ui/tagPreview.ts'
@@ -27,6 +31,8 @@ runtime_scope=(
   -g 'src/ui/fileImport.ts'
   -g 'src/ui/fileImport/**'
   -g 'src/ui/fileList/index.ts'
+  -g 'src/ui/fileList/actions.ts'
+  -g 'src/ui/fileList/dom.ts'
   -g 'src/ui/metadataForm.ts'
   -g 'src/ui/metadataForm/**'
   -g '!src/lib/generated/**'

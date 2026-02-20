@@ -1,19 +1,23 @@
 import { ENABLE_FDK } from './featureFlags';
 import { queryDom, type EncoderDomCache } from './dom';
 import { loadState, saveState } from './state';
-import type { EncoderSettingsLike, EncoderFlavor, EncoderSettingsV2 } from '../../types/encoder';
+import {
+	toBoundaryEncoderSettings,
+	type EncoderSettingsLike,
+	type EncoderFlavor,
+	type EncoderSettingsV2,
+} from '../../types/encoder';
+import type { SampleRateConfig } from '../../types/audio';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import { resetAutoResolutionHints } from './autoResolutionHints';
+import { updateEstimatedSize } from '../outputPanel/dom';
+import { updateEncoderSettings, updateSampleRate } from '../outputPanel/state';
 
 /** Debug logging - only active in development builds */
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
 	if (DEBUG) console.log('[EncoderPanel]', ...args);
-};
-
-type WindowWithEncoderProvider = Window & {
-	EncoderSettingsProvider?: () => EncoderSettingsLike;
 };
 
 type EncoderAvailability = {
@@ -72,10 +76,6 @@ const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	return 'native_aac';
 };
 
-const emitEncoderSettingsChanged = (): void => {
-	document.dispatchEvent(new Event('abb:encoder-settings-changed'));
-};
-
 /**
  * Reads the current encoder settings from the DOM
  */
@@ -126,6 +126,35 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 	};
 };
 
+const readSampleRateFromDom = (): SampleRateConfig => {
+	const dom = ensureDomCache();
+	const sampleRateValue = dom.sampleRateSelect?.value ?? 'auto';
+
+	if (sampleRateValue === 'auto') {
+		return 'auto';
+	}
+
+	const parsedRate = Number.parseInt(sampleRateValue, 10);
+	if (Number.isFinite(parsedRate) && parsedRate > 0) {
+		return { explicit: parsedRate };
+	}
+
+	return 'auto';
+};
+
+const syncOutputConfigStateFromDom = (): void => {
+	const settings = getEncoderSettingsFromDom();
+	if (!settings) return;
+
+	updateEncoderSettings(toBoundaryEncoderSettings(settings));
+	updateSampleRate(readSampleRateFromDom());
+};
+
+const syncOutputSizingFromEncoderState = (): void => {
+	syncOutputConfigStateFromDom();
+	updateEstimatedSize();
+};
+
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 
@@ -138,14 +167,15 @@ export const initializeEncoderPanelLogic = (): void => {
 	}
 
 	applyPersistedState();
+	syncOutputConfigStateFromDom();
 	resetAutoResolutionHints(dom);
 	hydrateAvailability().finally(() => {
 		syncEncoderUI();
+		syncOutputSizingFromEncoderState();
 		persistState();
 		debugLog('Encoder panel ready');
 	});
 	attachEventListeners();
-	(window as WindowWithEncoderProvider).EncoderSettingsProvider = getEncoderSettingsFromDom;
 };
 
 const applyPersistedState = (): void => {
@@ -182,33 +212,39 @@ const attachEventListeners = (): void => {
 	dom.encoderSelect?.addEventListener('change', () => {
 		syncEncoderUI();
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
 	dom.bitrateModeSelect?.addEventListener('change', () => {
 		syncQualityBitrateVisibility();
 		updateEstimatedBitrate();
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
 	dom.channelsSelect?.addEventListener('change', () => {
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
 	dom.qualitySelect?.addEventListener('change', () => {
 		updateEstimatedBitrate();
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
 	dom.bitrateSelect?.addEventListener('change', () => {
 		updateEstimatedBitrate();
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
-	dom.fdkAfterburner?.addEventListener('change', persistState);
-	dom.nativeTwoloop?.addEventListener('change', persistState);
+	dom.fdkAfterburner?.addEventListener('change', () => {
+		persistState();
+		syncOutputConfigStateFromDom();
+	});
+	dom.nativeTwoloop?.addEventListener('change', () => {
+		persistState();
+		syncOutputConfigStateFromDom();
+	});
 	dom.sampleRateSelect?.addEventListener('change', () => {
 		persistState();
-		emitEncoderSettingsChanged();
+		syncOutputSizingFromEncoderState();
 	});
 };
 

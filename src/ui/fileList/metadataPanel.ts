@@ -1,7 +1,7 @@
 import { type AudioFile, formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { onMetadataChange } from '../outputPanel';
+import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
 import { clearCoverArt, getHasCustomCoverArt, setCoverArt } from '../coverArt';
 import { getMetadataForFile, setMetadataForFile } from '../metadataState';
@@ -15,6 +15,11 @@ import {
 	resetAutoResolutionHints,
 } from '../encoderPanel/autoResolutionHints';
 import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state';
+
+function refreshOutputForMetadataChange(): void {
+	updateOutputPath();
+	updateEstimatedSize();
+}
 
 function setText(id: string, value: string): void {
 	const el = document.getElementById(id);
@@ -117,7 +122,7 @@ export function updateFileProperties(
 			void loadMetadataForFile(file).then((metadata) => {
 				if (metadata) {
 					populateMetadataFormSingle(metadata);
-					onMetadataChange();
+					refreshOutputForMetadataChange();
 					updateTagPreview();
 				}
 			});
@@ -140,7 +145,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 		updateFileProperties(file);
 	}
 
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 }
 
@@ -163,7 +168,7 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	);
 
 	populateMetadataFormMulti(metadataList, selectedCount);
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 }
 

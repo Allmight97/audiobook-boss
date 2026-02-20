@@ -25,7 +25,8 @@ vi.mock('../metadataForm', () => ({
 }));
 
 vi.mock('../outputPanel', () => ({
-	onMetadataChange: vi.fn(),
+	updateEstimatedSize: vi.fn(),
+	updateOutputPath: vi.fn(),
 }));
 
 vi.mock('../tagPreview', () => ({

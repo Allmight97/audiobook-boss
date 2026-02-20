@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as dom from './dom';
 import { StatusPanel } from './logic';
-import { statusPanelViewState } from './viewState.svelte';
+import { resetStatusPanelViewState, statusPanelViewState } from './viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -28,21 +27,21 @@ function getJobRows(): string[] {
 }
 
 function getStepText(): string {
-	return (document.getElementById('step-text') as HTMLElement).textContent ?? '';
+	return statusPanelViewState.stepText;
 }
 
 function getStatusText(): string {
-	return (document.getElementById('status-text') as HTMLElement).textContent ?? '';
+	return statusPanelViewState.statusText;
 }
 
 function getPercentageText(): string {
-	return (document.getElementById('percentage-processed') as HTMLElement).textContent ?? '';
+	return `${statusPanelViewState.progressPercentage.toFixed(1)}%`;
 }
 
 describe('StatusPanel progress throttling', () => {
 	beforeEach(() => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 		vi.useFakeTimers();
 	});
 

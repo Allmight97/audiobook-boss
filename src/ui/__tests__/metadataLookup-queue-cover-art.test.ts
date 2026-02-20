@@ -8,7 +8,8 @@ const context = vi.hoisted(() => ({
 	setCustomCoverArtMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
 	setCoverArtMock: vi.fn(),
-	onMetadataChangeMock: vi.fn(),
+	updateOutputPathMock: vi.fn(),
+	updateEstimatedSizeMock: vi.fn(),
 	updateTagPreviewMock: vi.fn(),
 	selectedIndices: new Set<number>([0, 1]),
 	currentFileList: {
@@ -71,7 +72,8 @@ vi.mock('../metadataState', () => ({
 }));
 
 vi.mock('../outputPanel', () => ({
-	onMetadataChange: context.onMetadataChangeMock,
+	updateOutputPath: context.updateOutputPathMock,
+	updateEstimatedSize: context.updateEstimatedSizeMock,
 }));
 
 vi.mock('../tagPreview', () => ({
@@ -157,7 +159,8 @@ describe('metadata lookup queue cover art isolation', () => {
 		context.setCustomCoverArtMock.mockReset();
 		context.clearCoverArtMock.mockReset();
 		context.setCoverArtMock.mockReset();
-		context.onMetadataChangeMock.mockReset();
+		context.updateOutputPathMock.mockReset();
+		context.updateEstimatedSizeMock.mockReset();
 		context.updateTagPreviewMock.mockReset();
 
 		context.searchOnlineMetadataMock.mockReset();

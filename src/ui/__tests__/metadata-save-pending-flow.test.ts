@@ -32,6 +32,12 @@ vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
 	getStatusPanel: () => ({ isCurrentlyProcessing: false }),
+	pushStatusPanelTransientStatus: (message: string) => {
+		const status = document.getElementById('status-text');
+		if (status instanceof HTMLElement) {
+			status.textContent = message;
+		}
+	},
 }));
 
 vi.mock('../metadataForm', () => ({

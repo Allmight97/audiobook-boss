@@ -1,14 +1,11 @@
-let metadataSaveInProgress = false;
+import { get, writable } from 'svelte/store';
+
+export const metadataSaveInProgressStore = writable(false);
 
 export function setMetadataSaveInProgress(inProgress: boolean): void {
-	metadataSaveInProgress = inProgress;
-
-	const saveButton = document.getElementById('metadata-save-btn') as HTMLButtonElement | null;
-	if (saveButton) {
-		saveButton.disabled = inProgress;
-	}
+	metadataSaveInProgressStore.set(inProgress);
 }
 
 export function isMetadataSaveInProgress(): boolean {
-	return metadataSaveInProgress;
+	return get(metadataSaveInProgressStore);
 }

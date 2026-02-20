@@ -1,7 +1,12 @@
 /**
  * Output panel state management
  */
-import type { EncoderSettings, SampleRateConfig, OutputNamingConfig } from '../../types/audio';
+import type {
+	EncoderSettings,
+	OutputConfig,
+	OutputNamingConfig,
+	SampleRateConfig,
+} from '../../types/audio';
 import { defaultEncoderSettings } from '../../types/audio';
 
 /**
@@ -44,6 +49,22 @@ export function getOutputNamingConfig(): OutputNamingConfig {
 }
 
 /**
+ * Reads the canonical output configuration for processing.
+ */
+export function readOutputConfigForProcessing(): OutputConfig {
+	if (!currentState.outputDirectory) {
+		throw new Error('Output directory not selected');
+	}
+
+	return {
+		encoderSettings: currentState.encoderSettings,
+		sampleRate: currentState.sampleRate,
+		outputPath: currentState.outputDirectory,
+		outputNaming: getOutputNamingConfig(),
+	};
+}
+
+/**
  * Updates output directory in state
  */
 export function updateOutputDirectory(path: string): void {
@@ -62,6 +83,20 @@ export function updateAbsCompatible(enabled: boolean): void {
  */
 export function updateAbsIncludeYear(enabled: boolean): void {
 	currentState.absIncludeYear = enabled;
+}
+
+/**
+ * Updates encoder settings used by output sizing and processing payloads.
+ */
+export function updateEncoderSettings(settings: EncoderSettings): void {
+	currentState.encoderSettings = settings;
+}
+
+/**
+ * Updates sample rate used by processing payloads.
+ */
+export function updateSampleRate(sampleRate: SampleRateConfig): void {
+	currentState.sampleRate = sampleRate;
 }
 
 /**

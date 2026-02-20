@@ -3,9 +3,14 @@
 	import { tauriClient } from './lib/tauri/client';
 	import { initFileImport } from './ui/fileImport';
 	import { getCurrentFileList } from './ui/fileList';
+	import { fileListViewState } from './ui/fileList/viewState.svelte';
 	import { persistPendingMetadataDraftsForCurrentSelection } from './ui/fileList/actions';
 	import { initOutputPanel } from './ui/outputPanel';
-	import { initStatusPanel, getStatusPanel } from './ui/statusPanel/index';
+	import {
+		getStatusPanel,
+		initStatusPanel,
+		pushStatusPanelTransientStatus,
+	} from './ui/statusPanel/index';
 	import { initEncoderPanel } from './ui/encoderPanel';
 	import { initCoverArt } from './ui/coverArt';
 	import {
@@ -23,27 +28,6 @@
 	let previewDropdownElement: HTMLDivElement | null = null;
 	let previewDropdownToggleElement: HTMLButtonElement | null = null;
 
-	function setUserStatusMessage(
-		statusText: HTMLElement | null,
-		message: string,
-		holdMs = 1000,
-	): void {
-		if (!statusText) return;
-		statusText.dataset.userStatusLockUntil = String(Date.now() + holdMs);
-		statusText.textContent = message;
-	}
-
-	function restoreStatusMessage(
-		statusText: HTMLElement | null,
-		expectedMessage: string,
-		fallbackMessage: string,
-	): void {
-		if (!statusText) return;
-		if (statusText.textContent !== expectedMessage) return;
-		delete statusText.dataset.userStatusLockUntil;
-		statusText.textContent = fallbackMessage;
-	}
-
 	async function saveMetadataFromUI(): Promise<void> {
 		const fileList = getCurrentFileList();
 		if (!fileList || fileList.files.length === 0) {
@@ -57,12 +41,10 @@
 			return;
 		}
 
-		const statusText = document.getElementById('status-text');
-		const originalText = statusText?.textContent ?? '';
-		setUserStatusMessage(statusText, 'Preparing metadata save...', 1000);
+		pushStatusPanelTransientStatus('Preparing metadata save...', { ttlMs: 1_000 });
 
 		if (isMetadataSaveInProgress()) {
-			setUserStatusMessage(statusText, 'Save already in progress...', 1500);
+			pushStatusPanelTransientStatus('Save already in progress...', { ttlMs: 1_500 });
 			return;
 		}
 
@@ -77,11 +59,7 @@
 				validFilePaths.has(filePath),
 			);
 			if (pendingEntries.length === 0) {
-				const msg = 'No pending metadata changes';
-				setUserStatusMessage(statusText, msg, 2000);
-				setTimeout(() => {
-					restoreStatusMessage(statusText, msg, originalText);
-				}, 2000);
+				pushStatusPanelTransientStatus('No pending metadata changes', { ttlMs: 2_000 });
 				return;
 			}
 
@@ -90,7 +68,9 @@
 			const failedFiles: string[] = [];
 
 			for (const [index, [filePath, metadataIntent]] of pendingEntries.entries()) {
-				setUserStatusMessage(statusText, `Saving ${index + 1}/${pendingEntries.length}...`, 1200);
+				pushStatusPanelTransientStatus(`Saving ${index + 1}/${pendingEntries.length}...`, {
+					ttlMs: 1_200,
+				});
 
 				try {
 					await tauriClient.saveMetadataIntentToFile(filePath, metadataIntent);
@@ -112,13 +92,10 @@
 						? `Metadata saved (${successCount} files)!`
 						: 'Metadata saved!'
 					: `Saved ${successCount}/${pendingEntries.length}. Failed: ${failedFiles.join(', ')}`;
-			setUserStatusMessage(statusText, msg, 3000);
-			setTimeout(() => {
-				restoreStatusMessage(statusText, msg, originalText);
-			}, 3000);
+			pushStatusPanelTransientStatus(msg, { ttlMs: 3_000 });
 		} catch (error) {
 			console.error('Failed to save metadata:', error);
-			setUserStatusMessage(statusText, 'Save failed - see console', 3000);
+			pushStatusPanelTransientStatus('Save failed - see console', { ttlMs: 3_000 });
 		} finally {
 			setMetadataSaveInProgress(false);
 		}
@@ -219,7 +196,7 @@
 					>--- MB</span
 				>
 				<span class="property-label">Combined Size:</span><span class="property-value" id="prop-combinedsize"
-					>--- MB</span
+					>{fileListViewState.combinedSizeText}</span
 				>
 			</div>
 		</div>

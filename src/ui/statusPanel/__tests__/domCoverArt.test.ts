@@ -26,6 +26,7 @@ describe('statusPanel cover art DOM rendering', () => {
 		vi.resetModules();
 		domModule = await import('../dom');
 		viewStateModule = await import('../viewState.svelte');
+		viewStateModule.resetStatusPanelViewState();
 	});
 
 	it('syncs cover art changes into reactive view state', () => {
@@ -38,16 +39,24 @@ describe('statusPanel cover art DOM rendering', () => {
 		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBeNull();
 	});
 
-	it('does not overwrite user-locked status text until lock expires', () => {
-		const statusText = document.getElementById('status-text') as HTMLElement;
-		statusText.dataset.userStatusLockUntil = String(Date.now() + 10_000);
-		statusText.textContent = 'Metadata saved!';
+	it('does not overwrite transient user status text until lock expires', () => {
+		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+		domModule.pushTransientStatusMessage('Metadata saved!', 10_000);
+		expect(viewStateModule.statusPanelViewState.statusText).toBe('Metadata saved!');
 
 		domModule.updateStatusText('Idle');
-		expect(statusText.textContent).toBe('Metadata saved!');
+		expect(viewStateModule.statusPanelViewState.statusText).toBe('Metadata saved!');
 
-		statusText.dataset.userStatusLockUntil = String(Date.now() - 1);
+		nowSpy.mockReturnValue(11_001);
 		domModule.updateStatusText('Idle');
-		expect(statusText.textContent).toBe('Idle');
+		expect(viewStateModule.statusPanelViewState.statusText).toBe('Idle');
+		nowSpy.mockRestore();
+	});
+
+	it('clears transient lock explicitly when requested', () => {
+		domModule.pushTransientStatusMessage('Saving…', 10_000);
+		domModule.clearTransientStatusMessageLock();
+		domModule.updateStatusText('Idle');
+		expect(viewStateModule.statusPanelViewState.statusText).toBe('Idle');
 	});
 });

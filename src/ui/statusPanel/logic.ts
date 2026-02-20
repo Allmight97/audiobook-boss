@@ -58,8 +58,9 @@ export class StatusPanel {
 	constructor() {
 		this.currentStatus = createInitialStatus();
 		this.onMaxConcurrentUpdated = () => this.updateConcurrencyIndicator();
-
-		this.initializeElements();
+		this.updateUI();
+		this.updateConcurrencyIndicator();
+		dom.resetArtThumbnail();
 		// initialized in main.ts now: this.initializeMaxConcurrentControl();
 		document.addEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 
@@ -75,21 +76,6 @@ export class StatusPanel {
 			}
 			document.removeEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 		});
-	}
-
-	private initializeElements(): void {
-		const elements = dom.initializeElements();
-		if (!elements) {
-			console.error('StatusPanel: Required DOM elements not found');
-			return;
-		}
-
-		// Set initial UI state
-		this.updateUI();
-		this.updateConcurrencyIndicator();
-
-		// Initialize art thumbnail to placeholder
-		dom.resetArtThumbnail();
 	}
 
 	// MaxConcurrent control moved to src/ui/jobControls.ts
@@ -539,4 +525,15 @@ export function triggerCancelAllFromStatusPanel(): void {
 	const panel = getStatusPanel();
 	if (!panel) return;
 	void panel.requestCancelAll();
+}
+
+export function pushStatusPanelTransientStatus(
+	message: string,
+	options?: { ttlMs?: number },
+): void {
+	dom.pushTransientStatusMessage(message, options?.ttlMs);
+}
+
+export function clearStatusPanelTransientStatusLock(): void {
+	dom.clearTransientStatusMessageLock();
 }
