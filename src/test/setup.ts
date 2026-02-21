@@ -8,7 +8,7 @@
  */
 
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -162,6 +162,16 @@ Object.defineProperty(window, '__TAURI_INTERNALS__', {
 
 // Keep DEV true in tests for consistent frontend test behavior
 vi.stubEnv('DEV', true);
+
+beforeEach(() => {
+	eventListeners.clear();
+	mockJobCounter = 0;
+});
+
+afterEach(() => {
+	eventListeners.clear();
+	mockJobCounter = 0;
+});
 
 const storage = new Map<string, string>();
 const localStorageMock = {

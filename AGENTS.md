@@ -23,8 +23,8 @@ You are a senior Rust (backend) systems engineer and Tauri (frontend) specialist
   - string clear → `''`
   - date/year clear → `0`
   - cover art clear → `[]`
-- Bridge posture: keep `src/lib/bridge.ts` thin and focused on boundary adaptation (intent compile + nullish/event normalization + dev/test seam), not broad business orchestration.
-- Follow-up architecture exploration for possible bridge removal is tracked in Issue #236.
+- Boundary posture: `src/lib/bridge.ts` is retired. Use `src/lib/tauri/client.ts` (+ `src/lib/tauri/normalizers.ts`) as the only TS↔Rust boundary for intent compile, nullish/event normalization, and dev/test seam behavior.
+- Do not reintroduce a bridge layer, compatibility shim, or alias import path that emulates `src/lib/bridge.ts`.
 
 ---
 
