@@ -15,12 +15,17 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## Quick start
 
 ```bash
-# Install dependencies
-mise install
+# System dependencies (macOS)
+brew install ffmpeg
+
+# Install JS/TS dependencies
+bun install
 
 # Run in development
 bun run tauri dev
 ```
+
+**Encoders**: FFmpeg's native AAC works out of the box. For higher quality, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
 
 Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 

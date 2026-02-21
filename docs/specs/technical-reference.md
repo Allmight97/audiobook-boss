@@ -45,12 +45,13 @@ Internal docs:
 ### Toolchain Setup
 
 ```bash
-# Install pinned toolchain versions for this repo
-mise install
+# Install JS/TS dependencies
+bun install
+
+# Rust toolchain is pinned via rust-toolchain.toml (auto-installed by cargo)
 ```
 
 Notes:
-- `mise.toml` pins Bun for reproducible JS/TS tooling.
 - `rust-toolchain.toml` pins Rust channel/components for `cargo`, `rustfmt`, and `clippy`.
 
 ### Testing (run from repo root)
