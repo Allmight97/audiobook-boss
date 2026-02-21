@@ -23,7 +23,7 @@ export type OutputNamingConfig = GeneratedOutputNamingConfig;
 export interface OutputConfig {
 	encoderSettings: EncoderSettings;
 	sampleRate: SampleRateConfig;
-	outputPath: string; // legacy field name; now represents the selected output folder
+	outputPath: string; // backend contract name; stores the selected output directory
 	outputNaming: OutputNamingConfig;
 }
 

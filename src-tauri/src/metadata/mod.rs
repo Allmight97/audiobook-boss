@@ -10,7 +10,7 @@ use crate::errors::{AppError, Result};
 pub mod reader;
 pub(crate) mod tag_registry;
 
-// FFmpeg-next integration bridge for direct metadata embedding during encoding (always included after cleanup)
+// FFmpeg-next metadata integration for direct embedding during encoding.
 mod cover_art;
 mod ffi;
 pub mod ffmpeg_bridge;
