@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Add new changes here as you merge PRs -->
 
+## [1.0.0] - 2026-02-20
+
+Stable architectural milestone: zero-legacy IPC boundary with Svelte app shell.
+
+### Added
+
+- **IPC Boundary**
+  - Centralized `tauriClient` (`src/lib/tauri/client.ts`) as canonical command/event interface
+  - Generated TypeScript bindings via tauri-specta with drift detection
+  - Normalizers for nullish/event-shape handling at boundary (`src/lib/tauri/normalizers.ts`)
+
+- **Svelte Architecture**
+  - App shell with reactive state model (`src/App.svelte`, `src/main.ts`)
+  - Svelte islands for status panel, file list, cover art, metadata form, job controls, file import, metadata lookup
+  - Reactive view-state modules (`.svelte.ts`) for island data binding
+  - Component harness for isolated development (`src/HarnessApp.svelte`, `src/harness-main.ts`)
+
+- **Guardrails**
+  - `scripts/check-no-bridge-imports.sh` — blocks bridge resurrection
+  - `scripts/check-no-imperative-dom-runtime.sh` — blocks new imperative DOM in migrated paths
+  - `scripts/check-no-legacy-test-contracts.sh` — blocks legacy test contract patterns
+
+- **Testing**
+  - `@testing-library/svelte` integration for component testing
+  - Colocated test strategy with reactive state assertions
+
+### Changed
+
+- **Architecture**
+  - Retired `src/lib/bridge.ts` — all IPC now through `tauriClient`
+  - Retired `src/lib/mocks.ts` — test mocking simplified
+  - Status panel moved from imperative DOM to reactive view-state ownership
+  - File-list control state moved to reactive bindings
+  - Metadata save flow uses transient status API
+  - Output config processing uses canonical `readOutputConfigForProcessing()`
+
+- **Metadata Intent**
+  - Explicit patch semantics (`set|clear|noop`) preserved at boundary
+  - Clear intent compiles to Rust sentinels at normalizers, not scattered callsites
+
+### Removed
+
+- `src/lib/bridge.ts` — legacy IPC wrapper
+- `src/lib/mocks.ts` — legacy test mocking layer
+- `EncoderSettingsProvider` global coupling
+- Legacy status-panel DOM fallback renderers
+- Imperative row builders from `src/ui/fileList/dom.ts`
+- `index.html` UI structure — now in `src/App.svelte`
+
 ## [0.1.0] - 2025-12-27
 
 Initial development release with core audiobook processing functionality.
