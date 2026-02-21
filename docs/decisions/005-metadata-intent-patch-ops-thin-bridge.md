@@ -1,4 +1,4 @@
-# ADR-005: Canonical Metadata Intent Patch Ops with Thin Bridge Boundary
+# ADR-005: Canonical Metadata Intent Patch Ops at the `tauriClient` Boundary
 
 **Status:** accepted
 **Date:** 2026-02-19
@@ -10,9 +10,9 @@ Metadata clear behavior regressed when frontend processing/save paths used value
 The Rust command contract remains stable and currently expects clear operations via explicit sentinel values (`''`, `0`, `[]`) rather than a new intent enum in the IPC schema.
 
 ## Decision
-Adopt canonical frontend metadata intent semantics per editable field: `set | clear | noop`, represented as patch ops. Keep Rust IPC command names/signatures stable in this cycle, and compile metadata intent patch ops at a thin bridge boundary to current Rust-compatible payload values.
+Adopt canonical frontend metadata intent semantics per editable field: `set | clear | noop`, represented as patch ops. Keep Rust IPC command names/signatures stable in this cycle, and compile metadata intent patch ops at the `tauriClient` boundary (`src/lib/tauri/client.ts` + `src/lib/tauri/normalizers.ts`) to current Rust-compatible payload values.
 
-Bridge scope in this decision is intentionally narrow: metadata intent compile + nullish/event normalization + dev/test seam. Bridge-removal feasibility is deferred to follow-up Issue #236.
+Boundary scope in this decision is intentionally narrow: metadata intent compile + nullish/event normalization + dev/test seam. Further simplification of the adapter surface is tracked in follow-up Issue #236.
 
 ## Consequences
 ### Pros
@@ -23,12 +23,12 @@ Bridge scope in this decision is intentionally narrow: metadata intent compile +
 
 ### Cons
 - Adds an extra intent model layer in frontend state.
-- Bridge still exists (though thinner), so total abstraction count is not minimized yet.
-- Full bridge-removal evaluation is deferred to separate work.
+- `tauriClient` boundary still absorbs adapter logic, so total abstraction count is not minimized yet.
+- Full boundary simplification evaluation is deferred to separate work.
 
 ## Alternatives Considered
 | Alternative | Why Not Chosen |
 |-------------|----------------|
 | Keep heuristic emptiness model | Repeats clear-intent regression risk and relies on ambiguous value checks. |
 | Introduce Rust IPC `set|clear|noop` schema immediately | Higher blast radius and contract churn in the same cycle. |
-| Remove bridge now and call generated bindings directly everywhere | High migration risk while metadata intent semantics are being stabilized. |
+| Inline normalization logic directly in feature modules | Increases duplication and raises regression risk while metadata intent semantics are being stabilized. |
