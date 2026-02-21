@@ -57,7 +57,8 @@ Notes:
 ### Testing (run from repo root)
 
 ```bash
-scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + frontend format + TS + contract drift + build)
+scripts/checks.sh standard            # Primary pre-PR quality gate (Rust + frontend format + TS + change-aware contract drift + build)
+CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard # Full gate with strict binding drift verification
 scripts/check-fallback-policy.sh      # Fallback governance check (marker + sunset + issue metadata)
 cargo test                              # All tests (unit + integration)
 cargo test --tests                      # All external test binaries
@@ -79,8 +80,14 @@ RUST_LOG=debug bun run tauri dev  # With verbose logging
 
 ```bash
 bun run bindings:generate  # Regenerate src/lib/generated/tauri.ts from Rust commands/events
-bun run bindings:check     # Verify generated bindings are up to date
+bun run bindings:check     # Strict verify: regenerate and fail on drift
+bun run bindings:check:local # Change-aware local drift check
+bun run bindings:sync      # Regenerate and stage bindings (hook-friendly)
 ```
+
+Optional hook workflow:
+- `git config core.hooksPath .githooks`
+- pre-commit auto-syncs/stages generated bindings when staged Rust IPC contract files are detected.
 
 Source of truth:
 - Rust contract builder: `src-tauri/src/ipc_contract.rs`

@@ -22,8 +22,8 @@ import {
 	type MetadataLookupStatusVariant,
 } from './metadataLookup/state.svelte';
 
-const DEFAULT_SOURCES: MetadataSource[] = ['audnexus'];
 const METADATA_LOOKUP_ROOT_ID = 'metadata-lookup-root';
+const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 type ApplyMode = MetadataLookupApplyMode;
 
@@ -83,6 +83,13 @@ function showModal(): void {
 
 function hideModal(): void {
 	metadataLookupState.isOpen = false;
+}
+
+function focusMetadataTitleInput(): void {
+	const titleInput = document.getElementById(METADATA_TITLE_INPUT_ID);
+	if (titleInput instanceof HTMLElement) {
+		titleInput.focus();
+	}
 }
 
 function formatFileName(path: string): string {
@@ -296,8 +303,17 @@ async function runSearch(): Promise<void> {
 		return;
 	}
 
-	const selectedSource = metadataLookupState.source || DEFAULT_SOURCES[0];
-	const sources = [selectedSource];
+	// Convert UI source selection to backend sources
+	const selectedSource = metadataLookupState.source;
+	let sources: MetadataSource[] | undefined;
+
+	if (selectedSource === 'auto') {
+		// Auto mode: search all sources, backend will prioritize Audnexus
+		sources = ['audnexus', 'openlibrary'];
+	} else if (selectedSource) {
+		// Manual source selection
+		sources = [selectedSource];
+	}
 
 	setStatus('Searching metadata sources…', 'info');
 
@@ -330,6 +346,13 @@ export async function skipMetadataLookupQueueItem(): Promise<void> {
 
 export function closeMetadataLookup(): void {
 	hideModal();
+}
+
+export function useManualMetadataEntryFromLookup(): void {
+	hideModal();
+	queueMicrotask(() => {
+		focusMetadataTitleInput();
+	});
 }
 
 export function openMetadataLookup(): void {

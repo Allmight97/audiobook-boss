@@ -14,7 +14,9 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 - Generated TypeScript bindings: `src/lib/generated/tauri.ts`
 - UI TypeScript boundary adapter: `src/lib/tauri/client.ts`
 - Export command: `bun run bindings:generate`
-- Drift check: `bun run bindings:check`
+- Strict drift check: `bun run bindings:check`
+- Change-aware local drift check: `bun run bindings:check:local`
+- Hook sync path: `.githooks/pre-commit` runs `scripts/check-generated-bindings.sh --mode sync --staged` when staged Rust IPC contract files are detected
 
 ### Command matrix
 

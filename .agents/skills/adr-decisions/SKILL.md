@@ -1,6 +1,6 @@
 ---
 name: adr-decisions
-description: Decision record workflow for Audiobook Boss. Use DURING decision discussions or AFTER implementing UX/DX/toolchain/architecture changes, dependency selections, or trade-off resolutions. Triggers include proposing alternatives, explaining "why not X", or completing features with user-facing impact. Produces entries in .codex/skills/adr-decisions/DECISIONS.md or full ADR in docs/decisions/ when durable impact warrants it.
+description: Decision record workflow for Audiobook Boss. Use DURING decision discussions or AFTER implementing UX/DX/toolchain/architecture changes, dependency selections, or trade-off resolutions. Triggers include proposing alternatives, explaining "why not X", or completing features with user-facing impact. Produces entries in .agents/skills/adr-decisions/DECISIONS.md or full ADR in docs/decisions/ when durable impact warrants it.
 ---
 
 # ADR Decisions Skill
@@ -14,7 +14,7 @@ Keep decision records short, consistent, and easy to find.
 
 ## 2) Decision Log location
 
-Write entries to `.codex/skills/adr-decisions/DECISIONS.md` (newest first).
+Write entries to `.agents/skills/adr-decisions/DECISIONS.md` (newest first).
 
 ## 3) Decision Log template
 

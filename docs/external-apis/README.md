@@ -70,9 +70,9 @@ Ensuring system safety and data integrity at the boundaries of the local machine
 
 To maintain IPC contract integrity, this repo treats generated bindings and the `tauriClient` boundary as the source-of-truth stack.
 
-- **What it does**: `scripts/check-generated-bindings.sh` regenerates `src/lib/generated/tauri.ts` and fails on drift.
+- **What it does**: `scripts/check-generated-bindings.sh --mode verify` regenerates `src/lib/generated/tauri.ts` and fails on drift; local gate mode (`--mode local`) skips regeneration when no contract-related files changed.
 - **Why it matters**: It prevents silent TS↔Rust drift and keeps boundary behavior deterministic for UX-critical flows.
-- **Usage**: Run `scripts/checks.sh standard` from the repository root (includes frontend format checks via `bun run fmt:check`), or `bun run bindings:check` for drift-only verification.
+- **Usage**: Run `scripts/checks.sh standard` from the repository root (includes frontend format checks via `bun run fmt:check` and change-aware local drift checks), `CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard` for strict-in-gate verification, or `bun run bindings:check` for strict drift-only verification.
 
 ---
 

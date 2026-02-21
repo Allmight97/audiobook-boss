@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-21 — Split binding drift checks into strict/local modes with hook sync
+Context: Strict generated-binding drift checks protected TS↔Rust parity but caused repeated local compile/restage churn during Svelte-era frontend-heavy iteration loops.
+Decision: Keep strict verification as the safety gate, add a change-aware local mode to skip unnecessary regeneration, and auto-sync/stage bindings in pre-commit when staged Rust IPC contract files are detected.
+Consequences:
+- Reduces agent/developer loop latency on non-contract edits.
+- Preserves deterministic IPC parity checks for release/verification paths.
+- Lowers commit friction by auto-staging generated contract updates in hook flow.
+Links: docs/decisions/006-change-aware-binding-drift-gates-and-hook-sync.md, scripts/check-generated-bindings.sh, scripts/checks.sh, .githooks/pre-commit, CHANGELOG.md
+
 ## 2026-02-19 — Canonical metadata intent at the `tauriClient` boundary
 Context: Metadata clear-intent regressed when processing/save flows relied on emptiness heuristics that treated clear-only edits as non-actionable.
 Decision: Adopt frontend metadata patch ops (`set|clear|noop`) as canonical intent and compile them at the `tauriClient` boundary to current Rust clear sentinels, while deferring further boundary simplification to a follow-up issue.

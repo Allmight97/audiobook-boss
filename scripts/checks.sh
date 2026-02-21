@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format + lint + clippy + IPC binding drift + runtime guardrails + fallback policy enforcement
+# - quick: Rust fmt + frontend format + lint + clippy + change-aware IPC binding drift check + runtime guardrails + fallback policy enforcement
 # - standard: quick + Rust tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
@@ -99,8 +99,13 @@ run_quick() {
   log_step "cargo clippy --workspace --all-targets -- -D warnings"
   cargo clippy --workspace --all-targets -- -D warnings
 
-  log_step "scripts/check-generated-bindings.sh"
-  bash scripts/check-generated-bindings.sh
+  if [[ "${CHECK_BINDINGS_STRICT:-0}" == "1" ]]; then
+    log_step "scripts/check-generated-bindings.sh --mode verify (strict)"
+    bash scripts/check-generated-bindings.sh --mode verify
+  else
+    log_step "scripts/check-generated-bindings.sh --mode local"
+    bash scripts/check-generated-bindings.sh --mode local
+  fi
 
   log_step "scripts/check-no-bridge-imports.sh"
   bash scripts/check-no-bridge-imports.sh
