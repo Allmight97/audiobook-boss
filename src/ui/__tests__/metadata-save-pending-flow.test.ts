@@ -13,10 +13,11 @@ const context = vi.hoisted(() => ({
 		],
 	})),
 	metadataSaveInProgress: false,
+	saveMetadataHandler: null as null | (() => void),
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		saveMetadataIntentToFile: context.saveMetadataIntentToFileMock,
 	},
 }));
@@ -31,11 +32,27 @@ vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
 	getStatusPanel: () => ({ isCurrentlyProcessing: false }),
+	pushStatusPanelTransientStatus: (message: string) => {
+		const status = document.getElementById('status-text');
+		if (status instanceof HTMLElement) {
+			status.textContent = message;
+		}
+	},
 }));
 
 vi.mock('../metadataForm', () => ({
-	initMetadataFormEvents: vi.fn(),
+	initMetadataFormEvents: vi.fn(() => {
+		const saveButton = document.getElementById('metadata-save-btn');
+		if (saveButton instanceof HTMLButtonElement) {
+			saveButton.onclick = () => {
+				context.saveMetadataHandler?.();
+			};
+		}
+	}),
 	resetDirtyState: context.resetDirtyStateMock,
+	setMetadataFormSaveHandler: (handler: () => void) => {
+		context.saveMetadataHandler = handler;
+	},
 }));
 
 vi.mock('../fileList', () => ({
@@ -77,12 +94,12 @@ function getStatusText(): HTMLElement {
 describe('metadata save pending flow', () => {
 	beforeAll(async () => {
 		document.body.innerHTML = `
+      <div id="app"></div>
       <button id="metadata-save-btn">Save All Changes</button>
       <div id="status-text">Idle</div>
     `;
 
 		await import('../../main');
-		document.dispatchEvent(new Event('DOMContentLoaded'));
 	});
 
 	beforeEach(() => {
@@ -154,6 +171,8 @@ describe('metadata save pending flow', () => {
 			});
 		});
 		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
-		expect(getStatusText().textContent).toBe('No pending metadata changes');
+		await vi.waitFor(() => {
+			expect(getStatusText().textContent).toBe('No pending metadata changes');
+		});
 	});
 });

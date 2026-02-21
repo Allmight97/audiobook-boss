@@ -3,24 +3,26 @@
 ### Where used
 - Rust contract source: `src-tauri/src/ipc_contract.rs`
 - Generated TS contract: `src/lib/generated/tauri.ts`
-- Bridge compatibility layer: `src/lib/bridge.ts`
+- Runtime boundary adapter: `src/lib/tauri/client.ts`
+- Boundary normalizers: `src/lib/tauri/normalizers.ts`
 - Event compatibility contract: `src/types/events.ts`
-- UI consumers: `src/ui/statusPanel`, `src/ui/fileImport`, `src/ui/coverArt`
+- Runtime consumers (current hybrid posture): `src/App.svelte` + `src/ui/**`
 
 ### Contract model
 
 - Commands/events are exported from Rust via tauri-specta.
-- The generated file is committed to keep reviews deterministic.
-- `bridge.ts` preserves legacy command/event names and normalizes nullability for existing UI types.
-- Bridge inputs are strict at the boundary: no dual-key alias fallbacks (for example, no mixed `previewSeconds`/`preview_seconds` or `job_id`/`jobId` acceptance).
+- The generated contract file is committed to keep reviews deterministic.
+- `tauriClient` is the canonical runtime entry for command invocation and event listening.
+- Boundary inputs stay strict: no dual-key alias fallbacks (for example `previewSeconds`/`preview_seconds` or `job_id`/`jobId` mixed acceptance at one callsite).
+- Nullish and event-shape normalization is centralized at the boundary, not scattered in feature modules.
 
 ### Command typing and drift checks
 
-- Use typed `bridge` methods from UI modules; `bridge.invoke(...)` is internal to `src/lib/bridge.ts`.
-- Legacy command names remain stable (`snake_case`) in bridge internals, while UI callsites use camelCase bridge methods.
+- Use typed `tauriClient` methods from runtime modules; generated invocation details stay internal to `src/lib/tauri/client.ts`.
+- Internal command names remain stable (`snake_case`) while UI callsites use camelCase methods.
 - Example (command with args):
   ```ts
-  const result = await bridge.processAudiobookFilesV2({
+  const result = await tauriClient.processAudiobookFilesV2({
     payload: v2Payload,
     metadata: metadataPayload,
     previewSeconds: options?.previewSeconds,
@@ -28,11 +30,11 @@
   ```
 - Example (command without args):
   ```ts
-  cachedAvailability = await bridge.listAvailableEncoders();
+  const availability = await tauriClient.listAvailableEncoders();
   ```
-- Example (`bridge.listen` event):
+- Example (`tauriClient.listen` event):
   ```ts
-  return bridge.listen(EVENTS.PROGRESS, (event) => {
+  return tauriClient.listen(EVENTS.PROGRESS, (event) => {
     onProgress(event.payload as ProcessingProgressEvent);
   });
   ```
@@ -40,14 +42,15 @@
 - Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh`) to detect drift.
 - `scripts/checks.sh standard` is the canonical quality gate and includes binding drift checks.
 
-### State ownership
+### Migration status (zero-legacy cutover branch)
 
-- Use class-based UI components with private state and DOM caches.
-- Share minimal global state via module-level singletons where necessary.
+- `completed`: bridge removal (`src/lib/bridge.ts` retired) and `tauriClient` boundary centralization.
+- `partial`: runtime still uses legacy imperative modules under `src/ui/**` while islands/components are phased in.
+- `direction`: new runtime integrations should land through `tauriClient` + reactive Svelte/store flows, not new direct DOM orchestration.
 
 ### Listener hygiene
 
-- Install listeners at start of an operation; unlisten on idle to avoid leaks.
-- Consider `beforeunload` cleanup as a safety net.
-- App events (`processing-progress`, `processing-queue`) are listened via generated tauri-specta event bindings through `bridge.listen`.
-- Built-in Tauri drag events remain manually typed in `src/types/events.ts`.
+- Install listeners on demand; unlisten on idle/teardown to avoid leaks.
+- Store each `unlisten` function and call it exactly once.
+- App events (`processing-progress`, `processing-queue`) should be consumed via generated tauri-specta bindings through `tauriClient.listen`.
+- Built-in Tauri drag events can still be listened through `tauriClient.listen` with typed payload handling in `src/types/events.ts`.

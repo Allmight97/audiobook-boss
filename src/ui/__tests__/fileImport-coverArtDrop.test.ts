@@ -7,8 +7,8 @@ const { analyzeAudioFilesMock, readAudioMetadataMock, listeners } = vi.hoisted((
 	listeners: {} as Record<string, (payload: any) => void>,
 }));
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		listen: vi.fn((event: string, cb: any) => {
 			listeners[event] = cb;
 		}),
@@ -152,6 +152,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 
 		clearButton?.click();
+		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
 		expect(clearButton?.style.display).toBe('none');

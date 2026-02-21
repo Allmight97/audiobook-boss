@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { calculateOutputPath } from '../outputPanel/pathBuilder';
+import { setJobTypeSelection } from '../jobControls';
 import {
 	updateOutputDirectory,
 	updateAbsCompatible,
@@ -16,10 +17,10 @@ const baseMetadata: AudiobookMetadata = {
 
 describe('calculateOutputPath', () => {
 	beforeEach(() => {
-		document.body.innerHTML = '<input id="merge-mode-toggle" type="checkbox" checked />';
 		updateOutputDirectory('/Library/Audiobooks');
 		updateAbsCompatible(true);
 		updateAbsIncludeYear(false);
+		setJobTypeSelection('merge');
 	});
 
 	it('includes sub-series folder and prefers sub-series part', () => {

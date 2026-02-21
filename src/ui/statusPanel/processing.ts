@@ -1,12 +1,9 @@
-import { bridge } from '../../lib/bridge';
-import type { EncoderSettings, OutputConfig } from '../../types/audio';
-import { defaultEncoderSettings, VALID_ENCODER_BITRATES } from '../../types/audio';
-import { toBoundaryEncoderSettings } from '../../types/encoder';
-import type { EncoderSettingsLike } from '../../types/encoder';
+import { tauriClient } from '../../lib/tauri/client';
+import type { OutputConfig } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { getCurrentFileList, getSelectedFileIndex, setFileOrderLocked } from '../fileList';
 import { getSelectedFileIndices } from '../fileList/state';
-import { getCurrentOutputConfig } from '../outputPanel';
+import { readOutputConfigForProcessing } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {
@@ -25,10 +22,6 @@ import * as dom from './dom';
 import type { ProcessingStatus } from './state';
 import { normalizeProcessingErrorMessage } from './errorHelpers';
 
-interface WindowWithEncoderProvider extends Window {
-	EncoderSettingsProvider?: () => EncoderSettingsLike;
-}
-
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
 	setProcessingState: (isProcessing: boolean) => void;
@@ -37,10 +30,6 @@ interface StartProcessingContext {
 	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
 	resetToIdle: () => void;
 }
-
-// Derived from centralized VALID_ENCODER_BITRATES (audio.ts)
-// Typed as Set<number> to allow membership check with any numeric bitrate
-const SUPPORTED_ENCODER_BITRATES: Set<number> = new Set(VALID_ENCODER_BITRATES);
 
 export async function startProcessing(
 	context: StartProcessingContext,
@@ -71,7 +60,7 @@ export async function startProcessing(
 		// Get output configuration
 		let outputConfig: OutputConfig;
 		try {
-			outputConfig = getCurrentOutputConfig();
+			outputConfig = readOutputConfigForProcessing();
 			console.log('StatusPanel: Output configuration retrieved:', outputConfig);
 		} catch (error) {
 			console.log('StatusPanel: Settings validation failed:', error);
@@ -127,49 +116,13 @@ export async function startProcessing(
 			}
 		}
 
-		// Call backend processing command
-		// FALLBACK[FB-014]: trigger=encoder provider unavailable/invalid at runtime
-		// observe=console warn with defaulted encoder payload usage
-		// sunset=2026-06-30 issue=#195
-		const fallbackEncoderDefaults = (() => {
-			const defaults = defaultEncoderSettings();
-			const selected = outputConfig.encoderSettings;
-			const bitrate = SUPPORTED_ENCODER_BITRATES.has(selected.bitrateKbps)
-				? selected.bitrateKbps
-				: defaults.bitrateKbps;
-			const channels = selected.channels ?? defaults.channels;
-			return {
-				...defaults,
-				...selected,
-				bitrateKbps: bitrate,
-				channels,
-			} satisfies EncoderSettings;
-		})();
-
-		const windowWithProvider = window as WindowWithEncoderProvider;
-		const providerResult: EncoderSettingsLike =
-			typeof windowWithProvider.EncoderSettingsProvider === 'function'
-				? windowWithProvider.EncoderSettingsProvider()
-				: undefined;
-
-		if (typeof windowWithProvider.EncoderSettingsProvider !== 'function') {
-			console.warn(
-				'FALLBACK[FB-014] EncoderSettingsProvider missing; using sanitized output defaults',
-			);
-		}
-
-		const boundaryEncoderSettings = toBoundaryEncoderSettings(
-			providerResult,
-			fallbackEncoderDefaults,
-		);
-
 		const jobType = getJobType();
 		context.setCurrentJobType(jobType);
 
 		const v2Payload = {
 			inputFiles: filePaths,
 			outputDir: outputConfig.outputPath,
-			settings: boundaryEncoderSettings,
+			settings: outputConfig.encoderSettings,
 			sampleRate: outputConfig.sampleRate,
 			jobType,
 			outputNaming: outputConfig.outputNaming,
@@ -181,7 +134,7 @@ export async function startProcessing(
 				await Promise.all(
 					missingMetadata.map(async (filePath) => {
 						try {
-							const metadata = await bridge.readAudioMetadata(filePath);
+							const metadata = await tauriClient.readAudioMetadata(filePath);
 							setMetadataForFile(filePath, metadata);
 						} catch (error) {
 							console.warn('Failed to load metadata for batch file:', filePath, error);
@@ -213,7 +166,7 @@ export async function startProcessing(
 			metadataPayload = Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
 		}
 
-		const result = await bridge.processAudiobookFilesV2({
+		const result = await tauriClient.processAudiobookFilesV2({
 			payload: v2Payload,
 			metadata: metadataPayload,
 			previewSeconds: options?.previewSeconds,
@@ -227,7 +180,7 @@ export async function startProcessing(
 					: '≈30';
 			console.log(`Preview file created at: ${result.previewFilePath} (${seconds}s)`);
 			try {
-				await bridge.openExternal(result.previewFilePath);
+				await tauriClient.openExternal(result.previewFilePath);
 			} catch (error) {
 				console.warn('Failed to open preview file automatically:', error);
 			}

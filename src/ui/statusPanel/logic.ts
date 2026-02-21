@@ -5,13 +5,13 @@
  * processing coordination, and state management.
  */
 
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import { STAGES } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import * as dom from './dom';
 import { setJobControlsEnabled } from '../jobControls';
-import { bindStatusPanelDomEvents, listenForProgressEvents, listenForQueueEvents } from './events';
+import { listenForProgressEvents, listenForQueueEvents } from './events';
 import {
 	buildQueueLabels,
 	extractFilenameFromProgress,
@@ -41,7 +41,6 @@ export class StatusPanel {
 	private queueUnlisten?: () => void;
 	private isProcessing: boolean = false;
 	private currentStatus: ProcessingStatus;
-	private previewDuration: number = 30;
 	/** Per-job progress tracking for parallel batch processing */
 	private jobProgress: Map<string, JobProgress> = new Map();
 	private queueOrder: string[] = [];
@@ -50,6 +49,7 @@ export class StatusPanel {
 	private batchCompletionTimeout?: number;
 	private currentJobType: 'merge' | 'batch' | null = null;
 	private lastCoverArtPath: string | null = null;
+	private onMaxConcurrentUpdated: () => void;
 	/** Track pending render to coalesce rAF batches */
 	private pendingRender = false;
 	/** Latest progress event data for deferred rendering */
@@ -57,10 +57,12 @@ export class StatusPanel {
 
 	constructor() {
 		this.currentStatus = createInitialStatus();
-
-		this.initializeElements();
-		this.setupEventHandlers();
+		this.onMaxConcurrentUpdated = () => this.updateConcurrencyIndicator();
+		this.updateUI();
+		this.updateConcurrencyIndicator();
+		dom.resetArtThumbnail();
 		// initialized in main.ts now: this.initializeMaxConcurrentControl();
+		document.addEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 
 		// Ensure event listeners are cleaned up if the window unloads
 		window.addEventListener('beforeunload', () => {
@@ -72,34 +74,7 @@ export class StatusPanel {
 				this.queueUnlisten();
 				this.queueUnlisten = undefined;
 			}
-		});
-	}
-
-	private initializeElements(): void {
-		const elements = dom.initializeElements();
-		if (!elements) {
-			console.error('StatusPanel: Required DOM elements not found');
-			return;
-		}
-
-		// Set initial UI state
-		this.updateUI();
-		this.updateConcurrencyIndicator();
-
-		// Initialize art thumbnail to placeholder
-		dom.resetArtThumbnail();
-	}
-
-	private setupEventHandlers(): void {
-		bindStatusPanelDomEvents({
-			onProcess: () => this.startProcessing(),
-			onCancelAll: () => this.handleCancelAll(),
-			onPreview: (duration) => this.startProcessing({ previewSeconds: duration }),
-			getPreviewDuration: () => this.previewDuration,
-			setPreviewDuration: (duration) => {
-				this.previewDuration = duration;
-			},
-			onUpdateConcurrencyIndicator: () => this.updateConcurrencyIndicator(),
+			document.removeEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 		});
 	}
 
@@ -345,7 +320,7 @@ export class StatusPanel {
 	private async handleCancelAll(): Promise<void> {
 		dom.setCancelAllButtonPending(true);
 		try {
-			await bridge.cancelProcessing();
+			await tauriClient.cancelProcessing();
 			// Do not set final cancelled state here; wait for backend events
 			this.updateStatus({
 				stage: this.currentStatus.stage,
@@ -360,9 +335,13 @@ export class StatusPanel {
 		}
 	}
 
+	public async requestCancelAll(): Promise<void> {
+		return this.handleCancelAll();
+	}
+
 	private async cancelJob(jobId: string): Promise<void> {
 		try {
-			await bridge.cancelProcessing(jobId);
+			await tauriClient.cancelProcessing(jobId);
 		} catch (error) {
 			console.error(`Failed to cancel job ${jobId}:`, error);
 			dom.showError(`Failed to cancel job ${jobId}`);
@@ -534,4 +513,27 @@ export function initStatusPanel(): StatusPanel {
 
 export function getStatusPanel(): StatusPanel | null {
 	return statusPanelInstance;
+}
+
+export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {
+	const panel = getStatusPanel();
+	if (!panel) return;
+	void panel.startProcessing(options);
+}
+
+export function triggerCancelAllFromStatusPanel(): void {
+	const panel = getStatusPanel();
+	if (!panel) return;
+	void panel.requestCancelAll();
+}
+
+export function pushStatusPanelTransientStatus(
+	message: string,
+	options?: { ttlMs?: number },
+): void {
+	dom.pushTransientStatusMessage(message, options?.ttlMs);
+}
+
+export function clearStatusPanelTransientStatusLock(): void {
+	dom.clearTransientStatusMessageLock();
 }

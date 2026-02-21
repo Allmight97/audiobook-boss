@@ -4,7 +4,7 @@ This index categorizes the software boundaries in **Audiobook Boss**, mapping th
 
 ---
 
-## 🏗️ 1. Orchestration (The Bridge)
+## 🏗️ 1. Frontend IPC Boundary (`tauriClient`)
 **API Class**: **IPC (Inter-Process Communication)**
 **Interface**: Frontend (JS) ↔ Backend (Rust)
 **Mechanism**: Command Invocations (Request/Response)
@@ -13,9 +13,9 @@ These APIs define the "Menu" of actions available to the user interface.
 
 - **[Tauri Commands](./tauri-commands.md)**
     - **Command Entry Points**: `src-tauri/src/commands/*`
-    - **UI Integration**: `src/ui/{fileImport, statusPanel, coverArt, metadataLookup}`
+    - **Frontend Call Path**: `src/App.svelte` -> `src/ui/**` feature modules -> `src/lib/tauri/client.ts`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
-    - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust)
+    - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust) via generated `src/lib/generated/tauri.ts`
     - **Note**: `process_audiobook_files_v2` now accepts per-file metadata keyed by input path.
 
 ---
@@ -28,8 +28,8 @@ These APIs define the "Menu" of actions available to the user interface.
 Real-time feedback as background jobs progress.
 
 - **[Event Patterns](./tauri-patterns.md)**
-    - **Emission Logic**: `src-tauri/src/audio/progress/reporter.rs`
-    - **Frontend Listeners**: `src/ui/statusPanel`
+    - **Emission Logic**: `src-tauri/src/audio/progress/*` + `src-tauri/src/audio/processor/frame_pipeline.rs`
+    - **Frontend Listeners**: installed via `tauriClient.listen` (primarily `src/ui/statusPanel/events.ts`)
     - **Event Types**: `src/types/events.ts`
     - **Note**: `processing-progress` includes optional `job_id` + `input_index` for batch mapping; `processing-queue` carries queue snapshots for batch ordering.
 
@@ -68,11 +68,25 @@ Ensuring system safety and data integrity at the boundaries of the local machine
 
 ## 🏗️ Automated Contract Validation
 
-To maintain the integrity of "The Bridge", this repo treats generated IPC bindings as the source of truth.
+To maintain IPC contract integrity, this repo treats generated bindings and the `tauriClient` boundary as the source-of-truth stack.
 
 - **What it does**: `scripts/check-generated-bindings.sh` regenerates `src/lib/generated/tauri.ts` and fails on drift.
-- **Why it matters**: It prevents silent TS↔Rust contract drift by requiring committed generated bindings to match command/event definitions.
+- **Why it matters**: It prevents silent TS↔Rust drift and keeps boundary behavior deterministic for UX-critical flows.
 - **Usage**: Run `scripts/checks.sh standard` from the repository root (includes frontend format checks via `bun run fmt:check`), or `bun run bindings:check` for drift-only verification.
+
+---
+
+## Migration Status Snapshot (Branch: `feat/zero-legacy-svelte-cutover`)
+
+- **Completed**:
+  - `src/lib/bridge.ts` is retired.
+  - Frontend command/event boundary is centralized in `src/lib/tauri/client.ts`.
+  - Svelte app shell exists (`src/App.svelte` + `src/main.ts`).
+- **Partial**:
+  - Runtime remains hybrid: Svelte islands plus imperative DOM modules under `src/ui/**`.
+- **Current guardrails**:
+  - `scripts/check-no-bridge-imports.sh` blocks bridge resurrection.
+  - Runtime DOM guardrails are being ratcheted to block new imperative patterns in migrated runtime entry paths.
 
 ---
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EVENTS } from '../types/events';
 
-describe('bridge generated event bindings', () => {
+describe('tauriClient generated event bindings', () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
@@ -12,12 +12,12 @@ describe('bridge generated event bindings', () => {
 	it('routes app events through generated tauri listeners', async () => {
 		const { listen } = await import('@tauri-apps/api/event');
 		const tauriListen = vi.mocked(listen);
-		const { bridge } = await import('./bridge');
+		const { tauriClient } = await import('./tauri/client');
 
-		await bridge.listen(EVENTS.PROGRESS, () => {
+		await tauriClient.listen(EVENTS.PROGRESS, () => {
 			/* no-op */
 		});
-		await bridge.listen(EVENTS.QUEUE, () => {
+		await tauriClient.listen(EVENTS.QUEUE, () => {
 			/* no-op */
 		});
 

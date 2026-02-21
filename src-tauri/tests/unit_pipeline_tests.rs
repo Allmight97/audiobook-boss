@@ -161,6 +161,6 @@ fn preview_path_derivation_does_not_panic() {
         .parent()
         .expect("preview path should have a parent directory")
         .exists());
-    // ensure SampleRateConfig remains in use after legacy removal
+    // Keep explicit-rate branch coverage for preview path derivation.
     assert!(matches!(_sample_rate, SampleRateConfig::Explicit(22050)));
 }

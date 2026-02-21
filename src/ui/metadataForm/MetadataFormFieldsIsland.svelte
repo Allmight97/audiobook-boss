@@ -1,4 +1,41 @@
-<div class="grid grid-cols-4 gap-x-3 gap-y-1.5">
+<script lang="ts">
+	import { openMetadataLookup } from '../metadataLookup';
+	import { metadataSaveInProgressStore } from '../metadataSaveState';
+
+	type MetadataFieldHandler = (id: string) => void;
+	type MetadataSaveHandler = () => void;
+
+	export let onFieldInput: MetadataFieldHandler;
+	export let onActionChange: MetadataFieldHandler;
+	export let onSaveMetadata: MetadataSaveHandler;
+
+	function handleMetadataFieldInput(event: Event): void {
+		const target = event.target;
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			if (!target.id.startsWith('meta-')) return;
+			onFieldInput?.(target.id);
+		}
+	}
+
+	function handleMetadataFieldChange(event: Event): void {
+		const target = event.target;
+		if (target instanceof HTMLSelectElement) {
+			if (!target.classList.contains('meta-apply-select')) return;
+			onActionChange?.(target.id);
+			return;
+		}
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			if (!target.id.startsWith('meta-')) return;
+			onFieldInput?.(target.id);
+		}
+	}
+</script>
+
+<div
+	class="grid grid-cols-4 gap-x-3 gap-y-1.5"
+	on:input={handleMetadataFieldInput}
+	on:change={handleMetadataFieldChange}
+>
   <div class="col-span-3">
     <div class="meta-field-header">
       <label for="meta-title">Book Title</label>
@@ -131,10 +168,18 @@
     id="metadata-lookup-btn"
     class="btn-pill btn-pill-secondary"
     data-testid="metadata-lookup-btn"
+    type="button"
+    on:click={openMetadataLookup}
   >
     Find Metadata
   </button>
-  <button id="metadata-save-btn" class="btn-pill btn-pill-primary" data-testid="metadata-save-btn">
+  <button
+    id="metadata-save-btn"
+    class="btn-pill btn-pill-primary"
+    data-testid="metadata-save-btn"
+    disabled={$metadataSaveInProgressStore}
+    on:click={onSaveMetadata}
+  >
     Save All Changes
   </button>
 </div>

@@ -1,128 +1,73 @@
-# Zero-Legacy Full-Svelte Migration Plan (Issue #236)
+# Zero-Legacy Svelte Cutover - Execution Tracker (Issue #236)
 
-## Summary
-Migrate the frontend from hybrid imperative TS + Svelte islands to a single Svelte-first architecture with TypeScript safety, no `bridge.ts`, and no runtime fallback shim.  
-Integrated runtime becomes Tauri-only; fast UI iteration is preserved through a separate Vite component harness with typed fixture ports.  
-Scope is core migration only, with a follow-up issue for hygiene backlog.
+Snapshot date: 2026-02-20  
+Branch baseline: `feat/zero-legacy-svelte-cutover`
 
-## Locked Decisions
-1. **Cutover model**: Merge current work to `main`, branch from updated `main`, complete migration on that branch, merge only when fully zero-legacy.
-2. **UI stack**: Full Svelte + Tailwind, keep TypeScript (`<script lang="ts">` + `.svelte.ts` stores).
-3. **Runtime policy**: Tauri-only for integrated runtime; no bridge/runtime fallback semantics.
-4. **Dev workflow**: `tauri dev` for integrated flows, separate Vite harness for rapid component iteration.
-5. **Scope gate**: Core migration only; hygiene tracked in a dedicated follow-up GH issue.
+## Scope posture
 
-## End-State Architecture (Software-as-a-System)
-1. **Composition layer**: `src/App.svelte` composes feature components; `src/main.ts` only mounts app.
-2. **Feature layer**: Each feature owns a Svelte component + store (`.svelte.ts`) + pure domain helpers.
-3. **Boundary layer**: Small pure adapters for intent/nullish/event normalization (no orchestration, no runtime branching).
-4. **IPC layer**: Direct `src/lib/generated/tauri.ts` commands/events and Tauri plugins at feature service boundaries.
-5. **Dev harness layer**: Separate harness entrypoint with typed fixture ports; not part of production runtime path.
+This tracker is implementation-first: what actually landed on this branch, what diverged from earlier assumptions, and what remains for strict full-Svelte runtime closure.
 
-## Public API / Interface / Type Changes
-- **Remove**: `src/lib/bridge.ts`, bridge command/event name exports, bridge runtime fallback (`FB-015`) behavior path, bridge-focused tests.
-- **Remove**: `Legacy*` alias pattern tied to bridge internals.
-- **Add**: Feature-scoped typed service/port interfaces that call generated bindings directly.
-- **Add**: Pure adapter modules for:
-  - metadata intent compile handoff
-  - nullish normalization where still required by boundary contracts
-  - processing event payload normalization
-- **Retain**: Rust command/event contract and generated binding workflow (`tauri-specta`), unchanged command signatures.
+## Zero-Legacy Rule Clarification
 
-## Migration Phases (Decision-Complete)
+Strict zero-legacy applies to both:
 
-1. **Phase 0: Branch + Governance**
-- Create migration branch from latest `main`; freeze feature work on this branch.
-- Keep issue #236 as epic; create child issues for each phase below.
-- Add explicit “no legacy additions” rule: no new imperative DOM modules, no new bridge usage.
+1. Runtime behavior (no legacy bridge/hybrid runtime contracts).
+2. Test contracts (tests must not assert legacy runtime contracts).
 
-2. **Phase 1: Testing/Harness Foundation**
-- Add Svelte component testing tooling (`@testing-library/svelte`, user-event helpers) to current Vitest stack.
-- Create dedicated Vite harness entry (`harness.html` + `src/harness-main.ts`) with fixture-backed ports.
-- Keep existing `src/test/setup.ts` Tauri module mocks; stop relying on bridge runtime mock semantics in new tests.
-- Exit criteria: Component tests run green; harness renders feature components without Tauri runtime.
+Test fixtures may still use static HTML scaffolding (IDs/classes) when needed to mount components or simulate browser events. That is fixture plumbing, not runtime architecture.
 
-3. **Phase 2: App Shell and State Model**
-- Introduce `src/App.svelte`; migrate static shell composition from `index.html` body to Svelte composition.
-- Simplify `src/main.ts` to mount root app only.
-- Create core stores (`files`, `metadata intents`, `processing/jobs`, `encoder settings`, `output config`) in `.svelte.ts`.
-- Exit criteria: No feature state mutations in imperative module closures for migrated features.
+## Status legend
 
-4. **Phase 3: Component Migration Wave 1 (Lower Risk)**
-- Migrate `encoderPanel`, `outputPanel`, `jobControls`, `coverArt` logic from imperative DOM modules into Svelte components + stores.
-- Replace bridge calls with direct generated commands/plugins via feature service modules.
-- Exit criteria: These features have zero `document.getElementById/querySelector` orchestration modules in runtime path.
+- `completed`: implemented and validated on this branch.
+- `partial`: meaningful migration landed; residual hybrid seams remain.
+- `remaining`: not yet migrated.
 
-5. **Phase 4: Component Migration Wave 2 (Core Editing Flows)**
-- Migrate `fileImport` + `fileList/*` + `metadataForm` + `metadataPanel` + `tagPreview` + `metadataLookup` into Svelte reactive flows.
-- Preserve metadata intent semantics (`set|clear|noop`) end-to-end.
-- Exit criteria: Multi-file selection/editing, lookup apply, and cover-art behavior are store-driven and component-tested.
+## Phase tracker
 
-6. **Phase 5: Processing/Status/Save Flow Migration**
-- Migrate `statusPanel/*` and metadata save orchestration from `src/main.ts` into Svelte actions/stores.
-- Wire progress/queue listeners directly from generated events with pure normalization helpers.
-- Preserve cancel semantics (all jobs vs specific job).
-- Exit criteria: Processing lifecycle is fully reactive and no legacy status panel DOM renderer remains.
+| Phase | Status | Branch-coherent evidence | Remaining to close |
+| --- | --- | --- | --- |
+| 0. Branch + governance | completed | Working branch in place: `feat/zero-legacy-svelte-cutover`; bridge import guard active (`scripts/check-no-bridge-imports.sh`). | Keep active through merge.
+| 1. Bridge retirement + typed boundary | completed | Bridge removed; typed Tauri boundary is canonical (`src/lib/tauri/client.ts`); generated bindings stay in lock-step via checks. | None.
+| 2. Status/process/save flow migration | completed | Status panel moved to reactive view-state ownership (`src/ui/statusPanel/viewState.svelte.ts`, `src/ui/statusPanel/dom.ts`, `src/ui/statusPanel/StatusPanelIsland.svelte`); metadata save UX now uses transient status API (`src/App.svelte`, `src/ui/metadataSaveState.ts`). | None for this slice.
+| 3. Output/encoder runtime contract cleanup | completed | `EncoderSettingsProvider` path removed; canonical processing selector is `readOutputConfigForProcessing()` (`src/ui/outputPanel/state.ts`); processing flow consumes typed output config (`src/ui/statusPanel/processing.ts`). | None for this slice.
+| 4. File-list runtime hardening | completed | File list render/state remains island-driven; `fileList/dom.ts` is now state-only (removed imperative row builders and direct DOM button/text writes), combined size moved to reactive binding in `App.svelte`; order-lock tests now assert view-state behavior (`src/ui/__tests__/order-lock-lifecycle.test.ts`). | None for this slice.
+| 5. Test + policy hardening | completed | Legacy test-contract guard added and wired (`scripts/check-no-legacy-test-contracts.sh`, `scripts/checks.sh`); fallback register updated for retired FB-014 entry (`docs/engineering/fallback-register.md`). | None for this slice.
+| 6. Full runtime de-imperativization (strict final mile) | partial | Major hybrid hotspots retired (status + file-list control path + bridge layer). | Residual imperative runtime seams listed below.
+| 7. Hardening + package gates | completed | `scripts/checks.sh standard` and `scripts/checks.sh package` pass on current branch head (including app bundle build). | Re-run once remaining final-mile seams are retired.
 
-7. **Phase 6: Legacy Retirement + Enforcement**
-- Delete `src/lib/bridge.ts` and bridge-dependent tests/mocks no longer needed.
-- Remove remaining bridge imports and legacy alias types.
-- Remove retired imperative runtime modules replaced by Svelte implementations.
-- Add CI/script guardrails:
-  - fail if `src/lib/bridge` is imported
-  - fail if banned imperative DOM patterns appear in runtime feature modules
-- Update frontend docs/AGENTS guidance from class/DOM-cache model to Svelte/store model.
+## Completed highlights (current head)
 
-8. **Phase 7: Hardening and Merge**
-- Run `scripts/checks.sh standard` and `scripts/checks.sh package`.
-- Run manual Tauri smoke matrix (below) and attach results to issue #236.
-- Merge only when all acceptance criteria are green.
+- Bridge retired from runtime (`src/lib/bridge.ts` absent).
+- Typed IPC boundary and generated contracts are the only command/event path (`src/lib/tauri/client.ts`).
+- Status panel runtime rendering moved to reactive state (no fallback renderer ownership in `statusPanel/dom.ts`).
+- Metadata save in-progress is store-driven (`src/ui/metadataSaveState.ts`) and button state is island-bound (`src/ui/metadataForm/MetadataFormFieldsIsland.svelte`).
+- File-list control state and combined-size display are reactive (no direct DOM writes in `src/ui/fileList/dom.ts`).
+- Legacy test contract reintroduction is blocked in checks (`scripts/check-no-legacy-test-contracts.sh`).
+- Guard scope ratcheted to include `src/ui/fileList/dom.ts` in runtime imperative scan (`scripts/check-no-imperative-dom-runtime.sh`).
 
-## Test Cases and Scenarios
+## What did not go as initially assumed
 
-1. Metadata intent determinism:
-- Single-file set/clear/noop save.
-- Multi-select set/clear/noop save.
-- Merge/batch processing with clear intent preserved.
+1. Earlier tracker language over-stated completion in a few areas while some imperative runtime seams still existed.
+2. File-list helper code still carried legacy direct DOM updates longer than expected; this was corrected in the current pass.
+3. “Runtime-only” language caused confusion around tests. The policy is now explicit: legacy runtime contracts are disallowed in tests too; only fixture scaffolding is tolerated.
 
-2. File ingestion and selection:
-- Drag/drop audio files.
-- Drag/drop cover art vs audio disambiguation.
-- Reorder/selection lock behavior.
+## Remaining work for strict 100% runtime zero-legacy
 
-3. Processing lifecycle:
-- Start processing.
-- Receive progress/queue updates.
-- Cancel all jobs and cancel specific job.
-- Preview open flow.
+These are the last architectural seams still using imperative DOM orchestration patterns in runtime modules:
 
-4. Output and encoder behavior:
-- Output path preview updates from metadata/state changes.
-- Encoder availability and validation behavior parity.
+1. `src/ui/outputPanel/dom.ts`
+   - Replace `getElementById`-driven preview/warning rendering with island/state bindings.
+2. `src/ui/metadataForm.ts`
+   - Move form read/write/dirty tracking from document queries to store-backed field state.
+3. `src/ui/fileList/metadataPanel.ts`
+   - Replace selected-file property rail DOM writes with reactive state + island binding.
+4. `src/ui/encoderPanel/dom.ts` and related helpers
+   - Retire remaining DOM cache/query wiring and centralize control state in reactive stores.
+5. Runtime event bus cleanup
+   - Reduce document-level custom event plumbing (`abb:*`) where store-driven flows can replace it.
 
-5. Runtime and harness:
-- Integrated flow works in `tauri dev`.
-- Harness flow works in Vite for isolated component iteration with typed fixtures.
+## Final-mile acceptance criteria (strict closure)
 
-## Tri-Order Impact (UX/DX → Architecture Ripple → Long-Term)
-
-1. **Remove bridge + fallback**
-- Immediate: Clearer debugging and fewer hidden runtime behaviors.
-- Ripple: Direct contracts at feature boundaries; fewer indirection layers.
-- Long-term: Lower contract drift risk and lower cognitive load for new feature work.
-
-2. **Full Svelte reactivity**
-- Immediate: More predictable UI updates; fewer DOM race conditions.
-- Ripple: State ownership becomes explicit via stores instead of cross-module DOM coupling.
-- Long-term: Faster feature delivery and easier onboarding.
-
-3. **Keep TypeScript strongly**
-- Immediate: Better refactor safety during large migration.
-- Ripple: Stronger TS↔Rust contract posture with generated bindings.
-- Long-term: Fewer regression classes in evolving UI/IPC behavior.
-
-## Assumptions and Defaults
-- UI/UX redesign is intentionally deferred until this architecture migration is complete.
-- Rust audio engine / ffmpeg stack is out of scope.
-- No broad hygiene sweep in this epic; create follow-up issue for magic numbers, debug logs, stale docs/scripts.
-- No permanent fallback/shim is introduced; any temporary compatibility helper must be explicit, observable, and time-bounded.
+1. Runtime feature modules no longer require direct DOM query/mutation orchestration for core UX state.
+2. Legacy runtime contracts remain blocked in both runtime and tests by policy gates.
+3. `scripts/checks.sh standard` and `scripts/checks.sh package` stay green after final-mile migrations.

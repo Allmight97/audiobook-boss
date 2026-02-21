@@ -7,13 +7,118 @@
  * - Global test utilities
  */
 
-import { vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
+
+type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
+const eventListeners = new Map<string, Set<TestEventHandler>>();
+let mockJobCounter = 0;
+
+function emitTestEvent(event: string, payload: unknown): void {
+	const handlers = eventListeners.get(event);
+	if (!handlers) return;
+	for (const handler of handlers) {
+		handler({ event, id: Date.now(), payload });
+	}
+}
 
 // Mock Tauri's invoke API
 vi.mock('@tauri-apps/api/core', () => ({
 	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
-		console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
-		return Promise.resolve(undefined);
+		switch (cmd) {
+			case 'analyze_audio_files':
+				return Promise.resolve({
+					files: [
+						{
+							path: '/mock/path/chapter1.mp3',
+							size: 15 * 1024 * 1024,
+							duration: 300,
+							isValid: true,
+							bitrate: 64,
+							sampleRate: 44100,
+							channels: 1,
+						},
+						{
+							path: '/mock/path/chapter2.mp3',
+							size: 20 * 1024 * 1024,
+							duration: 400,
+							isValid: true,
+							bitrate: 64,
+							sampleRate: 44100,
+							channels: 1,
+						},
+					],
+					totalDuration: 700,
+					totalSize: 35 * 1024 * 1024,
+					validCount: 2,
+					invalidCount: 0,
+				});
+			case 'search_online_metadata':
+				return Promise.resolve([
+					{
+						source: 'audnexus',
+						sourceId: 'OL12345W',
+						title: 'Mock Lookup Title',
+						authors: ['Mock Author'],
+						narrators: ['Mock Narrator'],
+						series: 'Mock Series',
+						seriesPart: '1',
+						subseries: 'Mock Sub-series',
+						subseriesPart: '1',
+						description: 'Mock description from lookup source.',
+						publishedYear: 2021,
+						durationSeconds: 36000,
+						coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
+						audibleOnly: false,
+					},
+				]);
+			case 'process_audiobook_files_v2': {
+				mockJobCounter += 1;
+				const jobId = `mock-job-${mockJobCounter}`;
+				emitTestEvent('processing-queue', {
+					items: [{ input_index: 0, file_path: '/mock/path/chapter1.mp3' }],
+					max_concurrent: 2,
+				});
+				emitTestEvent('processing-progress', {
+					stage: 'converting',
+					percentage: 40,
+					message: 'Converting audio',
+					current_file: '/mock/path/chapter1.mp3',
+					eta_seconds: 30,
+					job_id: jobId,
+					input_index: 0,
+				});
+				emitTestEvent('processing-progress', {
+					stage: 'completed',
+					percentage: 100,
+					message: 'Processing completed successfully!',
+					current_file: '/mock/path/chapter1.mp3',
+					eta_seconds: 0,
+					job_id: jobId,
+					input_index: 0,
+				});
+				return Promise.resolve({
+					message: 'Processing started (mock)',
+					jobId,
+				});
+			}
+			case 'cancel_processing': {
+				const args = _args as { jobId?: string | null } | undefined;
+				emitTestEvent('processing-progress', {
+					stage: 'cancelled',
+					percentage: 0,
+					message: 'Cancelled by user',
+					current_file: '',
+					eta_seconds: 0,
+					job_id: args?.jobId ?? null,
+					input_index: null,
+				});
+				return Promise.resolve('cancel requested');
+			}
+			default:
+				console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
+				return Promise.resolve(undefined);
+		}
 	}),
 	Channel: class MockChannel {
 		// Minimal placeholder required by generated tauri-specta bindings import surface.
@@ -22,10 +127,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // Mock Tauri's event API
 vi.mock('@tauri-apps/api/event', () => ({
-	listen: vi.fn().mockImplementation((event: string, _handler: unknown) => {
-		console.warn(`[Test Mock] Unhandled listen: ${event}`);
+	listen: vi.fn().mockImplementation((event: string, handler: TestEventHandler) => {
+		if (!eventListeners.has(event)) {
+			eventListeners.set(event, new Set());
+		}
+		eventListeners.get(event)?.add(handler);
 		return Promise.resolve(() => {
-			/* unlisten */
+			eventListeners.get(event)?.delete(handler);
 		});
 	}),
 	emit: vi.fn().mockResolvedValue(undefined),
@@ -46,16 +154,24 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Setup window.__TAURI_INTERNALS__ to false for tests
-// This ensures bridge.ts uses the mock path
+// Ensure browser-like runtime for tests (no embedded Tauri internals)
 Object.defineProperty(window, '__TAURI_INTERNALS__', {
 	value: undefined,
 	writable: true,
 });
 
-// Set import.meta.env.DEV to true for tests
-// This allows the bridge to use mocks in test environment
+// Keep DEV true in tests for consistent frontend test behavior
 vi.stubEnv('DEV', true);
+
+beforeEach(() => {
+	eventListeners.clear();
+	mockJobCounter = 0;
+});
+
+afterEach(() => {
+	eventListeners.clear();
+	mockJobCounter = 0;
+});
 
 const storage = new Map<string, string>();
 const localStorageMock = {

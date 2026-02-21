@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as dom from '../dom';
 import { StatusPanel } from '../logic';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -18,15 +18,17 @@ function setupDom() {
 }
 
 function getJobRows(): string[] {
-	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
-		(node) => node.textContent ?? '',
-	);
+	return statusPanelViewState.jobItems.map((item) => {
+		const percentage =
+			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
+		return `${item.label} • ${item.statusText}${percentage}`;
+	});
 }
 
 describe('StatusPanel aggregate progress', () => {
 	beforeEach(() => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 		vi.useFakeTimers();
 	});
 
@@ -65,10 +67,8 @@ describe('StatusPanel aggregate progress', () => {
 			percentage: 75,
 			message: 'Halfway',
 		});
-		expect((document.getElementById('percentage-processed') as HTMLElement).textContent).toBe(
-			'75.0%',
-		);
-		expect((document.getElementById('status-text') as HTMLElement).textContent).toBe('Converting');
+		expect(statusPanelViewState.progressPercentage).toBe(75);
+		expect(statusPanelViewState.statusText).toBe('Converting');
 		expect(getJobRows()).toEqual([
 			'alpha.m4b • Converting (50.0%)',
 			'beta.m4b • Completed (100.0%)',

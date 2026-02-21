@@ -11,7 +11,10 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - Strict mode; explicit types; avoid `any`
 - **Return types**: Prefer inference. Explicit return types are encouraged at exported API boundaries and required for type guards (`is` predicates). Omit elsewhere.
 - Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
-- Class-based UI modules with DOM caching; event-driven via `listen()`
+- Frontend runtime posture is **Svelte app shell + island components with partial legacy runtime modules still in `src/ui/**`**.
+- All Tauri command/event calls must go through `src/lib/tauri/client.ts` (`tauriClient`) so contract normalization and naming stay centralized.
+- Do not import runtime command/event invokers directly from `src/lib/generated/tauri.ts` in UI runtime modules.
+- No new imperative DOM orchestration in migrated runtime entry surfaces (`src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, `src/lib/**`); legacy `src/ui/**` modules are tracked migration debt.
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
 - Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings.
 
@@ -20,7 +23,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - Canonical frontend metadata edit semantics are patch ops: `set | clear | noop`.
 - Treat “clear” as explicit user intent, not an empty-value heuristic.
 - Do not filter out clear-only edits in processing/save flows.
-- Compile metadata intent to current Rust payload shape at boundary adapters (bridge), not inside scattered UI callsites.
+- Compile metadata intent to current Rust payload shape at boundary adapters, not inside scattered UI callsites.
 - Current clear mapping: string fields → `''`, date/year → `0`, cover art removal → `[]`.
 
 ---
@@ -73,9 +76,9 @@ If a new value is truly needed, propose it and add it to this table and `src/sty
 
 ### Strategy: Colocated Testing
 
-- **Rule**: Business logic belongs in `.ts` files, not `.tsx`.
+- **Rule**: Business logic belongs in `.ts`/`.svelte.ts` modules, not large monolithic component scripts.
 - **Location**: `src/**/*.test.ts` (colocated with source).
-- **Scope**: High coverage for logic (`.ts`), light render checks for UI (`.tsx`).
+- **Scope**: High coverage for logic (`.ts`/`.svelte.ts`), targeted render checks for Svelte islands/components.
 
 ### Running Tests
 

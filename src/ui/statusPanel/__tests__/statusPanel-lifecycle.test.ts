@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bridge } from '../../../lib/bridge';
+import { tauriClient } from '../../../lib/tauri/client';
 import { STAGES } from '../../../types/events';
+import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import * as dom from '../dom';
 import { StatusPanel } from '../logic';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 const listenerState = vi.hoisted(() => {
 	const progressCallbacks = new Set<(event: any) => void>();
@@ -35,7 +37,6 @@ const listenerState = vi.hoisted(() => {
 });
 
 vi.mock('../events', () => ({
-	bindStatusPanelDomEvents: vi.fn(),
 	listenForProgressEvents: listenerState.listenForProgressEventsMock,
 	listenForQueueEvents: listenerState.listenForQueueEventsMock,
 }));
@@ -51,18 +52,12 @@ function setupDom() {
     <button id="cancel-all-button"></button>
     <div class="art-thumbnail"></div>
     <div id="job-list"></div>
-    <input id="merge-mode-toggle" type="checkbox" />
-    <select id="max-concurrent-select"></select>
+    <div id="job-controls-root"></div>
   `;
 }
 
 function seedDisabledControls() {
-	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
-	mergeToggle.disabled = true;
-	mergeToggle.style.opacity = '0.5';
-	maxConcurrent.disabled = true;
-	maxConcurrent.style.opacity = '0.5';
+	setJobControlsEnabled(false);
 }
 
 function assertControlsEnabled() {
@@ -86,20 +81,31 @@ function emitProgressToActiveListeners(event: any) {
 }
 
 function getStepText(): string {
-	return (document.getElementById('step-text') as HTMLElement).textContent ?? '';
+	return statusPanelViewState.stepText;
 }
 
 function getJobRows(): string[] {
-	return Array.from(document.querySelectorAll<HTMLElement>('#job-list span')).map(
-		(node) => node.textContent ?? '',
-	);
+	return statusPanelViewState.jobItems.map((item) => {
+		const percentage =
+			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
+		return `${item.label} • ${item.statusText}${percentage}`;
+	});
+}
+
+async function flushAsync(): Promise<void> {
+	await Promise.resolve();
+	await Promise.resolve();
 }
 
 describe('StatusPanel lifecycle', () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 		vi.useFakeTimers();
+		vi.spyOn(tauriClient, 'setMaxConcurrentJobs').mockResolvedValue(4);
+		setJobTypeSelection('batch');
+		initJobControls();
+		await flushAsync();
 
 		listenerState.progressCallbacks.clear();
 		listenerState.queueCallbacks.clear();
@@ -117,35 +123,37 @@ describe('StatusPanel lifecycle', () => {
 
 	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
 		const panel = new StatusPanel();
-		const cancelButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
 
 		let resolveCancel!: () => void;
 		const inFlightCancel = new Promise<void>((resolve) => {
 			resolveCancel = resolve;
 		});
-		const cancelSpy = vi.spyOn(bridge, 'cancelProcessing').mockReturnValue(inFlightCancel as any);
+		const cancelSpy = vi
+			.spyOn(tauriClient, 'cancelProcessing')
+			.mockReturnValue(inFlightCancel as any);
 
 		const cancelRequest = (panel as any).handleCancelAll();
 		expect(cancelSpy).toHaveBeenCalledTimes(1);
-		expect(cancelButton.disabled).toBe(true);
+		expect(statusPanelViewState.cancelAllPending).toBe(true);
 
 		resolveCancel();
 		await cancelRequest;
 
-		expect(cancelButton.disabled).toBe(false);
+		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
 		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
 		const panel = new StatusPanel();
-		const cancelButton = document.getElementById('cancel-all-button') as HTMLButtonElement;
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-		vi.spyOn(bridge, 'cancelProcessing').mockRejectedValue(new Error('bridge cancellation failed'));
+		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
+			new Error('tauriClient cancellation failed'),
+		);
 
 		await (panel as any).handleCancelAll();
 
-		expect(cancelButton.disabled).toBe(false);
+		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
 		expect(consoleErrorSpy).toHaveBeenCalled();
 	});
@@ -225,7 +233,7 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
-		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 
 		const expectedSpy =
@@ -307,7 +315,7 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
-		expect((document.getElementById('job-list') as HTMLElement).childElementCount).toBe(0);
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});
 
@@ -316,7 +324,7 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
-		vi.spyOn(bridge, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
+		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
 
 		(panel as any).handleQueueSnapshot({
 			items: [

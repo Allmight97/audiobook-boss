@@ -113,7 +113,7 @@ export interface TauriFileDropEvents {
  *
  * This interface represents all events that flow between backend and frontend.
  * Any changes to this contract during refactoring should be carefully reviewed
- * to ensure backward compatibility.
+ * to preserve backend/frontend event contract stability.
  */
 export interface ApplicationEvents extends TauriFileDropEvents {
 	/** Progress updates during audiobook processing */
@@ -170,7 +170,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * PROCESSING STAGES (backend ProcessingStage enum):
  * - Analyzing: File validation and preparation
  * - Converting: Audio conversion and merging with FFmpeg
- * - Merging: (legacy, now part of Converting)
+ * - Merging: Historical label retained for backward-compat parsing; backend now emits Converting
  * - WritingMetadata: Adding metadata to final file
  * - Completed: Success state
  * - Failed: Error state with error message

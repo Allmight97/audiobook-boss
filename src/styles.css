@@ -240,7 +240,7 @@ body {
 	min-height: 0;
 }
 
-/* Legacy support - keep for backward compatibility during transition */
+/* Empty-state placeholder style (currently unused in runtime markup) */
 .file-list-placeholder {
 	min-height: 8rem;
 	display: flex;

@@ -6,6 +6,7 @@ import {
 	setCurrentFileList,
 	getCurrentFileList,
 } from '../fileList/state';
+import { fileListViewState } from '../fileList/viewState.svelte';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior
 vi.mock('../metadataForm', () => ({
@@ -23,8 +24,8 @@ vi.mock('../metadataState', () => ({
 }));
 
 vi.mock('../outputPanel', () => ({
-	onFileListChange: vi.fn(),
-	onMetadataChange: vi.fn(),
+	updateEstimatedSize: vi.fn(),
+	updateOutputPath: vi.fn(),
 }));
 
 vi.mock('../metadataValidation', () => ({
@@ -78,21 +79,11 @@ function makeFileList(count: number): FileListInfo {
 	};
 }
 
-function setupDOM(): void {
-	document.body.innerHTML = `
-		<div class="file-list-content"></div>
-		<button id="sort-toggle-btn">Sort: A-Z</button>
-		<button id="clear-files-btn" style="display: block">Clear Files</button>
-		<div id="file-order-lock" style="display: none"></div>
-	`;
-}
-
 describe('order lock lifecycle', () => {
 	beforeEach(() => {
 		// Reset lock state between tests
 		setOrderLocked(false);
 		setCurrentFileList(null);
-		setupDOM();
 	});
 
 	describe('state transitions', () => {
@@ -206,8 +197,8 @@ describe('order lock lifecycle', () => {
 		});
 	});
 
-	describe('DOM state reflects lock', () => {
-		it('disables sort and clear buttons when locked', async () => {
+	describe('view state reflects lock', () => {
+		it('disables sort and clear controls when locked', async () => {
 			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
 			initDOMCache();
@@ -215,13 +206,11 @@ describe('order lock lifecycle', () => {
 
 			updateButtonVisibility();
 
-			const sortBtn = document.getElementById('sort-toggle-btn') as HTMLButtonElement;
-			const clearBtn = document.getElementById('clear-files-btn') as HTMLButtonElement;
-			expect(sortBtn.disabled).toBe(true);
-			expect(clearBtn.disabled).toBe(true);
+			expect(fileListViewState.sortDisabled).toBe(true);
+			expect(fileListViewState.clearDisabled).toBe(true);
 		});
 
-		it('enables sort and clear buttons when unlocked', async () => {
+		it('enables sort and clear controls when unlocked', async () => {
 			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
 			initDOMCache();
@@ -229,10 +218,8 @@ describe('order lock lifecycle', () => {
 
 			updateButtonVisibility();
 
-			const sortBtn = document.getElementById('sort-toggle-btn') as HTMLButtonElement;
-			const clearBtn = document.getElementById('clear-files-btn') as HTMLButtonElement;
-			expect(sortBtn.disabled).toBe(false);
-			expect(clearBtn.disabled).toBe(false);
+			expect(fileListViewState.sortDisabled).toBe(false);
+			expect(fileListViewState.clearDisabled).toBe(false);
 		});
 
 		it('shows lock notice when locked', async () => {
@@ -241,8 +228,7 @@ describe('order lock lifecycle', () => {
 
 			setOrderLockNotice(true);
 
-			const notice = document.getElementById('file-order-lock')!;
-			expect(notice.style.display).toBe('inline');
+			expect(fileListViewState.orderLockVisible).toBe(true);
 		});
 
 		it('hides lock notice when unlocked', async () => {
@@ -252,43 +238,7 @@ describe('order lock lifecycle', () => {
 
 			setOrderLockNotice(false);
 
-			const notice = document.getElementById('file-order-lock')!;
-			expect(notice.style.display).toBe('none');
-		});
-
-		it('renders file items as non-draggable when locked', async () => {
-			const { createFileListItem } = await import('../fileList/dom');
-			setCurrentFileList(makeFileList(2));
-			setOrderLocked(true);
-
-			const item = createFileListItem(getCurrentFileList()!.files[0], 0);
-
-			expect(item.getAttribute('draggable')).toBe('false');
-		});
-
-		it('renders file items as draggable when unlocked', async () => {
-			const { createFileListItem } = await import('../fileList/dom');
-			setCurrentFileList(makeFileList(2));
-			setOrderLocked(false);
-
-			const item = createFileListItem(getCurrentFileList()!.files[0], 0);
-
-			expect(item.getAttribute('draggable')).toBe('true');
-		});
-
-		it('disables move and remove buttons in file items when locked', async () => {
-			const { createFileListItem } = await import('../fileList/dom');
-			setCurrentFileList(makeFileList(2));
-			setOrderLocked(true);
-
-			const item = createFileListItem(getCurrentFileList()!.files[1], 1);
-
-			const moveUp = item.querySelector('.move-up-btn') as HTMLButtonElement;
-			const moveDown = item.querySelector('.move-down-btn') as HTMLButtonElement;
-			const remove = item.querySelector('.remove-file-btn') as HTMLButtonElement;
-			expect(moveUp.disabled).toBe(true);
-			expect(moveDown.disabled).toBe(true);
-			expect(remove.disabled).toBe(true);
+			expect(fileListViewState.orderLockVisible).toBe(false);
 		});
 	});
 
@@ -308,7 +258,7 @@ describe('order lock lifecycle', () => {
 			expect(current?.files.length).toBe(0);
 		});
 
-		it('DOM buttons re-enabled after lock/unlock cycle', async () => {
+		it('view controls re-enabled after lock/unlock cycle', async () => {
 			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
 			initDOMCache();
@@ -316,13 +266,12 @@ describe('order lock lifecycle', () => {
 			// Lock
 			setOrderLocked(true);
 			updateButtonVisibility();
-			const clearBtn = document.getElementById('clear-files-btn') as HTMLButtonElement;
-			expect(clearBtn.disabled).toBe(true);
+			expect(fileListViewState.clearDisabled).toBe(true);
 
 			// Unlock
 			setOrderLocked(false);
 			updateButtonVisibility();
-			expect(clearBtn.disabled).toBe(false);
+			expect(fileListViewState.clearDisabled).toBe(false);
 		});
 	});
 });

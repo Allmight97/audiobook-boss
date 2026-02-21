@@ -37,7 +37,7 @@ Why this works well for audio:
 - With time base = 1/rate, PTS becomes “number of output samples so far”, which is precise for PCM-to-AAC pipelines.
 - Progress can be computed as seconds = PTS / rate, then mapped to UI ranges.
 
-Example progress mapping used in this repo (throttled at 200ms):
+Example progress mapping used in this repo (currently throttled at 1000ms via `PROGRESS_EMIT_INTERVAL_MS`):
 
 ```rust
 let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;

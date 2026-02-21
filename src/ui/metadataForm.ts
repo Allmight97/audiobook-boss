@@ -6,9 +6,15 @@ import {
 	isCoverArtRemovalRequested,
 	setCoverArt,
 } from './coverArt';
+import {
+	resetMetadataFormPreviewState,
+	setMetadataFormPreviewValueByInputId,
+} from './metadataForm/previewState.svelte';
 import MetadataFormFieldsIsland from './metadataForm/MetadataFormFieldsIsland.svelte';
+import { updateTagPreview } from './tagPreview';
 
 export type MetadataFormMode = 'single' | 'multi';
+type MetadataFormSaveHandler = () => void;
 
 type FieldConfig = {
 	inputId: string;
@@ -59,6 +65,7 @@ const METADATA_FORM_FIELDS_ROOT_ID = 'metadata-form-fields-root';
 
 let mountedMetadataFieldsRoot: HTMLElement | null = null;
 let mountedMetadataFieldsIsland: Parameters<typeof unmount>[0] | null = null;
+let onSaveMetadataHandler: MetadataFormSaveHandler | null = null;
 
 function getMetadataForm(): HTMLElement | null {
 	return document.getElementById('metadata-form');
@@ -123,6 +130,14 @@ function setFieldAction(actionId: string, value: FieldAction): void {
 	}
 }
 
+function getFieldConfigByInputId(inputId: string): FieldConfig | undefined {
+	return FIELD_CONFIGS.find((field) => field.inputId === inputId);
+}
+
+function getFieldConfigByActionId(actionId: string): FieldConfig | undefined {
+	return FIELD_CONFIGS.find((field) => field.actionId === actionId);
+}
+
 function isMultiSelectMode(): boolean {
 	const form = getMetadataForm();
 	return form?.dataset.multiSelect === 'true';
@@ -147,8 +162,19 @@ function mountMetadataFieldsIsland(_form: HTMLElement): void {
 
 	mountedMetadataFieldsIsland = mount(MetadataFormFieldsIsland, {
 		target: fieldsRoot,
+		props: {
+			onFieldInput: onMetadataFormFieldInput,
+			onActionChange: onMetadataFormActionSelectChange,
+			onSaveMetadata: () => {
+				onSaveMetadataHandler?.();
+			},
+		},
 	});
 	mountedMetadataFieldsRoot = fieldsRoot;
+}
+
+export function setMetadataFormSaveHandler(handler: MetadataFormSaveHandler): void {
+	onSaveMetadataHandler = handler;
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {
@@ -173,41 +199,50 @@ export function initMetadataFormEvents(): void {
 	const form = getMetadataForm();
 	if (!form) return;
 	mountMetadataFieldsIsland(form);
+	resetMetadataFormPreviewState();
+	for (const field of FIELD_CONFIGS) {
+		const input = getInputElement(field.inputId);
+		if (!input) continue;
+		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
+	}
 
-	const inputs = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-		"input[id^='meta-'], textarea[id^='meta-']",
-	);
+	updateTagPreview();
+}
 
-	inputs.forEach((input) => {
-		const handleInput = () => {
-			markDirty(input);
-			if (!isMultiSelectMode()) return;
+export function onMetadataFormFieldInput(inputId: string): void {
+	const input = getInputElement(inputId);
+	if (!input) return;
 
-			const config = FIELD_CONFIGS.find((field) => field.inputId === input.id);
-			if (!config) return;
+	markDirty(input);
+	setMetadataFormPreviewValueByInputId(input.id, input.value);
 
+	if (isMultiSelectMode()) {
+		const config = getFieldConfigByInputId(input.id);
+		if (config) {
 			const actionValue: FieldAction = input.value.trim() ? 'keep' : 'blank';
 			setFieldAction(config.actionId, actionValue);
-		};
+		}
+	}
 
-		input.addEventListener('input', handleInput);
-		input.addEventListener('change', handleInput);
-	});
+	updateTagPreview();
+}
 
-	const actionSelects = form.querySelectorAll<HTMLSelectElement>('.meta-apply-select');
-	actionSelects.forEach((select) => {
-		select.addEventListener('change', () => {
-			const config = FIELD_CONFIGS.find((field) => field.actionId === select.id);
-			if (!config) return;
-			const input = getInputElement(config.inputId);
-			if (!input) return;
+export function onMetadataFormActionSelectChange(actionId: string): void {
+	const action = getActionElement(actionId);
+	if (!action) return;
 
-			if (select.value === 'blank') {
-				input.value = '';
-				markDirty(input);
-			}
-		});
-	});
+	const config = getFieldConfigByActionId(actionId);
+	if (!config) return;
+
+	const input = getInputElement(config.inputId);
+	if (!input) return;
+
+	if (action.value === 'blank') {
+		input.value = '';
+		markDirty(input);
+		setMetadataFormPreviewValueByInputId(input.id, input.value);
+		updateTagPreview();
+	}
 }
 
 export function resetDirtyState(): void {
@@ -260,6 +295,7 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 
 		input.value = value;
 		setMixedPlaceholder(input, false);
+		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
 	});
 
 	if (!getHasCustomCoverArt()) {
@@ -267,6 +303,7 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 	}
 
 	resetDirtyState();
+	updateTagPreview();
 }
 
 export function populateMetadataFormMulti(
@@ -284,6 +321,7 @@ export function populateMetadataFormMulti(
 		if (!hasMetadata) {
 			input.value = '';
 			setMixedPlaceholder(input, false);
+			setMetadataFormPreviewValueByInputId(field.inputId, input.value);
 			return;
 		}
 
@@ -305,6 +343,7 @@ export function populateMetadataFormMulti(
 			input.value = '';
 			setMixedPlaceholder(input, true);
 		}
+		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
 	});
 
 	if (!getHasCustomCoverArt()) {
@@ -312,6 +351,7 @@ export function populateMetadataFormMulti(
 	}
 
 	resetDirtyState();
+	updateTagPreview();
 }
 
 export function applyMetadataToForm(
@@ -334,6 +374,7 @@ export function applyMetadataToForm(
 			if (typeof raw !== 'string') return;
 			input.value = raw;
 		}
+		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
 
 		setMixedPlaceholder(input, false);
 		if (shouldMarkDirty) {
@@ -345,6 +386,7 @@ export function applyMetadataToForm(
 			setFieldAction(field.actionId, actionValue);
 		}
 	});
+	updateTagPreview();
 }
 
 export function readMetadataForm(options?: {

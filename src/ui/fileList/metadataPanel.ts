@@ -1,7 +1,7 @@
 import { type AudioFile, formatFileSize } from '../../types/audio';
-import { bridge } from '../../lib/bridge';
+import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { onMetadataChange } from '../outputPanel';
+import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
 import { clearCoverArt, getHasCustomCoverArt, setCoverArt } from '../coverArt';
 import { getMetadataForFile, setMetadataForFile } from '../metadataState';
@@ -15,6 +15,11 @@ import {
 	resetAutoResolutionHints,
 } from '../encoderPanel/autoResolutionHints';
 import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state';
+
+function refreshOutputForMetadataChange(): void {
+	updateOutputPath();
+	updateEstimatedSize();
+}
 
 function setText(id: string, value: string): void {
 	const el = document.getElementById(id);
@@ -89,7 +94,7 @@ async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMe
 	if (existing) return existing;
 
 	try {
-		const metadata = await bridge.readAudioMetadata(file.path);
+		const metadata = await tauriClient.readAudioMetadata(file.path);
 		setMetadataForFile(file.path, metadata);
 		return metadata;
 	} catch (error) {
@@ -117,7 +122,7 @@ export function updateFileProperties(
 			void loadMetadataForFile(file).then((metadata) => {
 				if (metadata) {
 					populateMetadataFormSingle(metadata);
-					onMetadataChange();
+					refreshOutputForMetadataChange();
 					updateTagPreview();
 				}
 			});
@@ -140,7 +145,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 		updateFileProperties(file);
 	}
 
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 }
 
@@ -163,7 +168,7 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	);
 
 	populateMetadataFormMulti(metadataList, selectedCount);
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 }
 
@@ -189,7 +194,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 			setCoverArt(null);
 			return;
 		}
-		const metadata = await bridge.readAudioMetadata(firstValid.path);
+		const metadata = await tauriClient.readAudioMetadata(firstValid.path);
 		setCoverArt(metadata.cover_art || null);
 	} catch (error) {
 		setCoverArt(null);

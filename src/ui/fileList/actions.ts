@@ -1,5 +1,6 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { onFileListChange, onMetadataChange } from '../outputPanel';
+import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
+import { pushStatusPanelTransientStatus } from '../statusPanel';
 import {
 	clearMetadataState,
 	getMetadataForFile,
@@ -29,6 +30,7 @@ import {
 	setOrderLocked,
 } from './state';
 import {
+	initDOMCache,
 	updateFileListDOM,
 	updateTotalStats,
 	updateSelection,
@@ -37,7 +39,6 @@ import {
 	showEmptyState,
 	setOrderLockNotice,
 } from './dom';
-import { initFileListEvents, setupDragStartHandlers } from './events';
 import {
 	clearSelection,
 	handleSelection,
@@ -55,18 +56,35 @@ import {
 	showSingleSelection,
 } from './metadataPanel';
 
+function refreshOutputForFileListChange(): void {
+	updateEstimatedSize();
+}
+
+function refreshOutputForMetadataChange(): void {
+	updateOutputPath();
+	updateEstimatedSize();
+}
+
+function setStatusMessage(message: string): void {
+	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
+}
+
+function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
+	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
+}
+
 export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataState();
 	setCurrentFileList(fileListInfo);
+	initDOMCache();
 
 	updateFileListDOM();
-	initFileListEvents();
 
 	updateTotalStats();
 	updateButtonVisibility();
 	updateSortButtonText(getSortAscending());
 
-	onFileListChange();
+	refreshOutputForFileListChange();
 
 	void autoUpdateCoverArtFromFirstValidFile();
 }
@@ -88,10 +106,7 @@ function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
 	const metadata = readMetadataForm({ mode: 'single' });
 	const validationError = validateSeriesFields(metadata);
 	if (validationError) {
-		const statusText = document.getElementById('status-text');
-		if (statusText) {
-			statusText.textContent = validationError;
-		}
+		setStatusMessage(validationError);
 		return false;
 	}
 
@@ -110,7 +125,7 @@ function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
 		intentPatch,
 	});
 	resetDirtyState();
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	return true;
 }
 
@@ -223,10 +238,7 @@ export async function stageMetadataToSelection(options?: {
 	const changes = readMetadataForm({ mode: 'multi', onlyDirty: true });
 	if (Object.keys(changes).length === 0) {
 		if (options?.showStatus) {
-			const statusText = document.getElementById('status-text');
-			if (statusText) {
-				statusText.textContent = 'No metadata changes to apply';
-			}
+			setStatusMessage('No metadata changes to apply');
 		}
 		return false;
 	}
@@ -234,10 +246,7 @@ export async function stageMetadataToSelection(options?: {
 	const validationError = validateSeriesFields(changes);
 	if (validationError) {
 		if (options?.showStatus) {
-			const statusText = document.getElementById('status-text');
-			if (statusText) {
-				statusText.textContent = validationError;
-			}
+			setStatusMessage(validationError);
 		}
 		return false;
 	}
@@ -260,20 +269,10 @@ export async function stageMetadataToSelection(options?: {
 	});
 
 	resetDirtyState();
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 
 	if (options?.showStatus) {
-		const statusText = document.getElementById('status-text');
-		if (statusText) {
-			const originalText = statusText.textContent;
-			const msg = `Draft saved for ${selectedFiles.length} files`;
-			statusText.textContent = msg;
-			setTimeout(() => {
-				if (statusText.textContent === msg) {
-					statusText.textContent = originalText;
-				}
-			}, 2000);
-		}
+		setTransientStatusMessage(`Draft saved for ${selectedFiles.length} files`);
 	}
 
 	return true;
@@ -289,10 +288,7 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 	if (selectedFiles.length === 1) {
 		const changed = persistSingleSelectionMetadata(selectedFiles[0]);
 		if (changed && options?.showStatus) {
-			const statusText = document.getElementById('status-text');
-			if (statusText) {
-				statusText.textContent = 'Draft saved';
-			}
+			setStatusMessage('Draft saved');
 		}
 		return changed;
 	}
@@ -329,7 +325,7 @@ export function removeFile(index: number): void {
 		void showMultiSelection(remainingSelection);
 	}
 
-	onFileListChange();
+	refreshOutputForFileListChange();
 }
 
 export function recalculateTotals(): void {
@@ -355,8 +351,7 @@ export function moveFileUp(index: number): void {
 	swapSelectionIndices(index, index - 1);
 
 	updateFileListDOM();
-	setupDragStartHandlers();
-	onFileListChange();
+	refreshOutputForFileListChange();
 
 	const selectedFiles = getSelectedFiles();
 	if (selectedFiles.length === 1) {
@@ -378,8 +373,7 @@ export function moveFileDown(index: number): void {
 	swapSelectionIndices(index, index + 1);
 
 	updateFileListDOM();
-	setupDragStartHandlers();
-	onFileListChange();
+	refreshOutputForFileListChange();
 
 	const selectedFiles = getSelectedFiles();
 	if (selectedFiles.length === 1) {
@@ -412,8 +406,7 @@ export function toggleFileSort(): void {
 	updateButtonVisibility();
 
 	updateFileListDOM();
-	setupDragStartHandlers();
-	onFileListChange();
+	refreshOutputForFileListChange();
 }
 
 export function clearAllFiles(): void {
@@ -435,7 +428,7 @@ export function clearAllFiles(): void {
 	clearSelectionPanels();
 	updateTotalStats();
 	updateButtonVisibility();
-	onFileListChange();
+	refreshOutputForFileListChange();
 }
 
 export function setFileOrderLocked(locked: boolean): void {
@@ -457,8 +450,7 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
 	updateFileListDOM();
-	onFileListChange();
-	setupDragStartHandlers();
+	refreshOutputForFileListChange();
 
 	const selectedFiles = getSelectedFiles();
 	if (selectedFiles.length === 1) {

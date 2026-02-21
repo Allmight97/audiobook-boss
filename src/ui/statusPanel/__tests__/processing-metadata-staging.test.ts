@@ -9,7 +9,7 @@ const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
-	getCurrentOutputConfigMock: vi.fn(),
+	readOutputConfigForProcessingMock: vi.fn(),
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
 	hasDirtyMetadataFieldsMock: vi.fn(),
@@ -20,8 +20,8 @@ const context = vi.hoisted(() => ({
 	stageMetadataToSelectionMock: vi.fn(),
 }));
 
-vi.mock('../../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../../lib/tauri/client', () => ({
+	tauriClient: {
 		processAudiobookFilesV2: context.processAudiobookFilesV2Mock,
 		readAudioMetadata: context.readAudioMetadataMock,
 	},
@@ -38,7 +38,7 @@ vi.mock('../../fileList/state', () => ({
 }));
 
 vi.mock('../../outputPanel', () => ({
-	getCurrentOutputConfig: context.getCurrentOutputConfigMock,
+	readOutputConfigForProcessing: context.readOutputConfigForProcessingMock,
 }));
 
 vi.mock('../../jobControls', () => ({
@@ -84,7 +84,7 @@ describe('startProcessing metadata staging', () => {
 		context.getCurrentFileListMock.mockReset();
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
-		context.getCurrentOutputConfigMock.mockReset();
+		context.readOutputConfigForProcessingMock.mockReset();
 		context.getJobTypeMock.mockReset();
 		context.readMetadataFormMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
@@ -103,7 +103,7 @@ describe('startProcessing metadata staging', () => {
 		});
 		context.getSelectedFileIndexMock.mockReturnValue(0);
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
-		context.getCurrentOutputConfigMock.mockReturnValue({
+		context.readOutputConfigForProcessingMock.mockReturnValue({
 			encoderSettings: defaultEncoderSettings(),
 			sampleRate: 'auto',
 			outputPath: '/tmp/out',

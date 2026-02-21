@@ -2,9 +2,10 @@
  * Tag Preview module
  *
  * Calculates TSOA (sort key) and updates the tag preview grid
- * based on metadata input values.
+ * based on metadata form preview state.
  */
 import { mount, unmount } from 'svelte';
+import { metadataFormPreviewState } from './metadataForm/previewState.svelte';
 import TagPreviewIsland from './tagPreview/TagPreviewIsland.svelte';
 import {
 	TAG_FIELDS,
@@ -39,38 +40,30 @@ export function calculateTSOA(series: string, part: string, title: string): stri
 }
 
 /**
- * Tag field mappings from metadata inputs to tag preview data-field attributes
+ * Tag field mappings from metadata form preview state to tag preview fields.
  */
 const TAG_FIELD_MAPPINGS: Record<TagField, () => string> = {
-	title: () => getInputValue('meta-title'),
-	album: () => getInputValue('meta-title'), // Album derived from title
-	artist: () => getInputValue('meta-author'),
-	albumArtist: () => getInputValue('meta-author'), // Same as artist
-	composer: () => getInputValue('meta-narrator'),
-	series: () => getInputValue('meta-series'),
-	part: () => getInputValue('meta-series-part'),
-	subseries: () => getInputValue('meta-subseries'),
-	subpart: () => getInputValue('meta-subseries-part'),
-	year: () => getInputValue('meta-year'),
-	genre: () => getInputValue('meta-genre'),
+	title: () => metadataFormPreviewState.title,
+	album: () => metadataFormPreviewState.title,
+	artist: () => metadataFormPreviewState.author,
+	albumArtist: () => metadataFormPreviewState.author,
+	composer: () => metadataFormPreviewState.narrator,
+	series: () => metadataFormPreviewState.series,
+	part: () => metadataFormPreviewState.seriesPart,
+	subseries: () => metadataFormPreviewState.subseries,
+	subpart: () => metadataFormPreviewState.subseriesPart,
+	year: () => metadataFormPreviewState.year,
+	genre: () => metadataFormPreviewState.genre,
 	tsoa: () =>
 		calculateTSOA(
-			getInputValue('meta-series'),
-			getInputValue('meta-series-part'),
-			getInputValue('meta-title'),
+			metadataFormPreviewState.series,
+			metadataFormPreviewState.seriesPart,
+			metadataFormPreviewState.title,
 		),
 };
 
 let mountedPreviewRoot: HTMLElement | null = null;
 let mountedTagPreview: Parameters<typeof unmount>[0] | null = null;
-
-/**
- * Gets the trimmed value from an input element
- */
-function getInputValue(id: string): string {
-	const element = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-	return element?.value?.trim() || '';
-}
 
 function mountTagPreviewIsland(): void {
 	const previewRoot = document.getElementById('tag-preview-root');
@@ -109,33 +102,9 @@ export function updateTagPreview(): void {
 }
 
 /**
- * Sets up event listeners on metadata inputs to update tag preview in real-time
+ * Initializes tag preview island and synchronizes with the current metadata preview state.
  */
 export function initTagPreview(): void {
 	mountTagPreviewIsland();
-
-	// Input IDs that affect tag preview
-	const inputIds = [
-		'meta-title',
-		'meta-author',
-		'meta-narrator',
-		'meta-series',
-		'meta-series-part',
-		'meta-subseries',
-		'meta-subseries-part',
-		'meta-year',
-		'meta-genre',
-	];
-
-	for (const id of inputIds) {
-		const element = document.getElementById(id);
-		if (element && element.dataset.tagPreviewBound !== 'true') {
-			// Use 'input' event for real-time updates as user types
-			element.addEventListener('input', updateTagPreview);
-			element.dataset.tagPreviewBound = 'true';
-		}
-	}
-
-	// Initial update
 	updateTagPreview();
 }

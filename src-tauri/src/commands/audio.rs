@@ -133,5 +133,3 @@ pub async fn cancel_processing(
         Ok("All processing jobs cancellation requested".to_string())
     }
 }
-
-// Removed legacy merge_audio_files command and shell-based implementation during nuclear cleanup.

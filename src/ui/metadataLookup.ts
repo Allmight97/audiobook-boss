@@ -1,4 +1,4 @@
-import { bridge } from '../lib/bridge';
+import { tauriClient } from '../lib/tauri/client';
 import { mount, unmount } from 'svelte';
 import type { AudioFile } from '../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
@@ -8,7 +8,7 @@ import {
 	type MetadataIntentPatch,
 } from '../types/metadataIntent';
 import { applyMetadataToForm, readMetadataForm } from './metadataForm';
-import { onMetadataChange } from './outputPanel';
+import { updateEstimatedSize, updateOutputPath } from './outputPanel';
 import { updateTagPreview } from './tagPreview';
 import { clearCoverArt, setCoverArt, setCustomCoverArt } from './coverArt';
 import { getMetadataForFile, setMetadataForFile } from './metadataState';
@@ -16,11 +16,16 @@ import { getCurrentFileList } from './fileList';
 import { selectFile } from './fileList/actions';
 import { getSelectedFileIndices } from './fileList/state';
 import MetadataLookupIsland from './metadataLookup/MetadataLookupIsland.svelte';
+import {
+	metadataLookupState,
+	type MetadataLookupApplyMode,
+	type MetadataLookupStatusVariant,
+} from './metadataLookup/state.svelte';
 
 const DEFAULT_SOURCES: MetadataSource[] = ['audnexus'];
 const METADATA_LOOKUP_ROOT_ID = 'metadata-lookup-root';
 
-type ApplyMode = 'current' | 'queue';
+type ApplyMode = MetadataLookupApplyMode;
 
 type LookupQueueItem = {
 	file: AudioFile;
@@ -36,10 +41,13 @@ type QueueItemState = {
 
 let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
-let currentResults: OnlineMetadataResult[] = [];
-const queueStateByFile = new Map<string, QueueItemState>();
 let mountedMetadataLookupRoot: HTMLElement | null = null;
 let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
+
+function refreshOutputForMetadataChange(): void {
+	updateOutputPath();
+	updateEstimatedSize();
+}
 
 function mountMetadataLookupIsland(): void {
 	const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
@@ -58,77 +66,23 @@ function mountMetadataLookupIsland(): void {
 		mountedMetadataLookupIsland = null;
 	}
 
-	lookupRoot.innerHTML = '';
 	mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
 		target: lookupRoot,
 	});
 	mountedMetadataLookupRoot = lookupRoot;
 }
 
-function getModal(): HTMLElement | null {
-	return document.getElementById('metadata-lookup-modal');
-}
-
-function getResultsContainer(): HTMLElement | null {
-	return document.getElementById('metadata-lookup-results');
-}
-
-function getSearchInput(): HTMLInputElement | null {
-	const el = document.getElementById('metadata-lookup-query');
-	return el instanceof HTMLInputElement ? el : null;
-}
-
-function getSourceSelect(): HTMLSelectElement | null {
-	const el = document.getElementById('metadata-lookup-source');
-	return el instanceof HTMLSelectElement ? el : null;
-}
-
-function getApplyModeSelect(): HTMLSelectElement | null {
-	const el = document.getElementById('metadata-lookup-apply-mode');
-	return el instanceof HTMLSelectElement ? el : null;
-}
-
-function getCoverArtToggle(): HTMLInputElement | null {
-	const el = document.getElementById('metadata-lookup-cover-toggle');
-	return el instanceof HTMLInputElement ? el : null;
-}
-
-function getSkipButton(): HTMLButtonElement | null {
-	const el = document.getElementById('metadata-lookup-skip-btn');
-	return el instanceof HTMLButtonElement ? el : null;
-}
-
-function shouldReplaceCoverArt(): boolean {
-	const toggle = getCoverArtToggle();
-	return toggle ? toggle.checked : false;
-}
-
-function getStatusEl(): HTMLElement | null {
-	return document.getElementById('metadata-lookup-status');
-}
-
-function getQueueContextEl(): HTMLElement | null {
-	return document.getElementById('metadata-lookup-context');
-}
-
-function setStatus(message: string, variant: 'error' | 'success' | 'info' = 'info'): void {
-	const statusEl = getStatusEl();
-	if (!statusEl) return;
-	statusEl.textContent = message;
-	statusEl.classList.toggle('is-error', variant === 'error');
-	statusEl.classList.toggle('is-success', variant === 'success');
+function setStatus(message: string, variant: MetadataLookupStatusVariant = 'info'): void {
+	metadataLookupState.statusMessage = message;
+	metadataLookupState.statusVariant = variant;
 }
 
 function showModal(): void {
-	const modal = getModal();
-	if (!modal) return;
-	modal.classList.add('open');
+	metadataLookupState.isOpen = true;
 }
 
 function hideModal(): void {
-	const modal = getModal();
-	if (!modal) return;
-	modal.classList.remove('open');
+	metadataLookupState.isOpen = false;
 }
 
 function formatFileName(path: string): string {
@@ -163,55 +117,30 @@ function deriveQueryFromFile(file: AudioFile): string {
 }
 
 function updateQueueContext(): void {
-	const contextEl = getQueueContextEl();
-	if (!contextEl) return;
 	if (lookupQueue.length === 0) {
-		contextEl.textContent = 'No files selected.';
+		metadataLookupState.queueContext = 'No files selected.';
 		return;
 	}
 
 	const current = lookupQueue[queueIndex];
 	const label = `${queueIndex + 1} of ${lookupQueue.length}`;
-	contextEl.textContent = `${label} • ${formatFileName(current.file.path)}`;
+	metadataLookupState.queueContext = `${label} • ${formatFileName(current.file.path)}`;
 }
 
 function updateApplyModeOptions(): void {
-	const applySelect = getApplyModeSelect();
-	if (!applySelect) return;
-
 	const multi = lookupQueue.length > 1;
-	applySelect.innerHTML = '';
-
-	const currentOption = document.createElement('option');
-	currentOption.value = 'current';
-	currentOption.textContent = multi ? 'Apply to current file' : 'Apply to file';
-	applySelect.appendChild(currentOption);
-
-	if (multi) {
-		const queueOption = document.createElement('option');
-		queueOption.value = 'queue';
-		queueOption.textContent = 'Apply & next in queue';
-		applySelect.appendChild(queueOption);
-
-		applySelect.value = 'queue';
-	} else {
-		applySelect.value = 'current';
-	}
+	metadataLookupState.isQueueMode = multi;
+	metadataLookupState.applyMode = multi ? 'queue' : 'current';
+	metadataLookupState.skipEnabled = multi;
 }
 
 function getApplyMode(): ApplyMode {
-	const select = getApplyModeSelect();
-	if (!select) return 'current';
-	if (select.value === 'queue') return 'queue';
-	return 'current';
+	return metadataLookupState.applyMode;
 }
 
 function resetResults(): void {
-	currentResults = [];
-	const container = getResultsContainer();
-	if (container) {
-		container.replaceChildren();
-	}
+	metadataLookupState.results = [];
+	metadataLookupState.hasSearched = false;
 }
 
 function buildQueueMetadataPatch(): MetadataIntentPatch {
@@ -258,14 +187,11 @@ async function advanceQueue(reason: 'applied' | 'skipped'): Promise<void> {
 	clearCoverArt();
 	queueIndex += 1;
 	updateQueueContext();
+
 	const nextItem = lookupQueue[queueIndex];
 	if (nextItem) {
 		await selectFile(nextItem.index, { multi: false, range: false }, { skipPersistPrevious: true });
-	}
-
-	const searchInput = getSearchInput();
-	if (searchInput && nextItem) {
-		searchInput.value = deriveQueryFromFile(nextItem.file);
+		metadataLookupState.query = deriveQueryFromFile(nextItem.file);
 	}
 
 	resetResults();
@@ -274,112 +200,6 @@ async function advanceQueue(reason: 'applied' | 'skipped'): Promise<void> {
 			? 'Metadata applied. Ready for next search.'
 			: 'Skipped. Ready for next search.';
 	setStatus(message, reason === 'applied' ? 'success' : 'info');
-}
-
-function renderResults(results: OnlineMetadataResult[]): void {
-	const container = getResultsContainer();
-	if (!container) return;
-	container.replaceChildren();
-	currentResults = results;
-
-	if (results.length === 0) {
-		const empty = document.createElement('div');
-		empty.className = 'metadata-lookup-empty muted-text';
-		empty.textContent = 'No matches found. Try another search.';
-		container.appendChild(empty);
-		return;
-	}
-
-	results.forEach((result, index) => {
-		const row = document.createElement('div');
-		row.className = 'metadata-lookup-result';
-
-		const cover = document.createElement('div');
-		cover.className = 'metadata-lookup-cover';
-		if (result.coverUrl) {
-			const img = document.createElement('img');
-			img.src = result.coverUrl;
-			img.alt = `${result.title} cover art`;
-			img.loading = 'lazy';
-			cover.appendChild(img);
-		} else {
-			const placeholder = document.createElement('span');
-			placeholder.textContent = 'No Art';
-			cover.appendChild(placeholder);
-		}
-
-		const details = document.createElement('div');
-		details.className = 'metadata-lookup-details';
-
-		const title = document.createElement('div');
-		title.className = 'metadata-lookup-title';
-		title.textContent = result.title;
-
-		const authors = document.createElement('div');
-		authors.className = 'metadata-lookup-meta';
-		authors.textContent = result.authors.length
-			? `Author: ${result.authors.join(', ')}`
-			: 'Author: —';
-
-		const narrators = document.createElement('div');
-		narrators.className = 'metadata-lookup-meta';
-		narrators.textContent = result.narrators.length
-			? `Narrator: ${result.narrators.join(', ')}`
-			: 'Narrator: —';
-
-		const extra = document.createElement('div');
-		const seriesLine = document.createElement('div');
-		seriesLine.className = 'metadata-lookup-meta';
-		const seriesParts: string[] = [];
-		if (result.series) {
-			const label = result.seriesPart
-				? `Series: ${result.series} #${result.seriesPart}`
-				: `Series: ${result.series}`;
-			seriesParts.push(label);
-		}
-		if (result.subseries) {
-			const label = result.subseriesPart
-				? `Sub-series: ${result.subseries} #${result.subseriesPart}`
-				: `Sub-series: ${result.subseries}`;
-			seriesParts.push(label);
-		}
-		seriesLine.textContent = seriesParts.length ? seriesParts.join(' • ') : 'Series: —';
-
-		extra.className = 'metadata-lookup-meta';
-		const year = result.publishedYear ? result.publishedYear.toString() : '—';
-		const duration = result.durationSeconds ? `${Math.round(result.durationSeconds / 3600)}h` : '—';
-		extra.textContent = `Year: ${year} • Length: ${duration}`;
-
-		const source = document.createElement('span');
-		source.className = 'metadata-lookup-source';
-		source.textContent = result.audibleOnly ? 'Audible-only' : 'Audnexus';
-		if (result.audibleOnly) {
-			source.classList.add('is-fallback');
-		}
-
-		details.appendChild(title);
-		details.appendChild(authors);
-		details.appendChild(narrators);
-		details.appendChild(seriesLine);
-		details.appendChild(extra);
-		details.appendChild(source);
-
-		const applyButton = document.createElement('button');
-		applyButton.type = 'button';
-		applyButton.className = 'btn-pill btn-pill-secondary';
-		applyButton.textContent = 'Use Metadata';
-		applyButton.dataset.index = index.toString();
-
-		const actions = document.createElement('div');
-		actions.className = 'metadata-lookup-actions';
-		actions.appendChild(applyButton);
-
-		row.appendChild(cover);
-		row.appendChild(details);
-		row.appendChild(actions);
-
-		container.appendChild(row);
-	});
 }
 
 function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {
@@ -419,7 +239,7 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
 async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | null> {
 	if (!result.coverUrl) return null;
 	try {
-		const coverBytes = await bridge.loadCoverArtFromUrl(result.coverUrl);
+		const coverBytes = await tauriClient.loadCoverArtFromUrl(result.coverUrl);
 		setCustomCoverArt(coverBytes);
 		return coverBytes;
 	} catch (error) {
@@ -445,13 +265,13 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 
 	applyMetadataToForm(metadata, { mode: 'single', markDirty: true });
 	let queueCoverState: QueueCoverState = { intent: 'keep' };
-	if (shouldReplaceCoverArt()) {
+	if (metadataLookupState.replaceCoverArt) {
 		const coverBytes = await applyCoverArt(result);
 		if (coverBytes && coverBytes.length > 0) {
 			queueCoverState = { intent: 'replace', bytes: coverBytes };
 		}
 	}
-	onMetadataChange();
+	refreshOutputForMetadataChange();
 	updateTagPreview();
 
 	if (mode === 'queue') {
@@ -460,7 +280,6 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 				metadataPatch: buildQueueMetadataPatch(),
 				cover: queueCoverState,
 			};
-			queueStateByFile.set(current.file.path, queueState);
 			persistQueueMetadata(current.file, queueState);
 		}
 		await advanceQueue('applied');
@@ -471,32 +290,49 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 }
 
 async function runSearch(): Promise<void> {
-	const queryInput = getSearchInput();
-	const sourceSelect = getSourceSelect();
-	if (!queryInput || !sourceSelect) return;
-
-	const query = queryInput.value.trim();
+	const query = metadataLookupState.query.trim();
 	if (!query) {
 		setStatus('Enter a title, author, or ASIN to search.', 'error');
 		return;
 	}
 
-	const selectedSource = (sourceSelect.value as MetadataSource) || DEFAULT_SOURCES[0];
+	const selectedSource = metadataLookupState.source || DEFAULT_SOURCES[0];
 	const sources = [selectedSource];
 
 	setStatus('Searching metadata sources…', 'info');
 
 	try {
-		const results = await bridge.searchOnlineMetadata({ query, sources, limit: 8 });
-		renderResults(results);
+		const results = await tauriClient.searchOnlineMetadata({ query, sources, limit: 8 });
+		metadataLookupState.results = results;
+		metadataLookupState.hasSearched = true;
 		setStatus(`Found ${results.length} results.`, 'success');
 	} catch (error) {
 		console.error('Metadata lookup failed:', error);
+		metadataLookupState.results = [];
+		metadataLookupState.hasSearched = false;
 		setStatus('Search failed. Check your query and try again.', 'error');
 	}
 }
 
-function openLookup(): void {
+export async function applyMetadataLookupResult(index: number): Promise<void> {
+	const result = metadataLookupState.results[index];
+	if (!result) return;
+	await applyResult(result);
+}
+
+export async function searchMetadataLookup(): Promise<void> {
+	await runSearch();
+}
+
+export async function skipMetadataLookupQueueItem(): Promise<void> {
+	await advanceQueue('skipped');
+}
+
+export function closeMetadataLookup(): void {
+	hideModal();
+}
+
+export function openMetadataLookup(): void {
 	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
 	lookupQueue = selectedIndices
 		.map((index) => {
@@ -506,92 +342,23 @@ function openLookup(): void {
 		})
 		.filter((item): item is LookupQueueItem => Boolean(item));
 	queueIndex = 0;
-	queueStateByFile.clear();
 
 	if (lookupQueue.length === 0) {
+		metadataLookupState.query = '';
 		setStatus('Select a valid file to search metadata.', 'error');
 	} else {
-		const queryInput = getSearchInput();
-		if (queryInput) {
-			queryInput.value = deriveQueryFromFile(lookupQueue[0].file);
-		}
+		metadataLookupState.query = deriveQueryFromFile(lookupQueue[0].file);
 		setStatus('', 'info');
 	}
 
 	updateQueueContext();
 	updateApplyModeOptions();
 	resetResults();
-	const skipButton = getSkipButton();
-	if (skipButton) {
-		skipButton.disabled = lookupQueue.length <= 1;
-	}
-	const coverToggle = getCoverArtToggle();
-	if (coverToggle) {
-		coverToggle.checked = false;
-	}
+	metadataLookupState.replaceCoverArt = false;
 
 	showModal();
 }
 
 export function initMetadataLookup(): void {
 	mountMetadataLookupIsland();
-
-	const openButton = document.getElementById('metadata-lookup-btn') as HTMLButtonElement | null;
-	const closeButton = document.getElementById('metadata-lookup-close') as HTMLButtonElement | null;
-	const searchButton = document.getElementById(
-		'metadata-lookup-search-btn',
-	) as HTMLButtonElement | null;
-	const modal = getModal();
-	const skipButton = getSkipButton();
-
-	if (openButton) {
-		openButton.addEventListener('click', openLookup);
-	}
-
-	if (closeButton) {
-		closeButton.addEventListener('click', hideModal);
-	}
-
-	if (modal) {
-		modal.addEventListener('click', (event) => {
-			if (event.target === modal) {
-				hideModal();
-			}
-		});
-	}
-
-	if (searchButton) {
-		searchButton.addEventListener('click', () => {
-			void runSearch();
-		});
-	}
-
-	if (skipButton) {
-		skipButton.addEventListener('click', () => {
-			void advanceQueue('skipped');
-		});
-	}
-
-	const searchInput = getSearchInput();
-	if (searchInput) {
-		searchInput.addEventListener('keydown', (event) => {
-			if (event.key === 'Enter') {
-				event.preventDefault();
-				void runSearch();
-			}
-		});
-	}
-
-	const results = getResultsContainer();
-	if (results) {
-		results.addEventListener('click', (event) => {
-			const target = event.target as HTMLElement;
-			const button = target.closest<HTMLButtonElement>('button[data-index]');
-			if (!button) return;
-			const index = Number(button.dataset.index ?? '-1');
-			const result = currentResults[index];
-			if (!result) return;
-			void applyResult(result);
-		});
-	}
 }

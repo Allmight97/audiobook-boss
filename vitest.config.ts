@@ -1,8 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { svelteTesting } from '@testing-library/svelte/vite';
 
 export default defineConfig({
-	plugins: [svelte()],
+	plugins: [svelte(), svelteTesting()],
 	test: {
 		// Use jsdom for DOM testing (statusPanel, fileList, etc.)
 		environment: 'jsdom',
@@ -16,11 +17,7 @@ export default defineConfig({
 			reporter: ['text', 'html', 'lcov'],
 			reportsDirectory: './coverage/typescript',
 			include: ['src/**/*.ts', 'src/**/*.svelte'],
-			exclude: [
-				'src/**/*.test.ts',
-				'src/**/*.spec.ts',
-				'src/lib/mocks.ts', // Dev mocks, not production code
-			],
+			exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
 			// Ratchet thresholds — baseline measured Feb 2026, rounded down ~3pt
 			// Increase as coverage improves; do not lower without justification
 			thresholds: {

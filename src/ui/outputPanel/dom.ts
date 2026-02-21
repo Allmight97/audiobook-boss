@@ -156,11 +156,13 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
 		return 0;
 	}
 
+	const encoderSettings = state.encoderSettings;
+
 	// Base calculation: duration * bitrate / 8 (convert bits to bytes)
-	let sizeBytes = (totalDurationSeconds * state.encoderSettings.bitrateKbps * 1000) / 8;
+	let sizeBytes = (totalDurationSeconds * encoderSettings.bitrateKbps * 1000) / 8;
 
 	// Adjust for stereo (roughly 1.5x mono at same bitrate)
-	if (state.encoderSettings.channels === 'stereo') {
+	if (encoderSettings.channels === 'stereo') {
 		sizeBytes *= 1.5;
 	}
 

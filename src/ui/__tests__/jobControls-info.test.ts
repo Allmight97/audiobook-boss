@@ -1,15 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getJobType, initJobControls, setJobControlsEnabled } from '../jobControls';
-import { bridge } from '../../lib/bridge';
+import {
+	getJobType,
+	initJobControls,
+	setJobControlsEnabled,
+	setJobTypeSelection,
+} from '../jobControls';
+import { tauriClient } from '../../lib/tauri/client';
 
-vi.mock('../../lib/bridge', () => ({
-	bridge: {
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
 		setMaxConcurrentJobs: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
-const setMaxConcurrentJobsMock = vi.mocked(bridge.setMaxConcurrentJobs);
+const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
 
 function setupDomRoot() {
 	document.body.innerHTML = '<div id="job-controls-root"></div>';
@@ -50,6 +55,8 @@ describe('Job controls merge toggle', () => {
 		setupDomRoot();
 		localStorage.clear();
 		setMaxConcurrentJobsMock.mockReset();
+		setJobTypeSelection('batch');
+		setJobControlsEnabled(true);
 	});
 
 	it('dispatches job-type change and reflects merge toggle state', async () => {
@@ -162,12 +169,14 @@ describe('Job controls merge toggle', () => {
 		const maxConcurrentSelect = getMaxConcurrentSelect();
 
 		setJobControlsEnabled(false);
+		await flushAsync();
 		expect(mergeToggle.disabled).toBe(true);
 		expect(mergeToggle.style.opacity).toBe('0.5');
 		expect(maxConcurrentSelect.disabled).toBe(true);
 		expect(maxConcurrentSelect.style.opacity).toBe('0.5');
 
 		setJobControlsEnabled(true);
+		await flushAsync();
 		expect(mergeToggle.disabled).toBe(false);
 		expect(mergeToggle.style.opacity).toBe('1');
 		expect(maxConcurrentSelect.disabled).toBe(false);

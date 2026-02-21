@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderJobList } from '../render';
-import * as dom from '../dom';
 import type { JobProgress } from '../state';
+import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -41,34 +41,21 @@ function cloneJobProgress(source: Map<string, JobProgress>): Map<string, JobProg
 describe('renderJobList incremental updates', () => {
 	beforeEach(() => {
 		setupDom();
-		dom.resetStatusPanelDomCache();
+		resetStatusPanelViewState();
 	});
 
-	it('suppresses DOM mutations when payload values are unchanged', async () => {
+	it('keeps reactive job items stable when payload values are unchanged', () => {
 		const jobProgress = buildJobProgress();
 		const queueOrder = ['idx:0'];
 		renderJobList(jobProgress, queueOrder, vi.fn());
-
-		const jobList = document.getElementById('job-list')!;
-		const mutations: MutationRecord[] = [];
-		const observer = new MutationObserver((records) => {
-			mutations.push(...records);
-		});
-		observer.observe(jobList, {
-			childList: true,
-			subtree: true,
-			attributes: true,
-			characterData: true,
-		});
+		const firstSnapshot = JSON.stringify(statusPanelViewState.jobItems);
 
 		renderJobList(cloneJobProgress(jobProgress), [...queueOrder], vi.fn());
-		await Promise.resolve();
-		observer.disconnect();
-
-		expect(mutations).toHaveLength(0);
+		const secondSnapshot = JSON.stringify(statusPanelViewState.jobItems);
+		expect(secondSnapshot).toBe(firstSnapshot);
 	});
 
-	it('reuses keyed rows and only updates changed job values', () => {
+	it('keeps ordered keyed items and updates only changed values', () => {
 		const jobProgress = new Map<string, JobProgress>([
 			[
 				'idx:0',
@@ -99,12 +86,6 @@ describe('renderJobList incremental updates', () => {
 
 		renderJobList(jobProgress, queueOrder, vi.fn());
 
-		const jobList = document.getElementById('job-list')!;
-		const row0 = document.getElementById('cancel-idx:0')?.parentElement!;
-		const row1 = document.getElementById('cancel-idx:1')?.parentElement!;
-		const row0Label = row0.querySelector('span')!;
-		const row1Label = row1.querySelector('span')!;
-
 		const updated = cloneJobProgress(jobProgress);
 		updated.set('idx:1', {
 			...updated.get('idx:1')!,
@@ -113,22 +94,19 @@ describe('renderJobList incremental updates', () => {
 		});
 		renderJobList(updated, queueOrder, vi.fn());
 
-		const nextRow0 = document.getElementById('cancel-idx:0')?.parentElement!;
-		const nextRow1 = document.getElementById('cancel-idx:1')?.parentElement!;
-		const orderedButtonIds = Array.from(jobList.querySelectorAll('button')).map(
-			(button) => button.id,
-		);
-
-		expect(nextRow0).toBe(row0);
-		expect(nextRow1).toBe(row1);
-		expect(orderedButtonIds).toEqual(['cancel-idx:0', 'cancel-idx:1']);
-		expect(row0.querySelector('span')).toBe(row0Label);
-		expect(row1.querySelector('span')).toBe(row1Label);
-		expect(row0Label.textContent).toBe('alpha.m4b • Queued • #1 of 2');
-		expect(row1Label.textContent).toBe('beta.m4b • Writing Metadata (50.0%)');
+		expect(statusPanelViewState.jobItems.map((item) => item.key)).toEqual(['idx:0', 'idx:1']);
+		expect(statusPanelViewState.jobItems[0]).toMatchObject({
+			label: 'alpha.m4b',
+			statusText: 'Queued • #1 of 2',
+		});
+		expect(statusPanelViewState.jobItems[1]).toMatchObject({
+			label: 'beta.m4b',
+			statusText: 'Writing Metadata',
+			percentage: 50,
+		});
 	});
 
-	it('preserves cancel and terminal behavior while rows stay keyed', () => {
+	it('preserves cancel and terminal behavior in reactive items', () => {
 		const queueOrder = ['idx:0'];
 		const cancelSpyA = vi.fn();
 		const cancelSpyB = vi.fn();
@@ -150,8 +128,8 @@ describe('renderJobList incremental updates', () => {
 		]);
 		renderJobList(processing, queueOrder, cancelSpyA);
 
-		const button = document.getElementById('cancel-idx:0') as HTMLButtonElement;
-		button.click();
+		const firstItem = statusPanelViewState.jobItems[0];
+		firstItem.onCancel?.(firstItem.cancelId as string);
 		expect(cancelSpyA).toHaveBeenCalledTimes(1);
 		expect(cancelSpyA).toHaveBeenCalledWith('job-1');
 
@@ -164,9 +142,8 @@ describe('renderJobList incremental updates', () => {
 		});
 		renderJobList(processingUpdated, queueOrder, cancelSpyB);
 
-		const sameButton = document.getElementById('cancel-idx:0') as HTMLButtonElement;
-		expect(sameButton).toBe(button);
-		sameButton.click();
+		const secondItem = statusPanelViewState.jobItems[0];
+		secondItem.onCancel?.(secondItem.cancelId as string);
 		expect(cancelSpyA).toHaveBeenCalledTimes(1);
 		expect(cancelSpyB).toHaveBeenCalledTimes(1);
 		expect(cancelSpyB).toHaveBeenCalledWith('job-2');
@@ -182,25 +159,22 @@ describe('renderJobList incremental updates', () => {
 		});
 		renderJobList(completed, queueOrder, cancelSpyB);
 
-		const terminalButton = document.getElementById('cancel-idx:0') as HTMLButtonElement;
-		expect(terminalButton.disabled).toBe(true);
-		terminalButton.click();
+		const terminalItem = statusPanelViewState.jobItems[0];
+		expect(terminalItem.canCancel).toBe(false);
+		terminalItem.onCancel?.(terminalItem.cancelId as string);
 		expect(cancelSpyB).toHaveBeenCalledTimes(1);
 	});
 
-	it('clears cached rows when the list is emptied', () => {
+	it('clears reactive rows when the list is emptied', () => {
 		const jobProgress = buildJobProgress();
 		const queueOrder = ['idx:0'];
 		renderJobList(jobProgress, queueOrder, vi.fn());
-
-		const jobList = document.getElementById('job-list')!;
-		expect(jobList.childElementCount).toBe(1);
+		expect(statusPanelViewState.jobItems).toHaveLength(1);
 
 		renderJobList(new Map(), [], vi.fn());
-		expect(jobList.childElementCount).toBe(0);
-		expect(jobList.innerHTML).toBe('');
+		expect(statusPanelViewState.jobItems).toHaveLength(0);
 
 		renderJobList(jobProgress, queueOrder, vi.fn());
-		expect(jobList.childElementCount).toBe(1);
+		expect(statusPanelViewState.jobItems).toHaveLength(1);
 	});
 });
