@@ -184,27 +184,68 @@ fn merge_search_results(
     limit: u8,
 ) -> Vec<OnlineMetadataResult> {
     let mut merged: Vec<OnlineMetadataResult> = Vec::new();
-    let mut seen_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_source_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut audnexus_content_keys: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     // Add Audnexus results first (higher priority)
     for result in audnexus_results {
-        let key = format!("{}:{}", result.source_id, result.title.to_lowercase());
-        if seen_keys.insert(key) {
+        let source_key = source_dedupe_key(&result);
+        if seen_source_keys.insert(source_key) {
+            if let Some(content_key) = content_dedupe_key(&result) {
+                audnexus_content_keys.insert(content_key);
+            }
             merged.push(result);
         }
     }
 
     // Add OpenLibrary results (fill gaps)
     for result in openlibrary_results {
-        let key = format!("{}:{}", result.source_id, result.title.to_lowercase());
-        if seen_keys.insert(key) {
-            merged.push(result);
+        let source_key = source_dedupe_key(&result);
+        if !seen_source_keys.insert(source_key) {
+            continue;
         }
+
+        if let Some(content_key) = content_dedupe_key(&result) {
+            if audnexus_content_keys.contains(&content_key) {
+                continue;
+            }
+        }
+
+        merged.push(result);
     }
 
     // Respect the limit
     merged.truncate(limit as usize);
     merged
+}
+
+fn source_dedupe_key(result: &OnlineMetadataResult) -> String {
+    format!(
+        "{}:{}",
+        result.source_id,
+        result.title.trim().to_lowercase()
+    )
+}
+
+fn content_dedupe_key(result: &OnlineMetadataResult) -> Option<String> {
+    let title = result.title.trim().to_lowercase();
+    if title.is_empty() {
+        return None;
+    }
+
+    let mut authors: Vec<String> = result
+        .authors
+        .iter()
+        .map(|author| author.trim().to_lowercase())
+        .filter(|author| !author.is_empty())
+        .collect();
+    if authors.is_empty() {
+        return None;
+    }
+
+    authors.sort_unstable();
+    Some(format!("{}:{}", title, authors.join("|")))
 }
 
 fn extract_valid_audnexus_asin(query: &str, include_audnexus: bool) -> Option<String> {
@@ -232,12 +273,17 @@ fn all_selected_sources_failed(selected_source_count: usize, failed_source_count
 mod tests {
     use super::*;
 
-    fn make_result(source: MetadataSource, source_id: &str, title: &str) -> OnlineMetadataResult {
+    fn make_result_with_authors(
+        source: MetadataSource,
+        source_id: &str,
+        title: &str,
+        authors: &[&str],
+    ) -> OnlineMetadataResult {
         OnlineMetadataResult {
             source,
             source_id: source_id.to_string(),
             title: title.to_string(),
-            authors: Vec::new(),
+            authors: authors.iter().map(|author| author.to_string()).collect(),
             narrators: Vec::new(),
             series: None,
             series_part: None,
@@ -285,12 +331,22 @@ mod tests {
     #[test]
     fn merge_search_results_keeps_audnexus_priority_and_respects_limit() {
         let audnexus_results = vec![
-            make_result(MetadataSource::Audnexus, "aud-1", "Alpha"),
-            make_result(MetadataSource::Audnexus, "aud-2", "Beta"),
+            make_result_with_authors(MetadataSource::Audnexus, "aud-1", "Alpha", &["Author One"]),
+            make_result_with_authors(MetadataSource::Audnexus, "aud-2", "Beta", &["Author Two"]),
         ];
         let openlibrary_results = vec![
-            make_result(MetadataSource::Openlibrary, "aud-1", "Alpha"),
-            make_result(MetadataSource::Openlibrary, "ol-3", "Gamma"),
+            make_result_with_authors(
+                MetadataSource::Openlibrary,
+                "ol-duplicate",
+                "Alpha",
+                &["Author One"],
+            ),
+            make_result_with_authors(
+                MetadataSource::Openlibrary,
+                "ol-3",
+                "Gamma",
+                &["Author Three"],
+            ),
         ];
 
         let merged = merge_search_results(audnexus_results, openlibrary_results, 3);
@@ -302,5 +358,28 @@ mod tests {
         assert_eq!(merged[1].title, "Beta");
         assert_eq!(merged[2].source, MetadataSource::Openlibrary);
         assert_eq!(merged[2].title, "Gamma");
+    }
+
+    #[test]
+    fn merge_search_results_keeps_openlibrary_variant_when_authors_differ() {
+        let audnexus_results = vec![make_result_with_authors(
+            MetadataSource::Audnexus,
+            "aud-1",
+            "Alpha",
+            &["Author One"],
+        )];
+        let openlibrary_results = vec![make_result_with_authors(
+            MetadataSource::Openlibrary,
+            "ol-1",
+            "Alpha",
+            &["Different Author"],
+        )];
+
+        let merged = merge_search_results(audnexus_results, openlibrary_results, 8);
+
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].source, MetadataSource::Audnexus);
+        assert_eq!(merged[1].source, MetadataSource::Openlibrary);
+        assert_eq!(merged[1].title, "Alpha");
     }
 }

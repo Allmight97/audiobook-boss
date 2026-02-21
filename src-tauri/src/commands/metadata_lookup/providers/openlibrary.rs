@@ -55,7 +55,7 @@ pub(in crate::commands::metadata_lookup) async fn fetch_openlibrary_search(
     query: &str,
     limit: u8,
 ) -> Result<Vec<OnlineMetadataResult>> {
-    let fields = "key,title,author_name,cover_i,first_publish_year";
+    let fields = "key,title,author_name,cover_i,first_publish_year,description";
     let url = format!(
         "{}/search.json?q={}&fields={}&limit={}",
         OPENLIBRARY_BASE_URL,
