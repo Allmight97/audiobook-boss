@@ -66,4 +66,14 @@ describe('output panel preview resilience', () => {
 		);
 		expect(previewText?.textContent).not.toContain('/Library/Audiobooks');
 	});
+
+	it('clears hidden output directory mirror when directory state is emptied', () => {
+		const hiddenDirInput = document.getElementById('output-dir-text') as HTMLInputElement;
+		hiddenDirInput.value = '/stale/path';
+		updateOutputDirectory('');
+
+		updateOutputPath();
+
+		expect(hiddenDirInput.value).toBe('');
+	});
 });

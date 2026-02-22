@@ -11,6 +11,26 @@ import {
 } from './state';
 import { updateOutputPath, updateNamingOptionState, showOutputError } from './dom';
 
+const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
+let templatePreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleTemplatePreviewUpdate(): void {
+	if (templatePreviewDebounceTimer) {
+		clearTimeout(templatePreviewDebounceTimer);
+	}
+	templatePreviewDebounceTimer = setTimeout(() => {
+		templatePreviewDebounceTimer = null;
+		updateOutputPath();
+	}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
+}
+
+function resetTemplatePreviewDebounce(): void {
+	if (templatePreviewDebounceTimer) {
+		clearTimeout(templatePreviewDebounceTimer);
+		templatePreviewDebounceTimer = null;
+	}
+}
+
 /**
  * Handles directory browse button click
  */
@@ -67,13 +87,14 @@ export function handleAbsIncludeYearChange(event: Event): void {
 export function handleNamingTemplateInput(event: Event): void {
 	const target = event.target as HTMLInputElement;
 	updateNamingTemplate(target.value);
-	updateOutputPath();
+	scheduleTemplatePreviewUpdate();
 }
 
 /**
  * Sets up runtime event handlers for derived output updates.
  */
 export function setupEventHandlers(): void {
+	resetTemplatePreviewDebounce();
 	document.addEventListener('abb:job-type-changed', () => {
 		updateOutputPath();
 	});

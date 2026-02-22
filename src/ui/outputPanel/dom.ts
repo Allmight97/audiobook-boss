@@ -130,6 +130,9 @@ async function updateOutputPathAsync(): Promise<void> {
 
 	// Basic validation state
 	if (!state.outputDirectory) {
+		if (outputPathInput && outputPathInput.value.length > 0) {
+			outputPathInput.value = '';
+		}
 		if (previewText) previewText.textContent = 'Select output directory...';
 		if (previewText) previewText.title = 'No directory selected';
 		return;
