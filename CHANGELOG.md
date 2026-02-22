@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Add new changes here as you merge PRs -->
+### Added
+
+- **Metadata Lookup**
+  - Add OpenLibrary as a selectable metadata source for online lookup.
+  - Add a no-results modal CTA (`Use Manual Entry`) that closes lookup and focuses the main metadata title field for faster manual completion on rare/legacy editions.
+
+### Changed
+
+- **Metadata Lookup Resilience**
+  - ASIN fast-path now respects selected source intent (OpenLibrary-only lookups skip Audnexus ASIN direct resolution).
+  - Online lookup now returns a real error when all selected providers fail, instead of silently surfacing an empty-result state.
+- **DX / Contract Guardrails**
+  - Introduce change-aware local IPC binding drift checks (`scripts/check-generated-bindings.sh --mode local`) to reduce iteration churn during non-contract edits.
+  - Add hook-based binding auto-sync/stage flow in `.githooks/pre-commit` for staged Rust IPC contract changes.
+  - Add explicit scripts for strict/local/sync binding workflows: `bindings:check`, `bindings:check:local`, `bindings:sync`.
 
 ## [1.0.0] - 2026-02-20
 

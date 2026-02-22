@@ -82,8 +82,9 @@ vi.mock('../tagPreview', () => ({
 
 function setupDom(): void {
 	document.body.innerHTML = `
-    <div id="metadata-lookup-root"></div>
-  `;
+	    <div id="metadata-lookup-root"></div>
+	    <input id="meta-title" />
+	  `;
 }
 
 function click(id: string): void {
@@ -274,5 +275,42 @@ describe('metadata lookup queue cover art isolation', () => {
 			{ multi: false, range: false },
 			{ skipPersistPrevious: true },
 		);
+	});
+
+	it('shows manual-entry CTA when search returns no results and focuses metadata title', async () => {
+		context.searchOnlineMetadataMock.mockResolvedValueOnce([]);
+		await initLookup();
+
+		click('metadata-lookup-search-btn');
+		await flushAsync();
+
+		const emptyState = document.querySelector('.metadata-lookup-empty');
+		expect(emptyState?.textContent ?? '').toContain(
+			'Older CD-era or rare audiobook editions may not be indexed.',
+		);
+		const manualButton = document.getElementById(
+			'metadata-lookup-manual-entry-btn',
+		) as HTMLButtonElement | null;
+		expect(manualButton).toBeTruthy();
+		manualButton?.click();
+		await flushAsync();
+
+		expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
+			false,
+		);
+		expect((document.activeElement as HTMLElement | null)?.id).toBe('meta-title');
+	});
+
+	it('keeps backend failure distinct from no-result state', async () => {
+		context.searchOnlineMetadataMock.mockRejectedValueOnce(new Error('all sources failed'));
+		await initLookup();
+
+		click('metadata-lookup-search-btn');
+		await flushAsync();
+
+		expect(getStatusText()).toBe('Search failed. Check your query and try again.');
+		expect(document.querySelector('.metadata-lookup-empty')).toBeNull();
+		expect(document.getElementById('metadata-lookup-manual-entry-btn')).toBeNull();
+		expect(document.querySelector("#metadata-lookup-results button[data-index='0']")).toBeNull();
 	});
 });

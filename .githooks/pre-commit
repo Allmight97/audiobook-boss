@@ -16,6 +16,17 @@ if [[ ${#staged_files[@]} -eq 0 ]]; then
   exit 0
 fi
 
+mapfile -t staged_contract_files < <(
+  printf "%s\n" "${staged_files[@]}" \
+    | rg -N '^(src-tauri/src/|src-tauri/Cargo\.toml|src/lib/generated/tauri\.ts$)' \
+    || true
+)
+
+if [[ ${#staged_contract_files[@]} -gt 0 ]]; then
+  echo "[pre-commit] syncing generated Tauri bindings for staged contract changes"
+  bash scripts/check-generated-bindings.sh --mode sync --staged
+fi
+
 mapfile -t biome_files < <(
   printf "%s\n" "${staged_files[@]}" \
     | rg -N '\.(ts|tsx|js|jsx|mjs|cjs|json|jsonc|css)$' \

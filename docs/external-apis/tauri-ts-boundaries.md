@@ -39,8 +39,11 @@
   });
   ```
 - Run `bun run bindings:generate` after Rust IPC type changes.
-- Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh`) to detect drift.
-- `scripts/checks.sh standard` is the canonical quality gate and includes binding drift checks.
+- Run `bun run bindings:check` (or `scripts/check-generated-bindings.sh --mode verify`) for strict drift verification.
+- Use `bun run bindings:check:local` for change-aware local verification.
+- `scripts/checks.sh standard` is the canonical quality gate and includes change-aware binding drift checks.
+- Use `CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard` when you need strict drift verification inside the full gate.
+- Optional: enable `.githooks/pre-commit` (`git config core.hooksPath .githooks`) to auto-sync/stage generated bindings when staged Rust IPC contract files change.
 
 ### Migration status (zero-legacy cutover branch)
 

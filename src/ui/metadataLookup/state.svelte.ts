@@ -2,11 +2,12 @@ import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata'
 
 export type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
 export type MetadataLookupApplyMode = 'current' | 'queue';
+export type MetadataLookupSource = 'auto' | MetadataSource;
 
 export const metadataLookupState = $state({
 	isOpen: false,
 	query: '',
-	source: 'audnexus' as MetadataSource,
+	source: 'auto' as MetadataLookupSource,
 	applyMode: 'current' as MetadataLookupApplyMode,
 	replaceCoverArt: false,
 	statusMessage: '',

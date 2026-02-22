@@ -16,7 +16,7 @@ Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, obs
 - Do not import runtime command/event invokers directly from `src/lib/generated/tauri.ts` in UI runtime modules.
 - No new imperative DOM orchestration in migrated runtime entry surfaces (`src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, `src/lib/**`); legacy `src/ui/**` modules are tracked migration debt.
 - Strong boundary types for Rust/TS crossing (`src/types/*`)
-- Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings.
+- Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings (`bun run bindings:generate`) or sync/stage via hook flow (`bun run bindings:sync` / `.githooks/pre-commit`).
 
 ### Metadata Editing Contract
 

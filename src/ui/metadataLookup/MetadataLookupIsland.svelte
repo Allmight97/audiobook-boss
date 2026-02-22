@@ -4,6 +4,7 @@
 		closeMetadataLookup,
 		searchMetadataLookup,
 		skipMetadataLookupQueueItem,
+		useManualMetadataEntryFromLookup,
 	} from '../metadataLookup';
 	import { metadataLookupState } from './state.svelte';
 
@@ -94,7 +95,9 @@
 						data-testid="metadata-lookup-source"
 						bind:value={metadataLookupState.source}
 					>
+						<option value="auto">Auto (All Sources)</option>
 						<option value="audnexus">Audnexus</option>
+						<option value="openlibrary">OpenLibrary</option>
 					</select>
 				</div>
 				<div class="metadata-lookup-field">
@@ -164,10 +167,24 @@
 			<div
 				id="metadata-lookup-results"
 				class="metadata-lookup-results"
-			>
-				{#if metadataLookupState.hasSearched && metadataLookupState.results.length === 0}
-					<div class="metadata-lookup-empty muted-text">No matches found. Try another search.</div>
-				{/if}
+				>
+					{#if metadataLookupState.hasSearched && metadataLookupState.results.length === 0}
+						<div class="metadata-lookup-empty muted-text">
+							<p>No online matches found across Audnexus and OpenLibrary.</p>
+							<p class="text-xs" style="margin-top: 0.5rem;">
+								Older CD-era or rare audiobook editions may not be indexed. Use manual entry to finish metadata for this file.
+							</p>
+							<button
+								id="metadata-lookup-manual-entry-btn"
+								class="btn-pill btn-pill-secondary mt-2"
+								data-testid="metadata-lookup-manual-entry-btn"
+								type="button"
+								on:click={useManualMetadataEntryFromLookup}
+							>
+								Use Manual Entry
+							</button>
+						</div>
+					{/if}
 				{#each metadataLookupState.results as result, index}
 					<div class="metadata-lookup-result">
 						<div class="metadata-lookup-cover">
@@ -195,12 +212,16 @@
 									result.durationSeconds,
 								)}
 							</div>
-							<span
-								class="metadata-lookup-source"
-								class:is-fallback={result.audibleOnly}
-							>
-								{result.audibleOnly ? 'Audible-only' : 'Audnexus'}
-							</span>
+						<span
+							class="metadata-lookup-source"
+							class:is-fallback={result.source === 'openlibrary'}
+						>
+							{result.source === 'audnexus'
+								? (result.audibleOnly ? 'Audible-only' : 'Audnexus')
+								: result.source === 'openlibrary'
+									? 'OpenLibrary'
+									: result.source}
+						</span>
 						</div>
 						<div class="metadata-lookup-actions">
 							<button

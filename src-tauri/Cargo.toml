@@ -41,6 +41,7 @@ bogon = "0.3"
 specta = "=2.0.0-rc.22"
 specta-typescript = "=0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["typescript"] }
+urlencoding = "2.1.3"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

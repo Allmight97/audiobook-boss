@@ -94,7 +94,7 @@ Use this scale to rate the quality of code and solutions:
 ## Workflow Dynamics
 
 - Prefer staging coherent units of work and committing at logical stopping points.
-- Optional: enable repo hooks with `git config core.hooksPath .githooks`.
+- Optional: enable repo hooks with `git config core.hooksPath .githooks` (pre-commit auto-syncs/stages generated Tauri bindings when staged Rust IPC contract files change).
 - Local checks are required before committing and before pushing a PR or publishing a branch (see **Checks & Gates** tiers). Docs-only changes (e.g., README.md, `docs/`, or other Markdown/text docs with no code/config/build changes) are exempt.
 - During code audit, PR review, or local-branch review, run `lib-research` as a planning primitive whenever findings depend on external-library/API behavior.
 - Automated PR review via GitHub agent (Gemini) is optional when using PR flow. CI remains optional/manual and non-gating unless explicitly requested for a task.
@@ -115,7 +115,7 @@ Use this scale to rate the quality of code and solutions:
 **Tiered checks (run from repo root)**
 
 - **Standard (default)**: `scripts/checks.sh standard` — the go-to command for all workflows
-  - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, generated-binding drift check, `cargo test`, `bun run test`, `bun run build` (includes `tsc`), `cargo audit -D warnings` (policy from `.cargo/audit.toml`)
+  - Runs: `cargo fmt --check`, `bun run fmt:check` (Biome + Prettier for `.svelte`), `cargo clippy -D warnings`, change-aware generated-binding drift check (strict mode with `CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard` or `bun run bindings:check`), `cargo test`, `bun run test`, `bun run build` (includes `tsc`), `cargo audit -D warnings` (policy from `.cargo/audit.toml`)
   - Run before committing, during AI iteration loops, before pushing/PRs, before merging to `main`
   - Audit gate: for code/PR/local-branch audits, validate external-library claims via `lib-research` before final recommendations.
   - Push gate: non-doc code changes are not ready to push unless Standard is green on current head.

@@ -37,6 +37,7 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 - **Architecture**: See `docs/external-apis/` for boundary docs
 - **Agent guide**: `AGENTS.md` defines coding standards and workflows
 - **Quality gates**: `scripts/checks.sh standard` before PRs
+- **Optional hook auto-sync**: `git config core.hooksPath .githooks` to auto-sync/stage generated Tauri bindings during pre-commit when Rust IPC contract files are staged
 
 ## Development
 

@@ -319,7 +319,7 @@ validCount: number;
  */
 invalidCount: number }
 export type JobType = "merge" | "batch"
-export type MetadataSource = "audnexus"
+export type MetadataSource = "audnexus" | "openlibrary"
 export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedYear: number | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
 export type OutputNamingConfig = { absCompatible: boolean; includeYear: boolean }
 /**
