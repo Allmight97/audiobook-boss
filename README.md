@@ -38,6 +38,7 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 - **Agent guide**: `AGENTS.md` defines coding standards and workflows
 - **Quality gates**: `scripts/checks.sh standard` before PRs
 - **Optional hook auto-sync**: `git config core.hooksPath .githooks` to auto-sync/stage generated Tauri bindings during pre-commit when Rust IPC contract files are staged
+- **Release flow**: use `.agents/skills/release-changelog/SKILL.md` as the canonical entrypoint, with `bun run release:notes -- --version <x.y.z> --date YYYY-MM-DD` then `bun run release:run -- --version <x.y.z> --changelog-verified --no-commit-tag|--commit-tag`
 
 ## Development
 

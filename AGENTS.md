@@ -177,7 +177,9 @@ Use this scale to rate the quality of code and solutions:
 **Scripts**:
 
 - `scripts/bump-version.sh <version>` — updates all 3 files
-- `scripts/release.sh` — full release flow: bump → changelog prompt → build → commit → tag
+- `scripts/generate-release-changelog.sh --version <version> [--date YYYY-MM-DD] [--base-tag <tag>] [--output <path>] [--apply]` — drafts release notes from merged PR metadata and can apply/reset changelog sections
+- `scripts/release.sh [--version <version>] [--changelog-verified] [--commit-tag|--no-commit-tag]` — deterministic release executor (validate changelog → bump → build → optional commit/tag)
+- `bun run release:notes -- --version <version> --date YYYY-MM-DD` and `bun run release:run -- --version <version> --changelog-verified ...` — aliases for the two scripts above
 
 **Changelog** (`CHANGELOG.md`):
 
@@ -190,6 +192,7 @@ Use this scale to rate the quality of code and solutions:
 - **Do NOT** bump version or modify `CHANGELOG.md` unless user explicitly requests a release
 - When completing a PR, you MAY suggest a changelog entry but do not add it automatically
 - Regular `bun run app:build` does NOT change version — only `scripts/release.sh` does
+- Release-note generation source of truth is the `release-changelog` skill flow + `scripts/generate-release-changelog.sh` (avoid introducing a second generator in CI for now)
 
 ---
 
@@ -207,6 +210,7 @@ When working on the following areas, load the matching skill and follow its guar
 | FFmpeg-next encoder patterns | `ffmpeg-next-patterns` |
 | mp4ameta library patterns | `mp4ameta-patterns` |
 | Tauri command conventions | `tauri-command-conventions` |
+| Release notes + changelog drafting | `release-changelog` |
 
 ---
 

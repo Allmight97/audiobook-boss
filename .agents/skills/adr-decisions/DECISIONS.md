@@ -2,6 +2,15 @@
 
 Newest first. Format defined by `adr-decisions` skill.
 
+## 2026-02-22 — Skill-owned release changelog flow with thin script executor
+Context: Release notes depended on manual recall, creating changelog drift and repeated session churn in a high-throughput solo + agent workflow.
+Decision: Make changelog drafting single-source via repo `release-changelog` skill + `scripts/generate-release-changelog.sh`, and keep `scripts/release.sh` as deterministic execution only (validate changelog, bump, build, optional commit/tag) with explicit non-interactive flags.
+Consequences:
+- Reduces note-authoring cognitive load while preserving human approval before tagging.
+- Avoids dual-generator drift by deferring CI-based release-note generation.
+- Keeps release mechanics scriptable for both humans and agents.
+Links: docs/decisions/007-skill-owned-release-changelog-flow.md, .agents/skills/release-changelog/SKILL.md, scripts/generate-release-changelog.sh, scripts/release.sh, CONTRIBUTING.md, AGENTS.md
+
 ## 2026-02-21 — Split binding drift checks into strict/local modes with hook sync
 Context: Strict generated-binding drift checks protected TS↔Rust parity but caused repeated local compile/restage churn during Svelte-era frontend-heavy iteration loops.
 Decision: Keep strict verification as the safety gate, add a change-aware local mode to skip unnecessary regeneration, and auto-sync/stage bindings in pre-commit when staged Rust IPC contract files are detected.

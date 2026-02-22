@@ -56,8 +56,27 @@ This repo currently uses SemVer and release tooling that expects SemVer.
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Release flow:
-  - `scripts/release.sh`
+- Release flow (single source + deterministic executor):
+  - `scripts/generate-release-changelog.sh --version <x.y.z> --date <YYYY-MM-DD> [--apply]`
+  - `scripts/release.sh --version <x.y.z> --changelog-verified [--commit-tag|--no-commit-tag]`
+  - Alias commands: `bun run release:notes -- ...` and `bun run release:run -- ...`
+- Repo skill:
+  - `.agents/skills/release-changelog/SKILL.md`
+
+### Low-churn release workflow (human + agents)
+
+1. Draft changelog notes from merged PR metadata:
+   - `scripts/generate-release-changelog.sh --version 1.0.1 --date 2026-02-22`
+2. Review and approve wording.
+3. Apply changelog update:
+   - `scripts/generate-release-changelog.sh --version 1.0.1 --date 2026-02-22 --apply`
+4. Run release executor:
+   - `scripts/release.sh --version 1.0.1 --changelog-verified --no-commit-tag`
+5. If output is green, run commit/tag path:
+   - `scripts/release.sh --version 1.0.1 --changelog-verified --commit-tag`
+
+This keeps changelog generation in one place (skill/script) and prevents dual-generator drift.
+The canonical entrypoint for agents is the `release-changelog` skill, which wraps this exact flow and preserves the explicit approval gate.
 
 ### Should this be `1.0.1`?
 
@@ -73,7 +92,8 @@ Possible, but not recommended right now unless you deliberately migrate release 
 
 ## Changelog and Decision Logging
 
-- Add user-facing notes to `CHANGELOG.md` under `[Unreleased]`.
+- Changelog authoring source of truth is `scripts/generate-release-changelog.sh` (or the `release-changelog` skill wrapping it).
+- Keep `[Unreleased]` present at top of `CHANGELOG.md`.
 - Record durable process/architecture decisions in:
   - `docs/decisions/` (ADR), and
   - `.agents/skills/adr-decisions/DECISIONS.md` (decision log).

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.0.1] - 2026-02-22
+
+Metadata lookup hardening release for legacy-title coverage and no-result recovery UX.
+
+### Added
+
 - **Metadata Lookup**
   - Add OpenLibrary as a selectable metadata source for online lookup.
   - Add a no-results modal CTA (`Use Manual Entry`) that closes lookup and focuses the main metadata title field for faster manual completion on rare/legacy editions.
@@ -17,11 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Metadata Lookup Resilience**
   - ASIN fast-path now respects selected source intent (OpenLibrary-only lookups skip Audnexus ASIN direct resolution).
-  - Online lookup now returns a real error when all selected providers fail, instead of silently surfacing an empty-result state.
+  - Merge behavior preserves Audnexus-first ordering while reducing cross-source duplicate title/author matches.
 - **DX / Contract Guardrails**
   - Introduce change-aware local IPC binding drift checks (`scripts/check-generated-bindings.sh --mode local`) to reduce iteration churn during non-contract edits.
   - Add hook-based binding auto-sync/stage flow in `.githooks/pre-commit` for staged Rust IPC contract changes.
   - Add explicit scripts for strict/local/sync binding workflows: `bindings:check`, `bindings:check:local`, `bindings:sync`.
+
+### Fixed
+
+- **Metadata Lookup**
+  - Online lookup now returns a real error when all selected providers fail, instead of silently surfacing an empty-result state.
+  - OpenLibrary lookups now request `description` in search fields so mapped descriptions can populate when available.
 
 ## [1.0.0] - 2026-02-20
 
