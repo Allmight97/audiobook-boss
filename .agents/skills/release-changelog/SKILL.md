@@ -1,3 +1,8 @@
+---
+name: release-changelog
+description: Generate and apply release changelog entries for Audiobook Boss from merged PR metadata, then run deterministic release execution with explicit approval gates. Use when cutting a release, updating CHANGELOG.md, or preparing versioned release notes and tags.
+---
+
 # release-changelog
 
 Skill for low-churn release and changelog management in Audiobook Boss.
