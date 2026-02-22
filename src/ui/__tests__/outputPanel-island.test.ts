@@ -27,5 +27,15 @@ describe('OutputPanel island mount', () => {
 		expect(preview).toBeTruthy();
 		expect(preview?.textContent).toBe('Select output directory...');
 		expect(document.getElementById('output-dir-browse')).toBeTruthy();
+
+		const hiddenDirInput = document.getElementById('output-dir-text') as HTMLInputElement | null;
+		expect(hiddenDirInput).toBeTruthy();
+		expect(hiddenDirInput?.readOnly).toBe(true);
+		expect(hiddenDirInput?.classList.contains('hidden')).toBe(true);
+		expect(document.querySelector('label[for="output-dir-text"]')).toBeNull();
+
+		expect(document.getElementById('output-naming-preset')).toBeTruthy();
+		expect(document.getElementById('output-template-row')).toBeTruthy();
+		expect(document.getElementById('output-abs-options')).toBeTruthy();
 	});
 });

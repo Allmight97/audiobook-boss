@@ -1,4 +1,5 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { publishSelectedIndices } from '../core/appStore.svelte';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import {
@@ -25,6 +26,7 @@ import {
 	setCurrentFileList,
 	setSelectedIndex,
 	getSortAscending,
+	getSelectedFileIndices,
 	setSortAscending,
 	isOrderLocked,
 	setOrderLocked,
@@ -65,6 +67,10 @@ function refreshOutputForMetadataChange(): void {
 	updateEstimatedSize();
 }
 
+function publishSelectedIndicesMirror(): void {
+	publishSelectedIndices(getSelectedFileIndices());
+}
+
 function setStatusMessage(message: string): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
 }
@@ -85,6 +91,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	updateSortButtonText(getSortAscending());
 
 	refreshOutputForFileListChange();
+	publishSelectedIndicesMirror();
 
 	void autoUpdateCoverArtFromFirstValidFile();
 }
@@ -167,14 +174,17 @@ export async function selectFile(
 	if (count === 0) {
 		setSelectedIndex(-1);
 		clearSelectionPanels();
+		publishSelectedIndicesMirror();
 		return;
 	}
 
 	if (count === 1) {
+		publishSelectedIndicesMirror();
 		void showSingleSelection(selectedFiles[0]);
 		return;
 	}
 
+	publishSelectedIndicesMirror();
 	void showMultiSelection(selectedFiles);
 }
 
@@ -193,6 +203,7 @@ export function selectAll(): void {
 
 	updateSelection();
 	const selectedFiles = getSelectedFiles();
+	publishSelectedIndicesMirror();
 	if (selectedFiles.length > 1) {
 		void showMultiSelection(selectedFiles);
 	} else if (selectedFiles.length === 1) {
@@ -222,6 +233,7 @@ export async function clearSelectionAction(): Promise<void> {
 
 	updateSelection();
 	clearSelectionPanels();
+	publishSelectedIndicesMirror();
 }
 
 export async function stageMetadataToSelection(options?: {
@@ -315,6 +327,7 @@ export function removeFile(index: number): void {
 
 	reindexSelectionAfterRemoval(index);
 	updateSelection();
+	publishSelectedIndicesMirror();
 
 	const remainingSelection = getSelectedFiles();
 	if (remainingSelection.length === 0) {
@@ -349,6 +362,7 @@ export function moveFileUp(index: number): void {
 	fileList.files[index - 1] = temp;
 
 	swapSelectionIndices(index, index - 1);
+	publishSelectedIndicesMirror();
 
 	updateFileListDOM();
 	refreshOutputForFileListChange();
@@ -371,6 +385,7 @@ export function moveFileDown(index: number): void {
 	fileList.files[index + 1] = temp;
 
 	swapSelectionIndices(index, index + 1);
+	publishSelectedIndicesMirror();
 
 	updateFileListDOM();
 	refreshOutputForFileListChange();
@@ -401,6 +416,7 @@ export function toggleFileSort(): void {
 	clearSelection();
 	setSelectedIndex(-1);
 	clearSelectionPanels();
+	publishSelectedIndicesMirror();
 
 	updateSortButtonText(getSortAscending());
 	updateButtonVisibility();
@@ -426,6 +442,7 @@ export function clearAllFiles(): void {
 	clearSelection();
 	setSelectedIndex(-1);
 	clearSelectionPanels();
+	publishSelectedIndicesMirror();
 	updateTotalStats();
 	updateButtonVisibility();
 	refreshOutputForFileListChange();
@@ -448,6 +465,7 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	files.splice(toIndex, 0, moved);
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
+	publishSelectedIndicesMirror();
 
 	updateFileListDOM();
 	refreshOutputForFileListChange();

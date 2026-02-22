@@ -21,10 +21,12 @@
 	import { initTagPreview } from './ui/tagPreview';
 	import { initJobControls } from './ui/jobControls';
 	import { initMetadataLookup } from './ui/metadataLookup';
+	import { runInitSteps } from './ui/initSafety';
 	import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from './ui/metadataState';
 	import { isMetadataSaveInProgress, setMetadataSaveInProgress } from './ui/metadataSaveState';
 	let previewDuration = 30;
 	let previewDropdownOpen = false;
+	let uiInitFatalMessage: string | null = null;
 	let previewDropdownElement: HTMLDivElement | null = null;
 	let previewDropdownToggleElement: HTMLButtonElement | null = null;
 
@@ -144,15 +146,23 @@
 			void saveMetadataFromUI();
 		});
 
-		initFileImport();
-		initEncoderPanel();
-		initOutputPanel();
-		initStatusPanel();
-		initCoverArt();
-		initMetadataFormEvents();
-		initTagPreview();
-		initMetadataLookup();
-		initJobControls();
+		try {
+			runInitSteps([
+				{ label: 'file import', init: initFileImport },
+				{ label: 'encoder panel', init: initEncoderPanel },
+				{ label: 'output panel', init: initOutputPanel },
+				{ label: 'status panel', init: initStatusPanel },
+				{ label: 'cover art', init: initCoverArt },
+				{ label: 'metadata form events', init: initMetadataFormEvents },
+				{ label: 'tag preview', init: initTagPreview },
+				{ label: 'metadata lookup', init: initMetadataLookup },
+				{ label: 'job controls', init: initJobControls },
+			]);
+		} catch (error) {
+			uiInitFatalMessage = `UI initialization failed. ${error instanceof Error ? error.message : String(error)}`;
+			console.error('[ui:init] fatal failure', error);
+			return;
+		}
 
 		console.log('UI initialized');
 	});
@@ -160,6 +170,13 @@
 
 <svelte:window on:keydown={handleGlobalKeyDown} on:click={handleWindowClick} />
 
+{#if uiInitFatalMessage}
+	<div class="fatal-init-banner" role="alert" aria-live="assertive">
+		<h2>Initialization Error</h2>
+		<p>{uiInitFatalMessage}</p>
+		<p class="fatal-init-help">Restart the app. If this keeps happening, share the console logs.</p>
+	</div>
+{:else}
 <div class="main-container">
 	<div class="panel input-panel">
 		<div class="flex flex-col gap-2 mb-2">
@@ -276,3 +293,4 @@
 	</div>
 </div>
 <div id="metadata-lookup-root"></div>
+{/if}

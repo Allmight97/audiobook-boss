@@ -89,6 +89,12 @@ async listAvailableEncoders() : Promise<EncoderAvailability> {
     return await TAURI_INVOKE("list_available_encoders");
 },
 /**
+ * Builds an output path preview using backend naming rules without collision suffixing.
+ */
+async previewOutputPath(outputDir: string, metadata: AudiobookMetadata | null, outputNaming: OutputNamingConfig | null, sourcePath: string | null) : Promise<string> {
+    return await TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath });
+},
+/**
  * Returns the current maximum concurrent jobs setting
  */
 async getMaxConcurrentJobs() : Promise<number> {
@@ -320,8 +326,9 @@ validCount: number;
 invalidCount: number }
 export type JobType = "merge" | "batch"
 export type MetadataSource = "audnexus" | "openlibrary"
+export type NamingPreset = "absDefault" | "customTemplate"
 export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedYear: number | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
-export type OutputNamingConfig = { absCompatible: boolean; includeYear: boolean }
+export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 /**
  * Processes multiple audio files into a single M4B audiobook
  * Merges files with specified settings and optional metadata

@@ -6,6 +6,7 @@ import {
 	commands as generatedCommands,
 	events as generatedEvents,
 	type MetadataSource as GeneratedMetadataSource,
+	type OutputNamingConfig as GeneratedOutputNamingConfig,
 } from '../generated/tauri';
 import type { ApplicationEvents, EventName } from '../../types/events';
 import type {
@@ -18,6 +19,7 @@ import type { AudiobookMetadata, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import {
 	denormalizeMetadata,
+	denormalizeNullish,
 	denormalizeProcessPayload,
 	normalizeFileList,
 	normalizeLookupResult,
@@ -70,6 +72,20 @@ const commandInvokers = {
 	validate_encoder_settings_cmd: (args: { settings: EncoderSettings }) =>
 		generatedCommands.validateEncoderSettingsCmd(args.settings),
 	list_available_encoders: (_args?: undefined) => generatedCommands.listAvailableEncoders(),
+	preview_output_path: (args: {
+		outputDir: string;
+		metadata?: Partial<AudiobookMetadata> | null;
+		outputNaming?: ProcessV2Payload['outputNaming'] | null;
+		sourcePath?: string | null;
+	}) =>
+		generatedCommands.previewOutputPath(
+			args.outputDir,
+			args.metadata ? denormalizeMetadata(args.metadata) : null,
+			args.outputNaming
+				? (denormalizeNullish(args.outputNaming) as GeneratedOutputNamingConfig)
+				: null,
+			args.sourcePath ?? null,
+		),
 	get_max_concurrent_jobs: (_args?: undefined) => generatedCommands.getMaxConcurrentJobs(),
 	set_max_concurrent_jobs: (args: { max_concurrent?: number | null }) =>
 		generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null),
@@ -158,6 +174,12 @@ export const tauriClient = {
 		invokeCommand('validate_encoder_settings_cmd', { settings }),
 	listAvailableEncoders: (): Promise<CommandResult<'list_available_encoders'>> =>
 		invokeCommand('list_available_encoders'),
+	previewOutputPath: (args: {
+		outputDir: string;
+		metadata?: Partial<AudiobookMetadata> | null;
+		outputNaming?: ProcessV2Payload['outputNaming'] | null;
+		sourcePath?: string | null;
+	}): Promise<CommandResult<'preview_output_path'>> => invokeCommand('preview_output_path', args),
 	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
 		invokeCommand('get_max_concurrent_jobs'),
 	setMaxConcurrentJobs: (

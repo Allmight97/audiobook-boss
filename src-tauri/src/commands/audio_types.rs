@@ -1,5 +1,5 @@
 use crate::audio;
-pub use crate::audio::output_path::OutputNamingConfig;
+pub use crate::audio::output_path::{NamingPreset, OutputNamingConfig};
 use crate::audio::settings_encoder::EncoderSettings;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]

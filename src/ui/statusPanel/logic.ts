@@ -8,6 +8,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { STAGES } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import { publishQueueMirror } from '../core/appStore.svelte';
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import * as dom from './dom';
 import { setJobControlsEnabled } from '../jobControls';
@@ -311,6 +312,10 @@ export class StatusPanel {
 	private updateStatus(status: ProcessingStatus): void {
 		this.currentStatus = status;
 		this.updateUI();
+		publishQueueMirror({
+			summary: status.message,
+			statusText: String(status.stage),
+		});
 	}
 
 	private updateUI(): void {

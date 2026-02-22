@@ -280,4 +280,42 @@ describe('tauriClient nullish adapters', () => {
 		expect(received?.job_id).toBeUndefined();
 		expect(received?.input_index).toBeUndefined();
 	});
+
+	it('denormalizes preview output naming nullish fields for preview_output_path command', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.m4b');
+
+		const { tauriClient } = await import('./tauri/client');
+		const preview = await tauriClient.previewOutputPath({
+			outputDir: '/tmp/out',
+			metadata: { title: 'Dune', artist: 'Frank Herbert' },
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: undefined,
+			},
+			sourcePath: '/books/ch01.mp3',
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{
+				outputDir: string;
+				metadata: Record<string, unknown>;
+				outputNaming: Record<string, unknown>;
+				sourcePath: string | null;
+			},
+		];
+
+		expect(commandName).toBe('preview_output_path');
+		expect(args.outputDir).toBe('/tmp/out');
+		expect(args.metadata.title).toBe('Dune');
+		expect(args.outputNaming.preset).toBe('customTemplate');
+		expect(args.outputNaming.includeYear).toBe(false);
+		expect(args.outputNaming.customTemplate).toBeNull();
+		expect(args.sourcePath).toBe('/books/ch01.mp3');
+		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.m4b');
+	});
 });

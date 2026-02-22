@@ -18,6 +18,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_cover_art_file',
 	'load_cover_art_from_url',
 	'ping',
+	'preview_output_path',
 	'process_audiobook_files_v2',
 	'read_audio_metadata',
 	'save_metadata_to_file',
@@ -95,8 +96,9 @@ describe('behavior-first IPC smoke', () => {
 			sampleRate: 'auto',
 			jobType: 'batch',
 			outputNaming: {
-				absCompatible: true,
+				preset: 'absDefault',
 				includeYear: false,
+				customTemplate: undefined,
 			},
 		};
 

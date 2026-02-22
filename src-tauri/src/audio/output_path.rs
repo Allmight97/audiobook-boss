@@ -2,22 +2,42 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub enum NamingPreset {
+    AbsDefault,
+    CustomTemplate,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct OutputNamingConfig {
-    pub abs_compatible: bool,
+    pub preset: NamingPreset,
     pub include_year: bool,
+    pub custom_template: Option<String>,
 }
 
 impl Default for OutputNamingConfig {
     fn default() -> Self {
         Self {
-            abs_compatible: true,
+            preset: NamingPreset::AbsDefault,
             include_year: false,
+            custom_template: None,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct NamingValues {
+    title: String,
+    author: String,
+    series: Option<String>,
+    series_part: Option<String>,
+    subseries: Option<String>,
+    subseries_part: Option<String>,
+    year: Option<i32>,
 }
 
 fn sanitize_component(input: &str) -> String {
@@ -80,22 +100,10 @@ fn build_abs_title(
     }
 }
 
-fn build_simple_filename(title: &str, year: Option<i32>, naming: OutputNamingConfig) -> String {
-    let mut base = title.to_string();
-    if naming.include_year {
-        if let Some(year) = year {
-            base = format!("{base} ({year})");
-        }
-    }
-    format!("{base}.m4b")
-}
-
-pub(crate) fn build_output_path(
-    base_dir: &Path,
+fn collect_naming_values(
     metadata: Option<&AudiobookMetadata>,
-    naming: OutputNamingConfig,
     source_path: Option<&Path>,
-) -> Result<PathBuf> {
+) -> Result<NamingValues> {
     let fallback = source_path
         .and_then(|p| p.file_stem())
         .map(|s| s.to_string_lossy())
@@ -147,30 +155,207 @@ pub(crate) fn build_output_path(
     };
     let year = metadata.and_then(|m| m.date.map(|d| d as i32));
 
+    Ok(NamingValues {
+        title,
+        author,
+        series,
+        series_part,
+        subseries,
+        subseries_part,
+        year,
+    })
+}
+
+fn render_custom_template(template: &str, values: &NamingValues) -> Result<String> {
+    let mut rendered = String::new();
+    let mut chars = template.chars().peekable();
+    let mut just_rendered_placeholder = false;
+    let mut last_placeholder_was_empty = false;
+
+    while let Some(ch) = chars.next() {
+        if ch != '{' {
+            if (ch == '/' || ch == '\\') && just_rendered_placeholder && last_placeholder_was_empty
+            {
+                just_rendered_placeholder = false;
+                last_placeholder_was_empty = false;
+                continue;
+            }
+
+            rendered.push(ch);
+            just_rendered_placeholder = false;
+            last_placeholder_was_empty = false;
+            continue;
+        }
+
+        let mut token = String::new();
+        let mut closed = false;
+        for c in chars.by_ref() {
+            if c == '}' {
+                closed = true;
+                break;
+            }
+            token.push(c);
+        }
+
+        if !closed {
+            return Err(AppError::InvalidInput(
+                "Custom template contains an unclosed token '{...}'".to_string(),
+            ));
+        }
+
+        if token.trim().is_empty() {
+            return Err(AppError::InvalidInput(
+                "Custom template contains an empty token '{}'".to_string(),
+            ));
+        }
+
+        if token.contains('{') {
+            return Err(AppError::InvalidInput(format!(
+                "Custom template token '{token}' is invalid"
+            )));
+        }
+
+        let replacement = match token.as_str() {
+            "author" => values.author.clone(),
+            "title" => values.title.clone(),
+            "series" => values.series.clone().unwrap_or_default(),
+            "seriesPart" => values.series_part.clone().unwrap_or_default(),
+            "subseries" => values.subseries.clone().unwrap_or_default(),
+            "subseriesPart" => values.subseries_part.clone().unwrap_or_default(),
+            "year" => values.year.map(|y| y.to_string()).unwrap_or_default(),
+            _ => {
+                return Err(AppError::InvalidInput(format!(
+                    "Unknown template token '{{{token}}}'. Allowed tokens: {{author}},{{title}},{{series}},{{seriesPart}},{{subseries}},{{subseriesPart}},{{year}}"
+                )));
+            }
+        };
+        let was_empty = replacement.is_empty();
+        if !was_empty {
+            rendered.push_str(&replacement);
+        }
+        just_rendered_placeholder = true;
+        last_placeholder_was_empty = was_empty;
+    }
+
+    let trimmed = rendered.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Custom template resolved to an empty output path".to_string(),
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn sanitize_template_relative_path(rendered: &str) -> Result<PathBuf> {
+    let rendered_path = Path::new(rendered);
+    if rendered_path.is_absolute() {
+        return Err(AppError::FileValidation(
+            "Custom template must resolve to a relative path".to_string(),
+        ));
+    }
+
+    for component in rendered_path.components() {
+        match component {
+            Component::Normal(_) => {}
+            Component::CurDir | Component::ParentDir => {
+                return Err(AppError::FileValidation(
+                    "Custom template path traversal is not allowed".to_string(),
+                ));
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(AppError::FileValidation(
+                    "Custom template must resolve to a relative path".to_string(),
+                ));
+            }
+        }
+    }
+
+    let normalized = rendered.replace('\\', "/");
+    let mut segments: Vec<String> = normalized
+        .split('/')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .map(sanitize_component)
+        .collect();
+    if segments.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Custom template resolved to an empty output path".to_string(),
+        ));
+    }
+
+    for segment in &segments {
+        if segment == "." || segment == ".." {
+            return Err(AppError::FileValidation(
+                "Custom template path traversal is not allowed".to_string(),
+            ));
+        }
+    }
+
+    if let Some(last) = segments.last_mut() {
+        if !last.to_ascii_lowercase().ends_with(".m4b") {
+            last.push_str(".m4b");
+        }
+    }
+
+    let mut relative = PathBuf::new();
+    for segment in segments {
+        relative.push(segment);
+    }
+    Ok(relative)
+}
+
+fn build_output_path_inner(
+    base_dir: &Path,
+    values: &NamingValues,
+    naming: &OutputNamingConfig,
+    create_dirs: bool,
+) -> Result<PathBuf> {
     let mut dir = base_dir.to_path_buf();
-    let abs_title = if naming.abs_compatible {
-        dir = dir.join(&author);
-        if let Some(series) = &series {
-            if !series.is_empty() {
-                dir = dir.join(series);
+    let filename = match naming.preset {
+        NamingPreset::AbsDefault => {
+            dir = dir.join(&values.author);
+            if let Some(series) = &values.series {
+                if !series.is_empty() {
+                    dir = dir.join(series);
+                }
             }
-        }
-        if let Some(subseries) = &subseries {
-            if !subseries.is_empty() {
-                let subseries_folder =
-                    normalize_subseries_folder(subseries, subseries_part.as_deref());
-                dir = dir.join(subseries_folder);
+            if let Some(subseries) = &values.subseries {
+                if !subseries.is_empty() {
+                    let subseries_folder =
+                        normalize_subseries_folder(subseries, values.subseries_part.as_deref());
+                    dir = dir.join(subseries_folder);
+                }
             }
+            let book_part = values.series_part.as_deref();
+            let title_folder =
+                build_abs_title(&values.title, book_part, values.year, naming.include_year);
+            dir = dir.join(&title_folder);
+            format!("{title_folder}.m4b")
         }
-        let book_part = series_part.as_deref();
-        let title_folder = build_abs_title(&title, book_part, year, naming.include_year);
-        dir = dir.join(&title_folder);
-        Some(title_folder)
-    } else {
-        None
+        NamingPreset::CustomTemplate => {
+            let template = naming.custom_template.as_deref().ok_or_else(|| {
+                AppError::InvalidInput(
+                    "Custom template preset requires customTemplate to be set".to_string(),
+                )
+            })?;
+            let rendered = render_custom_template(template, values)?;
+            let relative = sanitize_template_relative_path(&rendered)?;
+            let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+            if !parent.as_os_str().is_empty() {
+                dir = dir.join(parent);
+            }
+            relative
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .ok_or_else(|| {
+                    AppError::InvalidInput(
+                        "Custom template did not produce a valid output filename".to_string(),
+                    )
+                })?
+        }
     };
 
-    if !dir.exists() {
+    if create_dirs && !dir.exists() {
         std::fs::create_dir_all(&dir).map_err(|e| {
             AppError::FileValidation(format!(
                 "Failed to create output directory '{}': {}",
@@ -180,15 +365,31 @@ pub(crate) fn build_output_path(
         })?;
     }
 
-    let filename = if let Some(abs_title) = abs_title {
-        format!("{abs_title}.m4b")
-    } else {
-        build_simple_filename(&title, year, naming)
-    };
-
     let full_path = dir.join(filename);
-    crate::audio::settings::validate_output_path(&full_path)?;
+    if create_dirs {
+        crate::audio::settings::validate_output_path(&full_path)?;
+    }
     Ok(full_path)
+}
+
+pub(crate) fn build_output_path(
+    base_dir: &Path,
+    metadata: Option<&AudiobookMetadata>,
+    naming: OutputNamingConfig,
+    source_path: Option<&Path>,
+) -> Result<PathBuf> {
+    let values = collect_naming_values(metadata, source_path)?;
+    build_output_path_inner(base_dir, &values, &naming, true)
+}
+
+pub fn build_output_path_preview(
+    base_dir: &Path,
+    metadata: Option<&AudiobookMetadata>,
+    naming: OutputNamingConfig,
+    source_path: Option<&Path>,
+) -> Result<PathBuf> {
+    let values = collect_naming_values(metadata, source_path)?;
+    build_output_path_inner(base_dir, &values, &naming, false)
 }
 
 pub(crate) fn resolve_collision(path: &Path) -> Result<PathBuf> {

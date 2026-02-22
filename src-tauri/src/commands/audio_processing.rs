@@ -34,7 +34,7 @@ pub async fn process_payload(
 
     let inputs = ProcessingInputs {
         sample_rate: resolve_sample_rate(&payload)?,
-        output_naming: payload.output_naming.unwrap_or_default(),
+        output_naming: payload.output_naming.clone().unwrap_or_default(),
         base_output_dir: ensure_output_dir(&payload.output_dir)?,
         preview_seconds,
     };
@@ -97,7 +97,7 @@ async fn dispatch_merge_job(
     let output_path = build_output_path(
         &inputs.base_output_dir,
         merge_metadata.as_ref(),
-        inputs.output_naming,
+        inputs.output_naming.clone(),
         None,
     )?;
     let resolved_output = resolve_collision(&output_path)?;
@@ -152,7 +152,7 @@ async fn dispatch_batch_jobs(
         let output_path = build_output_path(
             &inputs.base_output_dir,
             file_metadata,
-            inputs.output_naming,
+            inputs.output_naming.clone(),
             Some(&path),
         )?;
         let resolved_output = resolve_collision_with_claimed(&output_path, &claimed_paths)?;

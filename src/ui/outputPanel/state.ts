@@ -8,6 +8,10 @@ import type {
 	SampleRateConfig,
 } from '../../types/audio';
 import { defaultEncoderSettings } from '../../types/audio';
+import { publishOutputDraft } from '../core/appStore.svelte';
+
+export type OutputNamingPreset = OutputNamingConfig['preset'];
+const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
 
 /**
  * State interface for output panel configuration
@@ -16,7 +20,8 @@ export interface OutputPanelState {
 	encoderSettings: EncoderSettings;
 	sampleRate: SampleRateConfig;
 	outputDirectory: string;
-	absCompatible: boolean;
+	namingPreset: OutputNamingPreset;
+	namingTemplate: string;
 	absIncludeYear: boolean;
 }
 
@@ -27,7 +32,8 @@ const currentState: OutputPanelState = {
 	encoderSettings: { ...defaultEncoderSettings() },
 	sampleRate: { explicit: 22050 },
 	outputDirectory: '',
-	absCompatible: true,
+	namingPreset: 'absDefault',
+	namingTemplate: '',
 	absIncludeYear: false,
 };
 
@@ -42,9 +48,16 @@ export function getState(): OutputPanelState {
  * Builds output naming configuration from current state
  */
 export function getOutputNamingConfig(): OutputNamingConfig {
+	const trimmedTemplate = currentState.namingTemplate.trim();
 	return {
-		absCompatible: currentState.absCompatible,
+		preset: currentState.namingPreset,
 		includeYear: currentState.absIncludeYear,
+		customTemplate:
+			currentState.namingPreset === 'customTemplate'
+				? trimmedTemplate.length > 0
+					? currentState.namingTemplate
+					: DEFAULT_CUSTOM_TEMPLATE
+				: undefined,
 	};
 }
 
@@ -69,13 +82,30 @@ export function readOutputConfigForProcessing(): OutputConfig {
  */
 export function updateOutputDirectory(path: string): void {
 	currentState.outputDirectory = path;
+	publishOutputDraft({ directory: path });
 }
 
 /**
- * Updates ABS-compatible toggle in state
+ * Updates naming preset in state.
+ */
+export function updateNamingPreset(preset: OutputNamingPreset): void {
+	currentState.namingPreset = preset;
+	publishOutputDraft({ namingPreset: preset });
+}
+
+/**
+ * Backward-compatible mapping for existing callers.
  */
 export function updateAbsCompatible(enabled: boolean): void {
-	currentState.absCompatible = enabled;
+	updateNamingPreset(enabled ? 'absDefault' : 'customTemplate');
+}
+
+/**
+ * Updates naming template in state.
+ */
+export function updateNamingTemplate(template: string): void {
+	currentState.namingTemplate = template;
+	publishOutputDraft({ namingTemplate: template });
 }
 
 /**
@@ -83,6 +113,7 @@ export function updateAbsCompatible(enabled: boolean): void {
  */
 export function updateAbsIncludeYear(enabled: boolean): void {
 	currentState.absIncludeYear = enabled;
+	publishOutputDraft({ includeYear: enabled });
 }
 
 /**
@@ -103,14 +134,29 @@ export function updateSampleRate(sampleRate: SampleRateConfig): void {
  * Loads initial state from DOM elements
  */
 export function loadInitialState(): void {
-	const absStructureCheckbox = document.getElementById('output-abs-structure') as HTMLInputElement;
+	const namingPresetSelect = document.getElementById('output-naming-preset') as HTMLSelectElement;
+	const namingTemplateInput = document.getElementById('output-template-input') as HTMLInputElement;
 	const absYearCheckbox = document.getElementById('output-abs-include-year') as HTMLInputElement;
 
-	if (absStructureCheckbox) {
-		currentState.absCompatible = absStructureCheckbox.checked;
+	if (
+		namingPresetSelect?.value === 'absDefault' ||
+		namingPresetSelect?.value === 'customTemplate'
+	) {
+		currentState.namingPreset = namingPresetSelect.value;
+	}
+
+	if (namingTemplateInput) {
+		currentState.namingTemplate = namingTemplateInput.value;
 	}
 
 	if (absYearCheckbox) {
 		currentState.absIncludeYear = absYearCheckbox.checked;
 	}
+
+	publishOutputDraft({
+		directory: currentState.outputDirectory,
+		namingPreset: currentState.namingPreset,
+		namingTemplate: currentState.namingTemplate,
+		includeYear: currentState.absIncludeYear,
+	});
 }

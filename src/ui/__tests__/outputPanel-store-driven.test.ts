@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../types/audio';
+import { appStore } from '../core/appStore.svelte';
 import { updateEstimatedSize } from '../outputPanel/dom';
 import {
 	readOutputConfigForProcessing,
-	updateAbsCompatible,
 	updateAbsIncludeYear,
 	updateEncoderSettings,
+	updateNamingPreset,
+	updateNamingTemplate,
 	updateOutputDirectory,
 	updateSampleRate,
 } from '../outputPanel/state';
@@ -28,7 +30,8 @@ describe('output panel store-driven contracts', () => {
 
 		document.body.innerHTML = '<span id="estimated-size"></span>';
 		updateOutputDirectory('/tmp/out');
-		updateAbsCompatible(true);
+		updateNamingPreset('absDefault');
+		updateNamingTemplate('');
 		updateAbsIncludeYear(false);
 		updateSampleRate('auto');
 		updateEncoderSettings(defaultEncoderSettings());
@@ -40,9 +43,34 @@ describe('output panel store-driven contracts', () => {
 		expect(config).toMatchObject({
 			outputPath: '/tmp/out',
 			sampleRate: 'auto',
-			outputNaming: { absCompatible: true, includeYear: false },
+			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		expect(config.encoderSettings).toEqual(defaultEncoderSettings());
+	});
+
+	it('publishes output draft mirror state for preset/template/directory', () => {
+		updateOutputDirectory('/tmp/custom');
+		updateNamingPreset('customTemplate');
+		updateNamingTemplate('{author}/{title}.m4b');
+		updateAbsIncludeYear(true);
+
+		expect(appStore.outputDraft).toEqual({
+			directory: '/tmp/custom',
+			namingPreset: 'customTemplate',
+			namingTemplate: '{author}/{title}.m4b',
+			includeYear: true,
+		});
+	});
+
+	it('defaults custom template when custom preset is selected without template text', () => {
+		updateNamingPreset('customTemplate');
+		updateNamingTemplate('   ');
+
+		const config = readOutputConfigForProcessing();
+		expect(config.outputNaming).toMatchObject({
+			preset: 'customTemplate',
+			customTemplate: '{author}/{title}',
+		});
 	});
 
 	it('updates estimated size from shared state', () => {

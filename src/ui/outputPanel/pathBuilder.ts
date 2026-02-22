@@ -89,7 +89,7 @@ export function calculateOutputPath(metadata: AudiobookMetadata): string {
 		const placeholderSeriesPart = '#';
 		const placeholderYear = 'YYYY';
 
-		if (naming.absCompatible) {
+		if (naming.preset === 'absDefault') {
 			const subseriesLabel = normalizeSubseriesLabel(placeholderSubseries, placeholderSeriesPart);
 			const absTitle = buildAbsTitle(
 				placeholderTitle,
@@ -117,7 +117,7 @@ export function calculateOutputPath(metadata: AudiobookMetadata): string {
 	const subseries = sanitizeFilename(metadata.subseries || '');
 	const year = typeof metadata.date === 'number' ? metadata.date : undefined;
 
-	if (naming.absCompatible) {
+	if (naming.preset === 'absDefault') {
 		let subdirPath = `${basePath}/${author}`;
 		if (series) {
 			subdirPath += `/${series}`;
