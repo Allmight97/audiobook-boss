@@ -17,7 +17,7 @@ export type FileListInfo = NullToOptionalDeep<GeneratedFileListInfo>;
 export type SampleRateConfig = GeneratedSampleRateConfig;
 
 // Output naming options for folder/filename generation
-export type OutputNamingConfig = GeneratedOutputNamingConfig;
+export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
 
 // Combined UI output configuration used by the UI boundary
 export interface OutputConfig {

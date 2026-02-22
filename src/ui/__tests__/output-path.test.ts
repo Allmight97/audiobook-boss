@@ -3,8 +3,8 @@ import { calculateOutputPath } from '../outputPanel/pathBuilder';
 import { setJobTypeSelection } from '../jobControls';
 import {
 	updateOutputDirectory,
-	updateAbsCompatible,
 	updateAbsIncludeYear,
+	updateNamingPreset,
 } from '../outputPanel/state';
 import type { AudiobookMetadata } from '../../types/metadata';
 
@@ -18,7 +18,7 @@ const baseMetadata: AudiobookMetadata = {
 describe('calculateOutputPath', () => {
 	beforeEach(() => {
 		updateOutputDirectory('/Library/Audiobooks');
-		updateAbsCompatible(true);
+		updateNamingPreset('absDefault');
 		updateAbsIncludeYear(false);
 		setJobTypeSelection('merge');
 	});

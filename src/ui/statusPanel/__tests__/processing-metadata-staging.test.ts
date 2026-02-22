@@ -107,7 +107,7 @@ describe('startProcessing metadata staging', () => {
 			encoderSettings: defaultEncoderSettings(),
 			sampleRate: 'auto',
 			outputPath: '/tmp/out',
-			outputNaming: { absCompatible: true, includeYear: false },
+			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		context.getJobTypeMock.mockReturnValue('merge');
 		context.getAllMetadataMock.mockReturnValue({});

@@ -1,9 +1,12 @@
 <script lang="ts">
 	import {
-		handleAbsCompatibleChange,
 		handleAbsIncludeYearChange,
 		handleDirectoryBrowse,
+		handleNamingPresetChange,
+		handleNamingTemplateInput,
 	} from './handlers';
+
+	const customTemplatePlaceholder = '{author}/{series}/Book {seriesPart} - {title}';
 
 	function handleBrowseClick(): void {
 		void handleDirectoryBrowse();
@@ -41,22 +44,29 @@
 
     <div class="output-options-panel">
       <div class="path-option-row flex items-center gap-2">
-        <label class="checkbox-label text-xs mt-0">
-          <input
-            type="checkbox"
-            id="output-abs-structure"
-            checked
-            on:change={handleAbsCompatibleChange}
-          />
-          ABS-compatible structure
-          ([Author]/[Series]/[Book # - Title]/)
-        </label>
+        <label for="output-naming-preset" class="input-label text-xs mt-0">Naming preset</label>
+        <select id="output-naming-preset" class="input-text" on:change={handleNamingPresetChange}>
+          <option value="absDefault">ABS Default</option>
+          <option value="customTemplate">Custom Template</option>
+        </select>
         <div class="relative group">
           <div class="info-icon">i</div>
           <div class="info-popover group-hover:block">
-            Creates folder structure Audiobookshelf auto-parses.
+            ABS Default keeps Audiobookshelf-compatible paths. Custom Template stores your draft template.
           </div>
         </div>
+      </div>
+      <div class="path-option-row" id="output-template-row" hidden>
+        <label for="output-template-input" class="input-label text-xs mt-0">Template</label>
+	        <input
+	          id="output-template-input"
+	          type="text"
+	          class="input-text w-full"
+	          placeholder={customTemplatePlaceholder}
+	          on:input={handleNamingTemplateInput}
+	          autocomplete="off"
+	          spellcheck="false"
+	        />
       </div>
       <div class="path-option-row" id="output-abs-options">
         <label class="checkbox-label text-xs mt-0">

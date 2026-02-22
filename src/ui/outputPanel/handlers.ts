@@ -2,8 +2,34 @@
  * Event handlers for output panel controls
  */
 import { tauriClient } from '../../lib/tauri/client';
-import { updateOutputDirectory, updateAbsCompatible, updateAbsIncludeYear } from './state';
+import { publishOutputDraft } from '../core/appStore.svelte';
+import {
+	updateOutputDirectory,
+	updateNamingPreset,
+	updateNamingTemplate,
+	updateAbsIncludeYear,
+} from './state';
 import { updateOutputPath, updateNamingOptionState, showOutputError } from './dom';
+
+const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
+let templatePreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleTemplatePreviewUpdate(): void {
+	if (templatePreviewDebounceTimer) {
+		clearTimeout(templatePreviewDebounceTimer);
+	}
+	templatePreviewDebounceTimer = setTimeout(() => {
+		templatePreviewDebounceTimer = null;
+		updateOutputPath();
+	}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
+}
+
+function resetTemplatePreviewDebounce(): void {
+	if (templatePreviewDebounceTimer) {
+		clearTimeout(templatePreviewDebounceTimer);
+		templatePreviewDebounceTimer = null;
+	}
+}
 
 /**
  * Handles directory browse button click
@@ -25,6 +51,7 @@ export async function handleDirectoryBrowse(): Promise<void> {
 
 		if (normalized) {
 			updateOutputDirectory(normalized);
+			publishOutputDraft({ directory: normalized });
 			updateOutputPath();
 		}
 	} catch (error) {
@@ -34,11 +61,12 @@ export async function handleDirectoryBrowse(): Promise<void> {
 }
 
 /**
- * Handles ABS-compatible structure checkbox change
+ * Handles naming preset selector changes
  */
-export function handleAbsCompatibleChange(event: Event): void {
-	const target = event.target as HTMLInputElement;
-	updateAbsCompatible(target.checked);
+export function handleNamingPresetChange(event: Event): void {
+	const target = event.target as HTMLSelectElement;
+	const preset = target.value === 'customTemplate' ? 'customTemplate' : 'absDefault';
+	updateNamingPreset(preset);
 	updateNamingOptionState();
 	updateOutputPath();
 }
@@ -54,9 +82,19 @@ export function handleAbsIncludeYearChange(event: Event): void {
 }
 
 /**
+ * Handles custom template input changes
+ */
+export function handleNamingTemplateInput(event: Event): void {
+	const target = event.target as HTMLInputElement;
+	updateNamingTemplate(target.value);
+	scheduleTemplatePreviewUpdate();
+}
+
+/**
  * Sets up runtime event handlers for derived output updates.
  */
 export function setupEventHandlers(): void {
+	resetTemplatePreviewDebounce();
 	document.addEventListener('abb:job-type-changed', () => {
 		updateOutputPath();
 	});

@@ -1,6 +1,7 @@
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::JobId;
+use crate::audio::output_path::build_output_path_preview;
 use crate::audio::settings_encoder::{
     detect_available_encoders, validate_encoder_settings, EncoderAvailability, EncoderSettings,
 };
@@ -71,6 +72,27 @@ pub fn list_available_encoders() -> EncoderAvailability {
     let result = detect_available_encoders();
     log::info!("🔍 Returning encoder availability: {:?}", result);
     result
+}
+
+/// Builds an output path preview using backend naming rules without collision suffixing.
+#[tauri::command]
+#[specta::specta]
+pub fn preview_output_path(
+    output_dir: String,
+    metadata: Option<crate::metadata::AudiobookMetadata>,
+    output_naming: Option<OutputNamingConfig>,
+    source_path: Option<String>,
+) -> Result<String> {
+    let base_output_dir = PathBuf::from(output_dir);
+    let source_path_buf = source_path.as_deref().map(PathBuf::from);
+    let naming = output_naming.unwrap_or_default();
+    let preview = build_output_path_preview(
+        &base_output_dir,
+        metadata.as_ref(),
+        naming,
+        source_path_buf.as_deref(),
+    )?;
+    Ok(preview.to_string_lossy().to_string())
 }
 
 /// Returns the current maximum concurrent jobs setting

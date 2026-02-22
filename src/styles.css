@@ -1610,3 +1610,27 @@ textarea {
 	margin-right: 0.25rem;
 	accent-color: var(--accent-primary);
 }
+
+.fatal-init-banner {
+	margin: 2rem;
+	padding: 1rem 1.25rem;
+	border: 1px solid #fca5a5;
+	border-radius: 0.5rem;
+	background: #450a0a;
+	color: #fee2e2;
+}
+
+.fatal-init-banner h2 {
+	margin: 0 0 0.5rem;
+	font-size: 1.125rem;
+	font-weight: 700;
+}
+
+.fatal-init-banner p {
+	margin: 0;
+}
+
+.fatal-init-help {
+	margin-top: 0.5rem;
+	color: #fecaca;
+}
