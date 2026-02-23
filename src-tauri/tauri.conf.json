@@ -14,11 +14,12 @@
     "windows": [
       {
         "title": "AudioBook Boss",
-        "width": 1600,
-        "height": 1100,
+        "width": 1400,
+        "height": 900,
         "minWidth": 800,
         "minHeight": 600,
-        "center": true
+        "center": true,
+        "preventOverflow": true
       }
     ],
     "security": {
