@@ -47,15 +47,15 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
       mode="${2:-}"
-      shift 2
+      [[ $# -ge 2 ]] && shift 2 || shift
       ;;
     --name)
       name="${2:-}"
-      shift 2
+      [[ $# -ge 2 ]] && shift 2 || shift
       ;;
     --keep-days)
       keep_days="${2:-}"
-      shift 2
+      [[ $# -ge 2 ]] && shift 2 || shift
       ;;
     --include-diffs)
       include_diffs=1
