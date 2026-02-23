@@ -42,3 +42,7 @@ opencode.json
 # Perf run artifacts (generated locally/CI)
 /scripts/perf/results/*
 !/scripts/perf/results/.gitkeep
+
+# Repomix handoff artifacts (local AI context exports)
+/.repomix/handoffs/*
+!/.repomix/handoffs/.gitkeep

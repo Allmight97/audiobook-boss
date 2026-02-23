@@ -1,22 +1,19 @@
 ---
 name: path-security-validation
-description: Validate and secure file paths for audiobook-boss. Use when adding new file inputs/outputs, file dialogs, or any path handling in commands or audio processing to enforce extension whitelists, canonicalization, traversal safety, and safe error messaging.
+description: Path validation guardrails for file inputs/outputs. Use when commands/processors handle user paths, output directories, or file writes.
 ---
 
-# Path Security and Validation
+# Path Security Validation
 
-Apply these steps whenever a command or processor touches user-provided paths.
+Use this skill whenever code accepts, transforms, or writes file paths.
 
-## Required Steps
+## Required Workflow
 
-1) Validate all input paths with `audio::path_validation::validate_input_audio_path()`.
-2) Enforce extension whitelists and traversal safety via the validation layer.
-3) Check output directories are writable before processing.
-4) Avoid leaking raw paths in user-facing errors; map to `AppError`.
-
-## Internal Docs
-
-- `docs/external-apis/path-handling.md`
+1. Validate input audio paths through:
+- `audio::path_validation::validate_input_audio_path()`
+2. Enforce extension allowlist and traversal/canonicalization checks via validation layer.
+3. Verify output directories are writable before long-running work starts.
+4. Map path errors to `AppError` without leaking sensitive absolute paths to UX.
 
 ## Minimal Pattern
 
@@ -27,19 +24,26 @@ use std::path::PathBuf;
 
 #[tauri::command]
 pub fn command_with_path(file_path: String) -> Result<()> {
-    let path = PathBuf::from(&file_path);
-    let validated = validate_input_audio_path(&path)?;
+    let validated = validate_input_audio_path(&PathBuf::from(file_path))?;
     // Use validated path only.
     Ok(())
 }
 ```
 
-## Output Directory Guardrail
-
-Before writing output, probe the target directory for write permissions and fail fast if it is not writable. Prefer existing helpers in `audio::path_validation` or nearby command modules.
-
-## Codebase Pointers
+## Pointers
 
 - `src-tauri/src/audio/path_validation.rs`
 - `src-tauri/src/commands/audio.rs`
 - `src-tauri/src/errors.rs`
+- `docs/external-apis/path-handling.md`
+
+## Done Criteria
+
+- No unvalidated path reaches processing/writes.
+- Errors are actionable but do not expose unsafe path details.
+
+## Alignment
+
+- Use root AGENTS precedence.
+- No implicit internal legacy assumptions.
+- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.

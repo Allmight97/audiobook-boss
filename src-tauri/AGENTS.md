@@ -1,88 +1,44 @@
-# Rust Backend Guidelines
+# Rust Backend Directives
 
-Inherits principles from root `AGENTS.md`. This file covers Rust-specific architecture, conventions, and testing.
+## Scope
 
-Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, observable, time-bounded, with removal tracking) and be listed in `docs/engineering/fallback-register.md`.
+- Applies to backend architecture and command behavior under `src-tauri/`.
+- This file keeps backend rules focused on execution-critical invariants.
+- Deep traps for specific subsystems are owned by local `AGENTS.md` files in those directories.
 
----
+## Preferred Path
 
-## Architecture Fundamentals
+- Route audio processing through the `ffmpeg-next` based engine path.
+- Route MP4/M4B metadata operations through the `mp4ameta` boundary modules.
+- Use `JobRegistry` as the central concurrency lifecycle surface.
+- Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
+- Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
+- Use `process_audiobook_files_v2` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
+- Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion.
 
-- **Single engine**: `FfmpegNextProcessor` via ffmpeg-next bindings (no shell FFmpeg, no engine feature flags)
-- **Concurrency surface**: `JobRegistry` (semaphore-backed) is the **exclusive source of truth** for active jobs.
-  - **Parallelism**: Multiple jobs can run concurrently (up to `max_concurrent`).
-  - **Blocking I/O**: CPU-bound encoding tasks MUST be offloaded using `tokio::task::spawn_blocking` or `tokio::task::block_in_place` to prevent async runtime starvation.
-  - **Cancellation**: Managed via `CancellationChecker` (per-job) or global signal.
-- **Path security**: all inputs → `audio::path_validation::validate_input_audio_path()` (canonicalize, whitelist extensions, traverse-safe, symlink warnings)
-- **Progress system**: ffmpeg-next timestamps → `processing-progress` Tauri events → UI (`src/ui/statusPanel`)
-- **Metadata**: ffmpeg-next read/write via custom `AudiobookMetadata` structure
+## Hard Invariants
 
-## Critical Flows
+- Validate input audio paths at the boundary with `audio::path_validation::validate_input_audio_path()`.
+- Long-running stages must emit progress/failure states so UI status remains truthful.
+- Preserve external audiobook tag interoperability in metadata read/write behavior.
+- Fallbacks follow root policy and fallback-register discipline.
+- Keep command and event shape parity with frontend boundary adapters.
 
-- **Import**: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-- **Processing**: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events
+### Backend Shape Triggers
 
-## Integration Touchpoints
+- Prefer modules under `~400` LOC for non-test Rust code; at `~350` LOC run responsibility split review.
+- Prefer focused functions; allow larger orchestrators when they keep stage boundaries explicit.
+- For functions exceeding `~80` LOC or `7` parameters, either refactor or annotate the boundary constraint with `// EXCEPTION: [reason]`.
+- Keep clippy allowances local and justified; avoid broad crate-level suppressions for maintainability lints.
 
-| Location | Purpose |
-|----------|---------|
-| `src-tauri/src/commands/` | All user actions via `#[tauri::command]` handlers; use `ProcessingState` for cancellation |
-| `src-tauri/src/audio/processor/selection.rs` | Engine selection (single engine) |
-| `src-tauri/src/audio/progress/reporter.rs` | Progress emission to window |
+## Canary Trigger
 
-## Architectural Invariants
+- Trigger Canary when backend behavior relies on implicit coupling across commands, processor stages, or registry state.
+- Report the coupling, working assumption, and a minimal invariant update proposal.
+- Continue unless safety, data integrity, or contract parity requires blocking escalation.
 
-- **Type-Safe Encoder**: Encoder setup must consume `EncoderSettings` directly.
-- **Logic Location**: New processing logic belongs in `audio/processor/{encoder/,streams.rs,frame_pipeline.rs}`.
-- **Sanitization**: Finite/clamp sanitization must happen in `audio/buffer.rs`.
-- **Primary Target**: macOS (Apple Silicon).
+## Done Criteria
 
-## Interface Boundaries
-
-- **Command Surface**: UI must call `process_audiobook_files_v2` exclusively.
-- **Contract Guard**: Maintain TS ↔ Rust command parity through tauri-specta generated bindings (`src/lib/generated/tauri.ts`) and drift checks (`scripts/check-generated-bindings.sh --mode verify` for strict checks, `--mode local` in standard local gates).
-- **Bindings Export Patching**: Generated-file post-processing must be robust (append or syntax-aware) and must not rely on brittle import-string replacement.
-- **Pointers**: `docs/external-apis/ffmpeg-next.md` (encoder/progress patterns), `docs/external-apis/tauri-commands.md` (command matrix).
-- **Metadata clear compatibility**: frontend currently compiles clear intent to explicit sentinel values (`''`, `0`, `[]`) before Rust command dispatch; backend should continue treating omitted/`None` as no-op and explicit sentinels as clear.
-
----
-
-## Code Conventions
-
-- `#![deny(clippy::unwrap_used)]`; prefer `Result<T, AppError>` and `?`
-- Keep internals non-`pub` unless required across modules
-- Format with rustfmt defaults
-- Map external errors → `AppError` (`src-tauri/src/errors.rs`)
-- Don't leak raw paths in user-facing errors
-- No wildcard re-exports in module files
-
----
-
-## Testing
-
-### Strategy: External Testing
-
-- **Default**: tests live in `src-tauri/tests/` (flat structure).
-- **Exception 1**: tiny private helpers (<50 LOC, no I/O, no FFmpeg, no TempDir) may keep inline tests.
-  - Mark with `// EXCEPTION: tiny helper inline test`.
-- **Exception 2**: tests requiring non-pub API access may be inline **only** if they are unit-only and avoid I/O/FFmpeg/TempDir.
-  - Mark with `// EXCEPTION: requires private API access`.
-- **Anti-pattern**: large integration suites (FFmpeg/filesystem/network) under `src-tauri/src`.
-- **Location**: `src-tauri/tests/` (flat structure)
-  - **Naming convention** (strict):
-    - `unit_*_tests.rs` - Fast tests for a single module; may use TempDir, but avoid FFmpeg/filesystem-heavy flows
-    - `integration_*_tests.rs` - Cross-module flows, real resources (files/FFmpeg/filesystem)
-  - **Why flat?** Cargo auto-discovers tests only in top-level `tests/`, not subdirectories.
-
-**Tiered checks**: Follow the repo-wide Standard/Package tiers in `AGENTS.md`. Use `scripts/checks.sh standard` (the default go-to) and `scripts/checks.sh package` from the repo root.
-
-**Workspace note**: Run cargo commands from the repo root (workspace). No need to `cd src-tauri`.
-
-### Running Tests
-
-```bash
-cargo test                                  # All tests
-cargo test --tests                          # All external test binaries
-cargo test --test unit_audio_buffer_tests   # Specific unit test file
-cargo test --test integration_metadata_tests # Specific integration test file
-```
+- Processing, metadata, and concurrency edits follow the nearest local subsystem `AGENTS.md`.
+- Path validation, progress semantics, and contract parity remain intact.
+- Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).

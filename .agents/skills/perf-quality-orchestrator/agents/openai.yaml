@@ -1,0 +1,4 @@
+interface:
+  display_name: "Perf Quality Orchestrator"
+  short_description: "Run checks and benchmark delta reporting"
+  default_prompt: "Use $perf-quality-orchestrator to run perf checks, compare baselines, and return a concise action report."

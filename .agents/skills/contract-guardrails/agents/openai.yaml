@@ -1,0 +1,4 @@
+interface:
+  display_name: "Contract Guardrails"
+  short_description: "Protect TS/Rust IPC contract parity"
+  default_prompt: "Use $contract-guardrails to validate command/event contract changes and binding parity."

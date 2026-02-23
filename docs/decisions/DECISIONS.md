@@ -1,6 +1,6 @@
 # Decisions Log
 
-Newest first. Format defined by `adr-decisions` skill.
+Newest first. Format follows the decision entry structure shown in this file.
 
 ## 2026-02-22 — Skill-owned release changelog flow with thin script executor
 Context: Release notes depended on manual recall, creating changelog drift and repeated session churn in a high-throughput solo + agent workflow.

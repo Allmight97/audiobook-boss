@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audiobook Metadata"
+  short_description: "Preserve ABS/Plex/Apple metadata interoperability"
+  default_prompt: "Use $audiobook-metadata to preserve canonical metadata mapping across ABS, Plex, and Apple Books."

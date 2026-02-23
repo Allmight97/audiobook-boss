@@ -34,7 +34,9 @@
 		"perf:real": "bun scripts/perf/run.mjs --all --mode real --runs 5 --compare-baseline --append-history",
 		"perf:quick": "bun scripts/perf/run.mjs --all --mode synthetic --runs 3",
 		"perf:list": "bun scripts/perf/run.mjs --list",
-		"perf:all": "bun scripts/perf/run-all.mjs"
+		"perf:all": "bun scripts/perf/run-all.mjs",
+		"repomix:audit": "scripts/repomix-handoff.sh --mode audit",
+		"repomix:full": "scripts/repomix-handoff.sh --mode full"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",

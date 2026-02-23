@@ -1,0 +1,4 @@
+interface:
+  display_name: "Library Research"
+  short_description: "Verify external API behavior before coding"
+  default_prompt: "Use $lib-research to validate external API behavior and produce an implementation-ready recommendation."

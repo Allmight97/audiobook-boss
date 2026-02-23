@@ -1,89 +1,44 @@
-# TypeScript Frontend Guidelines
+# Frontend Directives
 
-Inherits principles from root `AGENTS.md`. This file covers TypeScript conventions, UI patterns, and frontend testing.
+## Scope
 
-Fallbacks/shims must follow the root strict policy in `AGENTS.md` (explicit, observable, time-bounded, with removal tracking) and be listed in `docs/engineering/fallback-register.md`.
+- Applies to frontend runtime and UI work under `src/`.
+- This file keeps frontend behavior guidance concise.
+- IPC and metadata intent source-of-truth lives in `src/lib/tauri/AGENTS.md`.
 
----
+## Preferred Path
 
-## Code Conventions
+- Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
+- Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
+- Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
+- Keep layout/token changes anchored to `src/styles.css` as the spacing and token source of truth.
+- When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
+- Treat function/file size as readability triggers: extract helpers when component scripts become hard to scan or test.
 
-- Strict mode; explicit types; avoid `any`
-- **Return types**: Prefer inference. Explicit return types are encouraged at exported API boundaries and required for type guards (`is` predicates). Omit elsewhere.
-- Source file names: camelCase; test files may use kebab-case for feature grouping; types/interfaces: PascalCase
-- Frontend runtime posture is **Svelte app shell + island components with partial legacy runtime modules still in `src/ui/**`**.
-- All Tauri command/event calls must go through `src/lib/tauri/client.ts` (`tauriClient`) so contract normalization and naming stay centralized.
-- Do not import runtime command/event invokers directly from `src/lib/generated/tauri.ts` in UI runtime modules.
-- No new imperative DOM orchestration in migrated runtime entry surfaces (`src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, `src/lib/**`); legacy `src/ui/**` modules are tracked migration debt.
-- Strong boundary types for Rust/TS crossing (`src/types/*`)
-- Never hand-edit `src/lib/generated/tauri.ts`; change exporter/boundary code, then regenerate bindings (`bun run bindings:generate`) or sync/stage via hook flow (`bun run bindings:sync` / `.githooks/pre-commit`).
+## Hard Invariants
 
-### Metadata Editing Contract
+- Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.
+- Do not hand-edit `src/lib/generated/tauri.ts`; regenerate/sync bindings through the standard scripts/hooks.
+- Preserve the migrated runtime posture: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, and `src/lib/**`.
+- Follow fallback policy from root `AGENTS.md` for any compatibility fallback introduced in frontend flows.
+- Keep TypeScript boundaries type-safe; avoid introducing new `any` escape paths in runtime IPC/state flows.
 
-- Canonical frontend metadata edit semantics are patch ops: `set | clear | noop`.
-- Treat “clear” as explicit user intent, not an empty-value heuristic.
-- Do not filter out clear-only edits in processing/save flows.
-- Compile metadata intent to current Rust payload shape at boundary adapters, not inside scattered UI callsites.
-- Current clear mapping: string fields → `''`, date/year → `0`, cover art removal → `[]`.
+### Frontend Shape Triggers
 
----
+- Prefer colocated, testable logic modules over large monolithic component scripts.
+- If a component or logic module approaches `~350` LOC, run a cohesion split check before extending it.
+- If a function becomes branch-heavy or exceeds comfortable scan size, split into named helpers by user-facing behavior.
+- For linting upgrades, prioritize type-aware `typescript-eslint` rules that catch unsafe `any` propagation.
 
-## Frontend Testability
+## Canary Trigger
 
-- **Unique IDs**: All interactive elements (inputs, buttons, drop zones) MUST have a unique `id` or `data-testid`.
-- **Semantic HTML**: Use proper HTML5 elements (button, input, select) to ensure accessibility and agent-readability.
-- **Agent-Ready**: Consider how an automated agent would "see" and interact with your UI component.
+- Trigger Canary when frontend behavior depends on hidden coupling between UI modules and the Tauri boundary.
+- Report the coupling, the working assumption used, and a minimal doc update proposal.
+- Continue delivery unless the ambiguity threatens contract correctness or user data behavior.
 
----
+## Done Criteria
 
-## UI Layout and Spacing
-
-### Established Spacing Values
-
-The UI uses consistent spacing tokens. Do NOT introduce new arbitrary values.
-If a new value is truly needed, propose it and add it to this table and `src/styles.css` as a CSS variable (source of truth).
-
-| Token            | Value                             | Usage |
-| ---------------- | --------------------------------- | ----- |
-| `0.375rem` (6px) | Section dividers, header margins  |
-| `0.5rem` (8px)   | Compact gaps, small margins       |
-| `0.75rem` (12px) | Panel padding, standard gaps      |
-| `1rem` (16px)    | Large gaps, major section spacing |
-
-### Layout Patterns
-
-**Pinned Footers** (file-properties-pinned, metadata-footer-pinned):
-
-- Use `flex-shrink: 0` to prevent compression
-- Do NOT use `margin-top: auto` — this creates variable gaps
-- Let content flow naturally; footer stays at end of flex column
-  - If you must push a footer down, use a dedicated spacer element with `flex: 1 1 auto`
-
-**Section Dividers** (.section-divider):
-
-- `padding-top: 0.375rem; margin-top: 0.375rem` (12px total)
-- Always include `border-top: 1px solid var(--border-primary)`
-
-### Anti-Patterns (Do NOT Use)
-
-- `margin-top: auto` on footer elements — creates unpredictable gaps
-- Arbitrary pixel values in CSS — use rem tokens
-- Mixing `.mb-*` Tailwind classes with custom margins on same element (using `.mb-*` alone is fine)
-
----
-
-## Testing
-
-### Strategy: Colocated Testing
-
-- **Rule**: Business logic belongs in `.ts`/`.svelte.ts` modules, not large monolithic component scripts.
-- **Location**: `src/**/*.test.ts` (colocated with source).
-- **Scope**: High coverage for logic (`.ts`/`.svelte.ts`), targeted render checks for Svelte islands/components.
-
-### Running Tests
-
-```bash
-bun run test          # All tests
-bun run test:watch    # Watch mode
-bun run test:coverage # With coverage
-```
+- Tauri runtime calls are centralized through `tauriClient`.
+- Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
+- Token/spacing changes resolve through `src/styles.css` source-of-truth.
+- Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).

@@ -1,47 +1,48 @@
 ---
 name: job-registry-and-progress
-description: Concurrency, cancellation, and progress event patterns for audiobook-boss. Use when adding or modifying long-running jobs, background processing, job cancellation, or progress reporting.
+description: Concurrency, cancellation, and progress patterns. Use when modifying long-running jobs, queueing, cancellation, or status emission.
 ---
 
 # Job Registry and Progress
 
-Use these steps to keep processing safe and observable.
+Use this skill for backend job lifecycle and UX-truthful processing state.
 
-## Required Steps
+## Hard Invariants
 
-1) Register every long-running job with `JobRegistry`; do not bypass it.
-2) Offload CPU-bound encoding work with `tokio::task::spawn_blocking` or `block_in_place`.
-3) Wire cancellation via `CancellationChecker` (per-job) or the global signal.
-4) Emit progress using `ProgressEmitter` and the `processing-progress` event.
+- Active job lifecycle flows through `JobRegistry`.
+- CPU-bound encoding executes via `tokio::task::spawn_blocking`.
+- Long loops check cancellation checkpoints.
+- Progress/failure/cancel states must emit events that match user-visible status.
 
-## Minimal Pattern
+## Canonical Progress Source
 
-```rust
-#[tauri::command]
-pub async fn process_job(
-    window: tauri::Window,
-    registry: tauri::State<'_, crate::ManagedJobRegistry>,
-) -> crate::errors::Result<()> {
-    let (_job_id, _permit) = registry.register_job().await?;
-    let emitter = crate::audio::progress::ProgressEmitter::new(window);
+- Stage/type authority: `src/types/events.ts` (`ProgressEvent.stage`)
+- Event emission implementation: `src-tauri/src/audio/progress/emitter.rs`
 
-    tokio::task::spawn_blocking(move || {
-        // CPU-bound work here.
-    })
-    .await?;
+When stages evolve, update `src/types/events.ts` first, then emitter and command usage.
 
-    emitter.emit_converting_progress(100.0, "completed", None, None);
-    Ok(())
-}
-```
+## Required Workflow
 
-## Guardrails
+1. Acquire job permit from `JobRegistry` before work starts.
+2. Run CPU-heavy sections in blocking wrapper.
+3. Emit stage updates through `ProgressEmitter` on meaningful boundaries.
+4. On exit paths, emit terminal state (`completed`, `failed`, `cancelled`) consistent with actual outcome.
 
-- Keep progress stages aligned with `ProgressEvent` expectations (`analyzing`, `converting`, `writing`, `completed`, `failed`, `cancelled`).
-- Ensure cancellation checks happen inside long loops to avoid delayed stop.
+## Pointers
 
-## Codebase Pointers
-
+- `src-tauri/src/audio/job_registry/`
+- `src-tauri/src/audio/processor/`
 - `src-tauri/src/audio/progress/emitter.rs`
-- `src-tauri/src/audio/processor` (encoding pipeline)
 - `src-tauri/src/commands/audio.rs`
+
+## Done Criteria
+
+- No parallel lifecycle tracker outside `JobRegistry`.
+- Cancellation is responsive in long-running loops.
+- Frontend event types and backend stage strings remain in sync.
+
+## Alignment
+
+- Use root AGENTS precedence.
+- No implicit internal legacy assumptions.
+- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.

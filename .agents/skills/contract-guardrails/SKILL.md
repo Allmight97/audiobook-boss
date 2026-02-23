@@ -1,44 +1,43 @@
 ---
 name: contract-guardrails
-description: Contract safety for audiobook-boss. Use when touching command signatures or changing TypeScript/Rust IPC boundaries to keep versions and contracts in sync.
+description: Contract safety for TS/Rust IPC changes. Use when command signatures, payloads, event types, or generated bindings may drift.
 ---
 
 # Contract Guardrails
 
-Follow these steps to avoid version drift and TS/Rust contract mismatches.
+Use this skill when touching Tauri commands/events or TS client boundary contracts.
 
-## Required Steps
+## Required Workflow
 
-1) Do not bump version or edit `CHANGELOG.md` unless explicitly preparing a release.
-2) Keep version sources in sync: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
-3) After changing commands or payloads, run `scripts/checks.sh standard` (includes change-aware generated-binding checks by default).
-4) Run strict binding verification before release-critical merges: `bun run bindings:check` (or `CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard`).
-
-## Optional Checks (Before Merge)
-
-Standard tier (default for all workflows):
-
+1. Keep these version sources synchronized only during explicit release work:
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+2. For command/event or payload changes, verify contract parity:
 ```bash
 scripts/checks.sh standard
 ```
-
-Package tier (validates app bundling):
-
+3. For release-critical merges, run strict binding drift checks:
 ```bash
-scripts/checks.sh package
+bun run bindings:check
+# or
+CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard
 ```
 
-Binding-specific commands:
+## Command Pointers
 
-```bash
-bun run bindings:generate
-bun run bindings:check         # strict
-bun run bindings:check:local   # change-aware local
-bun run bindings:sync          # regenerate + stage
-```
+- IPC contract registration: `src-tauri/src/ipc_contract.rs`
+- TS runtime adapter boundary: `src/lib/tauri/client.ts`
+- Binding drift guard: `scripts/check-generated-bindings.sh`
 
-## Codebase Pointers
+## Done Criteria
 
-- `scripts/check-generated-bindings.sh`
-- `src-tauri/src/ipc_contract.rs` (command and event registration)
-- `src/lib/tauri/client.ts` (runtime boundary normalization + command calls)
+- Rust commands/events compile and remain registered.
+- Generated TS bindings match Rust contract.
+- Standard checks pass for non-doc changes.
+
+## Alignment
+
+- Use root AGENTS precedence.
+- No implicit internal legacy assumptions.
+- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.

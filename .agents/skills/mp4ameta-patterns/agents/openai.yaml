@@ -1,0 +1,4 @@
+interface:
+  display_name: "mp4ameta Patterns"
+  short_description: "Implement robust MP4 metadata write patterns"
+  default_prompt: "Use $mp4ameta-patterns to apply safe mp4ameta tag IO and verification patterns."

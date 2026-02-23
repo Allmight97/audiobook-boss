@@ -1,119 +1,67 @@
 ---
 name: audiobook-metadata
-description: "Domain knowledge for audiobook-boss metadata and file handling. Use when modifying how M4B files are tagged, changing output folder structure, debugging metadata issues with Audiobookshelf/Plex/Apple Books, or adding new metadata fields. Critical - ffprobe cannot read MVNM/MVIN tags, dual-write strategy required."
+description: Canonical metadata strategy for Audiobook Boss. Use when changing tag mappings, metadata intent behavior, or ABS/Plex/Apple interoperability rules.
 ---
 
-# Audiobook Metadata Skill
+# Audiobook Metadata
 
-Reference for audiobook-boss metadata implementation targeting Audiobookshelf (ABS), Plex, and Apple Books.
+This is the canonical owner for cross-ecosystem metadata strategy.
 
-## Tool Cross-Check
+## Scope
 
-This skill captures known patterns. If you need to verify, go deeper, or something seems
-stale, use the `lib-research` skill (btca for source, Context7 for docs).
+Use this skill when changing:
+- metadata field semantics,
+- tag mapping policy,
+- write/read interoperability behavior,
+- output naming/folder conventions tied to metadata outcomes.
 
-## Internal Docs
+## Canonical Interop Invariant
 
-- `docs/external-apis/README.md` (navigation)
-- `docs/external-apis/mp4ameta.md`
-- `docs/external-apis/ffmpeg-next.md`
+External compatibility with ABS/Plex/Apple Books is required.
 
-## Critical Constraint
+`ffprobe` does not expose movement tags (`MVNM`/`MVIN`). If series data is written only to movement tags, ABS/Plex scans miss it.
 
-**ffprobe cannot read `MVNM`/`MVIN` (movement) tags.** ABS uses ffprobe for scanning, so series info written only to movement tags is invisible to ABS.
+## Canonical Dual-Write Strategy
 
-Source: [ABS GitHub Discussion #1481](https://github.com/advplyr/audiobookshelf/discussions/1481)
+For series metadata, write both:
+- ffprobe-visible tags: `series`, `series-part`, plus mirrored freeform atoms `----:com.apple.iTunes:SERIES` and `----:com.apple.iTunes:SERIES-PART`
+- Apple movement tags: `MVNM`, `MVIN`
 
-## Dual-Write Strategy (Required)
+This preserves ABS/Plex discoverability and Apple Books compatibility in one write path.
 
-Write BOTH tag formats for universal compatibility:
+## Metadata Intent Boundary
 
-| Tags | Read By | Purpose |
-|------|---------|---------|
-| `series` + `series-part` + `----:com.apple.iTunes:SERIES` + `----:com.apple.iTunes:SERIES-PART` | ABS, Plex (via ffprobe), metadata readers | Canonical series keys plus freeform mirror |
-| `MVNM` + `MVIN` | Apple Books/iTunes | Movement mirror for Apple ecosystem |
+Honor explicit `set | clear | noop` intent semantics end-to-end.
+- Empty sentinels (`''`, `0`, `[]`) are explicit clear commands.
+- Do not collapse clear to noop via emptiness heuristics.
 
-**Never write only MVNM/MVIN** — ABS will not see series info.
+## Verification Path
 
-## Tag Reference
-
-See [references/tag-mapping.md](references/tag-mapping.md) for complete M4B atom mappings.
-
-Quick reference for most common tags:
-
-```
-title          → Book title
-artist         → Author
-composer       → Narrator (ABS maps this correctly)
-series         → Series name (critical for ABS)
-series-part    → Book number in series (critical for ABS)
-----:com.apple.iTunes:SERIES      → Series name (freeform mirror)
-----:com.apple.iTunes:SERIES-PART → Book number (freeform mirror)
-MVNM           → Series name (for Apple Books)
-MVIN           → Book number (for Apple Books)
-show / episode_sort               → Legacy read compatibility only (do not write as primary mapping)
-```
-
-## Folder Structure
-
-Output structure compatible with all three platforms:
-
-```
-/Author Name
-  /Series Name
-    /Book Title
-      book.m4b
-      cover.jpg
-```
-
-See [references/folder-conventions.md](references/folder-conventions.md) for ABS naming patterns.
-
-## Verification
-
-After writing metadata, verify with:
-
+1. Verify ffprobe-visible tags:
 ```bash
-# Confirm series/series-part readable by ABS
 ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
-
-# Confirm MVNM/MVIN present for Apple Books
-# (ffprobe won't show these - use AtomicParsley or mp4info)
-AtomicParsley output.m4b -t
 ```
+2. Verify movement/freeform atoms with mp4 tooling (for example `AtomicParsley`).
+3. Validate behavior in ABS/Plex/Apple import workflows when modifying mappings.
 
-Expected ffprobe output should include:
-```json
-{
-  "series": "Series Name",
-  "series-part": "1"
-}
-```
+## Canonical References
 
-## Codebase Pointers
+- Strategy and mappings: `references/tag-mapping.md`
+- Folder conventions: `references/folder-conventions.md`
+- Metadata model: `src-tauri/src/metadata/mod.rs`
+- Boundary commands: `src-tauri/src/commands/metadata.rs`
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| Metadata writing | `src-tauri/src/metadata/ffmpeg_bridge.rs` | `metadata_to_ffmpeg_dict()` for tag mapping |
-| Data model | `src-tauri/src/metadata/mod.rs` | `AudiobookMetadata` fields (`series`, `series_part`) |
-| Metadata reading | `src-tauri/src/metadata/reader.rs` | `read_metadata()` routing (ffmpeg vs mp4ameta) |
-| Output path | `src-tauri/src/audio/output_path.rs` | `build_output_path()` for folder structure |
-| TSOA computation | `src-tauri/src/commands/metadata.rs` | `compute_tsoa()` for album sort |
+`mp4ameta-patterns` is implementation-focused and must reference this skill for strategy rationale.
 
-## Known Issues
+## Done Criteria
 
-1. **ABS embed bug** ([#3547](https://github.com/advplyr/audiobookshelf/issues/3547)): ABS "Embed Metadata" may not write series tags back to files. Solution: Write correct tags during initial file creation in audiobook-boss.
+- Series/narrator/core metadata remain discoverable across ABS/Plex/Apple.
+- Clear intent behavior remains explicit and preserved.
+- No internal legacy fallback assumptions added without explicit evidence.
 
-2. **ffmpeg MVNM/MVIN**: Standard `-metadata` flag may not write movement tags correctly. May need stream-level metadata or alternative tool. Test output with AtomicParsley.
+## Alignment
 
-3. **Legacy read compatibility**: `show`/`episode_sort` remain read fallbacks for older files only. Current write mapping is `series`/`series-part` with mirrored freeform (`----:com.apple.iTunes:SERIES*`) and movement (`MVNM`/`MVIN`) tags.
-
-## Implementation Checklist
-
-When modifying metadata handling:
-
-- [ ] Write `series`/`series-part` and mirror to freeform `----:com.apple.iTunes:SERIES` / `----:com.apple.iTunes:SERIES-PART`
-- [ ] Write `MVNM` and `MVIN` atoms (Apple Books)
-- [ ] Use `composer` for narrator
-- [ ] Verify with ffprobe (series/series-part visible)
-- [ ] Verify with AtomicParsley (MVNM/MVIN visible)
-- [ ] Test import into ABS (series auto-detected, no manual match needed)
+- Use root AGENTS precedence.
+- No implicit internal legacy assumptions.
+- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.
+- For library/API uncertainty, invoke `lib-research`.
