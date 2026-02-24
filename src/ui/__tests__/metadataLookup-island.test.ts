@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -50,8 +52,8 @@ describe('MetadataLookup island mount', () => {
 	beforeEach(() => {
 		document.body.innerHTML = `
       <button id="metadata-lookup-btn">Open</button>
-      <div id="metadata-lookup-root"></div>
     `;
+		render(MetadataLookupIsland);
 	});
 
 	it('mounts modal controls into root', () => {

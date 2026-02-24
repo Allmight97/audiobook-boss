@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { initMetadataFormEvents, setMetadataFormMode } from '../metadataForm';
+import { render } from '@testing-library/svelte';
+import MetadataFormFieldsIsland from '../metadataForm/MetadataFormFieldsIsland.svelte';
+import {
+	initMetadataFormEvents,
+	onMetadataFormActionSelectChange,
+	onMetadataFormFieldInput,
+	setMetadataFormMode,
+	triggerMetadataFormSave,
+} from '../metadataForm';
 
 describe('MetadataForm island mount + multi-select action sync', () => {
 	beforeEach(() => {
 		document.body.innerHTML = `
       <div id="metadata-selection-count"></div>
       <div id="metadata-form" data-multi-select="false">
-        <div class="grid grid-cols-4 gap-3 mb-3">
-          <div id="metadata-form-fields-root" class="col-span-3"></div>
-        </div>
+        <div class="grid grid-cols-4 gap-3 mb-3"></div>
       </div>
     `;
+		render(MetadataFormFieldsIsland, {
+			onFieldInput: onMetadataFormFieldInput,
+			onActionChange: onMetadataFormActionSelectChange,
+			onSaveMetadata: triggerMetadataFormSave,
+		});
 	});
 
 	it('mounts fields into root and syncs action select on multi-select input', () => {

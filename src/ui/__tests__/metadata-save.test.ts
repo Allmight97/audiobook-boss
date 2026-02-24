@@ -80,12 +80,12 @@ describe('readMetadataForm (single mode)', () => {
 		});
 	});
 
-	it('emits empty cover_art array when removal requested', () => {
+	it('emits undefined cover_art when removal requested', () => {
 		coverRemoval = true;
 
 		const metadata = readMetadataForm({ mode: 'single' });
 
-		expect(metadata.cover_art).toEqual([]);
+		expect(metadata.cover_art).toBeUndefined();
 	});
 
 	it('includes empty strings for clearable metadata fields', () => {
@@ -136,7 +136,7 @@ describe('readMetadataForm (multi mode)', () => {
 
 		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 
-		expect(metadata.date).toBe(0);
+		expect(metadata.date).toBeUndefined();
 	});
 
 	it('applies edited values in multi-select mode', () => {

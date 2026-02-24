@@ -9,7 +9,10 @@ import {
 	removeMetadataForFile,
 	setMetadataForFile,
 } from '../metadataState';
-import { buildMetadataIntentPatchFromMetadata } from '../../types/metadataIntent';
+import {
+	applyMetadataIntentPatch,
+	buildMetadataIntentPatchFromMetadata,
+} from '../../types/metadataIntent';
 
 describe('metadataState pending draft tracking', () => {
 	beforeEach(() => {
@@ -76,5 +79,20 @@ describe('metadataState pending draft tracking', () => {
 		expect(getPendingMetadataIntentEntries()).toEqual([['/a.mp3', { title: { op: 'clear' } }]]);
 		clearPendingMetadataForFile('/a.mp3');
 		expect(getPendingMetadataIntentEntries()).toEqual([]);
+	});
+
+	it('preserves explicit clear patch when merged metadata omits cleared key', () => {
+		const merged = applyMetadataIntentPatch(
+			{ title: 'Book A', artist: 'Author A' },
+			{ title: { op: 'clear' } },
+		);
+
+		setMetadataForFile('/a.mp3', merged, {
+			markPending: true,
+			intentPatch: { title: { op: 'clear' } },
+		});
+
+		expect(merged).toEqual({ artist: 'Author A' });
+		expect(getPendingMetadataIntentEntries()).toEqual([['/a.mp3', { title: { op: 'clear' } }]]);
 	});
 });

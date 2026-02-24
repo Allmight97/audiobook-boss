@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import JobControlsIsland from '../jobControls/JobControlsIsland.svelte';
 import {
 	getJobType,
+	handleMaxConcurrentSelectionChange,
+	handleMergeModeChange,
 	initJobControls,
 	setJobControlsEnabled,
 	setJobTypeSelection,
@@ -17,7 +21,10 @@ const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
 
 function setupDomRoot() {
-	document.body.innerHTML = '<div id="job-controls-root"></div>';
+	render(JobControlsIsland, {
+		onMergeModeChange: handleMergeModeChange,
+		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
+	});
 }
 
 async function flushAsync() {

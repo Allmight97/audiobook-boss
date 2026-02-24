@@ -1,6 +1,6 @@
 use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
 use crate::errors::{AppError, Result};
-use crate::metadata::{read_metadata, AudiobookMetadata};
+use crate::metadata::{read_metadata, AudiobookMetadata, MetadataIntentPatch};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
 use std::io;
@@ -31,25 +31,14 @@ pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata>
 /// 3. Handles cover art: preserves existing if not provided, replaces if new art given
 #[tauri::command]
 #[specta::specta]
-pub async fn save_metadata_to_file(file_path: String, metadata: AudiobookMetadata) -> Result<()> {
+pub async fn save_metadata_to_file(
+    file_path: String,
+    metadata_patch: MetadataIntentPatch,
+) -> Result<()> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
-
-        let validated_metadata = metadata;
-        if let Some(series_part) = validated_metadata.series_part.as_deref() {
-            let trimmed = series_part.trim();
-            if !trimmed.is_empty() {
-                crate::metadata::validate_series_part(trimmed)?;
-            }
-        }
-
-        if let Some(subseries_part) = validated_metadata.subseries_part.as_deref() {
-            let trimmed = subseries_part.trim();
-            if !trimmed.is_empty() {
-                crate::metadata::validate_series_part(trimmed)?;
-            }
-        }
+        let validated_metadata = metadata_patch.to_write_metadata()?;
 
         if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
             crate::metadata::mp4ameta_bridge::write_metadata(&validated_path, &validated_metadata)?;

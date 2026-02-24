@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
 
 const { initializeMock } = vi.hoisted(() => ({
 	initializeMock: vi.fn(),
@@ -13,10 +15,10 @@ import { initEncoderPanel } from '../encoderPanel';
 describe('EncoderPanel island mount', () => {
 	beforeEach(() => {
 		initializeMock.mockReset();
-		document.body.innerHTML = '<div id="encoder-panel-root"></div>';
 	});
 
 	it('mounts encoder controls and runs panel initialization logic', () => {
+		render(EncoderPanelIsland);
 		initEncoderPanel();
 
 		expect(document.getElementById('encoder-settings-panel')).toBeTruthy();

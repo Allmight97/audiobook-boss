@@ -7,7 +7,7 @@ import { readOutputConfigForProcessing } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {
-	getAllMetadata,
+	getAllMetadataIntentPatches,
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
@@ -17,6 +17,7 @@ import {
 	applyMetadataIntentPatch,
 	buildMetadataIntentPatchFromMetadata,
 	hasActionableMetadataIntentPatch,
+	type MetadataIntentPatch,
 } from '../../types/metadataIntent';
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
@@ -144,7 +145,7 @@ export async function startProcessing(
 			}
 		}
 
-		let metadataPayload: Record<string, Partial<AudiobookMetadata>> | null = null;
+		let metadataIntentPayload: Record<string, MetadataIntentPatch> | null = null;
 		if (v2Payload.jobType === 'merge') {
 			const mergeKey = v2Payload.inputFiles[0];
 			const mergeIntentPatch = mergeKey ? getMetadataIntentPatchForFile(mergeKey) : undefined;
@@ -153,22 +154,24 @@ export async function startProcessing(
 				v2Payload.inputFiles.length > 0 &&
 				hasActionableMetadataIntentPatch(mergeIntentPatch)
 			) {
-				const mergeMetadata = getMetadataForFile(mergeKey) ?? currentMetadata;
-				metadataPayload = {
-					[mergeKey]: mergeMetadata,
+				metadataIntentPayload = {
+					[mergeKey]: mergeIntentPatch,
 				};
 			}
 		} else {
-			const storedMetadata = getAllMetadata();
-			const filteredMetadata = Object.fromEntries(
-				Object.entries(storedMetadata).filter(([, value]) => Object.keys(value).length > 0),
+			const storedMetadataIntent = getAllMetadataIntentPatches();
+			const filteredMetadataIntent = Object.fromEntries(
+				Object.entries(storedMetadataIntent).filter(([, value]) =>
+					hasActionableMetadataIntentPatch(value),
+				),
 			);
-			metadataPayload = Object.keys(filteredMetadata).length > 0 ? filteredMetadata : null;
+			metadataIntentPayload =
+				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
 		}
 
 		const result = await tauriClient.processAudiobookFilesV2({
 			payload: v2Payload,
-			metadata: metadataPayload,
+			metadataIntent: metadataIntentPayload,
 			previewSeconds: options?.previewSeconds,
 		});
 

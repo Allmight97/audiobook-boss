@@ -1,5 +1,4 @@
 import type { AudiobookMetadata } from '../types/metadata';
-import { mount, unmount } from 'svelte';
 import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
@@ -10,7 +9,6 @@ import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
 } from './metadataForm/previewState.svelte';
-import MetadataFormFieldsIsland from './metadataForm/MetadataFormFieldsIsland.svelte';
 import { updateTagPreview } from './tagPreview';
 
 export type MetadataFormMode = 'single' | 'multi';
@@ -61,11 +59,19 @@ const FIELD_CONFIGS: FieldConfig[] = [
 ];
 
 const MIXED_PLACEHOLDER = 'Mixed values';
-const METADATA_FORM_FIELDS_ROOT_ID = 'metadata-form-fields-root';
 
-let mountedMetadataFieldsRoot: HTMLElement | null = null;
-let mountedMetadataFieldsIsland: Parameters<typeof unmount>[0] | null = null;
 let onSaveMetadataHandler: MetadataFormSaveHandler | null = null;
+
+function parseStrictYear(raw: string): number | null {
+	if (!/^\d{4}$/.test(raw)) {
+		return null;
+	}
+	const parsed = parseInt(raw, 10);
+	if (!Number.isFinite(parsed) || parsed < 1000 || parsed > 9999) {
+		return null;
+	}
+	return parsed;
+}
 
 function getMetadataForm(): HTMLElement | null {
 	return document.getElementById('metadata-form');
@@ -143,38 +149,12 @@ function isMultiSelectMode(): boolean {
 	return form?.dataset.multiSelect === 'true';
 }
 
-function mountMetadataFieldsIsland(_form: HTMLElement): void {
-	const fieldsRoot = document.getElementById(METADATA_FORM_FIELDS_ROOT_ID);
-	if (!fieldsRoot) return;
-
-	if (
-		mountedMetadataFieldsIsland &&
-		mountedMetadataFieldsRoot === fieldsRoot &&
-		fieldsRoot.childElementCount > 0
-	) {
-		return;
-	}
-
-	if (mountedMetadataFieldsIsland) {
-		void unmount(mountedMetadataFieldsIsland);
-		mountedMetadataFieldsIsland = null;
-	}
-
-	mountedMetadataFieldsIsland = mount(MetadataFormFieldsIsland, {
-		target: fieldsRoot,
-		props: {
-			onFieldInput: onMetadataFormFieldInput,
-			onActionChange: onMetadataFormActionSelectChange,
-			onSaveMetadata: () => {
-				onSaveMetadataHandler?.();
-			},
-		},
-	});
-	mountedMetadataFieldsRoot = fieldsRoot;
-}
-
 export function setMetadataFormSaveHandler(handler: MetadataFormSaveHandler): void {
 	onSaveMetadataHandler = handler;
+}
+
+export function triggerMetadataFormSave(): void {
+	onSaveMetadataHandler?.();
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {
@@ -198,7 +178,6 @@ export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: num
 export function initMetadataFormEvents(): void {
 	const form = getMetadataForm();
 	if (!form) return;
-	mountMetadataFieldsIsland(form);
 	resetMetadataFormPreviewState();
 	for (const field of FIELD_CONFIGS) {
 		const input = getInputElement(field.inputId);
@@ -417,7 +396,7 @@ export function readMetadataForm(options?: {
 
 			if (action === 'blank') {
 				if (field.isNumber) {
-					setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 				} else {
 					setMetadataValue(field.key, '' as AudiobookMetadata[typeof field.key]);
 					if (field.mapToAlbum && field.key === 'title') {
@@ -431,11 +410,11 @@ export function readMetadataForm(options?: {
 
 			if (field.isNumber) {
 				if (!raw) {
-					setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 					return;
 				}
-				const parsed = parseInt(raw, 10);
-				if (!Number.isNaN(parsed)) {
+				const parsed = parseStrictYear(raw);
+				if (parsed !== null) {
 					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
 				}
 				return;
@@ -452,12 +431,12 @@ export function readMetadataForm(options?: {
 
 		if (field.isNumber) {
 			if (raw) {
-				const parsed = parseInt(raw, 10);
-				if (!Number.isNaN(parsed)) {
+				const parsed = parseStrictYear(raw);
+				if (parsed !== null) {
 					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
 				}
 			} else if (dirty) {
-				setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+				setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 			}
 			return;
 		}
@@ -474,7 +453,7 @@ export function readMetadataForm(options?: {
 
 	if (mode === 'single' && includeCoverArt) {
 		if (isCoverArtRemovalRequested()) {
-			metadata.cover_art = [];
+			metadata.cover_art = undefined;
 		} else {
 			const coverBytes = getCurrentCoverArt();
 			if (coverBytes && coverBytes.length > 0) {

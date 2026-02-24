@@ -1,3 +1,4 @@
+import type { MetadataIntentPatch as GeneratedMetadataIntentPatch } from '../lib/generated/tauri';
 import type { AudiobookMetadata } from './metadata';
 
 export const METADATA_INTENT_FIELDS = [
@@ -18,8 +19,6 @@ export const METADATA_INTENT_FIELDS = [
 export type MetadataIntentField = (typeof METADATA_INTENT_FIELDS)[number];
 export type MetadataIntentValueMap = Pick<AudiobookMetadata, MetadataIntentField>;
 type MetadataIntentValue<K extends MetadataIntentField> = NonNullable<MetadataIntentValueMap[K]>;
-type MetadataIntentWriteValue = MetadataIntentValue<MetadataIntentField>;
-type CompiledMetadataPatch = Partial<Record<MetadataIntentField, MetadataIntentWriteValue>>;
 
 export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentField> =
 	| {
@@ -28,6 +27,9 @@ export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentFi
 	  }
 	| {
 			op: 'clear';
+	  }
+	| {
+			op: 'noop';
 	  };
 
 export type MetadataIntentPatch = Partial<{
@@ -38,16 +40,6 @@ function isMetadataIntentField(key: string): key is MetadataIntentField {
 	return (METADATA_INTENT_FIELDS as readonly string[]).includes(key);
 }
 
-function toClearValue(key: MetadataIntentField): MetadataIntentWriteValue {
-	if (key === 'date') {
-		return 0;
-	}
-	if (key === 'cover_art') {
-		return [];
-	}
-	return '';
-}
-
 function normalizeStringInput(value: string): string {
 	return value.trim();
 }
@@ -56,10 +48,17 @@ function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
 }
 
+function isValidYear(value: number): boolean {
+	return Number.isInteger(value) && value >= 1000 && value <= 9999;
+}
+
 export function hasActionableMetadataIntentPatch(
 	patch: MetadataIntentPatch | null | undefined,
 ): patch is MetadataIntentPatch {
-	return Boolean(patch && Object.keys(patch).length > 0);
+	if (!patch) {
+		return false;
+	}
+	return Object.values(patch).some((intent) => intent && intent.op !== 'noop');
 }
 
 export function mergeMetadataIntentPatches(
@@ -75,30 +74,46 @@ export function mergeMetadataIntentPatches(
 	return { ...base, ...next };
 }
 
-export function compileMetadataIntentPatch(patch: MetadataIntentPatch): Partial<AudiobookMetadata> {
-	const metadata: CompiledMetadataPatch = {};
+function toGeneratedPatchOp(
+	intent: MetadataFieldIntent,
+): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'noop' } {
+	if (intent.op === 'clear') {
+		return { op: 'clear' };
+	}
+	return { op: 'set', value: intent.value };
+}
+
+export function compileMetadataIntentPatch(
+	patch: MetadataIntentPatch,
+): GeneratedMetadataIntentPatch {
+	const compiled: Partial<GeneratedMetadataIntentPatch> = {};
 	for (const key of METADATA_INTENT_FIELDS) {
 		const intent = patch[key];
-		if (!intent) {
+		if (!intent || intent.op === 'noop') {
 			continue;
 		}
-		if (intent.op === 'clear') {
-			metadata[key] = toClearValue(key);
-			continue;
-		}
-		metadata[key] = intent.value;
+		compiled[key] = toGeneratedPatchOp(intent) as GeneratedMetadataIntentPatch[typeof key];
 	}
-	return metadata as Partial<AudiobookMetadata>;
+	return compiled as GeneratedMetadataIntentPatch;
 }
 
 export function applyMetadataIntentPatch(
 	base: Partial<AudiobookMetadata>,
 	patch: MetadataIntentPatch,
 ): Partial<AudiobookMetadata> {
-	return {
-		...base,
-		...compileMetadataIntentPatch(patch),
-	};
+	const next: Partial<AudiobookMetadata> = { ...base };
+	for (const key of METADATA_INTENT_FIELDS) {
+		const intent = patch[key];
+		if (!intent || intent.op === 'noop') {
+			continue;
+		}
+		if (intent.op === 'clear') {
+			delete next[key];
+			continue;
+		}
+		next[key] = intent.value as AudiobookMetadata[typeof key];
+	}
+	return next;
 }
 
 export function buildMetadataIntentPatchFromMetadata(
@@ -118,7 +133,13 @@ export function buildMetadataIntentPatchFromMetadata(
 			if (typeof value !== 'number') {
 				continue;
 			}
-			patch[key] = value === 0 ? { op: 'clear' } : { op: 'set', value };
+			if (value <= 0) {
+				patch[key] = { op: 'clear' };
+				continue;
+			}
+			if (isValidYear(value)) {
+				patch[key] = { op: 'set', value };
+			}
 			continue;
 		}
 		if (key === 'cover_art') {

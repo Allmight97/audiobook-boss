@@ -1,5 +1,4 @@
 import { tauriClient } from '../lib/tauri/client';
-import { mount, unmount } from 'svelte';
 import type { AudioFile } from '../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
 import {
@@ -15,14 +14,11 @@ import { getMetadataForFile, setMetadataForFile } from './metadataState';
 import { getCurrentFileList } from './fileList';
 import { selectFile } from './fileList/actions';
 import { getSelectedFileIndices } from './fileList/state';
-import MetadataLookupIsland from './metadataLookup/MetadataLookupIsland.svelte';
 import {
 	metadataLookupState,
 	type MetadataLookupApplyMode,
 	type MetadataLookupStatusVariant,
 } from './metadataLookup/state.svelte';
-
-const METADATA_LOOKUP_ROOT_ID = 'metadata-lookup-root';
 const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 type ApplyMode = MetadataLookupApplyMode;
@@ -41,35 +37,10 @@ type QueueItemState = {
 
 let lookupQueue: LookupQueueItem[] = [];
 let queueIndex = 0;
-let mountedMetadataLookupRoot: HTMLElement | null = null;
-let mountedMetadataLookupIsland: Parameters<typeof unmount>[0] | null = null;
 
 function refreshOutputForMetadataChange(): void {
 	updateOutputPath();
 	updateEstimatedSize();
-}
-
-function mountMetadataLookupIsland(): void {
-	const lookupRoot = document.getElementById(METADATA_LOOKUP_ROOT_ID);
-	if (!lookupRoot) return;
-
-	if (
-		mountedMetadataLookupIsland &&
-		mountedMetadataLookupRoot === lookupRoot &&
-		lookupRoot.childElementCount > 0
-	) {
-		return;
-	}
-
-	if (mountedMetadataLookupIsland) {
-		void unmount(mountedMetadataLookupIsland);
-		mountedMetadataLookupIsland = null;
-	}
-
-	mountedMetadataLookupIsland = mount(MetadataLookupIsland, {
-		target: lookupRoot,
-	});
-	mountedMetadataLookupRoot = lookupRoot;
 }
 
 function setStatus(message: string, variant: MetadataLookupStatusVariant = 'info'): void {
@@ -383,5 +354,8 @@ export function openMetadataLookup(): void {
 }
 
 export function initMetadataLookup(): void {
-	mountMetadataLookupIsland();
+	metadataLookupState.isOpen = false;
+	metadataLookupState.results = [];
+	metadataLookupState.hasSearched = false;
+	metadataLookupState.statusMessage = '';
 }

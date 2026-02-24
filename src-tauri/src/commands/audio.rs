@@ -10,6 +10,7 @@ pub use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
 };
 use crate::errors::{AppError, Result};
+use crate::metadata::MetadataIntentPatch;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -123,9 +124,18 @@ pub async fn process_audiobook_files_v2(
     window: tauri::Window,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     payload: ProcessV2Payload,
-    metadata: Option<HashMap<String, crate::metadata::AudiobookMetadata>>,
+    metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
+    let metadata = metadata
+        .map(|patches| {
+            patches
+                .into_iter()
+                .map(|(path, patch)| patch.to_write_metadata().map(|metadata| (path, metadata)))
+                .collect::<Result<HashMap<String, crate::metadata::AudiobookMetadata>>>()
+        })
+        .transpose()?;
+
     audio_processing::process_payload(
         window,
         registry.inner().clone(),

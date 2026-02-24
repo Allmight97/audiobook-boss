@@ -2,26 +2,46 @@
 	import { onMount } from 'svelte';
 	import { tauriClient } from './lib/tauri/client';
 	import { initFileImport } from './ui/fileImport';
+	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
 	import { getCurrentFileList } from './ui/fileList';
 	import { fileListViewState } from './ui/fileList/viewState.svelte';
 	import { persistPendingMetadataDraftsForCurrentSelection } from './ui/fileList/actions';
+	import EncoderPanelIsland from './ui/encoderPanel/EncoderPanelIsland.svelte';
 	import { initOutputPanel } from './ui/outputPanel';
+	import OutputPanelIsland from './ui/outputPanel/OutputPanelIsland.svelte';
 	import {
 		getStatusPanel,
 		initStatusPanel,
 		pushStatusPanelTransientStatus,
 	} from './ui/statusPanel/index';
+	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
 	import { initEncoderPanel } from './ui/encoderPanel';
-	import { initCoverArt } from './ui/coverArt';
+	import {
+		initCoverArt,
+		onClearCoverArt,
+		onLoadCoverArtFromFilePicker,
+		onLoadCoverArtFromInput,
+	} from './ui/coverArt';
+	import CoverArtIsland from './ui/coverArt/CoverArtIsland.svelte';
 	import {
 		initMetadataFormEvents,
+		onMetadataFormActionSelectChange,
+		onMetadataFormFieldInput,
 		resetDirtyState,
 		setMetadataFormSaveHandler,
+		triggerMetadataFormSave,
 	} from './ui/metadataForm';
+	import MetadataFormFieldsIsland from './ui/metadataForm/MetadataFormFieldsIsland.svelte';
 	import { initTagPreview } from './ui/tagPreview';
-	import { initJobControls } from './ui/jobControls';
+	import TagPreviewIsland from './ui/tagPreview/TagPreviewIsland.svelte';
+	import {
+		handleMaxConcurrentSelectionChange,
+		handleMergeModeChange,
+		initJobControls,
+	} from './ui/jobControls';
+	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import { initMetadataLookup } from './ui/metadataLookup';
-	import { runInitSteps } from './ui/initSafety';
+	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
 	import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from './ui/metadataState';
 	import { isMetadataSaveInProgress, setMetadataSaveInProgress } from './ui/metadataSaveState';
 	let previewDuration = 30;
@@ -147,17 +167,15 @@
 		});
 
 		try {
-			runInitSteps([
-				{ label: 'file import', init: initFileImport },
-				{ label: 'encoder panel', init: initEncoderPanel },
-				{ label: 'output panel', init: initOutputPanel },
-				{ label: 'status panel', init: initStatusPanel },
-				{ label: 'cover art', init: initCoverArt },
-				{ label: 'metadata form events', init: initMetadataFormEvents },
-				{ label: 'tag preview', init: initTagPreview },
-				{ label: 'metadata lookup', init: initMetadataLookup },
-				{ label: 'job controls', init: initJobControls },
-			]);
+			initFileImport();
+			initEncoderPanel();
+			initOutputPanel();
+			initStatusPanel();
+			initCoverArt();
+			initMetadataFormEvents();
+			initTagPreview();
+			initMetadataLookup();
+			initJobControls();
 		} catch (error) {
 			uiInitFatalMessage = `UI initialization failed. ${error instanceof Error ? error.message : String(error)}`;
 			console.error('[ui:init] fatal failure', error);
@@ -182,10 +200,13 @@
 		<div class="flex flex-col gap-2 mb-2">
 			<div class="flex items-center justify-between">
 				<h3 class="section-title mb-0 whitespace-nowrap mr-2">Input and File Order</h3>
-				<div id="job-controls-root"></div>
+				<JobControlsIsland
+					onMergeModeChange={handleMergeModeChange}
+					onMaxConcurrentSelectionChange={handleMaxConcurrentSelectionChange}
+				/>
 			</div>
 
-			<div id="file-import-root"></div>
+			<FileImportIsland />
 		</div>
 
 		<div
@@ -228,12 +249,24 @@
 				<div id="metadata-selection-count" class="text-xs muted-text mb-2" hidden></div>
 				<div id="metadata-form" data-multi-select="false">
 					<div class="grid grid-cols-4 gap-3 mb-3">
-						<div id="cover-art-root" class="col-span-1"></div>
-						<div id="metadata-form-fields-root" class="col-span-3"></div>
+						<div class="col-span-1">
+							<CoverArtIsland
+								onLoadFromFile={onLoadCoverArtFromFilePicker}
+								onLoadFromInput={onLoadCoverArtFromInput}
+								onClearCoverArt={onClearCoverArt}
+							/>
+						</div>
+						<div class="col-span-3">
+							<MetadataFormFieldsIsland
+								onFieldInput={onMetadataFormFieldInput}
+								onActionChange={onMetadataFormActionSelectChange}
+								onSaveMetadata={triggerMetadataFormSave}
+							/>
+						</div>
 					</div>
 				</div>
 
-				<div id="encoder-panel-root"></div>
+				<EncoderPanelIsland />
 			</div>
 
 			<div
@@ -241,7 +274,7 @@
 				role="region"
 				aria-label="Output and preview"
 			>
-				<div id="output-panel-root"></div>
+				<OutputPanelIsland />
 
 				<div class="section-divider">
 					<div class="section-header justify-between">
@@ -284,13 +317,13 @@
 						</div>
 					</div>
 
-					<div id="tag-preview-root"></div>
+					<TagPreviewIsland />
 				</div>
 			</div>
 		</div>
 
-		<div id="status-panel-root"></div>
+		<StatusPanelIsland />
 	</div>
 </div>
-<div id="metadata-lookup-root"></div>
+<MetadataLookupIsland />
 {/if}

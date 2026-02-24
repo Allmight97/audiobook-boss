@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { render } from '@testing-library/svelte';
 import { calculateTSOA, initTagPreview, updateTagPreview } from '../tagPreview';
 import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
 } from '../metadataForm/previewState.svelte';
+import TagPreviewIsland from '../tagPreview/TagPreviewIsland.svelte';
 
 function setupDom(initialValues: Record<string, string> = {}): void {
 	const value = (id: string): string => initialValues[id] ?? '';
@@ -38,6 +40,8 @@ function setupDom(initialValues: Record<string, string> = {}): void {
 		if (!element) continue;
 		setMetadataFormPreviewValueByInputId(inputId, element.value);
 	}
+
+	render(TagPreviewIsland);
 }
 
 function getFieldValue(field: string): string {
@@ -160,12 +164,7 @@ describe('tagPreview', () => {
 
 		expect(document.querySelectorAll('[data-field="title"]').length).toBe(1);
 
-		const previewRoot = document.getElementById('tag-preview-root');
-		if (!previewRoot) {
-			throw new Error('Missing tag-preview-root');
-		}
-		previewRoot.innerHTML = '';
-
+		setupDom();
 		initTagPreview();
 		await flushRender();
 

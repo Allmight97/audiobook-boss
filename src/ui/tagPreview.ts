@@ -4,9 +4,7 @@
  * Calculates TSOA (sort key) and updates the tag preview grid
  * based on metadata form preview state.
  */
-import { mount, unmount } from 'svelte';
 import { metadataFormPreviewState } from './metadataForm/previewState.svelte';
-import TagPreviewIsland from './tagPreview/TagPreviewIsland.svelte';
 import {
 	TAG_FIELDS,
 	createEmptyTagPreviewValues,
@@ -62,30 +60,6 @@ const TAG_FIELD_MAPPINGS: Record<TagField, () => string> = {
 		),
 };
 
-let mountedPreviewRoot: HTMLElement | null = null;
-let mountedTagPreview: Parameters<typeof unmount>[0] | null = null;
-
-function mountTagPreviewIsland(): void {
-	const previewRoot = document.getElementById('tag-preview-root');
-	if (!previewRoot) return;
-
-	if (
-		mountedTagPreview &&
-		mountedPreviewRoot === previewRoot &&
-		previewRoot.childElementCount > 0
-	) {
-		return;
-	}
-
-	if (mountedTagPreview) {
-		void unmount(mountedTagPreview);
-		mountedTagPreview = null;
-	}
-
-	mountedTagPreview = mount(TagPreviewIsland, { target: previewRoot });
-	mountedPreviewRoot = previewRoot;
-}
-
 function getTagPreviewValues(): TagPreviewValues {
 	const values = createEmptyTagPreviewValues();
 	for (const field of TAG_FIELDS) {
@@ -105,6 +79,6 @@ export function updateTagPreview(): void {
  * Initializes tag preview island and synchronizes with the current metadata preview state.
  */
 export function initTagPreview(): void {
-	mountTagPreviewIsland();
 	updateTagPreview();
 }
+export { default as TagPreviewIsland } from './tagPreview/TagPreviewIsland.svelte';

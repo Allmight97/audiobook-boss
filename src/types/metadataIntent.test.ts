@@ -32,11 +32,25 @@ describe('metadata intent patch helpers', () => {
 		});
 
 		expect(payload).toEqual({
-			title: '',
-			date: 0,
-			series_part: '3.5',
-			cover_art: [],
+			title: { op: 'clear' },
+			date: { op: 'clear' },
+			series_part: { op: 'set', value: '3.5' },
+			cover_art: { op: 'clear' },
 		});
+	});
+
+	it('omits noop operations when compiling backend payloads', () => {
+		const payload = compileMetadataIntentPatch({
+			title: { op: 'noop' },
+			artist: { op: 'clear' },
+			date: { op: 'set', value: 2024 },
+		});
+
+		expect(payload).toEqual({
+			artist: { op: 'clear' },
+			date: { op: 'set', value: 2024 },
+		});
+		expect('title' in payload).toBe(false);
 	});
 
 	it('applies patches on top of existing metadata', () => {
@@ -51,7 +65,6 @@ describe('metadata intent patch helpers', () => {
 		expect(merged).toEqual({
 			title: 'New',
 			artist: 'Author',
-			series: '',
 		});
 	});
 

@@ -70,11 +70,11 @@ pub(super) fn region_to_tld(region: &str) -> &str {
 
 pub(super) fn parse_year(value: Option<&str>) -> Option<i32> {
     let raw = value?.trim();
-    if raw.len() < 4 {
+    if raw.len() != 4 || !raw.chars().all(|ch| ch.is_ascii_digit()) {
         return None;
     }
 
-    raw.get(0..4)?.parse().ok()
+    raw.parse().ok()
 }
 
 pub(super) fn clean_series_part(value: Option<String>) -> Option<String> {
@@ -167,6 +167,15 @@ mod tests {
         );
         assert_eq!(clean_series_part(Some("Nope".to_string())), None);
         assert_eq!(clean_series_part(Some("".to_string())), None);
+    }
+
+    #[test]
+    fn parse_year_accepts_only_four_digit_years() {
+        assert_eq!(parse_year(Some("2024")), Some(2024));
+        assert_eq!(parse_year(Some(" 2024 ")), Some(2024));
+        assert_eq!(parse_year(Some("2024-01-01")), None);
+        assert_eq!(parse_year(Some("99")), None);
+        assert_eq!(parse_year(Some("abcd")), None);
     }
 
     #[test]

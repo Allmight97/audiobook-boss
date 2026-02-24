@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { writable } from 'svelte/store';
 
 const context = vi.hoisted(() => ({
 	saveMetadataIntentToFileMock: vi.fn(),
@@ -19,15 +20,34 @@ const context = vi.hoisted(() => ({
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		saveMetadataIntentToFile: context.saveMetadataIntentToFileMock,
+		listen: vi.fn(async () => () => {}),
+		open: vi.fn(),
+		analyzeAudioFiles: vi.fn(async () => ({
+			files: [],
+			totalDuration: 0,
+			totalSize: 0,
+			validCount: 0,
+			invalidCount: 0,
+		})),
+		readAudioMetadata: vi.fn(async () => ({})),
 	},
 }));
 
 vi.mock('../fileImport', () => ({ initFileImport: vi.fn() }));
 vi.mock('../outputPanel', () => ({ initOutputPanel: vi.fn() }));
 vi.mock('../encoderPanel', () => ({ initEncoderPanel: vi.fn() }));
-vi.mock('../coverArt', () => ({ initCoverArt: vi.fn() }));
+vi.mock('../coverArt', () => ({
+	initCoverArt: vi.fn(),
+	onLoadCoverArtFromFilePicker: vi.fn(),
+	onLoadCoverArtFromInput: vi.fn(),
+	onClearCoverArt: vi.fn(),
+}));
 vi.mock('../tagPreview', () => ({ initTagPreview: vi.fn() }));
-vi.mock('../jobControls', () => ({ initJobControls: vi.fn() }));
+vi.mock('../jobControls', () => ({
+	initJobControls: vi.fn(),
+	handleMergeModeChange: vi.fn(),
+	handleMaxConcurrentSelectionChange: vi.fn(),
+}));
 vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
@@ -50,6 +70,9 @@ vi.mock('../metadataForm', () => ({
 		}
 	}),
 	resetDirtyState: context.resetDirtyStateMock,
+	onMetadataFormFieldInput: vi.fn(),
+	onMetadataFormActionSelectChange: vi.fn(),
+	triggerMetadataFormSave: vi.fn(),
 	setMetadataFormSaveHandler: (handler: () => void) => {
 		context.saveMetadataHandler = handler;
 	},
@@ -69,6 +92,7 @@ vi.mock('../metadataState', () => ({
 }));
 
 vi.mock('../metadataSaveState', () => ({
+	metadataSaveInProgressStore: writable(false),
 	isMetadataSaveInProgress: () => context.metadataSaveInProgress,
 	setMetadataSaveInProgress: (value: boolean) => {
 		context.metadataSaveInProgress = value;

@@ -29,7 +29,6 @@ import {
 	normalizeQueueEvent,
 } from './normalizers';
 
-type MetadataPayload = Record<string, Partial<AudiobookMetadata>>;
 type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
 
 const commandInvokers = {
@@ -45,16 +44,11 @@ const commandInvokers = {
 		generatedCommands.loadCoverArtFile(args.filePath),
 	load_cover_art_from_url: (args: { url: string }) =>
 		generatedCommands.loadCoverArtFromUrl(args.url),
-	save_metadata_to_file: (args: {
-		filePath: string;
-		metadata?: Partial<AudiobookMetadata>;
-		metadataIntent?: MetadataIntentPatch;
-	}) => {
-		const metadata = args.metadataIntent
-			? compileMetadataIntentPatch(args.metadataIntent)
-			: (args.metadata ?? {});
-		return generatedCommands.saveMetadataToFile(args.filePath, denormalizeMetadata(metadata));
-	},
+	save_metadata_to_file: (args: { filePath: string; metadataIntent: MetadataIntentPatch }) =>
+		generatedCommands.saveMetadataToFile(
+			args.filePath,
+			compileMetadataIntentPatch(args.metadataIntent),
+		),
 	search_online_metadata: (args: {
 		query: string;
 		sources?: MetadataSource[] | null;
@@ -91,22 +85,15 @@ const commandInvokers = {
 		generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null),
 	process_audiobook_files_v2: (args: {
 		payload: ProcessV2Payload;
-		metadata?: MetadataPayload | null;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
 	}) => {
-		const metadataFromIntent = args.metadataIntent
+		const metadataPayload = args.metadataIntent
 			? Object.fromEntries(
 					Object.entries(args.metadataIntent).map(([path, value]) => [
 						path,
 						compileMetadataIntentPatch(value),
 					]),
-				)
-			: null;
-		const metadataSource = metadataFromIntent ?? args.metadata ?? null;
-		const metadataPayload = metadataSource
-			? Object.fromEntries(
-					Object.entries(metadataSource).map(([path, value]) => [path, denormalizeMetadata(value)]),
 				)
 			: null;
 
@@ -152,9 +139,9 @@ export const tauriClient = {
 		invokeCommand('load_cover_art_from_url', { url }),
 	saveMetadataToFile: (
 		filePath: string,
-		metadata: Partial<AudiobookMetadata>,
+		metadataIntent: MetadataIntentPatch,
 	): Promise<CommandResult<'save_metadata_to_file'>> =>
-		invokeCommand('save_metadata_to_file', { filePath, metadata }),
+		invokeCommand('save_metadata_to_file', { filePath, metadataIntent }),
 	saveMetadataIntentToFile: (
 		filePath: string,
 		metadataIntent: MetadataIntentPatch,
@@ -188,7 +175,6 @@ export const tauriClient = {
 		invokeCommand('set_max_concurrent_jobs', { max_concurrent: maxConcurrent ?? null }),
 	processAudiobookFilesV2: (args: {
 		payload: ProcessV2Payload;
-		metadata?: MetadataPayload | null;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
 	}): Promise<ProcessCommandResult & { previewActualSeconds?: number; jobId: string }> =>
