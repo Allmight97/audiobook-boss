@@ -11,7 +11,7 @@ fn sample_metadata() -> AudiobookMetadata {
         album: None,
         composer: None,
         genre: None,
-        date: Some(1965),
+        date: Some("1965".to_string()),
         track: None,
         disk: None,
         comment: None,

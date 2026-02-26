@@ -213,9 +213,9 @@ composer: string | null;
  */
 genre: string | null; 
 /**
- * Publication year/date (©day)
+ * Publication date as YYYY or YYYY-MM (©day)
  */
-date: number | null; 
+date: string | null; 
 /**
  * Track number (chapter number, total chapters)
  */
@@ -325,10 +325,10 @@ validCount: number;
  */
 invalidCount: number }
 export type JobType = "merge" | "batch"
-export type MetadataIntentPatch = { title?: PatchOp<string>; artist?: PatchOp<string>; album?: PatchOp<string>; composer?: PatchOp<string>; genre?: PatchOp<string>; date?: PatchOp<number>; description?: PatchOp<string>; series?: PatchOp<string>; series_part?: PatchOp<string>; subseries?: PatchOp<string>; subseries_part?: PatchOp<string>; cover_art?: PatchOp<number[]> }
+export type MetadataIntentPatch = { title?: PatchOp<string>; artist?: PatchOp<string>; album?: PatchOp<string>; composer?: PatchOp<string>; genre?: PatchOp<string>; date?: PatchOp<string>; description?: PatchOp<string>; series?: PatchOp<string>; series_part?: PatchOp<string>; subseries?: PatchOp<string>; subseries_part?: PatchOp<string>; cover_art?: PatchOp<number[]> }
 export type MetadataSource = "audnexus" | "openlibrary"
 export type NamingPreset = "absDefault" | "customTemplate"
-export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedYear: number | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
+export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedDate: string | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
 /**

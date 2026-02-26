@@ -1,6 +1,9 @@
 //! FFmpeg metadata dictionary helpers for AudiobookMetadata.
 
-use super::{build_series_list, compute_album_sort, split_series_list, AudiobookMetadata};
+use super::{
+    build_series_list, compute_album_sort, publication_year_from_date, split_series_list,
+    AudiobookMetadata,
+};
 use crate::errors::Result;
 use crate::metadata::tag_registry::{
     ITUNES_SERIES, ITUNES_SERIES_PART, MOVEMENT_INDEX, MOVEMENT_NAME, SERIES, SERIES_CLEAR_KEYS,
@@ -49,10 +52,13 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         }
     }
 
-    if let Some(date) = metadata.date {
-        if date > 0 {
-            dict.set("date", &date.to_string());
-            dict.set("year", &date.to_string()); // Some containers prefer year
+    if let Some(ref date) = metadata.date {
+        let trimmed = date.trim();
+        if !trimmed.is_empty() {
+            dict.set("date", trimmed);
+            if let Some(year) = publication_year_from_date(Some(trimmed)) {
+                dict.set("year", &year.to_string()); // Some containers prefer year-only.
+            }
         }
     }
 
@@ -181,7 +187,13 @@ fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
         return true;
     }
 
-    if metadata.date == Some(0) && matches!(key, "date" | "year") {
+    if metadata
+        .date
+        .as_deref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(false)
+        && matches!(key, "date" | "year")
+    {
         return true;
     }
 

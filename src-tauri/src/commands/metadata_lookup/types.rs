@@ -20,7 +20,7 @@ pub struct OnlineMetadataResult {
     pub subseries: Option<String>,
     pub subseries_part: Option<String>,
     pub description: Option<String>,
-    pub published_year: Option<i32>,
+    pub published_date: Option<String>,
     pub duration_seconds: Option<u32>,
     pub cover_url: Option<String>,
     pub audible_only: Option<bool>,

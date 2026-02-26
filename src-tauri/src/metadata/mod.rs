@@ -41,8 +41,8 @@ pub struct AudiobookMetadata {
     pub composer: Option<String>,
     /// Genre of the book (©gen)
     pub genre: Option<String>,
-    /// Publication year/date (©day)
-    pub date: Option<u32>,
+    /// Publication date as YYYY or YYYY-MM (©day)
+    pub date: Option<String>,
     /// Track number (chapter number, total chapters)
     pub track: Option<(u32, Option<u32>)>,
     /// Disk number (rarely used for audiobooks)
@@ -88,7 +88,7 @@ pub struct MetadataIntentPatch {
     #[serde(default)]
     pub genre: PatchOp<String>,
     #[serde(default)]
-    pub date: PatchOp<u32>,
+    pub date: PatchOp<String>,
     #[serde(default)]
     pub description: PatchOp<String>,
     #[serde(default)]
@@ -119,13 +119,12 @@ impl MetadataIntentPatch {
         apply_string_patch(&self.subseries_part, &mut metadata.subseries_part);
 
         match &self.date {
-            PatchOp::Set(year) => {
-                validate_metadata_year(*year)?;
-                metadata.date = Some(*year);
+            PatchOp::Set(date) => {
+                metadata.date = Some(validate_publication_date(date)?);
             }
             PatchOp::Clear => {
-                // Metadata backends clear year/date tags when date==0.
-                metadata.date = Some(0);
+                // Metadata backends clear year/date tags when date is empty.
+                metadata.date = Some(String::new());
             }
             PatchOp::Noop => {}
         }
@@ -167,8 +166,16 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
         };
 
         let date = match metadata.date {
-            Some(0) => PatchOp::Clear,
-            Some(year) => PatchOp::Set(year),
+            Some(date) => {
+                let trimmed = date.trim();
+                if trimmed.is_empty() {
+                    PatchOp::Clear
+                } else if let Some(normalized) = normalize_publication_date(trimmed) {
+                    PatchOp::Set(normalized)
+                } else {
+                    PatchOp::Noop
+                }
+            }
             None => PatchOp::Noop,
         };
 
@@ -207,14 +214,51 @@ fn apply_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
     }
 }
 
-fn validate_metadata_year(year: u32) -> Result<()> {
-    if (1000..=9999).contains(&year) {
-        Ok(())
-    } else {
-        Err(AppError::InvalidInput(
-            "Year must be a 4-digit value (1000-9999).".to_string(),
-        ))
+fn validate_publication_date(value: &str) -> Result<String> {
+    normalize_publication_date(value).ok_or_else(|| {
+        AppError::InvalidInput(
+            "Publication date must be YYYY or YYYY-MM with month 01-12.".to_string(),
+        )
+    })
+}
+
+pub(crate) fn normalize_publication_date(value: &str) -> Option<String> {
+    let raw = value.trim();
+    if raw.len() == 4 && raw.chars().all(|ch| ch.is_ascii_digit()) {
+        return Some(raw.to_string());
     }
+
+    let bytes = raw.as_bytes();
+    if bytes.len() < 7 {
+        return None;
+    }
+    if !bytes[0..4].iter().all(u8::is_ascii_digit) || bytes[4] != b'-' {
+        return None;
+    }
+    if !bytes[5..7].iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let month = std::str::from_utf8(&bytes[5..7]).ok()?.parse::<u8>().ok()?;
+    if !(1..=12).contains(&month) {
+        return None;
+    }
+    if bytes.len() > 7 && !matches!(bytes[7], b'-' | b'T' | b' ') {
+        return None;
+    }
+
+    Some(format!("{}-{}", &raw[0..4], &raw[5..7]))
+}
+
+pub(crate) fn publication_year_from_date(value: Option<&str>) -> Option<i32> {
+    let raw = value?.trim();
+    if raw.len() < 4 {
+        return None;
+    }
+    let year = &raw[0..4];
+    if !year.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    year.parse::<i32>().ok()
 }
 
 impl AudiobookMetadata {
@@ -364,14 +408,14 @@ mod tests {
 
         assert_eq!(metadata.title.as_deref(), Some("Project Hail Mary"));
         assert_eq!(metadata.artist.as_deref(), Some(""));
-        assert_eq!(metadata.date, Some(0));
+        assert_eq!(metadata.date.as_deref(), Some(""));
         assert_eq!(metadata.cover_art, Some(Vec::new()));
     }
 
     #[test]
-    fn metadata_intent_patch_rejects_invalid_year() {
+    fn metadata_intent_patch_rejects_invalid_publication_date() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set(999),
+            date: PatchOp::Set("2024-13".to_string()),
             ..Default::default()
         };
 
@@ -381,7 +425,7 @@ mod tests {
 
         match err {
             AppError::InvalidInput(message) => {
-                assert!(message.contains("4-digit"), "unexpected message: {message}");
+                assert!(message.contains("YYYY"), "unexpected message: {message}");
             }
             other => panic!("expected invalid input error, got: {other:?}"),
         }
@@ -415,7 +459,7 @@ mod tests {
             title: Some("The Way of Kings".to_string()),
             artist: Some(String::new()),
             genre: None,
-            date: Some(0),
+            date: Some(String::new()),
             cover_art: Some(Vec::new()),
             ..Default::default()
         });
@@ -440,5 +484,25 @@ mod tests {
             PatchOp::Clear => {}
             other => panic!("expected cover art clear patch, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
+        assert_eq!(normalize_publication_date("2024"), Some("2024".to_string()));
+        assert_eq!(
+            normalize_publication_date("2024-07"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(
+            normalize_publication_date("2024-07-15"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(
+            normalize_publication_date("2024-07-15T10:00:00Z"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(normalize_publication_date("2024-13"), None);
+        assert_eq!(normalize_publication_date("2024-00"), None);
+        assert_eq!(normalize_publication_date("abcd"), None);
     }
 }

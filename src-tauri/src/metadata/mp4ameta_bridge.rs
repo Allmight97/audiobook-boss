@@ -1,7 +1,9 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
 use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
-use crate::metadata::{build_series_list, split_series_list, AudiobookMetadata};
+use crate::metadata::{
+    build_series_list, normalize_publication_date, split_series_list, AudiobookMetadata,
+};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
 
@@ -27,7 +29,7 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     metadata.comment = tag.comment().map(str::to_string);
     metadata.description = tag.description().map(str::to_string);
     metadata.album_sort = tag.album_sort_order().map(str::to_string);
-    metadata.date = tag.year().and_then(|y| y.parse::<u32>().ok());
+    metadata.date = tag.year().and_then(normalize_publication_date);
 
     let series_raw = read_series_raw(&tag);
     let series_part_raw = read_series_part_raw(&tag);
@@ -85,11 +87,12 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
         tag.set_genre(genre);
     }
 
-    if let Some(date) = metadata.date {
-        if date == 0 {
+    if let Some(ref date) = metadata.date {
+        let trimmed = date.trim();
+        if trimmed.is_empty() {
             tag.remove_year();
         } else {
-            tag.set_year(date.to_string());
+            tag.set_year(trimmed.to_string());
         }
     }
 
