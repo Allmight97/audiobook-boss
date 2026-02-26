@@ -72,8 +72,8 @@
     },
     {
       field: "year",
-      label: "TYER (Release Year)",
-      title: "Publication or release year.",
+      label: "©day (Publication Date)",
+      title: "Publication date stored as YYYY or YYYY-MM when available.",
     },
     {
       field: "genre",

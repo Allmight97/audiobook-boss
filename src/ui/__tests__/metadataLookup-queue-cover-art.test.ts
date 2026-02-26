@@ -176,7 +176,7 @@ describe('metadata lookup queue cover art isolation', () => {
 				subseries: null,
 				subseriesPart: null,
 				description: 'Description',
-				publishedYear: 2020,
+				publishedDate: '2020-07',
 				durationSeconds: 3600,
 				audibleOnly: false,
 				coverUrl: 'https://example.com/cover.jpg',

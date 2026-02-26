@@ -11,7 +11,7 @@ vi.mock('../coverArt', () => ({
 	setCoverArt: () => {},
 }));
 
-import { readMetadataForm } from '../metadataForm';
+import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 
 const setField = (id: string, value: string) => {
 	const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
@@ -69,7 +69,7 @@ describe('readMetadataForm (single mode)', () => {
 			album: 'Title',
 			artist: 'Author',
 			composer: 'Narrator',
-			date: 2024,
+			date: '2024',
 			genre: 'Fiction',
 			series: 'Series',
 			series_part: '2',
@@ -80,12 +80,20 @@ describe('readMetadataForm (single mode)', () => {
 		});
 	});
 
-	it('emits undefined cover_art when removal requested', () => {
+	it('accepts YYYY-MM publication date input', () => {
+		setField('meta-year', '2024-07');
+
+		const metadata = readMetadataForm({ mode: 'single' });
+
+		expect(metadata.date).toBe('2024-07');
+	});
+
+	it('emits empty cover_art payload when removal requested', () => {
 		coverRemoval = true;
 
 		const metadata = readMetadataForm({ mode: 'single' });
 
-		expect(metadata.cover_art).toBeUndefined();
+		expect(metadata.cover_art).toEqual([]);
 	});
 
 	it('includes empty strings for clearable metadata fields', () => {
@@ -96,6 +104,19 @@ describe('readMetadataForm (single mode)', () => {
 		expect(metadata.subseries).toBe('');
 		expect(metadata.subseries_part).toBe('');
 		expect(metadata.description).toBe('');
+	});
+
+	it('treats explicit cover art removal as a dirty metadata change', () => {
+		coverRemoval = true;
+
+		expect(hasDirtyMetadataFields()).toBe(true);
+	});
+
+	it('treats custom cover art as a dirty metadata change', () => {
+		hasCustomCoverArt = true;
+		coverArtBytes = [1, 2, 3];
+
+		expect(hasDirtyMetadataFields()).toBe(true);
 	});
 });
 

@@ -206,8 +206,8 @@ function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMet
 	if (result.description) {
 		metadata.description = result.description;
 	}
-	if (result.publishedYear) {
-		metadata.date = result.publishedYear;
+	if (result.publishedDate) {
+		metadata.date = result.publishedDate;
 	}
 	metadata.album = result.title;
 

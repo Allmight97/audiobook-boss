@@ -66,7 +66,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						subseries: 'Mock Sub-series',
 						subseriesPart: '1',
 						description: 'Mock description from lookup source.',
-						publishedYear: 2021,
+						publishedDate: '2021',
 						durationSeconds: 36000,
 						coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
 						audibleOnly: false,

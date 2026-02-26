@@ -48,8 +48,20 @@ function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
 }
 
-function isValidYear(value: number): boolean {
-	return Number.isInteger(value) && value >= 1000 && value <= 9999;
+function normalizePublicationDateInput(value: string): string | null {
+	const trimmed = value.trim();
+	if (/^\d{4}$/.test(trimmed)) {
+		return trimmed;
+	}
+	const match = trimmed.match(/^(\d{4})-(\d{2})(?:[-T ].*)?$/);
+	if (!match) {
+		return null;
+	}
+	const month = Number.parseInt(match[2], 10);
+	if (!Number.isInteger(month) || month < 1 || month > 12) {
+		return null;
+	}
+	return `${match[1]}-${match[2]}`;
 }
 
 export function hasActionableMetadataIntentPatch(
@@ -75,7 +87,7 @@ export function mergeMetadataIntentPatches(
 }
 
 function toGeneratedPatchOp(
-	intent: MetadataFieldIntent,
+	intent: Exclude<MetadataFieldIntent, { op: 'noop' }>,
 ): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'noop' } {
 	if (intent.op === 'clear') {
 		return { op: 'clear' };
@@ -86,13 +98,13 @@ function toGeneratedPatchOp(
 export function compileMetadataIntentPatch(
 	patch: MetadataIntentPatch,
 ): GeneratedMetadataIntentPatch {
-	const compiled: Partial<GeneratedMetadataIntentPatch> = {};
+	const compiled: Record<string, unknown> = {};
 	for (const key of METADATA_INTENT_FIELDS) {
 		const intent = patch[key];
 		if (!intent || intent.op === 'noop') {
 			continue;
 		}
-		compiled[key] = toGeneratedPatchOp(intent) as GeneratedMetadataIntentPatch[typeof key];
+		compiled[key] = toGeneratedPatchOp(intent);
 	}
 	return compiled as GeneratedMetadataIntentPatch;
 }
@@ -111,7 +123,7 @@ export function applyMetadataIntentPatch(
 			delete next[key];
 			continue;
 		}
-		next[key] = intent.value as AudiobookMetadata[typeof key];
+		(next as Record<MetadataIntentField, unknown>)[key] = intent.value;
 	}
 	return next;
 }
@@ -130,15 +142,17 @@ export function buildMetadataIntentPatchFromMetadata(
 			continue;
 		}
 		if (key === 'date') {
-			if (typeof value !== 'number') {
+			if (typeof value !== 'string') {
 				continue;
 			}
-			if (value <= 0) {
+			const trimmed = value.trim();
+			if (trimmed.length === 0) {
 				patch[key] = { op: 'clear' };
 				continue;
 			}
-			if (isValidYear(value)) {
-				patch[key] = { op: 'set', value };
+			const normalized = normalizePublicationDateInput(trimmed);
+			if (normalized) {
+				patch[key] = { op: 'set', value: normalized };
 			}
 			continue;
 		}

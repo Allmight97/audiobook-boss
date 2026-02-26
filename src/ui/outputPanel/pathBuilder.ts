@@ -71,6 +71,15 @@ function buildSimpleFilename(
 	return `${base}.m4b`;
 }
 
+function extractPublicationYear(date: string | undefined): string | undefined {
+	if (!date) return undefined;
+	const trimmed = date.trim();
+	if (/^\d{4}/.test(trimmed)) {
+		return trimmed.slice(0, 4);
+	}
+	return undefined;
+}
+
 /**
  * Calculates the full output path based on current settings for PREVIEW
  */
@@ -115,7 +124,8 @@ export function calculateOutputPath(metadata: AudiobookMetadata): string {
 	const title = sanitizeFilename(metadata.title || 'Untitled') || 'Untitled';
 	const series = sanitizeFilename(metadata.series || '');
 	const subseries = sanitizeFilename(metadata.subseries || '');
-	const year = typeof metadata.date === 'number' ? metadata.date : undefined;
+	const year =
+		typeof metadata.date === 'string' ? extractPublicationYear(metadata.date) : undefined;
 
 	if (naming.preset === 'absDefault') {
 		let subdirPath = `${basePath}/${author}`;
