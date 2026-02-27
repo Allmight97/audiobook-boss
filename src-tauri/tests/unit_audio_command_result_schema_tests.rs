@@ -1,0 +1,56 @@
+use audiobook_boss_lib::commands::{
+    JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+};
+
+#[test]
+fn process_command_result_batch_summary_counts_success_and_failures() {
+    let results = vec![
+        ProcessResultEntry {
+            input_index: Some(0),
+            status: ProcessResultStatus::Success,
+            message: "ok".to_string(),
+            error: None,
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-1".to_string()),
+        },
+        ProcessResultEntry {
+            input_index: Some(1),
+            status: ProcessResultStatus::Failed,
+            message: "failed".to_string(),
+            error: Some("failed".to_string()),
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: None,
+        },
+    ];
+
+    let response = ProcessCommandResult::new(JobType::Batch, results.clone());
+
+    assert_eq!(response.job_type, JobType::Batch);
+    assert_eq!(response.summary.total, 2);
+    assert_eq!(response.summary.succeeded, 1);
+    assert_eq!(response.summary.failed, 1);
+    assert_eq!(response.results, results);
+}
+
+#[test]
+fn process_command_result_merge_has_single_success_entry() {
+    let entry = ProcessResultEntry {
+        input_index: None,
+        status: ProcessResultStatus::Success,
+        message: "merged".to_string(),
+        error: None,
+        preview_file_path: Some("/tmp/out.preview.m4b".to_string()),
+        preview_actual_seconds: Some(30.0),
+        job_id: Some("job-merge".to_string()),
+    };
+
+    let response = ProcessCommandResult::new(JobType::Merge, vec![entry.clone()]);
+
+    assert_eq!(response.job_type, JobType::Merge);
+    assert_eq!(response.summary.total, 1);
+    assert_eq!(response.summary.succeeded, 1);
+    assert_eq!(response.summary.failed, 0);
+    assert_eq!(response.results, vec![entry]);
+}

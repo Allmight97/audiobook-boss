@@ -2,12 +2,16 @@ import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FileListInfo as GeneratedFileListInfo,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
-	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessV2Payload as GeneratedProcessV2Payload,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 } from '../generated/tauri';
-import type { FileListInfo, ProcessCommandResult, ProcessV2Payload } from '../../types/audio';
+import type {
+	FileListInfo,
+	ProcessCommandJobResult,
+	ProcessCommandResult,
+	ProcessV2Payload,
+} from '../../types/audio';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 
@@ -150,12 +154,40 @@ export function denormalizeProcessPayload(payload: ProcessV2Payload): GeneratedP
 	};
 }
 
-export function normalizeProcessResult(
-	result: GeneratedProcessCommandResult,
-): ProcessCommandResult & { previewActualSeconds?: number; jobId: string } {
-	return normalizeNullish(result) as ProcessCommandResult & {
-		previewActualSeconds?: number;
-		jobId: string;
+export function normalizeProcessResult(result: unknown): ProcessCommandResult {
+	const normalized = normalizeNullish(result) as Record<string, unknown>;
+	const defaultMessage =
+		typeof normalized.message === 'string' ? normalized.message : 'Processing completed';
+	const rawResults = Array.isArray(normalized.results)
+		? normalized.results
+		: [
+				{
+					jobId: normalized.jobId,
+					message: normalized.message,
+					previewFilePath: normalized.previewFilePath,
+					previewActualSeconds: normalized.previewActualSeconds,
+					success: true,
+				},
+			];
+
+	const results: ProcessCommandJobResult[] = rawResults
+		.filter(isPlainRecord)
+		.map((entry) => ({
+			jobId: typeof entry.jobId === 'string' ? entry.jobId : undefined,
+			message: typeof entry.message === 'string' ? entry.message : undefined,
+			stage: typeof entry.stage === 'string' ? entry.stage : undefined,
+			success: typeof entry.success === 'boolean' ? entry.success : undefined,
+			outputFilePath: typeof entry.outputFilePath === 'string' ? entry.outputFilePath : undefined,
+			previewFilePath:
+				typeof entry.previewFilePath === 'string' ? entry.previewFilePath : undefined,
+			previewActualSeconds:
+				typeof entry.previewActualSeconds === 'number' ? entry.previewActualSeconds : undefined,
+		}))
+		.filter((entry) => Object.values(entry).some((value) => value !== undefined));
+
+	return {
+		message: defaultMessage,
+		results,
 	};
 }
 

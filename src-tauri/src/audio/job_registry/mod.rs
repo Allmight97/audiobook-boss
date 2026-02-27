@@ -45,24 +45,23 @@ impl<'a> BatchScheduler<'a> {
 
     /// Runs a batch of futures with bounded in-flight concurrency.
     ///
-    /// If one task fails, no new tasks are scheduled. Existing in-flight tasks
-    /// are drained before returning the first encountered error.
-    pub async fn run_batch<R, Fut>(&self, futures: Vec<Fut>) -> Result<Vec<R>>
+    /// Tasks continue to be scheduled even when earlier tasks fail so callers
+    /// can receive complete, deterministic per-index outcomes.
+    pub async fn run_batch<R, Fut>(&self, futures: Vec<Fut>) -> Vec<Result<R>>
     where
         R: Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
         if futures.is_empty() {
-            return Ok(Vec::new());
+            return Vec::new();
         }
 
         let max_in_flight = self.registry.max_concurrent().max(1);
         let total_tasks = futures.len();
         let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
         let mut join_set: JoinSet<(usize, Result<R>)> = JoinSet::new();
-        let mut ordered_results: Vec<Option<R>> = Vec::with_capacity(total_tasks);
+        let mut ordered_results: Vec<Option<Result<R>>> = Vec::with_capacity(total_tasks);
         ordered_results.resize_with(total_tasks, || None);
-        let mut first_error: Option<AppError> = None;
 
         for _ in 0..max_in_flight {
             if let Some((index, future)) = pending.pop_front() {
@@ -74,44 +73,38 @@ impl<'a> BatchScheduler<'a> {
 
         while let Some(joined) = join_set.join_next().await {
             match joined {
-                Ok((index, Ok(value))) => {
-                    if first_error.is_none() {
-                        ordered_results[index] = Some(value);
-                    }
-                }
-                Ok((_, Err(error))) => {
-                    if first_error.is_none() {
-                        first_error = Some(error);
-                    }
+                Ok((index, outcome)) => {
+                    ordered_results[index] = Some(outcome);
                 }
                 Err(join_error) => {
-                    if first_error.is_none() {
-                        first_error = Some(AppError::General(format!(
-                            "Batch task join error: {join_error}"
-                        )));
+                    let error = AppError::General(format!("Batch task join error: {join_error}"));
+                    if let Some((missing_index, slot)) = ordered_results
+                        .iter_mut()
+                        .enumerate()
+                        .find(|(_, value)| value.is_none())
+                    {
+                        *slot = Some(Err(error));
+                        log::error!(
+                            "Batch task join error mapped to missing task index {}",
+                            missing_index
+                        );
                     }
                 }
             }
 
-            if first_error.is_none() {
-                if let Some((next_index, next_future)) = pending.pop_front() {
-                    join_set.spawn(async move { (next_index, next_future.await) });
-                }
+            if let Some((next_index, next_future)) = pending.pop_front() {
+                join_set.spawn(async move { (next_index, next_future.await) });
             }
-        }
-
-        if let Some(error) = first_error {
-            return Err(error);
         }
 
         ordered_results
             .into_iter()
             .enumerate()
             .map(|(index, value)| {
-                value.ok_or_else(|| {
-                    AppError::General(format!(
+                value.unwrap_or_else(|| {
+                    Err(AppError::General(format!(
                         "Batch scheduler missing result for task index {index}"
-                    ))
+                    )))
                 })
             })
             .collect()

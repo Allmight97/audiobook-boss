@@ -177,8 +177,7 @@ export const tauriClient = {
 		payload: ProcessV2Payload;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
-	}): Promise<ProcessCommandResult & { previewActualSeconds?: number; jobId: string }> =>
-		invokeCommand('process_audiobook_files_v2', args),
+	}): Promise<ProcessCommandResult> => invokeCommand('process_audiobook_files_v2', args),
 	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>
 		jobId === undefined
 			? invokeCommand('cancel_processing')

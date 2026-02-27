@@ -4,7 +4,6 @@ import type {
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
 	OutputNamingConfig as GeneratedOutputNamingConfig,
-	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessV2Payload as GeneratedProcessV2Payload,
 	SampleRateConfig as GeneratedSampleRateConfig,
 } from '../lib/generated/tauri';
@@ -49,11 +48,19 @@ export interface PreviewRequest {
 	previewSeconds?: number;
 }
 
+export interface ProcessCommandJobResult {
+	jobId?: string;
+	message?: string;
+	stage?: string;
+	success?: boolean;
+	outputFilePath?: string;
+	previewFilePath?: string;
+	previewActualSeconds?: number;
+}
+
 export interface ProcessCommandResult {
-	message: NullToOptionalDeep<GeneratedProcessCommandResult>['message'];
-	previewFilePath?: NullToOptionalDeep<GeneratedProcessCommandResult>['previewFilePath'];
-	previewActualSeconds?: NullToOptionalDeep<GeneratedProcessCommandResult>['previewActualSeconds'];
-	jobId?: NullToOptionalDeep<GeneratedProcessCommandResult>['jobId'];
+	message: string;
+	results: ProcessCommandJobResult[];
 }
 
 // Encoder v2 types (Enhanced engine)

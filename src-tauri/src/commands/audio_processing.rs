@@ -6,13 +6,16 @@ use crate::audio::output_path::{
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::audio::{QueueEvent, QueueItem};
 use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+    ProcessV2Payload,
 };
 use crate::errors::sanitize_path_for_display;
 use crate::errors::{AppError, Result};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use tauri::Emitter;
 
 struct ProcessingInputs {
@@ -102,7 +105,7 @@ async fn dispatch_merge_job(
     )?;
     let resolved_output = resolve_collision(&output_path)?;
 
-    run_processing_job(
+    let result = run_processing_job(
         window,
         registry,
         payload.settings.clone(),
@@ -113,7 +116,9 @@ async fn dispatch_merge_job(
         merge_metadata,
         inputs.preview_seconds,
     )
-    .await
+    .await?;
+
+    Ok(ProcessCommandResult::new(JobType::Merge, vec![result]))
 }
 
 async fn dispatch_batch_jobs(
@@ -144,7 +149,8 @@ async fn dispatch_batch_jobs(
     };
     let _ = window.emit(crate::audio::constants::QUEUE_EVENT_NAME, &queue_event);
 
-    let mut scheduled_jobs = Vec::new();
+    let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
+        Vec::new();
     let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
     for (index, input) in payload.input_files.iter().enumerate() {
         let path = PathBuf::from(input);
@@ -154,40 +160,78 @@ async fn dispatch_batch_jobs(
             file_metadata,
             inputs.output_naming.clone(),
             Some(&path),
-        )?;
-        let resolved_output = resolve_collision_with_claimed(&output_path, &claimed_paths)?;
-        claimed_paths.insert(resolved_output.clone());
+        );
 
-        let window_cloned = window.clone();
-        let registry_cloned = registry.clone();
-        let settings_cloned = payload.settings.clone();
-        let sr_cloned = inputs.sample_rate.clone();
-        let md_cloned = file_metadata.cloned();
-        let input_index = Some(index);
-        let preview_cloned = inputs.preview_seconds;
+        match output_path.and_then(|candidate| {
+            let resolved = resolve_collision_with_claimed(&candidate, &claimed_paths)?;
+            claimed_paths.insert(resolved.clone());
+            Ok(resolved)
+        }) {
+            Ok(resolved_output) => {
+                let window_cloned = window.clone();
+                let registry_cloned = registry.clone();
+                let settings_cloned = payload.settings.clone();
+                let sr_cloned = inputs.sample_rate.clone();
+                let md_cloned = file_metadata.cloned();
+                let preview_cloned = inputs.preview_seconds;
 
-        scheduled_jobs.push(async move {
-            let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
-            run_processing_job(
-                window_cloned,
-                registry_cloned,
-                settings_cloned,
-                sr_cloned,
-                input_index,
-                resolved_output,
-                file_info,
-                md_cloned,
-                preview_cloned,
-            )
-            .await
-        });
+                scheduled_jobs.push(Box::pin(async move {
+                    let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
+                    run_processing_job(
+                        window_cloned,
+                        registry_cloned,
+                        settings_cloned,
+                        sr_cloned,
+                        Some(index),
+                        resolved_output,
+                        file_info,
+                        md_cloned,
+                        preview_cloned,
+                    )
+                    .await
+                }));
+            }
+            Err(error) => {
+                scheduled_jobs.push(Box::pin(async move { Err(error) }));
+            }
+        }
     }
 
-    let mut ordered_results = registry.scheduler().run_batch(scheduled_jobs).await?;
+    let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
+    let mut ordered_results: Vec<Option<ProcessResultEntry>> =
+        vec![None; payload.input_files.len()];
 
-    ordered_results
-        .pop()
-        .ok_or_else(|| AppError::InvalidInput("Batch processing produced no results".to_string()))
+    for (index, outcome) in outcomes.into_iter().enumerate() {
+        let entry = match outcome {
+            Ok(mut success) => {
+                success.input_index = Some(index);
+                success
+            }
+            Err(error) => {
+                let error_message = error.to_string();
+                emit_terminal_failed_event(&window, index, &error_message);
+                failure_result(Some(index), error_message)
+            }
+        };
+        ordered_results[index] = Some(entry);
+    }
+
+    for (index, slot) in ordered_results.iter_mut().enumerate() {
+        if slot.is_none() {
+            let error_message = format!(
+                "Missing terminal result for queued input index {index}; marking as failed"
+            );
+            emit_terminal_failed_event(&window, index, &error_message);
+            *slot = Some(failure_result(Some(index), error_message));
+        }
+    }
+
+    let finalized_results = ordered_results
+        .into_iter()
+        .flatten()
+        .collect::<Vec<ProcessResultEntry>>();
+
+    Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -201,7 +245,7 @@ async fn run_processing_job(
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
     preview_seconds: Option<f64>,
-) -> Result<ProcessCommandResult> {
+) -> Result<ProcessResultEntry> {
     // Register job with the registry (blocks if at capacity)
     let (job_id, _permit) = registry.register_job().await?;
     log::info!(
@@ -288,10 +332,38 @@ async fn run_processing_job(
 
     let (message, preview_path_opt, preview_seconds_used) = result?;
 
-    Ok(ProcessCommandResult {
+    Ok(ProcessResultEntry {
+        input_index,
+        status: ProcessResultStatus::Success,
         message,
+        error: None,
         preview_file_path: preview_path_opt,
         preview_actual_seconds: preview_seconds_used,
-        job_id: job_id.to_string(),
+        job_id: Some(job_id.to_string()),
     })
+}
+
+fn emit_terminal_failed_event(window: &tauri::Window, input_index: usize, message: &str) {
+    let event = audio::ProgressEvent {
+        stage: "failed".to_string(),
+        percentage: 0.0,
+        message: message.to_string(),
+        current_file: None,
+        eta_seconds: None,
+        job_id: None,
+        input_index: Some(input_index),
+    };
+    let _ = window.emit(crate::audio::constants::PROGRESS_EVENT_NAME, &event);
+}
+
+fn failure_result(input_index: Option<usize>, error_message: String) -> ProcessResultEntry {
+    ProcessResultEntry {
+        input_index,
+        status: ProcessResultStatus::Failed,
+        message: error_message.clone(),
+        error: Some(error_message),
+        preview_file_path: None,
+        preview_actual_seconds: None,
+        job_id: None,
+    }
 }
