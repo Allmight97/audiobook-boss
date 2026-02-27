@@ -1,46 +1,12 @@
 import { tauriClient } from '../lib/tauri/client';
 import type { JobType } from '../types/audio';
-import { flushSync, mount, unmount } from 'svelte';
-import JobControlsIsland from './jobControls/JobControlsIsland.svelte';
+import { flushSync } from 'svelte';
 import { jobControlsState } from './jobControls/state.svelte';
 
-const JOB_CONTROLS_ROOT_ID = 'job-controls-root';
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
 
-let mountedControlsRoot: HTMLElement | null = null;
-let mountedControlsIsland: Parameters<typeof unmount>[0] | null = null;
-
 export function initJobControls(): void {
-	if (!mountJobControlsIsland()) return;
 	initializeMaxConcurrentControl();
-}
-
-function mountJobControlsIsland(): boolean {
-	const controlsRoot = document.getElementById(JOB_CONTROLS_ROOT_ID);
-	if (!controlsRoot) return false;
-
-	if (
-		mountedControlsIsland &&
-		mountedControlsRoot === controlsRoot &&
-		controlsRoot.childElementCount > 0
-	) {
-		return true;
-	}
-
-	if (mountedControlsIsland) {
-		void unmount(mountedControlsIsland);
-		mountedControlsIsland = null;
-	}
-
-	mountedControlsIsland = mount(JobControlsIsland, {
-		target: controlsRoot,
-		props: {
-			onMergeModeChange: handleMergeModeChange,
-			onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
-		},
-	});
-	mountedControlsRoot = controlsRoot;
-	return true;
 }
 
 function initializeMaxConcurrentControl(): void {
@@ -51,11 +17,11 @@ function initializeMaxConcurrentControl(): void {
 	void pushMaxConcurrentToBackend(saved);
 }
 
-function handleMergeModeChange(checked: boolean): void {
+export function handleMergeModeChange(checked: boolean): void {
 	setJobType(checked ? 'merge' : 'batch', true);
 }
 
-function handleMaxConcurrentSelectionChange(value: string): void {
+export function handleMaxConcurrentSelectionChange(value: string): void {
 	jobControlsState.maxConcurrentSelection = value;
 	writeMaxConcurrentPreference(value);
 	void pushMaxConcurrentToBackend(value);

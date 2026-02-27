@@ -63,8 +63,8 @@ async loadCoverArtFromUrl(url: string) : Promise<number[]> {
  * 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
  * 3. Handles cover art: preserves existing if not provided, replaces if new art given
  */
-async saveMetadataToFile(filePath: string, metadata: AudiobookMetadata) : Promise<null> {
-    return await TAURI_INVOKE("save_metadata_to_file", { filePath, metadata });
+async saveMetadataToFile(filePath: string, metadataPatch: MetadataIntentPatch) : Promise<null> {
+    return await TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch });
 },
 async searchOnlineMetadata(query: string, sources: MetadataSource[] | null, limit: number | null) : Promise<OnlineMetadataResult[]> {
     return await TAURI_INVOKE("search_online_metadata", { query, sources, limit });
@@ -112,7 +112,7 @@ async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
  * This command now supports parallel batch processing via the JobRegistry.
  * Multiple invocations can run concurrently up to the configured limit.
  */
-async processAudiobookFilesV2(payload: ProcessV2Payload, metadata: Partial<{ [key in string]: AudiobookMetadata }> | null, previewSeconds: number | null) : Promise<ProcessCommandResult> {
+async processAudiobookFilesV2(payload: ProcessV2Payload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<ProcessCommandResult> {
     return await TAURI_INVOKE("process_audiobook_files_v2", { payload, metadata, previewSeconds });
 },
 /**
@@ -213,9 +213,9 @@ composer: string | null;
  */
 genre: string | null; 
 /**
- * Publication year/date (©day)
+ * Publication date as YYYY or YYYY-MM (©day)
  */
-date: number | null; 
+date: string | null; 
 /**
  * Track number (chapter number, total chapters)
  */
@@ -325,10 +325,12 @@ validCount: number;
  */
 invalidCount: number }
 export type JobType = "merge" | "batch"
+export type MetadataIntentPatch = { title?: PatchOp<string>; artist?: PatchOp<string>; album?: PatchOp<string>; composer?: PatchOp<string>; genre?: PatchOp<string>; date?: PatchOp<string>; description?: PatchOp<string>; series?: PatchOp<string>; series_part?: PatchOp<string>; subseries?: PatchOp<string>; subseries_part?: PatchOp<string>; cover_art?: PatchOp<number[]> }
 export type MetadataSource = "audnexus" | "openlibrary"
 export type NamingPreset = "absDefault" | "customTemplate"
-export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedYear: number | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
+export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedDate: string | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
+export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
 /**
  * Processes multiple audio files into a single M4B audiobook
  * Merges files with specified settings and optional metadata

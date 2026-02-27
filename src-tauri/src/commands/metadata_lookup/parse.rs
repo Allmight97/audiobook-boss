@@ -68,13 +68,8 @@ pub(super) fn region_to_tld(region: &str) -> &str {
     }
 }
 
-pub(super) fn parse_year(value: Option<&str>) -> Option<i32> {
-    let raw = value?.trim();
-    if raw.len() < 4 {
-        return None;
-    }
-
-    raw.get(0..4)?.parse().ok()
+pub(super) fn parse_publication_date(value: Option<&str>) -> Option<String> {
+    crate::metadata::normalize_publication_date(value?.trim())
 }
 
 pub(super) fn clean_series_part(value: Option<String>) -> Option<String> {
@@ -167,6 +162,25 @@ mod tests {
         );
         assert_eq!(clean_series_part(Some("Nope".to_string())), None);
         assert_eq!(clean_series_part(Some("".to_string())), None);
+    }
+
+    #[test]
+    fn parse_publication_date_accepts_year_month_and_date_prefixes() {
+        assert_eq!(
+            parse_publication_date(Some("2024")),
+            Some("2024".to_string())
+        );
+        assert_eq!(
+            parse_publication_date(Some(" 2024-07 ")),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(
+            parse_publication_date(Some("2024-07-15")),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(parse_publication_date(Some("99")), None);
+        assert_eq!(parse_publication_date(Some("2024-13")), None);
+        assert_eq!(parse_publication_date(Some("abcd")), None);
     }
 
     #[test]

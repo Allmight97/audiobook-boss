@@ -20,7 +20,7 @@
 		void searchMetadataLookup();
 	}
 
-	function formatYear(value: number | null): string {
+	function formatPublicationDate(value: string | null): string {
 		return value ? value.toString() : '—';
 	}
 
@@ -208,7 +208,7 @@
 							</div>
 							<div class="metadata-lookup-meta">{formatSeriesSummary(result)}</div>
 							<div class="metadata-lookup-meta">
-								Year: {formatYear(result.publishedYear)} • Length: {formatDurationHours(
+								Publication: {formatPublicationDate(result.publishedDate)} • Length: {formatDurationHours(
 									result.durationSeconds,
 								)}
 							</div>

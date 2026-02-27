@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { render } from '@testing-library/svelte';
+import OutputPanelIsland from '../outputPanel/OutputPanelIsland.svelte';
 import { initOutputPanel } from '../outputPanel';
 
 describe('OutputPanel island mount', () => {
 	beforeEach(() => {
 		document.body.innerHTML = `
-      <div id="output-panel-root"></div>
       <input id="meta-title" value="" />
       <input id="meta-author" value="" />
       <input id="meta-narrator" value="" />
@@ -21,6 +22,7 @@ describe('OutputPanel island mount', () => {
 	});
 
 	it('mounts output directory controls and renders default preview text', () => {
+		render(OutputPanelIsland);
 		initOutputPanel();
 
 		const preview = document.getElementById('output-preview-text');

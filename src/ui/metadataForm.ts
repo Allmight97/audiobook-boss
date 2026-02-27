@@ -1,5 +1,4 @@
 import type { AudiobookMetadata } from '../types/metadata';
-import { mount, unmount } from 'svelte';
 import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
@@ -10,7 +9,6 @@ import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
 } from './metadataForm/previewState.svelte';
-import MetadataFormFieldsIsland from './metadataForm/MetadataFormFieldsIsland.svelte';
 import { updateTagPreview } from './tagPreview';
 
 export type MetadataFormMode = 'single' | 'multi';
@@ -21,7 +19,6 @@ type FieldConfig = {
 	actionId: string;
 	key: keyof AudiobookMetadata;
 	mapToAlbum?: boolean;
-	isNumber?: boolean;
 	unconditional?: boolean;
 };
 
@@ -31,7 +28,7 @@ const FIELD_CONFIGS: FieldConfig[] = [
 	{ inputId: 'meta-title', actionId: 'meta-title-action', key: 'title', mapToAlbum: true },
 	{ inputId: 'meta-author', actionId: 'meta-author-action', key: 'artist' },
 	{ inputId: 'meta-narrator', actionId: 'meta-narrator-action', key: 'composer' },
-	{ inputId: 'meta-year', actionId: 'meta-year-action', key: 'date', isNumber: true },
+	{ inputId: 'meta-year', actionId: 'meta-year-action', key: 'date' },
 	{ inputId: 'meta-genre', actionId: 'meta-genre-action', key: 'genre' },
 	{ inputId: 'meta-series', actionId: 'meta-series-action', key: 'series', unconditional: true },
 	{
@@ -61,11 +58,24 @@ const FIELD_CONFIGS: FieldConfig[] = [
 ];
 
 const MIXED_PLACEHOLDER = 'Mixed values';
-const METADATA_FORM_FIELDS_ROOT_ID = 'metadata-form-fields-root';
 
-let mountedMetadataFieldsRoot: HTMLElement | null = null;
-let mountedMetadataFieldsIsland: Parameters<typeof unmount>[0] | null = null;
 let onSaveMetadataHandler: MetadataFormSaveHandler | null = null;
+
+function normalizePublicationDate(raw: string): string | null {
+	const trimmed = raw.trim();
+	if (/^\d{4}$/.test(trimmed)) {
+		return trimmed;
+	}
+	const match = trimmed.match(/^(\d{4})-(\d{2})$/);
+	if (!match) {
+		return null;
+	}
+	const month = Number.parseInt(match[2], 10);
+	if (!Number.isInteger(month) || month < 1 || month > 12) {
+		return null;
+	}
+	return `${match[1]}-${match[2]}`;
+}
 
 function getMetadataForm(): HTMLElement | null {
 	return document.getElementById('metadata-form');
@@ -143,38 +153,12 @@ function isMultiSelectMode(): boolean {
 	return form?.dataset.multiSelect === 'true';
 }
 
-function mountMetadataFieldsIsland(_form: HTMLElement): void {
-	const fieldsRoot = document.getElementById(METADATA_FORM_FIELDS_ROOT_ID);
-	if (!fieldsRoot) return;
-
-	if (
-		mountedMetadataFieldsIsland &&
-		mountedMetadataFieldsRoot === fieldsRoot &&
-		fieldsRoot.childElementCount > 0
-	) {
-		return;
-	}
-
-	if (mountedMetadataFieldsIsland) {
-		void unmount(mountedMetadataFieldsIsland);
-		mountedMetadataFieldsIsland = null;
-	}
-
-	mountedMetadataFieldsIsland = mount(MetadataFormFieldsIsland, {
-		target: fieldsRoot,
-		props: {
-			onFieldInput: onMetadataFormFieldInput,
-			onActionChange: onMetadataFormActionSelectChange,
-			onSaveMetadata: () => {
-				onSaveMetadataHandler?.();
-			},
-		},
-	});
-	mountedMetadataFieldsRoot = fieldsRoot;
-}
-
 export function setMetadataFormSaveHandler(handler: MetadataFormSaveHandler): void {
 	onSaveMetadataHandler = handler;
+}
+
+export function triggerMetadataFormSave(): void {
+	onSaveMetadataHandler?.();
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {
@@ -198,7 +182,6 @@ export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: num
 export function initMetadataFormEvents(): void {
 	const form = getMetadataForm();
 	if (!form) return;
-	mountMetadataFieldsIsland(form);
 	resetMetadataFormPreviewState();
 	for (const field of FIELD_CONFIGS) {
 		const input = getInputElement(field.inputId);
@@ -266,11 +249,12 @@ export function resetDirtyState(): void {
 export function hasDirtyMetadataFields(): boolean {
 	const form = getMetadataForm();
 	if (!form) return false;
-	return Boolean(
+	const hasDirtyTextFields = Boolean(
 		form.querySelector<HTMLInputElement | HTMLTextAreaElement>(
 			"input[data-dirty='true'], textarea[data-dirty='true']",
 		),
 	);
+	return hasDirtyTextFields || isCoverArtRemovalRequested() || getHasCustomCoverArt();
 }
 
 export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>): void {
@@ -281,10 +265,10 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 		if (!input) return;
 
 		let value = '';
-		if (field.isNumber) {
+		if (field.key === 'date') {
 			const date = metadata.date;
-			if (typeof date === 'number' && date > 0) {
-				value = date.toString();
+			if (typeof date === 'string' && date.trim()) {
+				value = date;
 			}
 		} else {
 			const raw = metadata[field.key];
@@ -326,9 +310,9 @@ export function populateMetadataFormMulti(
 		}
 
 		const values = metadataList.map((metadata) => {
-			if (field.isNumber) {
+			if (field.key === 'date') {
 				const date = metadata.date;
-				return typeof date === 'number' && date > 0 ? date.toString() : '';
+				return typeof date === 'string' && date.trim() ? date : '';
 			}
 			const raw = metadata[field.key];
 			return typeof raw === 'string' ? raw.trim() : '';
@@ -365,10 +349,10 @@ export function applyMetadataToForm(
 		const input = getInputElement(field.inputId);
 		if (!input) return;
 
-		if (field.isNumber) {
+		if (field.key === 'date') {
 			const date = metadata.date;
-			if (typeof date !== 'number') return;
-			input.value = date > 0 ? date.toString() : '';
+			if (typeof date !== 'string') return;
+			input.value = date.trim();
 		} else {
 			const raw = metadata[field.key];
 			if (typeof raw !== 'string') return;
@@ -416,8 +400,8 @@ export function readMetadataForm(options?: {
 			const action = getFieldAction(field.actionId);
 
 			if (action === 'blank') {
-				if (field.isNumber) {
-					setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+				if (field.key === 'date') {
+					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 				} else {
 					setMetadataValue(field.key, '' as AudiobookMetadata[typeof field.key]);
 					if (field.mapToAlbum && field.key === 'title') {
@@ -429,13 +413,13 @@ export function readMetadataForm(options?: {
 
 			if (!dirty) return;
 
-			if (field.isNumber) {
+			if (field.key === 'date') {
 				if (!raw) {
-					setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 					return;
 				}
-				const parsed = parseInt(raw, 10);
-				if (!Number.isNaN(parsed)) {
+				const parsed = normalizePublicationDate(raw);
+				if (parsed !== null) {
 					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
 				}
 				return;
@@ -450,14 +434,14 @@ export function readMetadataForm(options?: {
 
 		if (onlyDirty && !dirty) return;
 
-		if (field.isNumber) {
+		if (field.key === 'date') {
 			if (raw) {
-				const parsed = parseInt(raw, 10);
-				if (!Number.isNaN(parsed)) {
+				const parsed = normalizePublicationDate(raw);
+				if (parsed !== null) {
 					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
 				}
 			} else if (dirty) {
-				setMetadataValue(field.key, 0 as AudiobookMetadata[typeof field.key]);
+				setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 			}
 			return;
 		}

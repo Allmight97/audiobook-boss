@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
 
 const context = vi.hoisted(() => ({
 	listAvailableEncodersMock: vi.fn(),
@@ -15,7 +17,6 @@ describe('encoder panel native AAC warning', () => {
 		vi.resetModules();
 		context.listAvailableEncodersMock.mockReset();
 		localStorage.clear();
-		document.body.innerHTML = '<div id="encoder-panel-root"></div>';
 	});
 
 	it('shows native AAC quality warning when native is effective', async () => {
@@ -26,6 +27,7 @@ describe('encoder panel native AAC warning', () => {
 		});
 
 		const { initEncoderPanel } = await import('../encoderPanel');
+		render(EncoderPanelIsland);
 		initEncoderPanel();
 
 		await vi.waitFor(() => {
@@ -42,6 +44,7 @@ describe('encoder panel native AAC warning', () => {
 		});
 
 		const { initEncoderPanel } = await import('../encoderPanel');
+		render(EncoderPanelIsland);
 		initEncoderPanel();
 
 		await vi.waitFor(() => {

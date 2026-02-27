@@ -48,13 +48,13 @@
   </div>
   <div class="col-span-1">
     <div class="meta-field-header">
-      <label for="meta-year">Year</label>
+      <label for="meta-year">Publication Date</label>
       <select id="meta-year-action" class="meta-apply-select" data-testid="meta-year-action">
         <option value="keep">Keep</option>
         <option value="blank">Blank</option>
       </select>
     </div>
-    <input type="text" id="meta-year" placeholder="YYYY" />
+    <input type="text" id="meta-year" placeholder="YYYY or YYYY-MM" />
   </div>
   <div class="col-span-2">
     <div class="meta-field-header">

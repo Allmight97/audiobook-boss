@@ -1,7 +1,5 @@
 import { tauriClient } from '../lib/tauri/client';
 import { isFileDropEvent } from '../types/events';
-import { mount, unmount } from 'svelte';
-import CoverArtIsland from './coverArt/CoverArtIsland.svelte';
 import {
 	clearCoverArtMessageState,
 	setCoverArtDataUrl,
@@ -12,8 +10,6 @@ import {
 	setCoverArtUrlInputValue,
 } from './coverArt/state.svelte';
 
-const COVER_ART_ROOT_ID = 'cover-art-root';
-
 // Global state for currently loaded cover art
 let currentCoverArt: number[] | null = null;
 // Tracks whether the user manually loaded custom cover art (preserved across file selection)
@@ -21,17 +17,18 @@ let hasCustomCoverArt = false;
 // Tracks whether the user explicitly requested cover art removal in this session
 let coverArtRemovalRequested = false;
 let coverArtMessageTimeoutId: number | null = null;
-let mountedCoverArtRoot: HTMLElement | null = null;
-let mountedCoverArtIsland: Parameters<typeof unmount>[0] | null = null;
+let dragDropUnlisten: (() => void) | null = null;
 
 /**
  * Initializes the cover art functionality
  */
 export function initCoverArt(): void {
-	mountCoverArtIsland();
+	if (dragDropUnlisten) {
+		return;
+	}
 
 	// Handle global drag and drop from Tauri for cover art.
-	tauriClient.listen('tauri://drag-drop', async (event) => {
+	const maybeUnlisten = tauriClient.listen('tauri://drag-drop', async (event) => {
 		if (!isFileDropEvent(event.payload)) return;
 		const { position, paths } = event.payload;
 
@@ -54,42 +51,20 @@ export function initCoverArt(): void {
 			await loadCoverArtFile(imageFile);
 		}
 	});
-}
 
-function mountCoverArtIsland(): void {
-	const coverArtRoot = document.getElementById(COVER_ART_ROOT_ID);
-	if (!coverArtRoot) return;
-
-	if (
-		mountedCoverArtIsland &&
-		mountedCoverArtRoot === coverArtRoot &&
-		coverArtRoot.childElementCount > 0
-	) {
+	if (!(maybeUnlisten instanceof Promise)) {
 		return;
 	}
 
-	if (mountedCoverArtIsland) {
-		void unmount(mountedCoverArtIsland);
-		mountedCoverArtIsland = null;
-	}
-
-	mountedCoverArtIsland = mount(CoverArtIsland, {
-		target: coverArtRoot,
-		props: {
-			onLoadFromFile: () => {
-				void handleLoadCoverArt();
-			},
-			onLoadFromInput: (raw: string) => handleLoadCoverArtFromInput(raw),
-			onClearCoverArt: handleClearCoverArt,
-		},
+	void maybeUnlisten.then((unlisten) => {
+		dragDropUnlisten = unlisten;
 	});
-	mountedCoverArtRoot = coverArtRoot;
 }
 
 /**
  * Handles the Clear Cover Art action
  */
-function handleClearCoverArt(): void {
+export function onClearCoverArt(): void {
 	clearCoverArt({ markRemoval: true });
 	console.log('Cover art cleared');
 }
@@ -97,7 +72,7 @@ function handleClearCoverArt(): void {
 /**
  * Handles the Click-to-Load action
  */
-async function handleLoadCoverArt(): Promise<void> {
+export async function onLoadCoverArtFromFilePicker(): Promise<void> {
 	try {
 		const selectedFile = await tauriClient.open({
 			multiple: false,
@@ -121,7 +96,7 @@ async function handleLoadCoverArt(): Promise<void> {
 	}
 }
 
-async function handleLoadCoverArtFromInput(rawInput: string): Promise<string | null> {
+export async function onLoadCoverArtFromInput(rawInput: string): Promise<string | null> {
 	const raw = rawInput.trim();
 	if (!raw) {
 		showCoverArtMessage('Paste an image URL first.', 'error');

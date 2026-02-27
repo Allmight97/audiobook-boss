@@ -22,7 +22,7 @@ mod tests {
             album: Some("Test Series".to_string()),
             composer: Some("Test Narrator".to_string()),
             genre: Some("Audiobook".to_string()),
-            date: Some(2025),
+            date: Some("2025".to_string()),
             description: Some("A test audiobook for metadata integration".to_string()),
             cover_art: Some(vec![0xFF, 0xD8, 0xFF, 0xE0]),
             ..Default::default()

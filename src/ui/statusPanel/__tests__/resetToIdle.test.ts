@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
-import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
+import {
+	handleMaxConcurrentSelectionChange,
+	handleMergeModeChange,
+	initJobControls,
+	setJobControlsEnabled,
+	setJobTypeSelection,
+} from '../../jobControls';
 import { StatusPanel } from '../logic';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
@@ -15,8 +23,11 @@ function setupDom() {
     <button id="cancel-all-button"></button>
     <div class="art-thumbnail"></div>
     <div id="job-list"></div>
-    <div id="job-controls-root"></div>
   `;
+	render(JobControlsIsland, {
+		onMergeModeChange: handleMergeModeChange,
+		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
+	});
 }
 
 async function flushAsync(): Promise<void> {

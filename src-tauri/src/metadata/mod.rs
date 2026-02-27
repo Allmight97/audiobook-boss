@@ -41,8 +41,8 @@ pub struct AudiobookMetadata {
     pub composer: Option<String>,
     /// Genre of the book (©gen)
     pub genre: Option<String>,
-    /// Publication year/date (©day)
-    pub date: Option<u32>,
+    /// Publication date as YYYY or YYYY-MM (©day)
+    pub date: Option<String>,
     /// Track number (chapter number, total chapters)
     pub track: Option<(u32, Option<u32>)>,
     /// Disk number (rarely used for audiobooks)
@@ -64,6 +64,201 @@ pub struct AudiobookMetadata {
     /// Cover art as raw bytes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover_art: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+#[serde(tag = "op", rename_all = "snake_case", content = "value")]
+pub enum PatchOp<T> {
+    Set(T),
+    Clear,
+    #[default]
+    Noop,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+pub struct MetadataIntentPatch {
+    #[serde(default)]
+    pub title: PatchOp<String>,
+    #[serde(default)]
+    pub artist: PatchOp<String>,
+    #[serde(default)]
+    pub album: PatchOp<String>,
+    #[serde(default)]
+    pub composer: PatchOp<String>,
+    #[serde(default)]
+    pub genre: PatchOp<String>,
+    #[serde(default)]
+    pub date: PatchOp<String>,
+    #[serde(default)]
+    pub description: PatchOp<String>,
+    #[serde(default)]
+    pub series: PatchOp<String>,
+    #[serde(default)]
+    pub series_part: PatchOp<String>,
+    #[serde(default)]
+    pub subseries: PatchOp<String>,
+    #[serde(default)]
+    pub subseries_part: PatchOp<String>,
+    #[serde(default)]
+    pub cover_art: PatchOp<Vec<u8>>,
+}
+
+impl MetadataIntentPatch {
+    pub fn to_write_metadata(&self) -> Result<AudiobookMetadata> {
+        let mut metadata = AudiobookMetadata::new();
+
+        apply_string_patch(&self.title, &mut metadata.title);
+        apply_string_patch(&self.artist, &mut metadata.artist);
+        apply_string_patch(&self.album, &mut metadata.album);
+        apply_string_patch(&self.composer, &mut metadata.composer);
+        apply_string_patch(&self.genre, &mut metadata.genre);
+        apply_string_patch(&self.description, &mut metadata.description);
+        apply_string_patch(&self.series, &mut metadata.series);
+        apply_string_patch(&self.series_part, &mut metadata.series_part);
+        apply_string_patch(&self.subseries, &mut metadata.subseries);
+        apply_string_patch(&self.subseries_part, &mut metadata.subseries_part);
+
+        match &self.date {
+            PatchOp::Set(date) => {
+                metadata.date = Some(validate_publication_date(date)?);
+            }
+            PatchOp::Clear => {
+                // Metadata backends clear year/date tags when date is empty.
+                metadata.date = Some(String::new());
+            }
+            PatchOp::Noop => {}
+        }
+
+        match &self.cover_art {
+            PatchOp::Set(bytes) => {
+                metadata.cover_art = Some(bytes.clone());
+            }
+            PatchOp::Clear => {
+                metadata.cover_art = Some(Vec::new());
+            }
+            PatchOp::Noop => {}
+        }
+
+        if let Some(series_part) = metadata.series_part.as_deref() {
+            let trimmed = series_part.trim();
+            if !trimmed.is_empty() {
+                validate_series_part(trimmed)?;
+            }
+        }
+
+        if let Some(subseries_part) = metadata.subseries_part.as_deref() {
+            let trimmed = subseries_part.trim();
+            if !trimmed.is_empty() {
+                validate_series_part(trimmed)?;
+            }
+        }
+
+        Ok(metadata)
+    }
+}
+
+impl From<AudiobookMetadata> for MetadataIntentPatch {
+    fn from(metadata: AudiobookMetadata) -> Self {
+        let to_string_patch = |value: Option<String>| match value {
+            Some(text) if text.trim().is_empty() => PatchOp::Clear,
+            Some(text) => PatchOp::Set(text),
+            None => PatchOp::Noop,
+        };
+
+        let date = match metadata.date {
+            Some(date) => {
+                let trimmed = date.trim();
+                if trimmed.is_empty() {
+                    PatchOp::Clear
+                } else if let Some(normalized) = normalize_publication_date(trimmed) {
+                    PatchOp::Set(normalized)
+                } else {
+                    PatchOp::Noop
+                }
+            }
+            None => PatchOp::Noop,
+        };
+
+        let cover_art = match metadata.cover_art {
+            Some(bytes) if bytes.is_empty() => PatchOp::Clear,
+            Some(bytes) => PatchOp::Set(bytes),
+            None => PatchOp::Noop,
+        };
+
+        Self {
+            title: to_string_patch(metadata.title),
+            artist: to_string_patch(metadata.artist),
+            album: to_string_patch(metadata.album),
+            composer: to_string_patch(metadata.composer),
+            genre: to_string_patch(metadata.genre),
+            date,
+            description: to_string_patch(metadata.description),
+            series: to_string_patch(metadata.series),
+            series_part: to_string_patch(metadata.series_part),
+            subseries: to_string_patch(metadata.subseries),
+            subseries_part: to_string_patch(metadata.subseries_part),
+            cover_art,
+        }
+    }
+}
+
+fn apply_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
+    match patch {
+        PatchOp::Set(value) => {
+            *output = Some(value.clone());
+        }
+        PatchOp::Clear => {
+            *output = Some(String::new());
+        }
+        PatchOp::Noop => {}
+    }
+}
+
+fn validate_publication_date(value: &str) -> Result<String> {
+    normalize_publication_date(value).ok_or_else(|| {
+        AppError::InvalidInput(
+            "Publication date must be YYYY or YYYY-MM with month 01-12.".to_string(),
+        )
+    })
+}
+
+pub(crate) fn normalize_publication_date(value: &str) -> Option<String> {
+    let raw = value.trim();
+    if raw.len() == 4 && raw.chars().all(|ch| ch.is_ascii_digit()) {
+        return Some(raw.to_string());
+    }
+
+    let bytes = raw.as_bytes();
+    if bytes.len() < 7 {
+        return None;
+    }
+    if !bytes[0..4].iter().all(u8::is_ascii_digit) || bytes[4] != b'-' {
+        return None;
+    }
+    if !bytes[5..7].iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let month = std::str::from_utf8(&bytes[5..7]).ok()?.parse::<u8>().ok()?;
+    if !(1..=12).contains(&month) {
+        return None;
+    }
+    if bytes.len() > 7 && !matches!(bytes[7], b'-' | b'T' | b' ') {
+        return None;
+    }
+
+    Some(format!("{}-{}", &raw[0..4], &raw[5..7]))
+}
+
+pub(crate) fn publication_year_from_date(value: Option<&str>) -> Option<i32> {
+    let raw = value?.trim();
+    if raw.len() < 4 {
+        return None;
+    }
+    let year = &raw[0..4];
+    if !year.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    year.parse::<i32>().ok()
 }
 
 impl AudiobookMetadata {
@@ -191,3 +386,123 @@ pub use ffmpeg_bridge::{
     add_cover_art_stream_pre_header, set_container_metadata, validate_metadata_compatibility,
     write_cover_art_packet_post_header, CoverFormat,
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::AppError;
+
+    #[test]
+    fn metadata_intent_patch_applies_set_and_clear_ops() {
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Project Hail Mary".to_string()),
+            artist: PatchOp::Clear,
+            date: PatchOp::Clear,
+            cover_art: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        let metadata = patch
+            .to_write_metadata()
+            .expect("patch conversion should succeed");
+
+        assert_eq!(metadata.title.as_deref(), Some("Project Hail Mary"));
+        assert_eq!(metadata.artist.as_deref(), Some(""));
+        assert_eq!(metadata.date.as_deref(), Some(""));
+        assert_eq!(metadata.cover_art, Some(Vec::new()));
+    }
+
+    #[test]
+    fn metadata_intent_patch_rejects_invalid_publication_date() {
+        let patch = MetadataIntentPatch {
+            date: PatchOp::Set("2024-13".to_string()),
+            ..Default::default()
+        };
+
+        let err = patch
+            .to_write_metadata()
+            .expect_err("invalid year should be rejected");
+
+        match err {
+            AppError::InvalidInput(message) => {
+                assert!(message.contains("YYYY"), "unexpected message: {message}");
+            }
+            other => panic!("expected invalid input error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn metadata_intent_patch_rejects_series_part_with_slash() {
+        let patch = MetadataIntentPatch {
+            series_part: PatchOp::Set("7/8".to_string()),
+            ..Default::default()
+        };
+
+        let err = patch
+            .to_write_metadata()
+            .expect_err("series part with slash should be rejected");
+
+        match err {
+            AppError::InvalidInput(message) => {
+                assert!(
+                    message.contains("must not include '/'"),
+                    "unexpected message: {message}"
+                );
+            }
+            other => panic!("expected invalid input error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn metadata_intent_patch_from_metadata_maps_set_clear_and_noop() {
+        let patch = MetadataIntentPatch::from(AudiobookMetadata {
+            title: Some("The Way of Kings".to_string()),
+            artist: Some(String::new()),
+            genre: None,
+            date: Some(String::new()),
+            cover_art: Some(Vec::new()),
+            ..Default::default()
+        });
+
+        match patch.title {
+            PatchOp::Set(value) => assert_eq!(value, "The Way of Kings"),
+            other => panic!("expected title set patch, got: {other:?}"),
+        }
+        match patch.artist {
+            PatchOp::Clear => {}
+            other => panic!("expected artist clear patch, got: {other:?}"),
+        }
+        match patch.genre {
+            PatchOp::Noop => {}
+            other => panic!("expected genre noop patch, got: {other:?}"),
+        }
+        match patch.date {
+            PatchOp::Clear => {}
+            other => panic!("expected date clear patch, got: {other:?}"),
+        }
+        match patch.cover_art {
+            PatchOp::Clear => {}
+            other => panic!("expected cover art clear patch, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
+        assert_eq!(normalize_publication_date("2024"), Some("2024".to_string()));
+        assert_eq!(
+            normalize_publication_date("2024-07"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(
+            normalize_publication_date("2024-07-15"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(
+            normalize_publication_date("2024-07-15T10:00:00Z"),
+            Some("2024-07".to_string())
+        );
+        assert_eq!(normalize_publication_date("2024-13"), None);
+        assert_eq!(normalize_publication_date("2024-00"), None);
+        assert_eq!(normalize_publication_date("abcd"), None);
+    }
+}

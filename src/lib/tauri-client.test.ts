@@ -75,22 +75,20 @@ describe('tauriClient nullish adapters', () => {
 
 		const { tauriClient } = await import('./tauri/client');
 		await tauriClient.saveMetadataToFile('/books/a.m4b', {
-			title: undefined,
-			series_part: '1.0',
-			cover_art: undefined,
+			title: { op: 'clear' },
+			series_part: { op: 'set', value: '1.0' },
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
 		const [commandName, args] = lastCall as [
 			string,
-			{ filePath: string; metadata: Record<string, unknown> },
+			{ filePath: string; metadataPatch: Record<string, unknown> },
 		];
 		expect(commandName).toBe('save_metadata_to_file');
 		expect(args.filePath).toBe('/books/a.m4b');
-		expect(args.metadata.title).toBeNull();
-		expect(args.metadata.artist).toBeNull();
-		expect(args.metadata.series_part).toBe('1.0');
-		expect(args.metadata.cover_art).toBeNull();
+		expect(args.metadataPatch.title).toEqual({ op: 'clear' });
+		expect(args.metadataPatch.series_part).toEqual({ op: 'set', value: '1.0' });
+		expect(args.metadataPatch.artist).toBeUndefined();
 	});
 
 	it('compiles metadata intent patch on save before denormalization', async () => {
@@ -108,14 +106,14 @@ describe('tauriClient nullish adapters', () => {
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
 		const [commandName, args] = lastCall as [
 			string,
-			{ filePath: string; metadata: Record<string, unknown> },
+			{ filePath: string; metadataPatch: Record<string, unknown> },
 		];
 		expect(commandName).toBe('save_metadata_to_file');
 		expect(args.filePath).toBe('/books/a.m4b');
-		expect(args.metadata.title).toBe('');
-		expect(args.metadata.series_part).toBe('2.0');
-		expect(args.metadata.cover_art).toEqual([]);
-		expect(args.metadata.artist).toBeNull();
+		expect(args.metadataPatch.title).toEqual({ op: 'clear' });
+		expect(args.metadataPatch.series_part).toEqual({ op: 'set', value: '2.0' });
+		expect(args.metadataPatch.cover_art).toEqual({ op: 'clear' });
+		expect(args.metadataPatch.artist).toBeUndefined();
 	});
 
 	it('normalizes nullable metadata fields from backend responses', async () => {
@@ -148,7 +146,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(metadata.cover_art).toBeUndefined();
 	});
 
-	it('denormalizes process payload and metadata, then normalizes result nullish fields', async () => {
+	it('denormalizes process payload and compiles metadata patch map, then normalizes result nullish fields', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
@@ -168,10 +166,10 @@ describe('tauriClient nullish adapters', () => {
 				jobType: undefined,
 				outputNaming: undefined,
 			},
-			metadata: {
+			metadataIntent: {
 				'/books/a.m4b': {
-					title: undefined,
-					cover_art: undefined,
+					title: { op: 'clear' },
+					cover_art: { op: 'clear' },
 				},
 			},
 			previewSeconds: undefined,
@@ -190,8 +188,8 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
-		expect(args.metadata['/books/a.m4b']?.title).toBeNull();
-		expect(args.metadata['/books/a.m4b']?.cover_art).toBeNull();
+		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
+		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
 		expect(args.previewSeconds).toBeNull();
 		expect(result.previewFilePath).toBeUndefined();
 		expect(result.previewActualSeconds).toBeUndefined();
@@ -233,9 +231,9 @@ describe('tauriClient nullish adapters', () => {
 				metadata: Record<string, Record<string, unknown>>;
 			},
 		];
-		expect(args.metadata['/books/a.m4b']?.title).toBe('');
-		expect(args.metadata['/books/a.m4b']?.artist).toBe('Author X');
-		expect(args.metadata['/books/a.m4b']?.series).toBeNull();
+		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
+		expect(args.metadata['/books/a.m4b']?.artist).toEqual({ op: 'set', value: 'Author X' });
+		expect(args.metadata['/books/a.m4b']?.series).toBeUndefined();
 	});
 
 	it('normalizes nullish progress-event payload fields from generated listeners', async () => {

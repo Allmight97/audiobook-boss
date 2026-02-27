@@ -290,7 +290,7 @@ mod tests {
             subseries: None,
             subseries_part: None,
             description: None,
-            published_year: None,
+            published_date: None,
             duration_seconds: None,
             cover_url: None,
             audible_only: None,

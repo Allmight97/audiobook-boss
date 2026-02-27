@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
 const context = vi.hoisted(() => ({
 	searchOnlineMetadataMock: vi.fn(),
@@ -82,9 +84,9 @@ vi.mock('../tagPreview', () => ({
 
 function setupDom(): void {
 	document.body.innerHTML = `
-	    <div id="metadata-lookup-root"></div>
 	    <input id="meta-title" />
 	  `;
+	render(MetadataLookupIsland);
 }
 
 function click(id: string): void {
@@ -132,7 +134,6 @@ async function runSearchAndApply(): Promise<void> {
 
 describe('metadata lookup queue cover art isolation', () => {
 	beforeEach(() => {
-		vi.resetModules();
 		setupDom();
 
 		context.selectedIndices = new Set<number>([0, 1]);
@@ -175,7 +176,7 @@ describe('metadata lookup queue cover art isolation', () => {
 				subseries: null,
 				subseriesPart: null,
 				description: 'Description',
-				publishedYear: 2020,
+				publishedDate: '2020-07',
 				durationSeconds: 3600,
 				audibleOnly: false,
 				coverUrl: 'https://example.com/cover.jpg',

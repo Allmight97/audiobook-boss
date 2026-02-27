@@ -75,7 +75,8 @@ async fn covr_only_is_visible_to_ffprobe() {
         AudiobookMetadata {
             cover_art: Some(MINIMAL_JPEG.to_vec()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");

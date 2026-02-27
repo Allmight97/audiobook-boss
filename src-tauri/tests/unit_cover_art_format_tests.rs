@@ -93,7 +93,7 @@ fn test_metadata_compatibility_validation_comprehensive() {
         artist: Some("Author".to_string()),
         album: Some("Series".to_string()),
         genre: Some("Audiobook".to_string()),
-        date: Some(2025),
+        date: Some("2025".to_string()),
         cover_art: Some(MINIMAL_JPEG.to_vec()),
         ..Default::default()
     };
@@ -133,7 +133,7 @@ fn test_ffmpeg_bridge_functions_directly() {
         artist: Some("Test Artist".to_string()),
         album: Some("Test Album".to_string()),
         genre: Some("Audiobook".to_string()),
-        date: Some(2025),
+        date: Some("2025".to_string()),
         cover_art: Some(MINIMAL_JPEG.to_vec()),
         ..Default::default()
     };

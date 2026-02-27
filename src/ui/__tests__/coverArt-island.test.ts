@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
 import {
 	getCurrentCoverArt,
 	initCoverArt,
 	isCoverArtRemovalRequested,
+	onClearCoverArt,
+	onLoadCoverArtFromFilePicker,
+	onLoadCoverArtFromInput,
 	setCoverArt,
 } from '../coverArt';
 
@@ -17,7 +22,11 @@ vi.mock('../../lib/tauri/client', () => ({
 
 describe('CoverArt island mount + clear behavior', () => {
 	beforeEach(() => {
-		document.body.innerHTML = '<div id="cover-art-root" class="col-span-1"></div>';
+		render(CoverArtIsland, {
+			onLoadFromFile: onLoadCoverArtFromFilePicker,
+			onLoadFromInput: onLoadCoverArtFromInput,
+			onClearCoverArt,
+		});
 	});
 
 	it('mounts from root and clears cover art through UI action', () => {

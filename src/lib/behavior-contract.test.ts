@@ -104,7 +104,7 @@ describe('behavior-first IPC smoke', () => {
 
 		await tauriClient.processAudiobookFilesV2({
 			payload,
-			metadata: null,
+			metadataIntent: null,
 			previewSeconds: null,
 		});
 

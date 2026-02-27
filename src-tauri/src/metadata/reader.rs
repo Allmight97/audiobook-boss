@@ -1,5 +1,5 @@
 //! Metadata reading via ffmpeg-next
-use super::{mp4ameta_bridge, split_series_list, AudiobookMetadata};
+use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use ffmpeg_next as ff;
@@ -126,7 +126,7 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     metadata.date = dict
         .get("date")
         .or_else(|| dict.get("year"))
-        .and_then(|v| v.parse::<u32>().ok());
+        .and_then(normalize_publication_date);
 
     // Attached picture (cover art)
     metadata.cover_art = extract_attached_pic(&ictx);

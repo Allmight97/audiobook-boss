@@ -1,6 +1,4 @@
-# Agent Directives
-
-Audiobook Boss is a greenfield personal tool for reliable audiobook import, processing, and metadata outcomes.
+# AGENTS.md: This is greenfield, single user project. Keep this in mind when planing and making suggestions.
 
 **Canary Rule (Advisory):** if a structure, boundary, or abstraction is confusing or repeatedly causes task failures, alert the developer and propose a minimal `AGENTS.md` update that documents the trap.
 

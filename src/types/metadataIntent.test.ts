@@ -12,12 +12,24 @@ describe('metadata intent patch helpers', () => {
 	it('builds clear intents for empty editable values', () => {
 		const patch = buildMetadataIntentPatchFromMetadata({
 			title: '',
-			date: 0,
+			date: '',
 			cover_art: [],
 		});
 
 		expect(patch).toEqual({
 			title: { op: 'clear' },
+			date: { op: 'clear' },
+			cover_art: { op: 'clear' },
+		});
+	});
+
+	it('builds clear intents for explicit undefined values', () => {
+		const patch = buildMetadataIntentPatchFromMetadata({
+			date: undefined,
+			cover_art: undefined,
+		});
+
+		expect(patch).toEqual({
 			date: { op: 'clear' },
 			cover_art: { op: 'clear' },
 		});
@@ -32,11 +44,25 @@ describe('metadata intent patch helpers', () => {
 		});
 
 		expect(payload).toEqual({
-			title: '',
-			date: 0,
-			series_part: '3.5',
-			cover_art: [],
+			title: { op: 'clear' },
+			date: { op: 'clear' },
+			series_part: { op: 'set', value: '3.5' },
+			cover_art: { op: 'clear' },
 		});
+	});
+
+	it('omits noop operations when compiling backend payloads', () => {
+		const payload = compileMetadataIntentPatch({
+			title: { op: 'noop' },
+			artist: { op: 'clear' },
+			date: { op: 'set', value: '2024-07' },
+		});
+
+		expect(payload).toEqual({
+			artist: { op: 'clear' },
+			date: { op: 'set', value: '2024-07' },
+		});
+		expect('title' in payload).toBe(false);
 	});
 
 	it('applies patches on top of existing metadata', () => {
@@ -51,7 +77,6 @@ describe('metadata intent patch helpers', () => {
 		expect(merged).toEqual({
 			title: 'New',
 			artist: 'Author',
-			series: '',
 		});
 	});
 
@@ -70,5 +95,15 @@ describe('metadata intent patch helpers', () => {
 			series: { op: 'set', value: 'Series A' },
 		});
 		expect(hasActionableMetadataIntentPatch(merged)).toBe(true);
+	});
+
+	it('normalizes publication dates to YYYY or YYYY-MM', () => {
+		const patch = buildMetadataIntentPatchFromMetadata({
+			date: '2024-07-15',
+		});
+
+		expect(patch).toEqual({
+			date: { op: 'set', value: '2024-07' },
+		});
 	});
 });

@@ -9,7 +9,7 @@
  * - subseries = Secondary series name (2nd entry in SERIES list)
  * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
  * - album_sort = Computed TSOA for library sorting ("SERIES PP - TITLE")
- * - date = Publication year (©day)
+ * - date = Publication date (YYYY or YYYY-MM in ©day)
  */
 
 import type {

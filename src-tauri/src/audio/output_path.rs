@@ -153,7 +153,8 @@ fn collect_naming_values(
     } else {
         None
     };
-    let year = metadata.and_then(|m| m.date.map(|d| d as i32));
+    let year =
+        metadata.and_then(|m| crate::metadata::publication_year_from_date(m.date.as_deref()));
 
     Ok(NamingValues {
         title,

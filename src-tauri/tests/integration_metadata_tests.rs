@@ -195,7 +195,7 @@ async fn save_metadata_non_mp4_uses_ffmpeg_path() {
         ..Default::default()
     };
 
-    save_metadata_to_file(target.to_string_lossy().to_string(), metadata)
+    save_metadata_to_file(target.to_string_lossy().to_string(), metadata.into())
         .await
         .expect("save metadata");
 
@@ -220,7 +220,7 @@ async fn mp4ameta_error_falls_back_to_ffmpeg() {
         ..Default::default()
     };
 
-    save_metadata_to_file(mp3_path.to_string_lossy().to_string(), metadata)
+    save_metadata_to_file(mp3_path.to_string_lossy().to_string(), metadata.into())
         .await
         .expect("save metadata");
 
@@ -254,7 +254,7 @@ async fn writes_series_tags_with_mp4ameta() {
     };
 
     write_minimal_m4b(&output);
-    save_metadata_to_file(output.to_string_lossy().to_string(), metadata)
+    save_metadata_to_file(output.to_string_lossy().to_string(), metadata.into())
         .await
         .expect("save metadata");
 
@@ -315,7 +315,8 @@ async fn replaces_duplicate_series_atoms_on_save() {
             series: Some("Part 3 - Fringe Worlds".into()),
             series_part: Some("14".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -344,7 +345,8 @@ async fn preserves_series_tags_on_cover_art_update() {
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("7".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save series metadata");
@@ -354,7 +356,8 @@ async fn preserves_series_tags_on_cover_art_update() {
         AudiobookMetadata {
             cover_art: Some(MINIMAL_JPEG.to_vec()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("update cover art");
@@ -391,7 +394,8 @@ async fn preserves_series_tags_on_metadata_only_save() {
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("7".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -436,7 +440,8 @@ async fn clearing_series_fields_removes_mirrors_and_canonical_reads() {
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("7".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("seed metadata");
@@ -449,7 +454,8 @@ async fn clearing_series_fields_removes_mirrors_and_canonical_reads() {
             subseries: Some(String::new()),
             subseries_part: Some(String::new()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("clear series metadata");
@@ -492,7 +498,8 @@ async fn recomputes_album_sort_when_only_series_part_changes() {
             series: Some("System Apocalypse".into()),
             series_part: Some("1".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -502,7 +509,8 @@ async fn recomputes_album_sort_when_only_series_part_changes() {
         AudiobookMetadata {
             series_part: Some("2".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -537,7 +545,8 @@ async fn recomputes_album_sort_when_series_part_changes() {
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("6".into()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -551,7 +560,7 @@ async fn recomputes_album_sort_when_series_part_changes() {
     );
 
     read_back.series_part = Some("7".into());
-    save_metadata_to_file(output.to_string_lossy().to_string(), read_back)
+    save_metadata_to_file(output.to_string_lossy().to_string(), read_back.into())
         .await
         .expect("save metadata");
 
@@ -582,7 +591,7 @@ async fn writes_cover_art_with_mp4ameta_and_reads_back() {
     };
 
     write_minimal_m4b(&output);
-    save_metadata_to_file(output.to_string_lossy().to_string(), metadata)
+    save_metadata_to_file(output.to_string_lossy().to_string(), metadata.into())
         .await
         .expect("save metadata");
 
@@ -612,7 +621,8 @@ async fn clears_cover_art_with_empty_payload() {
         AudiobookMetadata {
             cover_art: Some(MINIMAL_JPEG.to_vec()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("save metadata");
@@ -622,7 +632,8 @@ async fn clears_cover_art_with_empty_payload() {
         AudiobookMetadata {
             cover_art: Some(Vec::new()),
             ..Default::default()
-        },
+        }
+        .into(),
     )
     .await
     .expect("clear metadata");

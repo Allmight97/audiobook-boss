@@ -37,13 +37,14 @@ export function getCurrentMetadata(): AudiobookMetadata {
 
 	const coverArt = getCurrentCoverArt();
 	const title = getElementValue('meta-title');
+	const publicationDate = getElementValue('meta-year').trim();
 
 	return {
 		title: title,
 		artist: getElementValue('meta-author'),
 		album: title,
 		composer: getElementValue('meta-narrator'),
-		date: parseInt(getElementValue('meta-year'), 10) || undefined,
+		date: publicationDate || undefined,
 		genre: getElementValue('meta-genre'),
 		description: getElementValue('meta-description'),
 		series: getElementValue('meta-series'),

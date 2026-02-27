@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import FileImportIsland from '../fileImport/FileImportIsland.svelte';
 import { initFileImport } from '../fileImport';
 
 const { analyzeAudioFilesMock, readAudioMetadataMock, listeners } = vi.hoisted(() => ({
@@ -37,8 +39,8 @@ describe('File import drop vs cover art drop isolation', () => {
 		readAudioMetadataMock.mockResolvedValue({});
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
-      <div id="file-import-root"></div>
     `;
+		render(FileImportIsland);
 		initFileImport();
 
 		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;

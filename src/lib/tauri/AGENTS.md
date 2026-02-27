@@ -15,10 +15,8 @@
 ## Hard Invariants
 
 - Metadata intent operations are `set | clear | noop`.
-- Preserve explicit clear sentinels through boundary payloads:
-  - string clear -> `''`
-  - date/year clear -> `0`
-  - cover art clear -> `[]`
+- Boundary write payloads use explicit patch ops (`MetadataIntentPatch` / `PatchOp`) for clear intent (`{ op: 'clear' }`), not sentinel wire values.
+- Sentinel clear values (`''`, `0`, `[]`) are backend-internal translation details only.
 - Runtime UI modules use this adapter boundary instead of direct generated invokers.
 - Generated bindings file `src/lib/generated/tauri.ts` stays generated; update exporters/boundary code then regenerate.
 

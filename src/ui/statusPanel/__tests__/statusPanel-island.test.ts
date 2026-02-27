@@ -1,24 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import StatusPanelIsland from '../StatusPanelIsland.svelte';
+import { resetStatusPanelViewState } from '../viewState.svelte';
 
-const { initStatusPanelLogicMock } = vi.hoisted(() => ({
+const { initStatusPanelLogicMock, triggerProcessMock, triggerCancelAllMock } = vi.hoisted(() => ({
 	initStatusPanelLogicMock: vi.fn(() => ({ isCurrentlyProcessing: false })),
+	triggerProcessMock: vi.fn(),
+	triggerCancelAllMock: vi.fn(),
 }));
 
 vi.mock('../logic', () => ({
 	StatusPanel: class {},
 	getStatusPanel: vi.fn(() => null),
 	initStatusPanel: initStatusPanelLogicMock,
+	clearStatusPanelTransientStatusLock: vi.fn(),
+	pushStatusPanelTransientStatus: vi.fn(),
+	triggerProcessFromStatusPanel: triggerProcessMock,
+	triggerCancelAllFromStatusPanel: triggerCancelAllMock,
 }));
 
 import { initStatusPanel } from '../index';
 
 describe('StatusPanel island mount', () => {
 	beforeEach(() => {
+		resetStatusPanelViewState();
 		initStatusPanelLogicMock.mockClear();
-		document.body.innerHTML = '<div id="status-panel-root"></div>';
+		triggerProcessMock.mockClear();
+		triggerCancelAllMock.mockClear();
 	});
 
-	it('mounts status panel markup and delegates initialization', () => {
+	it('renders status panel controls and delegates initialization', () => {
+		render(StatusPanelIsland);
 		initStatusPanel();
 
 		expect(document.querySelector('.panel.status-panel')).toBeTruthy();
@@ -36,5 +48,18 @@ describe('StatusPanel island mount', () => {
 			expect(document.getElementById(id)).toBeTruthy();
 		});
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('wires process and cancel buttons to status-panel actions', () => {
+		render(StatusPanelIsland);
+
+		const processButton = document.getElementById('process-button');
+		const cancelButton = document.getElementById('cancel-all-button');
+
+		processButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		cancelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+		expect(triggerProcessMock).toHaveBeenCalledTimes(1);
+		expect(triggerCancelAllMock).toHaveBeenCalledTimes(1);
 	});
 });

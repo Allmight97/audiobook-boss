@@ -27,9 +27,12 @@ pub fn rewrite_metadata_with_ffmpeg(
     let parent = input_path
         .parent()
         .map(std::path::Path::to_path_buf)
-        .unwrap_or_else(|| {
-            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-        });
+        .ok_or_else(|| {
+            AppError::FileValidation(format!(
+                "Input path has no parent directory: {}",
+                input_path.display()
+            ))
+        })?;
     let ext = input_path
         .extension()
         .and_then(|s| s.to_str())

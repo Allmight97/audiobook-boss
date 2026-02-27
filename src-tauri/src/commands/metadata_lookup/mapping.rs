@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::parse::{clean_series_part, parse_year, split_primary_series_name};
+use super::parse::{clean_series_part, parse_publication_date, split_primary_series_name};
 use super::providers::audible::AudibleSearchItem;
 use super::providers::audnexus::AudnexusBook;
 use super::types::{MetadataSource, OnlineMetadataResult};
@@ -42,7 +42,7 @@ pub(super) fn map_audnexus_book(book: AudnexusBook) -> OnlineMetadataResult {
     }
 
     let description = book.summary.or(book.description);
-    let published_year = parse_year(book.release_date.as_deref());
+    let published_date = parse_publication_date(book.release_date.as_deref());
     let duration_seconds = book
         .runtime_length_min
         .map(|minutes| (minutes * 60.0).round() as u32);
@@ -59,7 +59,7 @@ pub(super) fn map_audnexus_book(book: AudnexusBook) -> OnlineMetadataResult {
         subseries,
         subseries_part,
         description,
-        published_year,
+        published_date,
         duration_seconds,
         cover_url,
         audible_only: None,
@@ -96,7 +96,7 @@ pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult 
         .map(|p| p.name)
         .collect();
     let description = item.publisher_summary.or(item.merchandising_summary);
-    let published_year = parse_year(item.release_date.as_deref());
+    let published_date = parse_publication_date(item.release_date.as_deref());
     let duration_seconds = item
         .runtime_length_min
         .map(|minutes| (minutes * 60.0).round() as u32);
@@ -113,7 +113,7 @@ pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult 
         subseries: None,
         subseries_part: None,
         description,
-        published_year,
+        published_date,
         duration_seconds,
         cover_url,
         audible_only: Some(true),
