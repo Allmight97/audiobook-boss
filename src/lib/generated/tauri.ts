@@ -174,6 +174,14 @@ sampleRate: number | null;
  */
 channels: number | null; 
 /**
+ * Friendly codec label for display (None if unavailable)
+ */
+codecLabel: string | null; 
+/**
+ * Friendly selected decoder label for display (None if unavailable)
+ */
+selectedDecoder: string | null; 
+/**
  * Validation status
  */
 isValid: boolean; 
@@ -331,11 +339,14 @@ export type NamingPreset = "absDefault" | "customTemplate"
 export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedDate: string | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
+export type ProcessCommandResult = { jobType: JobType; summary: ProcessResultSummary; results: ProcessResultEntry[] }
+export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: string | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
 /**
  * Processes multiple audio files into a single M4B audiobook
  * Merges files with specified settings and optional metadata
  */
-export type ProcessCommandResult = { message: string; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string }
+export type ProcessResultStatus = "success" | "failed"
+export type ProcessResultSummary = { total: number; succeeded: number; failed: number }
 export type ProcessV2Payload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; 
 /**
  * Sample rate from frontend (optional, defaults to Auto)

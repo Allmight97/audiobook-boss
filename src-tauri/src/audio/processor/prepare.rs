@@ -57,27 +57,14 @@ pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
 
 /// Private helper to retrieve sample rate from a single file.
 fn get_file_sample_rate(path: &Path) -> Result<u32> {
-    ffmpeg_next::init().map_err(AppError::Ffmpeg)?;
-    let ictx = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
-    let audio_stream = ictx
-        .streams()
-        .best(ffmpeg_next::media::Type::Audio)
-        .ok_or_else(|| {
-            AppError::InvalidInput(format!(
-                "File {} has no detectable audio stream",
-                sanitize_path_for_display(path)
-            ))
-        })?;
-
-    let codec_ctx =
-        ffmpeg_next::codec::context::Context::from_parameters(audio_stream.parameters())
-            .map_err(AppError::Ffmpeg)?;
-    let decoder = codec_ctx
-        .decoder()
-        .audio()
-        .map_err(|e| AppError::General(format!("Failed to create audio decoder: {e}")))?;
-
-    Ok(decoder.rate())
+    let inspection = crate::audio::processor::streams::inspect_audio_decoder(path)?;
+    log::info!(
+        "sample_rate_probe path={} selected_decoder={} sample_rate={}",
+        sanitize_path_for_display(path),
+        inspection.selected_decoder,
+        inspection.sample_rate
+    );
+    Ok(inspection.sample_rate)
 }
 
 /// Validates processing inputs (files + settings).

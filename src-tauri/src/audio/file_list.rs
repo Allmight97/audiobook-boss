@@ -68,12 +68,14 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
 
     // Validate audio format and get comprehensive metadata using canonical path
     match validate_audio_format(&canonical_path) {
-        Ok((format, duration, bitrate, sample_rate, channels)) => {
+        Ok((format, duration, bitrate, sample_rate, channels, codec_label, selected_decoder)) => {
             audio_file.format = Some(format);
             audio_file.duration = Some(duration);
             audio_file.bitrate = bitrate;
             audio_file.sample_rate = sample_rate;
             audio_file.channels = channels;
+            audio_file.codec_label = codec_label;
+            audio_file.selected_decoder = selected_decoder;
             audio_file.is_valid = true;
         }
         Err(e) => {
@@ -85,7 +87,15 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
 }
 
 /// Validates audio format using ffmpeg-next and returns comprehensive metadata
-type AudioProperties = (String, f64, Option<u32>, Option<u32>, Option<u32>);
+type AudioProperties = (
+    String,
+    f64,
+    Option<u32>,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    Option<String>,
+);
 
 fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     ff::init().map_err(AppError::Ffmpeg)?;
@@ -138,21 +148,25 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     }
 
     // Extract technical metadata
-    let codec_ctx = ff::codec::context::Context::from_parameters(audio_stream.parameters())
-        .map_err(AppError::Ffmpeg)?;
-    let decoder = codec_ctx
-        .decoder()
-        .audio()
-        .map_err(|e| AppError::General(format!("Failed to create audio decoder: {e}")))?;
+    let inspection = crate::audio::processor::streams::inspect_audio_decoder(path)?;
+    log::info!(
+        "validate_audio_format path={} selected_decoder={}",
+        crate::errors::sanitize_path_for_display(path),
+        inspection.selected_decoder
+    );
 
-    let bitrate = match decoder.bit_rate() {
-        0 => None,
-        v => Some(v as u32),
-    };
-    let sample_rate = Some(decoder.rate());
-    let channels = Some(decoder.channels() as u32);
+    let sample_rate = Some(inspection.sample_rate);
+    let channels = Some(inspection.channels);
 
-    Ok((format.to_string(), duration, bitrate, sample_rate, channels))
+    Ok((
+        format.to_string(),
+        duration,
+        inspection.bitrate,
+        sample_rate,
+        channels,
+        inspection.codec_label,
+        Some(inspection.selected_decoder),
+    ))
 }
 
 /// Gets comprehensive information about a file list

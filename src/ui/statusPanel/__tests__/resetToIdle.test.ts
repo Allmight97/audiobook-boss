@@ -78,13 +78,16 @@ describe('StatusPanel resetToIdle', () => {
 		(panel as any).queueUnlisten = queueUnlisten;
 
 		const timeoutId = window.setTimeout(() => {}, 10_000);
+		const singleTimeoutId = window.setTimeout(() => {}, 10_000);
 		(panel as any).batchCompletionTimeout = timeoutId;
+		(panel as any).singleCompletionTimeout = singleTimeoutId;
 
 		(panel as any).resetToIdle();
 
 		expect(progressUnlisten).toHaveBeenCalledTimes(1);
 		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 		expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
+		expect(clearTimeoutSpy).toHaveBeenCalledWith(singleTimeoutId);
 
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(statusPanelViewState.statusText).toBe('Idle');

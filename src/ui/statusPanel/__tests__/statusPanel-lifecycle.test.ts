@@ -330,6 +330,40 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});
 
+	it('prevents stale single-job completion timeout from resetting a newer active run', () => {
+		const panel = new StatusPanel();
+		seedDisabledControls();
+
+		panel.updateProgress({
+			input_index: 0,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'first run done',
+		} as any);
+		expect(panel.isCurrentlyProcessing).toBe(true);
+
+		vi.advanceTimersByTime(1000);
+
+		// New run reuses the same single-job key (`idx:0`) before old timeout fires.
+		panel.updateProgress({
+			input_index: 0,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'second run done',
+		} as any);
+		expect(panel.isCurrentlyProcessing).toBe(true);
+
+		// Old timeout would fire now if not superseded.
+		vi.advanceTimersByTime(999);
+		expect(panel.isCurrentlyProcessing).toBe(true);
+		expect(panel.getCurrentStatus().stage).not.toBe('idle');
+
+		// New timeout completes 2s after the second terminal event.
+		vi.advanceTimersByTime(1);
+		expect(panel.isCurrentlyProcessing).toBe(false);
+		expect(panel.getCurrentStatus().stage).toBe('idle');
+	});
+
 	it('shows cancellation requested before final cancelled summary in batch flow', async () => {
 		const panel = new StatusPanel();
 		seedDisabledControls();

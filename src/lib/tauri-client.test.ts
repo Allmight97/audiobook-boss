@@ -151,9 +151,15 @@ describe('tauriClient nullish adapters', () => {
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
 			message: 'ok',
-			previewFilePath: null,
-			previewActualSeconds: null,
-			jobId: 'job-1',
+			results: [
+				{
+					message: 'ok',
+					jobId: 'job-1',
+					previewFilePath: null,
+					previewActualSeconds: null,
+					success: true,
+				},
+			],
 		});
 
 		const { tauriClient } = await import('./tauri/client');
@@ -191,8 +197,9 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
 		expect(args.previewSeconds).toBeNull();
-		expect(result.previewFilePath).toBeUndefined();
-		expect(result.previewActualSeconds).toBeUndefined();
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]?.previewFilePath).toBeUndefined();
+		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
 	it('compiles metadata intent map for process command payload', async () => {
@@ -200,9 +207,15 @@ describe('tauriClient nullish adapters', () => {
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
 			message: 'ok',
-			previewFilePath: null,
-			previewActualSeconds: null,
-			jobId: 'job-1',
+			results: [
+				{
+					message: 'ok',
+					jobId: 'job-1',
+					previewFilePath: null,
+					previewActualSeconds: null,
+					success: true,
+				},
+			],
 		});
 
 		const { tauriClient } = await import('./tauri/client');

@@ -48,6 +48,7 @@ export class StatusPanel {
 	private queueOrderSet: Set<string> = new Set();
 	private lastProgressRenderByKey: Map<string, number> = new Map();
 	private batchCompletionTimeout?: number;
+	private singleCompletionTimeout?: number;
 	private currentJobType: 'merge' | 'batch' | null = null;
 	private lastCoverArtPath: string | null = null;
 	private onMaxConcurrentUpdated: () => void;
@@ -82,6 +83,9 @@ export class StatusPanel {
 	// MaxConcurrent control moved to src/ui/jobControls.ts
 
 	public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
+		this.clearSingleCompletionTimeout();
+		this.clearBatchCompletionTimeout();
+
 		return startProcessingAction(
 			{
 				updateStatus: (status) => this.updateStatus(status),
@@ -151,10 +155,8 @@ export class StatusPanel {
 		const now = Date.now();
 		const queueSnapshotState = buildQueueSnapshotState(event.items, now);
 
-		if (this.batchCompletionTimeout) {
-			window.clearTimeout(this.batchCompletionTimeout);
-			this.batchCompletionTimeout = undefined;
-		}
+		this.clearBatchCompletionTimeout();
+		this.clearSingleCompletionTimeout();
 
 		this.jobProgress.clear();
 		this.queueOrder = queueSnapshotState.queueOrder;
@@ -199,6 +201,45 @@ export class StatusPanel {
 
 			this.resetToIdle();
 		}, 2000);
+	}
+
+	private scheduleSingleCompletion(
+		jobKey: string,
+		event: Pick<ProcessingProgressEvent, 'stage' | 'message'>,
+	): void {
+		this.clearSingleCompletionTimeout();
+		this.singleCompletionTimeout = window.setTimeout(() => {
+			this.singleCompletionTimeout = undefined;
+			this.jobProgress.delete(jobKey);
+			if (this.jobProgress.size === 0) {
+				this.resetToIdle();
+
+				if (event.stage === STAGES.completed) {
+					dom.showSuccess('Audiobook created successfully!');
+				} else if (event.stage === STAGES.failed) {
+					dom.showError(event.message);
+				} else if (event.stage === STAGES.cancelled) {
+					dom.showInfo('Processing was cancelled.');
+				}
+			}
+
+			this.updateAggregateUI();
+			renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+		}, 2000);
+	}
+
+	private clearBatchCompletionTimeout(): void {
+		if (this.batchCompletionTimeout) {
+			window.clearTimeout(this.batchCompletionTimeout);
+			this.batchCompletionTimeout = undefined;
+		}
+	}
+
+	private clearSingleCompletionTimeout(): void {
+		if (this.singleCompletionTimeout) {
+			window.clearTimeout(this.singleCompletionTimeout);
+			this.singleCompletionTimeout = undefined;
+		}
 	}
 
 	private areAllBatchJobsTerminal(): boolean {
@@ -253,23 +294,7 @@ export class StatusPanel {
 		if (isTerminal) {
 			if (!isBatchActive) {
 				// Single-job mode: schedule cleanup and reset
-				setTimeout(() => {
-					this.jobProgress.delete(jobKey);
-					if (this.jobProgress.size === 0) {
-						this.resetToIdle();
-
-						if (event.stage === STAGES.completed) {
-							dom.showSuccess('Audiobook created successfully!');
-						} else if (event.stage === STAGES.failed) {
-							dom.showError(event.message);
-						} else if (event.stage === STAGES.cancelled) {
-							dom.showInfo('Processing was cancelled.');
-						}
-					}
-
-					this.updateAggregateUI();
-					renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
-				}, 2000);
+				this.scheduleSingleCompletion(jobKey, { stage: event.stage, message: event.message });
 			} else if (this.areAllBatchJobsTerminal()) {
 				// Batch mode: all jobs terminal, schedule batch completion
 				this.scheduleBatchCompletion();
@@ -366,10 +391,8 @@ export class StatusPanel {
 			this.queueUnlisten();
 			this.queueUnlisten = undefined;
 		}
-		if (this.batchCompletionTimeout) {
-			window.clearTimeout(this.batchCompletionTimeout);
-			this.batchCompletionTimeout = undefined;
-		}
+		this.clearBatchCompletionTimeout();
+		this.clearSingleCompletionTimeout();
 
 		// Clear all job progress tracking
 		this.jobProgress.clear();

@@ -84,7 +84,38 @@ function clearPropertyValues(): void {
 	setText('prop-bitrate', '---');
 	setText('prop-samplerate', '---');
 	setText('prop-channels', '---');
+	setText('prop-codec', '---');
+	setText('prop-decoder', '---');
 	setText('prop-filesize', '---');
+}
+
+function formatOptionalText(value: string | undefined): string {
+	if (typeof value !== 'string') return 'N/A';
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : 'N/A';
+}
+
+function summarizeSharedTextValue(
+	files: AudioFile[],
+	pickValue: (file: AudioFile) => string | undefined,
+): string {
+	if (files.length === 0) return '---';
+
+	const values = files.map((file) => {
+		const value = pickValue(file);
+		return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+	});
+
+	if (values.some((value) => value === null)) {
+		return 'Mixed';
+	}
+
+	const unique = new Set(values);
+	if (unique.size !== 1) {
+		return 'Mixed';
+	}
+
+	return values[0] ?? 'Mixed';
 }
 
 async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
@@ -116,6 +147,8 @@ export function updateFileProperties(
 		setText('prop-bitrate', file.bitrate ? `${file.bitrate} kb/s` : 'N/A');
 		setText('prop-samplerate', file.sampleRate ? `${file.sampleRate} Hz` : 'N/A');
 		setText('prop-channels', file.channels ? `${file.channels} ch` : 'N/A');
+		setText('prop-codec', formatOptionalText(file.codecLabel));
+		setText('prop-decoder', formatOptionalText(file.selectedDecoder));
 		setText('prop-filesize', file.size ? formatFileSize(file.size) : 'N/A');
 
 		if (!options?.skipMetadataLoad) {
@@ -156,6 +189,14 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 
 	updatePropertiesContextMulti(selectedCount);
 	clearPropertyValues();
+	setText(
+		'prop-codec',
+		summarizeSharedTextValue(selectedFiles, (file) => file.codecLabel),
+	);
+	setText(
+		'prop-decoder',
+		summarizeSharedTextValue(selectedFiles, (file) => file.selectedDecoder),
+	);
 
 	resetDirtyState();
 

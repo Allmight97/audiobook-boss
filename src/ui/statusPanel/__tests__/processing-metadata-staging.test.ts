@@ -6,6 +6,7 @@ import { startProcessing } from '../processing';
 const context = vi.hoisted(() => ({
 	processAudiobookFilesV2Mock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
+	openExternalMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		processAudiobookFilesV2: context.processAudiobookFilesV2Mock,
 		readAudioMetadata: context.readAudioMetadataMock,
+		openExternal: context.openExternalMock,
 	},
 }));
 
@@ -81,6 +83,7 @@ describe('startProcessing metadata staging', () => {
 	beforeEach(() => {
 		context.processAudiobookFilesV2Mock.mockReset();
 		context.readAudioMetadataMock.mockReset();
+		context.openExternalMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
@@ -115,7 +118,7 @@ describe('startProcessing metadata staging', () => {
 		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
 		context.processAudiobookFilesV2Mock.mockResolvedValue({
 			message: 'ok',
-			jobId: 'job-1',
+			results: [{ message: 'ok', jobId: 'job-1', success: true }],
 		});
 		context.readAudioMetadataMock.mockResolvedValue({});
 	});
@@ -254,5 +257,49 @@ describe('startProcessing metadata staging', () => {
 				metadataIntent: null,
 			}),
 		);
+	});
+
+	it('auto-opens preview only when exactly one successful preview path is returned', async () => {
+		context.processAudiobookFilesV2Mock.mockResolvedValue({
+			message: 'ok',
+			results: [
+				{
+					message: 'preview ok',
+					jobId: 'job-1',
+					success: true,
+					previewFilePath: '/tmp/out/one.preview.m4b',
+					previewActualSeconds: 30,
+				},
+			],
+		});
+
+		await startProcessing(processingContext(), { previewSeconds: 30 });
+
+		expect(context.openExternalMock).toHaveBeenCalledTimes(1);
+		expect(context.openExternalMock).toHaveBeenCalledWith('/tmp/out/one.preview.m4b');
+	});
+
+	it('does not auto-open preview when multiple successful preview paths are returned', async () => {
+		context.processAudiobookFilesV2Mock.mockResolvedValue({
+			message: 'ok',
+			results: [
+				{
+					message: 'preview a',
+					jobId: 'job-1',
+					success: true,
+					previewFilePath: '/tmp/out/a.preview.m4b',
+				},
+				{
+					message: 'preview b',
+					jobId: 'job-2',
+					success: true,
+					previewFilePath: '/tmp/out/b.preview.m4b',
+				},
+			],
+		});
+
+		await startProcessing(processingContext(), { previewSeconds: 30 });
+
+		expect(context.openExternalMock).not.toHaveBeenCalled();
 	});
 });

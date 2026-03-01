@@ -99,7 +99,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 				});
 				return Promise.resolve({
 					message: 'Processing started (mock)',
-					jobId,
+					results: [
+						{
+							message: 'Processing started (mock)',
+							jobId,
+							success: true,
+						},
+					],
 				});
 			}
 			case 'cancel_processing': {

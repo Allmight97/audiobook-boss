@@ -24,11 +24,58 @@ pub struct ProcessV2Payload {
 
 /// Processes multiple audio files into a single M4B audiobook
 /// Merges files with specified settings and optional metadata
-#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ProcessCommandResult {
+pub enum ProcessResultStatus {
+    Success,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessResultSummary {
+    pub total: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessResultEntry {
+    pub input_index: Option<usize>,
+    pub status: ProcessResultStatus,
     pub message: String,
+    pub error: Option<String>,
     pub preview_file_path: Option<String>,
     pub preview_actual_seconds: Option<f64>,
-    pub job_id: String,
+    pub job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessCommandResult {
+    pub job_type: JobType,
+    pub summary: ProcessResultSummary,
+    pub results: Vec<ProcessResultEntry>,
+}
+
+impl ProcessCommandResult {
+    pub fn new(job_type: JobType, results: Vec<ProcessResultEntry>) -> Self {
+        let succeeded = results
+            .iter()
+            .filter(|result| result.status == ProcessResultStatus::Success)
+            .count();
+        let failed = results.len().saturating_sub(succeeded);
+        let summary = ProcessResultSummary {
+            total: results.len(),
+            succeeded,
+            failed,
+        };
+
+        Self {
+            job_type,
+            summary,
+            results,
+        }
+    }
 }

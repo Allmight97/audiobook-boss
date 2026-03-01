@@ -343,18 +343,13 @@ pub(crate) fn probe_first_input(plan: &MediaProcessingPlan) -> Result<(u32, i32)
         .input_file_paths
         .first()
         .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-    let ictx = ff::format::input(&first)
-        .map_err(|e| AppError::General(format!("Open input failed: {e}")))?;
-    let stream = ictx
-        .streams()
-        .best(ff::media::Type::Audio)
-        .ok_or_else(|| AppError::InvalidInput("No audio stream in first input".to_string()))?;
-    let codec_ctx = ff::codec::context::Context::from_parameters(stream.parameters())
-        .map_err(|e| AppError::General(format!("Decoder ctx from params failed: {e}")))?;
-    let decoder = codec_ctx
-        .decoder()
-        .audio()
-        .map_err(|e| AppError::General(format!("Open audio decoder failed: {e}")))?;
-    let channels = decoder.channel_layout().channels() as i32;
-    Ok((decoder.rate(), channels.max(1)))
+    let inspection = crate::audio::processor::streams::inspect_audio_decoder(first)?;
+    log::info!(
+        "probe_first_input path={} selected_decoder={} rate={} channels={}",
+        first.display(),
+        inspection.selected_decoder,
+        inspection.sample_rate,
+        inspection.channels
+    );
+    Ok((inspection.sample_rate, (inspection.channels as i32).max(1)))
 }

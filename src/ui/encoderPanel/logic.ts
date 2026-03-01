@@ -66,7 +66,8 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	native_aac: 'AAC-LC',
 };
 const NATIVE_AAC_WARNING =
-	'Native AAC may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
+	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
+const AUTO_LABEL_BASE = 'Auto';
 
 /** Resolves effective encoder when "auto" is selected */
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
@@ -75,6 +76,22 @@ const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (cachedAvailability?.aacAtAvailable) return 'aac_at';
 	return 'native_aac';
 };
+
+const encoderFlavorLabel = (flavor: EncoderFlavor): string => {
+	switch (flavor) {
+		case 'fdk_he_aac':
+			return 'FDK AAC';
+		case 'aac_at':
+			return 'Apple AAC';
+		case 'native_aac':
+			return 'Native AAC (FFmpeg)';
+		default:
+			return AUTO_LABEL_BASE;
+	}
+};
+
+const autoOptionLabel = (effectiveEncoder: EncoderFlavor): string =>
+	`${AUTO_LABEL_BASE} (${encoderFlavorLabel(effectiveEncoder)})`;
 
 /**
  * Reads the current encoder settings from the DOM
@@ -273,6 +290,23 @@ const hydrateAvailability = async (): Promise<void> => {
 	updateAvailabilityHint();
 };
 
+const syncAutoOptionLabel = (): void => {
+	const dom = ensureDomCache();
+	const select = dom.encoderSelect;
+	if (!select) return;
+
+	const autoOption = Array.from(select.options).find((option) => option.value === 'auto');
+	if (!autoOption) return;
+
+	const selectedFlavor = (select.value as EncoderFlavor | undefined) ?? 'auto';
+	if (selectedFlavor === 'auto' && cachedAvailability) {
+		autoOption.textContent = autoOptionLabel(resolveEffectiveEncoder('auto'));
+		return;
+	}
+
+	autoOption.textContent = AUTO_LABEL_BASE;
+};
+
 const updateAvailabilityHint = (): void => {
 	const dom = ensureDomCache();
 	if (!dom.encoderAvailabilityHint) return;
@@ -284,19 +318,31 @@ const updateAvailabilityHint = (): void => {
 
 	const selectedFlavor = (dom.encoderSelect?.value as EncoderFlavor | undefined) ?? 'auto';
 	const effectiveEncoder = resolveEffectiveEncoder(selectedFlavor);
+
+	if (selectedFlavor === 'auto') {
+		if (effectiveEncoder === 'fdk_he_aac') {
+			dom.encoderAvailabilityHint.textContent = 'Auto will use FDK AAC.';
+			return;
+		}
+		if (effectiveEncoder === 'aac_at') {
+			dom.encoderAvailabilityHint.textContent = 'Auto will use Apple AAC.';
+			return;
+		}
+		dom.encoderAvailabilityHint.textContent = `Auto will use Native AAC (FFmpeg). ${NATIVE_AAC_WARNING}`;
+		return;
+	}
+
 	if (effectiveEncoder === 'native_aac') {
 		dom.encoderAvailabilityHint.textContent = NATIVE_AAC_WARNING;
 		return;
 	}
 
-	// Single concise line showing what's available
-	if (cachedAvailability.fdkAvailable && ENABLE_FDK) {
+	if (effectiveEncoder === 'fdk_he_aac') {
 		dom.encoderAvailabilityHint.textContent = 'FDK detected ✓';
-	} else if (cachedAvailability.aacAtAvailable) {
-		dom.encoderAvailabilityHint.textContent = 'Apple AAC available';
-	} else {
-		dom.encoderAvailabilityHint.textContent = 'Using native encoder';
+		return;
 	}
+
+	dom.encoderAvailabilityHint.textContent = 'Apple AAC available';
 };
 
 const reportEncoderAutoSwitchFallback = (from: EncoderFlavor, to: EncoderFlavor): void => {
@@ -324,6 +370,7 @@ const syncEncoderUI = (): void => {
 	const flavor = (dom.encoderSelect?.value as EncoderFlavor | undefined) ?? 'auto';
 	const effectiveEncoder = resolveEffectiveEncoder(flavor);
 
+	syncAutoOptionLabel();
 	updateProfileDisplay(effectiveEncoder);
 	enforceBitrateModeCompatibility(effectiveEncoder);
 	syncQualityBitrateVisibility();

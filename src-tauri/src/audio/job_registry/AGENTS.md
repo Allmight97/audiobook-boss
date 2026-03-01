@@ -15,8 +15,9 @@
 ## Hard Invariants
 
 - `register_job` acquires/records permit and cancellation state before execution.
-- Scheduler stops issuing new work after first batch error and drains in-flight tasks deterministically.
+- Scheduler preserves deterministic ordering while continuing to issue queued work after per-task errors.
 - Terminal job paths always release/remove tracked job state.
+- Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.
 - Concurrency reconfiguration is idle-only to prevent dangling permits and inconsistent UI job counts.
 
 ## Canary Trigger
@@ -28,5 +29,5 @@
 ## Done Criteria
 
 - Job lifecycle remains single-owner and terminal paths are complete.
-- Batch error behavior is fail-fast for new scheduling and deterministic for in-flight drain.
+- Batch error behavior is continue-on-error with deterministic ordered outcomes and terminalization for all queued indices.
 - Concurrency updates preserve registry invariants and UX-visible job accuracy.

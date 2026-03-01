@@ -142,6 +142,9 @@ run_package() {
 
   log_step "bun run app:build (Tauri app packaging)"
   bun run app:build
+
+  log_step "cargo run --manifest-path src-tauri/Cargo.toml --bin verify_aac_decoder_contract"
+  cargo run --manifest-path src-tauri/Cargo.toml --bin verify_aac_decoder_contract --quiet
 }
 
 case "$tier" in

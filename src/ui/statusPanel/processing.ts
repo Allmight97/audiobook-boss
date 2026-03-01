@@ -22,6 +22,7 @@ import {
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
 import { normalizeProcessingErrorMessage } from './errorHelpers';
+import type { ProcessCommandResult } from '../../types/audio';
 
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -30,6 +31,23 @@ interface StartProcessingContext {
 	startProgressListener: () => Promise<void>;
 	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
 	resetToIdle: () => void;
+}
+
+function isSuccessfulResultEntry(entry: ProcessCommandResult['results'][number]): boolean {
+	if (entry.success !== undefined) {
+		return entry.success;
+	}
+	const stage = entry.stage?.toLowerCase();
+	return stage !== 'failed' && stage !== 'cancelled';
+}
+
+function extractSuccessfulPreviewPaths(result: ProcessCommandResult): string[] {
+	return result.results
+		.filter(
+			(entry) => typeof entry.previewFilePath === 'string' && entry.previewFilePath.length > 0,
+		)
+		.filter(isSuccessfulResultEntry)
+		.map((entry) => entry.previewFilePath as string);
 }
 
 export async function startProcessing(
@@ -176,14 +194,18 @@ export async function startProcessing(
 		});
 
 		console.log('Processing completed successfully:', result);
-		if (result?.previewFilePath) {
+		const previewPaths = extractSuccessfulPreviewPaths(result);
+		if (previewPaths.length === 1) {
+			const successfulPreview = result.results.find(
+				(entry) => entry.previewFilePath === previewPaths[0] && isSuccessfulResultEntry(entry),
+			);
 			const seconds =
-				typeof result.previewActualSeconds === 'number'
-					? result.previewActualSeconds.toFixed(3)
+				typeof successfulPreview?.previewActualSeconds === 'number'
+					? successfulPreview.previewActualSeconds.toFixed(3)
 					: '≈30';
-			console.log(`Preview file created at: ${result.previewFilePath} (${seconds}s)`);
+			console.log(`Preview file created at: ${previewPaths[0]} (${seconds}s)`);
 			try {
-				await tauriClient.openExternal(result.previewFilePath);
+				await tauriClient.openExternal(previewPaths[0]);
 			} catch (error) {
 				console.warn('Failed to open preview file automatically:', error);
 			}

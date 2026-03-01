@@ -232,13 +232,10 @@ async fn test_scheduler_respects_max_in_flight() {
         });
     }
 
-    let results = registry
-        .scheduler()
-        .run_batch(futures)
-        .await
-        .expect("scheduler should complete all jobs");
+    let results = registry.scheduler().run_batch(futures).await;
 
     assert_eq!(results.len(), 12);
+    assert!(results.into_iter().all(|item| item.is_ok()));
     assert!(
         peak.load(Ordering::SeqCst) <= 2,
         "scheduler should not exceed max_concurrent"
@@ -259,28 +256,27 @@ async fn test_scheduler_preserves_input_order() {
         });
     }
 
-    let results = registry
-        .scheduler()
-        .run_batch(futures)
-        .await
-        .expect("scheduler should complete");
+    let results = registry.scheduler().run_batch(futures).await;
 
-    assert_eq!(results, vec![0, 1, 2, 3, 4]);
+    let ordered: Vec<usize> = results
+        .into_iter()
+        .map(|entry| entry.expect("expected success outcome"))
+        .collect();
+
+    assert_eq!(ordered, vec![0, 1, 2, 3, 4]);
 }
 
 #[tokio::test]
-async fn test_scheduler_stops_scheduling_after_first_error() {
+async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
     use std::sync::atomic::AtomicUsize;
     use tokio::time::{sleep, Duration};
 
     let registry = JobRegistry::new(2);
     let started = Arc::new(AtomicUsize::new(0));
-    let completed = Arc::new(AtomicUsize::new(0));
     let mut futures = Vec::new();
 
     for index in 0..6usize {
         let started = Arc::clone(&started);
-        let completed = Arc::clone(&completed);
         futures.push(async move {
             started.fetch_add(1, Ordering::SeqCst);
 
@@ -290,23 +286,24 @@ async fn test_scheduler_stops_scheduling_after_first_error() {
             }
 
             sleep(Duration::from_millis(30)).await;
-            completed.fetch_add(1, Ordering::SeqCst);
             Ok(index)
         });
     }
 
-    let result = registry.scheduler().run_batch(futures).await;
-    assert!(result.is_err(), "scheduler should return first task error");
+    let outcomes = registry.scheduler().run_batch(futures).await;
+    assert_eq!(outcomes.len(), 6);
     assert_eq!(
         started.load(Ordering::SeqCst),
-        2,
-        "scheduler should not enqueue new work after first failure"
+        6,
+        "scheduler should enqueue all work despite task failures"
     );
-    assert_eq!(
-        completed.load(Ordering::SeqCst),
-        1,
-        "in-flight non-failing work should drain before returning"
-    );
+
+    assert!(outcomes[0].is_ok());
+    assert!(outcomes[1].is_err());
+    assert!(outcomes[2].is_ok());
+    assert!(outcomes[3].is_ok());
+    assert!(outcomes[4].is_ok());
+    assert!(outcomes[5].is_ok());
 }
 
 #[test]

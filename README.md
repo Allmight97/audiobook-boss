@@ -25,7 +25,7 @@ bun install
 bun run tauri dev
 ```
 
-**Encoders**: FFmpeg's native AAC works out of the box. For higher quality, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
+**AAC runtime contract**: output encoder choice and input decoder choice are separate concerns. The app stays on the single `ffmpeg-next` engine, but may select compatible AAC decoders such as `aac_at` or `libfdk_aac` at runtime for AAC-family inputs that the default decoder cannot handle. For higher quality AAC encoding and broader AAC decode compatibility on macOS, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
 
 Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
