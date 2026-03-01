@@ -17,7 +17,7 @@
         <option value="auto" selected>Auto</option>
         <option value="fdk_he_aac">FDK AAC</option>
         <option value="aac_at">Apple AAC</option>
-        <option value="native_aac">Native AAC</option>
+        <option value="native_aac">Native AAC (FFmpeg)</option>
       </select>
       <p
         id="encoder-availability-hint"

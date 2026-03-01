@@ -174,6 +174,14 @@ sampleRate: number | null;
  */
 channels: number | null; 
 /**
+ * Friendly codec label for display (None if unavailable)
+ */
+codecLabel: string | null; 
+/**
+ * Friendly selected decoder label for display (None if unavailable)
+ */
+selectedDecoder: string | null; 
+/**
  * Validation status
  */
 isValid: boolean; 

@@ -230,6 +230,12 @@
 				<span class="property-label">Channels:</span><span class="property-value" id="prop-channels"
 					>---</span
 				>
+				<span class="property-label">Codec:</span><span class="property-value" id="prop-codec"
+					>---</span
+				>
+				<span class="property-label">Decoder:</span><span class="property-value" id="prop-decoder"
+					>---</span
+				>
 				<span class="property-label">File Size:</span><span class="property-value" id="prop-filesize"
 					>--- MB</span
 				>

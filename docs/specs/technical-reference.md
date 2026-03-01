@@ -8,6 +8,7 @@ Architecture and implementation details for contributors and AI agents.
 - Frontend: TypeScript + Svelte + Tauri 2
 - Metadata: `mp4ameta` for MP4/M4B tags + cover art; `ffmpeg-next` for non-MP4 metadata
 - Audio Processing Engine: Single engine (`FfmpegNextProcessor`); no shell-based FFmpeg
+- AAC decode contract: the engine may select a named AAC decoder (`aac_at`, `libfdk_aac`) at runtime when the default AAC decoder cannot process an AAC-family stream; this is part of the macOS product contract, not a shell fallback
 
 Internal docs:
 - `docs/external-apis/ffmpeg-next.md` — audio/PTS/time_base, encoder, progress
@@ -24,7 +25,7 @@ Internal docs:
 ## Critical Data Flows
 
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-2. Processing Pipeline: `process_audiobook_files_v2` → `MediaProcessor::execute` → progress events via Tauri window
+2. Processing Pipeline: `process_audiobook_files_v2` → input decoder arbitration/open → `MediaProcessor::execute` → progress events via Tauri window
 3. Metadata Flow: MP4/M4B read/write via `mp4ameta` (ffmpeg fallback for gaps) → `AudiobookMetadata` → `mp4ameta` write during metadata-only edits and finalize; non-MP4 stays on ffmpeg-next
 4. Metadata Edit Intent Flow (frontend): metadata form edits are modeled as canonical patch ops (`set | clear | noop`) and compiled at the `tauriClient` boundary (`src/lib/tauri/client.ts` + `src/lib/tauri/normalizers.ts`) to current Rust payload semantics (`''`, `0`, `[]` clear sentinels).
 
@@ -35,6 +36,7 @@ Internal docs:
 - Processing Runtime
   - Engine selection is trivial: `FfmpegNextProcessor` only (see `audio/processor/selection.rs`)
   - ffmpeg-next initialized once per process (`ff::init()`)
+  - AAC-family input streams use runtime decoder arbitration at the engine boundary so validation, probing, and full processing agree on what counts as processable input
 - Progress Emission
   - Backend: `audio/progress/reporter.rs` emits via `window.emit("processing-progress", event)`
   - Backend: `commands/audio_processing.rs` emits `window.emit("processing-queue", event)` snapshots for batch ordering
@@ -67,6 +69,7 @@ cargo test --test integration_metadata_tests # Specific integration test file
 cargo clippy -- -D warnings             # Lint checks (must pass)
 bun run fmt:check                       # Frontend format checks (Biome + Prettier for Svelte)
 cargo test path_validation              # Path security subset by name filter
+scripts/checks.sh package               # Packaging gate + macOS AAC decoder contract verification
 ```
 
 ### Build & Run

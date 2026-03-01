@@ -40,6 +40,10 @@ pub struct AudioFile {
     pub sample_rate: Option<u32>,
     /// Number of channels (None if unavailable)
     pub channels: Option<u32>,
+    /// Friendly codec label for display (None if unavailable)
+    pub codec_label: Option<String>,
+    /// Friendly selected decoder label for display (None if unavailable)
+    pub selected_decoder: Option<String>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
@@ -57,6 +61,8 @@ impl AudioFile {
             bitrate: None,
             sample_rate: None,
             channels: None,
+            codec_label: None,
+            selected_decoder: None,
             is_valid: false,
             error: None,
         }
