@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Keep in sync with rust-toolchain.toml channel
-      - uses: dtolnay/rust-toolchain@1.93
+      - uses: dtolnay/rust-toolchain@1.100
       - uses: jdx/mise-action@v3
         with:
           install: true
@@ -65,7 +65,7 @@ jobs:
 
       - name: Cache cargo-audit binary
         id: cache-cargo-audit
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cargo/bin/cargo-audit
           key: ${{ runner.os }}-cargo-audit-v0.22.1
