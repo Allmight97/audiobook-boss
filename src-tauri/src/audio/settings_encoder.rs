@@ -1,7 +1,7 @@
-//! Encoder v2 settings types and validation
+//! Encoder settings types and validation
 //!
 //! This module defines the advanced encoder settings surface used by the
-//! v2 command, along with validation helpers and encoder availability probes.
+//! processing command, along with validation helpers and encoder availability probes.
 
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,7 @@ pub enum ThreadSetting {
     Fixed(u16),
 }
 
-/// Advanced encoder settings payload for v2 command
+/// Advanced encoder settings payload
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {

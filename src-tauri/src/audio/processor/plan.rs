@@ -12,7 +12,7 @@ use crate::errors::Result;
 pub struct MediaProcessingPlan {
     /// Output file path
     pub output_path: PathBuf,
-    /// Encoder settings (v2-only)
+    /// Encoder settings
     pub encoder_settings: EncoderSettings,
     /// Sample rate configuration (auto or explicit)
     pub sample_rate: SampleRateConfig,

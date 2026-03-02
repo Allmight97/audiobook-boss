@@ -20,7 +20,7 @@ describe('tauriClient', () => {
 			const { tauriClient } = await import('./tauri/client');
 			expect(tauriClient).toBeDefined();
 			expect(typeof tauriClient.analyzeAudioFiles).toBe('function');
-			expect(typeof tauriClient.processAudiobookFilesV2).toBe('function');
+			expect(typeof tauriClient.processAudiobookFiles).toBe('function');
 			expect(typeof tauriClient.cancelProcessing).toBe('function');
 		});
 	});
@@ -170,7 +170,7 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.processAudiobookFilesV2({
+		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
@@ -197,7 +197,7 @@ describe('tauriClient nullish adapters', () => {
 				previewSeconds: number | null;
 			},
 		];
-		expect(commandName).toBe('process_audiobook_files_v2');
+		expect(commandName).toBe('process_audiobook_files');
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
@@ -237,7 +237,7 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.processAudiobookFilesV2({
+		await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
@@ -300,7 +300,7 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.processAudiobookFilesV2({
+		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b', '/books/b.m4b'],
 				outputDir: '/tmp/out',

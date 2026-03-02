@@ -4,7 +4,7 @@ import type { ProcessingStatus } from '../state';
 import { startProcessing } from '../processing';
 
 const context = vi.hoisted(() => ({
-	processAudiobookFilesV2Mock: vi.fn(),
+	processAudiobookFilesMock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
 	openExternalMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
@@ -23,7 +23,7 @@ const context = vi.hoisted(() => ({
 
 vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
-		processAudiobookFilesV2: context.processAudiobookFilesV2Mock,
+		processAudiobookFiles: context.processAudiobookFilesMock,
 		readAudioMetadata: context.readAudioMetadataMock,
 		openExternal: context.openExternalMock,
 	},
@@ -82,7 +82,7 @@ function processingContext() {
 
 describe('startProcessing metadata staging', () => {
 	beforeEach(() => {
-		context.processAudiobookFilesV2Mock.mockReset();
+		context.processAudiobookFilesMock.mockReset();
 		context.readAudioMetadataMock.mockReset();
 		context.openExternalMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
@@ -117,7 +117,7 @@ describe('startProcessing metadata staging', () => {
 		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
 		context.getMetadataForFileMock.mockReturnValue(undefined);
 		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
-		context.processAudiobookFilesV2Mock.mockResolvedValue({
+		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
 			summary: { total: 1, succeeded: 1, failed: 0 },
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
@@ -133,7 +133,7 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: null,
 			}),
@@ -161,7 +161,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'set', value: 'Edited Title' } },
@@ -187,7 +187,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'clear' } },
@@ -213,7 +213,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { cover_art: { op: 'clear' } },
@@ -233,7 +233,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'clear' } },
@@ -254,7 +254,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.processAudiobookFilesV2Mock).toHaveBeenCalledWith(
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: null,
 			}),
@@ -262,7 +262,7 @@ describe('startProcessing metadata staging', () => {
 	});
 
 	it('auto-opens preview only when exactly one successful preview path is returned', async () => {
-		context.processAudiobookFilesV2Mock.mockResolvedValue({
+		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
 			summary: { total: 1, succeeded: 1, failed: 0 },
 			results: [
@@ -284,7 +284,7 @@ describe('startProcessing metadata staging', () => {
 	});
 
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {
-		context.processAudiobookFilesV2Mock.mockResolvedValue({
+		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'batch',
 			summary: { total: 2, succeeded: 2, failed: 0 },
 			results: [
@@ -311,7 +311,7 @@ describe('startProcessing metadata staging', () => {
 	});
 
 	it('does not auto-open preview for failed result entries', async () => {
-		context.processAudiobookFilesV2Mock.mockResolvedValue({
+		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
 			summary: { total: 1, succeeded: 0, failed: 1 },
 			results: [

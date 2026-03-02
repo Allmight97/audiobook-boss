@@ -46,7 +46,7 @@ pub struct ProcessingContext {
     pub window: Option<Window>,
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,
-    /// Encoder settings (v2-only)
+    /// Encoder settings
     pub encoder_settings: EncoderSettings,
     /// Sample rate configuration
     pub sample_rate: SampleRateConfig,
@@ -167,12 +167,12 @@ impl ProcessingContext {
         }
     }
 
-    /// Returns the effective bitrate in kbps (v2-aware)
+    /// Returns the effective bitrate in kbps
     pub fn effective_bitrate_kbps(&self) -> u32 {
         self.encoder_settings.bitrate_kbps as u32
     }
 
-    /// Returns the effective channel count (v2-aware)
+    /// Returns the effective channel count
     pub fn effective_channel_count(&self) -> u8 {
         self.encoder_settings
             .channels

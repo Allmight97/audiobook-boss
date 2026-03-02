@@ -277,7 +277,7 @@ export type ChannelConfig = "auto" | "mono" | "stereo"
  */
 export type EncoderAvailability = { fdkAvailable: boolean; aacAtAvailable: boolean; nativeAacAvailable: boolean }
 /**
- * Advanced encoder settings payload for v2 command
+ * Advanced encoder settings payload
  */
 export type EncoderSettings = { encoderType: EncoderType; 
 /**

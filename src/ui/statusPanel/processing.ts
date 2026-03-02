@@ -245,7 +245,7 @@ export async function startProcessing(
 				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
 		}
 
-		const result = await tauriClient.processAudiobookFilesV2({
+		const result = await tauriClient.processAudiobookFiles({
 			payload: v2Payload,
 			metadataIntent: metadataIntentPayload,
 			previewSeconds: options?.previewSeconds,

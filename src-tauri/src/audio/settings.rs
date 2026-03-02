@@ -1,4 +1,4 @@
-//! Audio processing settings validation utilities (v2-only)
+//! Audio processing settings validation utilities
 
 use super::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
