@@ -243,5 +243,5 @@ Cover art URL loading is treated as untrusted input. The app only fetches HTTPS 
 
 - Repo Branches
   - 'main' (https://github.com/Allmight97/audiobook-boss.git) is the current stable branch.
-- Audio pipeline uses a single encoder configuration surface (`EncoderSettings` + `SampleRateConfig`) via the `process_audiobook_files_v2` command (sole IPC entrypoint).
+- Audio pipeline uses a single encoder configuration surface (`EncoderSettings` + `SampleRateConfig`) via the `process_audiobook_files` command (sole IPC entrypoint).
 - Primary development target: macOS (Apple Silicon). Out of scope: Intel Macs, Linux, Windows.

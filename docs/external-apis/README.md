@@ -16,7 +16,7 @@ These APIs define the "Menu" of actions available to the user interface.
     - **Frontend Call Path**: `src/App.svelte` -> `src/ui/**` feature modules -> `src/lib/tauri/client.ts`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
     - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust) via generated `src/lib/generated/tauri.ts`
-    - **Note**: `process_audiobook_files_v2` now accepts per-file metadata keyed by input path.
+    - **Note**: `process_audiobook_files` accepts per-file metadata keyed by input path.
 
 ---
 
