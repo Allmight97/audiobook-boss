@@ -21,7 +21,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::preview_output_path,
             crate::commands::get_max_concurrent_jobs,
             crate::commands::set_max_concurrent_jobs,
-            crate::commands::process_audiobook_files_v2,
+            crate::commands::process_audiobook_files,
             crate::commands::cancel_processing,
         ])
         .events(tauri_specta::collect_events![

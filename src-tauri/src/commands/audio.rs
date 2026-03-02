@@ -7,7 +7,7 @@ use crate::audio::settings_encoder::{
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload,
 };
 use crate::errors::{AppError, Result};
 use crate::metadata::MetadataIntentPatch;
@@ -114,16 +114,16 @@ pub async fn set_max_concurrent_jobs(
     registry.update_max_concurrent(desired).await
 }
 
-/// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name).
+/// Processes audiobook files with configurable encoder settings.
 ///
-/// This command now supports parallel batch processing via the JobRegistry.
+/// Supports parallel batch processing via the JobRegistry.
 /// Multiple invocations can run concurrently up to the configured limit.
 #[tauri::command]
 #[specta::specta]
-pub async fn process_audiobook_files_v2(
+pub async fn process_audiobook_files(
     window: tauri::Window,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
-    payload: ProcessV2Payload,
+    payload: ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {

@@ -11,7 +11,7 @@ import {
 import type { ApplicationEvents, EventName } from '../../types/events';
 import type {
 	EncoderSettings,
-	ProcessV2Payload,
+	ProcessPayload,
 	FileListInfo,
 	ProcessCommandResult,
 } from '../../types/audio';
@@ -69,7 +69,7 @@ const commandInvokers = {
 	preview_output_path: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;
-		outputNaming?: ProcessV2Payload['outputNaming'] | null;
+		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 	}) =>
 		generatedCommands.previewOutputPath(
@@ -83,8 +83,8 @@ const commandInvokers = {
 	get_max_concurrent_jobs: (_args?: undefined) => generatedCommands.getMaxConcurrentJobs(),
 	set_max_concurrent_jobs: (args: { max_concurrent?: number | null }) =>
 		generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null),
-	process_audiobook_files_v2: (args: {
-		payload: ProcessV2Payload;
+	process_audiobook_files: (args: {
+		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
 	}) => {
@@ -98,7 +98,7 @@ const commandInvokers = {
 			: null;
 
 		return generatedCommands
-			.processAudiobookFilesV2(
+			.processAudiobookFiles(
 				denormalizeProcessPayload(args.payload),
 				metadataPayload,
 				args.previewSeconds ?? null,
@@ -164,7 +164,7 @@ export const tauriClient = {
 	previewOutputPath: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;
-		outputNaming?: ProcessV2Payload['outputNaming'] | null;
+		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 	}): Promise<CommandResult<'preview_output_path'>> => invokeCommand('preview_output_path', args),
 	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
@@ -173,11 +173,11 @@ export const tauriClient = {
 		maxConcurrent?: number | null,
 	): Promise<CommandResult<'set_max_concurrent_jobs'>> =>
 		invokeCommand('set_max_concurrent_jobs', { max_concurrent: maxConcurrent ?? null }),
-	processAudiobookFilesV2: (args: {
-		payload: ProcessV2Payload;
+	processAudiobookFiles: (args: {
+		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
-	}): Promise<ProcessCommandResult> => invokeCommand('process_audiobook_files_v2', args),
+	}): Promise<ProcessCommandResult> => invokeCommand('process_audiobook_files', args),
 	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>
 		jobId === undefined
 			? invokeCommand('cancel_processing')
