@@ -19,6 +19,7 @@
 - Sentinel clear values (`''`, `0`, `[]`) are backend-internal translation details only.
 - Runtime UI modules use this adapter boundary instead of direct generated invokers.
 - Generated bindings file `src/lib/generated/tauri.ts` stays generated; update exporters/boundary code then regenerate.
+- When a generated binding overlaps with a handwritten TS runtime type, update both in the same change and cover the new shape in `src/lib/tauri-client.test.ts`.
 
 ## Canary Trigger
 

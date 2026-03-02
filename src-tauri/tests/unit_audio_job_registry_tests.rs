@@ -306,6 +306,51 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
     assert!(outcomes[5].is_ok());
 }
 
+#[tokio::test]
+async fn test_scheduler_preserves_index_for_panicking_tasks() {
+    use std::sync::atomic::AtomicUsize;
+    use tokio::time::{sleep, Duration};
+
+    let registry = JobRegistry::new(2);
+    let started = Arc::new(AtomicUsize::new(0));
+    let mut futures = Vec::new();
+
+    for index in 0..4usize {
+        let started = Arc::clone(&started);
+        futures.push(async move {
+            started.fetch_add(1, Ordering::SeqCst);
+
+            if index == 0 {
+                sleep(Duration::from_millis(30)).await;
+                return Ok(index);
+            }
+
+            if index == 1 {
+                panic!("scheduler panic regression");
+            }
+
+            sleep(Duration::from_millis(5)).await;
+            Ok(index)
+        });
+    }
+
+    let outcomes = registry.scheduler().run_batch(futures).await;
+
+    assert_eq!(outcomes.len(), 4);
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        4,
+        "scheduler should continue scheduling after a task panic"
+    );
+    assert_eq!(outcomes[0].as_ref().expect("index 0 should succeed"), &0);
+    assert!(
+        outcomes[1].is_err(),
+        "panic should map to the panicking task index"
+    );
+    assert_eq!(outcomes[2].as_ref().expect("index 2 should succeed"), &2);
+    assert_eq!(outcomes[3].as_ref().expect("index 3 should succeed"), &3);
+}
+
 #[test]
 fn aggregate_job_status_struct() {
     let status = AggregateJobStatus {

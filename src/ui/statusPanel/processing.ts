@@ -22,7 +22,7 @@ import {
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
 import { normalizeProcessingErrorMessage } from './errorHelpers';
-import type { ProcessCommandResult } from '../../types/audio';
+import type { ProcessCommandJobResult, ProcessCommandResult } from '../../types/audio';
 
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -30,15 +30,12 @@ interface StartProcessingContext {
 	updateArtThumbnail: () => Promise<void>;
 	startProgressListener: () => Promise<void>;
 	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
+	setBatchCompletionMessage: (message: string | null) => void;
 	resetToIdle: () => void;
 }
 
-function isSuccessfulResultEntry(entry: ProcessCommandResult['results'][number]): boolean {
-	if (entry.success !== undefined) {
-		return entry.success;
-	}
-	const stage = entry.stage?.toLowerCase();
-	return stage !== 'failed' && stage !== 'cancelled';
+function isSuccessfulResultEntry(entry: ProcessCommandJobResult): boolean {
+	return entry.status === 'success';
 }
 
 function extractSuccessfulPreviewPaths(result: ProcessCommandResult): string[] {
@@ -48,6 +45,66 @@ function extractSuccessfulPreviewPaths(result: ProcessCommandResult): string[] {
 		)
 		.filter(isSuccessfulResultEntry)
 		.map((entry) => entry.previewFilePath as string);
+}
+
+function formatFilenameForDisplay(path: string): string {
+	const segments = path.split(/[\\/]/);
+	return segments[segments.length - 1] || path;
+}
+
+function summarizeFailedBatchFiles(
+	result: ProcessCommandResult,
+	filePaths: string[],
+): string | null {
+	if (result.jobType !== 'batch') {
+		return null;
+	}
+
+	const total = result.summary?.total ?? result.results.length;
+	const succeeded =
+		result.summary?.succeeded ??
+		result.results.filter((entry) => entry.status === 'success').length;
+	const failed =
+		result.summary?.failed ?? result.results.filter((entry) => entry.status === 'failed').length;
+
+	if (failed <= 0) {
+		return null;
+	}
+
+	const failedNames = Array.from(
+		new Set(
+			result.results
+				.filter((entry) => entry.status === 'failed')
+				.map((entry) => {
+					if (typeof entry.inputIndex === 'number') {
+						const path = filePaths[entry.inputIndex];
+						if (path) {
+							return formatFilenameForDisplay(path);
+						}
+					}
+					if (typeof entry.error === 'string' && entry.error.length > 0) {
+						return entry.error;
+					}
+					if (typeof entry.message === 'string' && entry.message.length > 0) {
+						return entry.message;
+					}
+					return 'Unknown failure';
+				}),
+		),
+	);
+
+	const visibleNames = failedNames.slice(0, 2);
+	const moreCount = Math.max(0, failed - visibleNames.length);
+	const failureSuffix =
+		visibleNames.length > 0
+			? ` Failed: ${visibleNames.join(', ')}${moreCount > 0 ? ` (+${moreCount} more)` : ''}`
+			: '';
+
+	if (succeeded <= 0) {
+		return `No files were processed successfully.${failureSuffix}`;
+	}
+
+	return `Processed ${succeeded}/${total}.${failureSuffix}`;
 }
 
 export async function startProcessing(
@@ -60,6 +117,7 @@ export async function startProcessing(
 		const fileList = getCurrentFileList();
 		console.log('StatusPanel: Starting processing...');
 		console.log('Current file list:', fileList);
+		context.setBatchCompletionMessage(null);
 
 		// Validate inputs
 		if (!fileList || !fileList.files || fileList.files.length === 0) {
@@ -193,7 +251,9 @@ export async function startProcessing(
 			previewSeconds: options?.previewSeconds,
 		});
 
-		console.log('Processing completed successfully:', result);
+		console.log('Processing command resolved:', result);
+		context.setBatchCompletionMessage(summarizeFailedBatchFiles(result, filePaths));
+
 		const previewPaths = extractSuccessfulPreviewPaths(result);
 		if (previewPaths.length === 1) {
 			const successfulPreview = result.results.find(

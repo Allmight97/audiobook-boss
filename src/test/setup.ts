@@ -98,12 +98,21 @@ vi.mock('@tauri-apps/api/core', () => ({
 					input_index: 0,
 				});
 				return Promise.resolve({
-					message: 'Processing started (mock)',
+					jobType: 'batch',
+					summary: {
+						total: 1,
+						succeeded: 1,
+						failed: 0,
+					},
 					results: [
 						{
+							inputIndex: 0,
+							status: 'success',
 							message: 'Processing started (mock)',
 							jobId,
-							success: true,
+							error: null,
+							previewFilePath: null,
+							previewActualSeconds: null,
 						},
 					],
 				});

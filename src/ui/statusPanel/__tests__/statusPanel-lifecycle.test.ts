@@ -258,6 +258,39 @@ describe('StatusPanel lifecycle', () => {
 		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 	});
 
+	it('uses the batch completion override message for partial failures', () => {
+		const panel = new StatusPanel();
+		seedDisabledControls();
+
+		const showErrorSpy = vi.spyOn(dom, 'showError');
+		panel.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
+
+		(panel as any).handleQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		panel.updateProgress({
+			input_index: 0,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'terminal-0',
+		} as any);
+		panel.updateProgress({
+			input_index: 1,
+			stage: STAGES.failed,
+			percentage: 100,
+			message: 'terminal-1',
+		} as any);
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showErrorSpy).toHaveBeenCalledWith('Processed 1/2. Failed: beta.m4b');
+	});
+
 	it.each([
 		{
 			name: 'completed',

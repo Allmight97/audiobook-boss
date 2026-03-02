@@ -12,7 +12,7 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
-use tokio::task::JoinSet;
+use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
@@ -59,41 +59,55 @@ impl<'a> BatchScheduler<'a> {
         let max_in_flight = self.registry.max_concurrent().max(1);
         let total_tasks = futures.len();
         let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
-        let mut join_set: JoinSet<(usize, Result<R>)> = JoinSet::new();
+        let mut join_set: JoinSet<Result<R>> = JoinSet::new();
+        let mut task_indices: HashMap<Id, usize> = HashMap::with_capacity(total_tasks);
         let mut ordered_results: Vec<Option<Result<R>>> = Vec::with_capacity(total_tasks);
         ordered_results.resize_with(total_tasks, || None);
 
         for _ in 0..max_in_flight {
             if let Some((index, future)) = pending.pop_front() {
-                join_set.spawn(async move { (index, future.await) });
+                spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
             } else {
                 break;
             }
         }
 
-        while let Some(joined) = join_set.join_next().await {
+        while let Some(joined) = join_set.join_next_with_id().await {
             match joined {
-                Ok((index, outcome)) => {
+                Ok((task_id, outcome)) => {
+                    let Some(index) = task_indices.remove(&task_id) else {
+                        log::error!(
+                            "Batch scheduler completed task id {} without an index mapping",
+                            task_id
+                        );
+                        continue;
+                    };
                     ordered_results[index] = Some(outcome);
                 }
                 Err(join_error) => {
                     let error = AppError::General(format!("Batch task join error: {join_error}"));
-                    if let Some((missing_index, slot)) = ordered_results
-                        .iter_mut()
-                        .enumerate()
-                        .find(|(_, value)| value.is_none())
-                    {
+                    let task_id = join_error.id();
+                    if let Some(index) = task_indices.remove(&task_id) {
+                        let slot = ordered_results
+                            .get_mut(index)
+                            .expect("task index should be within ordered result bounds");
                         *slot = Some(Err(error));
                         log::error!(
-                            "Batch task join error mapped to missing task index {}",
-                            missing_index
+                            "Batch task join error preserved task index {} via task id {}",
+                            index,
+                            task_id
+                        );
+                    } else {
+                        log::error!(
+                            "Batch task join error for task id {} had no tracked input index",
+                            task_id
                         );
                     }
                 }
             }
 
             if let Some((next_index, next_future)) = pending.pop_front() {
-                join_set.spawn(async move { (next_index, next_future.await) });
+                spawn_indexed_task(&mut join_set, &mut task_indices, next_index, next_future);
             }
         }
 
@@ -109,6 +123,19 @@ impl<'a> BatchScheduler<'a> {
             })
             .collect()
     }
+}
+
+fn spawn_indexed_task<R, Fut>(
+    join_set: &mut JoinSet<Result<R>>,
+    task_indices: &mut HashMap<Id, usize>,
+    index: usize,
+    future: Fut,
+) where
+    R: Send + 'static,
+    Fut: Future<Output = Result<R>> + Send + 'static,
+{
+    let abort_handle = join_set.spawn(future);
+    task_indices.insert(abort_handle.id(), index);
 }
 
 impl JobRegistry {

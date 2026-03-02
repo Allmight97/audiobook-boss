@@ -49,6 +49,7 @@ export class StatusPanel {
 	private lastProgressRenderByKey: Map<string, number> = new Map();
 	private batchCompletionTimeout?: number;
 	private singleCompletionTimeout?: number;
+	private batchCompletionMessageOverride: string | null = null;
 	private currentJobType: 'merge' | 'batch' | null = null;
 	private lastCoverArtPath: string | null = null;
 	private onMaxConcurrentUpdated: () => void;
@@ -97,10 +98,15 @@ export class StatusPanel {
 				setCurrentJobType: (jobType) => {
 					this.currentJobType = jobType;
 				},
+				setBatchCompletionMessage: (message) => this.setBatchCompletionMessage(message),
 				resetToIdle: () => this.resetToIdle(),
 			},
 			options,
 		);
+	}
+
+	public setBatchCompletionMessage(message: string | null): void {
+		this.batchCompletionMessageOverride = message;
 	}
 
 	private async startProgressListener(): Promise<void> {
@@ -192,7 +198,9 @@ export class StatusPanel {
 			);
 
 			if (hasFailed) {
-				dom.showError('One or more files failed to process.');
+				dom.showError(
+					this.batchCompletionMessageOverride ?? 'One or more files failed to process.',
+				);
 			} else if (hasCancelled) {
 				dom.showInfo('Processing was cancelled.');
 			} else {
@@ -380,6 +388,7 @@ export class StatusPanel {
 
 	private resetToIdle(): void {
 		this.isProcessing = false;
+		this.batchCompletionMessageOverride = null;
 		this.currentJobType = null;
 		this.lastCoverArtPath = null;
 

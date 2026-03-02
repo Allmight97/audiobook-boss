@@ -4,6 +4,10 @@ import type {
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
 	OutputNamingConfig as GeneratedOutputNamingConfig,
+	ProcessCommandResult as GeneratedProcessCommandResult,
+	ProcessResultEntry as GeneratedProcessResultEntry,
+	ProcessResultStatus as GeneratedProcessResultStatus,
+	ProcessResultSummary as GeneratedProcessResultSummary,
 	ProcessV2Payload as GeneratedProcessV2Payload,
 	SampleRateConfig as GeneratedSampleRateConfig,
 } from '../lib/generated/tauri';
@@ -48,20 +52,10 @@ export interface PreviewRequest {
 	previewSeconds?: number;
 }
 
-export interface ProcessCommandJobResult {
-	jobId?: string;
-	message?: string;
-	stage?: string;
-	success?: boolean;
-	outputFilePath?: string;
-	previewFilePath?: string;
-	previewActualSeconds?: number;
-}
-
-export interface ProcessCommandResult {
-	message: string;
-	results: ProcessCommandJobResult[];
-}
+export type ProcessResultStatus = GeneratedProcessResultStatus;
+export type ProcessResultSummary = NullToOptionalDeep<GeneratedProcessResultSummary>;
+export type ProcessCommandJobResult = NullToOptionalDeep<GeneratedProcessResultEntry>;
+export type ProcessCommandResult = NullToOptionalDeep<GeneratedProcessCommandResult>;
 
 // Encoder v2 types (Enhanced engine)
 export type EncoderType = 'auto' | 'fdk_he_aac' | 'aac_at' | 'native_aac';

@@ -75,6 +75,7 @@ function processingContext() {
 		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentJobType: vi.fn(),
+		setBatchCompletionMessage: vi.fn(),
 		resetToIdle: vi.fn(),
 	};
 }
@@ -117,8 +118,9 @@ describe('startProcessing metadata staging', () => {
 		context.getMetadataForFileMock.mockReturnValue(undefined);
 		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
 		context.processAudiobookFilesV2Mock.mockResolvedValue({
-			message: 'ok',
-			results: [{ message: 'ok', jobId: 'job-1', success: true }],
+			jobType: 'merge',
+			summary: { total: 1, succeeded: 1, failed: 0 },
+			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
 		context.readAudioMetadataMock.mockResolvedValue({});
 	});
@@ -261,12 +263,14 @@ describe('startProcessing metadata staging', () => {
 
 	it('auto-opens preview only when exactly one successful preview path is returned', async () => {
 		context.processAudiobookFilesV2Mock.mockResolvedValue({
-			message: 'ok',
+			jobType: 'merge',
+			summary: { total: 1, succeeded: 1, failed: 0 },
 			results: [
 				{
+					inputIndex: 0,
+					status: 'success',
 					message: 'preview ok',
 					jobId: 'job-1',
-					success: true,
 					previewFilePath: '/tmp/out/one.preview.m4b',
 					previewActualSeconds: 30,
 				},
@@ -281,19 +285,43 @@ describe('startProcessing metadata staging', () => {
 
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {
 		context.processAudiobookFilesV2Mock.mockResolvedValue({
-			message: 'ok',
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 2, failed: 0 },
 			results: [
 				{
+					inputIndex: 0,
+					status: 'success',
 					message: 'preview a',
 					jobId: 'job-1',
-					success: true,
 					previewFilePath: '/tmp/out/a.preview.m4b',
 				},
 				{
+					inputIndex: 1,
+					status: 'success',
 					message: 'preview b',
 					jobId: 'job-2',
-					success: true,
 					previewFilePath: '/tmp/out/b.preview.m4b',
+				},
+			],
+		});
+
+		await startProcessing(processingContext(), { previewSeconds: 30 });
+
+		expect(context.openExternalMock).not.toHaveBeenCalled();
+	});
+
+	it('does not auto-open preview for failed result entries', async () => {
+		context.processAudiobookFilesV2Mock.mockResolvedValue({
+			jobType: 'merge',
+			summary: { total: 1, succeeded: 0, failed: 1 },
+			results: [
+				{
+					inputIndex: 0,
+					status: 'failed',
+					message: 'preview failed',
+					error: 'decoder error',
+					previewFilePath: '/tmp/out/failed.preview.m4b',
+					previewActualSeconds: 30,
 				},
 			],
 		});
