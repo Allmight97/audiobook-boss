@@ -26,7 +26,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and QA diagnostics |
 | `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport.ts` |
 | `validate_encoder_settings_cmd` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
-| `process_audiobook_files_v2` | `src-tauri/src/commands/audio.rs` (async) | `src/ui/statusPanel/processing.ts` start/preview flows |
+| `process_audiobook_files` | `src-tauri/src/commands/audio.rs` (async) | `src/ui/statusPanel/processing.ts` start/preview flows |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/statusPanel/logic.ts` cancel-all and per-job cancel |
 | `list_available_encoders` | `src-tauri/src/commands/audio.rs` | Used by UI to surface encoder guidance |
 | `get_max_concurrent_jobs` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/jobControls.ts` |
@@ -44,7 +44,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
   - Args: `{ filePaths: string[] }`
   - Returns: `FileListInfo` (`src/types/audio.ts:15`)
 
-- `process_audiobook_files_v2`
+- `process_audiobook_files`
   - Args: `{ payload, metadata?, previewSeconds? }`
     - `payload: { inputFiles: string[]; outputDir: string; settings: EncoderSettings; sampleRate?: SampleRateConfig; jobType?: 'merge' | 'batch'; outputNaming?: OutputNamingConfig }`
       - `OutputNamingConfig: { absCompatible: boolean; includeYear: boolean }`
@@ -104,4 +104,4 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 ### Notes on scope
 
 - Backend path validation accepts `wav`/`flac` alongside the UI-visible formats; the importer currently filters to MP3/M4A/M4B/AAC. Any future expansion should coordinate the UI filter with `audio::path_validation`.
-- The v2 processing command maps advanced `EncoderSettings` into the existing processing pipeline; when the dedicated encoder panel is enabled, it should call `validate_encoder_settings_cmd` before invoking processing.
+- The processing command maps advanced `EncoderSettings` into the existing processing pipeline; when the dedicated encoder panel is enabled, it should call `validate_encoder_settings_cmd` before invoking processing.

@@ -27,6 +27,13 @@
 - Report ambiguous fields, working assumption, and minimal boundary-rule update.
 - Continue unless contract parity risk requires blocking escalation.
 
+## Command Naming Policy
+
+- NO version suffixes (_v1, _v2, etc.) on commands or types
+- NO _cmd suffixes (use descriptive names)
+- Breaking changes = rename command with new semantic name
+- Single user controls both sides—breaking changes are acceptable
+
 ## Done Criteria
 
 - IPC changes are implemented in `client.ts`/`normalizers.ts`.
