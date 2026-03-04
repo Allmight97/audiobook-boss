@@ -3,7 +3,8 @@ use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::JobId;
 use crate::audio::output_path::build_output_path_preview;
 use crate::audio::settings_encoder::{
-    detect_available_encoders, validate_encoder_settings, EncoderAvailability, EncoderSettings,
+    detect_available_encoders, validate_encoder_settings as validate_encoder_settings_impl,
+    EncoderAvailability, EncoderSettings,
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
@@ -60,8 +61,8 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 /// Validates encoder settings (no side effects)
 #[tauri::command]
 #[specta::specta]
-pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
-    validate_encoder_settings(&settings)?;
+pub fn validate_encoder_settings(settings: EncoderSettings) -> Result<String> {
+    validate_encoder_settings_impl(&settings)?;
     Ok("Encoder settings are valid".to_string())
 }
 

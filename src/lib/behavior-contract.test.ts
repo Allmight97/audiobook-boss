@@ -24,7 +24,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'save_metadata_to_file',
 	'search_online_metadata',
 	'set_max_concurrent_jobs',
-	'validate_encoder_settings_cmd',
+	'validate_encoder_settings',
 	'validate_files',
 	'write_cover_art',
 ] as const;
@@ -44,7 +44,7 @@ async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<voi
 }
 
 describe('compatibility guards', () => {
-	it('keeps legacy command names stable', () => {
+	it('keeps command names stable', () => {
 		expect([...TAURI_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
 	});
 

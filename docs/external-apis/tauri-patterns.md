@@ -1,4 +1,4 @@
-## Tauri v2 IPC and event patterns (frontend <-> Rust)
+## Tauri IPC and event patterns (frontend <-> Rust)
 
 ### Where used
 - Frontend boundary adapter: `src/lib/tauri/client.ts`
@@ -7,11 +7,11 @@
 - Progress emission and cadence: `src-tauri/src/audio/progress/*`, `src-tauri/src/audio/processor/frame_pipeline.rs`
 - Queue snapshot emission: `src-tauri/src/commands/audio_processing.rs`
 
-### Runtime migration posture
+### Runtime boundary posture
 
 - Commands/events are centralized through `tauriClient`.
-- UI runtime is still hybrid (Svelte islands + legacy imperative modules in `src/ui/**`).
-- Guardrail direction: no new direct imperative DOM orchestration in migrated runtime entry paths; retire legacy modules incrementally.
+- Generated bindings stay behind the `tauriClient` boundary.
+- Guardrail direction: no new direct imperative DOM orchestration or direct generated-binding calls from runtime feature modules.
 
 ### Event listen/unlisten lifecycle
 

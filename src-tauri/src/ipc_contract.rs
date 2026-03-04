@@ -16,7 +16,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::save_metadata_to_file,
             crate::commands::search_online_metadata,
             crate::commands::analyze_audio_files,
-            crate::commands::validate_encoder_settings_cmd,
+            crate::commands::validate_encoder_settings,
             crate::commands::list_available_encoders,
             crate::commands::preview_output_path,
             crate::commands::get_max_concurrent_jobs,

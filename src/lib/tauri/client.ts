@@ -63,8 +63,8 @@ const commandInvokers = {
 			.then((results) => results.map(normalizeLookupResult)),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		generatedCommands.analyzeAudioFiles(args.filePaths).then(normalizeFileList),
-	validate_encoder_settings_cmd: (args: { settings: EncoderSettings }) =>
-		generatedCommands.validateEncoderSettingsCmd(args.settings),
+	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
+		generatedCommands.validateEncoderSettings(args.settings),
 	list_available_encoders: (_args?: undefined) => generatedCommands.listAvailableEncoders(),
 	preview_output_path: (args: {
 		outputDir: string;
@@ -157,8 +157,8 @@ export const tauriClient = {
 		invokeCommand('analyze_audio_files', { filePaths }),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
-	): Promise<CommandResult<'validate_encoder_settings_cmd'>> =>
-		invokeCommand('validate_encoder_settings_cmd', { settings }),
+	): Promise<CommandResult<'validate_encoder_settings'>> =>
+		invokeCommand('validate_encoder_settings', { settings }),
 	listAvailableEncoders: (): Promise<CommandResult<'list_available_encoders'>> =>
 		invokeCommand('list_available_encoders'),
 	previewOutputPath: (args: {

@@ -32,7 +32,7 @@ Internal docs:
 ## Commands & Integration Points
 
 - Tauri Commands module: `src-tauri/src/commands/`
-- `validate_files`, `analyze_audio_files`, `process_audiobook_files`, `validate_encoder_settings_cmd`, `cancel_processing`, plus metadata read/write commands
+- `validate_files`, `analyze_audio_files`, `process_audiobook_files`, `validate_encoder_settings`, `cancel_processing`, plus metadata read/write commands
 - Processing Runtime
   - Engine selection is trivial: `FfmpegNextProcessor` only (see `audio/processor/selection.rs`)
   - ffmpeg-next initialized once per process (`ff::init()`)

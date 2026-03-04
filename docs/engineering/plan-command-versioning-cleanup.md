@@ -1,9 +1,9 @@
 # Command Versioning Cleanup: Canonical Naming Plan
 
-**Branch:** `feat/command-versioning-policy`  
-**Status:** Approved for execution  
-**Risk Level:** Low (internal naming only, single-user codebase)  
-**Estimated Files:** 10-12 files across Rust/TypeScript/docs  
+**Branch:** `feat/command-versioning-policy`
+**Status:** Approved for execution
+**Risk Level:** Low (internal naming only, single-user codebase)
+**Estimated Files:** 10-12 files across Rust/TypeScript/docs
 
 ---
 
@@ -11,7 +11,7 @@
 
 Eliminate legacy `v2` naming from the audio processing command (`process_audiobook_files_v2` → `process_audiobook_files`). This is not a breaking change—there is no v1 command in existence. The `v2` suffix is vestigial from an earlier architecture iteration and creates confusion with Tauri v2 framework references.
 
-**What This Is:** Technical debt cleanup—renaming internal APIs to match current reality  
+**What This Is:** Technical debt cleanup—renaming internal APIs to match current reality
 **What This Is NOT:** API versioning strategy, deprecation policy, or breaking change management
 
 ---

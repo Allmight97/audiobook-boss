@@ -79,8 +79,8 @@ async analyzeAudioFiles(filePaths: string[]) : Promise<FileListInfo> {
 /**
  * Validates encoder settings (no side effects)
  */
-async validateEncoderSettingsCmd(settings: EncoderSettings) : Promise<string> {
-    return await TAURI_INVOKE("validate_encoder_settings_cmd", { settings });
+async validateEncoderSettings(settings: EncoderSettings) : Promise<string> {
+    return await TAURI_INVOKE("validate_encoder_settings", { settings });
 },
 /**
  * Lists runtime encoder availability so the UI can surface guidance.
