@@ -2,7 +2,7 @@ import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FileListInfo as GeneratedFileListInfo,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
-	ProcessV2Payload as GeneratedProcessV2Payload,
+	ProcessPayload as GeneratedProcessPayload,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 } from '../generated/tauri';
@@ -10,7 +10,7 @@ import type {
 	FileListInfo,
 	ProcessCommandJobResult,
 	ProcessCommandResult,
-	ProcessV2Payload,
+	ProcessPayload,
 } from '../../types/audio';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
@@ -40,7 +40,7 @@ const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
 	'sampleRate',
 	'jobType',
 	'outputNaming',
-] as const satisfies readonly (keyof GeneratedProcessV2Payload)[];
+] as const satisfies readonly (keyof GeneratedProcessPayload)[];
 
 const isPlainRecord = (value: unknown): value is PlainRecord =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -138,9 +138,9 @@ export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): On
 	return normalizeNullish(result) as OnlineMetadataResult;
 }
 
-export function denormalizeProcessPayload(payload: ProcessV2Payload): GeneratedProcessV2Payload {
+export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedProcessPayload {
 	const nullableFields = toNullableShape<
-		GeneratedProcessV2Payload,
+		GeneratedProcessPayload,
 		(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number]
 	>(
 		payload as Partial<Record<(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number], unknown>>,
@@ -149,7 +149,7 @@ export function denormalizeProcessPayload(payload: ProcessV2Payload): GeneratedP
 	return {
 		inputFiles: payload.inputFiles,
 		outputDir: payload.outputDir,
-		settings: payload.settings as GeneratedProcessV2Payload['settings'],
+		settings: payload.settings as GeneratedProcessPayload['settings'],
 		...nullableFields,
 	};
 }

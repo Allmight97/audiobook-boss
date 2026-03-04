@@ -72,7 +72,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						audibleOnly: false,
 					},
 				]);
-			case 'process_audiobook_files_v2': {
+			case 'process_audiobook_files': {
 				mockJobCounter += 1;
 				const jobId = `mock-job-${mockJobCounter}`;
 				emitTestEvent('processing-queue', {

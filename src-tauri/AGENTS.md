@@ -13,7 +13,7 @@
 - Use `JobRegistry` as the central concurrency lifecycle surface.
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
-- Use `process_audiobook_files_v2` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
+- Use `process_audiobook_files` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
 - Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion.
 
 ## Hard Invariants

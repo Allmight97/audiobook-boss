@@ -25,14 +25,14 @@ Internal docs:
 ## Critical Data Flows
 
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
-2. Processing Pipeline: `process_audiobook_files_v2` → input decoder arbitration/open → `MediaProcessor::execute` → progress events via Tauri window
+2. Processing Pipeline: `process_audiobook_files` → input decoder arbitration/open → `MediaProcessor::execute` → progress events via Tauri window
 3. Metadata Flow: MP4/M4B read/write via `mp4ameta` (ffmpeg fallback for gaps) → `AudiobookMetadata` → `mp4ameta` write during metadata-only edits and finalize; non-MP4 stays on ffmpeg-next
 4. Metadata Edit Intent Flow (frontend): metadata form edits are modeled as canonical patch ops (`set | clear | noop`) and compiled at the `tauriClient` boundary (`src/lib/tauri/client.ts` + `src/lib/tauri/normalizers.ts`) to current Rust payload semantics (`''`, `0`, `[]` clear sentinels).
 
 ## Commands & Integration Points
 
 - Tauri Commands module: `src-tauri/src/commands/`
-- `validate_files`, `analyze_audio_files`, `process_audiobook_files_v2`, `validate_encoder_settings_cmd`, `cancel_processing`, plus metadata read/write commands
+- `validate_files`, `analyze_audio_files`, `process_audiobook_files`, `validate_encoder_settings`, `cancel_processing`, plus metadata read/write commands
 - Processing Runtime
   - Engine selection is trivial: `FfmpegNextProcessor` only (see `audio/processor/selection.rs`)
   - ffmpeg-next initialized once per process (`ff::init()`)
@@ -243,5 +243,5 @@ Cover art URL loading is treated as untrusted input. The app only fetches HTTPS 
 
 - Repo Branches
   - 'main' (https://github.com/Allmight97/audiobook-boss.git) is the current stable branch.
-- Audio pipeline uses a single encoder configuration surface (`EncoderSettings` + `SampleRateConfig`) via the `process_audiobook_files_v2` command (sole IPC entrypoint).
+- Audio pipeline uses a single encoder configuration surface (`EncoderSettings` + `SampleRateConfig`) via the `process_audiobook_files` command (sole IPC entrypoint).
 - Primary development target: macOS (Apple Silicon). Out of scope: Intel Macs, Linux, Windows.

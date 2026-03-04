@@ -6,7 +6,7 @@
 - Runtime boundary adapter: `src/lib/tauri/client.ts`
 - Boundary normalizers: `src/lib/tauri/normalizers.ts`
 - Event compatibility contract: `src/types/events.ts`
-- Runtime consumers (current hybrid posture): `src/App.svelte` + `src/ui/**`
+- Runtime consumers: `src/App.svelte` + `src/ui/**`
 
 ### Contract model
 
@@ -22,8 +22,8 @@
 - Internal command names remain stable (`snake_case`) while UI callsites use camelCase methods.
 - Example (command with args):
   ```ts
-  const result = await tauriClient.processAudiobookFilesV2({
-    payload: v2Payload,
+  const result = await tauriClient.processAudiobookFiles({
+    payload: processPayload,
     metadata: metadataPayload,
     previewSeconds: options?.previewSeconds,
   });
@@ -45,11 +45,11 @@
 - Use `CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard` when you need strict drift verification inside the full gate.
 - Optional: enable `.githooks/pre-commit` (`git config core.hooksPath .githooks`) to auto-sync/stage generated bindings when staged Rust IPC contract files change.
 
-### Migration status (zero-legacy cutover branch)
+### Current boundary posture
 
-- `completed`: bridge removal (`src/lib/bridge.ts` retired) and `tauriClient` boundary centralization.
-- `partial`: runtime still uses legacy imperative modules under `src/ui/**` while islands/components are phased in.
-- `direction`: new runtime integrations should land through `tauriClient` + reactive Svelte/store flows, not new direct DOM orchestration.
+- `tauriClient` is the canonical runtime boundary for commands and events.
+- Generated bindings stay internal to the boundary adapter; runtime modules should not invoke them directly.
+- New runtime integrations should land through `tauriClient` plus reactive Svelte/store flows, not ad hoc direct invocations.
 
 ### Listener hygiene
 

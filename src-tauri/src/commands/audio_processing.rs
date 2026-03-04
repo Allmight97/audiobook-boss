@@ -6,8 +6,8 @@ use crate::audio::output_path::{
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::audio::{QueueEvent, QueueItem};
 use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-    ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
+    ProcessResultStatus,
 };
 use crate::errors::sanitize_path_for_display;
 use crate::errors::{AppError, Result};
@@ -28,7 +28,7 @@ struct ProcessingInputs {
 pub async fn process_payload(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
-    payload: ProcessV2Payload,
+    payload: ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::AudiobookMetadata>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
@@ -49,7 +49,7 @@ pub async fn process_payload(
     }
 }
 
-fn log_encoder_summary(payload: &ProcessV2Payload) {
+fn log_encoder_summary(payload: &ProcessPayload) {
     log::info!(
         "encoder summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
         payload.settings.encoder_type,
@@ -62,7 +62,7 @@ fn log_encoder_summary(payload: &ProcessV2Payload) {
     );
 }
 
-fn resolve_sample_rate(payload: &ProcessV2Payload) -> Result<audio::SampleRateConfig> {
+fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::SampleRateConfig> {
     let sample_rate = payload
         .sample_rate
         .clone()
@@ -88,7 +88,7 @@ fn ensure_output_dir(output_dir: &str) -> Result<PathBuf> {
 async fn dispatch_merge_job(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
-    payload: &ProcessV2Payload,
+    payload: &ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::AudiobookMetadata>>,
     inputs: &ProcessingInputs,
 ) -> Result<ProcessCommandResult> {
@@ -124,7 +124,7 @@ async fn dispatch_merge_job(
 async fn dispatch_batch_jobs(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
-    payload: &ProcessV2Payload,
+    payload: &ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::AudiobookMetadata>>,
     inputs: &ProcessingInputs,
 ) -> Result<ProcessCommandResult> {

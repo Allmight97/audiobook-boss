@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri/client';
-import { defaultEncoderSettings, type ProcessV2Payload } from '../types/audio';
+import { defaultEncoderSettings, type ProcessPayload } from '../types/audio';
 import {
 	EVENTS,
 	STAGES,
@@ -19,12 +19,12 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_cover_art_from_url',
 	'ping',
 	'preview_output_path',
-	'process_audiobook_files_v2',
+	'process_audiobook_files',
 	'read_audio_metadata',
 	'save_metadata_to_file',
 	'search_online_metadata',
 	'set_max_concurrent_jobs',
-	'validate_encoder_settings_cmd',
+	'validate_encoder_settings',
 	'validate_files',
 	'write_cover_art',
 ] as const;
@@ -44,7 +44,7 @@ async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<voi
 }
 
 describe('compatibility guards', () => {
-	it('keeps legacy command names stable', () => {
+	it('keeps command names stable', () => {
 		expect([...TAURI_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
 	});
 
@@ -89,7 +89,7 @@ describe('behavior-first IPC smoke', () => {
 			queueEvents.push(event.payload);
 		});
 
-		const payload: ProcessV2Payload = {
+		const payload: ProcessPayload = {
 			inputFiles: ['/mock/path/chapter1.mp3', '/mock/path/chapter2.mp3'],
 			outputDir: '/mock/output',
 			settings: defaultEncoderSettings(),
@@ -102,7 +102,7 @@ describe('behavior-first IPC smoke', () => {
 			},
 		};
 
-		await tauriClient.processAudiobookFilesV2({
+		await tauriClient.processAudiobookFiles({
 			payload,
 			metadataIntent: null,
 			previewSeconds: null,

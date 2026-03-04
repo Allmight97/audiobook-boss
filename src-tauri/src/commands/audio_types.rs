@@ -11,7 +11,7 @@ pub enum JobType {
 
 #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ProcessV2Payload {
+pub struct ProcessPayload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,

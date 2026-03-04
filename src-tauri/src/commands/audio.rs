@@ -3,11 +3,12 @@ use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::JobId;
 use crate::audio::output_path::build_output_path_preview;
 use crate::audio::settings_encoder::{
-    detect_available_encoders, validate_encoder_settings, EncoderAvailability, EncoderSettings,
+    detect_available_encoders, validate_encoder_settings as validate_encoder_settings_impl,
+    EncoderAvailability, EncoderSettings,
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessV2Payload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload,
 };
 use crate::errors::{AppError, Result};
 use crate::metadata::MetadataIntentPatch;
@@ -60,8 +61,8 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 /// Validates encoder settings (no side effects)
 #[tauri::command]
 #[specta::specta]
-pub fn validate_encoder_settings_cmd(settings: EncoderSettings) -> Result<String> {
-    validate_encoder_settings(&settings)?;
+pub fn validate_encoder_settings(settings: EncoderSettings) -> Result<String> {
+    validate_encoder_settings_impl(&settings)?;
     Ok("Encoder settings are valid".to_string())
 }
 
@@ -114,16 +115,16 @@ pub async fn set_max_concurrent_jobs(
     registry.update_max_concurrent(desired).await
 }
 
-/// Processes files using the encoder settings payload (`process_audiobook_files_v2` command name).
+/// Processes audiobook files with configurable encoder settings.
 ///
-/// This command now supports parallel batch processing via the JobRegistry.
+/// Supports parallel batch processing via the JobRegistry.
 /// Multiple invocations can run concurrently up to the configured limit.
 #[tauri::command]
 #[specta::specta]
-pub async fn process_audiobook_files_v2(
+pub async fn process_audiobook_files(
     window: tauri::Window,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
-    payload: ProcessV2Payload,
+    payload: ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {

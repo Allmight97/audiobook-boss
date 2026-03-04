@@ -79,8 +79,8 @@ async analyzeAudioFiles(filePaths: string[]) : Promise<FileListInfo> {
 /**
  * Validates encoder settings (no side effects)
  */
-async validateEncoderSettingsCmd(settings: EncoderSettings) : Promise<string> {
-    return await TAURI_INVOKE("validate_encoder_settings_cmd", { settings });
+async validateEncoderSettings(settings: EncoderSettings) : Promise<string> {
+    return await TAURI_INVOKE("validate_encoder_settings", { settings });
 },
 /**
  * Lists runtime encoder availability so the UI can surface guidance.
@@ -107,13 +107,13 @@ async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
     return await TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent });
 },
 /**
- * Processes files using the encoder settings payload (`process_audiobook_files_v2` command name).
+ * Processes audiobook files with configurable encoder settings.
  * 
- * This command now supports parallel batch processing via the JobRegistry.
+ * Supports parallel batch processing via the JobRegistry.
  * Multiple invocations can run concurrently up to the configured limit.
  */
-async processAudiobookFilesV2(payload: ProcessV2Payload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<ProcessCommandResult> {
-    return await TAURI_INVOKE("process_audiobook_files_v2", { payload, metadata, previewSeconds });
+async processAudiobookFiles(payload: ProcessPayload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<ProcessCommandResult> {
+    return await TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds });
 },
 /**
  * Cancels all active audio processing operations
@@ -277,7 +277,7 @@ export type ChannelConfig = "auto" | "mono" | "stereo"
  */
 export type EncoderAvailability = { fdkAvailable: boolean; aacAtAvailable: boolean; nativeAacAvailable: boolean }
 /**
- * Advanced encoder settings payload for v2 command
+ * Advanced encoder settings payload
  */
 export type EncoderSettings = { encoderType: EncoderType; 
 /**
@@ -340,14 +340,7 @@ export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; t
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
 export type ProcessCommandResult = { jobType: JobType; summary: ProcessResultSummary; results: ProcessResultEntry[] }
-export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: string | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
-/**
- * Processes multiple audio files into a single M4B audiobook
- * Merges files with specified settings and optional metadata
- */
-export type ProcessResultStatus = "success" | "failed"
-export type ProcessResultSummary = { total: number; succeeded: number; failed: number }
-export type ProcessV2Payload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; 
+export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; 
 /**
  * Sample rate from frontend (optional, defaults to Auto)
  */
@@ -356,6 +349,13 @@ sampleRate: SampleRateConfig | null; jobType: JobType | null;
  * Output naming configuration (defaults to ABS-compatible)
  */
 outputNaming: OutputNamingConfig | null }
+export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: string | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
+/**
+ * Processes multiple audio files into a single M4B audiobook
+ * Merges files with specified settings and optional metadata
+ */
+export type ProcessResultStatus = "success" | "failed"
+export type ProcessResultSummary = { total: number; succeeded: number; failed: number }
 /**
  * Progress event structure for frontend communication
  */

@@ -16,7 +16,7 @@ These APIs define the "Menu" of actions available to the user interface.
     - **Frontend Call Path**: `src/App.svelte` -> `src/ui/**` feature modules -> `src/lib/tauri/client.ts`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
     - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust) via generated `src/lib/generated/tauri.ts`
-    - **Note**: `process_audiobook_files_v2` now accepts per-file metadata keyed by input path.
+    - **Note**: `process_audiobook_files` accepts per-file metadata keyed by input path.
 
 ---
 
@@ -76,17 +76,11 @@ To maintain IPC contract integrity, this repo treats generated bindings and the 
 
 ---
 
-## Migration Status Snapshot (Branch: `feat/zero-legacy-svelte-cutover`)
+## Runtime Boundary Snapshot
 
-- **Completed**:
-  - `src/lib/bridge.ts` is retired.
-  - Frontend command/event boundary is centralized in `src/lib/tauri/client.ts`.
-  - Svelte app shell exists (`src/App.svelte` + `src/main.ts`).
-- **Partial**:
-  - Runtime remains hybrid: Svelte islands plus imperative DOM modules under `src/ui/**`.
-- **Current guardrails**:
-  - `scripts/check-no-bridge-imports.sh` blocks bridge resurrection.
-  - Runtime DOM guardrails are being ratcheted to block new imperative patterns in migrated runtime entry paths.
+- Frontend command/event access is centralized in `src/lib/tauri/client.ts`.
+- `src/lib/generated/tauri.ts` remains the generated contract source, not a direct runtime entrypoint.
+- `scripts/check-no-bridge-imports.sh` blocks reintroducing the retired `src/lib/bridge.ts` surface.
 
 ---
 

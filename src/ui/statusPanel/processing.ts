@@ -196,7 +196,7 @@ export async function startProcessing(
 		const jobType = getJobType();
 		context.setCurrentJobType(jobType);
 
-		const v2Payload = {
+		const processPayload = {
 			inputFiles: filePaths,
 			outputDir: outputConfig.outputPath,
 			settings: outputConfig.encoderSettings,
@@ -205,7 +205,7 @@ export async function startProcessing(
 			outputNaming: outputConfig.outputNaming,
 		};
 
-		if (v2Payload.jobType === 'batch') {
+		if (processPayload.jobType === 'batch') {
 			const missingMetadata = filePaths.filter((filePath) => !getMetadataForFile(filePath));
 			if (missingMetadata.length > 0) {
 				await Promise.all(
@@ -222,12 +222,12 @@ export async function startProcessing(
 		}
 
 		let metadataIntentPayload: Record<string, MetadataIntentPatch> | null = null;
-		if (v2Payload.jobType === 'merge') {
-			const mergeKey = v2Payload.inputFiles[0];
+		if (processPayload.jobType === 'merge') {
+			const mergeKey = processPayload.inputFiles[0];
 			const mergeIntentPatch = mergeKey ? getMetadataIntentPatchForFile(mergeKey) : undefined;
 			if (
 				mergeKey &&
-				v2Payload.inputFiles.length > 0 &&
+				processPayload.inputFiles.length > 0 &&
 				hasActionableMetadataIntentPatch(mergeIntentPatch)
 			) {
 				metadataIntentPayload = {
@@ -245,8 +245,8 @@ export async function startProcessing(
 				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
 		}
 
-		const result = await tauriClient.processAudiobookFilesV2({
-			payload: v2Payload,
+		const result = await tauriClient.processAudiobookFiles({
+			payload: processPayload,
 			metadataIntent: metadataIntentPayload,
 			previewSeconds: options?.previewSeconds,
 		});

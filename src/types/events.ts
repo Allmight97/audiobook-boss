@@ -135,7 +135,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  *    - User cancels drop (leaves window) → 'tauri://drag-leave'
  *
  * 2. PROCESSING EVENTS:
- *    - User clicks "Process Audiobook" → invoke('process_audiobook_files_v2')
+ *    - User clicks "Process Audiobook" → invoke('process_audiobook_files')
  *    - Backend emits progress → EVENTS.PROGRESS events
  *    - Frontend updates UI based on stage and percentage
  *    - Process completes → final EVENTS.PROGRESS with stage=STAGES.completed

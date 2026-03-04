@@ -8,7 +8,7 @@ import type {
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	ProcessResultSummary as GeneratedProcessResultSummary,
-	ProcessV2Payload as GeneratedProcessV2Payload,
+	ProcessPayload as GeneratedProcessPayload,
 	SampleRateConfig as GeneratedSampleRateConfig,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
@@ -85,7 +85,7 @@ export interface EncoderSettings {
 export type JobType = GeneratedJobType;
 
 // Complete processing payload
-export type ProcessV2Payload = Omit<NullToOptionalDeep<GeneratedProcessV2Payload>, 'settings'> & {
+export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'settings'> & {
 	settings: EncoderSettings;
 };
 

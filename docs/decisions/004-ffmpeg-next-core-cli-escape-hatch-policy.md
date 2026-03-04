@@ -8,7 +8,7 @@
 Audiobook Boss depends on unattended batch reliability, typed progress signaling, and structured error propagation from Rust to the UI. The current processing path is already implemented around `FfmpegNextProcessor`, while direct CLI `ffmpeg` invocation exists only in perf tooling for encoder attribution and diagnostics.
 
 ## Decision
-Keep `ffmpeg-next` as the only production processing engine in app runtime paths (`process_audiobook_files_v2` and downstream processor execution). Treat CLI `ffmpeg` as a narrowly scoped escape hatch for non-runtime contexts (benchmarking and diagnostics), not as a parallel production path.
+Keep `ffmpeg-next` as the only production processing engine in app runtime paths (`process_audiobook_files` and downstream processor execution). Treat CLI `ffmpeg` as a narrowly scoped escape hatch for non-runtime contexts (benchmarking and diagnostics), not as a parallel production path.
 
 If a future runtime CLI path is proposed, it must explicitly define trigger conditions and include safeguards for observable logging, cancellation semantics, and clear user-visible error reporting before adoption.
 
