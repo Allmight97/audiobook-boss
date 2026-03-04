@@ -1,6 +1,4 @@
-# AGENTS.md: This is greenfield, single user project. Keep this in mind when planing and making suggestions.
-
-**Canary Rule (Advisory):** if a structure, boundary, or abstraction is confusing or repeatedly causes task failures, alert the developer and propose a minimal `AGENTS.md` update that documents the trap.
+# General Project Guidelines
 
 ## Scope
 
