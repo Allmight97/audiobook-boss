@@ -4,8 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { chromium, type ConsoleMessage, type Page } from 'playwright';
-import { createServer, type ViteDevServer } from 'vite';
+import { chromium, type Page } from 'playwright';
 
 import {
 	findUnmappedHarnessUiPaths,
@@ -14,6 +13,13 @@ import {
 	type HarnessScenario,
 	type HarnessScenarioId,
 } from '../../src/harness/scenarios.ts';
+import { seedHarnessScenario } from './scenarioDriver';
+import {
+	gotoHarnessRoute,
+	HARNESS_ARTIFACT_ROOT as ARTIFACT_ROOT,
+	startHarnessServer,
+	summarizeConsoleMessage,
+} from './shared';
 
 type CliOptions =
 	| {
@@ -31,10 +37,6 @@ type ScenarioArtifactSummary = {
 	consoleMessages: Array<{ type: string; text: string }>;
 	pageErrors: string[];
 };
-
-const ARTIFACT_ROOT = path.resolve('.artifacts/harness');
-const SERVER_HOST = '127.0.0.1';
-const SERVER_PORT = 4173;
 
 function parseArgs(argv: string[]): CliOptions {
 	if (argv.length === 0 || argv.includes('--changed')) {
@@ -149,128 +151,21 @@ function resolveScenarios(options: CliOptions): HarnessScenario[] {
 	return scenarios;
 }
 
-async function startServer(): Promise<ViteDevServer> {
-	const server = await createServer({
-		server: {
-			host: SERVER_HOST,
-			port: SERVER_PORT,
-			strictPort: true,
-		},
-	});
-	await server.listen();
-	return server;
+async function gotoHarness(
+	page: Page,
+	scenario: HarnessScenario,
+	harnessOrigin: string,
+): Promise<void> {
+	await gotoHarnessRoute(page, harnessOrigin, scenario.route);
 }
 
-async function gotoHarness(page: Page, scenario: HarnessScenario): Promise<void> {
-	await page.goto(`http://${SERVER_HOST}:${SERVER_PORT}${scenario.route}`, {
-		waitUntil: 'load',
-	});
-	await page.waitForFunction(() => typeof window.__ABB_HARNESS__ !== 'undefined', {
-		timeout: 10_000,
-	});
-	await page.evaluate(async () => {
-		await window.__ABB_HARNESS__?.reset();
-	});
-}
-
-async function runMetadataScenario(page: Page, scenario: HarnessScenario): Promise<void> {
-	await gotoHarness(page, scenario);
-
-	await page.click('[data-testid="metadata-lookup-btn"]');
-	await page.locator('[data-testid="metadata-lookup-modal"]').waitFor();
-	await page.fill('[data-testid="metadata-lookup-query"]', 'Dune');
-	await page.click('[data-testid="metadata-lookup-search-btn"]');
-	await page.locator('#metadata-lookup-status').filter({ hasText: 'Found 1 results.' }).waitFor();
-	await page.click('#metadata-lookup-results button[data-index="0"]');
-	await page
-		.locator('#metadata-lookup-status')
-		.filter({ hasText: 'Metadata applied to form.' })
-		.waitFor();
-	await page.locator('#meta-title').evaluate((node) => {
-		if (!(node instanceof HTMLInputElement)) {
-			throw new Error('Expected metadata title input to be an HTMLInputElement.');
-		}
-		if (node.value !== 'Dune') {
-			throw new Error(`Expected metadata title to be Dune, received ${node.value}`);
-		}
-	});
-}
-
-async function runStatusScenario(page: Page, scenario: HarnessScenario): Promise<void> {
-	await gotoHarness(page, scenario);
-
-	await page.evaluate(async () => {
-		await window.__ABB_HARNESS__?.seedOutput({
-			outputDirectory: '/Library/Audiobooks',
-			namingPreset: 'absDefault',
-			absIncludeYear: false,
-		});
-	});
-	await page.getByRole('button', { name: 'Process Audiobook' }).click();
-	await page.locator('#percentage-processed').filter({ hasText: '100.0%' }).waitFor();
-	await page.getByText('Completed (100.0%)').waitFor();
-}
-
-async function runOutputScenario(page: Page, scenario: HarnessScenario): Promise<void> {
-	await gotoHarness(page, scenario);
-
-	await page.evaluate(async () => {
-		await window.__ABB_HARNESS__?.seedMetadata({
-			title: 'Dune',
-			artist: 'Frank Herbert',
-			series: 'Dune Chronicles',
-			series_part: '1',
-			date: '1965',
-		});
-		await window.__ABB_HARNESS__?.seedOutput({
-			outputDirectory: '/Library/Audiobooks',
-			namingPreset: 'absDefault',
-			absIncludeYear: true,
-		});
-	});
-	await page.locator('#output-preview-text').filter({ hasText: '/Library/Audiobooks' }).waitFor();
-
-	await page.selectOption('#output-naming-preset', 'customTemplate');
-	await page.fill('#output-template-input', '{author}/{title}');
-	await page.locator('#output-template-row').evaluate((node) => {
-		if (node.hasAttribute('hidden')) {
-			throw new Error('Expected custom template row to be visible.');
-		}
-	});
-	await page.locator('#output-preview-text').evaluate((node) => {
-		const text = node.textContent ?? '';
-		if (!text.includes('/Library/Audiobooks')) {
-			throw new Error(
-				`Expected preview text to stay anchored to /Library/Audiobooks, received ${text}`,
-			);
-		}
-		if (text.includes('Select output directory')) {
-			throw new Error('Expected preview text to resolve to a concrete path.');
-		}
-	});
-}
-
-async function runScenario(page: Page, scenario: HarnessScenario): Promise<void> {
-	switch (scenario.id) {
-		case 'metadata-edit':
-			await runMetadataScenario(page, scenario);
-			return;
-		case 'status-processing':
-			await runStatusScenario(page, scenario);
-			return;
-		case 'output-preview':
-			await runOutputScenario(page, scenario);
-			return;
-		default:
-			throw new Error(`No runner implemented for scenario ${scenario.id}`);
-	}
-}
-
-function summarizeConsoleMessage(message: ConsoleMessage): { type: string; text: string } {
-	return {
-		type: message.type(),
-		text: message.text(),
-	};
+async function runScenario(
+	page: Page,
+	scenario: HarnessScenario,
+	harnessOrigin: string,
+): Promise<void> {
+	await gotoHarness(page, scenario, harnessOrigin);
+	await seedHarnessScenario(page, scenario.id, scenario);
 }
 
 async function writeScenarioSummary(
@@ -315,7 +210,7 @@ async function main(): Promise<void> {
 	const runArtifactDir = path.join(ARTIFACT_ROOT, runId);
 	await mkdir(runArtifactDir, { recursive: true });
 
-	const server = await startServer();
+	const harnessServer = await startHarnessServer();
 	try {
 		for (const scenario of scenarios) {
 			const artifactDir = path.join(runArtifactDir, scenario.id);
@@ -335,7 +230,7 @@ async function main(): Promise<void> {
 				});
 
 				try {
-					await runScenario(page, scenario);
+					await runScenario(page, scenario, harnessServer.origin);
 				} finally {
 					const screenshotPath = path.join(artifactDir, scenario.screenshotName);
 					await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -368,7 +263,7 @@ async function main(): Promise<void> {
 			}
 		}
 	} finally {
-		await server.close();
+		await harnessServer.server.close();
 	}
 }
 

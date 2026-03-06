@@ -39,6 +39,8 @@ For UI-affecting work, also run the harness verification path defined in `docs/v
 bun run harness:verify --changed
 ```
 
+Keep the interactive browser-review lane (`harness:agent`) optional and out of the default gate. Use it when a desktop-only change needs live browser/vision review, but do not substitute it for `harness:verify`.
+
 ## IPC Binding Workflow (Rust ↔ TypeScript)
 
 The Rust contract is defined in `src-tauri/src/ipc_contract.rs` and exported to `src/lib/generated/tauri.ts`.
@@ -109,7 +111,11 @@ Possible, but not recommended right now unless you deliberately migrate release 
 - Start in `docs/README.md` for canonical docs routing.
 - Treat `docs/specs/technical-reference.md` as current architecture/runtime truth.
 - Treat `docs/verification.md` as the verification source of truth.
+- Treat `docs/browser-harness.md` as the canonical policy split between required scenario verification and optional interactive browser review.
+- Treat `docs/workloop.md` plus root `WORKFLOW.md` as the current local task-runner contract.
+- Treat alternate viewport review as out of scope for ABB unless a task explicitly asks for it.
 - Treat `docs/engineering/` and `docs/specs/plan_*` files as historical/tactical context unless a canonical doc points to a specific file.
+- Treat `.agent-work/` as temporary local runtime state. Do not use queued tasks, run logs, or temp artifacts there as durable project documentation.
 
 ## Commit Style
 

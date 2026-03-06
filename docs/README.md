@@ -6,6 +6,8 @@ Canonical entrypoint for repository knowledge and agent routing.
 
 - `../AGENTS.md` — repo-wide execution policy, precedence, and ownership map
 - `verification.md` — proof-of-done by change type, including UI harness verification
+- `browser-harness.md` — required scenario verification versus optional interactive browser review
+- `workloop.md` — Workloop task-runner contract, queue/task format, and temporary-state rules
 - `specs/technical-reference.md` — architecture/runtime map, commands, quality gates, and operating assumptions
 - `decisions/DECISIONS.md` — durable decision log and ADR index
 - `external-apis/README.md` — boundary-specific reference docs for IPC, metadata, path handling, and perf-adjacent surfaces
@@ -14,6 +16,10 @@ Canonical entrypoint for repository knowledge and agent routing.
 
 - `verification.md`
   - Use when deciding what must be run before a change is considered done.
+- `browser-harness.md`
+  - Use when deciding whether a UI task needs required scenario verification, optional interactive browser review, or both.
+- `workloop.md`
+  - Use for the Workloop task-runner contract, especially what belongs in `.agent-work/`, how tasks are queued, and how cleanup works.
 - `specs/technical-reference.md`
   - Use for current architecture, data flows, commands, and runtime expectations.
 - `decisions/DECISIONS.md`

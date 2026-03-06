@@ -13,6 +13,8 @@ Architecture and implementation details for contributors and AI agents.
 - AAC decode contract: the engine may select a named AAC decoder (`aac_at`, `libfdk_aac`) at runtime when the default AAC decoder cannot process an AAC-family stream; this is part of the macOS product contract, not a shell fallback
 
 Internal docs:
+- `docs/browser-harness.md` — required scenario verification versus optional interactive browser review
+- `docs/workloop.md` — Workloop task-runner contract and `.agent-work/` temporary-state rules
 - `docs/external-apis/ffmpeg-next.md` — audio/PTS/time_base, encoder, progress
 - `docs/external-apis/tauri-patterns.md` — event lifecycle & IPC patterns
 - `docs/external-apis/path-handling.md` — macOS-focused path validation and atomic moves
@@ -82,6 +84,15 @@ bun run harness:verify --changed
 
 - Use the harness verification path for UI-affecting work in addition to targeted tests.
 - Harness runs should emit local artifacts (screenshots + assertion/runtime summaries) for the verified scenario set.
+- Keep `harness:agent` as an optional interactive desktop browser-review lane for layout and control-affordance inspection. It should not replace `harness:verify` or be added to `scripts/checks.sh standard`.
+- Audiobook Boss is desktop-only, so alternate viewport review is for explicit diagnostics only.
+
+Local task-runner posture:
+
+- Use `docs/workloop.md` plus root `WORKFLOW.md` as the current policy surface for local Workloop execution.
+- Treat `.agent-work/` as temporary runtime state rather than durable project history, and keep it gitignored.
+- Promote any durable conclusion out of task files or run logs into code, canonical docs, or `docs/decisions/DECISIONS.md`.
+- The executable workflow contract lives in root `WORKFLOW.md`; use it together with `docs/workloop.md` when queue/frontmatter details or cleanup semantics matter.
 
 ### Build & Run
 

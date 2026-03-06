@@ -16,6 +16,7 @@
 		"check:fallback": "scripts/check-fallback-policy.sh",
 		"check:no-bridge": "scripts/check-no-bridge-imports.sh",
 		"harness:verify": "bun scripts/harness/verify.ts",
+		"harness:agent": "bun scripts/harness/agent.ts",
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"app:build": "bun run tauri build --bundles app",
@@ -37,7 +38,11 @@
 		"perf:list": "bun scripts/perf/run.mjs --list",
 		"perf:all": "bun scripts/perf/run-all.mjs",
 		"repomix:audit": "scripts/repomix-handoff.sh --mode audit",
-		"repomix:full": "scripts/repomix-handoff.sh --mode full"
+		"repomix:full": "scripts/repomix-handoff.sh --mode full",
+		"work:next": "bun scripts/work/cli.ts next",
+		"work:run": "bun scripts/work/cli.ts run",
+		"work:finish": "bun scripts/work/cli.ts finish",
+		"work:gc": "bun scripts/work/cli.ts gc"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",

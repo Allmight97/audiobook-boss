@@ -11,6 +11,8 @@
 
 - Root `AGENTS.md`: execution defaults, precedence, safety/contract policy.
 - `docs/AGENTS.md`: canonical-vs-historical docs routing and verification guidance.
+- `docs/browser-harness.md`: harness policy split between required scenario verification and optional interactive browser review.
+- `docs/workloop.md`: Workloop local task-runner policy, including task-file contract and temporary-state rules for `.agent-work/`.
 - `src/AGENTS.md`: frontend runtime/UI policy.
 - `src/harness/AGENTS.md`: harness scenario ownership and proof-of-done artifact rules.
 - `src-tauri/AGENTS.md`: backend architecture policy.
@@ -44,7 +46,10 @@
 - Start with a brief repo scan for touched boundaries before editing.
 - Use focused tests/checks that match the change radius.
 - Keep verification tied to user outcomes (correct output files, truthful progress, stable metadata).
-- For UI-affecting work, treat targeted tests plus harness verification artifacts as the default proof-of-done.
+- For UI-affecting work, treat targeted tests plus `harness:verify` artifacts as the default proof-of-done.
+- Keep `harness:agent` optional and exploratory; it is a useful browser/vision loop, but it does not replace scenario verification and does not belong in `scripts/checks.sh standard`.
+- Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
+- Treat `.agent-work/` as temporary local runtime state. Durable project truth belongs in code, canonical docs, and the decision log rather than task inboxes or run logs.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
@@ -94,6 +99,7 @@
   - docs-only edits: canonical docs still route correctly, commands/paths referenced in docs exist, and any historical tracker remains marked non-canonical
   - UI-affecting edits: targeted tests plus `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed`
   - boundary/backend edits: `scripts/checks.sh standard` plus any targeted contract/regression coverage for the touched surface
+- `harness:agent` is supplementary review only: use it for interactive browser inspection, but do not claim UI proof-of-done from it alone.
 - Verification matches scope:
   - docs-only edits: structural/content checks only
   - code/config/build edits: `scripts/checks.sh standard`

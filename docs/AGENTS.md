@@ -10,6 +10,8 @@
 - Start in `docs/README.md` before editing or citing deeper docs.
 - Treat `docs/specs/technical-reference.md` as the architecture/runtime source of truth.
 - Treat `docs/verification.md` as the source of truth for change-type verification expectations.
+- Treat `docs/browser-harness.md` as the canonical split between required scenario verification and optional interactive browser review.
+- Treat `docs/workloop.md` plus root `WORKFLOW.md` as the canonical local task-runner contract.
 - Treat `docs/decisions/DECISIONS.md` plus individual ADRs as the durable decision log.
 - Use `docs/external-apis/README.md` for boundary/reference drill-down, not as the top-level docs entrypoint.
 
