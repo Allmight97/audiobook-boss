@@ -33,6 +33,12 @@ If you need strict generated-binding verification inside the full gate:
 CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard
 ```
 
+For UI-affecting work, also run the harness verification path defined in `docs/verification.md`:
+
+```bash
+bun run harness:verify --changed
+```
+
 ## IPC Binding Workflow (Rust ↔ TypeScript)
 
 The Rust contract is defined in `src-tauri/src/ipc_contract.rs` and exported to `src/lib/generated/tauri.ts`.
@@ -96,7 +102,14 @@ Possible, but not recommended right now unless you deliberately migrate release 
 - Keep `[Unreleased]` present at top of `CHANGELOG.md`.
 - Record durable process/architecture decisions in:
   - `docs/decisions/` (ADR), and
-  - `.agents/skills/adr-decisions/DECISIONS.md` (decision log).
+  - `docs/decisions/DECISIONS.md` (decision log index).
+
+## Docs Routing
+
+- Start in `docs/README.md` for canonical docs routing.
+- Treat `docs/specs/technical-reference.md` as current architecture/runtime truth.
+- Treat `docs/verification.md` as the verification source of truth.
+- Treat `docs/engineering/` and `docs/specs/plan_*` files as historical/tactical context unless a canonical doc points to a specific file.
 
 ## Commit Style
 

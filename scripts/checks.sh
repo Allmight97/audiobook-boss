@@ -8,8 +8,8 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format + lint + clippy + change-aware IPC binding drift check + runtime guardrails + fallback policy enforcement
-# - standard: quick + Rust tests + TS tests + app build
+# - quick: Rust fmt + frontend format + lint + clippy + change-aware IPC binding drift check + harness verification + runtime guardrails + fallback policy enforcement
+# - standard: quick + harness verification + Rust tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
 # The intent is behavior-first confidence:
@@ -115,6 +115,9 @@ run_quick() {
 
   log_step "scripts/check-no-legacy-test-contracts.sh"
   bash scripts/check-no-legacy-test-contracts.sh
+
+  log_step "bun run harness:verify --changed"
+  bun run harness:verify --changed
 
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh

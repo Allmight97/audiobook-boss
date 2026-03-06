@@ -63,6 +63,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install Playwright browser
+        run: bunx playwright install chromium
+
       - name: Cache cargo-audit binary
         id: cache-cargo-audit
         uses: actions/cache@v4

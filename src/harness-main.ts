@@ -1,6 +1,7 @@
 import './styles.css';
 import { mount } from 'svelte';
 import HarnessApp from './HarnessApp.svelte';
+import { installHarnessRuntime } from './harness/runtime';
 
 const target = document.getElementById('app');
 if (!target) {
@@ -8,3 +9,4 @@ if (!target) {
 }
 
 mount(HarnessApp, { target });
+installHarnessRuntime();

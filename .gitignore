@@ -46,3 +46,7 @@ opencode.json
 # Repomix handoff artifacts (local AI context exports)
 /.repomix/handoffs/*
 !/.repomix/handoffs/.gitkeep
+
+# Harness verification artifacts
+/.artifacts/harness/*
+!/.artifacts/harness/.gitkeep

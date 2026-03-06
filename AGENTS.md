@@ -10,7 +10,9 @@
 ### Ownership Map
 
 - Root `AGENTS.md`: execution defaults, precedence, safety/contract policy.
+- `docs/AGENTS.md`: canonical-vs-historical docs routing and verification guidance.
 - `src/AGENTS.md`: frontend runtime/UI policy.
+- `src/harness/AGENTS.md`: harness scenario ownership and proof-of-done artifact rules.
 - `src-tauri/AGENTS.md`: backend architecture policy.
 - `src/lib/tauri/AGENTS.md`: TS↔Rust IPC and metadata intent source-of-truth.
 - `src-tauri/src/audio/job_registry/AGENTS.md`: concurrency lifecycle invariants.
@@ -22,9 +24,10 @@
 - Complete tasks end-to-end by default and report concrete outcomes.
 - Use the smallest effective diff that preserves contracts and user-visible behavior.
 - Keep architecture changes localized to the subsystem that owns the invariant.
+- Treat `docs/README.md` as the canonical docs entrypoint and follow the nearest local `AGENTS.md` from there.
 - Run all Cargo commands from the repository root workspace.
 - For non-doc code changes, run `scripts/checks.sh standard` before push/PR.
-- For docs-only changes, run structural/content validation and record why code gates were skipped.
+- For docs-only changes, validate commands/paths against the repo, confirm canonical docs still route correctly, and record why code gates were skipped.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
 ### Skill Trigger Policy
@@ -41,6 +44,7 @@
 - Start with a brief repo scan for touched boundaries before editing.
 - Use focused tests/checks that match the change radius.
 - Keep verification tied to user outcomes (correct output files, truthful progress, stable metadata).
+- For UI-affecting work, treat targeted tests plus harness verification artifacts as the default proof-of-done.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
@@ -86,6 +90,10 @@
 - Touched paths comply with the nearest local `AGENTS.md`.
 - Safety and contract invariants remain true after edits.
 - Any new compatibility/fallback behavior includes explicit evidence, trigger, and sunset/removal condition.
+- Verification is explicit by change type:
+  - docs-only edits: canonical docs still route correctly, commands/paths referenced in docs exist, and any historical tracker remains marked non-canonical
+  - UI-affecting edits: targeted tests plus `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed`
+  - boundary/backend edits: `scripts/checks.sh standard` plus any targeted contract/regression coverage for the touched surface
 - Verification matches scope:
   - docs-only edits: structural/content checks only
   - code/config/build edits: `scripts/checks.sh standard`

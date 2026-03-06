@@ -1,4 +1,6 @@
-# Zero-Legacy Svelte Cutover - Execution Tracker (Issue #236)
+# Historical Execution Tracker: Zero-Legacy Svelte Cutover (Issue #236)
+
+> Historical branch-era tracker only. This file is not current repo policy, not the canonical architecture source of truth, and not the verification source of truth. Use `docs/README.md`, `docs/specs/technical-reference.md`, and `docs/verification.md` for current guidance.
 
 Snapshot date: 2026-02-20  
 Branch baseline: `feat/zero-legacy-svelte-cutover`

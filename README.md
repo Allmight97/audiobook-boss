@@ -34,8 +34,10 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 This is a personal tool with a public repo. Contributions welcome but not expected.
 
 - **Stack**: Rust (ffmpeg-next, mp4ameta) + TypeScript + Tauri 2 + Svelte
-- **Architecture**: See `docs/external-apis/` for boundary docs
-- **Agent guide**: `AGENTS.md` defines coding standards and workflows
+- **Docs map**: start in `docs/README.md` for canonical docs routing
+- **Architecture**: `docs/specs/technical-reference.md` is the current architecture/runtime map
+- **Verification**: `docs/verification.md` defines proof-of-done by change type, including UI harness verification
+- **Agent guide**: `AGENTS.md` defines coding standards, workflows, and local policy routing
 - **Quality gates**: `scripts/checks.sh standard` before PRs
 - **Optional hook auto-sync**: `git config core.hooksPath .githooks` to auto-sync/stage generated Tauri bindings during pre-commit when Rust IPC contract files are staged
 - **Release flow**: use `.agents/skills/release-changelog/SKILL.md` as the canonical entrypoint, with `bun run release:notes -- --version <x.y.z> --date YYYY-MM-DD` then `bun run release:run -- --version <x.y.z> --changelog-verified --no-commit-tag|--commit-tag`
@@ -48,4 +50,4 @@ bun run tauri dev             # Dev mode
 bun run test                  # All tests
 ```
 
-**[Full technical reference →](docs/specs/technical-reference.md)** — architecture, data flows, IPC contracts, coding standards.
+**[Docs map →](docs/README.md)** — canonical docs routing, verification guidance, architecture/runtime reference, and decision log.

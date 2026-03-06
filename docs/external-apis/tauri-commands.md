@@ -97,9 +97,11 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
   - Emission throttling currently uses `PROGRESS_EMIT_INTERVAL_MS=1000` in `src-tauri/src/audio/processor/frame_pipeline.rs`.
 - `processing-queue` (emitted from `src-tauri/src/commands/audio_processing.rs`) provides queue snapshots consumed by `src/ui/statusPanel/events.ts`.
 
-### Frontend harness for QA
+### Frontend harness for verification
 
-- Harness runtime is mounted via `src/harness-main.ts` and `src/HarnessApp.svelte` for isolated component iteration; production runtime remains `src/main.ts` + `src/App.svelte`.
+- Harness runtime is mounted via `src/harness-main.ts` and `src/HarnessApp.svelte`; production runtime remains `src/main.ts` + `src/App.svelte`.
+- Use `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed` as the verification entrypoint for UI-affecting work.
+- Harness verification is expected to emit local screenshot/assertion/runtime artifacts rather than relying on manual “looks good” checks.
 
 ### Notes on scope
 

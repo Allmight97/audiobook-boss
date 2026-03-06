@@ -1,5 +1,7 @@
 # Technical Reference
 
+Canonical architecture/runtime reference. For docs routing and proof-of-done, start in `docs/README.md` and `docs/verification.md`.
+
 Architecture and implementation details for contributors and AI agents.
 
 ## Overview
@@ -71,6 +73,15 @@ bun run fmt:check                       # Frontend format checks (Biome + Pretti
 cargo test path_validation              # Path security subset by name filter
 scripts/checks.sh package               # Packaging gate + macOS AAC decoder contract verification
 ```
+
+UI verification posture:
+
+```bash
+bun run harness:verify --changed
+```
+
+- Use the harness verification path for UI-affecting work in addition to targeted tests.
+- Harness runs should emit local artifacts (screenshots + assertion/runtime summaries) for the verified scenario set.
 
 ### Build & Run
 
@@ -200,7 +211,7 @@ bun scripts/perf/run.mjs --bench audio-processing-app-e2e --mode real --runs 3 -
   - `unit_*_tests.rs` for fast, single-module tests
   - `integration_*_tests.rs` for cross-module or FFmpeg/filesystem tests
 - Inline tests: only for private/`pub(crate)` internals not testable externally
-- Frontend: manual testing via `window.testCommands` (see `src/main.ts`)
+- Frontend: targeted Vitest coverage plus harness verification for UI-facing flows
 
 ## Security & Validation
 
