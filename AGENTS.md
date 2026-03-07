@@ -35,6 +35,7 @@
 ### Skill Trigger Policy
 
 - Load `lib-research` when external library/API behavior affects implementation or review findings.
+- Load `controlplane-operator` when work touches Browser Harness flows, Workloop/task-runner flows, repo verification policy, or docs/AGENTS routing for the control plane.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.

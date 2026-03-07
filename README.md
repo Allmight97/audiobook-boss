@@ -39,6 +39,7 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 - **Verification**: `docs/verification.md` defines proof-of-done by change type, including UI harness verification
 - **Browser harness**: `docs/browser-harness.md` explains the split between required scenario verification and optional interactive browser review
 - **Workloop**: `docs/workloop.md` defines the repo's local task-runner contract and keeps `.agent-work/` explicitly non-durable
+- **Controlplane skill**: use `.agents/skills/controlplane-operator/SKILL.md` when a task is about operating ABB through the repo substrate rather than only changing product code
 - **Agent guide**: `AGENTS.md` defines coding standards, workflows, and local policy routing
 - **Quality gates**: `scripts/checks.sh standard` before PRs
 - **Optional hook auto-sync**: `git config core.hooksPath .githooks` to auto-sync/stage generated Tauri bindings during pre-commit when Rust IPC contract files are staged

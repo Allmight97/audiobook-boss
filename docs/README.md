@@ -11,6 +11,7 @@ Canonical entrypoint for repository knowledge and agent routing.
 - `specs/technical-reference.md` — architecture/runtime map, commands, quality gates, and operating assumptions
 - `decisions/DECISIONS.md` — durable decision log and ADR index
 - `external-apis/README.md` — boundary-specific reference docs for IPC, metadata, path handling, and perf-adjacent surfaces
+- `.agents/skills/controlplane-operator/SKILL.md` — use when the task is about operating Browser Harness, Workloop, or control-plane routing rather than only editing product logic
 
 ## Canonical Docs
 
