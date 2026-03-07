@@ -40,14 +40,22 @@ Policy expectations:
 - treat it as supplementary evidence rather than the required gate,
 - preserve a clear separation between objective breakage and advisory polish feedback.
 - For Audiobook Boss, keep the normal review path desktop-only. Only use alternate viewport diagnostics when a task explicitly asks for them.
+- Use `--headed` only as an explicit operator-gated escalation path. It is not the normal review route.
 
 Suggested entrypoints:
 
-- `bun run harness:agent start --scenario metadata-edit`
 - `bun run harness:agent dom`
 - `bun run harness:agent review`
+- `bun run harness:agent review --scenario output-preview`
+- `CONTROLPLANE_ALLOW_HEADED=1 bun run harness:agent start --headed --scenario metadata-edit`
 - `bun run harness:agent screenshot spacing-pass`
 - `bun run harness:agent close`
+
+Interactive review is scenario-aware:
+
+- the active scenario owns the controls and interaction checks used during `review`,
+- `review --scenario <id>` can explicitly switch ownership before running the review,
+- the skill may load its bundled taste reference for visual judgment, but canonical docs remain focused on control-plane behavior.
 
 ## Findings Model
 
@@ -78,5 +86,6 @@ These should be reported but do not fail the run by default:
 Harness artifacts are local evidence for review, not durable project history.
 
 - keep screenshots, summaries, and notes out of git,
+- use `.artifacts/harness/latest/<scenario>/` and `.artifacts/harness-agent/latest/` when you need stable alias paths for the latest evidence,
 - do not cite interactive review artifacts as the sole proof of completion,
 - promote any durable conclusion into code, canonical docs, or the decision log.

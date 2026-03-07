@@ -36,6 +36,7 @@
 
 - Load `lib-research` when external library/API behavior affects implementation or review findings.
 - Load `controlplane-operator` when work touches Browser Harness flows, Workloop/task-runner flows, repo verification policy, or docs/AGENTS routing for the control plane.
+  For visual Browser Harness review or layout critique, the skill also owns the conditional taste reference.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
@@ -49,6 +50,7 @@
 - Keep verification tied to user outcomes (correct output files, truthful progress, stable metadata).
 - For UI-affecting work, treat targeted tests plus `harness:verify` artifacts as the default proof-of-done.
 - Keep `harness:agent` optional and exploratory; it is a useful browser/vision loop, but it does not replace scenario verification and does not belong in `scripts/checks.sh standard`.
+- Use `bun run harness:agent start --headed` only when the operator explicitly asked for a visible browser window and enabled the local headed-review gate.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
 - Treat `.agent-work/` as temporary local runtime state. Durable project truth belongs in code, canonical docs, and the decision log rather than task inboxes or run logs.
 - Treat fallback additions as explicit design decisions, not convenience patches.

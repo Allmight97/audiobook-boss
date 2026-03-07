@@ -1,5 +1,52 @@
 export type HarnessScenarioId = 'metadata-edit' | 'status-processing' | 'output-preview';
 
+export type HarnessScenarioVerifyCheck = {
+	id: string;
+	label: string;
+};
+
+export type HarnessScenarioReviewControl = {
+	selector: string;
+	label: string;
+};
+
+export type HarnessScenarioReviewAction =
+	| {
+			id: string;
+			label: string;
+			type: 'dialog-toggle';
+			triggerSelector: string;
+			dialogSelector: string;
+			dismissSelector: string;
+	  }
+	| {
+			id: string;
+			label: string;
+			type: 'select-option';
+			selector: string;
+			optionValue: string;
+			assertVisibleSelector?: string;
+			resetValue?: string;
+	  }
+	| {
+			id: string;
+			label: string;
+			type: 'toggle-checkbox';
+			selector: string;
+	  }
+	| {
+			id: string;
+			label: string;
+			type: 'assert-text';
+			selector: string;
+			expectedText: string;
+	  };
+
+export type HarnessScenarioAdvisoryTarget = {
+	selector: string;
+	message: string;
+};
+
 export type HarnessScenario = {
 	id: HarnessScenarioId;
 	title: string;
@@ -7,6 +54,12 @@ export type HarnessScenario = {
 	route: '/harness.html';
 	screenshotName: string;
 	matchers: readonly RegExp[];
+	verifyChecks: readonly HarnessScenarioVerifyCheck[];
+	review: {
+		controls: readonly HarnessScenarioReviewControl[];
+		actions: readonly HarnessScenarioReviewAction[];
+		advisoryTargets?: readonly HarnessScenarioAdvisoryTarget[];
+	};
 };
 
 const RUN_ALL_MATCHERS = [
@@ -42,6 +95,36 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/ui\/tagPreview(?:\/|\.ts$)/,
 			/^src\/types\/metadata(?:Intent)?\.ts$/,
 		],
+		verifyChecks: [
+			{
+				id: 'lookup-apply',
+				label: 'Metadata lookup applies the selected result to the form.',
+			},
+		],
+		review: {
+			controls: [
+				{ selector: '[data-testid="metadata-lookup-btn"]', label: 'Metadata lookup button' },
+				{ selector: '#meta-title', label: 'Book title field' },
+				{ selector: '#metadata-save-btn', label: 'Metadata save button' },
+			],
+			actions: [
+				{
+					id: 'lookup-modal',
+					label: 'Metadata lookup modal opens and closes cleanly.',
+					type: 'dialog-toggle',
+					triggerSelector: '[data-testid="metadata-lookup-btn"]',
+					dialogSelector: '#metadata-lookup-modal',
+					dismissSelector: '[data-testid="metadata-lookup-close"]',
+				},
+			],
+			advisoryTargets: [
+				{
+					selector: '#metadata-content',
+					message:
+						'Review metadata form density and field rhythm; this lane should feel scannable rather than bulky.',
+				},
+			],
+		},
 	},
 	{
 		id: 'status-processing',
@@ -54,6 +137,43 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/ui\/jobControls(?:\/|\.ts$)/,
 			/^src\/types\/events\.ts$/,
 		],
+		verifyChecks: [
+			{
+				id: 'queue-completes',
+				label: 'Queued processing reaches a completed 100.0% state.',
+			},
+		],
+		review: {
+			controls: [
+				{ selector: '#process-button', label: 'Process audiobook button' },
+				{ selector: '#percentage-processed', label: 'Progress percentage' },
+				{ selector: '#status-text', label: 'Status text' },
+				{ selector: '#job-list', label: 'Per-job queue list' },
+			],
+			actions: [
+				{
+					id: 'completed-progress',
+					label: 'Progress percentage shows a completed 100.0% state.',
+					type: 'assert-text',
+					selector: '#percentage-processed',
+					expectedText: '100.0%',
+				},
+				{
+					id: 'completed-status',
+					label: 'Status text shows a completed state.',
+					type: 'assert-text',
+					selector: '#status-text',
+					expectedText: 'Completed',
+				},
+			],
+			advisoryTargets: [
+				{
+					selector: '.status-panel',
+					message:
+						'Review status-panel density so progress, queue state, and actions read as one execution lane.',
+				},
+			],
+		},
 	},
 	{
 		id: 'output-preview',
@@ -70,6 +190,53 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/ui\/metadataForm(?:\/|\.ts$)/,
 			/^src\/ui\/tagPreview(?:\/|\.ts$)/,
 		],
+		verifyChecks: [
+			{
+				id: 'custom-template-row',
+				label: 'Selecting the custom naming template reveals the template row.',
+			},
+			{
+				id: 'preview-remains-anchored',
+				label: 'Output preview remains anchored to the chosen library path.',
+			},
+		],
+		review: {
+			controls: [
+				{ selector: '#output-dir-browse', label: 'Output directory browse button' },
+				{ selector: '#output-naming-preset', label: 'Output naming preset' },
+				{ selector: '#output-abs-include-year', label: 'Include year toggle' },
+				{ selector: '#output-preview-text', label: 'Output preview text' },
+			],
+			actions: [
+				{
+					id: 'custom-template-toggle',
+					label: 'Output naming preset reveals the custom template row.',
+					type: 'select-option',
+					selector: '#output-naming-preset',
+					optionValue: 'customTemplate',
+					assertVisibleSelector: '#output-template-row',
+					resetValue: 'absDefault',
+				},
+				{
+					id: 'abs-include-year-toggle',
+					label: 'ABS include-year toggle changes and restores cleanly.',
+					type: 'toggle-checkbox',
+					selector: '#output-abs-include-year',
+				},
+			],
+			advisoryTargets: [
+				{
+					selector: '.output-options-panel',
+					message:
+						'Review output controls for wasted space and hierarchy drift; secondary options should stay visually subordinate.',
+				},
+				{
+					selector: '#output-preview-text',
+					message:
+						'Review preview copy density and truncation behavior; the path preview should stay legible without dominating the panel.',
+				},
+			],
+		},
 	},
 ] as const;
 

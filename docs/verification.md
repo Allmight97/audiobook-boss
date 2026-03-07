@@ -27,7 +27,7 @@ bun run harness:verify --changed
 Expect:
 
 - the touched surface maps to one or more harness scenarios,
-- the scenario emits screenshot/assertion/runtime artifacts,
+- the scenario emits screenshot, structured check report, and runtime summary artifacts,
 - there are no unexpected runtime or console errors,
 - any targeted unit/integration test for the changed surface also passes.
 
@@ -36,6 +36,8 @@ If `--changed` reports no matching scenario for a touched UI file, add or extend
 Optional supplement:
 
 - Use `harness:agent` when you need a persistent desktop browser loop for layout, control affordances, or other interactive review that is awkward to express as a one-shot scenario.
+- Use `CONTROLPLANE_ALLOW_HEADED=1 bun run harness:agent start --headed` only when a visible browser window is explicitly wanted and the operator has opted in on that machine.
+- `harness:agent review` follows scenario-owned controls and interaction checks from `src/harness/scenarios.ts`; use `--scenario <id>` when you need to switch review ownership explicitly.
 - Report interactive review findings in two buckets:
   - objective failures: broken controls, broken state transitions, runtime errors, visible overflow/clipping, missing critical affordances
   - advisory UX findings: spacing/polish/alignment issues that do not block function
@@ -70,9 +72,12 @@ Harness verification artifacts are local, gitignored evidence for agent and huma
 Each harness run should leave:
 
 - screenshot output for the verified scenario,
-- assertion summary,
+- structured check report,
 - runtime or console issue summary.
 
-When reporting completion, cite the scenario(s) run and the local artifact path.
+When reporting completion, cite the scenario(s) run and the local artifact path. Prefer the stable latest aliases when that makes review easier:
+
+- `.artifacts/harness/latest/<scenario>/`
+- `.artifacts/harness-agent/latest/`
 
 Interactive browser-review artifacts should also stay local-only and gitignored. Treat screenshots, notes, and review summaries from that lane as supporting evidence rather than durable project records.

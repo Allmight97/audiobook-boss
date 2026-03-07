@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 
@@ -9,6 +9,8 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import type {
 	HarnessAgentSessionInfo,
 	HarnessDomSummary,
+	HarnessDomSummaryResult,
+	HarnessOverflowCandidate,
 	HarnessReviewFinding,
 	HarnessReviewResult,
 	HarnessViewportPreset,
@@ -18,13 +20,22 @@ import { seedHarnessScenario } from './scenarioDriver';
 import {
 	gotoHarnessRoute,
 	HARNESS_AGENT_ARTIFACT_ROOT,
+	mirrorArtifactToLatest,
 	startHarnessServer,
 	summarizeConsoleMessage,
+	writeJsonArtifact,
 	type HarnessConsoleMessage,
 } from './shared';
-import { getHarnessScenario, type HarnessScenarioId } from '../../src/harness/scenarios';
+import {
+	getHarnessScenario,
+	type HarnessScenario,
+	type HarnessScenarioId,
+	type HarnessScenarioReviewAction,
+	type HarnessScenarioReviewControl,
+} from '../../src/harness/scenarios';
 
 const SESSION_FILE = path.join(HARNESS_AGENT_ARTIFACT_ROOT, 'session.json');
+const LATEST_ARTIFACT_DIR = path.join(HARNESS_AGENT_ARTIFACT_ROOT, 'latest');
 const DEFAULT_ROUTE = '/harness.html';
 
 const VIEWPORTS: Record<HarnessViewportPreset, { width: number; height: number }> = {
@@ -52,6 +63,7 @@ function resolveStartOptions(
 		route: payload?.route ?? DEFAULT_ROUTE,
 		viewport: payload?.viewport ?? 'desktop',
 		scenario: payload?.scenario,
+		headed: payload?.headed ?? false,
 	};
 }
 
@@ -82,7 +94,8 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown): 
 
 async function writeSessionInfo(info: HarnessAgentSessionInfo): Promise<void> {
 	await mkdir(HARNESS_AGENT_ARTIFACT_ROOT, { recursive: true });
-	await writeFile(SESSION_FILE, `${JSON.stringify(info, null, 2)}\n`, 'utf8');
+	await writeJsonArtifact(SESSION_FILE, info);
+	await writeJsonArtifact(path.join(LATEST_ARTIFACT_DIR, 'session.json'), info);
 }
 
 async function setViewport(page: Page, viewport: HarnessViewportPreset): Promise<void> {
@@ -93,6 +106,7 @@ async function configureSession(
 	state: SessionState,
 	options: Required<StartHarnessSessionOptions>,
 ): Promise<HarnessAgentSessionInfo> {
+	resetRuntimeObservations(state);
 	await setViewport(state.page, options.viewport);
 	await gotoHarnessRoute(state.page, state.viteServer.origin, options.route);
 	if (options.scenario) {
@@ -104,23 +118,76 @@ async function configureSession(
 		route: options.route,
 		viewport: options.viewport,
 		scenario: options.scenario ?? null,
+		headed: options.headed,
 	};
 	await writeSessionInfo(state.info);
 	return state.info;
 }
 
+function resetRuntimeObservations(state: SessionState): void {
+	state.consoleMessages.length = 0;
+	state.pageErrors.length = 0;
+}
+
+async function ensureScenarioLoaded(
+	state: SessionState,
+	scenarioId: HarnessScenarioId | undefined,
+): Promise<HarnessScenario | null> {
+	const resolvedScenarioId = scenarioId ?? state.info.scenario ?? undefined;
+	if (!resolvedScenarioId) {
+		return null;
+	}
+	const scenario = getHarnessScenario(resolvedScenarioId);
+	if (state.info.scenario !== resolvedScenarioId) {
+		resetRuntimeObservations(state);
+		await gotoHarnessRoute(state.page, state.viteServer.origin, state.info.route);
+		await seedHarnessScenario(state.page, resolvedScenarioId, scenario);
+		state.info = {
+			...state.info,
+			scenario: resolvedScenarioId,
+		};
+		await writeSessionInfo(state.info);
+	}
+	return scenario;
+}
+
 async function captureSessionScreenshot(
 	state: SessionState,
 	label: string,
-): Promise<{ screenshotPath: string }> {
+): Promise<{ screenshotPath: string; latestScreenshotPath: string }> {
 	const filename = `${slugifyLabel(label)}.png`;
 	const screenshotPath = path.join(state.info.artifactDir, filename);
 	await state.page.screenshot({ path: screenshotPath, fullPage: true });
-	return { screenshotPath };
+	const latestScreenshotPath = await mirrorArtifactToLatest(
+		screenshotPath,
+		path.join(LATEST_ARTIFACT_DIR, 'screenshot.png'),
+	);
+	return { screenshotPath, latestScreenshotPath };
 }
 
-async function buildDomSummary(page: Page): Promise<HarnessDomSummary> {
-	return page.evaluate(() => {
+async function captureDomSummary(
+	state: SessionState,
+	controls: readonly HarnessScenarioReviewControl[],
+): Promise<HarnessDomSummaryResult> {
+	const summary = await buildDomSummary(state.page, controls);
+	const artifactPath = path.join(state.info.artifactDir, 'dom-summary.json');
+	await writeJsonArtifact(artifactPath, summary);
+	const latestArtifactPath = await mirrorArtifactToLatest(
+		artifactPath,
+		path.join(LATEST_ARTIFACT_DIR, 'dom-summary.json'),
+	);
+	return {
+		summary,
+		artifactPath,
+		latestArtifactPath,
+	};
+}
+
+async function buildDomSummary(
+	page: Page,
+	controls: readonly HarnessScenarioReviewControl[],
+): Promise<HarnessDomSummary> {
+	return page.evaluate((scenarioControls) => {
 		const describeControl = (selector: string, label: string) => {
 			const element = document.querySelector<HTMLElement>(selector);
 			if (!element) {
@@ -224,91 +291,125 @@ async function buildDomSummary(page: Page): Promise<HarnessDomSummary> {
 				dialogs: document.querySelectorAll('[role="dialog"]').length,
 			},
 			horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 2,
-			keyControls: [
-				describeControl('[data-testid="metadata-lookup-btn"]', 'Metadata lookup button'),
-				describeControl('#metadata-save-btn', 'Metadata save button'),
-				describeControl('#output-naming-preset', 'Output naming preset'),
-				describeControl('#output-abs-include-year', 'Output include year toggle'),
-				describeControl('#process-button', 'Process audiobook button'),
-			],
+			keyControls: scenarioControls.map((control) =>
+				describeControl(control.selector, control.label),
+			),
 			overflowCandidates,
 		};
-	});
+	}, controls);
 }
 
-async function runInteractiveChecks(state: SessionState): Promise<HarnessReviewFinding[]> {
+async function runInteractiveChecks(
+	state: SessionState,
+	scenario: HarnessScenario | null,
+): Promise<HarnessReviewFinding[]> {
 	const failures: HarnessReviewFinding[] = [];
 	const actionTimeout = 4_000;
-	const modal = state.page.locator('#metadata-lookup-modal');
-	if (await modal.isVisible().catch(() => false)) {
-		await state.page.locator('[data-testid="metadata-lookup-close"]').click({
-			timeout: actionTimeout,
-		});
-		await modal.waitFor({ state: 'hidden', timeout: actionTimeout });
+	if (!scenario) {
+		return failures;
 	}
 
-	try {
-		const lookupButton = state.page.locator('[data-testid="metadata-lookup-btn"]');
-		await lookupButton.click({ timeout: actionTimeout });
-		await state.page.locator('#metadata-lookup-modal').waitFor({ timeout: 4_000 });
-		await state.page.locator('[data-testid="metadata-lookup-close"]').click({
-			timeout: actionTimeout,
-		});
-		await state.page.locator('#metadata-lookup-modal').waitFor({ state: 'hidden', timeout: 4_000 });
-	} catch (error) {
-		failures.push({
-			id: 'metadata-lookup-modal',
-			message: `Metadata lookup modal did not open and close cleanly: ${error instanceof Error ? error.message : String(error)}`,
-			selector: '[data-testid="metadata-lookup-btn"]',
-		});
-	}
-
-	try {
-		await state.page.locator('#output-naming-preset').selectOption('customTemplate', {
-			timeout: actionTimeout,
-		});
-		await state.page.locator('#output-template-row').evaluate((node) => {
-			if (node.hasAttribute('hidden')) {
-				throw new Error('Template row remained hidden after selecting custom template.');
-			}
-		});
-		await state.page.locator('#output-naming-preset').selectOption('absDefault', {
-			timeout: actionTimeout,
-		});
-	} catch (error) {
-		failures.push({
-			id: 'output-template-toggle',
-			message: `Output naming preset did not expose the custom template row: ${error instanceof Error ? error.message : String(error)}`,
-			selector: '#output-naming-preset',
-		});
-	}
-
-	try {
-		const checkbox = state.page.locator('#output-abs-include-year');
-		const before = await checkbox.isChecked();
-		await checkbox.click({ timeout: actionTimeout });
-		const after = await checkbox.isChecked();
-		if (before === after) {
-			throw new Error('Checkbox state did not change after click.');
+	for (const action of scenario.review.actions) {
+		try {
+			await runReviewAction(state, action, actionTimeout);
+		} catch (error) {
+			failures.push({
+				id: action.id,
+				message: `${action.label} ${error instanceof Error ? error.message : String(error)}`,
+				selector: getActionSelector(action),
+			});
 		}
-		await checkbox.click({ timeout: actionTimeout });
-	} catch (error) {
-		failures.push({
-			id: 'include-year-toggle',
-			message: `Output include-year checkbox did not toggle cleanly: ${error instanceof Error ? error.message : String(error)}`,
-			selector: '#output-abs-include-year',
-		});
 	}
 
 	return failures;
 }
 
+function getActionSelector(action: HarnessScenarioReviewAction): string {
+	switch (action.type) {
+		case 'dialog-toggle':
+			return action.triggerSelector;
+		case 'select-option':
+		case 'toggle-checkbox':
+		case 'assert-text':
+			return action.selector;
+	}
+}
+
+async function runReviewAction(
+	state: SessionState,
+	action: HarnessScenarioReviewAction,
+	actionTimeout: number,
+): Promise<void> {
+	switch (action.type) {
+		case 'dialog-toggle': {
+			const dialog = state.page.locator(action.dialogSelector);
+			if (await dialog.isVisible().catch(() => false)) {
+				await state.page.locator(action.dismissSelector).click({ timeout: actionTimeout });
+				await dialog.waitFor({ state: 'hidden', timeout: actionTimeout });
+			}
+
+			await state.page.locator(action.triggerSelector).click({ timeout: actionTimeout });
+			await dialog.waitFor({ state: 'visible', timeout: actionTimeout });
+			await state.page.locator(action.dismissSelector).click({ timeout: actionTimeout });
+			await dialog.waitFor({ state: 'hidden', timeout: actionTimeout });
+			return;
+		}
+		case 'select-option': {
+			await state.page.locator(action.selector).selectOption(action.optionValue, {
+				timeout: actionTimeout,
+			});
+			if (action.assertVisibleSelector) {
+				await state.page.locator(action.assertVisibleSelector).evaluate((node) => {
+					if (!(node instanceof HTMLElement)) {
+						throw new Error('Target element is not an HTMLElement.');
+					}
+					if (node.hidden || node.hasAttribute('hidden')) {
+						throw new Error('Expected element to be visible, but it remained hidden.');
+					}
+				});
+			}
+			if (action.resetValue) {
+				await state.page.locator(action.selector).selectOption(action.resetValue, {
+					timeout: actionTimeout,
+				});
+			}
+			return;
+		}
+		case 'toggle-checkbox': {
+			const checkbox = state.page.locator(action.selector);
+			const before = await checkbox.isChecked();
+			await checkbox.click({ timeout: actionTimeout });
+			const after = await checkbox.isChecked();
+			if (before === after) {
+				throw new Error('Checkbox state did not change after click.');
+			}
+			await checkbox.click({ timeout: actionTimeout });
+			return;
+		}
+		case 'assert-text': {
+			await state.page
+				.locator(action.selector)
+				.waitFor({ state: 'visible', timeout: actionTimeout });
+			await state.page.locator(action.selector).evaluate((node, expectedText) => {
+				const text = node.textContent ?? '';
+				if (!text.includes(expectedText)) {
+					throw new Error(`Expected "${expectedText}" in "${text}".`);
+				}
+			}, action.expectedText);
+			return;
+		}
+	}
+}
+
 async function buildReviewResult(
 	state: SessionState,
 	viewport: HarnessViewportPreset,
+	scenarioId?: HarnessScenarioId,
 ): Promise<HarnessReviewResult> {
 	await setViewport(state.page, viewport);
-	const domSummary = await buildDomSummary(state.page);
+	const scenario = await ensureScenarioLoaded(state, scenarioId);
+	const domSnapshot = await captureDomSummary(state, scenario?.review.controls ?? []);
+	const domSummary = domSnapshot.summary;
 	const objectiveFailures: HarnessReviewFinding[] = [];
 	const advisoryFindings: HarnessReviewFinding[] = [];
 
@@ -352,7 +453,33 @@ async function buildReviewResult(
 		});
 	}
 
-	objectiveFailures.push(...(await runInteractiveChecks(state)));
+	if (scenario) {
+		for (const target of scenario.review.advisoryTargets ?? []) {
+			const visible = await state.page
+				.locator(target.selector)
+				.evaluate((node) => {
+					if (!(node instanceof HTMLElement)) return false;
+					const rect = node.getBoundingClientRect();
+					const style = getComputedStyle(node);
+					return (
+						rect.width > 0 &&
+						rect.height > 0 &&
+						style.visibility !== 'hidden' &&
+						style.display !== 'none'
+					);
+				})
+				.catch(() => false);
+			if (visible) {
+				advisoryFindings.push({
+					id: `review-target-${target.selector}`,
+					message: target.message,
+					selector: target.selector,
+				});
+			}
+		}
+	}
+
+	objectiveFailures.push(...(await runInteractiveChecks(state, scenario)));
 
 	if (viewport === 'desktop' && domSummary.mainRegion.widthRatio < 0.58) {
 		advisoryFindings.push({
@@ -367,25 +494,33 @@ async function buildReviewResult(
 		state,
 		`review-${viewport}-${new Date().toISOString().replace(/:/g, '-')}`,
 	);
+	const reviewPath = path.join(state.info.artifactDir, `review-${viewport}.json`);
 	const reviewResult: HarnessReviewResult = {
 		viewport,
 		screenshotPath: screenshot.screenshotPath,
+		latestScreenshotPath: screenshot.latestScreenshotPath,
+		reviewPath,
+		latestReviewPath: path.join(LATEST_ARTIFACT_DIR, 'review.json'),
 		domSummary,
 		objectiveFailures,
 		advisoryFindings,
 	};
 
-	await writeFile(
-		path.join(state.info.artifactDir, `review-${viewport}.json`),
-		`${JSON.stringify(reviewResult, null, 2)}\n`,
-		'utf8',
-	);
+	await writeJsonArtifact(reviewPath, reviewResult);
+	await mirrorArtifactToLatest(reviewPath, reviewResult.latestReviewPath);
 	return reviewResult;
 }
 
-async function reportTextNote(state: SessionState, message: string): Promise<{ notePath: string }> {
+async function reportTextNote(
+	state: SessionState,
+	message: string,
+): Promise<{ notePath: string; latestNotePath: string }> {
 	await appendFile(state.notePath, `[${new Date().toISOString()}] ${message.trim()}\n`, 'utf8');
-	return { notePath: state.notePath };
+	const latestNotePath = await mirrorArtifactToLatest(
+		state.notePath,
+		path.join(LATEST_ARTIFACT_DIR, 'notes.log'),
+	);
+	return { notePath: state.notePath, latestNotePath };
 }
 
 async function initializeState(
@@ -396,7 +531,7 @@ async function initializeState(
 	await mkdir(artifactDir, { recursive: true });
 
 	const viteServer = await startHarnessServer();
-	const browser = await chromium.launch({ headless: true });
+	const browser = await chromium.launch({ headless: !startOptions.headed });
 	const context = await browser.newContext({
 		viewport: VIEWPORTS[startOptions.viewport],
 	});
@@ -409,6 +544,7 @@ async function initializeState(
 		route: startOptions.route,
 		viewport: startOptions.viewport,
 		scenario: startOptions.scenario ?? null,
+		headed: startOptions.headed,
 		startedAt: new Date().toISOString(),
 	};
 
@@ -477,6 +613,7 @@ async function main(): Promise<void> {
 			if (request.method === 'POST' && url.pathname === '/seed') {
 				const payload = await readJsonBody<{ scenario: HarnessScenarioId }>(request);
 				const scenario = getHarnessScenario(payload.scenario);
+				resetRuntimeObservations(state);
 				await gotoHarnessRoute(state.page, state.viteServer.origin, state.info.route);
 				await seedHarnessScenario(state.page, payload.scenario, scenario);
 				state.info = {
@@ -495,7 +632,8 @@ async function main(): Promise<void> {
 			}
 
 			if (request.method === 'GET' && url.pathname === '/dom-summary') {
-				sendJson(response, 200, await buildDomSummary(state.page));
+				const scenario = await ensureScenarioLoaded(state, undefined);
+				sendJson(response, 200, await captureDomSummary(state, scenario?.review.controls ?? []));
 				return;
 			}
 
@@ -506,11 +644,14 @@ async function main(): Promise<void> {
 			}
 
 			if (request.method === 'POST' && url.pathname === '/review') {
-				const payload = await readJsonBody<{ viewport?: HarnessViewportPreset }>(request);
+				const payload = await readJsonBody<{
+					viewport?: HarnessViewportPreset;
+					scenario?: HarnessScenarioId;
+				}>(request);
 				sendJson(
 					response,
 					200,
-					await buildReviewResult(state, payload.viewport ?? state.info.viewport),
+					await buildReviewResult(state, payload.viewport ?? state.info.viewport, payload.scenario),
 				);
 				return;
 			}

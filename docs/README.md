@@ -12,6 +12,7 @@ Canonical entrypoint for repository knowledge and agent routing.
 - `decisions/DECISIONS.md` — durable decision log and ADR index
 - `external-apis/README.md` — boundary-specific reference docs for IPC, metadata, path handling, and perf-adjacent surfaces
 - `.agents/skills/controlplane-operator/SKILL.md` — use when the task is about operating Browser Harness, Workloop, or control-plane routing rather than only editing product logic
+  For visual/frontend review tasks, that skill also conditionally loads its bundled taste reference instead of pushing taste guidance into canonical repo docs.
 
 ## Canonical Docs
 

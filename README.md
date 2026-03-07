@@ -40,6 +40,7 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 - **Browser harness**: `docs/browser-harness.md` explains the split between required scenario verification and optional interactive browser review
 - **Workloop**: `docs/workloop.md` defines the repo's local task-runner contract and keeps `.agent-work/` explicitly non-durable
 - **Controlplane skill**: use `.agents/skills/controlplane-operator/SKILL.md` when a task is about operating ABB through the repo substrate rather than only changing product code
+  For visual/frontend review tasks, that skill also owns the bundled taste reference; canonical repo docs stay policy-focused.
 - **Agent guide**: `AGENTS.md` defines coding standards, workflows, and local policy routing
 - **Quality gates**: `scripts/checks.sh standard` before PRs
 - **Optional hook auto-sync**: `git config core.hooksPath .githooks` to auto-sync/stage generated Tauri bindings during pre-commit when Rust IPC contract files are staged
@@ -50,9 +51,10 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 Audiobook Boss now treats the repo itself as part of the delivery system, not just the app code.
 
 - **Required UI proof**: `bun run harness:verify --changed` maps UI-affecting edits to real browser scenarios and emits local artifacts instead of relying on static inspection or memory.
-- **Optional browser review**: `bun run harness:agent` starts a persistent Playwright-backed review session so agents can inspect desktop layout, controls, and visible behavior in a live loop.
+- **Optional browser review**: `bun run harness:agent review` is the normal supplemental lane. A visible browser window is available only as an operator-gated escalation path via `CONTROLPLANE_ALLOW_HEADED=1 bun run harness:agent start --headed --scenario <name>`.
 - **Workloop execution**: `WORKFLOW.md` plus `bun run work:*` provide a repo-native single-task runner with isolated worktrees, temporary task branches, explicit cleanup, and no durable task archive.
 - **Durable versus temporary truth**: code, canonical docs, and decisions are durable; `.agent-work/` and `.artifacts/` are local runtime evidence only.
+- **Stable latest artifacts**: `.artifacts/harness/latest/<scenario>/` and `.artifacts/harness-agent/latest/` mirror the latest screenshots and JSON outputs so review does not require digging through timestamped folders.
 
 The point of this substrate is straightforward: give agents and humans a tighter loop, clearer proof-of-done, and better guardrails against subtle UI/runtime mistakes that are easy to miss in a repo without an executable harness.
 
@@ -63,7 +65,7 @@ scripts/checks.sh standard    # Full quality gate
 bun run tauri dev             # Dev mode
 bun run test                  # All tests
 bun run harness:verify --changed # Required UI proof for UI-affecting work
-bun run harness:agent start --scenario metadata-edit # Optional live desktop browser-review loop
+bun run harness:agent review # Optional supplemental browser-review loop
 ```
 
 **[Docs map →](docs/README.md)** — canonical docs routing, verification guidance, architecture/runtime reference, and decision log.

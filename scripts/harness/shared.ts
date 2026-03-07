@@ -1,3 +1,4 @@
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createServer, type ViteDevServer } from 'vite';
@@ -18,6 +19,20 @@ export type HarnessConsoleMessage = {
 	type: string;
 	text: string;
 };
+
+export async function writeJsonArtifact(filePath: string, payload: unknown): Promise<void> {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+}
+
+export async function mirrorArtifactToLatest(
+	sourcePath: string,
+	latestPath: string,
+): Promise<string> {
+	await mkdir(path.dirname(latestPath), { recursive: true });
+	await copyFile(sourcePath, latestPath);
+	return latestPath;
+}
 
 export async function startHarnessServer(): Promise<HarnessServerSession> {
 	const server = await createServer({

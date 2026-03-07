@@ -18,12 +18,13 @@ type Command =
 			scenario?: HarnessScenarioId;
 			route?: string;
 			viewport?: HarnessViewportPreset;
+			headed?: boolean;
 	  }
 	| { name: 'seed'; scenario: HarnessScenarioId }
 	| { name: 'screenshot'; label: string }
 	| { name: 'dom' }
 	| { name: 'report'; message: string }
-	| { name: 'review'; viewport?: HarnessViewportPreset }
+	| { name: 'review'; viewport?: HarnessViewportPreset; scenario?: HarnessScenarioId }
 	| { name: 'close' };
 
 function parseViewport(value: string | undefined): HarnessViewportPreset | undefined {
@@ -63,6 +64,10 @@ function parseCommand(argv: string[]): Command {
 					index += 1;
 					continue;
 				}
+				if (arg === '--headed') {
+					parsed.headed = true;
+					continue;
+				}
 				throw new Error(`Unknown argument for start: ${arg}`);
 			}
 			return parsed;
@@ -79,11 +84,24 @@ function parseCommand(argv: string[]): Command {
 			if (rest.length === 0) throw new Error('Missing report message.');
 			return { name: 'report', message: rest.join(' ') };
 		case 'review': {
-			if (rest[0] === '--viewport') {
-				return { name: 'review', viewport: parseViewport(rest[1]) };
+			const parsed: Command = { name: 'review' };
+			for (let index = 0; index < rest.length; index += 1) {
+				const arg = rest[index];
+				const next = rest[index + 1];
+				if (arg === '--viewport') {
+					parsed.viewport = parseViewport(next);
+					index += 1;
+					continue;
+				}
+				if (arg === '--scenario') {
+					if (!next) throw new Error('Missing value for --scenario');
+					parsed.scenario = next as HarnessScenarioId;
+					index += 1;
+					continue;
+				}
+				throw new Error(`Unknown argument for review: ${arg}`);
 			}
-			if (rest.length === 0) return { name: 'review' };
-			throw new Error(`Unknown arguments for review: ${rest.join(' ')}`);
+			return parsed;
 		}
 		case 'close':
 			return { name: 'close' };
@@ -102,6 +120,7 @@ async function main(): Promise<void> {
 						scenario: command.scenario,
 						route: command.route,
 						viewport: command.viewport,
+						headed: command.headed,
 					}),
 					null,
 					2,
@@ -122,7 +141,14 @@ async function main(): Promise<void> {
 			return;
 		case 'review':
 			console.log(
-				JSON.stringify(await runUiReviewChecklist({ viewport: command.viewport }), null, 2),
+				JSON.stringify(
+					await runUiReviewChecklist({
+						viewport: command.viewport,
+						scenario: command.scenario,
+					}),
+					null,
+					2,
+				),
 			);
 			return;
 		case 'close':

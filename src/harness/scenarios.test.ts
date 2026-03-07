@@ -66,4 +66,12 @@ describe('harness scenario routing', () => {
 		]);
 		expect(getHarnessScenario('output-preview').title).toBe('Output Preview');
 	});
+
+	it('exposes review controls and verification checks for each scenario', () => {
+		for (const scenario of listHarnessScenarios()) {
+			expect(scenario.verifyChecks.length).toBeGreaterThan(0);
+			expect(scenario.review.controls.length).toBeGreaterThan(0);
+			expect(scenario.review.actions.length).toBeGreaterThan(0);
+		}
+	});
 });

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -13,13 +13,19 @@ import {
 	type HarnessScenario,
 	type HarnessScenarioId,
 } from '../../src/harness/scenarios.ts';
-import { seedHarnessScenario } from './scenarioDriver';
 import {
 	gotoHarnessRoute,
 	HARNESS_ARTIFACT_ROOT as ARTIFACT_ROOT,
+	mirrorArtifactToLatest,
 	startHarnessServer,
 	summarizeConsoleMessage,
+	writeJsonArtifact,
 } from './shared';
+import {
+	HarnessScenarioVerificationError,
+	seedHarnessScenario,
+	type HarnessScenarioCheckResult,
+} from './scenarioDriver';
 
 type CliOptions =
 	| {
@@ -30,12 +36,19 @@ type CliOptions =
 			mode: 'changed';
 	  };
 
-type ScenarioArtifactSummary = {
+type ScenarioRuntimeSummary = {
 	id: HarnessScenarioId;
 	title: string;
 	screenshotPath: string;
 	consoleMessages: Array<{ type: string; text: string }>;
 	pageErrors: string[];
+};
+
+type ScenarioCheckReport = {
+	id: HarnessScenarioId;
+	title: string;
+	completed: boolean;
+	checks: HarnessScenarioCheckResult[];
 };
 
 function parseArgs(argv: string[]): CliOptions {
@@ -163,20 +176,27 @@ async function runScenario(
 	page: Page,
 	scenario: HarnessScenario,
 	harnessOrigin: string,
-): Promise<void> {
+): Promise<HarnessScenarioCheckResult[]> {
 	await gotoHarness(page, scenario, harnessOrigin);
-	await seedHarnessScenario(page, scenario.id, scenario);
+	return seedHarnessScenario(page, scenario.id, scenario);
 }
 
-async function writeScenarioSummary(
-	artifactDir: string,
-	summary: ScenarioArtifactSummary,
-): Promise<void> {
-	await writeFile(
-		path.join(artifactDir, 'summary.json'),
-		`${JSON.stringify(summary, null, 2)}\n`,
-		'utf8',
-	);
+function finalizeCheckResults(
+	scenario: HarnessScenario,
+	recordedResults: HarnessScenarioCheckResult[],
+): HarnessScenarioCheckResult[] {
+	const recordedById = new Map(recordedResults.map((result) => [result.id, result]));
+	return scenario.verifyChecks.map((check) => {
+		const existing = recordedById.get(check.id);
+		if (existing) {
+			return existing;
+		}
+		return {
+			id: check.id,
+			label: check.label,
+			status: 'not-run',
+		};
+	});
 }
 
 async function main(): Promise<void> {
@@ -214,6 +234,7 @@ async function main(): Promise<void> {
 	try {
 		for (const scenario of scenarios) {
 			const artifactDir = path.join(runArtifactDir, scenario.id);
+			const latestArtifactDir = path.join(ARTIFACT_ROOT, 'latest', scenario.id);
 			await mkdir(artifactDir, { recursive: true });
 
 			const browser = await chromium.launch({ headless: true });
@@ -229,20 +250,54 @@ async function main(): Promise<void> {
 					pageErrors.push(error.message);
 				});
 
+				let checkResults: HarnessScenarioCheckResult[] = finalizeCheckResults(scenario, []);
+				let scenarioSeedError: unknown = null;
+
 				try {
-					await runScenario(page, scenario, harnessServer.origin);
+					checkResults = finalizeCheckResults(
+						scenario,
+						await runScenario(page, scenario, harnessServer.origin),
+					);
+				} catch (error) {
+					scenarioSeedError = error;
+					if (error instanceof HarnessScenarioVerificationError) {
+						checkResults = finalizeCheckResults(scenario, error.checkResults);
+					}
 				} finally {
 					const screenshotPath = path.join(artifactDir, scenario.screenshotName);
 					await page.screenshot({ path: screenshotPath, fullPage: true });
-					const summary: ScenarioArtifactSummary = {
+					const runtimeSummary: ScenarioRuntimeSummary = {
 						id: scenario.id,
 						title: scenario.title,
 						screenshotPath,
 						consoleMessages,
 						pageErrors,
 					};
-					await writeScenarioSummary(artifactDir, summary);
+					const checkReport: ScenarioCheckReport = {
+						id: scenario.id,
+						title: scenario.title,
+						completed: scenarioSeedError === null,
+						checks: checkResults,
+					};
+					await writeJsonArtifact(path.join(artifactDir, 'summary.json'), runtimeSummary);
+					await writeJsonArtifact(path.join(artifactDir, 'checks.json'), checkReport);
+					await mirrorArtifactToLatest(
+						screenshotPath,
+						path.join(latestArtifactDir, scenario.screenshotName),
+					);
+					await mirrorArtifactToLatest(
+						path.join(artifactDir, 'summary.json'),
+						path.join(latestArtifactDir, 'summary.json'),
+					);
+					await mirrorArtifactToLatest(
+						path.join(artifactDir, 'checks.json'),
+						path.join(latestArtifactDir, 'checks.json'),
+					);
 					await page.close();
+				}
+
+				if (scenarioSeedError) {
+					throw scenarioSeedError;
 				}
 
 				const errorConsoleMessages = consoleMessages.filter((message) => message.type === 'error');

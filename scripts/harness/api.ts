@@ -11,6 +11,7 @@ export type StartHarnessSessionOptions = {
 	scenario?: HarnessScenarioId;
 	route?: string;
 	viewport?: HarnessViewportPreset;
+	headed?: boolean;
 };
 
 export type HarnessControlSummary = {
@@ -60,6 +61,12 @@ export type HarnessDomSummary = {
 	overflowCandidates: HarnessOverflowCandidate[];
 };
 
+export type HarnessDomSummaryResult = {
+	summary: HarnessDomSummary;
+	artifactPath: string;
+	latestArtifactPath: string;
+};
+
 export type HarnessReviewFinding = {
 	id: string;
 	message: string;
@@ -69,6 +76,9 @@ export type HarnessReviewFinding = {
 export type HarnessReviewResult = {
 	viewport: HarnessViewportPreset;
 	screenshotPath: string;
+	latestScreenshotPath: string;
+	reviewPath: string;
+	latestReviewPath: string;
 	domSummary: HarnessDomSummary;
 	objectiveFailures: HarnessReviewFinding[];
 	advisoryFindings: HarnessReviewFinding[];
@@ -82,12 +92,14 @@ export type HarnessAgentSessionInfo = {
 	route: string;
 	viewport: HarnessViewportPreset;
 	scenario: HarnessScenarioId | null;
+	headed: boolean;
 	startedAt: string;
 };
 
 const SESSION_FILE = path.join(HARNESS_AGENT_ARTIFACT_ROOT, 'session.json');
 const DEFAULT_ROUTE = '/harness.html';
 const DEFAULT_VIEWPORT: HarnessViewportPreset = 'desktop';
+const HEADED_ALLOW_ENV = 'CONTROLPLANE_ALLOW_HEADED';
 const HARNESS_RUNTIME_EXECUTABLE = process.versions.bun ? process.execPath : 'bun';
 
 type SessionRequest<TBody> = {
@@ -103,7 +115,22 @@ function getDefaultOptions(
 		route: options.route ?? DEFAULT_ROUTE,
 		viewport: options.viewport ?? DEFAULT_VIEWPORT,
 		scenario: options.scenario,
+		headed: options.headed ?? false,
 	};
+}
+
+function headedReviewAllowed(): boolean {
+	const value = process.env[HEADED_ALLOW_ENV]?.trim().toLowerCase();
+	return value === '1' || value === 'true' || value === 'yes';
+}
+
+function assertHeadedReviewAllowed(requestedHeaded: boolean): void {
+	if (!requestedHeaded || headedReviewAllowed()) {
+		return;
+	}
+	throw new Error(
+		`Headed Browser Harness review is operator-gated to avoid stealing focus on an active machine. Re-run with ${HEADED_ALLOW_ENV}=1 only when a visible browser window is explicitly wanted.`,
+	);
 }
 
 export async function readHarnessSessionInfo(): Promise<HarnessAgentSessionInfo | null> {
@@ -189,8 +216,9 @@ export async function startHarnessSession(
 	options: StartHarnessSessionOptions = {},
 ): Promise<HarnessAgentSessionInfo> {
 	const resolved = getDefaultOptions(options);
+	assertHeadedReviewAllowed(resolved.headed);
 	const existing = await readHarnessSessionInfo();
-	if (existing && isLivePid(existing.pid)) {
+	if (existing && isLivePid(existing.pid) && existing.headed === resolved.headed) {
 		try {
 			return await requestSession<HarnessAgentSessionInfo, Required<StartHarnessSessionOptions>>(
 				existing,
@@ -211,6 +239,15 @@ export async function startHarnessSession(
 	}
 
 	if (existing && !isLivePid(existing.pid)) {
+		await rm(SESSION_FILE, { force: true });
+	}
+
+	if (existing && isLivePid(existing.pid) && existing.headed !== resolved.headed) {
+		try {
+			process.kill(existing.pid, 'SIGTERM');
+		} catch {
+			// Best effort cleanup for a headed/headless mode change.
+		}
 		await rm(SESSION_FILE, { force: true });
 	}
 
@@ -235,36 +272,49 @@ export async function seedScenario(scenario: HarnessScenarioId): Promise<Harness
 	});
 }
 
-export async function captureScreenshot(label: string): Promise<{ screenshotPath: string }> {
+export async function captureScreenshot(
+	label: string,
+): Promise<{ screenshotPath: string; latestScreenshotPath: string }> {
 	const session = await requireLiveSession();
-	return requestSession<{ screenshotPath: string }, { label: string }>(session, {
+	return requestSession<
+		{ screenshotPath: string; latestScreenshotPath: string },
+		{ label: string }
+	>(session, {
 		method: 'POST',
 		path: '/screenshot',
 		body: { label },
 	});
 }
 
-export async function getDomSummary(): Promise<HarnessDomSummary> {
+export async function getDomSummary(): Promise<HarnessDomSummaryResult> {
 	const session = await requireLiveSession();
-	return requestSession<HarnessDomSummary, undefined>(session, {
+	return requestSession<HarnessDomSummaryResult, undefined>(session, {
 		path: '/dom-summary',
 	});
 }
 
-export async function reportText(message: string): Promise<{ notePath: string }> {
+export async function reportText(
+	message: string,
+): Promise<{ notePath: string; latestNotePath: string }> {
 	const session = await requireLiveSession();
-	return requestSession<{ notePath: string }, { message: string }>(session, {
-		method: 'POST',
-		path: '/report-text',
-		body: { message },
-	});
+	return requestSession<{ notePath: string; latestNotePath: string }, { message: string }>(
+		session,
+		{
+			method: 'POST',
+			path: '/report-text',
+			body: { message },
+		},
+	);
 }
 
 export async function runUiReviewChecklist(
-	options: { viewport?: HarnessViewportPreset } = {},
+	options: { viewport?: HarnessViewportPreset; scenario?: HarnessScenarioId } = {},
 ): Promise<HarnessReviewResult> {
 	const session = await requireLiveSession();
-	return requestSession<HarnessReviewResult, { viewport?: HarnessViewportPreset }>(session, {
+	return requestSession<
+		HarnessReviewResult,
+		{ viewport?: HarnessViewportPreset; scenario?: HarnessScenarioId }
+	>(session, {
 		method: 'POST',
 		path: '/review',
 		body: options,
