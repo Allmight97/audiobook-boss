@@ -25,6 +25,13 @@ Use `harness:verify` when a UI change needs mechanical proof:
 
 This is the route that belongs in `docs/verification.md`, `scripts/checks.sh standard`, and completion claims for UI work.
 
+Current required scenario set:
+
+- `file-management` for input-lane import, selection, reorder, clear, and inspector coherence
+- `metadata-edit` for metadata form, lookup modal, and cover-art flows
+- `status-processing` for queue/progress rendering and processing-lock behavior
+- `output-preview` for output naming, encoder controls, and preview stability
+
 ## Optional Interactive Browser Review
 
 Use `harness:agent` when a task benefits from a persistent browser loop:
@@ -46,6 +53,7 @@ Suggested entrypoints:
 
 - `bun run harness:agent dom`
 - `bun run harness:agent review`
+- `bun run harness:agent review --scenario file-management`
 - `bun run harness:agent review --scenario output-preview`
 - `CONTROLPLANE_ALLOW_HEADED=1 bun run harness:agent start --headed --scenario metadata-edit`
 - `bun run harness:agent screenshot spacing-pass`

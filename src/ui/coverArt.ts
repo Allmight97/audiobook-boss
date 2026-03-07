@@ -1,64 +1,27 @@
 import { tauriClient } from '../lib/tauri/client';
-import { isFileDropEvent } from '../types/events';
 import {
 	clearCoverArtMessageState,
+	clearCoverArtSession,
+	setCoverArtRemovalRequested,
+	setHasCustomCoverArt,
+	setCoverArtSession,
 	setCoverArtDataUrl,
 	setCoverArtDragOver,
 	setCoverArtHovered,
 	setCoverArtLoading,
 	setCoverArtMessage,
 	setCoverArtUrlInputValue,
+	coverArtSessionState,
 } from './coverArt/state.svelte';
 
-// Global state for currently loaded cover art
-let currentCoverArt: number[] | null = null;
-// Tracks whether the user manually loaded custom cover art (preserved across file selection)
-let hasCustomCoverArt = false;
-// Tracks whether the user explicitly requested cover art removal in this session
-let coverArtRemovalRequested = false;
 let coverArtMessageTimeoutId: number | null = null;
-let dragDropUnlisten: (() => void) | null = null;
 
 /**
  * Initializes the cover art functionality
  */
 export function initCoverArt(): void {
-	if (dragDropUnlisten) {
-		return;
-	}
-
-	// Handle global drag and drop from Tauri for cover art.
-	const maybeUnlisten = tauriClient.listen('tauri://drag-drop', async (event) => {
-		if (!isFileDropEvent(event.payload)) return;
-		const { position, paths } = event.payload;
-
-		const area = document.getElementById('cover-art-area');
-		if (!area) return;
-		setCoverArtDragOver(false);
-
-		const rect = area.getBoundingClientRect();
-		if (
-			position.x < rect.left ||
-			position.x > rect.right ||
-			position.y < rect.top ||
-			position.y > rect.bottom
-		) {
-			return;
-		}
-
-		const imageFile = paths.find((p) => /\.(jpg|jpeg|png|webp)$/i.test(p));
-		if (imageFile) {
-			await loadCoverArtFile(imageFile);
-		}
-	});
-
-	if (!(maybeUnlisten instanceof Promise)) {
-		return;
-	}
-
-	void maybeUnlisten.then((unlisten) => {
-		dragDropUnlisten = unlisten;
-	});
+	// no-op lifecycle hook kept for init ordering and tests
+	// drag/drop routing is handled by fileImport handlers now.
 }
 
 /**
@@ -153,9 +116,9 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
 }
 
 function applyLoadedCoverArt(imageData: number[]): void {
-	currentCoverArt = imageData;
-	hasCustomCoverArt = true;
-	coverArtRemovalRequested = false;
+	setCoverArtSession(imageData);
+	setHasCustomCoverArt(true);
+	setCoverArtRemovalRequested(false);
 
 	displayCoverArt(imageData);
 }
@@ -223,6 +186,20 @@ function clearCoverArtMessage(): void {
 	}
 }
 
+/**
+ * Attempts to route a drag/drop payload through cover-art loading.
+ * Returns true if an image file was consumed.
+ */
+export async function applyCoverArtDrop(paths: string[]): Promise<boolean> {
+	const imageFile = paths.find((path) => /\.(jpg|jpeg|png|webp)$/i.test(path));
+	if (!imageFile) {
+		return false;
+	}
+
+	await loadCoverArtFile(imageFile);
+	return true;
+}
+
 function formatCoverArtError(error: unknown, fallback: string): string {
 	const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
 	if (/status 403/i.test(raw) || /403 Forbidden/i.test(raw)) {
@@ -241,38 +218,38 @@ function parseCoverArtUrl(raw: string): URL | null {
 
 // Global Exports
 export function getCurrentCoverArt(): number[] | null {
-	return currentCoverArt;
+	return coverArtSessionState.currentCoverArt;
 }
 
 export function getHasCustomCoverArt(): boolean {
-	return hasCustomCoverArt;
+	return coverArtSessionState.hasCustomCoverArt;
 }
 
 export function isCoverArtRemovalRequested(): boolean {
-	return coverArtRemovalRequested;
+	return coverArtSessionState.coverArtRemovalRequested;
 }
 
 export function setCoverArt(coverArtBytes: number[] | null): void {
-	currentCoverArt = coverArtBytes;
+	setCoverArtSession(coverArtBytes);
 	if (coverArtBytes && coverArtBytes.length > 0) {
-		coverArtRemovalRequested = false;
+		setCoverArtRemovalRequested(false);
 	}
 	displayCoverArt(coverArtBytes);
 }
 
 export function setCustomCoverArt(coverArtBytes: number[] | null): void {
-	currentCoverArt = coverArtBytes;
-	hasCustomCoverArt = Boolean(coverArtBytes && coverArtBytes.length > 0);
-	coverArtRemovalRequested = false;
+	setCoverArtSession(coverArtBytes);
+	setHasCustomCoverArt(Boolean(coverArtBytes && coverArtBytes.length > 0));
+	setCoverArtRemovalRequested(false);
 	displayCoverArt(coverArtBytes);
 }
 
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {
 	const markRemoval = options?.markRemoval ?? false;
-	currentCoverArt = null;
+	clearCoverArtSession();
 	displayCoverArt(null);
-	coverArtRemovalRequested = markRemoval;
-	hasCustomCoverArt = false;
+	setCoverArtRemovalRequested(markRemoval);
+	setHasCustomCoverArt(false);
 	setCoverArtUrlInputValue('');
 	clearCoverArtMessage();
 	setCoverArtDragOver(false);

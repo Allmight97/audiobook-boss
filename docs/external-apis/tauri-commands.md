@@ -5,7 +5,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 ## Frontend call path (current contract)
 
 - Runtime calls route through `src/lib/tauri/client.ts` (`tauriClient`).
-- Typical flow: `src/App.svelte` -> `src/ui/**` feature modules -> `tauriClient` -> generated bindings (`src/lib/generated/tauri.ts`) -> Rust commands.
+- Typical flow: `src/App.svelte` shell -> `src/ui/core/bootstrap.ts` or `src/ui/**` feature modules -> `tauriClient` -> generated bindings (`src/lib/generated/tauri.ts`) -> Rust commands.
 - Runtime calls route through the `tauriClient` boundary even where UI features still live in `src/ui/**` modules.
 
 ## Contract generation
@@ -24,7 +24,7 @@ This guide expands on the lightweight index by summarizing the public Tauri IPC 
 | --- | --- | --- |
 | `ping`, `echo` | `src-tauri/src/commands/system.rs` | Integration smoke tests and ad-hoc debug invocation |
 | `validate_files` | `src-tauri/src/commands/audio.rs` → `audio::path_validation` | Integration tests and QA diagnostics |
-| `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport.ts` |
+| `analyze_audio_files` | `src-tauri/src/commands/audio.rs` → `audio::file_list` | Drag/drop and picker flows in `src/ui/fileImport/handlers.ts` |
 | `validate_encoder_settings` | `src-tauri/src/commands/audio.rs` → `audio::settings_encoder` | Reserved for advanced encoder UI; no current UI caller |
 | `process_audiobook_files` | `src-tauri/src/commands/audio.rs` (async) | `src/ui/statusPanel/processing.ts` start/preview flows |
 | `cancel_processing` | `src-tauri/src/commands/audio.rs` → `JobRegistry` | `src/ui/statusPanel/logic.ts` cancel-all and per-job cancel |

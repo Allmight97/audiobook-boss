@@ -14,7 +14,6 @@ const context = vi.hoisted(() => ({
 		],
 	})),
 	metadataSaveInProgress: false,
-	saveMetadataHandler: null as null | (() => void),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -52,6 +51,7 @@ vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
 	getStatusPanel: () => ({ isCurrentlyProcessing: false }),
+	isStatusPanelProcessing: () => false,
 	pushStatusPanelTransientStatus: (message: string) => {
 		const status = document.getElementById('status-text');
 		if (status instanceof HTMLElement) {
@@ -61,21 +61,12 @@ vi.mock('../statusPanel/index', () => ({
 }));
 
 vi.mock('../metadataForm', () => ({
-	initMetadataFormEvents: vi.fn(() => {
-		const saveButton = document.getElementById('metadata-save-btn');
-		if (saveButton instanceof HTMLButtonElement) {
-			saveButton.onclick = () => {
-				context.saveMetadataHandler?.();
-			};
-		}
-	}),
+	initMetadataFormEvents: vi.fn(),
 	resetDirtyState: context.resetDirtyStateMock,
 	onMetadataFormFieldInput: vi.fn(),
 	onMetadataFormActionSelectChange: vi.fn(),
 	triggerMetadataFormSave: vi.fn(),
-	setMetadataFormSaveHandler: (handler: () => void) => {
-		context.saveMetadataHandler = handler;
-	},
+	setMetadataFormSaveHandler: vi.fn(),
 }));
 
 vi.mock('../fileList', () => ({
@@ -99,14 +90,6 @@ vi.mock('../metadataSaveState', () => ({
 	},
 }));
 
-function getSaveButton(): HTMLButtonElement {
-	const button = document.getElementById('metadata-save-btn');
-	if (!(button instanceof HTMLButtonElement)) {
-		throw new Error('metadata-save-btn not found');
-	}
-	return button;
-}
-
 function getStatusText(): HTMLElement {
 	const status = document.getElementById('status-text');
 	if (!(status instanceof HTMLElement)) {
@@ -116,6 +99,8 @@ function getStatusText(): HTMLElement {
 }
 
 describe('metadata save pending flow', () => {
+	let saveMetadataFromUI: typeof import('../core/bootstrap').saveMetadataFromUI;
+
 	beforeAll(async () => {
 		document.body.innerHTML = `
       <div id="app"></div>
@@ -124,6 +109,7 @@ describe('metadata save pending flow', () => {
     `;
 
 		await import('../../main');
+		({ saveMetadataFromUI } = await import('../core/bootstrap'));
 	});
 
 	beforeEach(() => {
@@ -150,7 +136,7 @@ describe('metadata save pending flow', () => {
 		]);
 		context.saveMetadataIntentToFileMock.mockResolvedValue(undefined);
 
-		getSaveButton().click();
+		await saveMetadataFromUI();
 
 		await vi.waitFor(() => {
 			expect(context.saveMetadataIntentToFileMock).toHaveBeenCalledTimes(2);
@@ -173,7 +159,7 @@ describe('metadata save pending flow', () => {
 			.mockResolvedValueOnce(undefined)
 			.mockRejectedValueOnce(new Error('write failed'));
 
-		getSaveButton().click();
+		await saveMetadataFromUI();
 
 		await vi.waitFor(() => {
 			expect(context.saveMetadataIntentToFileMock).toHaveBeenCalledTimes(2);
@@ -187,7 +173,7 @@ describe('metadata save pending flow', () => {
 		context.persistPendingDraftsMock.mockResolvedValue(false);
 		context.getPendingIntentEntriesMock.mockReturnValue([]);
 
-		getSaveButton().click();
+		await saveMetadataFromUI();
 
 		await vi.waitFor(() => {
 			expect(context.persistPendingDraftsMock).toHaveBeenCalledWith({

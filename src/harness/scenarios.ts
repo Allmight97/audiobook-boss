@@ -1,4 +1,8 @@
-export type HarnessScenarioId = 'metadata-edit' | 'status-processing' | 'output-preview';
+export type HarnessScenarioId =
+	| 'file-management'
+	| 'metadata-edit'
+	| 'status-processing'
+	| 'output-preview';
 
 export type HarnessScenarioVerifyCheck = {
 	id: string;
@@ -68,6 +72,7 @@ const RUN_ALL_MATCHERS = [
 	/^src\/HarnessApp\.svelte$/,
 	/^src\/harness-main\.ts$/,
 	/^src\/harness\//,
+	/^src\/ui\/core\//,
 	/^scripts\/harness\//,
 	/^src\/styles\.css$/,
 ] as const;
@@ -80,11 +85,61 @@ const UI_SURFACE_MATCHERS = [
 	/^src\/harness\//,
 ] as const;
 
+const IGNORED_UI_PATH_MATCHERS = [/^src\/ui\/__tests__\//] as const;
+
 const SCENARIOS: readonly HarnessScenario[] = [
+	{
+		id: 'file-management',
+		title: 'File Management',
+		description:
+			'Verifies file import, selection context, reorder behavior, and clear/reimport behavior.',
+		route: '/harness.html',
+		screenshotName: 'file-management.png',
+		matchers: [
+			/^src\/ui\/fileImport(?:\/|\.ts$)/,
+			/^src\/ui\/fileList\/(?:actions|dom|events|index|inspectorState\.svelte|selection|state(?:\.svelte)?|viewState\.svelte)\.ts$/,
+		],
+		verifyChecks: [
+			{
+				id: 'selection-follows-reorder',
+				label:
+					'Reordering a selected file preserves the logical file selection and inspector context.',
+			},
+			{
+				id: 'clear-and-reimport',
+				label: 'Clearing the file list and re-importing restores the populated input lane.',
+			},
+		],
+		review: {
+			controls: [
+				{ selector: '.drop-zone-header', label: 'Add audio files header' },
+				{ selector: '#sort-toggle-btn', label: 'Sort toggle button' },
+				{ selector: '#clear-files-btn', label: 'Clear files button' },
+				{ selector: '.file-list-content', label: 'File list content' },
+			],
+			actions: [
+				{
+					id: 'reorder-selection-context',
+					label: 'Moving a selected file keeps the inspector bound to the same file.',
+					type: 'assert-text',
+					selector: '.inspector-context',
+					expectedText: '02-dune-part-2.mp3',
+				},
+			],
+			advisoryTargets: [
+				{
+					selector: '.file-management-container',
+					message:
+						'Review input-lane density so import affordances, file order controls, and inspector state read as one coherent surface.',
+				},
+			],
+		},
+	},
 	{
 		id: 'metadata-edit',
 		title: 'Metadata Edit',
-		description: 'Verifies metadata form rendering, dirty-state actions, and lookup modal access.',
+		description:
+			'Verifies metadata form rendering, lookup apply behavior, and cover-art interactions.',
 		route: '/harness.html',
 		screenshotName: 'metadata-edit.png',
 		matchers: [
@@ -92,6 +147,7 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/ui\/metadataLookup(?:\/|\.ts$)/,
 			/^src\/ui\/metadataState\.ts$/,
 			/^src\/ui\/coverArt(?:\/|\.ts$)/,
+			/^src\/ui\/fileList\/metadataPanel\.ts$/,
 			/^src\/ui\/tagPreview(?:\/|\.ts$)/,
 			/^src\/types\/metadata(?:Intent)?\.ts$/,
 		],
@@ -99,6 +155,10 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			{
 				id: 'lookup-apply',
 				label: 'Metadata lookup applies the selected result to the form.',
+			},
+			{
+				id: 'cover-art-load',
+				label: 'Cover-art URL loading updates the preview image and status message.',
 			},
 		],
 		review: {
@@ -138,6 +198,10 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/types\/events\.ts$/,
 		],
 		verifyChecks: [
+			{
+				id: 'order-lock-visible',
+				label: 'Processing locks file-order controls while work is in flight.',
+			},
 			{
 				id: 'queue-completes',
 				label: 'Queued processing reaches a completed 100.0% state.',
@@ -191,6 +255,10 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			/^src\/ui\/tagPreview(?:\/|\.ts$)/,
 		],
 		verifyChecks: [
+			{
+				id: 'encoder-controls-reactive',
+				label: 'Encoder controls react to availability and manual selection in the preview lane.',
+			},
 			{
 				id: 'custom-template-row',
 				label: 'Selecting the custom naming template reveals the template row.',
@@ -277,6 +345,9 @@ export function findUnmappedHarnessUiPaths(paths: string[]): string[] {
 	const normalizedPaths = paths.map(normalizePath);
 	return normalizedPaths.filter((path) => {
 		if (!matchesAny(path, UI_SURFACE_MATCHERS)) {
+			return false;
+		}
+		if (matchesAny(path, IGNORED_UI_PATH_MATCHERS)) {
 			return false;
 		}
 		if (matchesAny(path, RUN_ALL_MATCHERS)) {

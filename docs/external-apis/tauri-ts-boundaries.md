@@ -6,7 +6,7 @@
 - Runtime boundary adapter: `src/lib/tauri/client.ts`
 - Boundary normalizers: `src/lib/tauri/normalizers.ts`
 - Event compatibility contract: `src/types/events.ts`
-- Runtime consumers: `src/App.svelte` + `src/ui/**`
+- Runtime consumers: `src/App.svelte` shell + `src/ui/core/bootstrap.ts` + `src/ui/**`
 
 ### Contract model
 
@@ -50,6 +50,7 @@
 - `tauriClient` is the canonical runtime boundary for commands and events.
 - Generated bindings stay internal to the boundary adapter; runtime modules should not invoke them directly.
 - New runtime integrations should land through `tauriClient` plus reactive Svelte/store flows, not ad hoc direct invocations.
+- Browser/platform DOM work may remain imperative when it is truly operational, but business truth and cross-feature coordination should stay on the reactive side of the boundary.
 
 ### Listener hygiene
 

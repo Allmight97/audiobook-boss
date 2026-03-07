@@ -14,79 +14,54 @@ import {
 	renderAutoResolutionHints,
 	resetAutoResolutionHints,
 } from '../encoderPanel/autoResolutionHints';
+import {
+	resetInspectorState,
+	setInspectorContext,
+	setInspectorValues,
+} from './inspectorState.svelte';
 import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state';
+
+let latestSingleSelectionRequestId = 0;
+let latestAutoCoverRequestId = 0;
 
 function refreshOutputForMetadataChange(): void {
 	updateOutputPath();
 	updateEstimatedSize();
 }
 
-function setText(id: string, value: string): void {
-	const el = document.getElementById(id);
-	if (el) el.textContent = value;
-}
-
 function updatePropertiesContextSingle(file: AudioFile, index: number): void {
-	const contextEl = document.getElementById('prop-selected-context');
 	const fileList = getCurrentFileList();
-	if (!contextEl || !fileList) return;
-
-	contextEl.replaceChildren();
+	if (!fileList) return;
 
 	if (index < 0 || index >= fileList.files.length) {
-		const emptySpan = document.createElement('span');
-		emptySpan.className = 'context-empty';
-		emptySpan.textContent = 'No file selected';
-		contextEl.appendChild(emptySpan);
+		setInspectorContext({ text: 'No file selected', variant: 'empty' });
 		return;
 	}
 
 	const fileName = file.path.split(/[\\/]/).pop() || file.path;
-	const totalFiles = fileList.files.length;
-
-	const filenameSpan = document.createElement('span');
-	filenameSpan.className = 'context-filename';
-	filenameSpan.title = fileName;
-	filenameSpan.textContent = fileName;
-
-	const posSpan = document.createElement('span');
-	posSpan.className = 'context-position';
-	posSpan.textContent = `${index + 1} of ${totalFiles}`;
-
-	contextEl.appendChild(filenameSpan);
-	contextEl.appendChild(posSpan);
+	setInspectorContext({
+		text: fileName,
+		variant: 'single',
+		detail: `${index + 1} of ${fileList.files.length}`,
+	});
 }
 
 function updatePropertiesContextMulti(selectedCount: number): void {
-	const contextEl = document.getElementById('prop-selected-context');
-	if (!contextEl) return;
-
-	contextEl.replaceChildren();
-
-	const span = document.createElement('span');
-	span.className = 'context-filename';
-	span.textContent = `${selectedCount} files selected`;
-	contextEl.appendChild(span);
-}
-
-function clearPropertiesContext(): void {
-	const contextEl = document.getElementById('prop-selected-context');
-	if (!contextEl) return;
-
-	contextEl.replaceChildren();
-	const emptySpan = document.createElement('span');
-	emptySpan.className = 'context-empty';
-	emptySpan.textContent = 'No file selected';
-	contextEl.appendChild(emptySpan);
+	setInspectorContext({
+		text: `${selectedCount} files selected`,
+		variant: 'multi',
+	});
 }
 
 function clearPropertyValues(): void {
-	setText('prop-bitrate', '---');
-	setText('prop-samplerate', '---');
-	setText('prop-channels', '---');
-	setText('prop-codec', '---');
-	setText('prop-decoder', '---');
-	setText('prop-filesize', '---');
+	setInspectorValues({
+		bitrateText: '---',
+		sampleRateText: '---',
+		channelsText: '---',
+		codecText: '---',
+		decoderText: '---',
+		fileSizeText: '---',
+	});
 }
 
 function formatOptionalText(value: string | undefined): string {
@@ -139,27 +114,16 @@ export async function ensureMetadataForFiles(files: AudioFile[]): Promise<void> 
 	await Promise.all(validFiles.map((file) => loadMetadataForFile(file)));
 }
 
-export function updateFileProperties(
-	file: AudioFile,
-	options?: { skipMetadataLoad?: boolean },
-): void {
+export function updateFileProperties(file: AudioFile): void {
 	if (file.isValid) {
-		setText('prop-bitrate', file.bitrate ? `${file.bitrate} kb/s` : 'N/A');
-		setText('prop-samplerate', file.sampleRate ? `${file.sampleRate} Hz` : 'N/A');
-		setText('prop-channels', file.channels ? `${file.channels} ch` : 'N/A');
-		setText('prop-codec', formatOptionalText(file.codecLabel));
-		setText('prop-decoder', formatOptionalText(file.selectedDecoder));
-		setText('prop-filesize', file.size ? formatFileSize(file.size) : 'N/A');
-
-		if (!options?.skipMetadataLoad) {
-			void loadMetadataForFile(file).then((metadata) => {
-				if (metadata) {
-					populateMetadataFormSingle(metadata);
-					refreshOutputForMetadataChange();
-					updateTagPreview();
-				}
-			});
-		}
+		setInspectorValues({
+			bitrateText: file.bitrate ? `${file.bitrate} kb/s` : 'N/A',
+			sampleRateText: file.sampleRate ? `${file.sampleRate} Hz` : 'N/A',
+			channelsText: file.channels ? `${file.channels} ch` : 'N/A',
+			codecText: formatOptionalText(file.codecLabel),
+			decoderText: formatOptionalText(file.selectedDecoder),
+			fileSizeText: file.size ? formatFileSize(file.size) : 'N/A',
+		});
 	} else {
 		clearPropertyValues();
 	}
@@ -167,36 +131,78 @@ export function updateFileProperties(
 	updatePropertiesContextSingle(file, getSelectedFileIndex());
 }
 
+function isCurrentSingleSelectionRequest(requestId: number, filePath: string): boolean {
+	if (requestId !== latestSingleSelectionRequestId) return false;
+	if (getSelectedFileIndices().size !== 1) return false;
+
+	const fileList = getCurrentFileList();
+	const selectedIndex = getSelectedFileIndex();
+	if (!fileList || selectedIndex < 0 || selectedIndex >= fileList.files.length) {
+		return false;
+	}
+
+	return fileList.files[selectedIndex]?.path === filePath;
+}
+
+function isCurrentMultiSelectionRequest(requestId: number, filePaths: string[]): boolean {
+	if (requestId !== latestSingleSelectionRequestId) return false;
+
+	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
+	if (selectedIndices.length !== filePaths.length) return false;
+
+	const fileList = getCurrentFileList();
+	if (!fileList) return false;
+
+	const selectedPaths = selectedIndices
+		.map((index) => fileList.files[index]?.path)
+		.filter((path): path is string => typeof path === 'string')
+		.sort();
+	const expectedPaths = [...filePaths].sort();
+
+	if (selectedPaths.length !== expectedPaths.length) return false;
+	return selectedPaths.every((path, index) => path === expectedPaths[index]);
+}
+
 export async function showSingleSelection(file: AudioFile): Promise<void> {
+	const requestId = ++latestSingleSelectionRequestId;
 	renderAutoResolutionHints([file]);
+	updateFileProperties(file);
+	refreshOutputForMetadataChange();
+	updateTagPreview();
 
 	const stored = getMetadataForFile(file.path);
 	if (stored) {
-		updateFileProperties(file, { skipMetadataLoad: true });
+		if (!isCurrentSingleSelectionRequest(requestId, file.path)) {
+			return;
+		}
 		populateMetadataFormSingle(stored);
+		refreshOutputForMetadataChange();
+		updateTagPreview();
 	} else {
-		updateFileProperties(file);
-	}
+		const metadata = await loadMetadataForFile(file);
+		if (!metadata || !isCurrentSingleSelectionRequest(requestId, file.path)) {
+			return;
+		}
 
-	refreshOutputForMetadataChange();
-	updateTagPreview();
+		populateMetadataFormSingle(metadata);
+		refreshOutputForMetadataChange();
+		updateTagPreview();
+	}
 }
 
 export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<void> {
+	const requestId = ++latestSingleSelectionRequestId;
 	renderAutoResolutionHints(selectedFiles);
 
-	const selectedCount = selectedFiles.length;
-
-	updatePropertiesContextMulti(selectedCount);
-	clearPropertyValues();
-	setText(
-		'prop-codec',
-		summarizeSharedTextValue(selectedFiles, (file) => file.codecLabel),
-	);
-	setText(
-		'prop-decoder',
-		summarizeSharedTextValue(selectedFiles, (file) => file.selectedDecoder),
-	);
+	updatePropertiesContextMulti(selectedFiles.length);
+	setInspectorValues({
+		bitrateText: '---',
+		sampleRateText: '---',
+		channelsText: '---',
+		codecText: summarizeSharedTextValue(selectedFiles, (file) => file.codecLabel),
+		decoderText: summarizeSharedTextValue(selectedFiles, (file) => file.selectedDecoder),
+		fileSizeText: '---',
+	});
 
 	resetDirtyState();
 
@@ -208,21 +214,29 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 		}),
 	);
 
-	populateMetadataFormMulti(metadataList, selectedCount);
+	if (
+		!isCurrentMultiSelectionRequest(
+			requestId,
+			selectedFiles.map((file) => file.path),
+		)
+	) {
+		return;
+	}
+
+	populateMetadataFormMulti(metadataList, selectedFiles.length);
 	refreshOutputForMetadataChange();
 	updateTagPreview();
 }
 
 export function clearSelectionPanels(): void {
 	resetAutoResolutionHints();
-
-	clearPropertyValues();
-	clearPropertiesContext();
+	resetInspectorState();
 	populateMetadataFormSingle({});
 	clearCoverArt();
 }
 
 export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
+	const requestId = ++latestAutoCoverRequestId;
 	try {
 		if (getHasCustomCoverArt()) return;
 		const fileList = getCurrentFileList();
@@ -236,8 +250,18 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 			return;
 		}
 		const metadata = await tauriClient.readAudioMetadata(firstValid.path);
+		if (
+			requestId !== latestAutoCoverRequestId ||
+			getHasCustomCoverArt() ||
+			getCurrentFileList()?.files.find((file) => file.isValid)?.path !== firstValid.path
+		) {
+			return;
+		}
 		setCoverArt(metadata.cover_art || null);
 	} catch (error) {
+		if (requestId !== latestAutoCoverRequestId || getHasCustomCoverArt()) {
+			return;
+		}
 		setCoverArt(null);
 		console.warn('Failed to auto-load cover art:', error);
 	}

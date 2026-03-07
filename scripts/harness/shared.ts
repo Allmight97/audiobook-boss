@@ -60,9 +60,12 @@ export async function gotoHarnessRoute(page: Page, origin: string, route: string
 	await page.goto(`${origin}${route}`, {
 		waitUntil: 'load',
 	});
-	await page.waitForFunction(() => typeof window.__ABB_HARNESS__ !== 'undefined', {
-		timeout: 10_000,
-	});
+	await page.waitForFunction(
+		() => typeof window.__ABB_HARNESS__ !== 'undefined' && window.__ABB_HARNESS_READY__ === true,
+		{
+			timeout: 10_000,
+		},
+	);
 }
 
 export async function resetHarnessState(page: Page): Promise<void> {

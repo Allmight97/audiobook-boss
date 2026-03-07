@@ -4,14 +4,14 @@
  * Re-exports public API from submodules.
  */
 import { loadInitialState } from './state';
-import { setupEventHandlers } from './handlers';
+import { resetOutputPanelHandlers } from './handlers';
 import { updateOutputPath, updateEstimatedSize, updateNamingOptionState } from './dom';
 
 /**
  * Initializes the output panel with event handlers
  */
 export function initOutputPanel(): void {
-	setupEventHandlers();
+	resetOutputPanelHandlers();
 	loadInitialState();
 	updateNamingOptionState();
 	updateOutputPath();

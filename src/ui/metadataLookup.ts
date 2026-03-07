@@ -15,6 +15,10 @@ import { getCurrentFileList } from './fileList';
 import { selectFile } from './fileList/actions';
 import { getSelectedFileIndices } from './fileList/state';
 import {
+	clearMetadataLookupQueue,
+	metadataLookupQueueState,
+	setMetadataLookupQueue,
+	setMetadataLookupQueueIndex,
 	metadataLookupState,
 	type MetadataLookupApplyMode,
 	type MetadataLookupStatusVariant,
@@ -34,9 +38,6 @@ type QueueItemState = {
 	metadataPatch: MetadataIntentPatch;
 	cover: QueueCoverState;
 };
-
-let lookupQueue: LookupQueueItem[] = [];
-let queueIndex = 0;
 
 function refreshOutputForMetadataChange(): void {
 	updateOutputPath();
@@ -95,18 +96,19 @@ function deriveQueryFromFile(file: AudioFile): string {
 }
 
 function updateQueueContext(): void {
-	if (lookupQueue.length === 0) {
+	const { queue, index } = metadataLookupQueueState;
+	if (queue.length === 0) {
 		metadataLookupState.queueContext = 'No files selected.';
 		return;
 	}
 
-	const current = lookupQueue[queueIndex];
-	const label = `${queueIndex + 1} of ${lookupQueue.length}`;
+	const current = queue[index];
+	const label = `${index + 1} of ${queue.length}`;
 	metadataLookupState.queueContext = `${label} • ${formatFileName(current.file.path)}`;
 }
 
 function updateApplyModeOptions(): void {
-	const multi = lookupQueue.length > 1;
+	const multi = metadataLookupQueueState.queue.length > 1;
 	metadataLookupState.isQueueMode = multi;
 	metadataLookupState.applyMode = multi ? 'queue' : 'current';
 	metadataLookupState.skipEnabled = multi;
@@ -154,19 +156,20 @@ function restoreCoverArtForFile(file: AudioFile | null): void {
 }
 
 async function advanceQueue(reason: 'applied' | 'skipped'): Promise<void> {
-	if (lookupQueue.length === 0) return;
+	const { queue, index } = metadataLookupQueueState;
+	if (queue.length === 0) return;
 
-	if (queueIndex >= lookupQueue.length - 1) {
-		restoreCoverArtForFile(lookupQueue[queueIndex]?.file ?? null);
+	if (index >= queue.length - 1) {
+		restoreCoverArtForFile(queue[index]?.file ?? null);
 		setStatus('Queue complete.', 'success');
 		return;
 	}
 
 	clearCoverArt();
-	queueIndex += 1;
+	setMetadataLookupQueueIndex(index + 1);
 	updateQueueContext();
 
-	const nextItem = lookupQueue[queueIndex];
+	const nextItem = metadataLookupQueueState.queue[index + 1];
 	if (nextItem) {
 		await selectFile(nextItem.index, { multi: false, range: false }, { skipPersistPrevious: true });
 		metadataLookupState.query = deriveQueryFromFile(nextItem.file);
@@ -228,7 +231,8 @@ async function applyCoverArt(result: OnlineMetadataResult): Promise<number[] | n
 }
 
 async function applyResult(result: OnlineMetadataResult): Promise<void> {
-	if (lookupQueue.length === 0) {
+	const queue = metadataLookupQueueState.queue;
+	if (queue.length === 0) {
 		setStatus('Select at least one file before applying metadata.', 'error');
 		return;
 	}
@@ -236,7 +240,7 @@ async function applyResult(result: OnlineMetadataResult): Promise<void> {
 	const metadata = mapResultToMetadata(result);
 	const mode = getApplyMode();
 
-	const current = lookupQueue[queueIndex];
+	const current = queue[metadataLookupQueueState.index];
 	if (current) {
 		await selectFile(current.index, { multi: false, range: false }, { skipPersistPrevious: true });
 	}
@@ -328,20 +332,21 @@ export function useManualMetadataEntryFromLookup(): void {
 
 export function openMetadataLookup(): void {
 	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
-	lookupQueue = selectedIndices
+	const fileList = getCurrentFileList();
+	const queue = selectedIndices
 		.map((index) => {
-			const file = getCurrentFileList()?.files[index];
+			const file = fileList?.files[index];
 			if (!file || !file.isValid) return null;
 			return { file, index };
 		})
 		.filter((item): item is LookupQueueItem => Boolean(item));
-	queueIndex = 0;
+	setMetadataLookupQueue(queue);
 
-	if (lookupQueue.length === 0) {
+	if (metadataLookupQueueState.queue.length === 0) {
 		metadataLookupState.query = '';
 		setStatus('Select a valid file to search metadata.', 'error');
 	} else {
-		metadataLookupState.query = deriveQueryFromFile(lookupQueue[0].file);
+		metadataLookupState.query = deriveQueryFromFile(metadataLookupQueueState.queue[0].file);
 		setStatus('', 'info');
 	}
 
@@ -358,4 +363,5 @@ export function initMetadataLookup(): void {
 	metadataLookupState.results = [];
 	metadataLookupState.hasSearched = false;
 	metadataLookupState.statusMessage = '';
+	clearMetadataLookupQueue();
 }

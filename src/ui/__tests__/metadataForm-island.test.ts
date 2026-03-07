@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/svelte';
 import MetadataFormFieldsIsland from '../metadataForm/MetadataFormFieldsIsland.svelte';
+import { metadataFormState } from '../metadataForm/state.svelte';
 import {
 	initMetadataFormEvents,
 	onMetadataFormActionSelectChange,
@@ -39,7 +40,7 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		titleInput.value = 'Dune';
 		titleInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-		expect(titleInput.dataset.dirty).toBe('true');
+		expect(metadataFormState.fields['meta-title'].dirty).toBe(true);
 		expect(titleAction.value).toBe('keep');
 	});
 
@@ -47,7 +48,7 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		initMetadataFormEvents();
 		setMetadataFormMode('multi', 3);
 
-		const count = document.getElementById('metadata-selection-count');
-		expect(count?.textContent).toBe('3 files selected');
+		expect(metadataFormState.mode).toBe('multi');
+		expect(metadataFormState.selectionCount).toBe(3);
 	});
 });

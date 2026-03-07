@@ -1,4 +1,3 @@
-import { setMetadataFormSaveHandler } from '../ui/metadataForm';
 import { initFileImport } from '../ui/fileImport';
 import { displayFileList, selectFile } from '../ui/fileList/actions';
 import { initEncoderPanel } from '../ui/encoderPanel';
@@ -25,8 +24,6 @@ function seedMetadataState(): void {
 }
 
 export async function bootstrapHarnessRuntime(): Promise<void> {
-	setMetadataFormSaveHandler(() => {});
-
 	initFileImport();
 	initEncoderPanel();
 	initOutputPanel();

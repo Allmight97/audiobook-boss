@@ -9,57 +9,33 @@ import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
 } from './metadataForm/previewState.svelte';
+import {
+	getMetadataFieldDefinitionByActionId,
+	getMetadataFieldDefinitionByInputId,
+	metadataFormState,
+	METADATA_FIELD_DEFINITIONS,
+	setMetadataFormFieldAction,
+	setMetadataFormFieldDirty,
+	setMetadataFormFieldMixed,
+	setMetadataFormFieldValue,
+	setMetadataFormModeState,
+	resetMetadataFormWarnings,
+	type MetadataActionId,
+	type MetadataFieldId,
+	type MetadataFieldAction,
+	type MetadataFormMode,
+} from './metadataForm/state.svelte';
 import { updateTagPreview } from './tagPreview';
 
-export type MetadataFormMode = 'single' | 'multi';
 type MetadataFormSaveHandler = () => void;
 
-type FieldConfig = {
-	inputId: string;
-	actionId: string;
-	key: keyof AudiobookMetadata;
-	mapToAlbum?: boolean;
-	unconditional?: boolean;
-};
+function readFieldValue(inputId: MetadataFieldId): string {
+	return metadataFormState.fields[inputId].value;
+}
 
-type FieldAction = 'keep' | 'blank';
-
-const FIELD_CONFIGS: FieldConfig[] = [
-	{ inputId: 'meta-title', actionId: 'meta-title-action', key: 'title', mapToAlbum: true },
-	{ inputId: 'meta-author', actionId: 'meta-author-action', key: 'artist' },
-	{ inputId: 'meta-narrator', actionId: 'meta-narrator-action', key: 'composer' },
-	{ inputId: 'meta-year', actionId: 'meta-year-action', key: 'date' },
-	{ inputId: 'meta-genre', actionId: 'meta-genre-action', key: 'genre' },
-	{ inputId: 'meta-series', actionId: 'meta-series-action', key: 'series', unconditional: true },
-	{
-		inputId: 'meta-series-part',
-		actionId: 'meta-series-part-action',
-		key: 'series_part',
-		unconditional: true,
-	},
-	{
-		inputId: 'meta-subseries',
-		actionId: 'meta-subseries-action',
-		key: 'subseries',
-		unconditional: true,
-	},
-	{
-		inputId: 'meta-subseries-part',
-		actionId: 'meta-subseries-part-action',
-		key: 'subseries_part',
-		unconditional: true,
-	},
-	{
-		inputId: 'meta-description',
-		actionId: 'meta-description-action',
-		key: 'description',
-		unconditional: true,
-	},
-];
-
-const MIXED_PLACEHOLDER = 'Mixed values';
-
-let onSaveMetadataHandler: MetadataFormSaveHandler | null = null;
+function readFieldAction(inputId: MetadataFieldId): MetadataFieldAction {
+	return metadataFormState.fields[inputId].action;
+}
 
 function normalizePublicationDate(raw: string): string | null {
 	const trimmed = raw.trim();
@@ -77,193 +53,93 @@ function normalizePublicationDate(raw: string): string | null {
 	return `${match[1]}-${match[2]}`;
 }
 
-function getMetadataForm(): HTMLElement | null {
-	return document.getElementById('metadata-form');
+function markDirty(inputId: MetadataFieldId): void {
+	setMetadataFormFieldDirty(inputId, true);
 }
 
-function getSelectionCountEl(): HTMLElement | null {
-	return document.getElementById('metadata-selection-count');
+function isDirty(inputId: MetadataFieldId): boolean {
+	return metadataFormState.fields[inputId].dirty;
 }
 
-function getInputElement(id: string): HTMLInputElement | HTMLTextAreaElement | null {
-	const el = document.getElementById(id);
-	if (!el) return null;
-	if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-		return el;
-	}
-	return null;
+/**
+ * Kept for compatibility during migration.
+ * New callers should invoke bootstrap-level save actions directly from UI intent.
+ */
+export function setMetadataFormSaveHandler(_handler: MetadataFormSaveHandler): void {
+	// Deprecated: module-global save handler registration is no longer used.
 }
 
-function getActionElement(id: string): HTMLSelectElement | null {
-	const el = document.getElementById(id);
-	if (el instanceof HTMLSelectElement) {
-		return el;
-	}
-	return null;
-}
-
-function cacheDefaultPlaceholder(input: HTMLInputElement | HTMLTextAreaElement): void {
-	if (!input.dataset.defaultPlaceholder) {
-		input.dataset.defaultPlaceholder = input.placeholder || '';
-	}
-}
-
-function setMixedPlaceholder(input: HTMLInputElement | HTMLTextAreaElement, mixed: boolean): void {
-	cacheDefaultPlaceholder(input);
-	if (mixed) {
-		input.placeholder = MIXED_PLACEHOLDER;
-		input.dataset.mixed = 'true';
-	} else {
-		input.placeholder = input.dataset.defaultPlaceholder || '';
-		delete input.dataset.mixed;
-	}
-}
-
-function markDirty(input: HTMLInputElement | HTMLTextAreaElement): void {
-	input.dataset.dirty = 'true';
-	input.classList.add('dirty-field');
-}
-
-function isDirty(input: HTMLInputElement | HTMLTextAreaElement): boolean {
-	return input.dataset.dirty === 'true';
-}
-
-function getFieldAction(actionId: string): FieldAction {
-	const action = getActionElement(actionId);
-	return (action?.value as FieldAction) || 'keep';
-}
-
-function setFieldAction(actionId: string, value: FieldAction): void {
-	const action = getActionElement(actionId);
-	if (action) {
-		action.value = value;
-	}
-}
-
-function getFieldConfigByInputId(inputId: string): FieldConfig | undefined {
-	return FIELD_CONFIGS.find((field) => field.inputId === inputId);
-}
-
-function getFieldConfigByActionId(actionId: string): FieldConfig | undefined {
-	return FIELD_CONFIGS.find((field) => field.actionId === actionId);
-}
-
-function isMultiSelectMode(): boolean {
-	const form = getMetadataForm();
-	return form?.dataset.multiSelect === 'true';
-}
-
-export function setMetadataFormSaveHandler(handler: MetadataFormSaveHandler): void {
-	onSaveMetadataHandler = handler;
-}
-
-export function triggerMetadataFormSave(): void {
-	onSaveMetadataHandler?.();
+export function triggerMetadataFormSave(handler?: MetadataFormSaveHandler): void {
+	handler?.();
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {
-	const form = getMetadataForm();
-	if (form) {
-		form.dataset.multiSelect = mode === 'multi' ? 'true' : 'false';
-	}
-
-	const countEl = getSelectionCountEl();
-	if (!countEl) return;
-
-	if (mode === 'multi' && selectionCount && selectionCount > 1) {
-		countEl.textContent = `${selectionCount} files selected`;
-		countEl.hidden = false;
-	} else {
-		countEl.textContent = '';
-		countEl.hidden = true;
-	}
+	setMetadataFormModeState(mode, selectionCount);
 }
 
 export function initMetadataFormEvents(): void {
-	const form = getMetadataForm();
-	if (!form) return;
 	resetMetadataFormPreviewState();
-	for (const field of FIELD_CONFIGS) {
-		const input = getInputElement(field.inputId);
-		if (!input) continue;
-		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
+	for (const field of METADATA_FIELD_DEFINITIONS) {
+		setMetadataFormPreviewValueByInputId(
+			field.inputId,
+			metadataFormState.fields[field.inputId].value,
+		);
 	}
-
 	updateTagPreview();
 }
 
 export function onMetadataFormFieldInput(inputId: string): void {
-	const input = getInputElement(inputId);
-	if (!input) return;
+	const field = getMetadataFieldDefinitionByInputId(inputId);
+	if (!field) return;
 
-	markDirty(input);
-	setMetadataFormPreviewValueByInputId(input.id, input.value);
+	const value = readFieldValue(field.inputId);
+	setMetadataFormFieldValue(field.inputId, value);
+	markDirty(field.inputId);
+	setMetadataFormPreviewValueByInputId(field.inputId, value);
 
-	if (isMultiSelectMode()) {
-		const config = getFieldConfigByInputId(input.id);
-		if (config) {
-			const actionValue: FieldAction = input.value.trim() ? 'keep' : 'blank';
-			setFieldAction(config.actionId, actionValue);
-		}
+	if (metadataFormState.mode === 'multi') {
+		const actionValue: MetadataFieldAction = value.trim() ? 'keep' : 'blank';
+		setMetadataFormFieldAction(field.inputId, actionValue);
 	}
 
 	updateTagPreview();
 }
 
 export function onMetadataFormActionSelectChange(actionId: string): void {
-	const action = getActionElement(actionId);
-	if (!action) return;
+	const field = getMetadataFieldDefinitionByActionId(actionId);
+	if (!field) return;
 
-	const config = getFieldConfigByActionId(actionId);
-	if (!config) return;
+	const nextAction = readFieldAction(field.inputId);
+	setMetadataFormFieldAction(field.inputId, nextAction);
 
-	const input = getInputElement(config.inputId);
-	if (!input) return;
-
-	if (action.value === 'blank') {
-		input.value = '';
-		markDirty(input);
-		setMetadataFormPreviewValueByInputId(input.id, input.value);
-		updateTagPreview();
+	if (metadataFormState.fields[field.inputId].action === 'blank') {
+		setMetadataFormFieldValue(field.inputId, '');
+		markDirty(field.inputId);
+		setMetadataFormPreviewValueByInputId(field.inputId, '');
 	}
+
+	updateTagPreview();
 }
 
 export function resetDirtyState(): void {
-	const form = getMetadataForm();
-	if (!form) return;
-
-	const inputs = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-		"input[id^='meta-'], textarea[id^='meta-']",
-	);
-	inputs.forEach((input) => {
-		delete input.dataset.dirty;
-		input.classList.remove('dirty-field');
-	});
-
-	const actionSelects = form.querySelectorAll<HTMLSelectElement>('.meta-apply-select');
-	actionSelects.forEach((select) => {
-		select.value = 'keep';
-	});
+	for (const field of METADATA_FIELD_DEFINITIONS) {
+		setMetadataFormFieldDirty(field.inputId, false);
+		setMetadataFormFieldAction(field.inputId, 'keep');
+	}
 }
 
 export function hasDirtyMetadataFields(): boolean {
-	const form = getMetadataForm();
-	if (!form) return false;
-	const hasDirtyTextFields = Boolean(
-		form.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-			"input[data-dirty='true'], textarea[data-dirty='true']",
-		),
+	const hasDirtyTextFields = METADATA_FIELD_DEFINITIONS.some((field) =>
+		Boolean(metadataFormState.fields[field.inputId].dirty),
 	);
 	return hasDirtyTextFields || isCoverArtRemovalRequested() || getHasCustomCoverArt();
 }
 
 export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>): void {
 	setMetadataFormMode('single');
+	resetMetadataFormWarnings();
 
-	FIELD_CONFIGS.forEach((field) => {
-		const input = getInputElement(field.inputId);
-		if (!input) return;
-
+	for (const field of METADATA_FIELD_DEFINITIONS) {
 		let value = '';
 		if (field.key === 'date') {
 			const date = metadata.date;
@@ -277,10 +153,10 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 			}
 		}
 
-		input.value = value;
-		setMixedPlaceholder(input, false);
-		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
-	});
+		setMetadataFormFieldValue(field.inputId, value);
+		setMetadataFormFieldMixed(field.inputId, false);
+		setMetadataFormPreviewValueByInputId(field.inputId, value);
+	}
 
 	if (!getHasCustomCoverArt()) {
 		setCoverArt(metadata.cover_art || null);
@@ -295,18 +171,16 @@ export function populateMetadataFormMulti(
 	selectionCount: number,
 ): void {
 	setMetadataFormMode('multi', selectionCount);
+	resetMetadataFormWarnings();
 
 	const hasMetadata = metadataList.length > 0;
 
-	FIELD_CONFIGS.forEach((field) => {
-		const input = getInputElement(field.inputId);
-		if (!input) return;
-
+	for (const field of METADATA_FIELD_DEFINITIONS) {
 		if (!hasMetadata) {
-			input.value = '';
-			setMixedPlaceholder(input, false);
-			setMetadataFormPreviewValueByInputId(field.inputId, input.value);
-			return;
+			setMetadataFormFieldValue(field.inputId, '');
+			setMetadataFormFieldMixed(field.inputId, false);
+			setMetadataFormPreviewValueByInputId(field.inputId, '');
+			continue;
 		}
 
 		const values = metadataList.map((metadata) => {
@@ -321,14 +195,16 @@ export function populateMetadataFormMulti(
 		const uniqueValues = new Set(values);
 		if (uniqueValues.size === 1) {
 			const value = values[0] ?? '';
-			input.value = value;
-			setMixedPlaceholder(input, false);
-		} else {
-			input.value = '';
-			setMixedPlaceholder(input, true);
+			setMetadataFormFieldValue(field.inputId, value);
+			setMetadataFormFieldMixed(field.inputId, false);
+			setMetadataFormPreviewValueByInputId(field.inputId, value);
+			continue;
 		}
-		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
-	});
+
+		setMetadataFormFieldValue(field.inputId, '');
+		setMetadataFormFieldMixed(field.inputId, true);
+		setMetadataFormPreviewValueByInputId(field.inputId, '');
+	}
 
 	if (!getHasCustomCoverArt()) {
 		setCoverArt(null);
@@ -345,31 +221,32 @@ export function applyMetadataToForm(
 	const mode = options?.mode ?? 'single';
 	const shouldMarkDirty = options?.markDirty ?? true;
 
-	FIELD_CONFIGS.forEach((field) => {
-		const input = getInputElement(field.inputId);
-		if (!input) return;
-
+	for (const field of METADATA_FIELD_DEFINITIONS) {
+		let value: string | null = null;
 		if (field.key === 'date') {
 			const date = metadata.date;
-			if (typeof date !== 'string') return;
-			input.value = date.trim();
+			if (typeof date === 'string') {
+				value = date.trim();
+			}
 		} else {
 			const raw = metadata[field.key];
-			if (typeof raw !== 'string') return;
-			input.value = raw;
+			if (typeof raw === 'string') {
+				value = raw;
+			}
 		}
-		setMetadataFormPreviewValueByInputId(field.inputId, input.value);
+		if (value === null) continue;
 
-		setMixedPlaceholder(input, false);
+		setMetadataFormFieldValue(field.inputId, value);
+		setMetadataFormFieldMixed(field.inputId, false);
+		setMetadataFormPreviewValueByInputId(field.inputId, value);
 		if (shouldMarkDirty) {
-			markDirty(input);
+			setMetadataFormFieldDirty(field.inputId, true);
 		}
-
 		if (mode === 'multi') {
-			const actionValue: FieldAction = input.value.trim() ? 'keep' : 'blank';
-			setFieldAction(field.actionId, actionValue);
+			setMetadataFormFieldAction(field.inputId, value.trim() ? 'keep' : 'blank');
 		}
-	});
+	}
+
 	updateTagPreview();
 }
 
@@ -389,50 +266,47 @@ export function readMetadataForm(options?: {
 		metadata[key] = value;
 	};
 
-	FIELD_CONFIGS.forEach((field) => {
-		const input = getInputElement(field.inputId);
-		if (!input) return;
-
-		const raw = input.value.trim();
-		const dirty = isDirty(input);
+	for (const field of METADATA_FIELD_DEFINITIONS) {
+		const raw = readFieldValue(field.inputId).trim();
+		const dirty = isDirty(field.inputId);
 
 		if (mode === 'multi') {
-			const action = getFieldAction(field.actionId);
-
+			const action = readFieldAction(field.inputId);
 			if (action === 'blank') {
 				if (field.key === 'date') {
 					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 				} else {
 					setMetadataValue(field.key, '' as AudiobookMetadata[typeof field.key]);
-					if (field.mapToAlbum && field.key === 'title') {
+					if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
 						metadata.album = '';
 					}
 				}
-				return;
+				continue;
 			}
 
-			if (!dirty) return;
+			const hasSharedValue = !metadataFormState.fields[field.inputId].mixed && raw.length > 0;
+			if (!dirty && (onlyDirty || !hasSharedValue)) continue;
 
 			if (field.key === 'date') {
 				if (!raw) {
 					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
-					return;
+					continue;
 				}
 				const parsed = normalizePublicationDate(raw);
 				if (parsed !== null) {
 					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
 				}
-				return;
+				continue;
 			}
 
 			setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-			if (field.mapToAlbum && field.key === 'title') {
+			if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
 				metadata.album = raw;
 			}
-			return;
+			continue;
 		}
 
-		if (onlyDirty && !dirty) return;
+		if (onlyDirty && !dirty) continue;
 
 		if (field.key === 'date') {
 			if (raw) {
@@ -443,18 +317,18 @@ export function readMetadataForm(options?: {
 			} else if (dirty) {
 				setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 			}
-			return;
+			continue;
 		}
 
-		const shouldInclude = raw || dirty || (field.unconditional && !onlyDirty);
-
-		if (!shouldInclude) return;
+		const shouldInclude =
+			raw || dirty || ('unconditional' in field && field.unconditional && !onlyDirty);
+		if (!shouldInclude) continue;
 
 		setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-		if (field.mapToAlbum && field.key === 'title') {
+		if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
 			metadata.album = raw;
 		}
-	});
+	}
 
 	if (mode === 'single' && includeCoverArt) {
 		if (isCoverArtRemovalRequested()) {
@@ -469,3 +343,5 @@ export function readMetadataForm(options?: {
 
 	return metadata;
 }
+
+export type { MetadataFormMode, MetadataFieldAction, MetadataActionId, MetadataFieldId };

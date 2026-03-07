@@ -1,5 +1,5 @@
 import type { AudioFile } from '../../types/audio';
-import type { EncoderDomCache } from './dom';
+import { resetAutoHints, setChannelsAutoHint, setSampleRateAutoHint } from './state.svelte';
 
 const UNKNOWN_SAMPLE_RATE_HINT = 'Auto resolves from source audio.';
 const UNKNOWN_CHANNELS_HINT = 'Auto resolves from source audio.';
@@ -12,11 +12,6 @@ export interface AutoResolutionHints {
 	sampleRateHint: string;
 	channelsHint: string;
 }
-
-type AutoResolutionHintDomTargets = Pick<
-	EncoderDomCache,
-	'sampleRateAutoHint' | 'channelsAutoHint'
->;
 
 const toPositiveInt = (value: number | undefined): number | null => {
 	if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -98,11 +93,6 @@ const resolveChannelsHint = (selectedFiles: readonly AudioFile[]): string => {
 	return `Auto resolves to ${channelLabel} across selected files.`;
 };
 
-const queryHintDomTargets = (): AutoResolutionHintDomTargets => ({
-	sampleRateAutoHint: document.getElementById('output-samplerate-effective'),
-	channelsAutoHint: document.getElementById('output-channels-effective'),
-});
-
 export const resolveAutoResolutionHints = (
 	selectedFiles: readonly AudioFile[],
 ): AutoResolutionHints => ({
@@ -110,22 +100,12 @@ export const resolveAutoResolutionHints = (
 	channelsHint: resolveChannelsHint(selectedFiles),
 });
 
-export const renderAutoResolutionHints = (
-	selectedFiles: readonly AudioFile[],
-	targets?: AutoResolutionHintDomTargets,
-): void => {
-	const resolvedTargets = targets ?? queryHintDomTargets();
+export const renderAutoResolutionHints = (selectedFiles: readonly AudioFile[]): void => {
 	const hints = resolveAutoResolutionHints(selectedFiles);
-
-	if (resolvedTargets.sampleRateAutoHint) {
-		resolvedTargets.sampleRateAutoHint.textContent = hints.sampleRateHint;
-	}
-
-	if (resolvedTargets.channelsAutoHint) {
-		resolvedTargets.channelsAutoHint.textContent = hints.channelsHint;
-	}
+	setSampleRateAutoHint(hints.sampleRateHint);
+	setChannelsAutoHint(hints.channelsHint);
 };
 
-export const resetAutoResolutionHints = (targets?: AutoResolutionHintDomTargets): void => {
-	renderAutoResolutionHints([], targets);
+export const resetAutoResolutionHints = (): void => {
+	resetAutoHints();
 };

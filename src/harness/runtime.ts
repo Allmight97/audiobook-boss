@@ -50,6 +50,7 @@ type HarnessBrowserApi = {
 declare global {
 	interface Window {
 		__ABB_HARNESS__?: HarnessBrowserApi;
+		__ABB_HARNESS_READY__?: boolean;
 	}
 }
 
@@ -109,9 +110,15 @@ export function installHarnessRuntime(): void {
 	if (typeof window === 'undefined') return;
 
 	installHarnessTauriMock();
+	window.__ABB_HARNESS_READY__ = false;
+
+	const harnessReady = bootstrapHarnessRuntime().then(() => {
+		window.__ABB_HARNESS_READY__ = true;
+	});
 
 	window.__ABB_HARNESS__ = {
 		reset: async () => {
+			await harnessReady;
 			clearMetadataState();
 			populateMetadataFormSingle({});
 			resetDirtyState();
@@ -125,19 +132,21 @@ export function installHarnessRuntime(): void {
 			await settleUi();
 		},
 		seedMetadata: async (metadata) => {
+			await harnessReady;
 			populateMetadataFormSingle(metadata);
 			updateOutputPath();
 			await settleUi();
 		},
 		seedOutput: async (seed) => {
+			await harnessReady;
 			applyOutputSeed(seed);
 			await settleUi();
 		},
 		seedStatus: async (seed) => {
+			await harnessReady;
 			applyStatusSeed(seed);
 			await settleUi();
 		},
 	};
-
-	void bootstrapHarnessRuntime();
+	void harnessReady;
 }

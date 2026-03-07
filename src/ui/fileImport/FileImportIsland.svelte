@@ -9,6 +9,9 @@
 		onFileListDragStart,
 		onFileListDrop,
 		onFileListKeyDown,
+		onFileListMoveDown,
+		onFileListMoveUp,
+		onFileListRemove,
 	} from '../fileList/events';
 	import { fileListViewState } from '../fileList/viewState.svelte';
 	import type { DragDropContext } from './handlers';
@@ -126,24 +129,19 @@
   </div>
 
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-  <div
-    class="file-list-content"
-    role="list"
-    aria-label="Audio files"
-    on:click={onFileListClick}
-    on:dragstart={onFileListDragStart}
-    on:dragover={onFileListDragOver}
-    on:drop={onFileListDrop}
-    on:dragend={onFileListDragEnd}
-  >
+  <div class="file-list-content" role="list" aria-label="Audio files">
     {#each fileListViewState.files as file, index (file.path)}
       <div
         class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
         class:selected={fileListViewState.selectedIndices.includes(index)}
-        data-index={index}
         draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
         role="listitem"
         aria-label={getFileName(file.path)}
+        on:click={(event) => onFileListClick(index, event)}
+        on:dragstart={(event) => onFileListDragStart(index, event)}
+        on:dragover={(event) => onFileListDragOver(index, event)}
+        on:drop={(event) => onFileListDrop(index, event)}
+        on:dragend={onFileListDragEnd}
       >
         <div class="file-item-content">
           <div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
@@ -155,19 +153,23 @@
           </div>
           <button
             class="move-up-btn"
-            data-index={index}
+            on:click={(event) => onFileListMoveUp(index, event)}
             disabled={index === 0 || fileListViewState.orderLockVisible}
           >
             ▲
           </button>
           <button
             class="move-down-btn"
-            data-index={index}
+            on:click={(event) => onFileListMoveDown(index, event)}
             disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
           >
             ▼
           </button>
-          <button class="remove-file-btn" data-index={index} disabled={fileListViewState.orderLockVisible}>
+          <button
+            class="remove-file-btn"
+            disabled={fileListViewState.orderLockVisible}
+            on:click={(event) => onFileListRemove(index, event)}
+          >
             ×
           </button>
         </div>

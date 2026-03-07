@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
+import { resetEncoderPanelState } from '../encoderPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
 	listAvailableEncodersMock: vi.fn(),
@@ -12,11 +13,16 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
+const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
+	select.value = value;
+	select.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
 describe('encoder panel native AAC warning', () => {
 	beforeEach(() => {
-		vi.resetModules();
 		context.listAvailableEncodersMock.mockReset();
 		localStorage.clear();
+		resetEncoderPanelState();
 	});
 
 	it('shows native AAC quality warning when auto resolves to native AAC', async () => {
@@ -94,12 +100,13 @@ describe('encoder panel native AAC warning', () => {
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		select.value = 'aac_at';
-		select.dispatchEvent(new Event('change'));
+		changeSelectValue(select, 'aac_at');
 
-		expect(select.options[0]?.textContent).toBe('Auto');
-		const hint = document.getElementById('encoder-availability-hint');
-		expect(hint?.textContent).toBe('Apple AAC available');
+		await vi.waitFor(() => {
+			expect(select.options[0]?.textContent).toBe('Auto');
+			const hint = document.getElementById('encoder-availability-hint');
+			expect(hint?.textContent).toBe('Apple AAC available');
+		});
 	});
 
 	it('shows the native warning when Native AAC is manually selected', async () => {
@@ -119,11 +126,12 @@ describe('encoder panel native AAC warning', () => {
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		select.value = 'native_aac';
-		select.dispatchEvent(new Event('change'));
+		changeSelectValue(select, 'native_aac');
 
-		const hint = document.getElementById('encoder-availability-hint');
-		expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
-		expect(select.options[0]?.textContent).toBe('Auto');
+		await vi.waitFor(() => {
+			const hint = document.getElementById('encoder-availability-hint');
+			expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
+			expect(select.options[0]?.textContent).toBe('Auto');
+		});
 	});
 });

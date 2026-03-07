@@ -1,6 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { FileListInfo } from '../../types/audio';
 import { isFileDropEvent } from '../../types/events';
+import { applyCoverArtDrop } from '../coverArt';
 import { displayFileList } from '../fileList';
 import { isOrderLocked } from '../fileList/state';
 import { clearFileImportError, setFileImportError } from './state.svelte';
@@ -55,7 +56,10 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 			const rect = coverArea.getBoundingClientRect();
 			const { x, y } = event.payload.position;
 			if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-				return;
+				const handled = await applyCoverArtDrop(event.payload.paths);
+				if (handled) {
+					return;
+				}
 			}
 		}
 

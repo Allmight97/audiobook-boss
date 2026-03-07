@@ -3,6 +3,7 @@ import { defaultEncoderSettings } from '../../types/audio';
 import { appStore } from '../core/appStore.svelte';
 import { updateEstimatedSize } from '../outputPanel/dom';
 import {
+	outputPanelState,
 	readOutputConfigForProcessing,
 	updateAbsIncludeYear,
 	updateEncoderSettings,
@@ -80,7 +81,7 @@ describe('output panel store-driven contracts', () => {
 			channels: 'mono',
 		});
 		updateEstimatedSize();
-		const lowValue = document.getElementById('estimated-size')?.textContent ?? '';
+		const lowValue = outputPanelState.estimatedSizeText;
 
 		updateEncoderSettings({
 			...defaultEncoderSettings(),
@@ -88,7 +89,7 @@ describe('output panel store-driven contracts', () => {
 			channels: 'stereo',
 		});
 		updateEstimatedSize();
-		const highValue = document.getElementById('estimated-size')?.textContent ?? '';
+		const highValue = outputPanelState.estimatedSizeText;
 
 		const lowMegabytes = Number.parseFloat(lowValue.replace(/[^\d.]+/g, ''));
 		const highMegabytes = Number.parseFloat(highValue.replace(/[^\d.]+/g, ''));

@@ -26,6 +26,41 @@ Internal docs:
 - Path Security: All input paths must pass `audio::path_validation::validate_input_audio_path()` (canonicalizes, checks whitelist, resolves symlinks with warnings)
 - Progress System: Based on ffmpeg-next timestamps; UI updates via Tauri events (`processing-progress`, `processing-queue`). Supports multiple concurrent jobs (events include an optional `job_id`) and a UI max-concurrency selector (Auto = `num_cpus/2`, clamped 1–8).
 
+### Frontend Runtime Ownership
+
+- `src/App.svelte` is a thin shell; init/save/preview orchestration lives in `src/ui/core/bootstrap.ts`
+- Canonical UI truth for the current migrated surfaces lives in typed reactive state modules rather than DOM nodes or `document` event buses:
+  - file/session state in `src/ui/fileList/state.svelte.ts`
+  - cover-art state in `src/ui/coverArt/state.svelte.ts`
+  - metadata lookup queue state in `src/ui/metadataLookup/state.svelte.ts`
+  - encoder state
+  - metadata form state
+  - output panel state, including preview request coordination
+  - selected-file inspector state
+- `src/ui/fileList/metadataPanel.ts` now guards late metadata and auto-cover completions so stale selection loads do not overwrite the current form or newer custom cover art
+- Remaining imperative DOM usage is only acceptable when it is operational browser/platform behavior such as focus placement, native drag/drop geometry checks, or temporary drag-state classes
+
+Operational code in this repo should mean physical UI behavior only. If a module owns workflow state, business truth, or cross-feature coordination, that code belongs in canonical reactive state and typed actions rather than DOM helpers, module globals, or singleton controllers.
+
+### Remaining Mixed Ownership Seam
+
+This is the main remaining frontend seam rather than a completed steady state:
+
+- `src/ui/statusPanel/logic.ts` still owns processing lifecycle through a singleton `StatusPanel`
+
+The surrounding surfaces are less hybrid than before:
+
+- file/session truth no longer lives in `src/ui/fileList/state.ts`; that path is now a thin compatibility re-export over `state.svelte.ts`
+- cover-art truth no longer lives in module-global variables
+- metadata lookup queue/workflow no longer lives in module-global controller state
+- output preview race coordination no longer lives in module-local counters inside `src/ui/outputPanel/dom.ts`
+
+The target standard is stricter than “remove DOM usage.” The real rule is:
+
+- DOM code may stay for browser/platform mechanics
+- runtime truth should live in typed reactive state and store-owned actions
+- no CSS class, `data-*`, element ID, module-global controller, or singleton accessor should act as a hidden app-level contract
+
 ## Critical Data Flows
 
 1. File Import: UI drag/drop → `analyze_audio_files` → `audio::file_list::get_file_list_info`
@@ -80,9 +115,18 @@ UI verification posture:
 
 ```bash
 bun run harness:verify --changed
+bun run harness:verify --scenario file-management
+bun run harness:verify --scenario metadata-edit
+bun run harness:verify --scenario status-processing
+bun run harness:verify --scenario output-preview
 ```
 
 - Use the harness verification path for UI-affecting work in addition to targeted tests.
+- The current scenario registry covers:
+  - `file-management` for import, selection, reorder, clear, and input-lane state
+  - `metadata-edit` for metadata form, lookup, and cover-art flows
+  - `status-processing` for queue/progress rendering and processing lock behavior
+  - `output-preview` for encoder/output naming controls and preview health
 - Harness runs should emit local artifacts (screenshots + assertion/runtime summaries) for the verified scenario set.
 - Keep `harness:agent` as an optional interactive desktop browser-review lane for layout and control-affordance inspection. It should not replace `harness:verify` or be added to `scripts/checks.sh standard`.
 - Audiobook Boss is desktop-only, so alternate viewport review is for explicit diagnostics only.
@@ -248,9 +292,11 @@ Cover art URL loading is treated as untrusted input. The app only fetches HTTPS 
 
 ## Frontend Patterns (TypeScript)
 
-- Svelte islands with reactive state modules (`.svelte.ts`)
+- `src/App.svelte` is a thin shell; init/save/preview orchestration lives in `src/ui/core/bootstrap.ts`
+- Svelte islands with canonical reactive state modules (`.svelte.ts`) for encoder, metadata form, output preview, and inspector flows
 - Event-driven communication via `tauriClient.listen()` and Tauri events
 - Strongly-typed boundaries for cross-language data (`ProgressEvent`, `ProcessingStatus`, `AudiobookMetadata`)
+- Remaining imperative DOM usage should stay limited to operational seams such as focus management, cover-art drag-drop hit-testing, and file-list drag-state classes rather than cross-module state ownership
 
 ## External References
 

@@ -1,13 +1,24 @@
-/**
- * DOM manipulation for output panel
- */
-import type { AudiobookMetadata } from '../../types/metadata';
 import { formatFileSize } from '../../types/audio';
+import type { AudiobookMetadata } from '../../types/metadata';
 import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList } from '../fileList';
 import { getSelectedFileIndices } from '../fileList/state';
 import { getCurrentCoverArt } from '../coverArt';
-import { getOutputNamingConfig, getState } from './state';
+import { readMetadataForm } from '../metadataForm';
+import {
+	setSeriesPartWarning,
+	setSubseriesPartWarning,
+	metadataFormState,
+} from '../metadataForm/state.svelte';
+import {
+	beginOutputPreviewRequest,
+	isLatestOutputPreviewRequest,
+	getOutputNamingConfig,
+	getState,
+	setEstimatedSizeText,
+	setOutputNamingUiState,
+	setOutputPreview,
+} from './state';
 import { calculateOutputPath } from './pathBuilder';
 import {
 	getSeriesPartValidationError,
@@ -18,50 +29,36 @@ type OutputPreviewCallSiteState = {
 	outputDirectory: string;
 	sourcePath?: string;
 };
-
-let latestPreviewRequestId = 0;
-
 function hasTauriRuntime(): boolean {
 	const globalLike = globalThis as { __TAURI_INTERNALS__?: unknown };
 	return typeof globalLike.__TAURI_INTERNALS__ !== 'undefined';
 }
 
-/**
- * Gets current metadata from the metadata panel DOM elements
- */
 export function getCurrentMetadata(): AudiobookMetadata {
-	const getElementValue = (id: string): string => {
-		const element = document.getElementById(id) as HTMLInputElement;
-		return element?.value || '';
-	};
-
+	const metadata = readMetadataForm({
+		mode: metadataFormState.mode,
+		onlyDirty: false,
+		includeCoverArt: true,
+	});
 	const coverArt = getCurrentCoverArt();
-	const title = getElementValue('meta-title');
-	const publicationDate = getElementValue('meta-year').trim();
 
 	return {
-		title: title,
-		artist: getElementValue('meta-author'),
-		album: title,
-		composer: getElementValue('meta-narrator'),
-		date: publicationDate || undefined,
-		genre: getElementValue('meta-genre'),
-		description: getElementValue('meta-description'),
-		series: getElementValue('meta-series'),
-		series_part: getElementValue('meta-series-part') || undefined,
-		subseries: getElementValue('meta-subseries'),
-		subseries_part: getElementValue('meta-subseries-part') || undefined,
-		cover_art: coverArt ?? undefined,
+		title: metadata.title ?? '',
+		album: metadata.album ?? metadata.title ?? '',
+		artist: metadata.artist ?? '',
+		composer: metadata.composer ?? '',
+		date: metadata.date,
+		genre: metadata.genre ?? '',
+		description: metadata.description ?? '',
+		series: metadata.series ?? '',
+		series_part: metadata.series_part ?? undefined,
+		subseries: metadata.subseries ?? '',
+		subseries_part: metadata.subseries_part ?? undefined,
+		cover_art: coverArt ?? metadata.cover_art ?? undefined,
 	};
 }
 
-/**
- * Updates the series part warning based on current metadata
- */
 export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
-	const warning = document.getElementById('meta-series-part-warning');
-	if (!warning) return;
-
 	const seriesValue = metadata.series?.trim() ?? '';
 	const seriesPartValue = metadata.series_part?.trim() ?? '';
 	const subseriesValue = metadata.subseries?.trim() ?? '';
@@ -69,8 +66,7 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 	const seriesPartError = getSeriesPartValidationError(seriesPartValue);
 
 	if (seriesPartError) {
-		warning.textContent = seriesPartError;
-		warning.toggleAttribute('hidden', false);
+		setSeriesPartWarning(seriesPartError, true);
 		return;
 	}
 
@@ -82,78 +78,56 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 		seriesPartValue === subseriesPartValue;
 
 	if (shouldShowDuplicate) {
-		warning.textContent =
+		const message =
 			'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.';
-		warning.toggleAttribute('hidden', false);
+		setSeriesPartWarning(message, true);
 		return;
 	}
 
-	const shouldShow = seriesValue.length > 0 && seriesPartValue.length === 0;
-	warning.textContent = 'Series detected - add Book # (series sequence) for ABS ordering.';
-	warning.toggleAttribute('hidden', !shouldShow);
+	const message = 'Series detected - add Book # (series sequence) for ABS ordering.';
+	const visible = seriesValue.length > 0 && seriesPartValue.length === 0;
+	setSeriesPartWarning(message, visible);
 }
 
 export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
-	const warning = document.getElementById('meta-subseries-part-warning');
-	if (!warning) return;
-
 	const subseriesValue = metadata.subseries?.trim() ?? '';
 	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
 	const subseriesPartError = getSubseriesPartValidationError(subseriesPartValue);
 
 	if (subseriesPartError) {
-		warning.textContent = subseriesPartError;
-		warning.toggleAttribute('hidden', false);
+		setSubseriesPartWarning(subseriesPartError, true);
 		return;
 	}
 
-	const shouldShow = subseriesValue.length > 0 && subseriesPartValue.length === 0;
-	warning.textContent =
-		'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
-	warning.toggleAttribute('hidden', !shouldShow);
+	const message = 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
+	const visible = subseriesValue.length > 0 && subseriesPartValue.length === 0;
+	setSubseriesPartWarning(message, visible);
 }
 
-/**
- * Updates the output path PREVIEW display
- */
 export function updateOutputPath(): void {
 	void updateOutputPathAsync();
 }
 
 async function updateOutputPathAsync(): Promise<void> {
 	const state = getState();
-	const previewText = document.getElementById('output-preview-text');
-	const outputPathInput = document.getElementById('output-dir-text') as HTMLInputElement;
-
 	const metadata = getCurrentMetadata();
+
 	updateSeriesPartWarning(metadata);
 	updateSubseriesPartWarning(metadata);
 
-	// Basic validation state
 	if (!state.outputDirectory) {
-		if (outputPathInput && outputPathInput.value.length > 0) {
-			outputPathInput.value = '';
-		}
-		if (previewText) previewText.textContent = 'Select output directory...';
-		if (previewText) previewText.title = 'No directory selected';
+		setOutputPreview('Select output directory...', 'No directory selected');
 		return;
-	}
-
-	if (outputPathInput && outputPathInput.value !== state.outputDirectory) {
-		outputPathInput.value = state.outputDirectory;
 	}
 
 	const previewCallSiteState = buildOutputPreviewCallSiteState();
 	if (!hasTauriRuntime()) {
 		const fallbackPath = calculateOutputPath(metadata);
-		if (previewText) {
-			previewText.textContent = fallbackPath;
-			previewText.title = fallbackPath;
-		}
+		setOutputPreview(fallbackPath);
 		return;
 	}
 
-	const requestId = ++latestPreviewRequestId;
+	const requestId = beginOutputPreviewRequest();
 	try {
 		const previewPath = await tauriClient.previewOutputPath({
 			outputDir: previewCallSiteState.outputDirectory,
@@ -161,56 +135,32 @@ async function updateOutputPathAsync(): Promise<void> {
 			outputNaming: getOutputNamingConfig(),
 			sourcePath: previewCallSiteState.sourcePath,
 		});
-		if (requestId !== latestPreviewRequestId) {
+		if (!isLatestOutputPreviewRequest(requestId)) {
 			return;
 		}
-		if (previewText) {
-			previewText.textContent = previewPath;
-			previewText.title = previewPath;
-		}
+		setOutputPreview(previewPath);
 	} catch (error) {
-		if (requestId !== latestPreviewRequestId) {
+		if (!isLatestOutputPreviewRequest(requestId)) {
 			return;
 		}
 		const message = 'Output preview unavailable. Fix metadata/template and retry.';
-		if (previewText) {
-			previewText.textContent = message;
-			previewText.title = message;
-		}
+		setOutputPreview(message);
 		showOutputError(`Rust preview failed: ${String(error)}`);
 	}
 }
 
-/**
- * Updates naming hints based on ABS toggle
- */
 export function updateNamingOptionState(): void {
 	const state = getState();
-	const absHint = document.getElementById('output-abs-hint');
-	const templateRow = document.getElementById('output-template-row');
-	const presetSelect = document.getElementById('output-naming-preset') as HTMLSelectElement;
-	const templateInput = document.getElementById('output-template-input') as HTMLInputElement;
-
-	if (presetSelect && presetSelect.value !== state.namingPreset) {
-		presetSelect.value = state.namingPreset;
-	}
-	if (templateInput && templateInput.value !== state.namingTemplate) {
-		templateInput.value = state.namingTemplate;
-	}
-
-	if (absHint) {
-		const absPresetEnabled = state.namingPreset === 'absDefault';
-		absHint.toggleAttribute('hidden', !absPresetEnabled);
-		if (absPresetEnabled) {
-			absHint.textContent = state.absIncludeYear
+	const absPresetEnabled = state.namingPreset === 'absDefault';
+	setOutputNamingUiState({
+		absHintHidden: !absPresetEnabled,
+		absHintText: absPresetEnabled
+			? state.absIncludeYear
 				? 'Creates Author / Series / (Sub-series) / Book # - YYYY - Title'
-				: 'Creates Author / Series / (Sub-series) / Book # - Title';
-		}
-	}
-
-	if (templateRow) {
-		templateRow.toggleAttribute('hidden', state.namingPreset !== 'customTemplate');
-	}
+				: 'Creates Author / Series / (Sub-series) / Book # - Title'
+			: '',
+		templateRowHidden: state.namingPreset !== 'customTemplate',
+	});
 }
 
 export function buildOutputPreviewCallSiteState(): OutputPreviewCallSiteState {
@@ -227,9 +177,6 @@ export function buildOutputPreviewCallSiteState(): OutputPreviewCallSiteState {
 	};
 }
 
-/**
- * Calculates estimated output file size in bytes
- */
 function calculateEstimatedSize(totalDurationSeconds: number): number {
 	const state = getState();
 	if (!totalDurationSeconds || totalDurationSeconds <= 0) {
@@ -237,41 +184,27 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
 	}
 
 	const encoderSettings = state.encoderSettings;
-
-	// Base calculation: duration * bitrate / 8 (convert bits to bytes)
 	let sizeBytes = (totalDurationSeconds * encoderSettings.bitrateKbps * 1000) / 8;
 
-	// Adjust for stereo (roughly 1.5x mono at same bitrate)
 	if (encoderSettings.channels === 'stereo') {
 		sizeBytes *= 1.5;
 	}
 
-	// Add M4B container overhead (approximately 3%)
 	sizeBytes *= 1.03;
-
 	return Math.round(sizeBytes);
 }
 
-/**
- * Updates the estimated output size display
- */
 export function updateEstimatedSize(): void {
-	const sizeElement = document.getElementById('estimated-size');
-	if (!sizeElement) return;
-
 	const fileList = getCurrentFileList();
 	if (!fileList || !fileList.files.length) {
-		sizeElement.textContent = '~ --- MB';
+		setEstimatedSizeText('~ --- MB');
 		return;
 	}
 
 	const estimatedBytes = calculateEstimatedSize(fileList.totalDuration);
-	sizeElement.textContent = `~ ${formatFileSize(estimatedBytes)}`;
+	setEstimatedSizeText(`~ ${formatFileSize(estimatedBytes)}`);
 }
 
-/**
- * Shows an error message in the output panel
- */
 export function showOutputError(message: string): void {
 	console.error('Output Panel Error:', message);
 }

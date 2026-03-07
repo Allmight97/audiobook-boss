@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { appStore, resetAppStoreMirrors } from '../core/appStore.svelte';
 import { moveFileDown, moveFileUp, reorderFiles } from '../fileList/actions';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state';
+import {
+	getSelectedFileIndices,
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../fileList/state';
 
 vi.mock('../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),
@@ -85,7 +89,6 @@ const makeFileList = (count: number): FileListInfo => ({
 
 describe('file list reorder mirror', () => {
 	beforeEach(() => {
-		resetAppStoreMirrors();
 		setCurrentFileList(makeFileList(3));
 	});
 
@@ -95,7 +98,7 @@ describe('file list reorder mirror', () => {
 
 		moveFileUp(2);
 
-		expect(appStore.selectedIndices).toEqual([1]);
+		expect(Array.from(getSelectedFileIndices()).sort((a, b) => a - b)).toEqual([1]);
 	});
 
 	it('publishes the mirror after moving a selected file down', () => {
@@ -104,7 +107,7 @@ describe('file list reorder mirror', () => {
 
 		moveFileDown(0);
 
-		expect(appStore.selectedIndices).toEqual([1]);
+		expect(Array.from(getSelectedFileIndices()).sort((a, b) => a - b)).toEqual([1]);
 	});
 
 	it('publishes the mirror when reordering a selected file', () => {
@@ -113,6 +116,6 @@ describe('file list reorder mirror', () => {
 
 		reorderFiles(0, 2);
 
-		expect(appStore.selectedIndices).toEqual([2]);
+		expect(Array.from(getSelectedFileIndices()).sort((a, b) => a - b)).toEqual([2]);
 	});
 });

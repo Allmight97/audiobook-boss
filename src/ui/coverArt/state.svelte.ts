@@ -1,5 +1,11 @@
 type CoverArtMessageVariant = 'error' | 'success' | null;
 
+type CoverArtSessionState = {
+	currentCoverArt: number[] | null;
+	hasCustomCoverArt: boolean;
+	coverArtRemovalRequested: boolean;
+};
+
 type CoverArtUiState = {
 	imageDataUrl: string | null;
 	isLoading: boolean;
@@ -10,6 +16,12 @@ type CoverArtUiState = {
 	isDragOver: boolean;
 	urlInputValue: string;
 };
+
+export const coverArtSessionState = $state<CoverArtSessionState>({
+	currentCoverArt: null,
+	hasCustomCoverArt: false,
+	coverArtRemovalRequested: false,
+});
 
 export const coverArtUiState = $state<CoverArtUiState>({
 	imageDataUrl: null,
@@ -55,4 +67,20 @@ export function setCoverArtDragOver(isDragOver: boolean): void {
 
 export function setCoverArtUrlInputValue(value: string): void {
 	coverArtUiState.urlInputValue = value;
+}
+
+export function setCoverArtSession(coverArtBytes: number[] | null): void {
+	coverArtSessionState.currentCoverArt = coverArtBytes;
+}
+
+export function clearCoverArtSession(): void {
+	coverArtSessionState.currentCoverArt = null;
+}
+
+export function setHasCustomCoverArt(hasCustom: boolean): void {
+	coverArtSessionState.hasCustomCoverArt = hasCustom;
+}
+
+export function setCoverArtRemovalRequested(markRemoval: boolean): void {
+	coverArtSessionState.coverArtRemovalRequested = markRemoval;
 }

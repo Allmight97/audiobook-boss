@@ -1,10 +1,15 @@
 <script lang="ts">
 	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
+import {
+	onClearCoverArt,
+	onLoadCoverArtFromFilePicker,
+	onLoadCoverArtFromInput,
+} from './ui/coverArt';
 	import {
 		onMetadataFormActionSelectChange,
 		onMetadataFormFieldInput,
-		triggerMetadataFormSave,
 	} from './ui/metadataForm';
+	import { metadataFormState } from './ui/metadataForm/state.svelte';
 	import MetadataFormFieldsIsland from './ui/metadataForm/MetadataFormFieldsIsland.svelte';
 	import OutputPanelIsland from './ui/outputPanel/OutputPanelIsland.svelte';
 	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
@@ -18,6 +23,9 @@
 	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
 	import { createHarnessFixture, type PartialHarnessFixture } from './harness/fixtures';
+	import { inspectorState } from './ui/fileList/inspectorState.svelte';
+	import { fileListViewState } from './ui/fileList/viewState.svelte';
+	import { saveMetadataFromUI } from './ui/core/bootstrap';
 
 	export let fixture: PartialHarnessFixture = {};
 
@@ -40,17 +48,37 @@
 		{/if}
 
 		<div class="section-divider file-properties-pinned inspector-footer" aria-hidden="true">
-			<div id="metadata-selection-count" class="text-xs muted-text mb-2" hidden></div>
+			<div
+				id="metadata-selection-count"
+				class="text-xs muted-text mb-2"
+				hidden={metadataFormState.mode !== 'multi' || metadataFormState.selectionCount <= 1}
+			>
+				{metadataFormState.selectionCount} files selected
+			</div>
+			<div class="inspector-header">
+				<span class="inspector-context" aria-live="polite">
+					{#if inspectorState.contextVariant === 'empty'}
+						<span class="context-empty">{inspectorState.contextText}</span>
+					{:else}
+						<span class="context-filename" title={inspectorState.contextText}>
+							{inspectorState.contextText}
+						</span>
+						{#if inspectorState.contextDetail}
+							<span class="context-position">{inspectorState.contextDetail}</span>
+						{/if}
+					{/if}
+				</span>
+			</div>
 			<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-				<span id="prop-selected-context"></span>
-				<span></span>
-				<span id="prop-bitrate">---</span>
-				<span id="prop-samplerate">---</span>
-				<span id="prop-channels">---</span>
-				<span id="prop-codec">---</span>
-				<span id="prop-decoder">---</span>
-				<span id="prop-filesize">---</span>
-				<span id="prop-combinedsize">---</span>
+				<span class="property-label">Bitrate:</span><span class="property-value">{inspectorState.bitrateText}</span>
+				<span class="property-label">Sample Rate:</span><span class="property-value">{inspectorState.sampleRateText}</span>
+				<span class="property-label">Channels:</span><span class="property-value">{inspectorState.channelsText}</span>
+				<span class="property-label">Codec:</span><span class="property-value">{inspectorState.codecText}</span>
+				<span class="property-label">Decoder:</span><span class="property-value">{inspectorState.decoderText}</span>
+				<span class="property-label">File Size:</span><span class="property-value">{inspectorState.fileSizeText}</span>
+				<span class="property-label">Combined Size:</span><span class="property-value"
+					>{fileListViewState.combinedSizeText}</span
+				>
 			</div>
 		</div>
 	</div>
@@ -60,16 +88,22 @@
 			<div class="grid grid-cols-4 gap-3 mb-3">
 				<div class="col-span-1">
 					{#if harnessFixture.islands.coverArt.enabled}
-						<CoverArtIsland />
+						<CoverArtIsland
+							onLoadFromFile={onLoadCoverArtFromFilePicker}
+							onLoadFromInput={onLoadCoverArtFromInput}
+							onClearCoverArt={onClearCoverArt}
+						/>
 					{/if}
 				</div>
 				<div class="col-span-3">
 					{#if harnessFixture.islands.metadataForm.enabled}
-						<div id="metadata-form" data-multi-select="false">
+						<div id="metadata-form" data-multi-select={metadataFormState.mode === 'multi'}>
 							<MetadataFormFieldsIsland
 								onFieldInput={onMetadataFormFieldInput}
 								onActionChange={onMetadataFormActionSelectChange}
-								onSaveMetadata={triggerMetadataFormSave}
+								onSaveMetadata={() => {
+									void saveMetadataFromUI();
+								}}
 							/>
 						</div>
 					{/if}

@@ -9,6 +9,7 @@ import {
 	StatusPanel,
 	clearStatusPanelTransientStatusLock,
 	getStatusPanel,
+	isStatusPanelProcessing,
 	initStatusPanel as initStatusPanelLogic,
 	pushStatusPanelTransientStatus,
 } from './logic';
@@ -20,6 +21,7 @@ export function initStatusPanel(): StatusPanel {
 export {
 	StatusPanel,
 	clearStatusPanelTransientStatusLock,
+	isStatusPanelProcessing,
 	getStatusPanel,
 	pushStatusPanelTransientStatus,
 };

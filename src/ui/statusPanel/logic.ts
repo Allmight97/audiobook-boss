@@ -52,7 +52,6 @@ export class StatusPanel {
 	private batchCompletionMessageOverride: string | null = null;
 	private currentJobType: 'merge' | 'batch' | null = null;
 	private lastCoverArtPath: string | null = null;
-	private onMaxConcurrentUpdated: () => void;
 	/** Track pending render to coalesce rAF batches */
 	private pendingRender = false;
 	/** Latest progress event data for deferred rendering */
@@ -60,12 +59,9 @@ export class StatusPanel {
 
 	constructor() {
 		this.currentStatus = createInitialStatus();
-		this.onMaxConcurrentUpdated = () => this.updateConcurrencyIndicator();
 		this.updateUI();
 		this.updateConcurrencyIndicator();
 		dom.resetArtThumbnail();
-		// initialized in main.ts now: this.initializeMaxConcurrentControl();
-		document.addEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 
 		// Ensure event listeners are cleaned up if the window unloads
 		window.addEventListener('beforeunload', () => {
@@ -77,7 +73,6 @@ export class StatusPanel {
 				this.queueUnlisten();
 				this.queueUnlisten = undefined;
 			}
-			document.removeEventListener('abb:max-concurrent-updated', this.onMaxConcurrentUpdated);
 		});
 	}
 
@@ -550,6 +545,11 @@ export function initStatusPanel(): StatusPanel {
 
 export function getStatusPanel(): StatusPanel | null {
 	return statusPanelInstance;
+}
+
+export function isStatusPanelProcessing(): boolean {
+	const panel = getStatusPanel();
+	return Boolean(panel?.isCurrentlyProcessing);
 }
 
 export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {

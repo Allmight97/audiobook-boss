@@ -51,6 +51,7 @@ This is a personal tool with a public repo. Contributions welcome but not expect
 Audiobook Boss now treats the repo itself as part of the delivery system, not just the app code.
 
 - **Required UI proof**: `bun run harness:verify --changed` maps UI-affecting edits to real browser scenarios and emits local artifacts instead of relying on static inspection or memory.
+- **Scenario coverage**: the current required harness scenarios are `file-management`, `metadata-edit`, `status-processing`, and `output-preview`.
 - **Optional browser review**: `bun run harness:agent review` is the normal supplemental lane. A visible browser window is available only as an operator-gated escalation path via `CONTROLPLANE_ALLOW_HEADED=1 bun run harness:agent start --headed --scenario <name>`.
 - **Workloop execution**: `WORKFLOW.md` plus `bun run work:*` provide a repo-native single-task runner with isolated worktrees, temporary task branches, explicit cleanup, and no durable task archive.
 - **Durable versus temporary truth**: code, canonical docs, and decisions are durable; `.agent-work/` and `.artifacts/` are local runtime evidence only.

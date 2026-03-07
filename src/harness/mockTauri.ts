@@ -118,10 +118,11 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 		case 'search_online_metadata':
 			return HARNESS_LOOKUP_RESULTS;
 		case 'list_available_encoders':
-			return [
-				{ key: 'aac', label: 'AAC', available: true, kind: 'builtin' },
-				{ key: 'libfdk_aac', label: 'Fraunhofer FDK AAC', available: true, kind: 'external' },
-			];
+			return {
+				fdkAvailable: true,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			};
 		case 'load_cover_art_from_url':
 		case 'load_cover_art_file':
 			return HARNESS_COVER_ART_BYTES;
@@ -143,6 +144,7 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 					? payload.outputDir
 					: HARNESS_OUTPUT_DIRECTORY;
 			const jobId = `harness-job-${Date.now()}`;
+			const totalJobs = Math.max(1, inputFiles.length);
 
 			emitHarnessEvent('processing-queue', {
 				items: inputFiles.map((filePath, index) => ({
@@ -151,44 +153,48 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 				})),
 				max_concurrent: maxConcurrentJobs,
 			});
-			emitHarnessEvent('processing-progress', {
-				stage: 'converting',
-				percentage: 42,
-				message: 'Converting audio',
-				current_file: inputFiles[0] ?? '',
-				eta_seconds: 12,
-				job_id: jobId,
-				input_index: 0,
-			});
-			emitHarnessEvent('processing-progress', {
-				stage: 'completed',
-				percentage: 100,
-				message: 'Processing completed successfully!',
-				current_file: inputFiles[0] ?? '',
-				eta_seconds: 0,
-				job_id: jobId,
-				input_index: 0,
-			});
+
+			for (const [index, filePath] of inputFiles.entries()) {
+				const perJobId = `${jobId}-${index}`;
+				emitHarnessEvent('processing-progress', {
+					stage: 'converting',
+					percentage: 42,
+					message: 'Converting audio',
+					current_file: filePath,
+					eta_seconds: Math.max(0, (totalJobs - index) * 6),
+					job_id: perJobId,
+					input_index: index,
+				});
+				await new Promise((resolve) => window.setTimeout(resolve, 60));
+				emitHarnessEvent('processing-progress', {
+					stage: 'completed',
+					percentage: 100,
+					message: 'Processing completed successfully!',
+					current_file: filePath,
+					eta_seconds: 0,
+					job_id: perJobId,
+					input_index: index,
+				});
+			}
 
 			return {
 				jobType,
 				summary: {
-					total: Math.max(1, inputFiles.length),
-					succeeded: Math.max(1, inputFiles.length),
+					total: totalJobs,
+					succeeded: totalJobs,
 					failed: 0,
 				},
-				results: [
-					{
-						inputIndex: 0,
-						status: 'success',
-						message: 'Harness processing completed',
-						jobId,
-						error: null,
-						previewFilePath:
-							previewSeconds === null ? null : `${outputDir}/harness-preview-${previewSeconds}.m4b`,
-						previewActualSeconds: previewSeconds,
-					},
-				],
+				results: inputFiles.map((filePath, index) => ({
+					inputIndex: index,
+					status: 'success',
+					message: 'Harness processing completed',
+					jobId: `${jobId}-${index}`,
+					error: null,
+					previewFilePath:
+						previewSeconds === null ? null : `${outputDir}/harness-preview-${previewSeconds}.m4b`,
+					previewActualSeconds: previewSeconds,
+					currentFile: filePath,
+				})),
 			};
 		}
 		case 'cancel_processing':

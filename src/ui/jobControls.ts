@@ -2,6 +2,8 @@ import { tauriClient } from '../lib/tauri/client';
 import type { JobType } from '../types/audio';
 import { flushSync } from 'svelte';
 import { jobControlsState } from './jobControls/state.svelte';
+import { updateOutputPath } from './outputPanel';
+import { setStatusPanelConcurrencyText } from './statusPanel/viewState.svelte';
 
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
 
@@ -30,7 +32,7 @@ export function handleMaxConcurrentSelectionChange(value: string): void {
 function setJobType(jobType: JobType, emitChangeEvent: boolean): void {
 	jobControlsState.jobType = jobType;
 	if (emitChangeEvent) {
-		document.dispatchEvent(new Event('abb:job-type-changed'));
+		updateOutputPath();
 	}
 }
 
@@ -62,6 +64,7 @@ export function setJobControlsEnabled(enabled: boolean): void {
 function updateMaxConcurrentIndicator(): void {
 	if (jobControlsState.effectiveMaxConcurrent === null) {
 		jobControlsState.effectiveLabel = '';
+		setStatusPanelConcurrencyText('Max jobs: —');
 		return;
 	}
 
@@ -70,6 +73,9 @@ function updateMaxConcurrentIndicator(): void {
 	} else {
 		jobControlsState.effectiveLabel = `Max ${jobControlsState.effectiveMaxConcurrent}`;
 	}
+
+	const suffix = jobControlsState.maxConcurrentSelection === 'auto' ? ' (Auto)' : '';
+	setStatusPanelConcurrencyText(`Max jobs: ${jobControlsState.effectiveMaxConcurrent}${suffix}`);
 }
 
 function readMaxConcurrentPreference(): string {
@@ -118,11 +124,6 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
 		}
 		jobControlsState.effectiveMaxConcurrent = effective;
 		updateMaxConcurrentIndicator();
-		document.dispatchEvent(
-			new CustomEvent('abb:max-concurrent-updated', {
-				detail: { effective, selection: jobControlsState.maxConcurrentSelection },
-			}),
-		);
 	} catch (error) {
 		console.warn('Failed to update max concurrency:', error);
 	}

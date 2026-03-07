@@ -90,12 +90,10 @@ export function handleNamingTemplateInput(event: Event): void {
 	scheduleTemplatePreviewUpdate();
 }
 
-/**
- * Sets up runtime event handlers for derived output updates.
- */
-export function setupEventHandlers(): void {
+export function resetOutputPanelHandlers(): void {
 	resetTemplatePreviewDebounce();
-	document.addEventListener('abb:job-type-changed', () => {
-		updateOutputPath();
-	});
+}
+
+export function setupEventHandlers(): void {
+	resetOutputPanelHandlers();
 }

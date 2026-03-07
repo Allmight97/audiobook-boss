@@ -5,6 +5,7 @@ import {
 	showMultiSelection,
 	showSingleSelection,
 } from '../fileList/metadataPanel';
+import { inspectorState } from '../fileList/inspectorState.svelte';
 import { setCurrentFileList, setSelectedIndex } from '../fileList/state';
 
 const context = vi.hoisted(() => ({
@@ -72,21 +73,8 @@ const makeFileList = (...files: AudioFile[]): FileListInfo => ({
 	invalidCount: files.filter((file) => !file.isValid).length,
 });
 
-const text = (id: string): string => document.getElementById(id)?.textContent ?? '';
-
 describe('metadata panel input inspector', () => {
 	beforeEach(() => {
-		document.body.innerHTML = `
-			<div id="prop-selected-context"></div>
-			<span id="prop-bitrate">---</span>
-			<span id="prop-samplerate">---</span>
-			<span id="prop-channels">---</span>
-			<span id="prop-codec">---</span>
-			<span id="prop-decoder">---</span>
-			<span id="prop-filesize">---</span>
-			<span id="output-samplerate-effective"></span>
-			<span id="output-channels-effective"></span>
-		`;
 		context.readAudioMetadataMock.mockReset();
 		context.getMetadataForFileMock.mockReset();
 		context.setMetadataForFileMock.mockReset();
@@ -113,9 +101,9 @@ describe('metadata panel input inspector', () => {
 
 		await showSingleSelection(file);
 
-		expect(text('prop-codec')).toBe('USAC / xHE-AAC');
-		expect(text('prop-decoder')).toBe('Apple AAC');
-		expect(text('prop-selected-context')).toContain('science.m4b');
+		expect(inspectorState.codecText).toBe('USAC / xHE-AAC');
+		expect(inspectorState.decoderText).toBe('Apple AAC');
+		expect(inspectorState.contextText).toContain('science.m4b');
 	});
 
 	it('shows shared codec and decoder values for multi-selection when they match', async () => {
@@ -133,9 +121,9 @@ describe('metadata panel input inspector', () => {
 
 		await showMultiSelection([first, second]);
 
-		expect(text('prop-codec')).toBe('AAC-LC');
-		expect(text('prop-decoder')).toBe('Native AAC (FFmpeg)');
-		expect(text('prop-selected-context')).toContain('2 files selected');
+		expect(inspectorState.codecText).toBe('AAC-LC');
+		expect(inspectorState.decoderText).toBe('Native AAC (FFmpeg)');
+		expect(inspectorState.contextText).toContain('2 files selected');
 	});
 
 	it('shows Mixed when codec or decoder values differ or are partially unknown', async () => {
@@ -153,17 +141,14 @@ describe('metadata panel input inspector', () => {
 
 		await showMultiSelection([first, second]);
 
-		expect(text('prop-codec')).toBe('Mixed');
-		expect(text('prop-decoder')).toBe('Mixed');
+		expect(inspectorState.codecText).toBe('Mixed');
+		expect(inspectorState.decoderText).toBe('Mixed');
 	});
 
 	it('clears codec and decoder rows back to placeholders', () => {
-		document.getElementById('prop-codec')!.textContent = 'AAC-LC';
-		document.getElementById('prop-decoder')!.textContent = 'Apple AAC';
-
 		clearSelectionPanels();
 
-		expect(text('prop-codec')).toBe('---');
-		expect(text('prop-decoder')).toBe('---');
+		expect(inspectorState.codecText).toBe('---');
+		expect(inspectorState.decoderText).toBe('---');
 	});
 });

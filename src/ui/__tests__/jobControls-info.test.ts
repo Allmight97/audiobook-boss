@@ -17,6 +17,19 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
+const mockedDependencies = vi.hoisted(() => ({
+	updateOutputPathMock: vi.fn(),
+	setStatusPanelConcurrencyTextMock: vi.fn(),
+}));
+
+vi.mock('../outputPanel', () => ({
+	updateOutputPath: mockedDependencies.updateOutputPathMock,
+}));
+
+vi.mock('../statusPanel/viewState.svelte', () => ({
+	setStatusPanelConcurrencyText: mockedDependencies.setStatusPanelConcurrencyTextMock,
+}));
+
 const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
 
@@ -62,43 +75,32 @@ describe('Job controls merge toggle', () => {
 		setupDomRoot();
 		localStorage.clear();
 		setMaxConcurrentJobsMock.mockReset();
+		mockedDependencies.updateOutputPathMock.mockReset();
+		mockedDependencies.setStatusPanelConcurrencyTextMock.mockReset();
 		setJobTypeSelection('batch');
 		setJobControlsEnabled(true);
 	});
 
-	it('dispatches job-type change and reflects merge toggle state', async () => {
+	it('updates job type and refreshes output preview when merge mode changes', async () => {
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(4);
 		initJobControls();
 		await flushAsync();
-
-		let fired = false;
-		document.addEventListener(
-			'abb:job-type-changed',
-			() => {
-				fired = true;
-			},
-			{ once: true },
-		);
 
 		const toggle = getMergeToggle();
 		toggle.checked = true;
 		toggle.dispatchEvent(new Event('change'));
 
-		expect(fired).toBe(true);
 		expect(getJobType()).toBe('merge');
+		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('does not duplicate listeners when initialized twice on same DOM', async () => {
+	it('does not duplicate side effects when initialized twice on same DOM', async () => {
 		initJobControls();
 		await flushAsync();
 		initJobControls();
 		await flushAsync();
 		setMaxConcurrentJobsMock.mockClear();
-
-		let jobTypeChangedCount = 0;
-		document.addEventListener('abb:job-type-changed', () => {
-			jobTypeChangedCount += 1;
-		});
+		mockedDependencies.updateOutputPathMock.mockClear();
 
 		const toggle = getMergeToggle();
 		toggle.checked = true;
@@ -109,24 +111,15 @@ describe('Job controls merge toggle', () => {
 		select.dispatchEvent(new Event('change'));
 		await flushAsync();
 
-		expect(jobTypeChangedCount).toBe(1);
+		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
 	});
 
-	it('reads persisted max concurrency, sends numeric payload, and emits detail + indicator', async () => {
+	it('reads persisted max concurrency, sends numeric payload, and updates indicator + status text', async () => {
 		localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, '3');
 		const getItemSpy = vi.spyOn(localStorage, 'getItem');
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
-
-		let detail: { effective: number; selection: string } | null = null;
-		document.addEventListener(
-			'abb:max-concurrent-updated',
-			(event) => {
-				detail = (event as CustomEvent<{ effective: number; selection: string }>).detail;
-			},
-			{ once: true },
-		);
 
 		initJobControls();
 		await flushAsync();
@@ -135,10 +128,12 @@ describe('Job controls merge toggle', () => {
 		expect(getMaxConcurrentSelect().value).toBe('3');
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
-		expect(detail).toEqual({ effective: 3, selection: '3' });
+		expect(mockedDependencies.setStatusPanelConcurrencyTextMock).toHaveBeenLastCalledWith(
+			'Max jobs: 3',
+		);
 	});
 
-	it('writes updated selection, sends auto payload, and updates indicator + event detail', async () => {
+	it('writes updated selection, sends auto payload, and updates indicator + status text', async () => {
 		localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, '2');
 		const setItemSpy = vi.spyOn(localStorage, 'setItem');
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(2).mockResolvedValueOnce(6);
@@ -146,15 +141,6 @@ describe('Job controls merge toggle', () => {
 		initJobControls();
 		await flushAsync();
 		setMaxConcurrentJobsMock.mockClear();
-
-		let detail: { effective: number; selection: string } | null = null;
-		document.addEventListener(
-			'abb:max-concurrent-updated',
-			(event) => {
-				detail = (event as CustomEvent<{ effective: number; selection: string }>).detail;
-			},
-			{ once: true },
-		);
 
 		const select = getMaxConcurrentSelect();
 		select.value = 'auto';
@@ -164,7 +150,9 @@ describe('Job controls merge toggle', () => {
 		expect(setItemSpy).toHaveBeenCalledWith(MAX_CONCURRENT_STORAGE_KEY, 'auto');
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(null);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 6');
-		expect(detail).toEqual({ effective: 6, selection: 'auto' });
+		expect(mockedDependencies.setStatusPanelConcurrencyTextMock).toHaveBeenLastCalledWith(
+			'Max jobs: 6 (Auto)',
+		);
 	});
 
 	it('toggles disabled state and opacity on both controls', async () => {

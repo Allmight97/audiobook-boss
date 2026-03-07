@@ -35,7 +35,9 @@ Required fields per fallback:
 
 ### Migration Closure Evidence (2026-02-11, migration branch)
 
+> Historical branch-era closure evidence only. This section is not the canonical frontend architecture source of truth and should not be read as “all de-hybridization is complete.” For current runtime posture, use `docs/specs/technical-reference.md`.
+
 - Bridge wrapper removed: UI callsites now use typed `tauriClient.*` helpers in runtime modules and `src/App.svelte` orchestration.
 - StatusPanel aggregator shim fallback removed: legacy shim module deleted and replaced with island mount entry (`src/ui/statusPanel/index.ts`, `src/ui/statusPanel/StatusPanelIsland.svelte`).
-- FileList mutable-export fallback removed: direct mutable exports replaced with explicit accessor API (`src/ui/fileList/state.ts`, updated consumers in `src/ui/fileList/**`, `src/main.ts`, `src/ui/statusPanel/**`).
+- FileList mutable-export fallback removed: direct mutable exports were replaced with explicit accessor API as an intermediate step (`src/ui/fileList/state.ts`, updated consumers in `src/ui/fileList/**`, `src/main.ts`, `src/ui/statusPanel/**`). Canonical reactive file/session ownership remains a later de-hybridization target.
 - Tracking issues: #203 and #210 (closure tied to migration PR merge evidence).

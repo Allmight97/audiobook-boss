@@ -5,6 +5,7 @@
 		handleNamingPresetChange,
 		handleNamingTemplateInput,
 	} from './handlers';
+	import { outputPanelState } from './state.svelte';
 
 	const customTemplatePlaceholder = '{author}/{series}/Book {seriesPart} - {title}';
 
@@ -22,9 +23,9 @@
       <div
         id="output-preview-text"
         class="output-path-text"
-        title="Full output path preview"
+        title={outputPanelState.previewTitle}
       >
-        Select output directory...
+        {outputPanelState.previewText}
       </div>
       <button
         id="output-dir-browse"
@@ -40,12 +41,18 @@
       id="output-dir-text"
       class="hidden"
       readonly
+      value={outputPanelState.outputDirectory}
     />
 
     <div class="output-options-panel">
       <div class="path-option-row flex items-center gap-2">
         <label for="output-naming-preset" class="input-label text-xs mt-0">Naming preset</label>
-        <select id="output-naming-preset" class="input-text" on:change={handleNamingPresetChange}>
+        <select
+          id="output-naming-preset"
+          class="input-text"
+          value={outputPanelState.namingPreset}
+          on:change={handleNamingPresetChange}
+        >
           <option value="absDefault">ABS Default</option>
           <option value="customTemplate">Custom Template</option>
         </select>
@@ -56,12 +63,17 @@
           </div>
         </div>
       </div>
-      <div class="path-option-row" id="output-template-row" hidden>
+      <div
+        class="path-option-row"
+        id="output-template-row"
+        hidden={outputPanelState.templateRowHidden}
+      >
         <label for="output-template-input" class="input-label text-xs mt-0">Template</label>
 	        <input
 	          id="output-template-input"
 	          type="text"
 	          class="input-text w-full"
+	          value={outputPanelState.namingTemplate}
 	          placeholder={customTemplatePlaceholder}
 	          on:input={handleNamingTemplateInput}
 	          autocomplete="off"
@@ -73,12 +85,17 @@
           <input
             type="checkbox"
             id="output-abs-include-year"
+            checked={outputPanelState.absIncludeYear}
             on:change={handleAbsIncludeYearChange}
           />
           Include year segment (YYYY)
         </label>
-        <span id="output-abs-hint" class="text-xs muted-text">
-          Creates Author / Series / Book # - Title
+        <span
+          id="output-abs-hint"
+          class="text-xs muted-text"
+          hidden={outputPanelState.absHintHidden}
+        >
+          {outputPanelState.absHintText}
         </span>
       </div>
     </div>

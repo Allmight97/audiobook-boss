@@ -33,6 +33,7 @@ describe('harness scenario routing', () => {
 		const scenarios = resolveHarnessScenariosForPaths(['src/HarnessApp.svelte']);
 
 		expect(scenarios.map((scenario) => scenario.id)).toEqual([
+			'file-management',
 			'metadata-edit',
 			'status-processing',
 			'output-preview',
@@ -42,10 +43,10 @@ describe('harness scenario routing', () => {
 	it('runs the full suite when harness bootstrap or runner surfaces change', () => {
 		expect(
 			resolveHarnessScenariosForPaths(['src/harness-main.ts']).map((scenario) => scenario.id),
-		).toEqual(['metadata-edit', 'status-processing', 'output-preview']);
+		).toEqual(['file-management', 'metadata-edit', 'status-processing', 'output-preview']);
 		expect(
 			resolveHarnessScenariosForPaths(['scripts/harness/verify.ts']).map((scenario) => scenario.id),
-		).toEqual(['metadata-edit', 'status-processing', 'output-preview']);
+		).toEqual(['file-management', 'metadata-edit', 'status-processing', 'output-preview']);
 	});
 
 	it('treats backend-only changes as outside the harness lane', () => {
@@ -53,13 +54,14 @@ describe('harness scenario routing', () => {
 	});
 
 	it('flags uncovered UI-affecting files', () => {
-		expect(findUnmappedHarnessUiPaths(['src/ui/fileImport/handlers.ts'])).toEqual([
-			'src/ui/fileImport/handlers.ts',
+		expect(findUnmappedHarnessUiPaths(['src/ui/unknownPanel.ts'])).toEqual([
+			'src/ui/unknownPanel.ts',
 		]);
 	});
 
-	it('keeps the three seed scenarios discoverable', () => {
+	it('keeps the harness scenarios discoverable', () => {
 		expect(listHarnessScenarios().map((scenario) => scenario.id)).toEqual([
+			'file-management',
 			'metadata-edit',
 			'status-processing',
 			'output-preview',

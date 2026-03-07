@@ -26,6 +26,17 @@ export class HarnessScenarioVerificationError extends Error {
 	}
 }
 
+function requireScenarioCheck(
+	scenario: HarnessScenario,
+	checkId: HarnessScenarioCheckResult['id'],
+): HarnessScenarioVerifyCheck {
+	const check = scenario.verifyChecks.find((entry) => entry.id === checkId);
+	if (!check) {
+		throw new Error(`Scenario ${scenario.id} is missing verify check ${checkId}`);
+	}
+	return check;
+}
+
 async function runScenarioCheck(
 	results: HarnessScenarioCheckResult[],
 	check: HarnessScenarioVerifyCheck,
@@ -83,7 +94,61 @@ export async function seedMetadataScenario(
 			.filter({ hasText: 'Metadata applied to form.' })
 			.waitFor();
 		await ensureTitleValue(page, 'Dune');
+		await page.click('[data-testid="metadata-lookup-close"]');
+		await page.locator('[data-testid="metadata-lookup-modal"]').waitFor({ state: 'hidden' });
 	});
+
+	await runScenarioCheck(results, requireScenarioCheck(scenario, 'cover-art-load'), async () => {
+		await page.fill('[data-testid="cover-art-url-input"]', 'https://example.com/dune-cover.jpg');
+		await page.click('[data-testid="cover-art-url-load-btn"]');
+		await page
+			.locator('#cover-art-url-message')
+			.filter({ hasText: 'Cover art loaded from URL.' })
+			.waitFor();
+		await page.locator('#cover-art-img:not(.hidden)').waitFor();
+		await page.locator('#cover-art-img').evaluate((node) => {
+			if (!(node instanceof HTMLImageElement)) {
+				throw new Error('Expected cover-art image element.');
+			}
+			if (!node.src.startsWith('data:image/')) {
+				throw new Error(`Expected cover-art preview data URL, received ${node.src}`);
+			}
+		});
+	});
+
+	return results;
+}
+
+export async function seedFileManagementScenario(
+	page: Page,
+	scenario: HarnessScenario,
+): Promise<HarnessScenarioCheckResult[]> {
+	await resetHarnessState(page);
+	const results: HarnessScenarioCheckResult[] = [];
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'selection-follows-reorder'),
+		async () => {
+			const items = page.locator('.file-list-item');
+			await items.nth(1).click();
+			await items.nth(1).locator('.move-up-btn').click();
+			await page.locator('.context-filename').filter({ hasText: '02-dune-part-2.mp3' }).waitFor();
+			await page.locator('.context-position').filter({ hasText: '1 of 2' }).waitFor();
+		},
+	);
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'clear-and-reimport'),
+		async () => {
+			await page.click('#clear-files-btn');
+			await page.locator('#file-count-display').filter({ hasText: '0 files' }).waitFor();
+			await page.getByRole('button', { name: 'Add audio files' }).click();
+			await page.locator('#file-count-display').filter({ hasText: '2 files' }).waitFor();
+			await page.locator('.file-list-item').nth(1).waitFor();
+		},
+	);
 
 	return results;
 }
@@ -94,18 +159,35 @@ export async function seedStatusScenario(
 ): Promise<HarnessScenarioCheckResult[]> {
 	await resetHarnessState(page);
 	const results: HarnessScenarioCheckResult[] = [];
-
-	await runScenarioCheck(results, scenario.verifyChecks[0], async () => {
-		await page.evaluate(async () => {
-			await window.__ABB_HARNESS__?.seedOutput({
-				outputDirectory: '/Library/Audiobooks',
-				namingPreset: 'absDefault',
-				absIncludeYear: false,
-			});
+	await page.evaluate(async () => {
+		await window.__ABB_HARNESS__?.seedOutput({
+			outputDirectory: '/Library/Audiobooks',
+			namingPreset: 'absDefault',
+			absIncludeYear: false,
 		});
-		await page.getByRole('button', { name: 'Process Audiobook' }).click();
+	});
+	await page.getByRole('button', { name: 'Process Audiobook' }).click();
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'order-lock-visible'),
+		async () => {
+			await page.locator('#file-order-lock').waitFor();
+			await page.locator('#clear-files-btn').evaluate((node) => {
+				if (!(node instanceof HTMLButtonElement) || !node.disabled) {
+					throw new Error('Expected clear-files button to be disabled while processing.');
+				}
+			});
+		},
+	);
+
+	await runScenarioCheck(results, requireScenarioCheck(scenario, 'queue-completes'), async () => {
 		await page.locator('#percentage-processed').filter({ hasText: '100.0%' }).waitFor();
-		await page.getByText('Completed (100.0%)').waitFor();
+		await page
+			.locator('#job-list span')
+			.filter({ hasText: 'Completed (100.0%)' })
+			.first()
+			.waitFor();
 	});
 
 	return results;
@@ -133,29 +215,51 @@ export async function seedOutputScenario(
 	await page.locator('#output-preview-text').filter({ hasText: '/Library/Audiobooks' }).waitFor();
 	const results: HarnessScenarioCheckResult[] = [];
 
-	await runScenarioCheck(results, scenario.verifyChecks[0], async () => {
-		await page.selectOption('#output-naming-preset', 'customTemplate');
-		await page.fill('#output-template-input', '{author}/{title}');
-		await page.locator('#output-template-row').evaluate((node) => {
-			if (node.hasAttribute('hidden')) {
-				throw new Error('Expected custom template row to be visible.');
-			}
-		});
-	});
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'encoder-controls-reactive'),
+		async () => {
+			await page.selectOption('#adv-encoder', 'native_aac');
+			await page.locator('#encoder-availability-hint').filter({ hasText: 'Native AAC' }).waitFor();
+			await page.locator('#output-quality').evaluate((node) => {
+				if (!node.classList.contains('hidden')) {
+					throw new Error('Expected manual Native AAC selection to hide the quality select.');
+				}
+			});
+		},
+	);
 
-	await runScenarioCheck(results, scenario.verifyChecks[1], async () => {
-		await page.locator('#output-preview-text').evaluate((node) => {
-			const text = node.textContent ?? '';
-			if (!text.includes('/Library/Audiobooks')) {
-				throw new Error(
-					`Expected preview text to stay anchored to /Library/Audiobooks, received ${text}`,
-				);
-			}
-			if (text.includes('Select output directory')) {
-				throw new Error('Expected preview text to resolve to a concrete path.');
-			}
-		});
-	});
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'custom-template-row'),
+		async () => {
+			await page.selectOption('#output-naming-preset', 'customTemplate');
+			await page.fill('#output-template-input', '{author}/{title}');
+			await page.locator('#output-template-row').evaluate((node) => {
+				if (node.hasAttribute('hidden')) {
+					throw new Error('Expected custom template row to be visible.');
+				}
+			});
+		},
+	);
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'preview-remains-anchored'),
+		async () => {
+			await page.locator('#output-preview-text').evaluate((node) => {
+				const text = node.textContent ?? '';
+				if (!text.includes('/Library/Audiobooks')) {
+					throw new Error(
+						`Expected preview text to stay anchored to /Library/Audiobooks, received ${text}`,
+					);
+				}
+				if (text.includes('Select output directory')) {
+					throw new Error('Expected preview text to resolve to a concrete path.');
+				}
+			});
+		},
+	);
 
 	return results;
 }
@@ -166,6 +270,8 @@ export async function seedHarnessScenario(
 	scenario: HarnessScenario,
 ): Promise<HarnessScenarioCheckResult[]> {
 	switch (scenarioId) {
+		case 'file-management':
+			return seedFileManagementScenario(page, scenario);
 		case 'metadata-edit':
 			return seedMetadataScenario(page, scenario);
 		case 'status-processing':

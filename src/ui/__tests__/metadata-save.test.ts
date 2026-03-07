@@ -1,4 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import {
+	METADATA_FIELD_DEFINITIONS,
+	setMetadataFormFieldAction,
+	setMetadataFormFieldDirty,
+	setMetadataFormFieldValue,
+	setMetadataFormModeState,
+} from '../metadataForm/state.svelte';
 
 let coverArtBytes: number[] | null = null;
 let coverRemoval = false;
@@ -13,53 +20,34 @@ vi.mock('../coverArt', () => ({
 
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 
-const setField = (id: string, value: string) => {
-	const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-	if (el) el.value = value;
-};
+function resetMetadataFormState(): void {
+	setMetadataFormModeState('single');
+	for (const field of METADATA_FIELD_DEFINITIONS) {
+		setMetadataFormFieldValue(field.inputId, '');
+		setMetadataFormFieldAction(field.inputId, 'keep');
+		setMetadataFormFieldDirty(field.inputId, false);
+	}
+}
 
 describe('readMetadataForm (single mode)', () => {
 	beforeEach(() => {
-		document.body.innerHTML = `
-      <div id="metadata-form">
-        <input id="meta-title" />
-        <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-author" />
-        <select id="meta-author-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-narrator" />
-        <select id="meta-narrator-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-year" />
-        <select id="meta-year-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-genre" />
-        <select id="meta-genre-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-series" />
-        <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-series-part" />
-        <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-subseries" />
-        <select id="meta-subseries-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-subseries-part" />
-        <select id="meta-subseries-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <textarea id="meta-description"></textarea>
-        <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-      </div>
-    `;
+		resetMetadataFormState();
 		coverArtBytes = null;
 		coverRemoval = false;
 		hasCustomCoverArt = false;
 	});
 
 	it('maps form fields to metadata and includes cover art bytes', () => {
-		setField('meta-title', 'Title');
-		setField('meta-author', 'Author');
-		setField('meta-narrator', 'Narrator');
-		setField('meta-year', '2024');
-		setField('meta-genre', 'Fiction');
-		setField('meta-series', 'Series');
-		setField('meta-series-part', '2');
-		setField('meta-subseries', 'Sub-series');
-		setField('meta-subseries-part', '4');
-		setField('meta-description', 'Desc');
+		setMetadataFormFieldValue('meta-title', 'Title');
+		setMetadataFormFieldValue('meta-author', 'Author');
+		setMetadataFormFieldValue('meta-narrator', 'Narrator');
+		setMetadataFormFieldValue('meta-year', '2024');
+		setMetadataFormFieldValue('meta-genre', 'Fiction');
+		setMetadataFormFieldValue('meta-series', 'Series');
+		setMetadataFormFieldValue('meta-series-part', '2');
+		setMetadataFormFieldValue('meta-subseries', 'Sub-series');
+		setMetadataFormFieldValue('meta-subseries-part', '4');
+		setMetadataFormFieldValue('meta-description', 'Desc');
 		coverArtBytes = [1, 2, 3];
 
 		const metadata = readMetadataForm({ mode: 'single' });
@@ -81,7 +69,7 @@ describe('readMetadataForm (single mode)', () => {
 	});
 
 	it('accepts YYYY-MM publication date input', () => {
-		setField('meta-year', '2024-07');
+		setMetadataFormFieldValue('meta-year', '2024-07');
 
 		const metadata = readMetadataForm({ mode: 'single' });
 
@@ -122,38 +110,15 @@ describe('readMetadataForm (single mode)', () => {
 
 describe('readMetadataForm (multi mode)', () => {
 	beforeEach(() => {
-		document.body.innerHTML = `
-      <div id="metadata-form" data-multi-select="true">
-        <input id="meta-title" />
-        <select id="meta-title-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-author" />
-        <select id="meta-author-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-narrator" />
-        <select id="meta-narrator-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-year" />
-        <select id="meta-year-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-genre" />
-        <select id="meta-genre-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-series" />
-        <select id="meta-series-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-series-part" />
-        <select id="meta-series-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-subseries" />
-        <select id="meta-subseries-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <input id="meta-subseries-part" />
-        <select id="meta-subseries-part-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-        <textarea id="meta-description"></textarea>
-        <select id="meta-description-action"><option value="keep">Keep</option><option value="blank">Blank</option></select>
-      </div>
-    `;
+		resetMetadataFormState();
+		setMetadataFormModeState('multi', 2);
 		coverArtBytes = null;
 		coverRemoval = false;
 		hasCustomCoverArt = false;
 	});
 
 	it('uses bulk blank actions for multi-select', () => {
-		const yearAction = document.getElementById('meta-year-action') as HTMLSelectElement;
-		yearAction.value = 'blank';
+		setMetadataFormFieldAction('meta-year', 'blank');
 
 		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 
@@ -161,9 +126,8 @@ describe('readMetadataForm (multi mode)', () => {
 	});
 
 	it('applies edited values in multi-select mode', () => {
-		const titleInput = document.getElementById('meta-title') as HTMLInputElement;
-		titleInput.value = 'New Title';
-		titleInput.dataset.dirty = 'true';
+		setMetadataFormFieldValue('meta-title', 'New Title');
+		setMetadataFormFieldDirty('meta-title', true);
 
 		const metadata = readMetadataForm({ mode: 'multi', onlyDirty: true });
 

@@ -9,6 +9,7 @@ For Audiobook Boss, treat the `harness:agent` lane as desktop-only by default. A
 Use:
 
 - `bun run harness:verify --changed`
+- `bun run harness:verify --scenario file-management`
 - `bun run harness:verify --scenario metadata-edit`
 - `bun run harness:verify --scenario status-processing`
 - `bun run harness:verify --scenario output-preview`

@@ -1,8 +1,13 @@
+import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../lib/tauri/client';
+import OutputPanelIsland from '../outputPanel/OutputPanelIsland.svelte';
 import { setJobTypeSelection } from '../jobControls';
+import { populateMetadataFormMulti, populateMetadataFormSingle } from '../metadataForm';
+import { metadataFormState } from '../metadataForm/state.svelte';
 import { updateOutputPath } from '../outputPanel/dom';
 import {
+	outputPanelState,
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateAbsIncludeYear,
@@ -17,22 +22,12 @@ vi.mock('../../lib/tauri/client', () => ({
 describe('output panel preview resilience', () => {
 	beforeEach(() => {
 		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
-		document.body.innerHTML = `
-      <div id="output-preview-text"></div>
-      <input id="output-dir-text" />
-      <input id="meta-title" value="Ghosts" />
-      <input id="meta-author" value="Ryk Brown" />
-      <input id="meta-narrator" value="" />
-      <input id="meta-year" value="" />
-      <input id="meta-genre" value="" />
-      <textarea id="meta-description"></textarea>
-      <input id="meta-series" value="" />
-      <input id="meta-series-part" value="" />
-      <input id="meta-subseries" value="" />
-      <input id="meta-subseries-part" value="" />
-      <div id="meta-series-part-warning" hidden></div>
-      <div id="meta-subseries-part-warning" hidden></div>
-    `;
+		render(OutputPanelIsland);
+		populateMetadataFormSingle({
+			title: 'Ghosts',
+			album: 'Ghosts',
+			artist: 'Ryk Brown',
+		});
 		updateOutputDirectory('/Library/Audiobooks');
 		updateNamingPreset('absDefault');
 		updateAbsIncludeYear(false);
@@ -44,11 +39,14 @@ describe('output panel preview resilience', () => {
 		vi.clearAllMocks();
 	});
 
-	it('falls back to local preview path when Tauri runtime is unavailable', () => {
+	it('falls back to local preview path when Tauri runtime is unavailable', async () => {
 		updateOutputPath();
 
 		const previewText = document.getElementById('output-preview-text');
-		expect(previewText?.textContent).toContain('/Library/Audiobooks');
+		expect(outputPanelState.previewText).toContain('/Library/Audiobooks');
+		await waitFor(() => {
+			expect(previewText?.textContent).toContain('/Library/Audiobooks');
+		});
 		expect(vi.mocked(tauriClient.previewOutputPath)).not.toHaveBeenCalled();
 	});
 
@@ -61,19 +59,43 @@ describe('output panel preview resilience', () => {
 
 		const previewText = document.getElementById('output-preview-text');
 		expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledTimes(1);
+		expect(outputPanelState.previewText).toBe(
+			'Output preview unavailable. Fix metadata/template and retry.',
+		);
 		expect(previewText?.textContent).toBe(
 			'Output preview unavailable. Fix metadata/template and retry.',
 		);
 		expect(previewText?.textContent).not.toContain('/Library/Audiobooks');
 	});
 
-	it('clears hidden output directory mirror when directory state is emptied', () => {
+	it('clears hidden output directory mirror when directory state is emptied', async () => {
 		const hiddenDirInput = document.getElementById('output-dir-text') as HTMLInputElement;
-		hiddenDirInput.value = '/stale/path';
 		updateOutputDirectory('');
 
 		updateOutputPath();
 
-		expect(hiddenDirInput.value).toBe('');
+		expect(outputPanelState.outputDirectory).toBe('');
+		await waitFor(() => {
+			expect(hiddenDirInput.value).toBe('');
+		});
+	});
+
+	it('uses shared multi-select metadata for preview text and series warnings', async () => {
+		populateMetadataFormMulti(
+			[
+				{ title: 'Dune', artist: 'Frank Herbert', series: 'Dune' },
+				{ title: 'Dune', artist: 'Frank Herbert', series: 'Dune' },
+			],
+			2,
+		);
+
+		updateOutputPath();
+
+		await waitFor(() => {
+			expect(outputPanelState.previewText).toContain('/Library/Audiobooks/Frank Herbert/');
+			expect(outputPanelState.previewText).toContain('Dune');
+		});
+		expect(outputPanelState.previewText).not.toContain('Unknown Author');
+		expect(metadataFormState.seriesPartWarning.visible).toBe(true);
 	});
 });

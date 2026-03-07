@@ -13,7 +13,7 @@ These APIs define the "Menu" of actions available to the user interface.
 
 - **[Tauri Commands](./tauri-commands.md)**
     - **Command Entry Points**: `src-tauri/src/commands/*`
-    - **Frontend Call Path**: `src/App.svelte` -> `src/ui/**` feature modules -> `src/lib/tauri/client.ts`
+    - **Frontend Call Path**: `src/App.svelte` shell -> `src/ui/core/bootstrap.ts` / `src/ui/**` feature modules -> `src/lib/tauri/client.ts`
 - **[Type Safety & Boundaries](./tauri-ts-boundaries.md)**
     - **Shared Contract**: `src/types/` (TS) ↔ `src-tauri/src/commands` (Rust) via generated `src/lib/generated/tauri.ts`
     - **Note**: `process_audiobook_files` accepts per-file metadata keyed by input path.

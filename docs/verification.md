@@ -33,6 +33,19 @@ Expect:
 
 If `--changed` reports no matching scenario for a touched UI file, add or extend the scenario in the same change.
 
+Current harness scenarios:
+
+- `file-management` for file import, selection, reorder, clear, and input-lane inspector truth
+- `metadata-edit` for metadata form, lookup, and cover-art flows
+- `status-processing` for queue/progress rendering plus processing lock behavior
+- `output-preview` for encoder/output naming controls and preview health
+
+Targeted scenario runs are encouraged during the fix loop when they match the touched surface, for example:
+
+```bash
+bun run harness:verify --scenario file-management
+```
+
 Optional supplement:
 
 - Use `harness:agent` when you need a persistent desktop browser loop for layout, control affordances, or other interactive review that is awkward to express as a one-shot scenario.
