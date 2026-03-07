@@ -78,6 +78,52 @@
     </div>
   </div>
 
+  <div
+    id="encoder-inline-option-row"
+    class="encoder-inline-option-row hidden"
+    data-testid="encoder-inline-option-row"
+  >
+    <div
+      id="fdk-options"
+      class="encoder-option-group hidden"
+      data-testid="fdk-options"
+    >
+      <label
+        class="checkbox-label encoder-inline-toggle"
+        data-testid="afterburner-toggle"
+        title="Enable Afterburner"
+      >
+        <input
+          type="checkbox"
+          id="adv-fdk-afterburner"
+          checked
+          data-testid="afterburner-checkbox"
+        />
+        <span class="option-label">Afterburner</span>
+      </label>
+    </div>
+
+    <div
+      id="native-options"
+      class="encoder-option-group hidden"
+      data-testid="native-options"
+    >
+      <label
+        class="checkbox-label encoder-inline-toggle"
+        data-testid="twoloop-toggle"
+        title="Enable Twoloop (High Quality)"
+      >
+        <input
+          type="checkbox"
+          id="adv-native-twoloop"
+          checked
+          data-testid="twoloop-checkbox"
+        />
+        <span class="option-label">Twoloop</span>
+      </label>
+    </div>
+  </div>
+
   <div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
     <div>
       <label for="output-samplerate">Sample Rate</label>
@@ -110,49 +156,6 @@
       >
         Auto resolves from source audio.
       </p>
-    </div>
-    <div class="col-span-2 flex items-end"></div>
-  </div>
-
-  <div class="flex gap-4 items-center h-full">
-    <div
-      id="fdk-options"
-      class="encoder-option-group"
-      data-testid="fdk-options"
-    >
-      <label
-        class="checkbox-label mb-0"
-        data-testid="afterburner-toggle"
-        title="Enable Afterburner"
-      >
-        <input
-          type="checkbox"
-          id="adv-fdk-afterburner"
-          checked
-          data-testid="afterburner-checkbox"
-        />
-        <span class="option-label">Afterburner</span>
-      </label>
-    </div>
-
-    <div
-      id="native-options"
-      class="encoder-option-group hidden"
-      data-testid="native-options"
-    >
-      <label
-        class="checkbox-label mb-0"
-        data-testid="twoloop-toggle"
-        title="Enable Twoloop (High Quality)"
-      >
-        <input
-          type="checkbox"
-          id="adv-native-twoloop"
-          checked
-          data-testid="twoloop-checkbox"
-        />
-        <span class="option-label">Twoloop</span>
-      </label>
     </div>
   </div>
 </div>

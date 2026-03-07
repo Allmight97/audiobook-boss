@@ -129,8 +129,8 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 
 	const effectiveEncoder = resolveEffectiveEncoder(flavor);
 	const vbr = effectiveEncoder === 'fdk_he_aac' ? { enabled: true, level: vbrLevel } : undefined;
-	const fdkAfterburner =
-		effectiveEncoder === 'fdk_he_aac' ? !!dom.fdkAfterburner?.checked : undefined;
+	const fdkAfterburner = flavor === 'fdk_he_aac' ? !!dom.fdkAfterburner?.checked : undefined;
+	const twoloop = flavor === 'native_aac' ? !!dom.nativeTwoloop?.checked : true;
 
 	return {
 		flavor,
@@ -139,7 +139,7 @@ const getEncoderSettingsFromDom = (): EncoderSettingsLike => {
 		bitrateMode,
 		vbr,
 		fdkAfterburner,
-		twoloop: dom.nativeTwoloop ? !!dom.nativeTwoloop.checked : true,
+		twoloop,
 	};
 };
 
@@ -435,13 +435,19 @@ const syncQualityBitrateVisibility = (): void => {
 
 const syncEncoderOptions = (encoder: EncoderFlavor): void => {
 	const dom = ensureDomCache();
+	const flavor = (dom.encoderSelect?.value as EncoderFlavor | undefined) ?? 'auto';
+	const showInlineOptionRow = flavor === 'fdk_he_aac' || flavor === 'native_aac';
+
+	if (dom.encoderInlineOptionRow) {
+		dom.encoderInlineOptionRow.classList.toggle('hidden', !showInlineOptionRow);
+	}
 
 	// Show/hide encoder-specific option groups
 	if (dom.fdkOptions) {
-		dom.fdkOptions.classList.toggle('hidden', encoder !== 'fdk_he_aac');
+		dom.fdkOptions.classList.toggle('hidden', flavor !== 'fdk_he_aac');
 	}
 	if (dom.nativeOptions) {
-		dom.nativeOptions.classList.toggle('hidden', encoder !== 'native_aac');
+		dom.nativeOptions.classList.toggle('hidden', flavor !== 'native_aac');
 	}
 	if (dom.appleOptions) {
 		dom.appleOptions.classList.toggle('hidden', encoder !== 'aac_at');

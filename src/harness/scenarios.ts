@@ -58,11 +58,14 @@ const SCENARIOS: readonly HarnessScenario[] = [
 	{
 		id: 'output-preview',
 		title: 'Output Preview',
-		description: 'Verifies output naming controls, preview fallback, and metadata-driven warnings.',
+		description:
+			'Verifies output naming controls, encoder panel behavior, preview fallback, and metadata-driven warnings.',
 		route: '/harness.html',
 		screenshotName: 'output-preview.png',
 		matchers: [
 			/^src\/ui\/outputPanel\//,
+			/^src\/ui\/encoderPanel(?:\/|\.ts$)/,
+			/^src\/ui\/__tests__\/encoderPanel/,
 			/^src\/ui\/metadataValidation\.ts$/,
 			/^src\/ui\/metadataForm(?:\/|\.ts$)/,
 			/^src\/ui\/tagPreview(?:\/|\.ts$)/,

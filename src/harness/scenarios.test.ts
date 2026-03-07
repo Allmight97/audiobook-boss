@@ -23,6 +23,12 @@ describe('harness scenario routing', () => {
 		expect(scenarios.map((scenario) => scenario.id)).toContain('status-processing');
 	});
 
+	it('maps encoder panel surfaces to the output-preview scenario', () => {
+		const scenarios = resolveHarnessScenariosForPaths(['src/ui/encoderPanel/logic.ts']);
+
+		expect(scenarios.map((scenario) => scenario.id)).toContain('output-preview');
+	});
+
 	it('runs the full suite when shared harness surfaces change', () => {
 		const scenarios = resolveHarnessScenariosForPaths(['src/HarnessApp.svelte']);
 

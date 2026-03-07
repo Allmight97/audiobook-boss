@@ -1016,13 +1016,20 @@ textarea:hover:not(:focus) {
 	color: var(--text-secondary);
 }
 
-.encoder-options-section {
-	background-color: var(--bg-input);
-	border: 1px solid var(--border-primary);
+.encoder-inline-option-row {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin: 0.125rem 0 0.5rem;
 }
 
 .encoder-option-group {
-	padding: 0.25rem 0;
+	padding: 0;
+}
+
+.encoder-inline-toggle {
+	align-items: center;
+	margin-top: 0;
 }
 
 .checkbox-label .option-label {

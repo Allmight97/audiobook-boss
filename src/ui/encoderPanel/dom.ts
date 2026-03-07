@@ -11,7 +11,7 @@ export interface EncoderDomCache {
 	estimatedBitrate?: HTMLElement | null;
 	sampleRateAutoHint?: HTMLElement | null;
 	channelsAutoHint?: HTMLElement | null;
-	encoderOptionsSection?: HTMLElement | null;
+	encoderInlineOptionRow?: HTMLElement | null;
 	fdkOptions?: HTMLElement | null;
 	nativeOptions?: HTMLElement | null;
 	appleOptions?: HTMLElement | null;
@@ -33,7 +33,7 @@ export const queryDom = (): EncoderDomCache => ({
 	estimatedBitrate: document.getElementById('estimated-bitrate'),
 	sampleRateAutoHint: document.getElementById('output-samplerate-effective'),
 	channelsAutoHint: document.getElementById('output-channels-effective'),
-	encoderOptionsSection: document.getElementById('encoder-options-section'),
+	encoderInlineOptionRow: document.getElementById('encoder-inline-option-row'),
 	fdkOptions: document.getElementById('fdk-options'),
 	nativeOptions: document.getElementById('native-options'),
 	appleOptions: document.getElementById('apple-options'),

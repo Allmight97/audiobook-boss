@@ -97,7 +97,7 @@ export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
 		bitrateKbps: 64,
 		bitrateMode: { mode: 'vbr', value: 3 },
 		channels: 'auto',
-		afterburner: false,
+		afterburner: true,
 		threads: { mode: 'auto' },
 		twoloop: true,
 	};
