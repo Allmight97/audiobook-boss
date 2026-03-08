@@ -1,21 +1,30 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
+import type { TauriFileDropEvents } from '../../types/events';
 import FileImportIsland from '../fileImport/FileImportIsland.svelte';
 import { initFileImport } from '../fileImport';
 
-const { analyzeAudioFilesMock, readAudioMetadataMock, listeners } = vi.hoisted(() => ({
-	analyzeAudioFilesMock: vi.fn(),
-	readAudioMetadataMock: vi.fn(),
-	listeners: {} as Record<string, (payload: any) => void>,
-}));
+type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
+type DragDropListener = (event: { payload: DragDropPayload }) => void;
+
+const { analyzeAudioFilesMock, loadCoverArtFileMock, readAudioMetadataMock, listeners } =
+	vi.hoisted(() => ({
+		analyzeAudioFilesMock: vi.fn(),
+		loadCoverArtFileMock: vi.fn(),
+		readAudioMetadataMock: vi.fn(),
+		listeners: {} as Record<'tauri://drag-drop', DragDropListener>,
+	}));
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		listen: vi.fn((event: string, cb: any) => {
-			listeners[event] = cb;
+		listen: vi.fn((event: string, cb: DragDropListener) => {
+			if (event === 'tauri://drag-drop') {
+				listeners[event] = cb;
+			}
 		}),
 		open: vi.fn(),
 		analyzeAudioFiles: analyzeAudioFilesMock,
+		loadCoverArtFile: loadCoverArtFileMock,
 		readAudioMetadata: readAudioMetadataMock,
 	},
 }));
@@ -35,6 +44,8 @@ async function flushAsync(): Promise<void> {
 describe('File import drop vs cover art drop isolation', () => {
 	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
+		loadCoverArtFileMock.mockReset();
+		loadCoverArtFileMock.mockResolvedValue(null);
 		readAudioMetadataMock.mockReset();
 		readAudioMetadataMock.mockResolvedValue({});
 		document.body.innerHTML = `

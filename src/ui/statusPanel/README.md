@@ -1,15 +1,16 @@
 # StatusPanel Module Structure
 
-Current status-panel ownership is mixed: rendering is largely island/view-state driven, but processing lifecycle truth still lives in the singleton `StatusPanel` controller. Treat this file as a module map, not as a claim that the next-pass de-hybridization is already complete.
+Current status-panel ownership is still mixed: rendering is island/view-state driven, lifecycle truth lives in a typed `StatusPanelController`, and app-level access still flows through a singleton `StatusPanel` shell. Treat this file as a module map, not as a claim that the final store/service cutover is already complete.
 
 ## Current Runtime Posture
 
 - `StatusPanelIsland.svelte` is the render host for the panel UI.
 - `viewState.svelte.ts` owns the reactive view state used by the island.
-- `logic.ts` still owns the real processing lifecycle through `StatusPanel`, `initStatusPanel()`, and `getStatusPanel()`.
+- `controller.ts` owns the real processing lifecycle through `StatusPanelController`.
+- `logic.ts` is the singleton/runtime shell that exposes `StatusPanel`, `initStatusPanel()`, and `getStatusPanel()`.
 - `processing.ts`, `events.ts`, `render.ts`, and `dom.ts` are support layers around that controller.
 
-This means the module is cleaner than the earlier DOM-heavy model, but it is still a known remaining ownership seam. The planned steady state is store/service ownership without a singleton controller.
+This means the module is materially cleaner than the earlier private-internals model: lifecycle tests now target the public controller instead of `(panel as any)` access. It is still a known remaining ownership seam because singleton runtime access has not been retired yet. The planned steady state remains store/service ownership without a singleton shell.
 
 ## Files Overview
 
@@ -24,11 +25,20 @@ Current public API surface:
 
 ### `/logic.ts`
 
+Current runtime shell logic:
+
+- singleton instance management
+- app-facing `StatusPanel` wrapper methods
+- trigger helpers used by the island and adjacent modules
+
+### `/controller.ts`
+
 Current controller-owned runtime logic:
 
 - processing lifecycle orchestration
 - progress and queue listener installation
 - job-map and timer ownership
+- cancel/reset behavior
 - bridge between backend events and view-state/render helpers
 
 ### `/domain/`
@@ -80,4 +90,4 @@ Side-effect and boundary helpers:
 
 ### `/render.ts` and `/dom.ts`
 
-Legacy support layers that still help the singleton controller update the panel UI. These are candidates to shrink or disappear when processing state/actions become store-owned in the next de-hybridization pass.
+Support layers that help the typed controller update the panel UI. These are still candidates to shrink or disappear when processing state/actions become store-owned in the next de-hybridization pass.

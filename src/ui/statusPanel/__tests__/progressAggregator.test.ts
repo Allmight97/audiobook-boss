@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StatusPanel } from '../logic';
+import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
+import { StatusPanelController } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
@@ -39,30 +40,33 @@ describe('StatusPanel aggregate progress', () => {
 	});
 
 	it('computes simple averages across active and completed jobs', () => {
-		const panel = new StatusPanel();
-		(panel as any).handleQueueSnapshot({
+		const controller = new StatusPanelController();
+		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
 			],
 			max_concurrent: 2,
-		});
-
-		panel.updateProgress({
+		};
+		const converting: ProcessingProgressEvent = {
 			input_index: 0,
 			stage: 'converting',
 			percentage: 50,
 			message: 'Halfway',
-		} as any);
-		panel.updateProgress({
+		};
+		const completed: ProcessingProgressEvent = {
 			input_index: 1,
 			stage: 'completed',
 			percentage: 100,
 			message: 'Done',
-		} as any);
+		};
+
+		controller.applyQueueSnapshot(snapshot);
+		controller.applyProgress(converting);
+		controller.applyProgress(completed);
 		vi.advanceTimersByTime(20);
 
-		expect(panel.getCurrentStatus()).toEqual({
+		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'converting',
 			percentage: 75,
 			message: 'Halfway',

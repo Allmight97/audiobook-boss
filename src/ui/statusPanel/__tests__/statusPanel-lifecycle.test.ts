@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
-import { STAGES } from '../../../types/events';
+import {
+	STAGES,
+	type ProcessingProgressEvent,
+	type ProcessingQueueEvent,
+} from '../../../types/events';
 import {
 	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
@@ -11,12 +15,12 @@ import {
 	setJobTypeSelection,
 } from '../../jobControls';
 import * as dom from '../dom';
-import { StatusPanel } from '../logic';
+import { StatusPanelController } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 const listenerState = vi.hoisted(() => {
-	const progressCallbacks = new Set<(event: any) => void>();
-	const queueCallbacks = new Set<(event: any) => void>();
+	const progressCallbacks = new Set<(event: ProcessingProgressEvent) => void>();
+	const queueCallbacks = new Set<(event: ProcessingQueueEvent) => void>();
 	const progressUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
 	const queueUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
 
@@ -25,15 +29,17 @@ const listenerState = vi.hoisted(() => {
 		queueCallbacks,
 		progressUnlisteners,
 		queueUnlisteners,
-		listenForProgressEventsMock: vi.fn(async (handler: (event: any) => void) => {
-			progressCallbacks.add(handler);
-			const unlisten = vi.fn(() => {
-				progressCallbacks.delete(handler);
-			});
-			progressUnlisteners.push(unlisten);
-			return unlisten;
-		}),
-		listenForQueueEventsMock: vi.fn(async (handler: (event: any) => void) => {
+		listenForProgressEventsMock: vi.fn(
+			async (handler: (event: ProcessingProgressEvent) => void) => {
+				progressCallbacks.add(handler);
+				const unlisten = vi.fn(() => {
+					progressCallbacks.delete(handler);
+				});
+				progressUnlisteners.push(unlisten);
+				return unlisten;
+			},
+		),
+		listenForQueueEventsMock: vi.fn(async (handler: (event: ProcessingQueueEvent) => void) => {
 			queueCallbacks.add(handler);
 			const unlisten = vi.fn(() => {
 				queueCallbacks.delete(handler);
@@ -87,7 +93,7 @@ function assertControlsDisabled() {
 	expect(maxConcurrent.disabled).toBe(true);
 }
 
-function emitProgressToActiveListeners(event: any) {
+function emitProgressToActiveListeners(event: ProcessingProgressEvent) {
 	listenerState.progressCallbacks.forEach((callback) => callback(event));
 }
 
@@ -133,36 +139,36 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 
-		let resolveCancel!: () => void;
-		const inFlightCancel = new Promise<void>((resolve) => {
+		let resolveCancel!: (value: string) => void;
+		const inFlightCancel = new Promise<string>((resolve) => {
 			resolveCancel = resolve;
 		});
 		const cancelSpy = vi
 			.spyOn(tauriClient, 'cancelProcessing')
-			.mockReturnValue(inFlightCancel as any);
+			.mockImplementation(() => inFlightCancel);
 
-		const cancelRequest = (panel as any).handleCancelAll();
+		const cancelRequest = controller.requestCancelAll();
 		expect(cancelSpy).toHaveBeenCalledTimes(1);
 		expect(statusPanelViewState.cancelAllPending).toBe(true);
 
-		resolveCancel();
+		resolveCancel('cancel requested');
 		await cancelRequest;
 
 		expect(statusPanelViewState.cancelAllPending).toBe(false);
-		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
+		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
 		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
 			new Error('tauriClient cancellation failed'),
 		);
 
-		await (panel as any).handleCancelAll();
+		await controller.requestCancelAll();
 
 		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
@@ -193,19 +199,14 @@ describe('StatusPanel lifecycle', () => {
 		expectedMethod,
 		expectedMessage,
 	}) => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		seedDisabledControls();
-
-		const progressUnlisten = vi.fn();
-		const queueUnlisten = vi.fn();
-		(panel as any).progressUnlisten = progressUnlisten;
-		(panel as any).queueUnlisten = queueUnlisten;
 
 		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
 		const showErrorSpy = vi.spyOn(dom, 'showError');
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
 
-		(panel as any).handleQueueSnapshot({
+		controller.applyQueueSnapshot({
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -213,33 +214,31 @@ describe('StatusPanel lifecycle', () => {
 			max_concurrent: 2,
 		});
 
-		panel.updateProgress({
+		controller.applyProgress({
 			input_index: 0,
 			stage: terminalStages[0],
 			percentage: 100,
 			message: 'terminal-0',
-		} as any);
-		panel.updateProgress({
+		});
+		controller.applyProgress({
 			input_index: 1,
 			stage: terminalStages[1],
 			percentage: 100,
 			message: 'terminal-1',
-		} as any);
+		});
 
-		expect(panel.isCurrentlyProcessing).toBe(true);
+		expect(controller.isCurrentlyProcessing).toBe(true);
 		expect(getJobRows()).toHaveLength(2);
 		assertControlsDisabled();
 
 		vi.advanceTimersByTime(1999);
-		expect(panel.isCurrentlyProcessing).toBe(true);
-		expect(progressUnlisten).not.toHaveBeenCalled();
-		expect(queueUnlisten).not.toHaveBeenCalled();
+		expect(controller.isCurrentlyProcessing).toBe(true);
 
 		vi.advanceTimersByTime(1);
 
 		assertControlsEnabled();
-		expect(panel.isCurrentlyProcessing).toBe(false);
-		expect(panel.getCurrentStatus()).toEqual({
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'idle',
 			percentage: 0,
 			message: 'Ready to process audiobook',
@@ -254,18 +253,16 @@ describe('StatusPanel lifecycle', () => {
 					? showErrorSpy
 					: showInfoSpy;
 		expect(expectedSpy).toHaveBeenCalledWith(expectedMessage);
-		expect(progressUnlisten).toHaveBeenCalledTimes(1);
-		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 	});
 
 	it('uses the batch completion override message for partial failures', () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		seedDisabledControls();
 
 		const showErrorSpy = vi.spyOn(dom, 'showError');
-		panel.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
+		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
-		(panel as any).handleQueueSnapshot({
+		controller.applyQueueSnapshot({
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -273,18 +270,18 @@ describe('StatusPanel lifecycle', () => {
 			max_concurrent: 2,
 		});
 
-		panel.updateProgress({
+		controller.applyProgress({
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'terminal-0',
-		} as any);
-		panel.updateProgress({
+		});
+		controller.applyProgress({
 			input_index: 1,
 			stage: STAGES.failed,
 			percentage: 100,
 			message: 'terminal-1',
-		} as any);
+		});
 
 		vi.advanceTimersByTime(2000);
 
@@ -315,33 +312,25 @@ describe('StatusPanel lifecycle', () => {
 		message,
 		method,
 	}) => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		seedDisabledControls();
-
-		const progressUnlisten = vi.fn();
-		const queueUnlisten = vi.fn();
-		(panel as any).progressUnlisten = progressUnlisten;
-		(panel as any).queueUnlisten = queueUnlisten;
 
 		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
 		const showErrorSpy = vi.spyOn(dom, 'showError');
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
 
-		panel.updateProgress({
+		controller.applyProgress({
 			job_id: 'job-1',
 			stage,
 			percentage: 100,
 			message,
-		} as any);
+		});
 
-		expect(panel.isCurrentlyProcessing).toBe(true);
+		expect(controller.isCurrentlyProcessing).toBe(true);
 		expect(getJobRows()).toHaveLength(1);
 		assertControlsDisabled();
 
 		vi.advanceTimersByTime(1999);
-		expect(progressUnlisten).not.toHaveBeenCalled();
-		expect(queueUnlisten).not.toHaveBeenCalled();
-
 		vi.advanceTimersByTime(1);
 
 		const expectedSpy =
@@ -351,10 +340,8 @@ describe('StatusPanel lifecycle', () => {
 					? showErrorSpy
 					: showInfoSpy;
 		expect(expectedSpy).toHaveBeenCalledWith(message);
-		expect(progressUnlisten).toHaveBeenCalledTimes(1);
-		expect(queueUnlisten).toHaveBeenCalledTimes(1);
 		assertControlsEnabled();
-		expect(panel.getCurrentStatus()).toEqual({
+		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'idle',
 			percentage: 0,
 			message: 'Ready to process audiobook',
@@ -364,47 +351,44 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('prevents stale single-job completion timeout from resetting a newer active run', () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		panel.updateProgress({
+		controller.applyProgress({
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'first run done',
-		} as any);
-		expect(panel.isCurrentlyProcessing).toBe(true);
+		});
+		expect(controller.isCurrentlyProcessing).toBe(true);
 
 		vi.advanceTimersByTime(1000);
 
-		// New run reuses the same single-job key (`idx:0`) before old timeout fires.
-		panel.updateProgress({
+		controller.applyProgress({
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'second run done',
-		} as any);
-		expect(panel.isCurrentlyProcessing).toBe(true);
+		});
+		expect(controller.isCurrentlyProcessing).toBe(true);
 
-		// Old timeout would fire now if not superseded.
 		vi.advanceTimersByTime(999);
-		expect(panel.isCurrentlyProcessing).toBe(true);
-		expect(panel.getCurrentStatus().stage).not.toBe('idle');
+		expect(controller.isCurrentlyProcessing).toBe(true);
+		expect(controller.getCurrentStatus().stage).not.toBe('idle');
 
-		// New timeout completes 2s after the second terminal event.
 		vi.advanceTimersByTime(1);
-		expect(panel.isCurrentlyProcessing).toBe(false);
-		expect(panel.getCurrentStatus().stage).toBe('idle');
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		expect(controller.getCurrentStatus().stage).toBe('idle');
 	});
 
 	it('shows cancellation requested before final cancelled summary in batch flow', async () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 		seedDisabledControls();
 
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
-		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested' as any);
+		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
 
-		(panel as any).handleQueueSnapshot({
+		controller.applyQueueSnapshot({
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -412,22 +396,22 @@ describe('StatusPanel lifecycle', () => {
 			max_concurrent: 2,
 		});
 
-		await (panel as any).handleCancelAll();
+		await controller.requestCancelAll();
 		expect(getStepText()).toContain('Cancellation requested…');
-		expect(panel.getCurrentStatus().message).toBe('Cancellation requested…');
+		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
 
-		panel.updateProgress({
+		controller.applyProgress({
 			input_index: 0,
 			stage: STAGES.cancelled,
 			percentage: 100,
 			message: 'cancelled-0',
-		} as any);
-		panel.updateProgress({
+		});
+		controller.applyProgress({
 			input_index: 1,
 			stage: STAGES.cancelled,
 			percentage: 100,
 			message: 'cancelled-1',
-		} as any);
+		});
 
 		vi.advanceTimersByTime(2000);
 
@@ -436,9 +420,9 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('cleans up listeners on reset and restarts without duplicate active handlers', async () => {
-		const panel = new StatusPanel();
+		const controller = new StatusPanelController();
 
-		await (panel as any).startProgressListener();
+		await controller.startEventListeners();
 		expect(listenerState.progressCallbacks.size).toBe(1);
 		expect(listenerState.queueCallbacks.size).toBe(1);
 
@@ -452,7 +436,7 @@ describe('StatusPanel lifecycle', () => {
 		expect(getJobRows()).toHaveLength(1);
 		expect(getStepText()).toBe('Current Step: Converting');
 
-		(panel as any).resetToIdle();
+		controller.resetToIdle();
 		expect(listenerState.progressUnlisteners[0]).toHaveBeenCalledTimes(1);
 		expect(listenerState.queueUnlisteners[0]).toHaveBeenCalledTimes(1);
 		expect(listenerState.progressCallbacks.size).toBe(0);
@@ -468,7 +452,7 @@ describe('StatusPanel lifecycle', () => {
 		vi.advanceTimersByTime(20);
 		expect(getStepText()).toBe(stepAfterReset);
 
-		await (panel as any).startProgressListener();
+		await controller.startEventListeners();
 		expect(listenerState.listenForProgressEventsMock).toHaveBeenCalledTimes(2);
 		expect(listenerState.listenForQueueEventsMock).toHaveBeenCalledTimes(2);
 		expect(listenerState.progressCallbacks.size).toBe(1);
@@ -485,7 +469,7 @@ describe('StatusPanel lifecycle', () => {
 		expect(getJobRows()).toHaveLength(1);
 		expect(getJobRows()[0]).toContain('(42.0%)');
 
-		(panel as any).resetToIdle();
+		controller.resetToIdle();
 		expect(listenerState.progressUnlisteners[1]).toHaveBeenCalledTimes(1);
 		expect(listenerState.queueUnlisteners[1]).toHaveBeenCalledTimes(1);
 	});

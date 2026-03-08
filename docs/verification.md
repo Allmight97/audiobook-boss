@@ -5,10 +5,14 @@ Source of truth for proof-of-done by change type.
 ## Canonical Rules
 
 - Non-doc code changes default to `scripts/checks.sh standard`.
+- Frontend quality gates are split honestly: `bun run fmt:check` is format-only and `bun run lint:check` owns frontend lint failures.
 - UI-affecting changes also require harness verification and local artifacts.
 - `harness:verify` is the required mechanical UI gate.
 - `harness:agent` is the optional interactive browser-review lane for vision-heavy inspection; it supplements the gate and stays out of `scripts/checks.sh standard`.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
+- Frontend gate semantics are split on purpose:
+  - `bun run fmt:check` is format-only (Biome format + Prettier for `.svelte`)
+  - `bun run lint:check` is lint-only (including failing `noExplicitAny`)
 - Docs-only changes must confirm that commands, file paths, and canonical routing still match the repo.
 - Temporary task-runner state under `.agent-work/` never counts as durable proof, durable documentation, or a substitute for canonical docs.
 - Historical trackers do not satisfy proof-of-done on their own; verification must point at current commands and current code surfaces.
@@ -64,7 +68,18 @@ Run:
 scripts/checks.sh standard
 ```
 
+`scripts/checks.sh standard` now includes distinct frontend format and lint lanes before the broader repo checks.
+
 Add targeted contract or regression coverage when the touched surface owns a stronger invariant than the default gate.
+
+Frontend-only focused loops may also run:
+
+```bash
+bun run fmt:check
+bun run lint:check
+```
+
+Treat those as component lanes, not as a replacement for `scripts/checks.sh standard` on non-doc code changes.
 
 ### Docs-only changes
 

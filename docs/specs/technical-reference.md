@@ -46,7 +46,8 @@ Operational code in this repo should mean physical UI behavior only. If a module
 
 This is the main remaining frontend seam rather than a completed steady state:
 
-- `src/ui/statusPanel/logic.ts` still owns processing lifecycle through a singleton `StatusPanel`
+- `src/ui/statusPanel/controller.ts` owns processing lifecycle through a typed `StatusPanelController`
+- `src/ui/statusPanel/logic.ts` is now a thin singleton shell around that controller
 
 The surrounding surfaces are less hybrid than before:
 
@@ -106,7 +107,8 @@ cargo test --tests                      # All external test binaries
 cargo test --test unit_audio_buffer_tests   # Specific unit test file
 cargo test --test integration_metadata_tests # Specific integration test file
 cargo clippy -- -D warnings             # Lint checks (must pass)
-bun run fmt:check                       # Frontend format checks (Biome + Prettier for Svelte)
+bun run fmt:check                       # Frontend format checks only (Biome format + Prettier for Svelte)
+bun run lint:check                      # Frontend lint checks only (Biome lint; explicit any fails)
 cargo test path_validation              # Path security subset by name filter
 scripts/checks.sh package               # Packaging gate + macOS AAC decoder contract verification
 ```
@@ -170,10 +172,12 @@ Source of truth:
 ```bash
 bun run fmt          # Apply frontend formatting (Biome + Prettier for .svelte)
 bun run fmt:check    # Check-only formatting gate
+bun run lint:check   # Check-only frontend lint gate
 bun run fmt:changed  # Changed-files cleanup loop (agent/human workflow)
 ```
 
 - Biome owns TS/JS/CSS/JSON and config file formatting.
+- Biome linting is a separate gate; repo-authored explicit `any` now fails there rather than surfacing as background noise during formatting.
 - Prettier is intentionally scoped to `.svelte` files (Biome does not yet support Svelte).
 - Frontend formatting in this repo uses tabs.
 - Optional blame hygiene for the baseline commit:
@@ -250,6 +254,7 @@ bun scripts/perf/run.mjs --bench audio-processing-app-e2e --mode real --runs 3 -
 - Rust: idiomatic; `#![deny(clippy::unwrap_used)]`, `#![warn(clippy::too_many_lines)]`; use `Result<T, AppError>` and `?`
 - Formatting: `rustfmt` for Rust; Biome for TS/JS/CSS/JSON; Prettier for `.svelte`; keep functions small and focused
 - Visibility: keep internals non-`pub` unless cross-module use requires it
+- Testability: prefer typed controllers/services and public behavioral seams over reaching into class internals with casts
 
 ### Repository-Specific Expectations
 

@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format + lint + clippy + change-aware IPC binding drift check + harness verification + runtime guardrails + fallback policy enforcement
+# - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + harness verification + runtime guardrails + fallback policy enforcement
 # - standard: quick + harness verification + Rust tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
@@ -95,6 +95,9 @@ run_quick() {
   # sunset=2026-06-30
   log_step "bun run fmt:check"
   bun run fmt:check
+
+  log_step "bun run lint:check"
+  bun run lint:check
 
   log_step "cargo clippy --workspace --all-targets -- -D warnings"
   cargo clippy --workspace --all-targets -- -D warnings

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { StatusPanel } from '../logic';
+import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
+import { StatusPanelController } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
@@ -38,51 +39,52 @@ describe('StatusPanel queue snapshot', () => {
 	});
 
 	it('initializes queued items in order', () => {
-		const panel = new StatusPanel();
-		(panel as any).handleQueueSnapshot({
+		const controller = new StatusPanelController();
+		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
 			],
 			max_concurrent: 2,
-		});
+		};
+
+		controller.applyQueueSnapshot(snapshot);
 
 		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
 		expect(statusPanelViewState.statusText).toBe('Analyzing');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 2 files');
-		expect(panel.getCurrentStatus()).toEqual({
+		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'analyzing',
 			percentage: 0,
 			message: 'Queued 2 files',
 		});
-
-		// Secondary internal check: queue order contract remains stable.
-		expect((panel as any).queueOrder).toEqual(['idx:0', 'idx:1']);
 	});
 
-	it('applies queue snapshot order/labels after early progress arrives', async () => {
-		const panel = new StatusPanel();
-
-		panel.updateProgress({
+	it('applies queue snapshot order and labels after early progress arrives', async () => {
+		const controller = new StatusPanelController();
+		const earlyProgress: ProcessingProgressEvent = {
 			input_index: 1,
 			stage: 'converting',
 			percentage: 45,
 			message: 'working',
-		} as any);
-		await flushRenderFrame();
-
-		expect(getJobRows()).toHaveLength(1);
-		expect(getJobRows()[0]).toContain('Converting (45.0%)');
-		expect(statusPanelViewState.stepText).toBe('Current Step: working');
-
-		(panel as any).handleQueueSnapshot({
+		};
+		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 2, file_path: '/books/gamma.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 			],
 			max_concurrent: 2,
-		});
+		};
+
+		controller.applyProgress(earlyProgress);
+		await flushRenderFrame();
+
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('Converting (45.0%)');
+		expect(statusPanelViewState.stepText).toBe('Current Step: working');
+
+		controller.applyQueueSnapshot(snapshot);
 
 		expect(getJobRows()).toEqual([
 			'gamma.m4b • Queued • #1 of 3',
@@ -90,13 +92,10 @@ describe('StatusPanel queue snapshot', () => {
 			'alpha.m4b • Queued • #3 of 3',
 		]);
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 3 files');
-		expect(panel.getCurrentStatus()).toEqual({
+		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'analyzing',
 			percentage: 0,
 			message: 'Queued 3 files',
 		});
-
-		// Secondary internal check: snapshot order tracking still follows backend order.
-		expect((panel as any).queueOrder).toEqual(['idx:2', 'idx:1', 'idx:0']);
 	});
 });

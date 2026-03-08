@@ -26,6 +26,7 @@ Classify the task before making changes:
 ## Core Loop
 
 - For UI-affecting work, require `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed`.
+- Treat `bun run fmt:check` and `bun run lint:check` as distinct frontend lanes when repo verification policy is part of the work; do not describe lint output as formatting noise.
 - Treat `harness:agent` as optional supplemental review only.
 - For Audiobook Boss, keep `harness:agent` desktop-only unless the task explicitly asks for alternate viewport diagnostics.
 - Treat `--headed` as an escalation-only path. Use it only when the user explicitly wants a visible browser window and the local operator gate (`CONTROLPLANE_ALLOW_HEADED=1`) has been enabled on purpose.

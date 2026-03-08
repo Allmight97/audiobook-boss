@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StatusPanel } from './logic';
+import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import { StatusPanelController } from './controller';
 import { resetStatusPanelViewState, statusPanelViewState } from './viewState.svelte';
 
 function setupDom() {
@@ -52,29 +53,28 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('throttles rapid non-terminal progress events', () => {
-		const panel = new StatusPanel();
-
-		const evt = {
+		const controller = new StatusPanelController();
+		const evt: ProcessingProgressEvent = {
 			job_id: 'job-1',
 			stage: 'converting',
 			percentage: 10,
 			message: 'ten',
-		} as any;
+		};
 
-		panel.updateProgress(evt);
+		controller.applyProgress(evt);
 		vi.advanceTimersByTime(20);
 		expect(getPercentageText()).toBe('10.0%');
 		expect(getStepText()).toBe('Current Step: ten');
 
-		const evt2 = { ...evt, percentage: 20, message: 'twenty' };
-		panel.updateProgress(evt2);
+		const evt2: ProcessingProgressEvent = { ...evt, percentage: 20, message: 'twenty' };
+		controller.applyProgress(evt2);
 		vi.advanceTimersByTime(20);
 		expect(getPercentageText()).toBe('10.0%');
 		expect(getStepText()).toBe('Current Step: ten');
 
 		vi.advanceTimersByTime(1050);
-		const evt3 = { ...evt, percentage: 30, message: 'thirty' };
-		panel.updateProgress(evt3);
+		const evt3: ProcessingProgressEvent = { ...evt, percentage: 30, message: 'thirty' };
+		controller.applyProgress(evt3);
 		vi.advanceTimersByTime(20);
 
 		expect(getPercentageText()).toBe('30.0%');
@@ -83,29 +83,27 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('does not throttle different jobs within the same window', () => {
-		const panel = new StatusPanel();
-
-		const evt1 = {
+		const controller = new StatusPanelController();
+		const evt1: ProcessingProgressEvent = {
 			job_id: 'job-1',
 			stage: 'converting',
 			percentage: 10,
 			message: 'ten',
-		} as any;
-
-		const evt2 = {
+		};
+		const evt2: ProcessingProgressEvent = {
 			job_id: 'job-2',
 			stage: 'converting',
 			percentage: 20,
 			message: 'twenty',
-		} as any;
+		};
 
-		panel.updateProgress(evt1);
-		panel.updateProgress(evt2);
+		controller.applyProgress(evt1);
+		controller.applyProgress(evt2);
 		vi.advanceTimersByTime(20);
 
 		expect(getStatusText()).toBe('Converting');
 		expect(getStepText()).toBe('Current Step: Processing 2 files');
-		expect(panel.getCurrentStatus().percentage).toBe(15);
+		expect(controller.getCurrentStatus().percentage).toBe(15);
 		expect(getJobRows()).toEqual(
 			expect.arrayContaining([
 				expect.stringContaining('(10.0%)'),
@@ -115,32 +113,31 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('does not throttle terminal events inside the throttle window', () => {
-		const panel = new StatusPanel();
-
-		(panel as any).handleQueueSnapshot({
+		const controller = new StatusPanelController();
+		const queueSnapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
 			],
 			max_concurrent: 2,
-		});
-
-		const progress = {
+		};
+		const progress: ProcessingProgressEvent = {
 			input_index: 0,
 			stage: 'converting',
 			percentage: 12,
 			message: 'processing',
-		} as any;
-		panel.updateProgress(progress);
-		vi.advanceTimersByTime(20);
-
-		const terminal = {
+		};
+		const terminal: ProcessingProgressEvent = {
 			...progress,
 			stage: 'completed',
 			percentage: 100,
 			message: 'done',
 		};
-		panel.updateProgress(terminal);
+
+		controller.applyQueueSnapshot(queueSnapshot);
+		controller.applyProgress(progress);
+		vi.advanceTimersByTime(20);
+		controller.applyProgress(terminal);
 
 		expect(getJobRows()[0]).toBe('alpha.m4b • Completed (100.0%)');
 		expect(getStatusText()).toBe('Analyzing');

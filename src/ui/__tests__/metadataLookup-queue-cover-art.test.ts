@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
+import type { AudiobookMetadata } from '../../types/metadata';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
+
+type StoredMetadata = Partial<AudiobookMetadata>;
 
 const context = vi.hoisted(() => ({
 	searchOnlineMetadataMock: vi.fn(),
@@ -20,7 +23,7 @@ const context = vi.hoisted(() => ({
 			{ path: '/books/beta.m4b', isValid: true },
 		],
 	} as { files: Array<{ path: string; isValid: boolean }> },
-	metadataByFile: new Map<string, any>(),
+	metadataByFile: new Map<string, StoredMetadata>(),
 	setMetadataForFileMock: vi.fn(),
 	activeIndex: 0,
 }));
@@ -143,14 +146,16 @@ describe('metadata lookup queue cover art isolation', () => {
 				{ path: '/books/beta.m4b', isValid: true },
 			],
 		};
-		context.metadataByFile = new Map<string, any>([
+		context.metadataByFile = new Map<string, StoredMetadata>([
 			['/books/alpha.m4b', { title: 'Alpha Existing', cover_art: [1, 1, 1] }],
 			['/books/beta.m4b', { title: 'Beta Existing', cover_art: [2, 2, 2] }],
 		]);
 		context.setMetadataForFileMock.mockReset();
-		context.setMetadataForFileMock.mockImplementation((filePath: string, metadata: any) => {
-			context.metadataByFile.set(filePath, metadata);
-		});
+		context.setMetadataForFileMock.mockImplementation(
+			(filePath: string, metadata: StoredMetadata) => {
+				context.metadataByFile.set(filePath, metadata);
+			},
+		);
 		context.activeIndex = 0;
 
 		context.selectFileMock.mockReset();
@@ -246,9 +251,9 @@ describe('metadata lookup queue cover art isolation', () => {
 		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
 
-		const writesByPath = new Map<string, any>();
+		const writesByPath = new Map<string, StoredMetadata>();
 		context.setMetadataForFileMock.mock.calls.forEach(([filePath, metadata]) => {
-			writesByPath.set(filePath, metadata);
+			writesByPath.set(filePath as string, metadata as StoredMetadata);
 		});
 
 		expect(writesByPath.get('/books/alpha.m4b')).toEqual(
