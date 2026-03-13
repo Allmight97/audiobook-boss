@@ -2,45 +2,28 @@
 
 ## Scope
 
-- This file owns cross-repo control-plane policy.
-- Directory-level invariants belong in the nearest local `AGENTS.md`.
-- Keep guidance positive-path first: define the expected route, keep prohibitions sparse and high impact.
-- Favor evergreen directives over transient project-status notes.
-
-### Ownership Map
-
-- Root `AGENTS.md`: execution defaults, precedence, safety/contract policy.
-- `docs/AGENTS.md`: canonical-vs-historical docs routing and verification guidance.
-- `docs/browser-harness.md`: harness policy split between required scenario verification and optional interactive browser review.
-- `docs/workloop.md`: Workloop local task-runner policy, including task-file contract and temporary-state rules for `.agent-work/`.
-- `src/AGENTS.md`: frontend runtime/UI policy.
-- `src/harness/AGENTS.md`: harness scenario ownership and proof-of-done artifact rules.
-- `src-tauri/AGENTS.md`: backend architecture policy.
-- `src/lib/tauri/AGENTS.md`: TS↔Rust IPC and metadata intent source-of-truth.
-- `src-tauri/src/audio/job_registry/AGENTS.md`: concurrency lifecycle invariants.
-- `src-tauri/src/metadata/AGENTS.md`: metadata interoperability + fallback discipline.
-- `src-tauri/src/audio/processor/AGENTS.md`: pipeline/finalize/cancel/cleanup invariants.
+- This file defines repo-wide agent policy.
+- Directory-level invariants belong in the nearest nested `AGENTS.md`.
 
 ## Preferred Path
 
 - Complete tasks end-to-end by default and report concrete outcomes.
 - Use the smallest effective diff that preserves contracts and user-visible behavior.
 - Keep architecture changes localized to the subsystem that owns the invariant.
-- Treat `docs/README.md` as the canonical docs entrypoint and follow the nearest local `AGENTS.md` from there.
+- Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
 - For non-doc code changes, run `scripts/checks.sh standard` before push/PR.
-- For docs-only changes, validate commands/paths against the repo, confirm canonical docs still route correctly, and record why code gates were skipped.
+- For docs or control-plane only changes, run `bash scripts/check-context-surface.sh` and `bun run test:controlplane`.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
 ### Skill Trigger Policy
 
 - Load `lib-research` when external library/API behavior affects implementation or review findings.
-- Load `controlplane-operator` when work touches Browser Harness flows, Workloop/task-runner flows, repo verification policy, or docs/AGENTS routing for the control plane.
-  For visual Browser Harness review or layout critique, the skill also owns the conditional taste reference.
+- Load `controlplane-operator` when work touches Browser Harness flows, the GitHub issue runner, or repo verification policy.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
-- Load `audiobook-metadata` or `mp4ameta-patterns` when changing M4B/MP4 metadata behavior.
+- Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
 
 ### Execution Defaults
@@ -52,7 +35,8 @@
 - Keep `harness:agent` optional and exploratory; it is a useful browser/vision loop, but it does not replace scenario verification and does not belong in `scripts/checks.sh standard`.
 - Use `bun run harness:agent start --headed` only when the operator explicitly asked for a visible browser window and enabled the local headed-review gate.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
-- Treat `.agent-work/` as temporary local runtime state. Durable project truth belongs in code, canonical docs, and the decision log rather than task inboxes or run logs.
+- Treat `.agent-work/` as temporary local runtime state.
+- Treat interactive planning as external to the runner. The repo-owned execution contract begins once a GitHub issue is execution-ready with `Goal`, `Constraints`, `Acceptance`, `Validation`, `Delivery Mode`, `Human Review`, and the `<!-- abb:issue-kind=ready -->` marker.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
@@ -99,11 +83,11 @@
 - Safety and contract invariants remain true after edits.
 - Any new compatibility/fallback behavior includes explicit evidence, trigger, and sunset/removal condition.
 - Verification is explicit by change type:
-  - docs-only edits: canonical docs still route correctly, commands/paths referenced in docs exist, and any historical tracker remains marked non-canonical
+  - docs-only edits: the active repo surface remains coherent and stale references are removed
   - UI-affecting edits: targeted tests plus `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed`
   - boundary/backend edits: `scripts/checks.sh standard` plus any targeted contract/regression coverage for the touched surface
 - `harness:agent` is supplementary review only: use it for interactive browser inspection, but do not claim UI proof-of-done from it alone.
 - Verification matches scope:
-  - docs-only edits: structural/content checks only
+  - docs-only edits: `bash scripts/check-context-surface.sh` plus `bun run test:controlplane`
   - code/config/build edits: `scripts/checks.sh standard`
 - Final delivery includes changes made, validation performed, and residual risk notes.

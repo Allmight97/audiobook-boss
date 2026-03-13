@@ -35,7 +35,6 @@ pub fn command_with_path(file_path: String) -> Result<()> {
 - `src-tauri/src/audio/path_validation.rs`
 - `src-tauri/src/commands/audio.rs`
 - `src-tauri/src/errors.rs`
-- `docs/external-apis/path-handling.md`
 
 ## Done Criteria
 

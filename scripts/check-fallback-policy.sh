@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-register_path="docs/engineering/fallback-register.md"
+register_path="docs/fallbacks.md"
 
 if [[ ! -f "$register_path" ]]; then
   echo "[fallback-policy] Missing $register_path" >&2
@@ -89,6 +89,10 @@ while IFS= read -r file; do
     src/*|src-tauri/*|scripts/*) ;;
     *) continue ;;
   esac
+
+  if [[ "$file" == "scripts/check-fallback-policy.sh" ]]; then
+    continue
+  fi
 
   case "$file" in
     *.ts|*.rs|*.js|*.mjs|*.sh) ;;

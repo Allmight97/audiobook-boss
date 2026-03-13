@@ -1,4 +1,4 @@
 interface:
   display_name: "Controlplane Operator"
   short_description: "Operate ABB Controlplane + UI review"
-  default_prompt: "Use $controlplane-operator to route Audiobook Boss work through the correct docs, harness verification, optional browser review, and Workloop behavior."
+  default_prompt: "Use $controlplane-operator to apply ABB's live project contract, runner rules, and harness verification policy."

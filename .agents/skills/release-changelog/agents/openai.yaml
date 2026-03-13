@@ -1,4 +1,0 @@
-interface:
-  display_name: "Release Changelog"
-  short_description: "Drive deterministic release note workflows"
-  default_prompt: "Use $release-changelog to draft, review, and apply release changelog updates deterministically."

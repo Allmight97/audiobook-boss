@@ -112,7 +112,7 @@ case "$mode" in
       --compress
       --remove-comments
       --remove-empty-lines
-      --include "**/AGENTS.md,README.md,package.json,Cargo.toml,src/**/*.{ts,js,svelte},src-tauri/src/**/*.{rs,toml},src-tauri/Cargo.toml,docs/decisions/**/*.md,docs/external-apis/**/*.md,scripts/repomix-handoff.sh,scripts/checks.sh"
+      --include "**/AGENTS.md,README.md,package.json,Cargo.toml,src/**/*.{ts,js,svelte},src-tauri/src/**/*.{rs,toml},src-tauri/Cargo.toml,scripts/repomix-handoff.sh,scripts/checks.sh"
       --ignore ".agents/**,docs/engineering/**,docs/specs/**,**/__tests__/**,**/*.test.ts,src-tauri/tests/**,node_modules/**,target/**,dist/**,dist-ssr/**,coverage/**,site/**,media/**,.git/**,**/*.lock,**/*.{svg,png,jpg,jpeg,gif,webp,ico,pdf,mp3,m4b,wav,flac,zip}"
       --token-count-tree 150
       --top-files-len 20
