@@ -7,6 +7,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## What it does
 
 - **Batch convert** MP3/M4A/M4B/AAC to optimized M4B audiobooks
+- **Book Binder** — Merge multiple chapterized audio files into a single M4B with chapter markers and metadata.
 - **Smart metadata** — series, narrator, cover art with Audiobookshelf/Apple Books dual-write compatibility
 - **Parallel processing** with real-time progress and per-job cancellation
 - **Metadata lookup** — search online databases and apply results in batch
@@ -40,6 +41,24 @@ bun run test:controlplane
 bun run harness:verify --changed
 bun run issue:run --issue 251
 ```
+
+## Script Guide
+
+Use this section as the human-facing index. `package.json` is the source of truth for `bun run ...` entrypoints, and the scripts under `scripts/` are the source of truth for flags and implementation details.
+
+- Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
+- Main quality gate: `scripts/checks.sh standard`
+  Use `quick` for a faster local pass and `package` when validating the full Tauri packaging path.
+- Context and policy checks: `bun run check:context`, `bun run check:fallback`, `bun run check:no-bridge`
+- Dependency hygiene: `bun run check:deps`
+  This is explicit on purpose and is not part of the normal standard gate.
+- UI proof loop: `bun run harness:verify --changed`
+  Use `bun run harness:agent` only for supplemental interactive browser review.
+- GitHub issue execution: `bun run issue:create --mode idea|ready ...`, `bun run issue:run --issue <number>`
+- IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
+- Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
+- Release: `bun run release:notes`, `bun run release:run`
+- Offline handoff: `bun run repomix:audit`, `bun run repomix:full`
 
 ## Project Operation
 
