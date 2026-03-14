@@ -1,4 +1,4 @@
 interface:
   display_name: "Library Research"
   short_description: "Verify external API behavior before coding"
-  default_prompt: "Use $lib-research to validate external API behavior and produce an implementation-ready recommendation."
+  default_prompt: "Use $lib-research to validate external API behavior and produce an implementation-ready recommendation: route canonical docs through Ref first, use Context7 for curated library docs when available, and use standard web search/open for current primary-source verification."
