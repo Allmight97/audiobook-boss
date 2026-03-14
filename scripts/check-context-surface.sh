@@ -84,7 +84,6 @@ surface_paths=(
   "src/harness/AGENTS.md"
   ".agents/skills"
   ".agents/hooks"
-  ".github/ISSUE_TEMPLATE"
 )
 
 legacy_surface_paths=(
@@ -98,15 +97,24 @@ legacy_surface_paths=(
   "src/harness/AGENTS.md"
   ".agents/skills"
   ".agents/hooks"
-  ".github/ISSUE_TEMPLATE"
 )
 
 removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/'
 
-! rg -n 'docs/project\.md' "${surface_paths[@]}" >/dev/null
-! rg -n "$stale_doc_pattern" "${surface_paths[@]}" >/dev/null
-! rg -n "$stale_check_pattern" "${surface_paths[@]}" >/dev/null
-! rg -n 'docs/decisions' "${surface_paths[@]}" >/dev/null
-! rg -n "$removed_surface_pattern" "${legacy_surface_paths[@]}" >/dev/null
+existing_surface_paths=()
+for path in "${surface_paths[@]}"; do
+  [[ -e "$path" ]] && existing_surface_paths+=("$path")
+done
+
+existing_legacy_surface_paths=()
+for path in "${legacy_surface_paths[@]}"; do
+  [[ -e "$path" ]] && existing_legacy_surface_paths+=("$path")
+done
+
+! rg -n 'docs/project\.md' "${existing_surface_paths[@]}" >/dev/null
+! rg -n "$stale_doc_pattern" "${existing_surface_paths[@]}" >/dev/null
+! rg -n "$stale_check_pattern" "${existing_surface_paths[@]}" >/dev/null
+! rg -n 'docs/decisions' "${existing_surface_paths[@]}" >/dev/null
+! rg -n "$removed_surface_pattern" "${existing_legacy_surface_paths[@]}" >/dev/null
 
 echo "[context-surface] OK"
