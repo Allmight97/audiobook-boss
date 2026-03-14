@@ -18,6 +18,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::analyze_audio_files,
             crate::commands::validate_encoder_settings,
             crate::commands::list_available_encoders,
+            crate::commands::refresh_external_toolchain,
             crate::commands::preview_output_path,
             crate::commands::get_max_concurrent_jobs,
             crate::commands::set_max_concurrent_jobs,

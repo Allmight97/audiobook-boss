@@ -3,9 +3,12 @@
 //! Extracted from settings_encoder.rs to keep production code clean.
 
 use audiobook_boss_lib::audio::settings_encoder::{
-    detect_available_encoders, resolve_encoder_type, validate_encoder_settings, validate_threads,
-    BitrateMode, ChannelConfig, EncoderAvailability, EncoderSettings, EncoderType, ThreadSetting,
+    resolve_encoder_type, validate_encoder_settings, validate_requested_encoder_available,
+    validate_threads, BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE,
+};
+use audiobook_boss_lib::audio::{
+    detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
 };
 
 fn base_settings() -> EncoderSettings {
@@ -148,7 +151,7 @@ fn test_validate_threads_direct() {
 #[test]
 fn test_detect_available_encoders_struct_defaults() {
     // We can't guarantee availability on CI, but the function should always return a struct.
-    let availability = detect_available_encoders();
+    let availability = detect_encoder_availability(None);
     assert!(
         availability.native_aac_available
             || availability.aac_at_available
@@ -161,8 +164,16 @@ fn test_detect_available_encoders_struct_defaults() {
 fn test_resolve_encoder_type_prefers_available() {
     let availability = EncoderAvailability {
         fdk_available: true,
+        fdk_source: EncoderCapabilitySource::Detected,
         aac_at_available: true,
         native_aac_available: true,
+        auto_encoder: EncoderType::FdkHeAac,
+        detected_toolchain_path: Some("/opt/homebrew/bin/ffmpeg".into()),
+        override_toolchain_path: None,
+        active_toolchain_path: Some("/opt/homebrew/bin/ffmpeg".into()),
+        override_invalid: false,
+        override_error: None,
+        status_message: "FDK AAC detected and ready.".into(),
     };
     let resolved = resolve_encoder_type(
         &EncoderSettings {
@@ -175,8 +186,16 @@ fn test_resolve_encoder_type_prefers_available() {
 
     let availability_no_fdk = EncoderAvailability {
         fdk_available: false,
+        fdk_source: EncoderCapabilitySource::None,
         aac_at_available: true,
         native_aac_available: true,
+        auto_encoder: EncoderType::AacAt,
+        detected_toolchain_path: None,
+        override_toolchain_path: None,
+        active_toolchain_path: None,
+        override_invalid: false,
+        override_error: None,
+        status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
     };
     let resolved = resolve_encoder_type(
         &EncoderSettings {
@@ -189,8 +208,16 @@ fn test_resolve_encoder_type_prefers_available() {
 
     let availability_none = EncoderAvailability {
         fdk_available: false,
+        fdk_source: EncoderCapabilitySource::None,
         aac_at_available: false,
         native_aac_available: true,
+        auto_encoder: EncoderType::NativeAac,
+        detected_toolchain_path: None,
+        override_toolchain_path: None,
+        active_toolchain_path: None,
+        override_invalid: false,
+        override_error: None,
+        status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
     };
     let resolved = resolve_encoder_type(
         &EncoderSettings {
@@ -200,6 +227,64 @@ fn test_resolve_encoder_type_prefers_available() {
         &availability_none,
     );
     assert_eq!(resolved, EncoderType::NativeAac);
+}
+
+#[test]
+fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encoders() {
+    let availability = EncoderAvailability {
+        fdk_available: false,
+        fdk_source: EncoderCapabilitySource::None,
+        aac_at_available: false,
+        native_aac_available: false,
+        auto_encoder: EncoderType::NativeAac,
+        detected_toolchain_path: None,
+        override_toolchain_path: None,
+        active_toolchain_path: None,
+        override_invalid: false,
+        override_error: None,
+        status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
+    };
+
+    let fdk_error =
+        validate_requested_encoder_available(EncoderType::FdkHeAac, &availability).unwrap_err();
+    assert_eq!(
+        fdk_error.to_string(),
+        "Invalid input: FDK AAC requires a validated external FFmpeg toolchain."
+    );
+
+    let aac_at_error =
+        validate_requested_encoder_available(EncoderType::AacAt, &availability).unwrap_err();
+    assert_eq!(
+        aac_at_error.to_string(),
+        "Invalid input: Apple AAC is unavailable in this build."
+    );
+
+    let native_error =
+        validate_requested_encoder_available(EncoderType::NativeAac, &availability).unwrap_err();
+    assert_eq!(
+        native_error.to_string(),
+        "Invalid input: Native AAC (FFmpeg) is unavailable in this build."
+    );
+}
+
+#[test]
+fn test_validate_requested_encoder_available_allows_auto_resolution() {
+    let availability = EncoderAvailability {
+        fdk_available: false,
+        fdk_source: EncoderCapabilitySource::None,
+        aac_at_available: false,
+        native_aac_available: true,
+        auto_encoder: EncoderType::NativeAac,
+        detected_toolchain_path: None,
+        override_toolchain_path: None,
+        active_toolchain_path: None,
+        override_invalid: false,
+        override_error: None,
+        status_message: "Native AAC available.".into(),
+    };
+
+    validate_requested_encoder_available(EncoderType::Auto, &availability)
+        .expect("auto should remain dynamically resolvable");
 }
 
 #[test]

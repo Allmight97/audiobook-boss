@@ -200,6 +200,7 @@ export async function startProcessing(
 			inputFiles: filePaths,
 			outputDir: outputConfig.outputPath,
 			settings: outputConfig.encoderSettings,
+			externalToolchain: outputConfig.toolchainSettings,
 			sampleRate: outputConfig.sampleRate,
 			jobType,
 			outputNaming: outputConfig.outputNaming,

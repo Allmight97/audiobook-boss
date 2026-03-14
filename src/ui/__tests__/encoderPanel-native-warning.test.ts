@@ -10,8 +10,32 @@ const context = vi.hoisted(() => ({
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		listAvailableEncoders: context.listAvailableEncodersMock,
+		refreshExternalToolchain: vi.fn(),
+		open: vi.fn(),
 	},
 }));
+
+const availabilityFixture = (overrides: {
+	fdkAvailable: boolean;
+	aacAtAvailable: boolean;
+	nativeAacAvailable: boolean;
+}) => ({
+	...overrides,
+	fdkSource: overrides.fdkAvailable ? 'detected' : 'none',
+	autoEncoder: overrides.fdkAvailable
+		? 'fdk_he_aac'
+		: overrides.aacAtAvailable
+			? 'aac_at'
+			: 'native_aac',
+	detectedToolchainPath: overrides.fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
+	overrideToolchainPath: undefined,
+	activeToolchainPath: overrides.fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
+	overrideInvalid: false,
+	overrideError: undefined,
+	statusMessage: overrides.fdkAvailable
+		? 'FDK AAC detected and ready.'
+		: 'No external FFmpeg toolchain with libfdk_aac was detected.',
+});
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
@@ -26,11 +50,13 @@ describe('encoder panel native AAC warning', () => {
 	});
 
 	it('shows native AAC quality warning when auto resolves to native AAC', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue({
-			fdkAvailable: false,
-			aacAtAvailable: false,
-			nativeAacAvailable: true,
-		});
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: false,
+				aacAtAvailable: false,
+				nativeAacAvailable: true,
+			}),
+		);
 
 		const { initEncoderPanel } = await import('../encoderPanel');
 		render(EncoderPanelIsland);
@@ -46,11 +72,13 @@ describe('encoder panel native AAC warning', () => {
 	});
 
 	it('shows Apple resolution in the auto selector when non-native encoder is effective', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue({
-			fdkAvailable: false,
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-		});
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: false,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			}),
+		);
 
 		const { initEncoderPanel } = await import('../encoderPanel');
 		render(EncoderPanelIsland);
@@ -65,11 +93,13 @@ describe('encoder panel native AAC warning', () => {
 	});
 
 	it('shows FDK resolution in the auto selector when FDK is available', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue({
-			fdkAvailable: true,
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-		});
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: true,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			}),
+		);
 
 		const { initEncoderPanel } = await import('../encoderPanel');
 		render(EncoderPanelIsland);
@@ -77,18 +107,22 @@ describe('encoder panel native AAC warning', () => {
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toBe('Auto will use FDK AAC.');
+			expect(hint?.textContent).toContain(
+				'Auto will use external FDK AAC at /opt/homebrew/bin/ffmpeg.',
+			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
 		});
 	});
 
 	it('restores the auto option label when a manual encoder is selected', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue({
-			fdkAvailable: true,
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-		});
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: true,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			}),
+		);
 
 		const { initEncoderPanel } = await import('../encoderPanel');
 		render(EncoderPanelIsland);
@@ -110,11 +144,13 @@ describe('encoder panel native AAC warning', () => {
 	});
 
 	it('shows the native warning when Native AAC is manually selected', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue({
-			fdkAvailable: true,
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-		});
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: true,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			}),
+		);
 
 		const { initEncoderPanel } = await import('../encoderPanel');
 		render(EncoderPanelIsland);

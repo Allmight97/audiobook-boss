@@ -1,4 +1,5 @@
 import type {
+	EncoderAvailability as GeneratedEncoderAvailability,
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FileListInfo as GeneratedFileListInfo,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
@@ -7,6 +8,7 @@ import type {
 	QueueEvent as GeneratedQueueEvent,
 } from '../generated/tauri';
 import type {
+	EncoderAvailability,
 	FileListInfo,
 	ProcessCommandJobResult,
 	ProcessCommandResult,
@@ -37,6 +39,7 @@ const METADATA_FIELDS = [
 ] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
+	'externalToolchain',
 	'sampleRate',
 	'jobType',
 	'outputNaming',
@@ -132,6 +135,12 @@ export function denormalizeMetadata(
 
 export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
 	return normalizeNullish(info) as FileListInfo;
+}
+
+export function normalizeEncoderAvailability(
+	availability: GeneratedEncoderAvailability,
+): EncoderAvailability {
+	return normalizeNullish(availability) as EncoderAvailability;
 }
 
 export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {

@@ -1,16 +1,10 @@
-import type { SampleRateConfig } from '../../types/audio';
+import type { EncoderAvailability, SampleRateConfig } from '../../types/audio';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
 import {
 	type EncoderFlavor,
 	type EncoderSettingsV2,
 	toBoundaryEncoderSettings,
 } from '../../types/encoder';
-
-export type EncoderAvailability = {
-	fdkAvailable: boolean;
-	aacAtAvailable: boolean;
-	nativeAacAvailable: boolean;
-};
 
 export type VbrLevel = 1 | 2 | 3 | 4 | 5;
 export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr';
@@ -19,6 +13,24 @@ export type EncoderModeAvailability = Record<BitrateModeSelection, boolean>;
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto resolves from source audio.';
 const DEFAULT_CHANNELS_HINT = 'Auto resolves from source audio.';
 const DEFAULT_AVAILABILITY_HINT = 'Checking encoder availability…';
+const DEFAULT_TOOLCHAIN_TITLE = 'Checking FDK AAC';
+const DEFAULT_TOOLCHAIN_MESSAGE = 'Looking for an external FFmpeg build with libfdk_aac.';
+
+export interface PersistedEncoderPanelState {
+	flavor?: EncoderSettingsV2['flavor'];
+	channels?: EncoderSettingsV2['channels'];
+	bitrateKbps?: EncoderSettingsV2['bitrateKbps'];
+	bitrateMode?: EncoderSettingsV2['bitrateMode'];
+	externalToolchainOverridePath?: string;
+	externalToolchain?: {
+		overridePath?: string;
+		mode?: 'auto' | 'custom';
+		customPath?: string;
+	};
+	vbr?: EncoderSettingsV2['vbr'];
+	fdkAfterburner?: EncoderSettingsV2['fdkAfterburner'];
+	twoloop?: EncoderSettingsV2['twoloop'];
+}
 
 const createDefaultState = () => ({
 	flavor: 'auto' as EncoderFlavor,
@@ -29,6 +41,7 @@ const createDefaultState = () => ({
 	bitrateValue: 64 as EncoderSettingsV2['bitrateKbps'],
 	fdkAfterburner: true,
 	nativeTwoloop: true,
+	externalToolchainOverridePath: '',
 	availability: null as EncoderAvailability | null,
 	autoOptionLabel: 'Auto',
 	availabilityHint: DEFAULT_AVAILABILITY_HINT,
@@ -37,10 +50,16 @@ const createDefaultState = () => ({
 	estimatedBitrateText: 'Est: ~60 kbps',
 	sampleRateAutoHint: DEFAULT_SAMPLE_RATE_HINT,
 	channelsAutoHint: DEFAULT_CHANNELS_HINT,
+	toolchainStatusTitle: DEFAULT_TOOLCHAIN_TITLE,
+	toolchainStatusMessage: DEFAULT_TOOLCHAIN_MESSAGE,
+	toolchainDetectedPath: '',
+	toolchainActivePath: '',
+	toolchainOverrideError: '',
 	showQuality: true,
 	showInlineOptionRow: false,
 	showFdkOptions: false,
 	showNativeOptions: false,
+	showToolchainOverrideInput: false,
 	bitrateModeAvailability: {
 		vbr: true,
 		cvbr: false,
@@ -57,28 +76,12 @@ export const encoderPanelState = $state(createDefaultState());
 
 export function resetEncoderPanelState(): void {
 	const defaults = createDefaultState();
-	encoderPanelState.flavor = defaults.flavor;
-	encoderPanelState.bitrateModeSelection = defaults.bitrateModeSelection;
-	encoderPanelState.sampleRateSelection = defaults.sampleRateSelection;
-	encoderPanelState.channelsSelection = defaults.channelsSelection;
-	encoderPanelState.qualityValue = defaults.qualityValue;
-	encoderPanelState.bitrateValue = defaults.bitrateValue;
-	encoderPanelState.fdkAfterburner = defaults.fdkAfterburner;
-	encoderPanelState.nativeTwoloop = defaults.nativeTwoloop;
-	encoderPanelState.availability = defaults.availability;
-	encoderPanelState.autoOptionLabel = defaults.autoOptionLabel;
-	encoderPanelState.availabilityHint = defaults.availabilityHint;
-	encoderPanelState.profileDisplay = defaults.profileDisplay;
-	encoderPanelState.qualityBitrateLabel = defaults.qualityBitrateLabel;
-	encoderPanelState.estimatedBitrateText = defaults.estimatedBitrateText;
-	encoderPanelState.sampleRateAutoHint = defaults.sampleRateAutoHint;
-	encoderPanelState.channelsAutoHint = defaults.channelsAutoHint;
-	encoderPanelState.showQuality = defaults.showQuality;
-	encoderPanelState.showInlineOptionRow = defaults.showInlineOptionRow;
-	encoderPanelState.showFdkOptions = defaults.showFdkOptions;
-	encoderPanelState.showNativeOptions = defaults.showNativeOptions;
-	encoderPanelState.bitrateModeAvailability = defaults.bitrateModeAvailability;
-	encoderPanelState.disabledEncoderOptions = defaults.disabledEncoderOptions;
+	Object.assign(encoderPanelState, defaults);
+}
+
+export function readToolchainSettingsFromState() {
+	const overridePath = encoderPanelState.externalToolchainOverridePath.trim();
+	return overridePath ? { overridePath } : {};
 }
 
 export function readEncoderSettingsFromState(): EncoderSettingsV2 {
@@ -90,19 +93,21 @@ export function readEncoderSettingsFromState(): EncoderSettingsV2 {
 			encoderPanelState.bitrateModeSelection === 'vbr'
 				? { mode: 'vbr', value: encoderPanelState.qualityValue }
 				: { mode: encoderPanelState.bitrateModeSelection },
+		externalToolchain: readToolchainSettingsFromState(),
 		vbr: { enabled: true, level: encoderPanelState.qualityValue },
 		fdkAfterburner: encoderPanelState.fdkAfterburner,
 		twoloop: encoderPanelState.nativeTwoloop,
 	};
 }
 
-export function readPersistedEncoderState(): Partial<EncoderSettingsV2> {
+export function readPersistedEncoderState(): PersistedEncoderPanelState {
 	const settings = readEncoderSettingsFromState();
 	return {
 		flavor: settings.flavor,
 		channels: settings.channels,
 		bitrateKbps: settings.bitrateKbps,
 		bitrateMode: settings.bitrateMode,
+		externalToolchainOverridePath: settings.externalToolchain?.overridePath,
 		vbr: settings.vbr,
 		fdkAfterburner: settings.fdkAfterburner,
 		twoloop: settings.twoloop,
@@ -126,7 +131,25 @@ export function readSampleRateFromState(): SampleRateConfig {
 	return 'auto';
 }
 
-export function applyPersistedEncoderState(state: Partial<EncoderSettingsV2>): void {
+function migrateOverridePath(state: PersistedEncoderPanelState): string {
+	const explicitOverride = state.externalToolchainOverridePath?.trim();
+	if (explicitOverride) {
+		return explicitOverride;
+	}
+
+	const nestedOverride = state.externalToolchain?.overridePath?.trim();
+	if (nestedOverride) {
+		return nestedOverride;
+	}
+
+	if (state.externalToolchain?.mode === 'custom') {
+		return state.externalToolchain.customPath?.trim() ?? '';
+	}
+
+	return '';
+}
+
+export function applyPersistedEncoderState(state: PersistedEncoderPanelState): void {
 	if (state.flavor) {
 		encoderPanelState.flavor = state.flavor;
 	}
@@ -142,6 +165,7 @@ export function applyPersistedEncoderState(state: Partial<EncoderSettingsV2>): v
 	if (state.bitrateMode) {
 		encoderPanelState.bitrateModeSelection = state.bitrateMode.mode;
 	}
+	encoderPanelState.externalToolchainOverridePath = migrateOverridePath(state);
 	if (typeof state.vbr?.level === 'number') {
 		const clamped = Math.max(1, Math.min(5, Math.round(state.vbr.level))) as VbrLevel;
 		encoderPanelState.qualityValue = clamped;
@@ -156,6 +180,41 @@ export function applyPersistedEncoderState(state: Partial<EncoderSettingsV2>): v
 
 export function setEncoderAvailability(availability: EncoderAvailability | null): void {
 	encoderPanelState.availability = availability;
+	if (!availability) {
+		encoderPanelState.toolchainStatusTitle = DEFAULT_TOOLCHAIN_TITLE;
+		encoderPanelState.toolchainStatusMessage = DEFAULT_TOOLCHAIN_MESSAGE;
+		encoderPanelState.toolchainDetectedPath = '';
+		encoderPanelState.toolchainActivePath = '';
+		encoderPanelState.toolchainOverrideError = '';
+		encoderPanelState.showToolchainOverrideInput =
+			encoderPanelState.externalToolchainOverridePath.trim().length > 0;
+		return;
+	}
+
+	encoderPanelState.toolchainDetectedPath = availability.detectedToolchainPath ?? '';
+	encoderPanelState.toolchainActivePath =
+		availability.activeToolchainPath ??
+		availability.detectedToolchainPath ??
+		availability.overrideToolchainPath ??
+		'';
+	encoderPanelState.toolchainOverrideError = availability.overrideError ?? '';
+	encoderPanelState.showToolchainOverrideInput =
+		availability.overrideInvalid || !availability.fdkAvailable;
+
+	if (availability.fdkAvailable) {
+		encoderPanelState.toolchainStatusTitle =
+			availability.fdkSource === 'override' ? 'Using override path' : 'FDK detected';
+	} else if (availability.overrideInvalid) {
+		encoderPanelState.toolchainStatusTitle = 'Saved override path is invalid';
+	} else {
+		encoderPanelState.toolchainStatusTitle = 'FDK not found';
+	}
+
+	encoderPanelState.toolchainStatusMessage = availability.statusMessage;
+}
+
+export function setExternalToolchainOverridePath(path: string): void {
+	encoderPanelState.externalToolchainOverridePath = path;
 }
 
 export function setSampleRateAutoHint(value: string): void {

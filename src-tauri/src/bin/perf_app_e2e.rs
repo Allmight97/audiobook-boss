@@ -161,7 +161,7 @@ async fn run() -> Result<()> {
     let settings = encoder_settings(&args);
     audio::settings_encoder::validate_encoder_settings(&settings)
         .map_err(|e| anyhow!("Encoder settings invalid: {e}"))?;
-    let availability = audio::settings_encoder::detect_available_encoders();
+    let availability = audio::detect_encoder_availability(None);
     let resolved_encoder = audio::settings_encoder::resolve_encoder_type(&settings, &availability);
 
     let file_info = audio::get_file_list_info(&[input_path])

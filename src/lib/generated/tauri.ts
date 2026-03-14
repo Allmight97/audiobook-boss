@@ -79,14 +79,20 @@ async analyzeAudioFiles(filePaths: string[]) : Promise<FileListInfo> {
 /**
  * Validates encoder settings (no side effects)
  */
-async validateEncoderSettings(settings: EncoderSettings) : Promise<string> {
-    return await TAURI_INVOKE("validate_encoder_settings", { settings });
+async validateEncoderSettings(settings: EncoderSettings, externalToolchain: ExternalToolchainPreference | null) : Promise<string> {
+    return await TAURI_INVOKE("validate_encoder_settings", { settings, externalToolchain });
 },
 /**
  * Lists runtime encoder availability so the UI can surface guidance.
  */
-async listAvailableEncoders() : Promise<EncoderAvailability> {
-    return await TAURI_INVOKE("list_available_encoders");
+async listAvailableEncoders(externalToolchain: ExternalToolchainPreference | null) : Promise<EncoderAvailability> {
+    return await TAURI_INVOKE("list_available_encoders", { externalToolchain });
+},
+/**
+ * Re-runs external toolchain detection so the UI can refresh FDK status without restart.
+ */
+async refreshExternalToolchain(externalToolchain: ExternalToolchainPreference | null) : Promise<EncoderAvailability> {
+    return await TAURI_INVOKE("refresh_external_toolchain", { externalToolchain });
 },
 /**
  * Builds an output path preview using backend naming rules without collision suffixing.
@@ -272,10 +278,8 @@ export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; va
  * Channel selection strategy
  */
 export type ChannelConfig = "auto" | "mono" | "stereo"
-/**
- * Runtime detection of available encoders.
- */
-export type EncoderAvailability = { fdkAvailable: boolean; aacAtAvailable: boolean; nativeAacAvailable: boolean }
+export type EncoderAvailability = { fdkAvailable: boolean; fdkSource: EncoderCapabilitySource; aacAtAvailable: boolean; nativeAacAvailable: boolean; autoEncoder: EncoderType; detectedToolchainPath: string | null; overrideToolchainPath: string | null; activeToolchainPath: string | null; overrideInvalid: boolean; overrideError: string | null; statusMessage: string }
+export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override"
 /**
  * Advanced encoder settings payload
  */
@@ -308,6 +312,7 @@ export type EncoderType =
  * Native FFmpeg AAC encoder (aac)
  */
 "native_aac"
+export type ExternalToolchainPreference = { overridePath: string | null }
 /**
  * Summary information for a file list
  */
@@ -340,7 +345,7 @@ export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; t
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
 export type ProcessCommandResult = { jobType: JobType; summary: ProcessResultSummary; results: ProcessResultEntry[] }
-export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; 
+export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; externalToolchain: ExternalToolchainPreference | null; 
 /**
  * Sample rate from frontend (optional, defaults to Auto)
  */

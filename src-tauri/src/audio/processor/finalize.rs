@@ -81,26 +81,57 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
     }
 }
 
-/// Cleans up session-specific temporary directory using CleanupGuard
-pub(crate) fn cleanup_temp_directory_with_session(
-    session_id: &str,
-    temp_dir: PathBuf,
-) -> Result<()> {
-    log::debug!(
-        "Cleaning up temporary directory for session {}: {}",
-        session_id,
-        temp_dir.display()
-    );
-    let mut guard = CleanupGuard::new(session_id.to_string());
-    guard.add_path(&temp_dir);
-    guard.cleanup_now().map_err(|e| {
-        log::warn!(
-            "Failed to cleanup temporary directory '{}': {}",
-            temp_dir.display(),
-            e
-        );
-        e
+pub(crate) struct FinalizeCommitOutcome {
+    pub final_output: PathBuf,
+    pub cancelled: bool,
+}
+
+fn commit_output_boundary_internal<F>(
+    context: &ProcessingContext,
+    temp_output: PathBuf,
+    destination: &Path,
+    cleanup_guard: &mut CleanupGuard,
+    after_move: F,
+) -> Result<FinalizeCommitOutcome>
+where
+    F: FnOnce(),
+{
+    let final_output = move_to_final_location(temp_output, destination)?;
+
+    // Destination output is now canonical and must not be cleaned up on cancellation.
+    cleanup_guard.remove_path(&final_output);
+    after_move();
+
+    let cancelled = context.is_cancelled();
+    cleanup_guard.cleanup_now()?;
+
+    Ok(FinalizeCommitOutcome {
+        final_output,
+        cancelled,
     })
+}
+
+pub(crate) fn commit_output_boundary(
+    context: &ProcessingContext,
+    temp_output: PathBuf,
+    destination: &Path,
+    cleanup_guard: &mut CleanupGuard,
+) -> Result<FinalizeCommitOutcome> {
+    commit_output_boundary_internal(context, temp_output, destination, cleanup_guard, || {})
+}
+
+#[cfg(test)]
+pub(crate) fn commit_output_boundary_with_hook<F>(
+    context: &ProcessingContext,
+    temp_output: PathBuf,
+    destination: &Path,
+    cleanup_guard: &mut CleanupGuard,
+    after_move: F,
+) -> Result<FinalizeCommitOutcome>
+where
+    F: FnOnce(),
+{
+    commit_output_boundary_internal(context, temp_output, destination, cleanup_guard, after_move)
 }
 
 /// Writes metadata if provided (UI emission included)
@@ -146,25 +177,34 @@ pub(crate) fn complete_processing(
     let ui = context.new_emitter();
     ui.emit_cleanup("Cleaning up...");
 
-    log::info!("Moving temporary file to final location...");
-    let final_output = move_to_final_location(merged_output, context.output.final_path())?;
-    log::info!("✓ File moved successfully to: {}", final_output.display());
+    let mut cleanup_guard = CleanupGuard::new(context.session.id());
+    cleanup_guard.add_path(workflow.temp_dir);
+    let outcome = commit_output_boundary(
+        context,
+        merged_output,
+        context.output.final_path(),
+        &mut cleanup_guard,
+    )?;
+    log::info!(
+        "✓ File moved successfully to: {}",
+        outcome.final_output.display()
+    );
 
-    if context.is_cancelled() {
+    if outcome.cancelled {
         log::warn!("Processing was cancelled during completion");
+        ui.emit_cancelled("Processing was cancelled");
         return Err(AppError::InvalidInput(
             "Processing was cancelled".to_string(),
         ));
     }
 
-    log::info!("Cleaning up temporary directory...");
-    cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
-    log::info!("✓ Temporary directory cleaned up successfully");
-
     reporter.complete();
     ui.emit_complete("Processing complete");
 
-    let success_message = format!("Successfully created audiobook: {}", final_output.display());
+    let success_message = format!(
+        "Successfully created audiobook: {}",
+        outcome.final_output.display()
+    );
     log::info!("🎉 {}", success_message);
     Ok(success_message)
 }
@@ -200,15 +240,110 @@ pub(crate) async fn finalize_processing(
                 );
             }
         }
-        let moved = move_to_final_location(merged_output.clone(), &preview_path)?;
-        cleanup_temp_directory_with_session(&context.session.id(), workflow.temp_dir)?;
+        let mut cleanup_guard = CleanupGuard::new(context.session.id());
+        cleanup_guard.add_path(workflow.temp_dir);
+        let outcome = commit_output_boundary(
+            context,
+            merged_output.clone(),
+            &preview_path,
+            &mut cleanup_guard,
+        )?;
+        if outcome.cancelled {
+            let ui = context.new_emitter();
+            ui.emit_cancelled("Processing was cancelled");
+            return Err(AppError::InvalidInput(
+                "Processing was cancelled".to_string(),
+            ));
+        }
         reporter.complete();
         let ui = context.new_emitter();
         ui.emit_complete("Preview created successfully");
-        let msg = format!("Successfully created preview: {}", moved.display());
+        let msg = format!(
+            "Successfully created preview: {}",
+            outcome.final_output.display()
+        );
         log::info!("🎉 {}", msg);
         return Ok(msg);
     }
 
     complete_processing(context, workflow, merged_output, reporter)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::cleanup::CleanupGuard;
+    use crate::audio::context::OutputConfig;
+    use crate::audio::job_registry::CancellationChecker;
+    use crate::audio::session::ProcessingSession;
+    use crate::audio::settings_encoder::{
+        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+    };
+    use crate::audio::SampleRateConfig;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    fn test_context(final_path: &Path, session: Arc<ProcessingSession>) -> ProcessingContext {
+        ProcessingContext::new_headless(
+            session,
+            EncoderSettings {
+                encoder_type: EncoderType::NativeAac,
+                bitrate_kbps: 64,
+                bitrate_mode: BitrateMode::Cbr,
+                channels: ChannelConfig::Auto,
+                afterburner: true,
+                threads: ThreadSetting::Auto,
+                twoloop: true,
+            },
+            SampleRateConfig::Auto,
+            OutputConfig::new(final_path),
+        )
+    }
+
+    #[test]
+    fn commit_output_boundary_preserves_moved_output_on_post_move_cancel() {
+        let root = TempDir::new().expect("temp root");
+        let temp_dir = root.path().join("worker-temp");
+        std::fs::create_dir_all(&temp_dir).expect("create worker temp dir");
+
+        let temp_output = temp_dir.join("worker-output.m4b");
+        std::fs::write(&temp_output, b"payload").expect("write temp output");
+
+        let final_output = root.path().join("final-output.m4b");
+
+        let job_flag = Arc::new(AtomicBool::new(false));
+        let global_flag = Arc::new(AtomicBool::new(false));
+        let checker = CancellationChecker {
+            job_flag: job_flag.clone(),
+            global_flag,
+        };
+        let session = Arc::new(ProcessingSession::from_job_registry(
+            uuid::Uuid::new_v4(),
+            checker,
+        ));
+        let context = test_context(&final_output, session);
+
+        let mut cleanup_guard = CleanupGuard::new(context.session.id());
+        cleanup_guard.add_path(&temp_dir);
+        cleanup_guard.add_path(&temp_output);
+
+        let outcome = commit_output_boundary_with_hook(
+            &context,
+            temp_output,
+            &final_output,
+            &mut cleanup_guard,
+            || {
+                job_flag.store(true, Ordering::Release);
+            },
+        )
+        .expect("commit boundary should succeed");
+
+        assert!(outcome.cancelled, "expected cancellation after move");
+        assert!(final_output.exists(), "moved output should be preserved");
+        assert!(
+            !temp_dir.exists(),
+            "temp directory should still be cleaned after post-move cancellation"
+        );
+    }
 }

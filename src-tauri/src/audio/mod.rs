@@ -10,6 +10,7 @@ pub mod buffer;
 pub mod cleanup;
 pub mod constants;
 pub mod context;
+pub mod external_fdk;
 pub mod file_list;
 pub mod job_registry;
 pub mod metrics;
@@ -21,6 +22,7 @@ pub mod progress;
 pub mod session;
 pub mod settings;
 pub mod settings_encoder;
+pub mod toolchain;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -122,6 +124,10 @@ pub use progress::{
 // Job registry for parallel batch processing
 pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
 pub use settings::{validate_output_path, validate_sample_rate_config};
+pub use toolchain::{
+    detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
+    ExternalToolchainPreference, ValidatedExternalToolchain,
+};
 
 // Core processor API (post-split staged)
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};

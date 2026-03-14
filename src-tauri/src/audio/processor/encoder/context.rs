@@ -121,7 +121,7 @@ pub(crate) fn setup_encoder(
     let (target_sample_rate, target_channels) =
         crate::audio::processor::engine::resolve_target_audio_params(plan)?;
 
-    let availability = settings_encoder::detect_available_encoders();
+    let availability = crate::audio::detect_encoder_availability(None);
     let (effective_settings, resolved_encoder_type) =
         resolve_plan_encoder_settings(plan, &availability);
 

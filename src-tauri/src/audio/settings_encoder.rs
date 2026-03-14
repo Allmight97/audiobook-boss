@@ -1,7 +1,7 @@
 //! Encoder settings types and validation
 //!
 //! This module defines the advanced encoder settings surface used by the
-//! processing command, along with validation helpers and encoder availability probes.
+//! processing command, along with validation helpers and encoder selection rules.
 
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
@@ -106,10 +106,6 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     validate_encoder_mode_combo(settings.encoder_type, settings.bitrate_mode)?;
     validate_threads(settings.threads)?;
 
-    if settings.afterburner && !is_encoder_available_by_name("libfdk_aac") {
-        log::info!("afterburner flag present but libfdk_aac unavailable - will be ignored");
-    }
-
     Ok(())
 }
 
@@ -199,37 +195,10 @@ pub fn is_encoder_available_by_name(name: &str) -> bool {
     result
 }
 
-/// Runtime detection of available encoders.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct EncoderAvailability {
-    pub fdk_available: bool,
-    pub aac_at_available: bool,
-    pub native_aac_available: bool,
-}
-
-pub fn detect_available_encoders() -> EncoderAvailability {
-    log::info!("🔍 Detecting available encoders...");
-    let fdk = is_encoder_available_by_name("libfdk_aac");
-    let aac_at = cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at");
-    let native_aac = is_encoder_available_by_name("aac");
-    log::info!(
-        "🔍 Encoder detection results: fdk={}, aac_at={}, native_aac={}",
-        fdk,
-        aac_at,
-        native_aac
-    );
-    EncoderAvailability {
-        fdk_available: fdk,
-        aac_at_available: aac_at,
-        native_aac_available: native_aac,
-    }
-}
-
 /// Resolves the actual encoder to use based on requested type + availability.
 pub fn resolve_encoder_type(
     requested: &EncoderSettings,
-    availability: &EncoderAvailability,
+    availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> EncoderType {
     match requested.encoder_type {
         EncoderType::Auto => {
@@ -244,26 +213,44 @@ pub fn resolve_encoder_type(
         EncoderType::FdkHeAac if availability.fdk_available => EncoderType::FdkHeAac,
         EncoderType::AacAt if availability.aac_at_available => EncoderType::AacAt,
         EncoderType::NativeAac if availability.native_aac_available => EncoderType::NativeAac,
-        fallback => {
-            // FALLBACK[FB-011]: trigger=requested encoder unavailable on host/runtime
-            // observe=warn log includes requested encoder + availability snapshot
-            // sunset=2026-06-30 issue=#195
-            log::warn!(
-                "encoder fallback: requested={:?} availability={:?}",
-                fallback,
-                availability
-            );
-            if availability.native_aac_available {
-                EncoderType::NativeAac
-            } else {
-                fallback
-            }
-        }
+        explicit => explicit,
     }
 }
 
-/// Resolves the requested encoder name, falling back to native `aac` when unavailable.
-/// This does not open the encoder; it only chooses the preferred name.
+pub fn encoder_available(
+    requested: EncoderType,
+    availability: &crate::audio::toolchain::EncoderAvailability,
+) -> bool {
+    match requested {
+        EncoderType::Auto => true,
+        EncoderType::FdkHeAac => availability.fdk_available,
+        EncoderType::AacAt => availability.aac_at_available,
+        EncoderType::NativeAac => availability.native_aac_available,
+    }
+}
+
+pub fn validate_requested_encoder_available(
+    requested: EncoderType,
+    availability: &crate::audio::toolchain::EncoderAvailability,
+) -> Result<()> {
+    if encoder_available(requested, availability) {
+        return Ok(());
+    }
+
+    let message = match requested {
+        EncoderType::Auto => return Ok(()),
+        EncoderType::FdkHeAac => {
+            "FDK AAC requires a validated external FFmpeg toolchain.".to_string()
+        }
+        EncoderType::AacAt => "Apple AAC is unavailable in this build.".to_string(),
+        EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
+    };
+
+    Err(AppError::InvalidInput(message))
+}
+
+/// Resolves the requested FFmpeg encoder name for the chosen encoder type.
+/// This does not open the encoder; it only maps the already-resolved selection.
 pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
     match encoder_type {
         EncoderType::Auto | EncoderType::NativeAac => "aac",

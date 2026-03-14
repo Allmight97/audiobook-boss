@@ -8,7 +8,7 @@ description: Operate Audiobook Boss through its repo control plane. Use when wor
 Use this skill when the task changes the live repo execution surface instead of only product logic.
 
 1. Read `AGENTS.md`.
-2. Read `docs/project.md`.
+2. Read `README.md`, `WORKFLOW.md`, and `docs/fallbacks.md`.
 3. Follow the nearest nested `AGENTS.md`.
 4. If the task is visual UI review, also read `references/uncodixify.md`.
 
@@ -31,4 +31,4 @@ Use this skill when the task changes the live repo execution surface instead of 
 
 - Report the verification lane used
 - Separate mechanical failures from advisory visual findings
-- Promote durable conclusions into code or the active project doc instead of artifact notes
+- Promote durable conclusions into code or the active canonical docs instead of artifact notes

@@ -109,6 +109,7 @@ describe('startProcessing metadata staging', () => {
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
 		context.readOutputConfigForProcessingMock.mockReturnValue({
 			encoderSettings: defaultEncoderSettings(),
+			toolchainSettings: {},
 			sampleRate: 'auto',
 			outputPath: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },

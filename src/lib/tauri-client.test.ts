@@ -175,6 +175,7 @@ describe('tauriClient nullish adapters', () => {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
 				settings: defaultEncoderSettings(),
+				externalToolchain: { overridePath: '/toolchains/ffmpeg' },
 				sampleRate: undefined,
 				jobType: undefined,
 				outputNaming: undefined,
@@ -198,6 +199,9 @@ describe('tauriClient nullish adapters', () => {
 			},
 		];
 		expect(commandName).toBe('process_audiobook_files');
+		expect(args.payload.externalToolchain).toEqual({
+			overridePath: '/toolchains/ffmpeg',
+		});
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
@@ -211,6 +215,95 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.status).toBe('success');
 		expect(result.results[0]?.previewFilePath).toBeUndefined();
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
+	});
+
+	it('denormalizes external toolchain input for validate_encoder_settings', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
+
+		const { tauriClient } = await import('./tauri/client');
+		await tauriClient.validateEncoderSettings(defaultEncoderSettings(), {
+			overridePath: '/opt/toolchains/ffmpeg',
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{
+				settings: Record<string, unknown>;
+				externalToolchain: { overridePath: string | null };
+			},
+		];
+		expect(commandName).toBe('validate_encoder_settings');
+		expect(args.externalToolchain).toEqual({
+			overridePath: '/opt/toolchains/ffmpeg',
+		});
+	});
+
+	it('denormalizes external toolchain input for list_available_encoders', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			fdkAvailable: true,
+			fdkSource: 'override',
+			aacAtAvailable: true,
+			nativeAacAvailable: true,
+			autoEncoder: 'fdk_he_aac',
+			detectedToolchainPath: null,
+			overrideToolchainPath: '/custom/ffmpeg',
+			activeToolchainPath: '/custom/ffmpeg',
+			overrideInvalid: false,
+			overrideError: null,
+			statusMessage: 'FDK AAC is using the saved override path.',
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const availability = await tauriClient.listAvailableEncoders({
+			overridePath: '/custom/ffmpeg',
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{ externalToolchain: { overridePath: string | null } },
+		];
+		expect(commandName).toBe('list_available_encoders');
+		expect(args.externalToolchain).toEqual({
+			overridePath: '/custom/ffmpeg',
+		});
+		expect(availability.fdkSource).toBe('override');
+		expect(availability.activeToolchainPath).toBe('/custom/ffmpeg');
+	});
+
+	it('uses refresh_external_toolchain for explicit FDK refreshes', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			fdkAvailable: true,
+			fdkSource: 'detected',
+			aacAtAvailable: true,
+			nativeAacAvailable: true,
+			autoEncoder: 'fdk_he_aac',
+			detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
+			overrideToolchainPath: null,
+			activeToolchainPath: '/opt/homebrew/bin/ffmpeg',
+			overrideInvalid: false,
+			overrideError: null,
+			statusMessage: 'FDK AAC detected and ready.',
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const availability = await tauriClient.refreshExternalToolchain();
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{ externalToolchain: { overridePath: string | null } | null },
+		];
+		expect(commandName).toBe('refresh_external_toolchain');
+		expect(args.externalToolchain).toBeNull();
+		expect(availability.detectedToolchainPath).toBe('/opt/homebrew/bin/ffmpeg');
 	});
 
 	it('compiles metadata intent map for process command payload', async () => {

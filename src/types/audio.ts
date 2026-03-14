@@ -1,6 +1,9 @@
 // TypeScript interfaces for audio processing
 import type {
 	AudioFile as GeneratedAudioFile,
+	EncoderAvailability as GeneratedEncoderAvailability,
+	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
+	ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
 	OutputNamingConfig as GeneratedOutputNamingConfig,
@@ -18,6 +21,9 @@ export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
 export type FileListInfo = NullToOptionalDeep<GeneratedFileListInfo>;
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
+export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
+export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
+export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalToolchainPreference>;
 
 // Output naming options for folder/filename generation
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
@@ -25,6 +31,7 @@ export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>
 // Combined UI output configuration used by the UI boundary
 export interface OutputConfig {
 	encoderSettings: EncoderSettings;
+	toolchainSettings: ExternalToolchainPreference;
 	sampleRate: SampleRateConfig;
 	outputPath: string; // backend contract name; stores the selected output directory
 	outputNaming: OutputNamingConfig;

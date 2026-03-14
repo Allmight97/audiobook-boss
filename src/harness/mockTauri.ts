@@ -118,10 +118,19 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 		case 'search_online_metadata':
 			return HARNESS_LOOKUP_RESULTS;
 		case 'list_available_encoders':
+		case 'refresh_external_toolchain':
 			return {
+				autoEncoder: 'fdk_he_aac',
 				fdkAvailable: true,
+				fdkSource: 'detected',
 				aacAtAvailable: true,
 				nativeAacAvailable: true,
+				detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
+				overrideToolchainPath: null,
+				activeToolchainPath: '/opt/homebrew/bin/ffmpeg',
+				overrideInvalid: false,
+				overrideError: null,
+				statusMessage: 'FDK AAC detected and ready.',
 			};
 		case 'load_cover_art_from_url':
 		case 'load_cover_art_file':
