@@ -13,7 +13,6 @@
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
 - Keep layout/token changes anchored to `src/styles.css` as the spacing and token source of truth.
 - Route UI proof-of-done through the harness substrate (`bun run harness:verify --scenario <name>` or `--changed`) plus targeted tests for the touched surface.
-- Use `harness:agent` for exploratory desktop browser review when spacing, control affordances, or other vision-heavy questions need live inspection. It supplements the proof-of-done gate rather than replacing it.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
 - Treat function/file size as readability triggers: extract helpers when component scripts become hard to scan or test.
@@ -24,7 +23,6 @@
 - Do not hand-edit `src/lib/generated/tauri.ts`; regenerate/sync bindings through the standard scripts/hooks.
 - Preserve the migrated runtime posture: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, and `src/lib/**`.
 - UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage and harness verification evidence.
-- UI-affecting changes are not “done” from `harness:agent` alone either; exploratory review can surface more issues, but `harness:verify` remains the required mechanical gate.
 - If a UI change touches a surface with no matching harness scenario, add or extend the scenario instead of silently skipping proof.
 - Follow fallback policy from root `AGENTS.md` for any compatibility fallback introduced in frontend flows.
 - Keep TypeScript boundaries type-safe; avoid introducing new `any` escape paths in runtime IPC/state flows.
@@ -48,5 +46,4 @@
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
 - Token/spacing changes resolve through `src/styles.css` source-of-truth.
 - UI-facing changes have targeted tests plus harness verification coverage for the touched surface.
-- If `harness:agent` is used during review, report objective failures separately from advisory UX findings.
 - Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).

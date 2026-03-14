@@ -1,4 +1,0 @@
-interface:
-  display_name: "Controlplane Operator"
-  short_description: "Operate ABB Controlplane + UI review"
-  default_prompt: "Use $controlplane-operator to apply ABB's live project contract, runner rules, and harness verification policy."

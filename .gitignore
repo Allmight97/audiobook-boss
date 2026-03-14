@@ -50,9 +50,3 @@ opencode.json
 # Harness verification artifacts
 /.artifacts/harness/*
 !/.artifacts/harness/.gitkeep
-/.artifacts/harness-agent/*
-!/.artifacts/harness-agent/.gitkeep
-
-# Local task-runner state
-/.agent-work/*
-!/.agent-work/.gitkeep
