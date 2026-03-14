@@ -59,8 +59,28 @@ pub fn export_typescript_bindings() -> std::result::Result<(), Box<dyn std::erro
         generated.push_str(
             "\n\n// Injected by export_bindings.rs to prevent tree-shaking of TAURI_CHANNEL.\nvoid TAURI_CHANNEL;\n",
         );
-        std::fs::write(&output_path, generated)?;
+    }
+
+    let normalized = trim_generated_typescript(&generated);
+    if normalized != generated {
+        std::fs::write(&output_path, normalized)?;
     }
 
     Ok(())
+}
+
+fn trim_generated_typescript(input: &str) -> String {
+    let mut normalized = String::with_capacity(input.len());
+
+    for line in input.split_inclusive('\n') {
+        let Some(content) = line.strip_suffix('\n') else {
+            normalized.push_str(line.trim_end_matches([' ', '\t']));
+            continue;
+        };
+
+        normalized.push_str(content.trim_end_matches([' ', '\t']));
+        normalized.push('\n');
+    }
+
+    normalized
 }

@@ -35,6 +35,9 @@ docs/model_tests/*
 
 # Claude AI settings (local development tool configuration)
 .claude/
+.cursor/agents/
+.cursor/hooks/state/
+.cursor/plans/
 opencode.json
 .btca/
 .learnings/
