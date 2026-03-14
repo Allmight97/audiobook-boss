@@ -1,8 +1,8 @@
-import type { EncoderSettingsV2 } from '../../types/encoder';
+import type { PersistedEncoderPanelState } from './state.svelte';
 
 const LS_KEY = 'abb.encoderPanel.v2';
 
-export const loadState = (): Partial<EncoderSettingsV2> => {
+export const loadState = (): PersistedEncoderPanelState => {
 	try {
 		const raw = localStorage.getItem(LS_KEY);
 		return raw ? JSON.parse(raw) : {};
@@ -15,7 +15,7 @@ export const loadState = (): Partial<EncoderSettingsV2> => {
 	}
 };
 
-export const saveState = (state: Partial<EncoderSettingsV2>): void => {
+export const saveState = (state: PersistedEncoderPanelState): void => {
 	try {
 		localStorage.setItem(LS_KEY, JSON.stringify(state));
 	} catch (error) {

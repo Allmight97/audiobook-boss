@@ -7,7 +7,6 @@ import type { ConsoleMessage, Page } from 'playwright';
 export const HARNESS_HOST = '127.0.0.1';
 export const DEFAULT_HARNESS_PORT = 4173;
 export const HARNESS_ARTIFACT_ROOT = path.resolve('.artifacts/harness');
-export const HARNESS_AGENT_ARTIFACT_ROOT = path.resolve('.artifacts/harness-agent');
 
 export type HarnessServerSession = {
 	server: ViteDevServer;

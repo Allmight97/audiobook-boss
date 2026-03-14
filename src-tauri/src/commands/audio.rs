@@ -3,8 +3,11 @@ use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::JobId;
 use crate::audio::output_path::build_output_path_preview;
 use crate::audio::settings_encoder::{
-    detect_available_encoders, validate_encoder_settings as validate_encoder_settings_impl,
-    EncoderAvailability, EncoderSettings,
+    validate_encoder_settings as validate_encoder_settings_impl,
+    validate_requested_encoder_available, EncoderSettings,
+};
+use crate::audio::toolchain::{
+    detect_encoder_availability, EncoderAvailability, ExternalToolchainPreference,
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
@@ -61,19 +64,37 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 /// Validates encoder settings (no side effects)
 #[tauri::command]
 #[specta::specta]
-pub fn validate_encoder_settings(settings: EncoderSettings) -> Result<String> {
+pub fn validate_encoder_settings(
+    settings: EncoderSettings,
+    external_toolchain: Option<ExternalToolchainPreference>,
+) -> Result<String> {
     validate_encoder_settings_impl(&settings)?;
+
+    let availability = detect_encoder_availability(external_toolchain.as_ref());
+    validate_requested_encoder_available(settings.encoder_type, &availability)?;
+
     Ok("Encoder settings are valid".to_string())
 }
 
 /// Lists runtime encoder availability so the UI can surface guidance.
 #[tauri::command]
 #[specta::specta]
-pub fn list_available_encoders() -> EncoderAvailability {
+pub fn list_available_encoders(
+    external_toolchain: Option<ExternalToolchainPreference>,
+) -> EncoderAvailability {
     log::info!("🔍 list_available_encoders command invoked");
-    let result = detect_available_encoders();
+    let result = detect_encoder_availability(external_toolchain.as_ref());
     log::info!("🔍 Returning encoder availability: {:?}", result);
     result
+}
+
+/// Re-runs external toolchain detection so the UI can refresh FDK status without restart.
+#[tauri::command]
+#[specta::specta]
+pub fn refresh_external_toolchain(
+    external_toolchain: Option<ExternalToolchainPreference>,
+) -> EncoderAvailability {
+    detect_encoder_availability(external_toolchain.as_ref())
 }
 
 /// Builds an output path preview using backend naming rules without collision suffixing.
@@ -128,15 +149,6 @@ pub async fn process_audiobook_files(
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
-    let metadata = metadata
-        .map(|patches| {
-            patches
-                .into_iter()
-                .map(|(path, patch)| patch.to_write_metadata().map(|metadata| (path, metadata)))
-                .collect::<Result<HashMap<String, crate::metadata::AudiobookMetadata>>>()
-        })
-        .transpose()?;
-
     audio_processing::process_payload(
         window,
         registry.inner().clone(),

@@ -1,23 +1,30 @@
 import { ENABLE_FDK } from './featureFlags';
 import { loadState, saveState } from './state';
 import { updateEstimatedSize } from '../outputPanel/dom';
-import { updateEncoderSettings, updateSampleRate } from '../outputPanel/state';
+import {
+	updateEncoderSettings,
+	updateSampleRate,
+	updateToolchainSettings,
+} from '../outputPanel/state';
 import {
 	applyPersistedEncoderState,
 	encoderPanelState,
 	readBoundaryEncoderSettings,
 	readPersistedEncoderState,
 	readSampleRateFromState,
+	readToolchainSettingsFromState,
+	setChannelsAutoHint,
 	setEncoderAvailability,
-	type EncoderAvailability,
+	setExternalToolchainOverridePath,
+	setSampleRateAutoHint,
 	type BitrateModeSelection,
 	type VbrLevel,
 } from './state.svelte';
 import type { EncoderFlavor } from '../../types/encoder';
+import type { EncoderAvailability } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 
-/** Debug logging - only active in development builds */
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
 	if (DEBUG) console.log('[EncoderPanel]', ...args);
@@ -42,10 +49,16 @@ const NATIVE_AAC_WARNING =
 const AUTO_LABEL_BASE = 'Auto';
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
-let fallbackHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
+
+const normalizeDialogPath = (selected: null | string | string[]): string | null =>
+	typeof selected === 'string'
+		? selected
+		: Array.isArray(selected) && selected.length > 0
+			? (selected[0] ?? null)
+			: null;
 
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (flavor !== 'auto') return flavor;
@@ -73,8 +86,10 @@ const autoOptionLabel = (effectiveEncoder: EncoderFlavor): string =>
 const syncOutputState = (): void => {
 	const settings = readBoundaryEncoderSettings();
 	const sampleRate = readSampleRateFromState();
+	const toolchainSettings = readToolchainSettingsFromState();
 	updateEncoderSettings(settings);
 	updateSampleRate(sampleRate);
+	updateToolchainSettings(toolchainSettings);
 };
 
 const syncOutputSizingFromEncoderState = (): void => {
@@ -112,7 +127,10 @@ const updateAvailabilityHint = (): void => {
 
 	if (selectedFlavor === 'auto') {
 		if (effectiveEncoder === 'fdk_he_aac') {
-			encoderPanelState.availabilityHint = 'Auto will use FDK AAC.';
+			const pathSuffix = encoderPanelState.toolchainActivePath
+				? ` at ${encoderPanelState.toolchainActivePath}.`
+				: '.';
+			encoderPanelState.availabilityHint = `Auto will use external FDK AAC${pathSuffix}`;
 			return;
 		}
 		if (effectiveEncoder === 'aac_at') {
@@ -124,12 +142,29 @@ const updateAvailabilityHint = (): void => {
 	}
 
 	if (effectiveEncoder === 'native_aac') {
+		if (!encoderPanelState.availability.nativeAacAvailable) {
+			encoderPanelState.availabilityHint = 'Native AAC (FFmpeg) is unavailable in this build.';
+			return;
+		}
 		encoderPanelState.availabilityHint = NATIVE_AAC_WARNING;
 		return;
 	}
 
 	if (effectiveEncoder === 'fdk_he_aac') {
-		encoderPanelState.availabilityHint = 'FDK detected ✓';
+		if (!encoderPanelState.availability.fdkAvailable) {
+			encoderPanelState.availabilityHint =
+				'FDK AAC requires a validated external FFmpeg toolchain.';
+			return;
+		}
+		encoderPanelState.availabilityHint =
+			encoderPanelState.availability.fdkSource === 'override'
+				? 'FDK AAC is using the saved override path.'
+				: 'External FDK toolchain detected and ready.';
+		return;
+	}
+
+	if (!encoderPanelState.availability.aacAtAvailable) {
+		encoderPanelState.availabilityHint = 'Apple AAC is unavailable in this build.';
 		return;
 	}
 
@@ -178,22 +213,6 @@ const updateEstimatedBitrate = (): void => {
 	encoderPanelState.estimatedBitrateText = `Target: ${encoderPanelState.bitrateValue} kbps`;
 };
 
-const reportEncoderAutoSwitchFallback = (from: EncoderFlavor, to: EncoderFlavor): void => {
-	// FALLBACK[FB-003]: trigger=selected encoder becomes unavailable/disabled
-	// observe=console.warn + temporary availability hint override
-	// sunset=2026-04-30 issue=#198
-	console.warn(`FALLBACK[FB-003] encoder '${from}' unavailable; auto-switched to '${to}'`);
-	encoderPanelState.availabilityHint = `Encoder '${from}' unavailable; switched to '${to}'.`;
-
-	if (fallbackHintTimer) {
-		clearTimeout(fallbackHintTimer);
-	}
-	fallbackHintTimer = setTimeout(() => {
-		updateAvailabilityHint();
-		fallbackHintTimer = null;
-	}, 3500);
-};
-
 const getDisabledEncoderOptions = (
 	availability: EncoderAvailability | null,
 ): typeof encoderPanelState.disabledEncoderOptions => ({
@@ -205,27 +224,30 @@ const getDisabledEncoderOptions = (
 const enforceAllowedEncoderSelection = (): void => {
 	const disabledOptions = getDisabledEncoderOptions(encoderPanelState.availability);
 	encoderPanelState.disabledEncoderOptions = disabledOptions;
-
-	if (!disabledOptions[encoderPanelState.flavor as keyof typeof disabledOptions]) {
-		return;
-	}
-
-	const fallbackOrder: EncoderFlavor[] = ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'];
-	const fallbackFlavor = fallbackOrder.find((flavor) => {
-		if (flavor === 'auto') return true;
-		return !disabledOptions[flavor];
-	});
-
-	if (!fallbackFlavor) {
-		return;
-	}
-
-	const previousFlavor = encoderPanelState.flavor;
-	encoderPanelState.flavor = fallbackFlavor;
-	reportEncoderAutoSwitchFallback(previousFlavor, fallbackFlavor);
 };
 
-const syncEncoderState = (): void => {
+const normalizeUnavailableFlavorSelection = (): boolean => {
+	const availability = encoderPanelState.availability;
+	if (!availability || encoderPanelState.flavor === 'auto') {
+		return false;
+	}
+
+	const disabledOptions = getDisabledEncoderOptions(availability);
+	const shouldReset =
+		(encoderPanelState.flavor === 'fdk_he_aac' && disabledOptions.fdk_he_aac) ||
+		(encoderPanelState.flavor === 'aac_at' && disabledOptions.aac_at) ||
+		(encoderPanelState.flavor === 'native_aac' && disabledOptions.native_aac);
+
+	if (!shouldReset) {
+		return false;
+	}
+
+	encoderPanelState.flavor = 'auto';
+	return true;
+};
+
+const syncEncoderState = (): boolean => {
+	const normalizedUnavailableFlavor = normalizeUnavailableFlavorSelection();
 	enforceAllowedEncoderSelection();
 	const effectiveEncoder = resolveEffectiveEncoder(encoderPanelState.flavor);
 	enforceBitrateModeCompatibility(effectiveEncoder);
@@ -235,6 +257,7 @@ const syncEncoderState = (): void => {
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
 	updateAvailabilityHint();
+	return normalizedUnavailableFlavor;
 };
 
 const syncAfterStateChange = (): void => {
@@ -243,9 +266,13 @@ const syncAfterStateChange = (): void => {
 	syncOutputSizingFromEncoderState();
 };
 
-const hydrateAvailability = async (): Promise<void> => {
+const hydrateAvailability = async (mode: 'initial' | 'refresh' = 'initial'): Promise<void> => {
 	try {
-		const availability = await tauriClient.listAvailableEncoders();
+		const settings = readToolchainSettingsFromState();
+		const availability =
+			mode === 'refresh'
+				? await tauriClient.refreshExternalToolchain(settings)
+				: await tauriClient.listAvailableEncoders(settings);
 		debugLog('Encoder availability:', availability);
 		setEncoderAvailability(availability);
 	} catch (error) {
@@ -253,7 +280,10 @@ const hydrateAvailability = async (): Promise<void> => {
 		setEncoderAvailability(null);
 	}
 
-	syncEncoderState();
+	const normalizedUnavailableFlavor = syncEncoderState();
+	if (normalizedUnavailableFlavor) {
+		queuePersistState();
+	}
 	syncOutputSizingFromEncoderState();
 	debugLog('Encoder panel ready');
 };
@@ -262,6 +292,8 @@ export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 	applyPersistedEncoderState(loadState());
 	resetAutoResolutionHints();
+	setSampleRateAutoHint('Auto resolves from source audio.');
+	setChannelsAutoHint('Auto resolves from source audio.');
 	syncOutputSizingFromEncoderState();
 	queuePersistState();
 	void hydrateAvailability();
@@ -319,6 +351,47 @@ export const handleNativeTwoloopChange = (event: Event): void => {
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
 	queuePersistState();
 	syncOutputState();
+};
+
+export const handleToolchainPathInput = (event: Event): void => {
+	const target = event.currentTarget as HTMLInputElement | null;
+	setExternalToolchainOverridePath(target?.value ?? '');
+	queuePersistState();
+	syncOutputState();
+};
+
+export const handleToolchainPathCommit = (): void => {
+	syncAfterStateChange();
+	void hydrateAvailability('refresh');
+};
+
+export const handleToolchainBrowse = async (): Promise<void> => {
+	try {
+		const selected = await tauriClient.open({
+			multiple: false,
+			directory: false,
+			title: 'Select ffmpeg executable',
+		});
+		const normalized = normalizeDialogPath(selected);
+		if (!normalized) {
+			return;
+		}
+		setExternalToolchainOverridePath(normalized);
+		syncAfterStateChange();
+		await hydrateAvailability('refresh');
+	} catch (error) {
+		console.warn('Failed to choose ffmpeg executable', error);
+	}
+};
+
+export const clearToolchainOverride = (): void => {
+	setExternalToolchainOverridePath('');
+	syncAfterStateChange();
+	void hydrateAvailability('refresh');
+};
+
+export const refreshExternalToolchain = (): void => {
+	void hydrateAvailability('refresh');
 };
 
 export const handleSampleRateSelectionChange = (event: Event): void => {

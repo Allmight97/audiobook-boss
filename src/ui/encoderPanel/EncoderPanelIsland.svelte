@@ -2,14 +2,19 @@
 	import { encoderPanelState } from './state.svelte';
 	import { outputPanelState } from '../outputPanel/state.svelte';
 	import {
+		clearToolchainOverride,
 		handleBitrateModeChange,
 		handleBitrateValueChange,
+		handleToolchainBrowse,
 		handleChannelsSelectionChange,
 		handleFlavorChange,
 		handleFdkAfterburnerChange,
 		handleNativeTwoloopChange,
 		handleQualityValueChange,
 		handleSampleRateSelectionChange,
+		handleToolchainPathCommit,
+		handleToolchainPathInput,
+		refreshExternalToolchain,
 	} from './logic';
 </script>
 
@@ -161,6 +166,94 @@
 				<span class="option-label">Twoloop</span>
 			</label>
 		</div>
+	</div>
+
+	<div class="toolchain-status-card" data-testid="external-toolchain-panel">
+		<div class="toolchain-status-main">
+			<div class="toolchain-status-copy">
+				<span class="label">FDK AAC</span>
+				<p
+					id="external-toolchain-status"
+					class="text-xs muted-text mt-0.5"
+					data-testid="external-toolchain-status"
+				>
+					<strong>{encoderPanelState.toolchainStatusTitle}</strong>
+					<span> {encoderPanelState.toolchainStatusMessage}</span>
+				</p>
+				{#if encoderPanelState.toolchainActivePath}
+					<p
+						id="external-toolchain-path-display"
+						class="text-xs muted-text mt-0.5 toolchain-path"
+						data-testid="external-toolchain-path-display"
+					>
+						{encoderPanelState.toolchainActivePath}
+					</p>
+				{/if}
+				{#if encoderPanelState.toolchainOverrideError}
+					<p
+						id="external-toolchain-error"
+						class="text-xs mt-0.5 toolchain-error-text"
+						data-testid="external-toolchain-error"
+					>
+						{encoderPanelState.toolchainOverrideError}
+					</p>
+				{/if}
+			</div>
+			<div class="toolchain-action-row">
+				<button
+					id="toolchain-refresh"
+					type="button"
+					class="secondary-button compact-button"
+					on:click={refreshExternalToolchain}
+					data-testid="toolchain-refresh"
+				>
+					Refresh
+				</button>
+				{#if encoderPanelState.externalToolchainOverridePath.trim()}
+					<button
+						id="toolchain-clear-override"
+						type="button"
+						class="secondary-button compact-button"
+						on:click={clearToolchainOverride}
+						data-testid="toolchain-clear-override"
+					>
+						Clear Path
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		{#if encoderPanelState.showToolchainOverrideInput}
+			<div class="toolchain-override-row">
+				<div class="toolchain-override-input">
+					<label for="external-toolchain-path">ffmpeg Path</label>
+					<input
+						id="external-toolchain-path"
+						type="text"
+						placeholder="/opt/homebrew/bin/ffmpeg or /path/to/toolchain"
+						value={encoderPanelState.externalToolchainOverridePath}
+						data-testid="external-toolchain-path"
+						on:input={handleToolchainPathInput}
+						on:change={handleToolchainPathCommit}
+						on:blur={handleToolchainPathCommit}
+					/>
+					<p class="text-xs muted-text mt-0.5">
+						Paste an `ffmpeg` executable path or a toolchain directory containing `ffmpeg`.
+					</p>
+				</div>
+				<div class="toolchain-action-row toolchain-override-actions">
+					<button
+						id="toolchain-browse"
+						type="button"
+						class="secondary-button compact-button"
+						on:click={handleToolchainBrowse}
+						data-testid="toolchain-browse"
+					>
+						Choose…
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 
 	<div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">

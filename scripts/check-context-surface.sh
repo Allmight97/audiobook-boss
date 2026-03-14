@@ -7,18 +7,25 @@ cd "$repo_root"
 active_files=(
   "README.md"
   "AGENTS.md"
-  "WORKFLOW.md"
   "docs/fallbacks.md"
+  "hooks.json"
 )
 
 retained_skills=(
   "audiobook-metadata"
   "contract-guardrails"
-  "controlplane-operator"
   "job-registry-and-progress"
   "lib-research"
   "path-security-validation"
   "tauri-command-conventions"
+)
+
+retained_hook_files=(
+  ".agents/hooks/common.py"
+  ".agents/hooks/session_start.py"
+  ".agents/hooks/stop_context_surface.py"
+  ".agents/hooks/stop_verification_lane.py"
+  ".agents/hooks/stop_ipc_guard.py"
 )
 
 removed_skills=(
@@ -51,6 +58,13 @@ for skill in "${retained_skills[@]}"; do
   }
 done
 
+for hook_file in "${retained_hook_files[@]}"; do
+  [[ -f "$hook_file" ]] || {
+    echo "[context-surface] Missing retained hook file: $hook_file" >&2
+    exit 1
+  }
+done
+
 for skill in "${removed_skills[@]}"; do
   if find ".agents/skills/${skill}" -type f ! -name '.DS_Store' 2>/dev/null | grep -q .; then
     echo "[context-surface] Removed skill files still present: $skill" >&2
@@ -58,9 +72,41 @@ for skill in "${removed_skills[@]}"; do
   fi
 done
 
-! rg -n 'docs/project\.md' README.md AGENTS.md WORKFLOW.md .agents/skills scripts/issues package.json scripts/checks.sh scripts/work/cli.ts >/dev/null
-! rg -n "$stale_doc_pattern" README.md AGENTS.md WORKFLOW.md .agents/skills scripts/issues package.json scripts/checks.sh scripts/work/cli.ts >/dev/null
-! rg -n "$stale_check_pattern" README.md AGENTS.md WORKFLOW.md .agents/skills scripts/issues package.json scripts/checks.sh >/dev/null
-! rg -n 'docs/decisions' README.md AGENTS.md WORKFLOW.md .agents/skills scripts/issues >/dev/null
+surface_paths=(
+  "README.md"
+  "AGENTS.md"
+  "docs/fallbacks.md"
+  "package.json"
+  "hooks.json"
+  "scripts/checks.sh"
+  "scripts/check-context-surface.sh"
+  "src/AGENTS.md"
+  "src/harness/AGENTS.md"
+  ".agents/skills"
+  ".agents/hooks"
+  ".github/ISSUE_TEMPLATE"
+)
+
+legacy_surface_paths=(
+  "README.md"
+  "AGENTS.md"
+  "docs/fallbacks.md"
+  "package.json"
+  "hooks.json"
+  "scripts/checks.sh"
+  "src/AGENTS.md"
+  "src/harness/AGENTS.md"
+  ".agents/skills"
+  ".agents/hooks"
+  ".github/ISSUE_TEMPLATE"
+)
+
+removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/'
+
+! rg -n 'docs/project\.md' "${surface_paths[@]}" >/dev/null
+! rg -n "$stale_doc_pattern" "${surface_paths[@]}" >/dev/null
+! rg -n "$stale_check_pattern" "${surface_paths[@]}" >/dev/null
+! rg -n 'docs/decisions' "${surface_paths[@]}" >/dev/null
+! rg -n "$removed_surface_pattern" "${legacy_surface_paths[@]}" >/dev/null
 
 echo "[context-surface] OK"

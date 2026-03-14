@@ -1027,6 +1027,69 @@ textarea:hover:not(:focus) {
 	padding: 0;
 }
 
+.secondary-button.compact-button {
+	margin-top: 0;
+	padding: 0.35rem 0.65rem;
+	font-size: 0.75rem;
+	border-radius: 0.375rem;
+	background: var(--bg-input);
+	border: 1px solid var(--border-secondary);
+	color: var(--text-secondary);
+}
+
+.toolchain-status-card {
+	margin: 0.25rem 0 0.75rem;
+	padding: 0.625rem 0.75rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.5rem;
+	background: color-mix(in srgb, var(--bg-input) 78%, var(--bg-drag-area) 22%);
+}
+
+.toolchain-status-main {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.toolchain-status-copy {
+	min-width: 0;
+	flex: 1;
+}
+
+.toolchain-path {
+	font-family: var(--font-mono);
+	word-break: break-all;
+}
+
+.toolchain-error-text {
+	color: #dc2626;
+}
+
+.toolchain-action-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.toolchain-override-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-top: 0.625rem;
+}
+
+.toolchain-override-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.toolchain-override-actions {
+	padding-top: 1.5rem;
+}
+
 .encoder-inline-toggle {
 	align-items: center;
 	margin-top: 0;

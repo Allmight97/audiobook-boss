@@ -57,7 +57,7 @@ async loadCoverArtFromUrl(url: string) : Promise<number[]> {
 },
 /**
  * Saves metadata to an audio file with TSOA computation (metadata-only editing)
- * 
+ *
  * This command is designed for metadata-only editing (Cmd+S workflow):
  * 1. Computes TSOA (Album Sort) from series + series_part + title
  * 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
@@ -79,14 +79,20 @@ async analyzeAudioFiles(filePaths: string[]) : Promise<FileListInfo> {
 /**
  * Validates encoder settings (no side effects)
  */
-async validateEncoderSettings(settings: EncoderSettings) : Promise<string> {
-    return await TAURI_INVOKE("validate_encoder_settings", { settings });
+async validateEncoderSettings(settings: EncoderSettings, externalToolchain: ExternalToolchainPreference | null) : Promise<string> {
+    return await TAURI_INVOKE("validate_encoder_settings", { settings, externalToolchain });
 },
 /**
  * Lists runtime encoder availability so the UI can surface guidance.
  */
-async listAvailableEncoders() : Promise<EncoderAvailability> {
-    return await TAURI_INVOKE("list_available_encoders");
+async listAvailableEncoders(externalToolchain: ExternalToolchainPreference | null) : Promise<EncoderAvailability> {
+    return await TAURI_INVOKE("list_available_encoders", { externalToolchain });
+},
+/**
+ * Re-runs external toolchain detection so the UI can refresh FDK status without restart.
+ */
+async refreshExternalToolchain(externalToolchain: ExternalToolchainPreference | null) : Promise<EncoderAvailability> {
+    return await TAURI_INVOKE("refresh_external_toolchain", { externalToolchain });
 },
 /**
  * Builds an output path preview using backend naming rules without collision suffixing.
@@ -108,7 +114,7 @@ async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
 },
 /**
  * Processes audiobook files with configurable encoder settings.
- * 
+ *
  * Supports parallel batch processing via the JobRegistry.
  * Multiple invocations can run concurrently up to the configured limit.
  */
@@ -144,54 +150,54 @@ processingQueue: "processing-queue"
 /**
  * Represents an audio file with metadata
  */
-export type AudioFile = { 
+export type AudioFile = {
 /**
  * File path
  */
-path: string; 
+path: string;
 /**
  * File size in bytes (None if unavailable)
  */
-size: number | null; 
+size: number | null;
 /**
  * Duration in seconds (None if unavailable)
  */
-duration: number | null; 
+duration: number | null;
 /**
  * Audio format (None if unavailable)
  */
-format: string | null; 
+format: string | null;
 /**
  * Bitrate in kbps (None if unavailable)
  */
-bitrate: number | null; 
+bitrate: number | null;
 /**
  * Sample rate in Hz (None if unavailable)
  */
-sampleRate: number | null; 
+sampleRate: number | null;
 /**
  * Number of channels (None if unavailable)
  */
-channels: number | null; 
+channels: number | null;
 /**
  * Friendly codec label for display (None if unavailable)
  */
-codecLabel: string | null; 
+codecLabel: string | null;
 /**
  * Friendly selected decoder label for display (None if unavailable)
  */
-selectedDecoder: string | null; 
+selectedDecoder: string | null;
 /**
  * Validation status
  */
-isValid: boolean; 
+isValid: boolean;
 /**
  * Error message if validation failed
  */
 error: string | null }
 /**
  * Represents audiobook metadata
- * 
+ *
  * Field mapping for Plex/Audiobookshelf compatibility:
  * - `artist` = Author (also written to AlbumArtist)
  * - `composer` = Narrator (also mirrored to freeform NARRATOR)
@@ -199,67 +205,67 @@ error: string | null }
  * - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
  * - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
  */
-export type AudiobookMetadata = { 
+export type AudiobookMetadata = {
 /**
  * Title of the audiobook (©nam)
  */
-title: string | null; 
+title: string | null;
 /**
  * Author of the book (©ART, also written to aART/AlbumArtist)
  */
-artist: string | null; 
+artist: string | null;
 /**
  * Album name - typically same as title for audiobooks (©alb)
  */
-album: string | null; 
+album: string | null;
 /**
  * Narrator of the audiobook (©wrt/Composer, mirrored to freeform NARRATOR)
  */
-composer: string | null; 
+composer: string | null;
 /**
  * Genre of the book (©gen)
  */
-genre: string | null; 
+genre: string | null;
 /**
  * Publication date as YYYY or YYYY-MM (©day)
  */
-date: string | null; 
+date: string | null;
 /**
  * Track number (chapter number, total chapters)
  */
-track: [number, number | null] | null; 
+track: [number, number | null] | null;
 /**
  * Disk number (rarely used for audiobooks)
  */
-disk: [number, number | null] | null; 
+disk: [number, number | null] | null;
 /**
  * Comment field (©cmt) - short note, distinct from description
  */
-comment: string | null; 
+comment: string | null;
 /**
  * Description or synopsis (desc)
  */
-description: string | null; 
+description: string | null;
 /**
  * Series name (freeform SERIES, mirrored to MVNM)
  */
-series: string | null; 
+series: string | null;
 /**
  * Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
  */
-series_part: string | null; 
+series_part: string | null;
 /**
  * Sub-series name (secondary series)
  */
-subseries: string | null; 
+subseries: string | null;
 /**
  * Series sequence / book # in sub-series (secondary series part)
  */
-subseries_part: string | null; 
+subseries_part: string | null;
 /**
  * Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
  */
-album_sort: string | null; 
+album_sort: string | null;
 /**
  * Cover art as raw bytes
  */
@@ -272,18 +278,16 @@ export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; va
  * Channel selection strategy
  */
 export type ChannelConfig = "auto" | "mono" | "stereo"
-/**
- * Runtime detection of available encoders.
- */
-export type EncoderAvailability = { fdkAvailable: boolean; aacAtAvailable: boolean; nativeAacAvailable: boolean }
+export type EncoderAvailability = { fdkAvailable: boolean; fdkSource: EncoderCapabilitySource; aacAtAvailable: boolean; nativeAacAvailable: boolean; autoEncoder: EncoderType; detectedToolchainPath: string | null; overrideToolchainPath: string | null; activeToolchainPath: string | null; overrideInvalid: boolean; overrideError: string | null; statusMessage: string }
+export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override"
 /**
  * Advanced encoder settings payload
  */
-export type EncoderSettings = { encoderType: EncoderType; 
+export type EncoderSettings = { encoderType: EncoderType;
 /**
  * Allowed: 48|56|64|72|80|88|96|112|128 (kbps)
  */
-bitrateKbps: number; bitrateMode: BitrateMode; channels: ChannelConfig; 
+bitrateKbps: number; bitrateMode: BitrateMode; channels: ChannelConfig;
 /**
  * Applies to FDK encoder only
  */
@@ -291,43 +295,44 @@ afterburner: boolean; threads: ThreadSetting; twoloop?: boolean }
 /**
  * Supported encoder types for audiobooks
  */
-export type EncoderType = 
+export type EncoderType =
 /**
  * Auto-detect best available (FDK > Apple > Native AAC)
  */
-"auto" | 
+"auto" |
 /**
  * FDK HE-AAC VBR (libfdk_aac)
  */
-"fdk_he_aac" | 
+"fdk_he_aac" |
 /**
  * Apple AAC (AudioToolbox), macOS-only
  */
-"aac_at" | 
+"aac_at" |
 /**
  * Native FFmpeg AAC encoder (aac)
  */
 "native_aac"
+export type ExternalToolchainPreference = { overridePath: string | null }
 /**
  * Summary information for a file list
  */
-export type FileListInfo = { 
+export type FileListInfo = {
 /**
  * List of validated audio files
  */
-files: AudioFile[]; 
+files: AudioFile[];
 /**
  * Total duration in seconds
  */
-totalDuration: number; 
+totalDuration: number;
 /**
  * Total size in bytes
  */
-totalSize: number; 
+totalSize: number;
 /**
  * Number of valid files
  */
-validCount: number; 
+validCount: number;
 /**
  * Number of invalid files
  */
@@ -340,11 +345,11 @@ export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; t
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
 export type ProcessCommandResult = { jobType: JobType; summary: ProcessResultSummary; results: ProcessResultEntry[] }
-export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; 
+export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; externalToolchain: ExternalToolchainPreference | null;
 /**
  * Sample rate from frontend (optional, defaults to Auto)
  */
-sampleRate: SampleRateConfig | null; jobType: JobType | null; 
+sampleRate: SampleRateConfig | null; jobType: JobType | null;
 /**
  * Output naming configuration (defaults to ABS-compatible)
  */
@@ -359,31 +364,31 @@ export type ProcessResultSummary = { total: number; succeeded: number; failed: n
 /**
  * Progress event structure for frontend communication
  */
-export type ProgressEvent = { 
+export type ProgressEvent = {
 /**
  * Current processing stage name
  */
-stage: string; 
+stage: string;
 /**
  * Progress percentage (0-100)
  */
-percentage: number; 
+percentage: number;
 /**
  * Human-readable status message
  */
-message: string; 
+message: string;
 /**
  * Currently processing file (if applicable)
  */
-current_file: string | null; 
+current_file: string | null;
 /**
  * Estimated time remaining in seconds
  */
-eta_seconds: number | null; 
+eta_seconds: number | null;
 /**
  * Job identifier for parallel batch processing (optional for backward compat)
  */
-job_id?: string | null; 
+job_id?: string | null;
 /**
  * Original input index for batch processing (optional for backward compat)
  */
@@ -399,11 +404,11 @@ export type QueueItem = { input_index: number; file_path: string }
 /**
  * Sample rate configuration options
  */
-export type SampleRateConfig = 
+export type SampleRateConfig =
 /**
  * Automatically detect from input files
  */
-"auto" | 
+"auto" |
 /**
  * Explicit sample rate in Hz
  */
@@ -411,15 +416,15 @@ export type SampleRateConfig =
 /**
  * Threading configuration for encoder
  */
-export type ThreadSetting = 
+export type ThreadSetting =
 /**
  * Let FFmpeg decide (maps to threads=0)
  */
-{ mode: "auto" } | 
+{ mode: "auto" } |
 /**
  * Disable threading (maps to threads=1)
  */
-{ mode: "off" } | 
+{ mode: "off" } |
 /**
  * Fixed number of threads
  */

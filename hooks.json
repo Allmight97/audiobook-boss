@@ -1,0 +1,40 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python3 ./.agents/hooks/session_start.py",
+						"timeout": 10,
+						"statusMessage": "Loading ABB lifecycle context"
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python3 ./.agents/hooks/stop_context_surface.py",
+						"timeout": 20,
+						"statusMessage": "Checking ABB doc context surface"
+					},
+					{
+						"type": "command",
+						"command": "python3 ./.agents/hooks/stop_verification_lane.py",
+						"timeout": 10,
+						"statusMessage": "Classifying ABB verification lane"
+					},
+					{
+						"type": "command",
+						"command": "python3 ./.agents/hooks/stop_ipc_guard.py",
+						"timeout": 10,
+						"statusMessage": "Checking ABB IPC contract guard"
+					}
+				]
+			}
+		]
+	}
+}

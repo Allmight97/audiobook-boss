@@ -35,6 +35,9 @@ docs/model_tests/*
 
 # Claude AI settings (local development tool configuration)
 .claude/
+.cursor/agents/
+.cursor/hooks/state/
+.cursor/plans/
 opencode.json
 .btca/
 .learnings/
@@ -50,9 +53,3 @@ opencode.json
 # Harness verification artifacts
 /.artifacts/harness/*
 !/.artifacts/harness/.gitkeep
-/.artifacts/harness-agent/*
-!/.artifacts/harness-agent/.gitkeep
-
-# Local task-runner state
-/.agent-work/*
-!/.agent-work/.gitkeep

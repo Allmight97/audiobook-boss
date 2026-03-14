@@ -10,6 +10,7 @@ import {
 } from '../generated/tauri';
 import type { ApplicationEvents, EventName } from '../../types/events';
 import type {
+	ExternalToolchainPreference,
 	EncoderSettings,
 	ProcessPayload,
 	FileListInfo,
@@ -21,6 +22,7 @@ import {
 	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
+	normalizeEncoderAvailability,
 	normalizeFileList,
 	normalizeLookupResult,
 	normalizeMetadata,
@@ -63,9 +65,38 @@ const commandInvokers = {
 			.then((results) => results.map(normalizeLookupResult)),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		generatedCommands.analyzeAudioFiles(args.filePaths).then(normalizeFileList),
-	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
-		generatedCommands.validateEncoderSettings(args.settings),
-	list_available_encoders: (_args?: undefined) => generatedCommands.listAvailableEncoders(),
+	validate_encoder_settings: (args: {
+		settings: EncoderSettings;
+		externalToolchain?: ExternalToolchainPreference | null;
+	}) =>
+		generatedCommands.validateEncoderSettings(
+			args.settings,
+			args.externalToolchain
+				? {
+						overridePath: args.externalToolchain.overridePath ?? null,
+					}
+				: null,
+		),
+	list_available_encoders: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
+		generatedCommands
+			.listAvailableEncoders(
+				args?.externalToolchain
+					? {
+							overridePath: args.externalToolchain.overridePath ?? null,
+						}
+					: null,
+			)
+			.then(normalizeEncoderAvailability),
+	refresh_external_toolchain: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
+		generatedCommands
+			.refreshExternalToolchain(
+				args?.externalToolchain
+					? {
+							overridePath: args.externalToolchain.overridePath ?? null,
+						}
+					: null,
+			)
+			.then(normalizeEncoderAvailability),
 	preview_output_path: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;
@@ -157,10 +188,24 @@ export const tauriClient = {
 		invokeCommand('analyze_audio_files', { filePaths }),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
+		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>
-		invokeCommand('validate_encoder_settings', { settings }),
-	listAvailableEncoders: (): Promise<CommandResult<'list_available_encoders'>> =>
-		invokeCommand('list_available_encoders'),
+		invokeCommand('validate_encoder_settings', {
+			settings,
+			externalToolchain: externalToolchain ?? null,
+		}),
+	listAvailableEncoders: (
+		externalToolchain?: ExternalToolchainPreference | null,
+	): Promise<CommandResult<'list_available_encoders'>> =>
+		invokeCommand('list_available_encoders', {
+			externalToolchain: externalToolchain ?? null,
+		}),
+	refreshExternalToolchain: (
+		externalToolchain?: ExternalToolchainPreference | null,
+	): Promise<CommandResult<'refresh_external_toolchain'>> =>
+		invokeCommand('refresh_external_toolchain', {
+			externalToolchain: externalToolchain ?? null,
+		}),
 	previewOutputPath: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;

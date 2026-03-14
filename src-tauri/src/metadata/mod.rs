@@ -104,6 +104,62 @@ pub struct MetadataIntentPatch {
 }
 
 impl MetadataIntentPatch {
+    pub(crate) fn apply_to_metadata(
+        &self,
+        mut base: AudiobookMetadata,
+    ) -> Result<AudiobookMetadata> {
+        apply_processing_string_patch(&self.title, &mut base.title);
+        apply_processing_string_patch(&self.artist, &mut base.artist);
+        apply_processing_string_patch(&self.album, &mut base.album);
+        apply_processing_string_patch(&self.composer, &mut base.composer);
+        apply_processing_string_patch(&self.genre, &mut base.genre);
+        apply_processing_string_patch(&self.description, &mut base.description);
+        apply_processing_string_patch(&self.series, &mut base.series);
+        apply_processing_string_patch(&self.series_part, &mut base.series_part);
+        apply_processing_string_patch(&self.subseries, &mut base.subseries);
+        apply_processing_string_patch(&self.subseries_part, &mut base.subseries_part);
+
+        match &self.date {
+            PatchOp::Set(date) => {
+                base.date = Some(validate_publication_date(date)?);
+            }
+            PatchOp::Clear => {
+                base.date = None;
+            }
+            PatchOp::Noop => {}
+        }
+
+        match &self.cover_art {
+            PatchOp::Set(bytes) => {
+                base.cover_art = Some(bytes.clone());
+            }
+            PatchOp::Clear => {
+                base.cover_art = None;
+            }
+            PatchOp::Noop => {}
+        }
+
+        if let Some(series_part) = base.series_part.as_deref() {
+            let trimmed = series_part.trim();
+            if !trimmed.is_empty() {
+                validate_series_part(trimmed)?;
+            }
+        }
+
+        if let Some(subseries_part) = base.subseries_part.as_deref() {
+            let trimmed = subseries_part.trim();
+            if !trimmed.is_empty() {
+                validate_series_part(trimmed)?;
+            }
+        }
+
+        Ok(base)
+    }
+
+    pub(crate) fn to_processing_overlay(&self) -> Result<AudiobookMetadata> {
+        self.apply_to_metadata(AudiobookMetadata::new())
+    }
+
     pub fn to_write_metadata(&self) -> Result<AudiobookMetadata> {
         let mut metadata = AudiobookMetadata::new();
 
@@ -209,6 +265,18 @@ fn apply_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
         }
         PatchOp::Clear => {
             *output = Some(String::new());
+        }
+        PatchOp::Noop => {}
+    }
+}
+
+fn apply_processing_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
+    match patch {
+        PatchOp::Set(value) => {
+            *output = Some(value.clone());
+        }
+        PatchOp::Clear => {
+            *output = None;
         }
         PatchOp::Noop => {}
     }
@@ -484,6 +552,66 @@ mod tests {
             PatchOp::Clear => {}
             other => panic!("expected cover art clear patch, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn processing_patch_apply_to_metadata_preserves_values_for_noop() {
+        let base = AudiobookMetadata {
+            title: Some("Base Title".to_string()),
+            artist: Some("Base Artist".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch::default();
+
+        let resolved = patch
+            .apply_to_metadata(base.clone())
+            .expect("noop patch should preserve metadata");
+
+        assert_eq!(resolved.title, base.title);
+        assert_eq!(resolved.artist, base.artist);
+    }
+
+    #[test]
+    fn processing_patch_apply_to_metadata_handles_set_and_clear() {
+        let base = AudiobookMetadata {
+            title: Some("Old Title".to_string()),
+            artist: Some("Old Artist".to_string()),
+            cover_art: Some(vec![1, 2, 3]),
+            date: Some("2020".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("New Title".to_string()),
+            artist: PatchOp::Clear,
+            date: PatchOp::Set("2024-09-01".to_string()),
+            cover_art: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        let resolved = patch
+            .apply_to_metadata(base)
+            .expect("set and clear patch should apply");
+
+        assert_eq!(resolved.title.as_deref(), Some("New Title"));
+        assert_eq!(resolved.artist, None);
+        assert_eq!(resolved.date.as_deref(), Some("2024-09"));
+        assert_eq!(resolved.cover_art, None);
+    }
+
+    #[test]
+    fn processing_patch_into_overlay_applies_without_source_metadata() {
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Overlay Title".to_string()),
+            series: PatchOp::Set("Series Name".to_string()),
+            ..Default::default()
+        };
+
+        let resolved = patch
+            .to_processing_overlay()
+            .expect("overlay-only patch should resolve");
+
+        assert_eq!(resolved.title.as_deref(), Some("Overlay Title"));
+        assert_eq!(resolved.series.as_deref(), Some("Series Name"));
     }
 
     #[test]

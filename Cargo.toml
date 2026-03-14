@@ -1,3 +1,6 @@
 [workspace]
 members = ["src-tauri"]
 resolver = "2"
+
+[patch.crates-io]
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-8.0.1" }

@@ -46,7 +46,8 @@ pub async fn save_metadata_to_file(
             // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
             crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
                 &validated_path,
-                &validated_metadata,
+                Some(&validated_metadata),
+                None,
             )?;
         }
 
@@ -81,10 +82,11 @@ pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
     } else {
         crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
             &validated_path,
-            &AudiobookMetadata {
+            Some(&AudiobookMetadata {
                 cover_art: Some(cover_data),
                 ..Default::default()
-            },
+            }),
+            None,
         )?;
     }
     Ok(())

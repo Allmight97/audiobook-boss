@@ -1,8 +1,7 @@
 //! Common encoder helpers and utilities.
 
-use crate::audio::settings_encoder::{
-    self, EncoderAvailability, EncoderSettings, EncoderType, ThreadSetting,
-};
+use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType, ThreadSetting};
+use crate::audio::toolchain::EncoderAvailability;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 use std::borrow::Cow;

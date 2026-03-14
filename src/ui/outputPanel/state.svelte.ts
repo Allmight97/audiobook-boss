@@ -1,5 +1,6 @@
 import type {
 	EncoderSettings,
+	ExternalToolchainPreference,
 	OutputConfig,
 	OutputNamingConfig,
 	SampleRateConfig,
@@ -12,6 +13,7 @@ const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
 
 export interface OutputPanelState {
 	encoderSettings: EncoderSettings;
+	toolchainSettings: ExternalToolchainPreference;
 	sampleRate: SampleRateConfig;
 	outputDirectory: string;
 	namingPreset: OutputNamingPreset;
@@ -27,6 +29,7 @@ export interface OutputPanelState {
 
 export const outputPanelState = $state<OutputPanelState>({
 	encoderSettings: { ...defaultEncoderSettings() },
+	toolchainSettings: {},
 	sampleRate: { explicit: 22050 },
 	outputDirectory: '',
 	namingPreset: 'absDefault',
@@ -82,6 +85,7 @@ export function readOutputConfigForProcessing(): OutputConfig {
 
 	return {
 		encoderSettings: outputPanelState.encoderSettings,
+		toolchainSettings: outputPanelState.toolchainSettings,
 		sampleRate: outputPanelState.sampleRate,
 		outputPath: outputPanelState.outputDirectory,
 		outputNaming: getOutputNamingConfig(),
@@ -123,6 +127,10 @@ export function updateAbsIncludeYear(enabled: boolean): void {
 
 export function updateEncoderSettings(settings: EncoderSettings): void {
 	outputPanelState.encoderSettings = settings;
+}
+
+export function updateToolchainSettings(settings: ExternalToolchainPreference): void {
+	outputPanelState.toolchainSettings = settings;
 }
 
 export function updateSampleRate(sampleRate: SampleRateConfig): void {

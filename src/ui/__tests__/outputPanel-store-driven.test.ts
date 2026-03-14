@@ -11,6 +11,7 @@ import {
 	updateNamingTemplate,
 	updateOutputDirectory,
 	updateSampleRate,
+	updateToolchainSettings,
 } from '../outputPanel/state';
 
 const context = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ describe('output panel store-driven contracts', () => {
 		updateAbsIncludeYear(false);
 		updateSampleRate('auto');
 		updateEncoderSettings(defaultEncoderSettings());
+		updateToolchainSettings({});
 	});
 
 	it('reads processing output config from canonical state selector', () => {
@@ -44,6 +46,7 @@ describe('output panel store-driven contracts', () => {
 		expect(config).toMatchObject({
 			outputPath: '/tmp/out',
 			sampleRate: 'auto',
+			toolchainSettings: {},
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		expect(config.encoderSettings).toEqual(defaultEncoderSettings());

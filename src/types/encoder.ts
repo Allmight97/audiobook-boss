@@ -14,6 +14,7 @@
 import type {
 	EncoderSettings,
 	EncoderType,
+	ExternalToolchainPreference,
 	ThreadSetting,
 	BitrateKbps,
 	BitrateMode,
@@ -34,6 +35,7 @@ export interface EncoderSettingsV2 {
 	bitrateKbps: BitrateKbps;
 	bitrateMode?: BitrateMode;
 	channels?: EncoderChannelConfig;
+	externalToolchain?: ExternalToolchainPreference;
 	vbr?: VbrSetting;
 	fdkAfterburner?: boolean;
 	threads?: ThreadSetting;

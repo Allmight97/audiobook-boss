@@ -1,6 +1,6 @@
 ---
 name: lib-research
-description: Planning primitive for external-library/API uncertainty. Use Exa MCP to verify behavior and turn uncertainty into implementation-ready decisions.
+description: Planning primitive for external-library/API uncertainty. Use Ref first for canonical docs, Context7 second for curated library docs, and standard web for current verification.
 ---
 
 # Library Research
@@ -21,13 +21,14 @@ Skip for pure internal refactors with no external dependency uncertainty.
 
 Pick the lightest mode that resolves uncertainty:
 1. `spec-snippet` for exact API shape and syntax.
-- Primary: `mcp__exa__get_code_context_exa`
-- Confirm source page with `mcp__exa__crawling_exa` when needed.
+- Primary: `mcp__ref__ref_search_documentation` to find the canonical page/section.
+- Then: `mcp__ref__ref_read_url` for the exact section when Ref has the right target.
+- Then: Context7 (`resolve-library-id` -> `query-docs`) when the library is indexed and you want curated library docs or examples after locating the canonical surface.
 2. `spec-verify` for compatibility, deprecations, or recent changes.
-- Primary: `mcp__exa__web_search_exa`
-- Use `mcp__exa__web_search_advanced_exa` for domain/date filtering.
+- Primary: standard web search/open (`web.search_query` + `web.open`) for current primary sources.
+- Use Ref again if the question is still documentation-shaped and needs better anchors.
 3. `spec-synthesis` for cross-library tradeoffs or conflicting evidence.
-- `mcp__exa__deep_researcher_start` + `mcp__exa__deep_researcher_check`
+- Prefer local synthesis from Ref + Context7 + standard web evidence first.
 - Re-validate key claims against primary docs before final recommendation.
 
 ## Query Construction
@@ -36,6 +37,9 @@ Pick the lightest mode that resolves uncertainty:
 - Include exact symbols, config keys, and error identifiers.
 - Bias to primary sources first (official docs, release notes, canonical repos).
 - Add explicit dates for time-sensitive claims.
+- When using Ref, write docs-shaped queries around the exact symbol or section name.
+- When using Context7, prefer the official docs-site library ID over repo mirrors when both are available.
+- When using standard web, prefer official-domain intent in the query and open the primary source directly.
 
 ## Output Contract
 
@@ -51,6 +55,8 @@ Return results in this shape:
 
 - Separate facts from inference.
 - Remove mirror/repost/low-authority sources.
+- Prefer canonical docs anchors over broad result lists when both answer the question.
+- In most cases, Ref plus Context7 plus standard web should resolve the question.
 - If uncertainty remains, fail fast and call it out before implementation.
 
 ## Alignment
@@ -59,4 +65,4 @@ Return results in this shape:
 - No implicit internal legacy assumptions.
 - Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.
 
-For Exa mode details, see `references/tool-selection.md`.
+For routing details, see `references/tool-selection.md`.

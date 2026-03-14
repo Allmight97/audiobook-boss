@@ -37,9 +37,8 @@ bun install
 bun run tauri dev
 scripts/checks.sh standard
 bun run test
-bun run test:controlplane
+bash scripts/check-context-surface.sh
 bun run harness:verify --changed
-bun run issue:run --issue 251
 ```
 
 ## Script Guide
@@ -53,8 +52,6 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - Dependency hygiene: `bun run check:deps`
   This is explicit on purpose and is not part of the normal standard gate.
 - UI proof loop: `bun run harness:verify --changed`
-  Use `bun run harness:agent` only for supplemental interactive browser review.
-- GitHub issue execution: `bun run issue:create --mode idea|ready ...`, `bun run issue:run --issue <number>`
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - Release: `bun run release:notes`, `bun run release:run`
@@ -64,8 +61,5 @@ Use this section as the human-facing index. `package.json` is the source of trut
 
 - Agents: start in [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md) and then follow the nearest nested `AGENTS.md`.
 - UI work is not done from static inspection alone. Run `bun run harness:verify --changed` for UI-affecting changes.
-- Execution-ready GitHub issues can run end-to-end through `bun run issue:run --issue <number>`.
-- Execution-ready issues must include `Goal`, `Constraints`, `Acceptance`, `Validation`, `Delivery Mode`, `Human Review`, and the marker `<!-- abb:issue-kind=ready -->`.
-- The default runner flow is: read issue, create isolated worktree and branch, run local Codex with [WORKFLOW.md](/Users/jstar/Projects/audiobook-boss/WORKFLOW.md), validate, commit, open or reuse a PR when `Delivery Mode=pr`, and comment back on the issue.
-- `Human Review=visual` means finish mechanical validation first, then hand off with an explicit visual-review note.
-- Durable truth lives in code, GitHub issues and PRs, this file, [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md), and [WORKFLOW.md](/Users/jstar/Projects/audiobook-boss/WORKFLOW.md). `.agent-work/`, local worktrees, and `.artifacts/` are temporary state only.
+- Cheap deterministic repo guardrails live in `hooks.json` and `./.agents/hooks/`.
+- Durable truth lives in code, GitHub issues and PRs, this file, and [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md). `.artifacts/` is temporary local state only.

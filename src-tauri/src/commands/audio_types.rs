@@ -1,6 +1,7 @@
 use crate::audio;
 pub use crate::audio::output_path::{NamingPreset, OutputNamingConfig};
 use crate::audio::settings_encoder::EncoderSettings;
+use crate::audio::toolchain::ExternalToolchainPreference;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +16,7 @@ pub struct ProcessPayload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,
+    pub external_toolchain: Option<ExternalToolchainPreference>,
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
     pub job_type: Option<JobType>,
