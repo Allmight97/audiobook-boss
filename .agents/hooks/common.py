@@ -6,17 +6,25 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DOC_SURFACE_FILES = {
+DOCS_ONLY_FILES = {
     "README.md",
     "AGENTS.md",
     "docs/fallbacks.md",
+    "src/AGENTS.md",
+    "src/harness/AGENTS.md",
+}
+DOCS_ONLY_PREFIXES = (
+    ".agents/skills/",
+    ".github/ISSUE_TEMPLATE/",
+)
+DOC_SURFACE_FILES = {
+    *DOCS_ONLY_FILES,
     "hooks.json",
     "scripts/check-context-surface.sh",
 }
 DOC_SURFACE_PREFIXES = (
-    ".agents/skills/",
+    *DOCS_ONLY_PREFIXES,
     ".agents/hooks/",
-    ".github/ISSUE_TEMPLATE/",
 )
 IPC_GUARD_PREFIXES = (
     "src-tauri/src/commands/",
@@ -67,6 +75,18 @@ def docs_surface_touched(paths: list[str]) -> bool:
         if any(entry.startswith(prefix) for prefix in DOC_SURFACE_PREFIXES):
             return True
     return False
+
+
+def docs_only_paths(paths: list[str]) -> bool:
+    if not paths:
+        return False
+    for entry in paths:
+        if entry in DOCS_ONLY_FILES:
+            continue
+        if any(entry.startswith(prefix) for prefix in DOCS_ONLY_PREFIXES):
+            continue
+        return False
+    return True
 
 
 def ipc_surface_touched(paths: list[str]) -> bool:

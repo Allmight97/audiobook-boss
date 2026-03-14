@@ -11,7 +11,7 @@
 - Keep `harness:verify` as the required scenario gate for UI-facing work.
 - Keep scenarios declarative and map them to changed paths through `src/harness/scenarios.ts`.
 - Keep scenario routing and verification checks together in `src/harness/scenarios.ts` so the registry remains legible.
-- Seed meaningful UI state through the harness runtime API rather than ad hoc DOM mutation in the runner.
+- Seed meaningful UI state through the harness runtime API rather than ad hoc DOM mutation in verification code.
 - Emit artifact packets for every harness verification run so agents can report what they actually checked.
 
 ## Hard Invariants
