@@ -17,3 +17,4 @@
 {"type":"status_update","timestamp":"2026-03-16T21:02:32.832718Z","issue_id":"abb-6e2","payload":{"status":"in_progress"}}
 {"type":"close","timestamp":"2026-03-16T21:06:08.453112Z","issue_id":"abb-3fc","payload":{}}
 {"type":"close","timestamp":"2026-03-16T21:06:08.474438Z","issue_id":"abb-6e2","payload":{}}
+{"type":"close","timestamp":"2026-03-16T21:06:08.49528Z","issue_id":"abb-c01","payload":{}}
