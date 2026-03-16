@@ -131,16 +131,15 @@ fn configure_cover_art_stream_parameters(
 
     // Return an error when dimensions cannot be detected; the caller
     // (add_cover_art_stream_pre_header) will log a warning and skip embedding.
-    // Falling back to a fixed 600×600 produces a stream with wrong codec
-    // parameters — worse than omitting cover art entirely.
-    let (width, height) =
-        detect_image_dimensions(cover_data, format).ok_or_else(|| {
-            AppError::General(format!(
-                "Cannot detect dimensions for {:?} cover art ({} bytes); skipping embedding",
-                format,
-                cover_data.len()
-            ))
-        })?;
+    // Using a fixed 600×600 here would produce wrong codec parameters,
+    // which is worse than omitting cover art entirely.
+    let (width, height) = detect_image_dimensions(cover_data, format).ok_or_else(|| {
+        AppError::General(format!(
+            "Cannot detect dimensions for {:?} cover art ({} bytes); skipping embedding",
+            format,
+            cover_data.len()
+        ))
+    })?;
 
     ctx.set_width(width as u32);
     ctx.set_height(height as u32);

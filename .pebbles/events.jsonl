@@ -16,3 +16,4 @@
 {"type":"create","timestamp":"2026-03-16T21:02:16.320536Z","issue_id":"abb-6e2","payload":{"description":"scripts/checks.sh standard currently fails because scripts/check-fallback-policy.sh flags the phrase 'Falling back' in src-tauri/src/metadata/cover_art/embedding.rs after FB-002 removal. Rewrite the explanatory comment without the fallback keyword while preserving meaning. Verify: scripts/checks.sh standard","priority":"2","title":"Remove fallback-policy keyword from cover art comment","type":"task"}}
 {"type":"status_update","timestamp":"2026-03-16T21:02:32.832718Z","issue_id":"abb-6e2","payload":{"status":"in_progress"}}
 {"type":"close","timestamp":"2026-03-16T21:06:08.453112Z","issue_id":"abb-3fc","payload":{}}
+{"type":"close","timestamp":"2026-03-16T21:06:08.474438Z","issue_id":"abb-6e2","payload":{}}
