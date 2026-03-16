@@ -6,3 +6,5 @@
 {"type":"create","timestamp":"2026-03-16T20:38:22.929434Z","issue_id":"abb-8dc","payload":{"description":"Two questions in docs/specs/shim-audit-plan.md need answers before items 4 and 5 can execute. Item 4: is result: unknown in normalizeProcessResult intentional or Codex fear? Item 5: has mp4ameta ever been observed to miss subseries data that ffmpeg backfills from the same freeform atom?","priority":"1","title":"[BLOCKER] Codex responses needed for items 4 and 5","type":"task"}}
 {"type":"dep_add","timestamp":"2026-03-16T20:38:26.659058Z","issue_id":"abb-c20","payload":{"dep_type":"blocks","depends_on":"abb-8dc"}}
 {"type":"dep_add","timestamp":"2026-03-16T20:38:26.680101Z","issue_id":"abb-0d8","payload":{"dep_type":"blocks","depends_on":"abb-8dc"}}
+{"type":"status_update","timestamp":"2026-03-16T20:49:41.044297Z","issue_id":"abb-a6e","payload":{"status":"in_progress"}}
+{"type":"close","timestamp":"2026-03-16T20:53:00.140282Z","issue_id":"abb-a6e","payload":{}}

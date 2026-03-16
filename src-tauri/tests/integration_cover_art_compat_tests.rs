@@ -1,4 +1,5 @@
 use audiobook_boss_lib::commands::metadata::save_metadata_to_file;
+use audiobook_boss_lib::ffmpeg_add_cover_art_stream_pre_header;
 use audiobook_boss_lib::AudiobookMetadata;
 use ffmpeg_next as ff;
 use mp4ameta::Tag;
@@ -93,5 +94,22 @@ async fn covr_only_is_visible_to_ffprobe() {
     assert!(
         has_attached_pic,
         "ffprobe should surface covr artwork as attached_pic for compatibility"
+    );
+}
+
+#[test]
+fn skips_cover_art_stream_when_dimensions_are_undetectable() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("invalid-cover.m4b");
+    let mut octx = ff::format::output(&output).expect("create output context");
+
+    let invalid_jpeg = b"\xFF\xD8\xFF";
+    let result = ffmpeg_add_cover_art_stream_pre_header(&mut octx, invalid_jpeg);
+
+    assert!(
+        result.is_none(),
+        "cover art should be skipped when dimensions cannot be detected"
     );
 }
