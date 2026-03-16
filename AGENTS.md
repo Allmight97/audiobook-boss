@@ -5,6 +5,32 @@
 - This file defines repo-wide agent policy.
 - Directory-level invariants belong in the nearest nested `AGENTS.md`.
 
+## Task Tracking
+
+This project uses **pebbles** (`pb`) for all task tracking. Do not use markdown TODOs or ad-hoc task lists.
+
+The `pb` binary is at `~/.local/bin/pb`. Always invoke it from the repo root:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH" && cd /Users/jstar/Projects/audiobook-boss
+pb ready    # unblocked work — start here every session
+pb list     # full open/in-progress view
+```
+
+**Load the `task-tracker` skill** at the start of any coding session, or whenever picking up, executing, or closing a planned task. The skill contains the full session protocol, done-loop verification steps, and quick-reference commands.
+
+Active work items live in `.pebbles/events.jsonl` (committed). Planned specs live in `docs/specs/`.
+
+### Skill Trigger Policy
+
+- Load `task-tracker` at session start and when executing any planned task.
+- Load `lib-research` when external library/API behavior affects implementation or review findings.
+- Load `contract-guardrails` for TS↔Rust command/event shape changes.
+- Load `path-security-validation` when adding/modifying path inputs or outputs.
+- Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
+- Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
+- Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
+
 ## Preferred Path
 
 - Complete tasks end-to-end by default and report concrete outcomes.
