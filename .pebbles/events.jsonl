@@ -8,3 +8,5 @@
 {"type":"dep_add","timestamp":"2026-03-16T20:38:26.680101Z","issue_id":"abb-0d8","payload":{"dep_type":"blocks","depends_on":"abb-8dc"}}
 {"type":"status_update","timestamp":"2026-03-16T20:49:41.044297Z","issue_id":"abb-a6e","payload":{"status":"in_progress"}}
 {"type":"close","timestamp":"2026-03-16T20:53:00.140282Z","issue_id":"abb-a6e","payload":{}}
+{"type":"status_update","timestamp":"2026-03-16T21:00:17.64589Z","issue_id":"abb-8dc","payload":{"status":"in_progress"}}
+{"type":"close","timestamp":"2026-03-16T21:00:17.665098Z","issue_id":"abb-8dc","payload":{}}
