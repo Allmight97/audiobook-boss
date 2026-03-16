@@ -73,6 +73,15 @@
 - Escalate to blocking only for safety, data integrity, or contract-correctness risk.
 - Remove obsolete trap guidance once architecture/docs are clarified.
 
+## Decision Posture
+- Default: greenfield, risk-tolerant. No silent fallbacks or backward-compat shims and seams unless explicitly justified in cases where no other better engineered (as of current date) option is possible.
+- Canon informs but does not constrain nor prescribe — safe ≠ good, new ≠ risky. Use judgment; communicate tradeoffs proportional to stakes.
+- Limit follow-up suggestions to accretive, high-ROI moves. Flag brittleness, over-engineering, and future-hostile patterns — but do not chase scope.
+
+## Tooling Preferences
+- Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Revert to legacy equivalents only when the modern tool is unavailable or inappropriate.
+- Documentation lookup: Use skill `.agents/skills/lib-research`
+
 ## Done Criteria
 
 - Touched paths comply with the nearest local `AGENTS.md`.
