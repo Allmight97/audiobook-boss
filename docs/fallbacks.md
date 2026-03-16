@@ -6,7 +6,7 @@ Entries marked **AUDIT** have been reviewed and are pending action per the audit
 
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FB-001 | `src-tauri/src/metadata/reader.rs` | `mp4ameta` leaves key metadata fields unset | warning log with backfilled fields | 2026-03-31 | #196 | **AUDIT: Correct but over-broad trigger. Opens file twice via ffmpeg when subseries/cover_art missing, which is the normal case. Narrow trigger to cover_art-only or promote sunset.** |
+| FB-001 | `src-tauri/src/metadata/reader.rs` | `mp4ameta` leaves cover art or primary series fields unset | warning log with backfilled fields | 2026-05-31 | #196 | **AUDIT: Narrowed. Re-read now triggers only for missing cover art or primary series fields (`series`, `series_part`); subseries-only misses no longer double-open the file.** |
 | FB-004 | `src/ui/jobControls.ts` | `localStorage` is blocked or invalid | console warning on read or write failure | 2026-04-30 | #199 | OK |
 | FB-007 | `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs` | movement-tag-only series metadata is encountered | metadata compatibility coverage | 2026-05-31 | #202 | OK — genuine external-file interop requirement |
 | FB-010 | `src-tauri/src/audio/buffer.rs` | encoder reports zero frame size | warning log when default `1024` frame size is applied | 2026-06-30 | #195 | OK — genuine ffmpeg API edge case |

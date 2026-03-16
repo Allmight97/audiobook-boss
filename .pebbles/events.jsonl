@@ -22,3 +22,5 @@
 {"type":"close","timestamp":"2026-03-16T21:10:12.175999Z","issue_id":"abb-25f","payload":{}}
 {"type":"status_update","timestamp":"2026-03-16T21:10:19.631273Z","issue_id":"abb-c20","payload":{"status":"in_progress"}}
 {"type":"close","timestamp":"2026-03-16T21:12:22.255216Z","issue_id":"abb-c20","payload":{}}
+{"type":"status_update","timestamp":"2026-03-16T21:12:32.786495Z","issue_id":"abb-0d8","payload":{"status":"in_progress"}}
+{"type":"close","timestamp":"2026-03-16T21:15:59.858998Z","issue_id":"abb-0d8","payload":{}}
