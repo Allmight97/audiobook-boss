@@ -6,8 +6,8 @@ cd "$repo_root"
 
 active_files=(
   "README.md"
-  "AGENTS.md"
   "docs/fallbacks.md"
+  "docs/api-map.md"
   "hooks.json"
 )
 
@@ -51,6 +51,11 @@ for file in "${active_files[@]}"; do
   }
 done
 
+find . -name 'AGENTS.md' -type f ! -path './.git/*' | grep -q . || {
+  echo "[context-surface] Missing AGENTS.md files" >&2
+  exit 1
+}
+
 for skill in "${retained_skills[@]}"; do
   [[ -f ".agents/skills/${skill}/SKILL.md" ]] || {
     echo "[context-surface] Missing retained skill: $skill" >&2
@@ -76,6 +81,7 @@ surface_paths=(
   "README.md"
   "AGENTS.md"
   "docs/fallbacks.md"
+  "docs/api-map.md"
   "package.json"
   "hooks.json"
   "scripts/checks.sh"
@@ -90,6 +96,7 @@ legacy_surface_paths=(
   "README.md"
   "AGENTS.md"
   "docs/fallbacks.md"
+  "docs/api-map.md"
   "package.json"
   "hooks.json"
   "scripts/checks.sh"

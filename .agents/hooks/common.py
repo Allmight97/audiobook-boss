@@ -10,6 +10,7 @@ DOCS_ONLY_FILES = {
     "README.md",
     "AGENTS.md",
     "docs/fallbacks.md",
+    "docs/api-map.md",
     "src/AGENTS.md",
     "src/harness/AGENTS.md",
 }
@@ -70,6 +71,8 @@ def changed_paths() -> list[str]:
 
 def docs_surface_touched(paths: list[str]) -> bool:
     for entry in paths:
+        if entry.endswith("/AGENTS.md"):
+            return True
         if entry in DOC_SURFACE_FILES:
             return True
         if any(entry.startswith(prefix) for prefix in DOC_SURFACE_PREFIXES):
@@ -81,6 +84,8 @@ def docs_only_paths(paths: list[str]) -> bool:
     if not paths:
         return False
     for entry in paths:
+        if entry.endswith("/AGENTS.md"):
+            continue
         if entry in DOCS_ONLY_FILES:
             continue
         if any(entry.startswith(prefix) for prefix in DOCS_ONLY_PREFIXES):
