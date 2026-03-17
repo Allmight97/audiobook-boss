@@ -26,13 +26,7 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
 
     let disable_twoloop = std::env::var("ABB_DISABLE_TWOLOOP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
-        // FALLBACK[FB-005]: trigger=legacy env var typo still used in local setups
-        // observe=test coverage (`respects_twoloop_flag_and_env_override`) + startup logs
-        // sunset=2026-03-31 issue=#200
-        || std::env::var("ABB_DISABLE_TWOOLOOP")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+        .unwrap_or(false);
 
     if settings.twoloop && !disable_twoloop {
         // twoloop provides better psychoacoustic analysis
@@ -87,21 +81,13 @@ mod tests {
         assert_eq!(opts.get("aac_is"), Some("0"));
         assert_eq!(opts.get("aac_pns"), Some("0"));
 
-        // Env override (new name) disables regardless of UI
+        // Env override disables regardless of UI
         s.twoloop = true;
         std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
         let opts = build_native_options(&mut ctx, &s);
         assert!(opts.get("aac_coder").is_none());
         assert_eq!(opts.get("aac_is"), Some("0"));
         assert_eq!(opts.get("aac_pns"), Some("0"));
-
-        // Backward compatibility: old typo still disables
         std::env::remove_var("ABB_DISABLE_TWOLOOP");
-        std::env::set_var("ABB_DISABLE_TWOOLOOP", "1");
-        let opts = build_native_options(&mut ctx, &s);
-        assert!(opts.get("aac_coder").is_none());
-        assert_eq!(opts.get("aac_is"), Some("0"));
-        assert_eq!(opts.get("aac_pns"), Some("0"));
-        std::env::remove_var("ABB_DISABLE_TWOOLOOP");
     }
 }

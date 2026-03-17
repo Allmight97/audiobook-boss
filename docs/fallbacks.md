@@ -2,15 +2,10 @@
 
 Active register for intentional fallback behavior that is still enforced by repo checks.
 
-Entries marked **AUDIT** have been reviewed and are pending action per the audit plan below.
-
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FB-001 | `src-tauri/src/metadata/reader.rs` | `mp4ameta` leaves key metadata fields unset | warning log with backfilled fields | 2026-03-31 | #196 | **AUDIT: Correct but over-broad trigger. Opens file twice via ffmpeg when subseries/cover_art missing, which is the normal case. Narrow trigger to cover_art-only or promote sunset.** |
-| FB-002 | `src-tauri/src/metadata/cover_art/embedding.rs` | image bytes do not expose dimensions | warning log with format and byte length | 2026-03-31 | #197 | **AUDIT: BUG. Falling back to 600×600 when dimensions are undetectable produces a stream with wrong codec parameters — worse than skipping. Fix: return `None` from `configure_cover_art_stream_parameters` on dimension failure; skip embedding.** |
+| FB-001 | `src-tauri/src/metadata/reader.rs` | `mp4ameta` leaves cover art or primary series fields unset | warning log with backfilled fields | 2026-05-31 | #196 | OK — narrowed to missing cover art or primary series fields only; subseries-only gaps no longer trigger a re-read |
 | FB-004 | `src/ui/jobControls.ts` | `localStorage` is blocked or invalid | console warning on read or write failure | 2026-04-30 | #199 | OK |
-| FB-005 | `src-tauri/src/audio/processor/encoder/options/native.rs` | legacy `ABB_DISABLE_TWOOLOOP` env alias is still used | tests plus encoder startup logging | 2026-03-31 | #200 | **AUDIT: DEAD. Typo alias for a typo introduced by Codex; sole dev; no external users have this in env. Delete alias + test case. Sunset already imminent.** |
-| FB-006 | `src-tauri/src/audio/processor/engine.rs` | legacy preview `early_stop` path is still toggled | info log when the branch is used | 2026-03-31 | #201 | **AUDIT: UNREACHABLE. `early_stop=true` is consumed inside `frame_pipeline.rs` before the per-file call returns `Continue`. The check in `engine.rs` under `PreviewAction::Continue` is structurally dead. Delete branch.** |
 | FB-007 | `src-tauri/src/metadata/mp4ameta_bridge.rs`, `src-tauri/src/metadata/reader.rs` | movement-tag-only series metadata is encountered | metadata compatibility coverage | 2026-05-31 | #202 | OK — genuine external-file interop requirement |
 | FB-010 | `src-tauri/src/audio/buffer.rs` | encoder reports zero frame size | warning log when default `1024` frame size is applied | 2026-06-30 | #195 | OK — genuine ffmpeg API edge case |
 | FB-012 | `src-tauri/src/audio/processor/finalize.rs` | atomic rename fails during output move | warning log for failed rename and copy-replace success | 2026-06-30 | #195 | OK — cross-volume rename legitimately fails on macOS |
@@ -18,9 +13,3 @@ Entries marked **AUDIT** have been reviewed and are pending action per the audit
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe is disabled or fails | benchmark details include `fixture-fallback` | 2026-06-30 | #195 | OK |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifacts are missing on disk | report output shows empty baseline or history bootstrap | 2026-06-30 | #195 | OK |
 | FB-018 | `scripts/checks.sh` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | OK |
-
-## Unlisted findings (no FB entry)
-
-| Location | Finding | Audit Status |
-| --- | --- | --- |
-| `src/lib/tauri/normalizers.ts` → `normalizeProcessResult` | `fallbackSummary` and `jobType` inference are dead code: Rust always emits both fields correctly per the specta contract. The `jobType` inference is also wrong (multi-input merge infers `'batch'`). | **AUDIT: Remove both fallbacks; trust the generated contract.** |

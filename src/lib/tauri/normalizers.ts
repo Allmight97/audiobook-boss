@@ -3,6 +3,7 @@ import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FileListInfo as GeneratedFileListInfo,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
+	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
@@ -10,7 +11,6 @@ import type {
 import type {
 	EncoderAvailability,
 	FileListInfo,
-	ProcessCommandJobResult,
 	ProcessCommandResult,
 	ProcessPayload,
 } from '../../types/audio';
@@ -163,61 +163,10 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	};
 }
 
-export function normalizeProcessResult(result: unknown): ProcessCommandResult {
-	const normalized = normalizeNullish(result) as Record<string, unknown>;
-	const rawResults = Array.isArray(normalized.results) ? normalized.results : [];
-
-	const results: ProcessCommandJobResult[] = rawResults.filter(isPlainRecord).flatMap((entry) => {
-		const status = entry.status === 'success' || entry.status === 'failed' ? entry.status : null;
-		const message = typeof entry.message === 'string' ? entry.message : null;
-
-		if (!status || message === null) {
-			return [];
-		}
-
-		return [
-			{
-				inputIndex: typeof entry.inputIndex === 'number' ? entry.inputIndex : undefined,
-				status,
-				jobId: typeof entry.jobId === 'string' ? entry.jobId : undefined,
-				message,
-				error: typeof entry.error === 'string' ? entry.error : undefined,
-				previewFilePath:
-					typeof entry.previewFilePath === 'string' ? entry.previewFilePath : undefined,
-				previewActualSeconds:
-					typeof entry.previewActualSeconds === 'number' ? entry.previewActualSeconds : undefined,
-			},
-		];
-	});
-
-	const fallbackSummary = {
-		total: results.length,
-		succeeded: results.filter((entry) => entry.status === 'success').length,
-		failed: results.filter((entry) => entry.status === 'failed').length,
-	};
-
-	const summary =
-		isPlainRecord(normalized.summary) &&
-		typeof normalized.summary.total === 'number' &&
-		typeof normalized.summary.succeeded === 'number' &&
-		typeof normalized.summary.failed === 'number'
-			? {
-					total: normalized.summary.total,
-					succeeded: normalized.summary.succeeded,
-					failed: normalized.summary.failed,
-				}
-			: fallbackSummary;
-
-	return {
-		jobType:
-			normalized.jobType === 'merge' || normalized.jobType === 'batch'
-				? normalized.jobType
-				: results.length > 1
-					? 'batch'
-					: 'merge',
-		summary,
-		results,
-	};
+export function normalizeProcessResult(
+	result: GeneratedProcessCommandResult,
+): ProcessCommandResult {
+	return normalizeNullish(result) as ProcessCommandResult;
 }
 
 export function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {

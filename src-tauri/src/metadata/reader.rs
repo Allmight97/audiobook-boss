@@ -20,15 +20,10 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         match mp4ameta_bridge::read_metadata(path) {
             Ok(mut metadata) => {
                 metadata.cover_art = normalize_cover_art(metadata.cover_art);
-                if metadata.series.is_none()
-                    || metadata.series_part.is_none()
-                    || metadata.subseries.is_none()
-                    || metadata.subseries_part.is_none()
-                    || metadata.cover_art.is_none()
-                {
-                    // FALLBACK[FB-001]: trigger=mp4ameta read succeeds but leaves key fields unset
+                if needs_ffmpeg_partial_hydration(&metadata) {
+                    // FALLBACK[FB-001]: trigger=mp4ameta read succeeds but leaves cover art or primary series fields unset
                     // observe=warn log with backfilled fields
-                    // sunset=2026-03-31 issue=#196
+                    // sunset=2026-05-31 issue=#196
                     match read_metadata_with_ffmpeg(path) {
                         Ok(fallback) => {
                             let mut backfilled_fields: Vec<&str> = Vec::new();
@@ -138,6 +133,10 @@ fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
     cover_art.filter(|bytes| !bytes.is_empty())
 }
 
+fn needs_ffmpeg_partial_hydration(metadata: &AudiobookMetadata) -> bool {
+    metadata.cover_art.is_none() || metadata.series.is_none() || metadata.series_part.is_none()
+}
+
 fn first_tag_with_lookup<F>(keys: &[&str], mut lookup: F) -> Option<String>
 where
     F: FnMut(&str) -> Option<String>,
@@ -171,7 +170,7 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
-    use super::first_tag_with_lookup;
+    use super::{first_tag_with_lookup, needs_ffmpeg_partial_hydration, AudiobookMetadata};
     use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
     use std::collections::BTreeMap;
 
@@ -234,5 +233,41 @@ mod tests {
         let tags = BTreeMap::from([("MVNM", "Movement".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("Movement"));
+    }
+
+    #[test]
+    fn partial_hydration_trigger_ignores_missing_subseries_only() {
+        let metadata = AudiobookMetadata {
+            series: Some("Series".to_string()),
+            series_part: Some("1".to_string()),
+            cover_art: Some(vec![1, 2, 3]),
+            ..Default::default()
+        };
+
+        assert!(!needs_ffmpeg_partial_hydration(&metadata));
+    }
+
+    #[test]
+    fn partial_hydration_trigger_keeps_cover_art_and_primary_series_gaps() {
+        let missing_cover_art = AudiobookMetadata {
+            series: Some("Series".to_string()),
+            series_part: Some("1".to_string()),
+            ..Default::default()
+        };
+        assert!(needs_ffmpeg_partial_hydration(&missing_cover_art));
+
+        let missing_series = AudiobookMetadata {
+            series_part: Some("1".to_string()),
+            cover_art: Some(vec![1, 2, 3]),
+            ..Default::default()
+        };
+        assert!(needs_ffmpeg_partial_hydration(&missing_series));
+
+        let missing_series_part = AudiobookMetadata {
+            series: Some("Series".to_string()),
+            cover_art: Some(vec![1, 2, 3]),
+            ..Default::default()
+        };
+        assert!(needs_ffmpeg_partial_hydration(&missing_series_part));
     }
 }
