@@ -14,7 +14,7 @@
 #
 # The intent is behavior-first confidence:
 # if `scripts/checks.sh standard` is green, the branch is safe
-# to send for PR review.
+# to send for human/agent review.
 
 set -euo pipefail
 

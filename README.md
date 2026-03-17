@@ -63,4 +63,4 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - For a quick runtime boundary index, use [docs/api-map.md](/Users/jstar/Projects/audiobook-boss/docs/api-map.md), then verify in code before changing contracts or behavior.
 - UI work is not done from static inspection alone. Run `bun run harness:verify --changed` for UI-affecting changes.
 - Cheap deterministic repo guardrails live in `hooks.json` and `./.agents/hooks/`.
-- Durable truth lives in code, GitHub issues and PRs, this file, and [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md). `.artifacts/` is temporary local state only.
+- Durable truth lives in code, GitHub issues, this file, and [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md). `.artifacts/` is temporary local state only.

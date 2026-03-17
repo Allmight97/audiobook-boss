@@ -40,7 +40,7 @@ Active work items live in `.pebbles/events.jsonl` (committed). Planned specs liv
 - Run all Cargo commands from the repository root workspace.
 - Experimental Codex lifecycle hooks live in repo-root `hooks.json` and `./.agents/hooks/`; use them only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
-- For non-doc code changes, run `scripts/checks.sh standard` before push/PR.
+- For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
 ### Skill Trigger Policy
