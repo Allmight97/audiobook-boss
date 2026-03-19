@@ -3,5 +3,4 @@ members = ["src-tauri"]
 resolver = "2"
 
 [patch.crates-io]
-ffmpeg-next = { path = "vendor/ffmpeg-next-8.0.0" }
-ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-8.0.1" }
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-8.1.0" }
