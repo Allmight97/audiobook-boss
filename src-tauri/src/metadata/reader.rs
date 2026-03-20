@@ -1,11 +1,11 @@
-//! Metadata reading via ffmpeg-next
+//! Metadata reading for audiobook files.
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use ffmpeg_next as ff;
 use std::path::Path;
 
-/// Reads container-level metadata and attached cover art using ffmpeg-next.
+/// Reads audiobook metadata, preferring mp4ameta for MP4/M4B and ffmpeg otherwise.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
 
@@ -20,65 +20,12 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         match mp4ameta_bridge::read_metadata(path) {
             Ok(mut metadata) => {
                 metadata.cover_art = normalize_cover_art(metadata.cover_art);
-                if needs_ffmpeg_partial_hydration(&metadata) {
-                    // FALLBACK[FB-001]: trigger=mp4ameta read succeeds but leaves cover art or primary series fields unset
-                    // observe=warn log with backfilled fields
-                    // sunset=2026-05-31 issue=#196
-                    match read_metadata_with_ffmpeg(path) {
-                        Ok(fallback) => {
-                            let mut backfilled_fields: Vec<&str> = Vec::new();
-
-                            if metadata.series.is_none() && fallback.series.is_some() {
-                                backfilled_fields.push("series");
-                            }
-                            if metadata.series_part.is_none() && fallback.series_part.is_some() {
-                                backfilled_fields.push("series_part");
-                            }
-                            if metadata.subseries.is_none() && fallback.subseries.is_some() {
-                                backfilled_fields.push("subseries");
-                            }
-                            if metadata.subseries_part.is_none()
-                                && fallback.subseries_part.is_some()
-                            {
-                                backfilled_fields.push("subseries_part");
-                            }
-                            let fallback_cover_art = normalize_cover_art(fallback.cover_art);
-                            if metadata.cover_art.is_none() && fallback_cover_art.is_some() {
-                                backfilled_fields.push("cover_art");
-                            }
-
-                            metadata.series = metadata.series.or(fallback.series);
-                            metadata.series_part = metadata.series_part.or(fallback.series_part);
-                            metadata.subseries = metadata.subseries.or(fallback.subseries);
-                            metadata.subseries_part =
-                                metadata.subseries_part.or(fallback.subseries_part);
-                            if metadata.cover_art.is_none() {
-                                metadata.cover_art = fallback_cover_art;
-                            }
-
-                            if !backfilled_fields.is_empty() {
-                                log::warn!(
-                                    "FALLBACK[FB-001] applied ffmpeg partial metadata hydration for {} (fields: {})",
-                                    path.display(),
-                                    backfilled_fields.join(", ")
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!(
-                                "FALLBACK[FB-001] ffmpeg partial metadata hydration unavailable for {}: {}",
-                                path.display(),
-                                e
-                            );
-                        }
-                    }
-                }
                 return Ok(metadata);
             }
             Err(e) => {
                 // FALLBACK[FB-001]: trigger=mp4ameta read fails and ffmpeg fallback path is required
                 // observe=warn log with primary read failure reason
-                // sunset=2026-03-31 issue=#196
+                // sunset=2026-05-31 issue=#196
                 log::warn!("mp4ameta read failed ({}); falling back to ffmpeg", e);
             }
         }
@@ -133,10 +80,6 @@ fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
     cover_art.filter(|bytes| !bytes.is_empty())
 }
 
-fn needs_ffmpeg_partial_hydration(metadata: &AudiobookMetadata) -> bool {
-    metadata.cover_art.is_none() || metadata.series.is_none() || metadata.series_part.is_none()
-}
-
 fn first_tag_with_lookup<F>(keys: &[&str], mut lookup: F) -> Option<String>
 where
     F: FnMut(&str) -> Option<String>,
@@ -170,7 +113,7 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
-    use super::{first_tag_with_lookup, needs_ffmpeg_partial_hydration, AudiobookMetadata};
+    use super::first_tag_with_lookup;
     use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
     use std::collections::BTreeMap;
 
@@ -233,41 +176,5 @@ mod tests {
         let tags = BTreeMap::from([("MVNM", "Movement".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("Movement"));
-    }
-
-    #[test]
-    fn partial_hydration_trigger_ignores_missing_subseries_only() {
-        let metadata = AudiobookMetadata {
-            series: Some("Series".to_string()),
-            series_part: Some("1".to_string()),
-            cover_art: Some(vec![1, 2, 3]),
-            ..Default::default()
-        };
-
-        assert!(!needs_ffmpeg_partial_hydration(&metadata));
-    }
-
-    #[test]
-    fn partial_hydration_trigger_keeps_cover_art_and_primary_series_gaps() {
-        let missing_cover_art = AudiobookMetadata {
-            series: Some("Series".to_string()),
-            series_part: Some("1".to_string()),
-            ..Default::default()
-        };
-        assert!(needs_ffmpeg_partial_hydration(&missing_cover_art));
-
-        let missing_series = AudiobookMetadata {
-            series_part: Some("1".to_string()),
-            cover_art: Some(vec![1, 2, 3]),
-            ..Default::default()
-        };
-        assert!(needs_ffmpeg_partial_hydration(&missing_series));
-
-        let missing_series_part = AudiobookMetadata {
-            series: Some("Series".to_string()),
-            cover_art: Some(vec![1, 2, 3]),
-            ..Default::default()
-        };
-        assert!(needs_ffmpeg_partial_hydration(&missing_series_part));
     }
 }

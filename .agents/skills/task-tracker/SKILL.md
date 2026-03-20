@@ -99,6 +99,6 @@ pb dep add <id-a> <id-b>          # a is blocked by b
 
 ## Current Plan Source
 
-The shim audit plan lives at `docs/specs/shim-audit-plan.md`.
-Issues abb-c01, abb-25f, abb-a6e are ready to execute now.
-Issues abb-c20, abb-0d8 are blocked by abb-8dc (pending Codex answers).
+Use `pb ready`, `pb list`, and `pb show <id>` as the source of truth for active work.
+Treat `docs/specs/*` as supporting plan material only when a live PB issue points to it.
+Do not assume hardcoded issue IDs or historical plan docs are still current.

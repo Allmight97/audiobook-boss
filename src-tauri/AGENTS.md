@@ -9,7 +9,8 @@
 ## Preferred Path
 
 - Route audio processing through the `ffmpeg-next` based engine path.
-- Route MP4/M4B metadata operations through the `mp4ameta` boundary modules.
+- Route MP4/M4B atom reads and writes through the `mp4ameta` boundary modules when the file is readable there.
+- Use `ffmpeg` as the generic metadata reader/prober and as the hard fallback when `mp4ameta` cannot read an MP4/M4B file.
 - Use `JobRegistry` as the central concurrency lifecycle surface.
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
