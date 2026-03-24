@@ -8,9 +8,14 @@ use audiobook_boss_lib::audio::settings_encoder::{
 use audiobook_boss_lib::audio::{
     self, detect_input_sample_rate, ProcessingStage, ProgressReporter,
 };
-use audiobook_boss_lib::commands::{analyze_audio_files, read_audio_metadata, validate_files};
+use audiobook_boss_lib::commands::{
+    analyze_audio_files, read_audio_metadata, save_metadata_to_file, validate_files,
+};
 use audiobook_boss_lib::AudiobookMetadata;
-use std::path::PathBuf;
+use ffmpeg_next as ff;
+use mp4ameta::{FreeformIdent, Tag};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tempfile::TempDir;
 
 /// Test media file path - relative to src-tauri directory
@@ -22,6 +27,166 @@ fn verify_test_media_exists() -> Option<PathBuf> {
         return None;
     }
     Some(media_path)
+}
+
+fn native_encoder_settings() -> EncoderSettings {
+    EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Auto,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
+        twoloop: true,
+    }
+}
+
+fn write_minimal_m4b(output: &Path) {
+    let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
+    let mut octx = ff::format::output(output).expect("create output context");
+    let time_base = ff::Rational(1, 44_100);
+
+    let mut enc_ctx = ff::codec::context::Context::new()
+        .encoder()
+        .audio()
+        .expect("encoder context");
+    enc_ctx.set_rate(44_100);
+    enc_ctx.set_channel_layout(ff::channel_layout::ChannelLayout::MONO);
+    enc_ctx.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
+    enc_ctx.set_time_base(time_base);
+    let mut enc = enc_ctx.open_as(codec).expect("open encoder");
+
+    let (stream_index, stream_time_base) = {
+        let mut ost = octx.add_stream(codec).expect("add stream");
+        ost.set_time_base(enc.time_base());
+        ost.set_parameters(&enc);
+        (ost.index(), ost.time_base())
+    };
+    octx.write_header().expect("write header");
+
+    let mut frame = ff::frame::Audio::empty();
+    frame.set_format(enc.format());
+    frame.set_channel_layout(enc.channel_layout());
+    frame.set_rate(enc.rate());
+    frame.set_samples(1024);
+    unsafe {
+        frame.alloc(enc.format(), frame.samples(), enc.channel_layout());
+    }
+    frame.set_pts(Some(0));
+    let plane = frame.data_mut(0);
+    let samples: &mut [f32] =
+        unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, frame.samples()) };
+    samples.fill(0.0);
+
+    let mut pkt = ff::Packet::empty();
+    enc.send_frame(&frame).expect("send frame");
+    while enc.receive_packet(&mut pkt).is_ok() {
+        pkt.set_stream(stream_index);
+        pkt.rescale_ts(enc.time_base(), stream_time_base);
+        pkt.write_interleaved(&mut octx).expect("write packet");
+    }
+
+    enc.send_eof().ok();
+    while enc.receive_packet(&mut pkt).is_ok() {
+        pkt.set_stream(stream_index);
+        pkt.rescale_ts(enc.time_base(), stream_time_base);
+        pkt.write_interleaved(&mut octx).expect("write packet");
+    }
+    octx.write_trailer().expect("write trailer");
+}
+
+fn source_roundtrip_metadata() -> AudiobookMetadata {
+    AudiobookMetadata {
+        title: Some("Science, Being, & Becoming: The Spiritual Lives of Scientists".into()),
+        artist: Some("Paul J. Mills PhD".into()),
+        album: Some("Science, Being, & Becoming: The Spiritual Lives of Scientists".into()),
+        composer: Some("Tom Beyer".into()),
+        genre: Some(
+            "Literature & Fiction, Metaphysics, Other Religions, Practices & Sacred Texts".into(),
+        ),
+        date: Some("2023-06".into()),
+        description: Some("Preview contract regression source fixture".into()),
+        series: Some("Series Test".into()),
+        series_part: Some("1".into()),
+        subseries: Some("Sub-Test".into()),
+        subseries_part: Some("1".into()),
+        cover_art: Some(include_bytes!("support/minimal.jpg").to_vec()),
+        ..Default::default()
+    }
+}
+
+fn preview_output_path(output: &Path) -> PathBuf {
+    let parent = output.parent().unwrap_or_else(|| Path::new("."));
+    let stem = output
+        .file_stem()
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_else(|| std::borrow::Cow::from("output"));
+    parent.join(format!("{}.preview.m4b", stem))
+}
+
+async fn process_roundtrip(
+    input_path: &Path,
+    output_path: &Path,
+    preview_seconds: Option<f64>,
+    metadata: AudiobookMetadata,
+) -> String {
+    let input_info =
+        audio::get_file_list_info(&[input_path.to_path_buf()]).expect("input should be analyzable");
+    assert_eq!(input_info.valid_count, 1, "input fixture should be valid");
+
+    let session = Arc::new(audio::session::ProcessingSession::new());
+    let mut context = audio::ProcessingContext::new_headless(
+        session,
+        native_encoder_settings(),
+        audio::SampleRateConfig::Auto,
+        audio::OutputConfig::new(output_path),
+    );
+    if let Some(seconds) = preview_seconds {
+        context.preview = Some(audio::context::PreviewConfig::new(seconds));
+    }
+
+    audio::process_audiobook_with_context(context, input_info.files, Some(metadata))
+        .await
+        .expect("processing should complete")
+}
+
+async fn assert_metadata_round_trip(
+    output_path: &Path,
+    expected_series: &str,
+    expected_subseries: &str,
+) {
+    let tag = Tag::read_from_path(output_path).expect("read mp4 tags");
+    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+
+    assert_eq!(
+        tag.strings_of(&series_ident).next().map(str::to_string),
+        Some(format!("{expected_series}; {expected_subseries}"))
+    );
+    assert_eq!(tag.movement(), Some(expected_series));
+    assert_eq!(
+        tag.strings_of(&part_ident).next().map(str::to_string),
+        Some("1; 1".to_string())
+    );
+    assert_eq!(tag.movement_index(), Some(1));
+    assert_eq!(
+        tag.album_sort_order(),
+        Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")
+    );
+    assert!(tag.artwork().is_some(), "cover art should persist");
+
+    let read_back = read_audio_metadata(output_path.to_string_lossy().to_string())
+        .await
+        .expect("read metadata back");
+    assert_eq!(read_back.series.as_deref(), Some(expected_series));
+    assert_eq!(read_back.series_part.as_deref(), Some("1"));
+    assert_eq!(read_back.subseries.as_deref(), Some(expected_subseries));
+    assert_eq!(read_back.subseries_part.as_deref(), Some("1"));
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")
+    );
+    assert!(read_back.cover_art.is_some(), "cover art should persist");
 }
 
 /// Test that captures the current end-to-end audio processing flow
@@ -395,4 +560,62 @@ fn test_temporary_file_handling() {
     eprintln!(
         "Temporary directory handling verified; no concat file behavior in ffmpeg-next engine"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn preview_and_full_processing_preserve_series_metadata_from_source_file() {
+    ff::init().expect("ffmpeg init");
+
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let source_path = temp_dir.path().join("series-source.m4b");
+    let preview_base_output = temp_dir.path().join("series-preview.m4b");
+    let full_output = temp_dir.path().join("series-full.m4b");
+
+    write_minimal_m4b(&source_path);
+    save_metadata_to_file(
+        source_path.to_string_lossy().to_string(),
+        source_roundtrip_metadata().into(),
+    )
+    .await
+    .expect("seed source metadata");
+
+    let source_metadata = read_audio_metadata(source_path.to_string_lossy().to_string())
+        .await
+        .expect("read source metadata");
+    assert_eq!(source_metadata.series.as_deref(), Some("Series Test"));
+    assert_eq!(source_metadata.series_part.as_deref(), Some("1"));
+    assert_eq!(source_metadata.subseries.as_deref(), Some("Sub-Test"));
+    assert_eq!(source_metadata.subseries_part.as_deref(), Some("1"));
+    assert_eq!(
+        source_metadata.album_sort.as_deref(),
+        Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")
+    );
+    assert!(
+        source_metadata.cover_art.is_some(),
+        "source cover art should exist"
+    );
+
+    let preview_message = process_roundtrip(
+        &source_path,
+        &preview_base_output,
+        Some(30.0),
+        source_metadata.clone(),
+    )
+    .await;
+    assert!(
+        preview_message.contains("Successfully created preview"),
+        "preview processing should succeed: {preview_message}"
+    );
+
+    let preview_output = preview_output_path(&preview_base_output);
+    assert!(preview_output.exists(), "preview output should exist");
+    assert_metadata_round_trip(&preview_output, "Series Test", "Sub-Test").await;
+
+    let full_message = process_roundtrip(&source_path, &full_output, None, source_metadata).await;
+    assert!(
+        full_message.contains("Successfully created audiobook"),
+        "full processing should succeed: {full_message}"
+    );
+    assert!(full_output.exists(), "full output should exist");
+    assert_metadata_round_trip(&full_output, "Series Test", "Sub-Test").await;
 }
