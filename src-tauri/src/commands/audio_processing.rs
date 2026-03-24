@@ -99,10 +99,45 @@ fn resolve_effective_processing_metadata(
             let source_metadata = crate::metadata::read_metadata(path)?;
             Ok(Some(patch.apply_to_metadata(source_metadata)?))
         }
-        (Some(_), None) => Ok(None),
+        (Some(path), None) => Ok(Some(crate::metadata::read_metadata(path)?)),
         (None, Some(patch)) => Ok(Some(patch.to_processing_overlay()?)),
         (None, None) => Ok(None),
     }
+}
+
+fn resolve_naming_metadata(
+    resolved_metadata: Option<&crate::metadata::AudiobookMetadata>,
+    input_path: Option<&std::path::Path>,
+    patch: Option<&crate::metadata::MetadataIntentPatch>,
+) -> Option<crate::metadata::AudiobookMetadata> {
+    let mut naming_metadata = resolved_metadata.cloned()?;
+
+    if input_path.is_some() && patch.is_none() {
+        scrub_legacy_source_series_parts_for_naming(&mut naming_metadata);
+    }
+
+    Some(naming_metadata)
+}
+
+fn scrub_legacy_source_series_parts_for_naming(metadata: &mut crate::metadata::AudiobookMetadata) {
+    scrub_invalid_series_part_for_naming(&mut metadata.series_part);
+    scrub_invalid_series_part_for_naming(&mut metadata.subseries_part);
+}
+
+fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
+    let should_clear = value
+        .as_deref()
+        .map(str::trim)
+        .filter(|trimmed| !trimmed.is_empty())
+        .is_some_and(|trimmed| crate::metadata::validate_series_part(trimmed).is_err());
+
+    if should_clear {
+        *value = None;
+    }
+}
+
+fn validate_batch_input_path(path: &std::path::Path) -> Result<PathBuf> {
+    crate::audio::path_validation::validate_input_audio_path(path)
 }
 
 fn emit_batch_queue_event(
@@ -170,9 +205,13 @@ async fn dispatch_merge_job(
 ) -> Result<ProcessCommandResult> {
     let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
     let file_info = audio::get_file_list_info(&paths)?;
-    let merge_source_path = paths.first().cloned().ok_or_else(|| {
-        AppError::InvalidInput("No input files provided for merge processing".to_string())
-    })?;
+    let merge_source_path = file_info
+        .files
+        .first()
+        .map(|file| file.path.clone())
+        .ok_or_else(|| {
+            AppError::InvalidInput("No input files provided for merge processing".to_string())
+        })?;
     let merge_patch = payload
         .input_files
         .first()
@@ -180,9 +219,14 @@ async fn dispatch_merge_job(
         .cloned();
     let merge_metadata =
         resolve_effective_processing_metadata(Some(&merge_source_path), merge_patch.as_ref())?;
+    let merge_naming_metadata = resolve_naming_metadata(
+        merge_metadata.as_ref(),
+        Some(&merge_source_path),
+        merge_patch.as_ref(),
+    );
     let output_path = build_output_path(
         &inputs.base_output_dir,
-        merge_metadata.as_ref(),
+        merge_naming_metadata.as_ref(),
         inputs.output_naming.clone(),
         Some(&merge_source_path),
     )?;
@@ -224,16 +268,23 @@ async fn dispatch_batch_jobs(
         Vec::new();
     let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
     for (index, input) in payload.input_files.iter().enumerate() {
-        let path = PathBuf::from(input);
+        let raw_path = PathBuf::from(input);
+        let path = match validate_batch_input_path(&raw_path) {
+            Ok(validated) => validated,
+            Err(error) => {
+                scheduled_jobs.push(Box::pin(async move { Err(error) }));
+                continue;
+            }
+        };
         let file_patch = metadata.as_ref().and_then(|map| map.get(input)).cloned();
         let effective_metadata =
             resolve_effective_processing_metadata(Some(&path), file_patch.as_ref());
+        let naming_metadata = effective_metadata.as_ref().ok().and_then(|value| {
+            resolve_naming_metadata(value.as_ref(), Some(&path), file_patch.as_ref())
+        });
         let output_path = build_output_path(
             &inputs.base_output_dir,
-            effective_metadata
-                .as_ref()
-                .ok()
-                .and_then(|value| value.as_ref()),
+            naming_metadata.as_ref(),
             inputs.output_naming.clone(),
             Some(&path),
         );
@@ -472,11 +523,15 @@ fn failure_result(input_index: Option<usize>, error_message: String) -> ProcessR
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_effective_processing_metadata;
+    use super::{
+        resolve_effective_processing_metadata, resolve_naming_metadata, validate_batch_input_path,
+    };
     use crate::audio::output_path::build_output_path;
     use crate::commands::audio_types::OutputNamingConfig;
     use crate::metadata::{MetadataIntentPatch, PatchOp};
+    use std::fs;
     use std::path::Path;
+    use tempfile::TempDir;
 
     fn sample_source_metadata() -> crate::metadata::AudiobookMetadata {
         crate::metadata::AudiobookMetadata {
@@ -489,11 +544,13 @@ mod tests {
     }
 
     #[test]
-    fn resolve_effective_processing_metadata_no_patch_skips_source_read() {
+    fn resolve_effective_processing_metadata_no_patch_reads_source_or_errors() {
         let missing_source = Path::new("/path/that/does/not/exist/input.m4b");
-        let resolved = resolve_effective_processing_metadata(Some(missing_source), None)
-            .expect("metadata resolves");
-        assert!(resolved.is_none());
+        let outcome = resolve_effective_processing_metadata(Some(missing_source), None);
+        assert!(
+            outcome.is_err(),
+            "missing input should fail read, not return empty metadata"
+        );
     }
 
     #[test]
@@ -567,5 +624,93 @@ mod tests {
             "output naming should use resolved metadata"
         );
         assert_eq!(effective.title.as_deref(), Some("Renamed Title"));
+    }
+
+    #[test]
+    fn resolve_naming_metadata_scrubs_legacy_series_parts_for_untouched_source() {
+        let metadata = crate::metadata::AudiobookMetadata {
+            title: Some("Legacy Source".to_string()),
+            series: Some("Series".to_string()),
+            series_part: Some("7/8".to_string()),
+            subseries: Some("Subseries".to_string()),
+            subseries_part: Some("2/3".to_string()),
+            ..Default::default()
+        };
+
+        let naming =
+            resolve_naming_metadata(Some(&metadata), Some(Path::new("/tmp/source.m4b")), None)
+                .expect("naming metadata should exist");
+
+        assert_eq!(naming.title.as_deref(), Some("Legacy Source"));
+        assert_eq!(naming.series.as_deref(), Some("Series"));
+        assert_eq!(naming.series_part, None);
+        assert_eq!(naming.subseries.as_deref(), Some("Subseries"));
+        assert_eq!(naming.subseries_part, None);
+
+        let output_path = build_output_path(
+            Path::new("/tmp"),
+            Some(&naming),
+            OutputNamingConfig::default(),
+            Some(Path::new("/tmp/source.m4b")),
+        )
+        .expect("legacy source naming should no longer fail");
+
+        assert!(
+            output_path.to_string_lossy().contains("Legacy Source"),
+            "output naming should still use source metadata title"
+        );
+    }
+
+    #[test]
+    fn resolve_naming_metadata_keeps_patch_validation_strict() {
+        let metadata = crate::metadata::AudiobookMetadata {
+            title: Some("Patched Source".to_string()),
+            series: Some("Series".to_string()),
+            series_part: Some("7/8".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Renamed".to_string()),
+            ..Default::default()
+        };
+
+        let naming = resolve_naming_metadata(
+            Some(&metadata),
+            Some(Path::new("/tmp/source.m4b")),
+            Some(&patch),
+        )
+        .expect("naming metadata should exist");
+
+        let err = build_output_path(
+            Path::new("/tmp"),
+            Some(&naming),
+            OutputNamingConfig::default(),
+            Some(Path::new("/tmp/source.m4b")),
+        )
+        .expect_err("patched legacy series part should remain a hard failure");
+
+        assert!(
+            err.to_string().contains("Series sequence"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_batch_input_path_rejects_symlink_before_metadata_read() {
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let source = temp_dir.path().join("source.m4b");
+        fs::write(&source, b"not audio, but enough for path validation").expect("write source");
+        let symlink = temp_dir.path().join("source-link.m4b");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&source, &symlink).expect("create symlink");
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(&source, &symlink).expect("create symlink");
+
+        let err = validate_batch_input_path(&symlink).expect_err("symlink should be rejected");
+        assert!(
+            err.to_string().contains("Symlinks are not supported"),
+            "unexpected error: {err}"
+        );
     }
 }
