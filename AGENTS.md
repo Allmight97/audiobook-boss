@@ -5,25 +5,23 @@
 - This file defines repo-wide agent policy.
 - Directory-level invariants belong in the nearest nested `AGENTS.md`.
 
-## Task Tracking
+## Long-Horizon Planning
 
-This project uses **pebbles** (`pb`) for all task tracking. Do not use markdown TODOs or ad-hoc task lists.
+Use [PLANS.md](/Users/jstar/Projects/audiobook-boss/PLANS.md) as the source of truth for how long-horizon work is planned and closed.
 
-The `pb` binary is at `~/.local/bin/pb`. Always invoke it from the repo root:
+For planning mode or any substantial multi-step work, open `PLANS.md` before drafting or revising a task spec.
 
-```bash
-export PATH="$HOME/.local/bin:$PATH" && cd /Users/jstar/Projects/audiobook-boss
-pb ready    # unblocked work — start here every session
-pb list     # full open/in-progress view
-```
+For substantial multi-step, multi-session, or multi-agent work, keep one active implementation spec in `docs/specs/<task>.md`. This file is not a session log and not canon history:
 
-**Load the `task-tracker` skill** at the start of any coding session, or whenever picking up, executing, or closing a planned task. The skill contains the full session protocol, done-loop verification steps, and quick-reference commands.
+- reuse the same file across sessions for the same effort
+- reuse an existing matching spec instead of creating a new one
+- do not create a new file per session
+- delete the file once implementation, review, validation, and documentation alignment are complete
 
-Active work items live in `.pebbles/events.jsonl` (committed). Planned specs live in `docs/specs/`.
+Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ### Skill Trigger Policy
 
-- Load `task-tracker` at session start and when executing any planned task.
 - Load `lib-research` when external library/API behavior affects implementation or review findings.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.

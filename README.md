@@ -55,11 +55,11 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - Release: `bun run release:notes`, `bun run release:run`
-- Offline handoff: `bun run repomix:audit`, `bun run repomix:full`
 
 ## Project Operation
 
 - Agents: start in [AGENTS.md](/Users/jstar/Projects/audiobook-boss/AGENTS.md) and then follow the nearest nested `AGENTS.md`.
+- For substantial multi-step work, use [PLANS.md](/Users/jstar/Projects/audiobook-boss/PLANS.md) and keep at most active implementation specs under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
 - For a quick runtime boundary index, use [docs/api-map.md](/Users/jstar/Projects/audiobook-boss/docs/api-map.md), then verify in code before changing contracts or behavior.
 - UI work is not done from static inspection alone. Run `bun run harness:verify --changed` for UI-affecting changes.
 - Cheap deterministic repo guardrails live in `hooks.json` and `./.agents/hooks/`.

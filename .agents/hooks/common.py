@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCS_ONLY_FILES = {
     "README.md",
     "AGENTS.md",
+    "PLANS.md",
     "docs/fallbacks.md",
     "docs/api-map.md",
     "src/AGENTS.md",
@@ -16,6 +17,7 @@ DOCS_ONLY_FILES = {
 }
 DOCS_ONLY_PREFIXES = (
     ".agents/skills/",
+    "docs/specs/",
     ".github/ISSUE_TEMPLATE/",
 )
 DOC_SURFACE_FILES = {
