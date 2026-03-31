@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.2] - 2026-03-31
+
+Supply-chain install hardening release after the March 31, 2026 axios incident review.
+
+### Changed
+
+- **Dependency Intake Hardening**
+  - Enforce lockfile-based Bun installs in CI by switching the perf workflow from `bun install` to `bun ci`.
+  - Add a repo-level Bun release-age gate (`bunfig.toml`) so fresh dependency resolutions skip packages published within the last 72 hours.
+
 ## [1.0.1] - 2026-02-22
 
 Metadata lookup hardening release for legacy-title coverage and no-result recovery UX.

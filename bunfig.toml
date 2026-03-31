@@ -1,0 +1,5 @@
+[install]
+# Delay fresh dependency resolutions by 7 days to reduce exposure to newly
+# published supply-chain compromises while leaving the committed lockfile flow
+# unchanged.
+minimumReleaseAge = 604800
