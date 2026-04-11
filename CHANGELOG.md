@@ -23,7 +23,7 @@ Supply-chain install hardening release after the March 31, 2026 axios incident r
 
 - **Dependency Intake Hardening**
   - Enforce lockfile-based Bun installs in CI by switching the perf workflow from `bun install` to `bun ci`.
-  - Add a repo-level Bun release-age gate (`bunfig.toml`) so fresh dependency resolutions skip packages published within the last 72 hours.
+  - Add a repo-level Bun release-age gate (`bunfig.toml`) so fresh dependency resolutions skip packages published within the last 7 days.
 
 ## [1.0.1] - 2026-02-22
 

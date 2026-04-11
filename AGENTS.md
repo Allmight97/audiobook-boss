@@ -7,7 +7,7 @@
 
 ## Long-Horizon Planning
 
-Use [PLANS.md](/Users/jstar/Projects/audiobook-boss/PLANS.md) as the source of truth for how long-horizon work is planned and closed.
+Use [PLANS.md](PLANS.md) as the source of truth for how long-horizon work is planned and closed.
 
 For planning mode or any substantial multi-step work, open `PLANS.md` before drafting or revising a task spec.
 

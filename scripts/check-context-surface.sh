@@ -138,7 +138,9 @@ existing_surface_paths=()
 for path in "${surface_paths[@]}"; do
   [[ -e "$path" ]] && existing_surface_paths+=("$path")
 done
-existing_surface_paths+=("${spec_surface_paths[@]}")
+if ((${#spec_surface_paths[@]})); then
+  existing_surface_paths+=("${spec_surface_paths[@]}")
+fi
 
 text_surface_paths=(
   "README.md"
@@ -154,7 +156,9 @@ existing_text_surface_paths=()
 for path in "${text_surface_paths[@]}"; do
   [[ -e "$path" ]] && existing_text_surface_paths+=("$path")
 done
-existing_text_surface_paths+=("${spec_surface_paths[@]}")
+if ((${#spec_surface_paths[@]})); then
+  existing_text_surface_paths+=("${spec_surface_paths[@]}")
+fi
 
 existing_legacy_surface_paths=()
 for path in "${legacy_surface_paths[@]}"; do
