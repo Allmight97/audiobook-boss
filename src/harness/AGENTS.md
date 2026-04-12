@@ -19,6 +19,7 @@
 - Every UI-affecting path covered by harness verification must map to at least one scenario or fail with a clear remediation message.
 - Shared UI surfaces (`src/HarnessApp.svelte`, `src/styles.css`, `src/harness/**`) must run the full scenario set.
 - Harness artifact output is local and gitignored; do not commit generated screenshots, summaries, or review packets.
+- Harness warnings are only acceptable when they are explicitly fallback-marked (`FALLBACK[...]`); otherwise treat them as verification failures.
 - Browser verification should prove visible behavior and runtime health, not bypass real UI state with fake assertions detached from the page.
 
 ## Canary Trigger

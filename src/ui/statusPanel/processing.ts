@@ -237,9 +237,11 @@ export async function startProcessing(
 			}
 		} else {
 			const storedMetadataIntent = getAllMetadataIntentPatches();
+			const activeInputFiles = new Set(processPayload.inputFiles);
 			const filteredMetadataIntent = Object.fromEntries(
-				Object.entries(storedMetadataIntent).filter(([, value]) =>
-					hasActionableMetadataIntentPatch(value),
+				Object.entries(storedMetadataIntent).filter(
+					([filePath, value]) =>
+						activeInputFiles.has(filePath) && hasActionableMetadataIntentPatch(value),
 				),
 			);
 			metadataIntentPayload =

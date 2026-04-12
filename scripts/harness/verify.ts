@@ -16,6 +16,7 @@ import {
 import {
 	gotoHarnessRoute,
 	HARNESS_ARTIFACT_ROOT as ARTIFACT_ROOT,
+	type HarnessConsoleMessage,
 	mirrorArtifactToLatest,
 	startHarnessServer,
 	summarizeConsoleMessage,
@@ -51,7 +52,7 @@ type ScenarioCheckReport = {
 	checks: HarnessScenarioCheckResult[];
 };
 
-function parseArgs(argv: string[]): CliOptions {
+export function parseArgs(argv: string[]): CliOptions {
 	if (argv.length === 0 || argv.includes('--changed')) {
 		return { mode: 'changed' };
 	}
@@ -75,6 +76,18 @@ function parseArgs(argv: string[]): CliOptions {
 	}
 
 	return { mode: 'scenario', scenarioIds };
+}
+
+export function classifyConsoleMessage(
+	message: Pick<HarnessConsoleMessage, 'type' | 'text'>,
+): 'fatal' | 'ignored' {
+	if (message.type === 'error') {
+		return 'fatal';
+	}
+	if (message.type === 'warning') {
+		return message.text.startsWith('FALLBACK[') ? 'ignored' : 'fatal';
+	}
+	return 'ignored';
 }
 
 function runGit(args: string[]): string {
@@ -240,7 +253,7 @@ async function main(): Promise<void> {
 			const browser = await chromium.launch({ headless: true });
 			try {
 				const page = await browser.newPage();
-				const consoleMessages: ScenarioArtifactSummary['consoleMessages'] = [];
+				const consoleMessages: ScenarioRuntimeSummary['consoleMessages'] = [];
 				const pageErrors: string[] = [];
 
 				page.on('console', (message) => {
@@ -300,13 +313,15 @@ async function main(): Promise<void> {
 					throw scenarioSeedError;
 				}
 
-				const errorConsoleMessages = consoleMessages.filter((message) => message.type === 'error');
-				if (pageErrors.length > 0 || errorConsoleMessages.length > 0) {
+				const fatalConsoleMessages = consoleMessages.filter(
+					(message) => classifyConsoleMessage(message) === 'fatal',
+				);
+				if (pageErrors.length > 0 || fatalConsoleMessages.length > 0) {
 					throw new Error(
 						[
 							`Harness scenario ${scenario.id} emitted runtime errors.`,
 							...pageErrors.map((entry) => `pageerror: ${entry}`),
-							...errorConsoleMessages.map((entry) => `console.error: ${entry.text}`),
+							...fatalConsoleMessages.map((entry) => `${entry.type}: ${entry.text}`),
 							`Artifacts: ${artifactDir}`,
 						].join('\n'),
 					);
@@ -322,11 +337,13 @@ async function main(): Promise<void> {
 	}
 }
 
-main()
-	.then(() => {
-		process.exit(0);
-	})
-	.catch((error) => {
-		console.error(`[harness:verify] ${error instanceof Error ? error.message : String(error)}`);
-		process.exit(1);
-	});
+if (import.meta.main) {
+	main()
+		.then(() => {
+			process.exit(0);
+		})
+		.catch((error) => {
+			console.error(`[harness:verify] ${error instanceof Error ? error.message : String(error)}`);
+			process.exit(1);
+		});
+}

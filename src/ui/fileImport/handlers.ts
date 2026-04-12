@@ -5,8 +5,11 @@ import { applyCoverArtDrop } from '../coverArt';
 import { displayFileList } from '../fileList';
 import { isOrderLocked } from '../fileList/state';
 import { clearFileImportError, setFileImportError } from './state.svelte';
-
-const supportedFormats = ['.mp3', '.m4a', '.m4b', '.aac'];
+import {
+	SUPPORTED_AUDIO_EXTENSIONS,
+	SUPPORTED_AUDIO_FORMATS_TEXT,
+	isSupportedAudioPath,
+} from './supportedAudio';
 
 export interface DragDropContext {
 	getDropZoneHeader: () => HTMLElement | null;
@@ -108,7 +111,7 @@ export async function handleClickToSelect(): Promise<void> {
 			filters: [
 				{
 					name: 'Audio Files',
-					extensions: ['mp3', 'm4a', 'm4b', 'aac'],
+					extensions: [...SUPPORTED_AUDIO_EXTENSIONS],
 				},
 			],
 		});
@@ -131,7 +134,9 @@ async function handleFileDrop(paths: string[]): Promise<void> {
 
 	const supportedPaths = filterSupportedFiles(paths);
 	if (supportedPaths.length === 0) {
-		setFileImportError('No supported audio files dropped. Please use MP3, M4A, M4B, or AAC files.');
+		setFileImportError(
+			`No supported audio files dropped. Please use ${SUPPORTED_AUDIO_FORMATS_TEXT} files.`,
+		);
 		return;
 	}
 
@@ -139,9 +144,7 @@ async function handleFileDrop(paths: string[]): Promise<void> {
 }
 
 function filterSupportedFiles(paths: string[]): string[] {
-	return paths.filter((path) =>
-		supportedFormats.some((format) => path.toLowerCase().endsWith(format)),
-	);
+	return paths.filter((path) => isSupportedAudioPath(path));
 }
 
 async function processFilePaths(filePaths: string[]): Promise<void> {

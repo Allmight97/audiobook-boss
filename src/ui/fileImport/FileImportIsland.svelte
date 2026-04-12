@@ -17,6 +17,7 @@
 	import type { DragDropContext } from './handlers';
 	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
 	import { fileImportUiState } from './state.svelte';
+	import { SUPPORTED_AUDIO_SUPPORT_TEXT } from './supportedAudio';
 
 	let dropZoneHeader: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
@@ -125,7 +126,7 @@
     on:keydown={handleHeaderKeydown}
   >
     <p class="text-sm muted-text">Drag & Drop files here or Click to Select</p>
-    <p class="text-xs muted-text mt-1">Supports: mp3, m4a, m4b, aac</p>
+    <p class="text-xs muted-text mt-1">{SUPPORTED_AUDIO_SUPPORT_TEXT}</p>
   </div>
 
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->

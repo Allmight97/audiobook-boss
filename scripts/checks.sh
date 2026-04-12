@@ -9,7 +9,7 @@
 #
 # Tiers:
 # - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + harness verification + runtime guardrails + fallback policy enforcement + context-surface coherence
-# - standard: quick + Rust tests + TS tests + app build
+# - standard: quick + Rust tests + direct Bun script tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
 # The intent is behavior-first confidence:
@@ -134,6 +134,9 @@ run_standard() {
 
   log_step "cargo test"
   cargo test
+
+  log_step "bun test scripts/build-app.test.ts scripts/harness/verify.test.ts"
+  bun test scripts/build-app.test.ts scripts/harness/verify.test.ts
 
   log_step "bun run test"
   bun run test

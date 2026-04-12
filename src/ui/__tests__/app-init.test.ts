@@ -26,10 +26,6 @@ vi.mock('../outputPanel', () => ({
 
 vi.mock('../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(() => runInit('statusPanel')),
-	getStatusPanel: vi.fn(() => ({
-		isCurrentlyProcessing: false,
-		startProcessing: vi.fn(),
-	})),
 	pushStatusPanelTransientStatus: vi.fn(),
 }));
 

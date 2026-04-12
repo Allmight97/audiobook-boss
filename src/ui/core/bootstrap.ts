@@ -4,11 +4,7 @@ import { getCurrentFileList } from '../fileList';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/actions';
 import { initEncoderPanel } from '../encoderPanel';
 import { initOutputPanel } from '../outputPanel';
-import {
-	isStatusPanelProcessing,
-	initStatusPanel,
-	pushStatusPanelTransientStatus,
-} from '../statusPanel';
+import { initStatusPanel, pushStatusPanelTransientStatus } from '../statusPanel';
 import { initCoverArt } from '../coverArt';
 import { initMetadataFormEvents, resetDirtyState } from '../metadataForm';
 import { initTagPreview } from '../tagPreview';
@@ -16,6 +12,16 @@ import { initJobControls } from '../jobControls';
 import { initMetadataLookup } from '../metadataLookup';
 import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from '../metadataSaveState';
+import type { StatusPanel } from '../statusPanel';
+
+let shellStatusPanel: StatusPanel | null = null;
+
+function ensureShellStatusPanel(): StatusPanel {
+	if (!shellStatusPanel) {
+		shellStatusPanel = initStatusPanel();
+	}
+	return shellStatusPanel;
+}
 
 export async function saveMetadataFromUI(): Promise<void> {
 	const fileList = getCurrentFileList();
@@ -24,7 +30,8 @@ export async function saveMetadataFromUI(): Promise<void> {
 		return;
 	}
 
-	if (isStatusPanelProcessing()) {
+	const statusPanel = ensureShellStatusPanel();
+	if (statusPanel.isCurrentlyProcessing) {
 		console.log('Processing in progress - cannot save metadata now');
 		return;
 	}
@@ -90,7 +97,7 @@ export async function saveMetadataFromUI(): Promise<void> {
 }
 
 export function startPreviewAudio(duration: number): void {
-	initStatusPanel().startProcessing({ previewSeconds: duration });
+	ensureShellStatusPanel().startProcessing({ previewSeconds: duration });
 }
 
 export function initializeAppShell(): string | null {
@@ -98,7 +105,7 @@ export function initializeAppShell(): string | null {
 		initFileImport();
 		initEncoderPanel();
 		initOutputPanel();
-		initStatusPanel();
+		ensureShellStatusPanel();
 		initCoverArt();
 		initMetadataFormEvents();
 		initTagPreview();

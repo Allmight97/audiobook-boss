@@ -244,6 +244,28 @@ describe('startProcessing metadata staging', () => {
 		);
 	});
 
+	it('filters batch metadata intent to active input files only', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataIntentPatchesMock.mockReturnValue({
+			'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
+			'/books/b.m4b': { series: { op: 'set', value: 'Active B' } },
+			'/books/stale.m4b': { title: { op: 'set', value: 'Stale' } },
+		});
+
+		await startProcessing(processingContext());
+
+		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadataIntent: {
+					'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
+					'/books/b.m4b': { series: { op: 'set', value: 'Active B' } },
+				},
+			}),
+		);
+	});
+
 	it('sends null batch metadata intent when all stored entries are empty objects', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);

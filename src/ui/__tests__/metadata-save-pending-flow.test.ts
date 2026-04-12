@@ -7,6 +7,10 @@ const context = vi.hoisted(() => ({
 	getPendingIntentEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
 	clearPendingMock: vi.fn(),
 	resetDirtyStateMock: vi.fn(),
+	statusPanel: {
+		isCurrentlyProcessing: false,
+		startProcessing: vi.fn(),
+	},
 	getCurrentFileListMock: vi.fn(() => ({
 		files: [
 			{ path: '/books/a.m4b', isValid: true },
@@ -49,9 +53,7 @@ vi.mock('../jobControls', () => ({
 }));
 vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
-	initStatusPanel: vi.fn(),
-	getStatusPanel: () => ({ isCurrentlyProcessing: false }),
-	isStatusPanelProcessing: () => false,
+	initStatusPanel: vi.fn(() => context.statusPanel),
 	pushStatusPanelTransientStatus: (message: string) => {
 		const status = document.getElementById('status-text');
 		if (status instanceof HTMLElement) {
@@ -119,6 +121,8 @@ describe('metadata save pending flow', () => {
 		context.resetDirtyStateMock.mockReset();
 		context.getPendingIntentEntriesMock.mockReset();
 		context.metadataSaveInProgress = false;
+		context.statusPanel.isCurrentlyProcessing = false;
+		context.statusPanel.startProcessing.mockReset();
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [
 				{ path: '/books/a.m4b', isValid: true },
@@ -184,5 +188,21 @@ describe('metadata save pending flow', () => {
 		await vi.waitFor(() => {
 			expect(getStatusText().textContent).toBe('No pending metadata changes');
 		});
+	});
+
+	it('short-circuits while status panel processing is active', async () => {
+		context.statusPanel.isCurrentlyProcessing = true;
+		context.persistPendingDraftsMock.mockResolvedValue(true);
+		context.getPendingIntentEntriesMock.mockReturnValue([
+			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],
+		]);
+
+		await saveMetadataFromUI();
+
+		expect(context.persistPendingDraftsMock).not.toHaveBeenCalled();
+		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
+		expect(context.clearPendingMock).not.toHaveBeenCalled();
+		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
+		expect(getStatusText().textContent).toBe('Idle');
 	});
 });
