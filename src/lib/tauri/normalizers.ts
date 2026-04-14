@@ -1,12 +1,6 @@
 import type {
-	EncoderAvailability as GeneratedEncoderAvailability,
 	AudiobookMetadata as GeneratedAudiobookMetadata,
-	FileListInfo as GeneratedFileListInfo,
-	OnlineMetadataResult as GeneratedOnlineMetadataResult,
-	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
-	ProgressEvent as GeneratedProgressEvent,
-	QueueEvent as GeneratedQueueEvent,
 } from '../generated/tauri';
 import type {
 	EncoderAvailability,
@@ -16,6 +10,7 @@ import type {
 } from '../../types/audio';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
 
@@ -120,7 +115,7 @@ function toNullableShape<T extends PlainRecord, K extends keyof T>(
 	return output;
 }
 
-export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
+export function normalizeMetadata(metadata: unknown): AudiobookMetadata {
 	return normalizeNullish(metadata) as AudiobookMetadata;
 }
 
@@ -133,17 +128,15 @@ export function denormalizeMetadata(
 	) as GeneratedAudiobookMetadata;
 }
 
-export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
+export function normalizeFileList(info: unknown): FileListInfo {
 	return normalizeNullish(info) as FileListInfo;
 }
 
-export function normalizeEncoderAvailability(
-	availability: GeneratedEncoderAvailability,
-): EncoderAvailability {
+export function normalizeEncoderAvailability(availability: unknown): EncoderAvailability {
 	return normalizeNullish(availability) as EncoderAvailability;
 }
 
-export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
+export function normalizeLookupResult(result: unknown): OnlineMetadataResult {
 	return normalizeNullish(result) as OnlineMetadataResult;
 }
 
@@ -163,20 +156,25 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	};
 }
 
-export function normalizeProcessResult(
-	result: GeneratedProcessCommandResult,
-): ProcessCommandResult {
-	return normalizeNullish(result) as ProcessCommandResult;
-}
-
-export function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {
-	const normalized = normalizeNullish(payload) as ProcessingProgressEvent;
+export function normalizeProcessResult(result: unknown): ProcessCommandResult {
+	const normalized = normalizeNullish(result) as ProcessCommandResult;
 	return {
 		...normalized,
-		stage: payload.stage as ProcessingProgressEvent['stage'],
+		results: (normalized.results ?? []).map((entry) => ({
+			...entry,
+			error: entry.error == null ? undefined : normalizeAppError(entry.error),
+		})),
 	};
 }
 
-export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
+export function normalizeProgressEvent(payload: unknown): ProcessingProgressEvent {
+	const normalized = normalizeNullish(payload) as ProcessingProgressEvent;
+	return {
+		...normalized,
+		stage: normalized.stage as ProcessingProgressEvent['stage'],
+	};
+}
+
+export function normalizeQueueEvent(payload: unknown): ProcessingQueueEvent {
 	return normalizeNullish(payload) as ProcessingQueueEvent;
 }

@@ -24,7 +24,10 @@ pub use metadata::passthrough::{
 };
 
 pub mod audio;
-pub use errors::{sanitize_path_for_display, sanitize_path_str_for_display};
+pub use errors::{
+    sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,
+    AppErrorCode, AppErrorEnvelope,
+};
 
 use std::sync::Arc;
 use tauri::{Manager, PhysicalSize, Size, WebviewWindow};

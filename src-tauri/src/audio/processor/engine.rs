@@ -40,7 +40,7 @@ impl FfmpegNextProcessor {
                 input_path.display()
             );
             ctx.emitter.emit_cancelled("Processing was cancelled");
-            return Err(AppError::InvalidInput("Processing was cancelled".into()));
+            return Err(AppError::cancelled());
         }
 
         // Initialize per-file preview state if adaptive preview is active

@@ -9,51 +9,86 @@ export const commands = {
  * Simple ping command that returns "pong"
  * Used for testing basic Tauri command functionality
  */
-async ping() : Promise<string> {
-    return await TAURI_INVOKE("ping");
+async ping() : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ping") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Echo command that returns the input string
  * Demonstrates parameter passing in Tauri commands
  */
-async echo(input: string) : Promise<string> {
-    return await TAURI_INVOKE("echo", { input });
+async echo(input: string) : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("echo", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Validates that all provided file paths exist and are files
  * Accepts an array of file paths and checks file existence
  */
-async validateFiles(filePaths: string[]) : Promise<string> {
-    return await TAURI_INVOKE("validate_files", { filePaths });
+async validateFiles(filePaths: string[]) : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("validate_files", { filePaths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Reads metadata from an audio file
  * Returns metadata as JSON-serializable struct
  */
-async readAudioMetadata(filePath: string) : Promise<AudiobookMetadata> {
-    return await TAURI_INVOKE("read_audio_metadata", { filePath });
+async readAudioMetadata(filePath: string) : Promise<Result<AudiobookMetadata, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_audio_metadata", { filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Writes cover art to an M4B file
  * Accepts file path and base64-encoded image data
  */
-async writeCoverArt(filePath: string, coverData: number[]) : Promise<null> {
-    return await TAURI_INVOKE("write_cover_art", { filePath, coverData });
+async writeCoverArt(filePath: string, coverData: number[]) : Promise<Result<null, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_cover_art", { filePath, coverData }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Loads image file from disk and returns as byte array
  * Supports common image formats: jpg, jpeg, png, webp
  */
-async loadCoverArtFile(filePath: string) : Promise<number[]> {
-    return await TAURI_INVOKE("load_cover_art_file", { filePath });
+async loadCoverArtFile(filePath: string) : Promise<Result<number[], AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_cover_art_file", { filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Loads cover art from a remote URL and returns optimized image bytes
  * HTTPS-only with size and content-type validation for safety.
  * Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
  */
-async loadCoverArtFromUrl(url: string) : Promise<number[]> {
-    return await TAURI_INVOKE("load_cover_art_from_url", { url });
+async loadCoverArtFromUrl(url: string) : Promise<Result<number[], AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_cover_art_from_url", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Saves metadata to an audio file with TSOA computation (metadata-only editing)
@@ -63,24 +98,44 @@ async loadCoverArtFromUrl(url: string) : Promise<number[]> {
  * 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
  * 3. Handles cover art: preserves existing if not provided, replaces if new art given
  */
-async saveMetadataToFile(filePath: string, metadataPatch: MetadataIntentPatch) : Promise<null> {
-    return await TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch });
+async saveMetadataToFile(filePath: string, metadataPatch: MetadataIntentPatch) : Promise<Result<null, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
-async searchOnlineMetadata(query: string, sources: MetadataSource[] | null, limit: number | null) : Promise<OnlineMetadataResult[]> {
-    return await TAURI_INVOKE("search_online_metadata", { query, sources, limit });
+async searchOnlineMetadata(query: string, sources: MetadataSource[] | null, limit: number | null) : Promise<Result<OnlineMetadataResult[], AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_online_metadata", { query, sources, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Validates and analyzes a list of audio files
  * Returns comprehensive file information including duration and size
  */
-async analyzeAudioFiles(filePaths: string[]) : Promise<FileListInfo> {
-    return await TAURI_INVOKE("analyze_audio_files", { filePaths });
+async analyzeAudioFiles(filePaths: string[]) : Promise<Result<FileListInfo, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("analyze_audio_files", { filePaths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Validates encoder settings (no side effects)
  */
-async validateEncoderSettings(settings: EncoderSettings, externalToolchain: ExternalToolchainPreference | null) : Promise<string> {
-    return await TAURI_INVOKE("validate_encoder_settings", { settings, externalToolchain });
+async validateEncoderSettings(settings: EncoderSettings, externalToolchain: ExternalToolchainPreference | null) : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("validate_encoder_settings", { settings, externalToolchain }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Lists runtime encoder availability so the UI can surface guidance.
@@ -97,8 +152,13 @@ async refreshExternalToolchain(externalToolchain: ExternalToolchainPreference | 
 /**
  * Builds an output path preview using backend naming rules without collision suffixing.
  */
-async previewOutputPath(outputDir: string, metadata: AudiobookMetadata | null, outputNaming: OutputNamingConfig | null, sourcePath: string | null) : Promise<string> {
-    return await TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath });
+async previewOutputPath(outputDir: string, metadata: AudiobookMetadata | null, outputNaming: OutputNamingConfig | null, sourcePath: string | null) : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Returns the current maximum concurrent jobs setting
@@ -109,8 +169,13 @@ async getMaxConcurrentJobs() : Promise<number> {
 /**
  * Updates the maximum concurrent jobs setting (requires idle state)
  */
-async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
-    return await TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent });
+async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<Result<number, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Processes audiobook files with configurable encoder settings.
@@ -118,15 +183,25 @@ async setMaxConcurrentJobs(maxConcurrent: number | null) : Promise<number> {
  * Supports parallel batch processing via the JobRegistry.
  * Multiple invocations can run concurrently up to the configured limit.
  */
-async processAudiobookFiles(payload: ProcessPayload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<ProcessCommandResult> {
-    return await TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds });
+async processAudiobookFiles(payload: ProcessPayload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<Result<ProcessCommandResult, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Cancels all active audio processing operations
  * Sets the global cancellation flag in the job registry
  */
-async cancelProcessing(jobId: string | null) : Promise<string> {
-    return await TAURI_INVOKE("cancel_processing", { jobId });
+async cancelProcessing(jobId: string | null) : Promise<Result<string, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_processing", { jobId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -147,6 +222,9 @@ processingQueue: "processing-queue"
 
 /** user-defined types **/
 
+export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal"
+export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required" | "semaphore_closed"
+export type AppErrorEnvelope = { code: AppErrorCode; category: AppErrorCategory; message: string; detail: string | null }
 /**
  * Represents an audio file with metadata
  */
@@ -354,7 +432,7 @@ sampleRate: SampleRateConfig | null; jobType: JobType | null;
  * Output naming configuration (defaults to ABS-compatible)
  */
 outputNaming: OutputNamingConfig | null }
-export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: string | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
+export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: AppErrorEnvelope | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
 /**
  * Processes multiple audio files into a single M4B audiobook
  * Merges files with specified settings and optional metadata

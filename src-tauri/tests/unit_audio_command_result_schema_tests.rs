@@ -1,6 +1,7 @@
 use audiobook_boss_lib::commands::{
     JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
 };
+use audiobook_boss_lib::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 
 #[test]
 fn process_command_result_batch_summary_counts_success_and_failures() {
@@ -18,7 +19,12 @@ fn process_command_result_batch_summary_counts_success_and_failures() {
             input_index: Some(1),
             status: ProcessResultStatus::Failed,
             message: "failed".to_string(),
-            error: Some("failed".to_string()),
+            error: Some(AppErrorEnvelope::new(
+                AppErrorCode::InvalidInput,
+                AppErrorCategory::Validation,
+                "failed".to_string(),
+                None,
+            )),
             preview_file_path: None,
             preview_actual_seconds: None,
             job_id: None,
@@ -53,4 +59,29 @@ fn process_command_result_merge_has_single_success_entry() {
     assert_eq!(response.summary.succeeded, 1);
     assert_eq!(response.summary.failed, 0);
     assert_eq!(response.results, vec![entry]);
+}
+
+#[test]
+fn process_result_entry_serializes_structured_error_envelope() {
+    let entry = ProcessResultEntry {
+        input_index: Some(3),
+        status: ProcessResultStatus::Failed,
+        message: "Processing was cancelled".to_string(),
+        error: Some(AppErrorEnvelope::new(
+            AppErrorCode::ProcessingCancelled,
+            AppErrorCategory::Cancellation,
+            "Processing was cancelled".to_string(),
+            None,
+        )),
+        preview_file_path: None,
+        preview_actual_seconds: None,
+        job_id: None,
+    };
+
+    let json = serde_json::to_value(&entry).expect("entry should serialize");
+
+    assert_eq!(json["error"]["code"], "processing_cancelled");
+    assert_eq!(json["error"]["category"], "cancellation");
+    assert_eq!(json["error"]["message"], "Processing was cancelled");
+    assert!(json["error"]["detail"].is_null());
 }

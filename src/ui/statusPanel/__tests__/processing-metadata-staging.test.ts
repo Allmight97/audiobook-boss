@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../../types/audio';
 import type { ProcessingStatus } from '../state';
 import { startProcessing } from '../processing';
+import * as dom from '../dom';
 
 const context = vi.hoisted(() => ({
 	processAudiobookFilesMock: vi.fn(),
@@ -242,6 +243,62 @@ describe('startProcessing metadata staging', () => {
 				},
 			}),
 		);
+	});
+
+	it('summarizes structured batch failures from error envelopes', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
+		context.processAudiobookFilesMock.mockResolvedValue({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 0, failed: 1 },
+			results: [
+				{
+					inputIndex: null,
+					status: 'failed',
+					message: 'failed',
+					jobId: null,
+					error: {
+						code: 'decoder_unavailable',
+						category: 'toolchain',
+						message: 'decoder unavailable',
+						detail: 'ffmpeg missing',
+					},
+					previewFilePath: null,
+					previewActualSeconds: null,
+				},
+			],
+		});
+
+		const ctx = processingContext();
+
+		await startProcessing(ctx);
+
+		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith(
+			'No files were processed successfully. Failed: decoder unavailable',
+		);
+	});
+
+	it('treats structured cancellation errors as cancellation instead of failures', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
+		context.processAudiobookFilesMock.mockRejectedValueOnce({
+			code: 'cancelled',
+			category: 'cancellation',
+			message: 'Processing was cancelled.',
+			detail: 'user requested stop',
+		});
+
+		const ctx = processingContext();
+		vi.mocked(dom.showError).mockClear();
+
+		await startProcessing(ctx);
+
+		expect(dom.showError).not.toHaveBeenCalled();
+		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
 	});
 
 	it('filters batch metadata intent to active input files only', async () => {

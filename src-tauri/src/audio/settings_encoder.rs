@@ -240,7 +240,9 @@ pub fn validate_requested_encoder_available(
     let message = match requested {
         EncoderType::Auto => return Ok(()),
         EncoderType::FdkHeAac => {
-            "FDK AAC requires a validated external FFmpeg toolchain.".to_string()
+            return Err(AppError::toolchain_required(
+                "FDK AAC requires a validated external FFmpeg toolchain.",
+            ));
         }
         EncoderType::AacAt => "Apple AAC is unavailable in this build.".to_string(),
         EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),

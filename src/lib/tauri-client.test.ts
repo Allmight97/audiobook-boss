@@ -385,7 +385,12 @@ describe('tauriClient nullish adapters', () => {
 					status: 'failed',
 					message: 'failed',
 					jobId: null,
-					error: 'decoder unavailable',
+					error: {
+						code: 'decoder_unavailable',
+						category: 'toolchain',
+						message: 'decoder unavailable',
+						detail: 'ffmpeg missing',
+					},
 					previewFilePath: null,
 					previewActualSeconds: null,
 				},
@@ -411,10 +416,35 @@ describe('tauriClient nullish adapters', () => {
 			inputIndex: 1,
 			status: 'failed',
 			message: 'failed',
-			error: 'decoder unavailable',
+			error: {
+				code: 'decoder_unavailable',
+				category: 'toolchain',
+				message: 'decoder unavailable',
+				detail: 'ffmpeg missing',
+			},
 			jobId: undefined,
 			previewFilePath: undefined,
 			previewActualSeconds: undefined,
+		});
+	});
+
+	it('unwraps generated Result error responses into normalized app errors', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockRejectedValueOnce({
+			code: 'cancelled',
+			category: 'cancellation',
+			message: 'Processing was cancelled.',
+			detail: 'user requested stop',
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+
+		await expect(tauriClient.cancelProcessing('mock-job-1')).rejects.toMatchObject({
+			code: 'cancelled',
+			category: 'cancellation',
+			message: 'Processing was cancelled.',
+			detail: 'user requested stop',
 		});
 	});
 

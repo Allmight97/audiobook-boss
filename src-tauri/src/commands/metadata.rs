@@ -1,4 +1,5 @@
 use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
+use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 use crate::metadata::{read_metadata, AudiobookMetadata, MetadataIntentPatch};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
@@ -13,14 +14,16 @@ use std::time::Duration;
 /// Returns metadata as JSON-serializable struct
 #[tauri::command]
 #[specta::specta]
-pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata> {
-    tokio::task::spawn_blocking(move || {
+pub async fn read_audio_metadata(file_path: String) -> CommandResult<AudiobookMetadata> {
+    let result: Result<AudiobookMetadata> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
         read_metadata(validated_path.to_string_lossy().as_ref())
     })
     .await
-    .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
+    .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?;
+
+    Ok(result?)
 }
 
 /// Saves metadata to an audio file with TSOA computation (metadata-only editing)
@@ -34,8 +37,8 @@ pub async fn read_audio_metadata(file_path: String) -> Result<AudiobookMetadata>
 pub async fn save_metadata_to_file(
     file_path: String,
     metadata_patch: MetadataIntentPatch,
-) -> Result<()> {
-    tokio::task::spawn_blocking(move || {
+) -> CommandResult<()> {
+    let result: Result<()> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
         let validated_metadata = metadata_patch.to_write_metadata()?;
@@ -55,7 +58,9 @@ pub async fn save_metadata_to_file(
         Ok(())
     })
     .await
-    .map_err(|e| AppError::General(format!("Metadata write task failed: {e}")))?
+    .map_err(|e| AppError::General(format!("Metadata write task failed: {e}")))?;
+
+    Ok(result?)
 }
 
 /// Computes album sort (TSOA) from series + part + title.
@@ -68,7 +73,7 @@ pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) 
 /// Accepts file path and base64-encoded image data
 #[tauri::command]
 #[specta::specta]
-pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
+pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> CommandResult<()> {
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_audio_path(&path)?;
     if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
@@ -96,7 +101,7 @@ pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> Result<()> {
 /// Supports common image formats: jpg, jpeg, png, webp
 #[tauri::command]
 #[specta::specta]
-pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
+pub async fn load_cover_art_file(file_path: String) -> CommandResult<Vec<u8>> {
     use std::fs;
 
     let path = PathBuf::from(&file_path);
@@ -107,9 +112,7 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 
     // Validate it's not empty
     if image_data.is_empty() {
-        return Err(AppError::InvalidInput(
-            "Image file appears to be empty".to_string(),
-        ));
+        return Err(AppError::InvalidInput("Image file appears to be empty".to_string()).into());
     }
 
     // Optimize cover art: resize, flatten transparency, convert to JPEG
@@ -124,7 +127,7 @@ pub async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
 /// Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 #[tauri::command]
 #[specta::specta]
-pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
+pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let url_for_log = validated_url.as_str().to_string();
     let resolver = Arc::new(BogonFilteringResolver::new());
@@ -178,14 +181,13 @@ pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
         return Err(AppError::InvalidInput(format!(
             "Image request failed with status {}",
             response.status()
-        )));
+        ))
+        .into());
     }
 
     if let Some(content_length) = response.content_length() {
         if content_length > COVER_ART_MAX_DOWNLOAD_BYTES as u64 {
-            return Err(AppError::InvalidInput(
-                "Image exceeds 10 MB limit".to_string(),
-            ));
+            return Err(AppError::InvalidInput("Image exceeds 10 MB limit".to_string()).into());
         }
     }
 
@@ -201,7 +203,8 @@ pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
         if !is_supported_image_content_type(content_type.as_str()) {
             return Err(AppError::InvalidInput(
                 "Unsupported image format. Use JPEG, PNG, or WebP.".to_string(),
-            ));
+            )
+            .into());
         }
     }
 
@@ -211,17 +214,13 @@ pub async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
         AppError::General("Failed to read image data".to_string())
     })? {
         if downloaded.len() + chunk.len() > COVER_ART_MAX_DOWNLOAD_BYTES {
-            return Err(AppError::InvalidInput(
-                "Image exceeds 10 MB limit".to_string(),
-            ));
+            return Err(AppError::InvalidInput("Image exceeds 10 MB limit".to_string()).into());
         }
         downloaded.extend_from_slice(&chunk);
     }
 
     if downloaded.is_empty() {
-        return Err(AppError::InvalidInput(
-            "Image response was empty".to_string(),
-        ));
+        return Err(AppError::InvalidInput("Image response was empty".to_string()).into());
     }
 
     let optimized = optimize_cover_art(&downloaded)?;

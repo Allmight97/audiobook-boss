@@ -193,9 +193,7 @@ pub(crate) fn complete_processing(
     if outcome.cancelled {
         log::warn!("Processing was cancelled during completion");
         ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
 
     reporter.complete();
@@ -251,9 +249,7 @@ pub(crate) async fn finalize_processing(
         if outcome.cancelled {
             let ui = context.new_emitter();
             ui.emit_cancelled("Processing was cancelled");
-            return Err(AppError::InvalidInput(
-                "Processing was cancelled".to_string(),
-            ));
+            return Err(AppError::cancelled());
         }
         reporter.complete();
         let ui = context.new_emitter();

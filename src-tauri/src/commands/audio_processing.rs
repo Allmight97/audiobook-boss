@@ -15,7 +15,7 @@ use crate::commands::audio_types::{
     ProcessResultStatus,
 };
 use crate::errors::sanitize_path_for_display;
-use crate::errors::{AppError, Result};
+use crate::errors::{AppError, AppErrorEnvelope, Result};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -175,9 +175,10 @@ fn finalize_batch_results(
                 success
             }
             Err(error) => {
-                let error_message = error.to_string();
+                let envelope: AppErrorEnvelope = error.into();
+                let error_message = envelope.message.clone();
                 emit_terminal_failed_event(window, index, &error_message);
-                failure_result(Some(index), error_message)
+                failure_result(Some(index), envelope)
             }
         };
         ordered_results[index] = Some(entry);
@@ -189,7 +190,15 @@ fn finalize_batch_results(
                 "Missing terminal result for queued input index {index}; marking as failed"
             );
             emit_terminal_failed_event(window, index, &error_message);
-            *slot = Some(failure_result(Some(index), error_message));
+            *slot = Some(failure_result(
+                Some(index),
+                AppErrorEnvelope::new(
+                    crate::errors::AppErrorCode::InternalError,
+                    crate::errors::AppErrorCategory::Internal,
+                    error_message,
+                    None,
+                ),
+            ));
         }
     }
 
@@ -480,9 +489,7 @@ async fn execute_processing_job(
     ) {
         let resolution = resolve_external_toolchain(external_toolchain.as_ref());
         let toolchain = resolution.validated.ok_or_else(|| {
-            AppError::InvalidInput(
-                "FDK AAC requires a validated external FFmpeg toolchain.".to_string(),
-            )
+            AppError::toolchain_required("FDK AAC requires a validated external FFmpeg toolchain.")
         })?;
         return audio::external_fdk::process_audiobook_with_external_fdk(
             context,
@@ -509,12 +516,12 @@ fn emit_terminal_failed_event(window: &tauri::Window, input_index: usize, messag
     let _ = window.emit(crate::audio::constants::PROGRESS_EVENT_NAME, &event);
 }
 
-fn failure_result(input_index: Option<usize>, error_message: String) -> ProcessResultEntry {
+fn failure_result(input_index: Option<usize>, error: AppErrorEnvelope) -> ProcessResultEntry {
     ProcessResultEntry {
         input_index,
         status: ProcessResultStatus::Failed,
-        message: error_message.clone(),
-        error: Some(error_message),
+        message: error.message.clone(),
+        error: Some(error),
         preview_file_path: None,
         preview_actual_seconds: None,
         job_id: None,

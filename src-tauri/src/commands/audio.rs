@@ -13,7 +13,8 @@ use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload,
 };
-use crate::errors::{AppError, Result};
+use crate::commands::CommandResult;
+use crate::errors::AppError;
 use crate::metadata::MetadataIntentPatch;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -22,11 +23,9 @@ use std::path::PathBuf;
 /// Accepts an array of file paths and checks file existence
 #[tauri::command]
 #[specta::specta]
-pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
+pub fn validate_files(file_paths: Vec<String>) -> CommandResult<String> {
     if file_paths.is_empty() {
-        return Err(AppError::InvalidInput(
-            "No files provided for validation".to_string(),
-        ));
+        return Err(AppError::InvalidInput("No files provided for validation".to_string()).into());
     }
 
     let mut validated_count = 0;
@@ -46,7 +45,7 @@ pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
     }
 
     if !validation_errors.is_empty() {
-        return Err(AppError::FileValidation(validation_errors.join("; ")));
+        return Err(AppError::FileValidation(validation_errors.join("; ")).into());
     }
 
     Ok(format!("Successfully validated {validated_count} files"))
@@ -56,9 +55,9 @@ pub fn validate_files(file_paths: Vec<String>) -> Result<String> {
 /// Returns comprehensive file information including duration and size
 #[tauri::command]
 #[specta::specta]
-pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
+pub fn analyze_audio_files(file_paths: Vec<String>) -> CommandResult<FileListInfo> {
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
-    audio::get_file_list_info(&paths)
+    Ok(audio::get_file_list_info(&paths)?)
 }
 
 /// Validates encoder settings (no side effects)
@@ -67,7 +66,7 @@ pub fn analyze_audio_files(file_paths: Vec<String>) -> Result<FileListInfo> {
 pub fn validate_encoder_settings(
     settings: EncoderSettings,
     external_toolchain: Option<ExternalToolchainPreference>,
-) -> Result<String> {
+) -> CommandResult<String> {
     validate_encoder_settings_impl(&settings)?;
 
     let availability = detect_encoder_availability(external_toolchain.as_ref());
@@ -105,7 +104,7 @@ pub fn preview_output_path(
     metadata: Option<crate::metadata::AudiobookMetadata>,
     output_naming: Option<OutputNamingConfig>,
     source_path: Option<String>,
-) -> Result<String> {
+) -> CommandResult<String> {
     let base_output_dir = PathBuf::from(output_dir);
     let source_path_buf = source_path.as_deref().map(PathBuf::from);
     let naming = output_naming.unwrap_or_default();
@@ -131,9 +130,9 @@ pub fn get_max_concurrent_jobs(registry: tauri::State<'_, crate::ManagedJobRegis
 pub async fn set_max_concurrent_jobs(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     max_concurrent: Option<usize>,
-) -> Result<usize> {
+) -> CommandResult<usize> {
     let desired = max_concurrent.unwrap_or(crate::audio::JobRegistry::default_max());
-    registry.update_max_concurrent(desired).await
+    Ok(registry.update_max_concurrent(desired).await?)
 }
 
 /// Processes audiobook files with configurable encoder settings.
@@ -148,19 +147,19 @@ pub async fn process_audiobook_files(
     payload: ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
-) -> Result<ProcessCommandResult> {
+) -> CommandResult<ProcessCommandResult> {
     if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
         registry.reset_global_cancel();
     }
 
-    audio_processing::process_payload(
+    Ok(audio_processing::process_payload(
         window,
         registry.inner().clone(),
         payload,
         metadata,
         preview_seconds,
     )
-    .await
+    .await?)
 }
 
 /// Cancels all active audio processing operations
@@ -170,7 +169,7 @@ pub async fn process_audiobook_files(
 pub async fn cancel_processing(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     job_id: Option<String>,
-) -> Result<String> {
+) -> CommandResult<String> {
     if let Some(id) = job_id {
         let parsed = JobId::parse(&id)?;
         registry.cancel_job(parsed).await?;

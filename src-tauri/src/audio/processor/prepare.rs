@@ -117,9 +117,7 @@ pub(crate) fn validate_inputs_with_progress(
     validate_processing_inputs(context, files)?;
 
     if context.is_cancelled() {
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
     Ok(())
 }
@@ -143,9 +141,7 @@ pub(crate) fn prepare_workspace(
         .sum();
 
     if context.is_cancelled() {
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
 
     Ok(ProcessingWorkflow::new(temp_dir, total_duration))

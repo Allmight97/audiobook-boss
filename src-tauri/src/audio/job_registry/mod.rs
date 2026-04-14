@@ -183,9 +183,7 @@ impl JobRegistry {
     /// duration of processing.
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
         if self.global_cancel.load(Ordering::SeqCst) {
-            return Err(AppError::InvalidInput(
-                "Processing was cancelled".to_string(),
-            ));
+            return Err(AppError::cancelled());
         }
 
         // Acquire semaphore permit (blocks if at capacity)
@@ -197,9 +195,7 @@ impl JobRegistry {
 
         if self.global_cancel.load(Ordering::SeqCst) {
             drop(permit);
-            return Err(AppError::InvalidInput(
-                "Processing was cancelled".to_string(),
-            ));
+            return Err(AppError::cancelled());
         }
 
         let job_id = JobId::new();

@@ -18,6 +18,7 @@ import type {
 } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
+import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeMetadata,
 	denormalizeNullish,
@@ -33,87 +34,133 @@ import {
 
 type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
 
+type UnwrapGeneratedResult<T> = T extends { Err: unknown }
+	? never
+	: T extends { Ok: infer U }
+		? U
+		: T extends { status: 'error'; error: unknown }
+			? never
+			: T extends { status: 'ok'; data: infer U }
+				? U
+				: T extends { ok: false; error: unknown }
+					? never
+					: T extends { ok: true; value: infer U }
+						? U
+						: T extends { ok: true; data: infer U }
+							? U
+							: T extends { ok: true; result: infer U }
+								? U
+								: T;
+
+async function runGeneratedCommand<T>(promise: Promise<T>): Promise<UnwrapGeneratedResult<T>>;
+async function runGeneratedCommand<T, R>(
+	promise: Promise<T>,
+	transform: (value: UnwrapGeneratedResult<T>) => R,
+): Promise<R>;
+async function runGeneratedCommand<T, R>(
+	promise: Promise<T>,
+	transform?: (value: UnwrapGeneratedResult<T>) => R,
+): Promise<UnwrapGeneratedResult<T> | R> {
+	try {
+		const response = await promise;
+		const unwrapped = unwrapGeneratedResult(response) as UnwrapGeneratedResult<T>;
+		return transform ? transform(unwrapped) : unwrapped;
+	} catch (error) {
+		throw normalizeAppError(error);
+	}
+}
+
 const commandInvokers = {
-	ping: (_args?: undefined) => generatedCommands.ping(),
-	echo: (args: { input: string }) => generatedCommands.echo(args.input),
+	ping: (_args?: undefined) => runGeneratedCommand(generatedCommands.ping()),
+	echo: (args: { input: string }) => runGeneratedCommand(generatedCommands.echo(args.input)),
 	validate_files: (args: { filePaths: string[] }) =>
-		generatedCommands.validateFiles(args.filePaths),
+		runGeneratedCommand(generatedCommands.validateFiles(args.filePaths)),
 	read_audio_metadata: (args: { filePath: string }) =>
-		generatedCommands.readAudioMetadata(args.filePath).then(normalizeMetadata),
+		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
 	write_cover_art: (args: { filePath: string; coverData: number[] }) =>
-		generatedCommands.writeCoverArt(args.filePath, args.coverData),
+		runGeneratedCommand(generatedCommands.writeCoverArt(args.filePath, args.coverData)),
 	load_cover_art_file: (args: { filePath: string }) =>
-		generatedCommands.loadCoverArtFile(args.filePath),
+		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
-		generatedCommands.loadCoverArtFromUrl(args.url),
+		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
 	save_metadata_to_file: (args: { filePath: string; metadataIntent: MetadataIntentPatch }) =>
-		generatedCommands.saveMetadataToFile(
-			args.filePath,
-			compileMetadataIntentPatch(args.metadataIntent),
+		runGeneratedCommand(
+			generatedCommands.saveMetadataToFile(
+				args.filePath,
+				compileMetadataIntentPatch(args.metadataIntent),
+			),
 		),
 	search_online_metadata: (args: {
 		query: string;
 		sources?: MetadataSource[] | null;
 		limit?: number | null;
 	}) =>
-		generatedCommands
-			.searchOnlineMetadata(
+		runGeneratedCommand(
+			generatedCommands.searchOnlineMetadata(
 				args.query,
 				(args.sources ?? null) as GeneratedMetadataSource[] | null,
 				args.limit ?? null,
-			)
-			.then((results) => results.map(normalizeLookupResult)),
+			),
+			(results) => (results as unknown[]).map(normalizeLookupResult),
+		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
-		generatedCommands.analyzeAudioFiles(args.filePaths).then(normalizeFileList),
+		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),
 	validate_encoder_settings: (args: {
 		settings: EncoderSettings;
 		externalToolchain?: ExternalToolchainPreference | null;
 	}) =>
-		generatedCommands.validateEncoderSettings(
-			args.settings,
-			args.externalToolchain
-				? {
-						overridePath: args.externalToolchain.overridePath ?? null,
-					}
-				: null,
+		runGeneratedCommand(
+			generatedCommands.validateEncoderSettings(
+				args.settings,
+				args.externalToolchain
+					? {
+							overridePath: args.externalToolchain.overridePath ?? null,
+						}
+					: null,
+			),
 		),
 	list_available_encoders: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
-		generatedCommands
-			.listAvailableEncoders(
+		runGeneratedCommand(
+			generatedCommands.listAvailableEncoders(
 				args?.externalToolchain
 					? {
 							overridePath: args.externalToolchain.overridePath ?? null,
 						}
 					: null,
-			)
-			.then(normalizeEncoderAvailability),
+			),
+			normalizeEncoderAvailability,
+		),
 	refresh_external_toolchain: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
-		generatedCommands
-			.refreshExternalToolchain(
+		runGeneratedCommand(
+			generatedCommands.refreshExternalToolchain(
 				args?.externalToolchain
 					? {
 							overridePath: args.externalToolchain.overridePath ?? null,
 						}
 					: null,
-			)
-			.then(normalizeEncoderAvailability),
+			),
+			normalizeEncoderAvailability,
+		),
 	preview_output_path: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 	}) =>
-		generatedCommands.previewOutputPath(
-			args.outputDir,
-			args.metadata ? denormalizeMetadata(args.metadata) : null,
-			args.outputNaming
-				? (denormalizeNullish(args.outputNaming) as GeneratedOutputNamingConfig)
-				: null,
-			args.sourcePath ?? null,
+		runGeneratedCommand(
+			generatedCommands.previewOutputPath(
+				args.outputDir,
+				args.metadata ? denormalizeMetadata(args.metadata) : null,
+				args.outputNaming
+					? (denormalizeNullish(args.outputNaming) as GeneratedOutputNamingConfig)
+					: null,
+				args.sourcePath ?? null,
+			),
 		),
-	get_max_concurrent_jobs: (_args?: undefined) => generatedCommands.getMaxConcurrentJobs(),
+	get_max_concurrent_jobs: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.getMaxConcurrentJobs()),
 	set_max_concurrent_jobs: (args: { max_concurrent?: number | null }) =>
-		generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null),
+		runGeneratedCommand(generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null)),
 	process_audiobook_files: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentPayload | null;
@@ -128,16 +175,17 @@ const commandInvokers = {
 				)
 			: null;
 
-		return generatedCommands
-			.processAudiobookFiles(
+		return runGeneratedCommand(
+			generatedCommands.processAudiobookFiles(
 				denormalizeProcessPayload(args.payload),
 				metadataPayload,
 				args.previewSeconds ?? null,
-			)
-			.then(normalizeProcessResult);
+			),
+			normalizeProcessResult,
+		);
 	},
 	cancel_processing: (args?: { job_id?: string | null }) =>
-		generatedCommands.cancelProcessing(args?.job_id ?? null),
+		runGeneratedCommand(generatedCommands.cancelProcessing(args?.job_id ?? null)),
 } as const;
 
 type TauriCommand = keyof typeof commandInvokers;
@@ -148,8 +196,12 @@ async function invokeCommand<K extends TauriCommand>(
 	cmd: K,
 	args?: CommandArgs<K>,
 ): Promise<CommandResult<K>> {
-	const command = commandInvokers[cmd];
-	return (await command(args as never)) as CommandResult<K>;
+	try {
+		const command = commandInvokers[cmd];
+		return (await command(args as never)) as CommandResult<K>;
+	} catch (error) {
+		throw normalizeAppError(error);
+	}
 }
 
 export const tauriClient = {

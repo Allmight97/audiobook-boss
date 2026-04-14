@@ -4,7 +4,7 @@ mod providers;
 mod service;
 mod types;
 
-use crate::errors::Result;
+use crate::commands::CommandResult;
 
 pub use types::{MetadataSource, OnlineMetadataResult};
 
@@ -14,6 +14,6 @@ pub async fn search_online_metadata(
     query: String,
     sources: Option<Vec<MetadataSource>>,
     limit: Option<u8>,
-) -> Result<Vec<OnlineMetadataResult>> {
-    service::search_online_metadata(query, sources, limit).await
+) -> CommandResult<Vec<OnlineMetadataResult>> {
+    Ok(service::search_online_metadata(query, sources, limit).await?)
 }

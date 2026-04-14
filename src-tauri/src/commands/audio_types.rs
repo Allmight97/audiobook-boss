@@ -2,6 +2,7 @@ use crate::audio;
 pub use crate::audio::output_path::{NamingPreset, OutputNamingConfig};
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::toolchain::ExternalToolchainPreference;
+use crate::errors::AppErrorEnvelope;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -47,7 +48,7 @@ pub struct ProcessResultEntry {
     pub input_index: Option<usize>,
     pub status: ProcessResultStatus,
     pub message: String,
-    pub error: Option<String>,
+    pub error: Option<AppErrorEnvelope>,
     pub preview_file_path: Option<String>,
     pub preview_actual_seconds: Option<f64>,
     pub job_id: Option<String>,

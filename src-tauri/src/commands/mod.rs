@@ -5,6 +5,8 @@ pub mod metadata;
 pub mod metadata_lookup;
 pub mod system;
 
+pub type CommandResult<T> = std::result::Result<T, crate::errors::AppErrorEnvelope>;
+
 pub use audio::*;
 pub use audio_types::*;
 pub use metadata::*;

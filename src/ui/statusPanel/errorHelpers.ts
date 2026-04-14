@@ -1,21 +1,18 @@
+import {
+	isAppErrorCategory,
+	normalizeAppError,
+	type AppErrorEnvelope,
+} from '../../lib/tauri/appError';
+
+export type { AppErrorEnvelope };
+
 export function normalizeProcessingErrorMessage(
 	error: unknown,
 	fallback = 'Unknown error',
 ): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	if (typeof error === 'string') {
-		return error;
-	}
-	if (typeof error === 'object' && error !== null && 'message' in error) {
-		const message = (error as { message?: unknown }).message;
-		if (typeof message === 'string') {
-			return message;
-		}
-	}
-	if (error == null) {
-		return fallback;
-	}
-	return String(error);
+	return normalizeAppError(error, fallback).message;
+}
+
+export function isProcessingCancellationError(error: unknown): boolean {
+	return isAppErrorCategory(error, 'cancellation');
 }

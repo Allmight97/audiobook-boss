@@ -29,7 +29,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::audio::ProgressEvent,
             crate::audio::QueueEvent
         ])
-        .error_handling(ErrorHandlingMode::Throw)
+        .error_handling(ErrorHandlingMode::Result)
 }
 
 pub fn default_typescript_output_path() -> PathBuf {

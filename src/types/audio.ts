@@ -14,6 +14,7 @@ import type {
 	ProcessPayload as GeneratedProcessPayload,
 	SampleRateConfig as GeneratedSampleRateConfig,
 } from '../lib/generated/tauri';
+import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
@@ -61,8 +62,19 @@ export interface PreviewRequest {
 
 export type ProcessResultStatus = GeneratedProcessResultStatus;
 export type ProcessResultSummary = NullToOptionalDeep<GeneratedProcessResultSummary>;
-export type ProcessCommandJobResult = NullToOptionalDeep<GeneratedProcessResultEntry>;
-export type ProcessCommandResult = NullToOptionalDeep<GeneratedProcessCommandResult>;
+export type ProcessResultError = AppErrorEnvelope;
+export type ProcessCommandJobResult = Omit<
+	NullToOptionalDeep<GeneratedProcessResultEntry>,
+	'error'
+> & {
+	error?: ProcessResultError | null;
+};
+export type ProcessCommandResult = Omit<
+	NullToOptionalDeep<GeneratedProcessCommandResult>,
+	'results'
+> & {
+	results: ProcessCommandJobResult[];
+};
 
 // Encoder settings types (Enhanced engine)
 export type EncoderType = 'auto' | 'fdk_he_aac' | 'aac_at' | 'native_aac';

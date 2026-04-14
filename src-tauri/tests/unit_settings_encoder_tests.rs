@@ -247,9 +247,13 @@ fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encode
 
     let fdk_error =
         validate_requested_encoder_available(EncoderType::FdkHeAac, &availability).unwrap_err();
+    assert!(matches!(
+        &fdk_error,
+        audiobook_boss_lib::AppError::ToolchainRequired(_)
+    ));
     assert_eq!(
         fdk_error.to_string(),
-        "Invalid input: FDK AAC requires a validated external FFmpeg toolchain."
+        "FDK AAC requires a validated external FFmpeg toolchain."
     );
 
     let aac_at_error =

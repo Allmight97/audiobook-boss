@@ -21,7 +21,7 @@ import {
 } from '../../types/metadataIntent';
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
-import { normalizeProcessingErrorMessage } from './errorHelpers';
+import { isProcessingCancellationError, normalizeProcessingErrorMessage } from './errorHelpers';
 import type { ProcessCommandJobResult, ProcessCommandResult } from '../../types/audio';
 
 interface StartProcessingContext {
@@ -82,8 +82,11 @@ function summarizeFailedBatchFiles(
 							return formatFilenameForDisplay(path);
 						}
 					}
-					if (typeof entry.error === 'string' && entry.error.length > 0) {
-						return entry.error;
+					if (entry.error != null) {
+						const errorMessage = normalizeProcessingErrorMessage(entry.error, '');
+						if (errorMessage.length > 0) {
+							return errorMessage;
+						}
 					}
 					if (typeof entry.message === 'string' && entry.message.length > 0) {
 						return entry.message;
@@ -279,7 +282,7 @@ export async function startProcessing(
 		}
 	} catch (error) {
 		const msg = normalizeProcessingErrorMessage(error);
-		if (!msg.toLowerCase().includes('cancelled')) {
+		if (!isProcessingCancellationError(error) && !msg.toLowerCase().includes('cancelled')) {
 			console.error('Processing failed:', error);
 			dom.showError(`Processing failed: ${msg}`);
 		}

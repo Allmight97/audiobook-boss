@@ -81,9 +81,7 @@ pub async fn process_audiobook_with_external_fdk(
 
     if context.is_cancelled() {
         ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
 
     let destination = preview_output_path(&context);
@@ -91,9 +89,7 @@ pub async fn process_audiobook_with_external_fdk(
     let outcome = commit_output_boundary(&context, temp_output, &destination, &mut cleanup_guard)?;
     if outcome.cancelled {
         ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
 
     ui.emit_complete(if context.preview.is_some() {
@@ -245,7 +241,7 @@ async fn run_external_ffmpeg(
                 if context.is_cancelled() {
                     let _ = child.kill().await;
                     ui.emit_cancelled("Processing was cancelled");
-                    return Err(AppError::InvalidInput("Processing was cancelled".to_string()));
+                    return Err(AppError::cancelled());
                 }
             }
         }
@@ -600,6 +596,10 @@ mod tests {
         .await;
 
         let error = result.expect_err("late cancellation should return error");
+        assert!(
+            matches!(&error, crate::errors::AppError::Cancellation(_)),
+            "expected dedicated cancellation error, got: {error}"
+        );
         assert!(
             format!("{error}").contains("Processing was cancelled"),
             "expected cancelled error, got: {error}"

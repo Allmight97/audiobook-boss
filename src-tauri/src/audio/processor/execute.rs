@@ -49,9 +49,7 @@ pub(crate) async fn execute_processing(
     .await?;
 
     if context.is_cancelled() {
-        return Err(AppError::InvalidInput(
-            "Processing was cancelled".to_string(),
-        ));
+        return Err(AppError::cancelled());
     }
 
     Ok(merged_output)
