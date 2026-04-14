@@ -149,6 +149,10 @@ pub async fn process_audiobook_files(
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
+    if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
+        registry.reset_global_cancel();
+    }
+
     audio_processing::process_payload(
         window,
         registry.inner().clone(),

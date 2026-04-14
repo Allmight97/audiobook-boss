@@ -1,6 +1,6 @@
 import type { PersistedEncoderPanelState } from './state.svelte';
 
-const LS_KEY = 'abb.encoderPanel.v2';
+const LS_KEY = 'abb.encoderPanel';
 
 export const loadState = (): PersistedEncoderPanelState => {
 	try {

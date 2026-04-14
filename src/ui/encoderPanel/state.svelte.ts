@@ -2,7 +2,7 @@ import type { EncoderAvailability, SampleRateConfig } from '../../types/audio';
 import { VALID_ENCODER_BITRATES } from '../../types/audio';
 import {
 	type EncoderFlavor,
-	type EncoderSettingsV2,
+	type EncoderSettingsState,
 	toBoundaryEncoderSettings,
 } from '../../types/encoder';
 
@@ -17,28 +17,28 @@ const DEFAULT_TOOLCHAIN_TITLE = 'Checking FDK AAC';
 const DEFAULT_TOOLCHAIN_MESSAGE = 'Looking for an external FFmpeg build with libfdk_aac.';
 
 export interface PersistedEncoderPanelState {
-	flavor?: EncoderSettingsV2['flavor'];
-	channels?: EncoderSettingsV2['channels'];
-	bitrateKbps?: EncoderSettingsV2['bitrateKbps'];
-	bitrateMode?: EncoderSettingsV2['bitrateMode'];
+	flavor?: EncoderSettingsState['flavor'];
+	channels?: EncoderSettingsState['channels'];
+	bitrateKbps?: EncoderSettingsState['bitrateKbps'];
+	bitrateMode?: EncoderSettingsState['bitrateMode'];
 	externalToolchainOverridePath?: string;
 	externalToolchain?: {
 		overridePath?: string;
 		mode?: 'auto' | 'custom';
 		customPath?: string;
 	};
-	vbr?: EncoderSettingsV2['vbr'];
-	fdkAfterburner?: EncoderSettingsV2['fdkAfterburner'];
-	twoloop?: EncoderSettingsV2['twoloop'];
+	vbr?: EncoderSettingsState['vbr'];
+	fdkAfterburner?: EncoderSettingsState['fdkAfterburner'];
+	twoloop?: EncoderSettingsState['twoloop'];
 }
 
 const createDefaultState = () => ({
 	flavor: 'auto' as EncoderFlavor,
 	bitrateModeSelection: 'vbr' as BitrateModeSelection,
 	sampleRateSelection: 'auto',
-	channelsSelection: 'auto' as EncoderSettingsV2['channels'],
+	channelsSelection: 'auto' as EncoderSettingsState['channels'],
 	qualityValue: 3 as VbrLevel,
-	bitrateValue: 64 as EncoderSettingsV2['bitrateKbps'],
+	bitrateValue: 64 as EncoderSettingsState['bitrateKbps'],
 	fdkAfterburner: true,
 	nativeTwoloop: true,
 	externalToolchainOverridePath: '',
@@ -84,7 +84,7 @@ export function readToolchainSettingsFromState() {
 	return overridePath ? { overridePath } : {};
 }
 
-export function readEncoderSettingsFromState(): EncoderSettingsV2 {
+export function readEncoderSettingsFromState(): EncoderSettingsState {
 	return {
 		flavor: encoderPanelState.flavor,
 		channels: encoderPanelState.channelsSelection,
@@ -158,9 +158,9 @@ export function applyPersistedEncoderState(state: PersistedEncoderPanelState): v
 	}
 	if (
 		typeof state.bitrateKbps === 'number' &&
-		VALID_ENCODER_BITRATES.includes(state.bitrateKbps as EncoderSettingsV2['bitrateKbps'])
+		VALID_ENCODER_BITRATES.includes(state.bitrateKbps as EncoderSettingsState['bitrateKbps'])
 	) {
-		encoderPanelState.bitrateValue = state.bitrateKbps as EncoderSettingsV2['bitrateKbps'];
+		encoderPanelState.bitrateValue = state.bitrateKbps as EncoderSettingsState['bitrateKbps'];
 	}
 	if (state.bitrateMode) {
 		encoderPanelState.bitrateModeSelection = state.bitrateMode.mode;

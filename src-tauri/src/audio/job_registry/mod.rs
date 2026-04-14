@@ -182,17 +182,10 @@ impl JobRegistry {
     /// Returns the JobId and an owned permit that must be held for the
     /// duration of processing.
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
-        // Clear global cancel flag when starting a new batch
-        // (only if no jobs are currently running)
-        {
-            let jobs = self.jobs.read().await;
-            let running_count = jobs
-                .values()
-                .filter(|j| j.state == JobState::Running)
-                .count();
-            if running_count == 0 {
-                self.global_cancel.store(false, Ordering::SeqCst);
-            }
+        if self.global_cancel.load(Ordering::SeqCst) {
+            return Err(AppError::InvalidInput(
+                "Processing was cancelled".to_string(),
+            ));
         }
 
         // Acquire semaphore permit (blocks if at capacity)
@@ -201,6 +194,13 @@ impl JobRegistry {
             .acquire_owned()
             .await
             .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string()))?;
+
+        if self.global_cancel.load(Ordering::SeqCst) {
+            drop(permit);
+            return Err(AppError::InvalidInput(
+                "Processing was cancelled".to_string(),
+            ));
+        }
 
         let job_id = JobId::new();
         let mut job = Job::new(job_id);
@@ -251,6 +251,11 @@ impl JobRegistry {
     pub fn cancel_all(&self) {
         log::info!("Cancelling all jobs");
         self.global_cancel.store(true, Ordering::SeqCst);
+    }
+
+    /// Clears the global cancellation flag for a new top-level processing command.
+    pub fn reset_global_cancel(&self) {
+        self.global_cancel.store(false, Ordering::SeqCst);
     }
 
     /// Cancels a specific job

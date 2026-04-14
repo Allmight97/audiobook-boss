@@ -64,7 +64,7 @@ export type ProcessResultSummary = NullToOptionalDeep<GeneratedProcessResultSumm
 export type ProcessCommandJobResult = NullToOptionalDeep<GeneratedProcessResultEntry>;
 export type ProcessCommandResult = NullToOptionalDeep<GeneratedProcessCommandResult>;
 
-// Encoder v2 types (Enhanced engine)
+// Encoder settings types (Enhanced engine)
 export type EncoderType = 'auto' | 'fdk_he_aac' | 'aac_at' | 'native_aac';
 export type BitrateMode =
 	| { mode: 'cbr' }

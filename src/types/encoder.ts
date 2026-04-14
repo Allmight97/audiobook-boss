@@ -1,4 +1,4 @@
-// UI-only encoder v2 types (frontend)
+// UI-only encoder settings types (frontend)
 //
 // Important:
 // - This file models richer UI state for future encoder options.
@@ -30,7 +30,7 @@ export interface VbrSetting {
 	level?: number; // Reserved; disabled now
 }
 
-export interface EncoderSettingsV2 {
+export interface EncoderSettingsState {
 	flavor: EncoderFlavor;
 	bitrateKbps: BitrateKbps;
 	bitrateMode?: BitrateMode;
@@ -42,7 +42,7 @@ export interface EncoderSettingsV2 {
 	twoloop?: boolean;
 }
 
-export const defaultEncoderSettingsV2 = (_isMac: boolean): EncoderSettingsV2 => ({
+export const defaultEncoderSettingsState = (_isMac: boolean): EncoderSettingsState => ({
 	flavor: 'auto',
 	bitrateKbps: 64,
 	bitrateMode: { mode: 'vbr', value: 3 },
@@ -54,7 +54,11 @@ export const defaultEncoderSettingsV2 = (_isMac: boolean): EncoderSettingsV2 => 
 
 // VALID_ENCODER_BITRATES imported from audio.ts (single source of truth)
 
-export type EncoderSettingsLike = Partial<EncoderSettingsV2> | EncoderSettings | null | undefined;
+export type EncoderSettingsLike =
+	| Partial<EncoderSettingsState>
+	| EncoderSettings
+	| null
+	| undefined;
 
 const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode => {
 	switch (encoderType) {
@@ -201,7 +205,7 @@ export const toBoundaryEncoderSettings = (
 		return normalizeBoundary(source, base);
 	}
 
-	const ui = (source ?? {}) as Partial<EncoderSettingsV2>;
+	const ui = (source ?? {}) as Partial<EncoderSettingsState>;
 	const encoderType = resolveEncoderType(ui.flavor, base.encoderType);
 	const bitrateKbps = sanitizeBitrate(ui.bitrateKbps, base.bitrateKbps);
 	const bitrateMode = sanitizeBitrateMode(ui.bitrateMode, encoderType, base.bitrateMode);

@@ -50,6 +50,8 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+const encoderPanelStorageKey = 'abb.encoderPanel';
+
 describe('encoder panel behavior controls', () => {
 	beforeEach(() => {
 		context.listAvailableEncodersMock.mockReset();
@@ -146,7 +148,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('respects persisted explicit opt-outs for afterburner and twoloop', async () => {
 		localStorage.setItem(
-			'abb.encoderPanel.v2',
+			encoderPanelStorageKey,
 			JSON.stringify({
 				flavor: 'native_aac',
 				fdkAfterburner: false,
@@ -238,7 +240,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('migrates legacy custom toolchain state into the new override-path model', async () => {
 		localStorage.setItem(
-			'abb.encoderPanel.v2',
+			encoderPanelStorageKey,
 			JSON.stringify({
 				externalToolchain: {
 					mode: 'custom',
@@ -330,7 +332,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('falls back to detected FDK when a saved override is invalid and keeps the input visible', async () => {
 		localStorage.setItem(
-			'abb.encoderPanel.v2',
+			encoderPanelStorageKey,
 			JSON.stringify({
 				externalToolchainOverridePath: '/broken/ffmpeg',
 			}),
@@ -366,7 +368,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('normalizes a persisted unavailable Apple AAC selection back to auto', async () => {
 		localStorage.setItem(
-			'abb.encoderPanel.v2',
+			encoderPanelStorageKey,
 			JSON.stringify({
 				flavor: 'aac_at',
 			}),
@@ -396,7 +398,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('normalizes a persisted unavailable native AAC selection back to auto', async () => {
 		localStorage.setItem(
-			'abb.encoderPanel.v2',
+			encoderPanelStorageKey,
 			JSON.stringify({
 				flavor: 'native_aac',
 			}),
