@@ -34,23 +34,11 @@ import {
 
 type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
 
-type UnwrapGeneratedResult<T> = T extends { Err: unknown }
+type UnwrapGeneratedResult<T> = T extends { status: 'error' }
 	? never
-	: T extends { Ok: infer U }
+	: T extends { status: 'ok'; data: infer U }
 		? U
-		: T extends { status: 'error'; error: unknown }
-			? never
-			: T extends { status: 'ok'; data: infer U }
-				? U
-				: T extends { ok: false; error: unknown }
-					? never
-					: T extends { ok: true; value: infer U }
-						? U
-						: T extends { ok: true; data: infer U }
-							? U
-							: T extends { ok: true; result: infer U }
-								? U
-								: T;
+		: T;
 
 async function runGeneratedCommand<T>(promise: Promise<T>): Promise<UnwrapGeneratedResult<T>>;
 async function runGeneratedCommand<T, R>(

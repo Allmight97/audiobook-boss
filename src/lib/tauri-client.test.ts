@@ -529,3 +529,61 @@ describe('tauriClient nullish adapters', () => {
 		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.m4b');
 	});
 });
+
+describe('unwrapGeneratedResult', () => {
+	it('returns .data on canonical specta success shape', async () => {
+		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const result = unwrapGeneratedResult<{ hello: string }>({
+			status: 'ok',
+			data: { hello: 'world' },
+		});
+		expect(result).toEqual({ hello: 'world' });
+	});
+
+	it('throws normalized AppError on canonical specta error shape', async () => {
+		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		expect(() =>
+			unwrapGeneratedResult({
+				status: 'error',
+				error: {
+					code: 'toolchain_missing',
+					category: 'toolchain',
+					message: 'ffmpeg not found',
+				},
+			}),
+		).toThrow(
+			expect.objectContaining({
+				code: 'toolchain_missing',
+				category: 'toolchain',
+				message: 'ffmpeg not found',
+			}) as unknown as Error,
+		);
+	});
+
+	it('passes through bare scalar values unchanged (get_max_concurrent_jobs path)', async () => {
+		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		expect(unwrapGeneratedResult<number>(42)).toBe(42);
+	});
+
+	it('passes through bare object values unchanged (EncoderAvailability path)', async () => {
+		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const bareEncoderAvailability = {
+			ffmpegAvailable: true,
+			ffprobeAvailable: true,
+			availableEncoders: ['aac', 'libmp3lame'],
+		};
+		const result = unwrapGeneratedResult<typeof bareEncoderAvailability>(bareEncoderAvailability);
+		expect(result).toBe(bareEncoderAvailability);
+	});
+
+	// Misclassification guard: without the discriminant check on `status === 'ok' | 'error'`,
+	// a hypothetical future domain type with an unrelated `status` field (e.g. job state)
+	// would be incorrectly stripped to its `.data`. This locks the safety property in place.
+	it('passes through records with unrelated status values rather than treating them as Result', async () => {
+		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const bareDomainObject = { status: 'pending', data: { jobId: 'abc' } };
+		const result = unwrapGeneratedResult<typeof bareDomainObject>(bareDomainObject);
+		expect(result).toBe(bareDomainObject);
+		expect(result.status).toBe('pending');
+	});
+});
