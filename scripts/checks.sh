@@ -135,8 +135,8 @@ run_standard() {
   log_step "cargo test"
   cargo test
 
-  log_step "bun test scripts/build-app.test.ts scripts/harness/verify.test.ts"
-  bun test scripts/build-app.test.ts scripts/harness/verify.test.ts
+  log_step "bun test scripts/build-app.test.ts scripts/harness/verify.test.ts scripts/release.test.ts"
+  bun test scripts/build-app.test.ts scripts/harness/verify.test.ts scripts/release.test.ts
 
   log_step "bun run test"
   bun run test

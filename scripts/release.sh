@@ -79,9 +79,9 @@ fi
 echo "Changes since last tag:"
 echo "-----------------------------------------"
 if [ "$LAST_TAG" = "none" ]; then
-  git log --oneline --no-decorate | head -15
+  git log --oneline --no-decorate --max-count=15
 else
-  git log --oneline --no-decorate "$LAST_TAG"..HEAD | head -15
+  git log --oneline --no-decorate --max-count=15 "$LAST_TAG"..HEAD
 fi
 echo "-----------------------------------------"
 echo ""
