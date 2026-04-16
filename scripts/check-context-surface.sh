@@ -47,6 +47,25 @@ stale_doc_pattern='docs/README\.md|docs/AGENTS\.md|docs/agent-execution\.md|docs
 stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
 
+append_unique_paths() {
+  local -n dest="$1"
+  shift
+
+  local -A seen=()
+  local source_name path
+
+  dest=()
+  for source_name in "$@"; do
+    local -n source_ref="$source_name"
+    for path in "${source_ref[@]}"; do
+      [[ -e "$path" ]] || continue
+      [[ -n ${seen["$path"]+x} ]] && continue
+      seen["$path"]=1
+      dest+=("$path")
+    done
+  done
+}
+
 [[ ! -e ".pebbles" ]] || {
   echo "[context-surface] Removed Pebbles directory still present" >&2
   exit 1
@@ -135,12 +154,7 @@ legacy_surface_paths=(
 removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/|repomix:audit|repomix:full|scripts/repomix-handoff\.sh|\.repomix/'
 
 existing_surface_paths=()
-for path in "${surface_paths[@]}"; do
-  [[ -e "$path" ]] && existing_surface_paths+=("$path")
-done
-if ((${#spec_surface_paths[@]})); then
-  existing_surface_paths+=("${spec_surface_paths[@]}")
-fi
+append_unique_paths existing_surface_paths surface_paths spec_surface_paths
 
 text_surface_paths=(
   "README.md"
@@ -153,17 +167,10 @@ text_surface_paths=(
 )
 
 existing_text_surface_paths=()
-for path in "${text_surface_paths[@]}"; do
-  [[ -e "$path" ]] && existing_text_surface_paths+=("$path")
-done
-if ((${#spec_surface_paths[@]})); then
-  existing_text_surface_paths+=("${spec_surface_paths[@]}")
-fi
+append_unique_paths existing_text_surface_paths text_surface_paths spec_surface_paths
 
 existing_legacy_surface_paths=()
-for path in "${legacy_surface_paths[@]}"; do
-  [[ -e "$path" ]] && existing_legacy_surface_paths+=("$path")
-done
+append_unique_paths existing_legacy_surface_paths legacy_surface_paths
 
 ! rg -n 'docs/project\.md' "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$stale_doc_pattern" "${existing_text_surface_paths[@]}" >/dev/null

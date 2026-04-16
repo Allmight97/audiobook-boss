@@ -2,13 +2,15 @@
 # Release workflow: validate changelog, bump version, build, commit, tag.
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/lib/release-common.sh"
+cd "$release_repo_root"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
-
-SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'
 
 NEW_VERSION=""
 CHANGELOG_VERIFIED=0
@@ -57,7 +59,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-CURRENT_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+CURRENT_VERSION="$(release_get_current_version)"
 LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
 
 echo "========================================="
@@ -95,7 +97,7 @@ if [[ -z "$NEW_VERSION" ]]; then
 fi
 
 # Validate semver
-if ! echo "$NEW_VERSION" | grep -qE "$SEMVER_RE"; then
+if ! release_validate_semver "$NEW_VERSION"; then
   echo -e "${RED}Error: Version must be semver format (e.g., 0.2.0)${NC}"
   exit 1
 fi

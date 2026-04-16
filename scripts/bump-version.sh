@@ -4,12 +4,16 @@
 # - src-tauri/tauri.conf.json
 # - src-tauri/Cargo.toml
 
-set -e
+set -euo pipefail
 
-NEW_VERSION=$1
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/lib/release-common.sh"
+cd "$release_repo_root"
+
+NEW_VERSION="${1:-}"
 
 if [ -z "$NEW_VERSION" ]; then
-  CURRENT=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+  CURRENT="$(release_get_current_version)"
   echo "Current version: $CURRENT"
   echo ""
   echo "Usage: ./scripts/bump-version.sh <new-version>"
@@ -18,7 +22,7 @@ if [ -z "$NEW_VERSION" ]; then
 fi
 
 # Validate semver format (basic check)
-if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+if ! release_validate_semver "$NEW_VERSION"; then
   echo "Error: Version must be semver format (e.g., 0.2.0 or 1.0.0-beta.1)"
   exit 1
 fi

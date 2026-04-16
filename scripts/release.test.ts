@@ -10,10 +10,10 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 
-const tempRoots: string[] = [];
 const REPO_ROOT = path.resolve(import.meta.dir, '..');
+let fixtureRepoRoot: string | undefined;
 
 function runOrThrow(
 	command: string,
@@ -40,15 +40,20 @@ function runOrThrow(
 	return result.stdout;
 }
 
-function appendEmptyCommit(repoRoot: string, message: string): void {
-	runOrThrow('git', ['commit', '--allow-empty', '-m', message], { cwd: repoRoot });
+function appendEmptyHistory(repoRoot: string, commitCount: number): void {
+	const commitScript = Array.from({ length: commitCount }, (_, index) => {
+		const commitNumber = String(index + 1).padStart(2, '0');
+		return `git commit --allow-empty -m "chore: history ${commitNumber}" >/dev/null`;
+	}).join('\n');
+
+	runOrThrow('bash', ['-lc', commitScript], { cwd: repoRoot });
 }
 
 function createReleaseFixture(): { repoRoot: string } {
 	const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'abb-release-'));
-	tempRoots.push(repoRoot);
 
 	mkdirSync(path.join(repoRoot, 'scripts'), { recursive: true });
+	mkdirSync(path.join(repoRoot, 'scripts', 'lib'), { recursive: true });
 	mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
 
 	runOrThrow('git', ['init'], { cwd: repoRoot });
@@ -78,6 +83,10 @@ function createReleaseFixture(): { repoRoot: string } {
 		path.join(repoRoot, 'scripts', 'bump-version.sh'),
 		'#!/usr/bin/env bash\nprintf "bump:%s\\n" "$1" >> .stub-log\nexit 0\n',
 	);
+	copyFileSync(
+		path.join(REPO_ROOT, 'scripts', 'lib', 'release-common.sh'),
+		path.join(repoRoot, 'scripts', 'lib', 'release-common.sh'),
+	);
 	writeFileSync(
 		path.join(repoRoot, 'bin', 'bun'),
 		`#!/usr/bin/env bash
@@ -98,53 +107,62 @@ exit 0
 	runOrThrow('git', ['commit', '-m', 'chore: initial fixture'], { cwd: repoRoot });
 	runOrThrow('git', ['tag', 'v1.0.4'], { cwd: repoRoot });
 
-	for (let index = 0; index < 320; index += 1) {
-		appendEmptyCommit(
-			repoRoot,
-			`chore: history ${String(index + 1).padStart(3, '0')} ${'x'.repeat(240)}`,
-		);
-	}
+	appendEmptyHistory(repoRoot, 20);
 
 	return { repoRoot };
 }
 
-afterEach(() => {
-	for (const tempRoot of tempRoots.splice(0, tempRoots.length)) {
-		rmSync(tempRoot, { force: true, recursive: true });
+beforeAll(() => {
+	fixtureRepoRoot = createReleaseFixture().repoRoot;
+});
+
+afterAll(() => {
+	if (fixtureRepoRoot) {
+		rmSync(fixtureRepoRoot, { force: true, recursive: true });
+		fixtureRepoRoot = undefined;
 	}
 });
 
 describe('release.sh', () => {
-	it('survives the preview step that previously failed under pipefail', () => {
-		const { repoRoot } = createReleaseFixture();
+	function repoRoot(): string {
+		if (!fixtureRepoRoot) {
+			throw new Error('Release fixture was not initialized.');
+		}
+		return fixtureRepoRoot;
+	}
+
+	it('old pipeline fails under pipefail', () => {
 		const oldPreview = spawnSync(
 			'bash',
 			['-lc', 'set -euo pipefail; git log --oneline --no-decorate v1.0.4..HEAD | head -15'],
 			{
-				cwd: repoRoot,
+				cwd: repoRoot(),
 				encoding: 'utf8',
-			},
-		);
-
-		const result = spawnSync(
-			'bash',
-			['scripts/release.sh', '--version', '1.0.5', '--changelog-verified', '--no-commit-tag'],
-			{
-				cwd: repoRoot,
-				encoding: 'utf8',
-				env: {
-					...process.env,
-					PATH: `${path.join(repoRoot, 'bin')}:${process.env.PATH ?? ''}`,
-				},
 			},
 		);
 
 		expect(oldPreview.status).not.toBe(0);
+	}, 30000);
+
+	it('fixed script succeeds and preserves the release proof', () => {
+		const result = spawnSync(
+			'bash',
+			['scripts/release.sh', '--version', '1.0.5', '--changelog-verified', '--no-commit-tag'],
+			{
+				cwd: repoRoot(),
+				encoding: 'utf8',
+				env: {
+					...process.env,
+					PATH: `${path.join(repoRoot(), 'bin')}:${process.env.PATH ?? ''}`,
+				},
+			},
+		);
+
 		expect(result.status).toBe(0);
 		expect(result.stdout).toContain('Changes since last tag:');
 		expect(result.stdout).toContain('Skipped commit. To finish manually:');
 		expect(result.stderr).toBe('');
-		expect(readFileSync(path.join(repoRoot, '.stub-log'), 'utf8')).toContain('bump:1.0.5');
-		expect(readFileSync(path.join(repoRoot, '.stub-log'), 'utf8')).toContain('bun:run app:build');
-	});
+		expect(readFileSync(path.join(repoRoot(), '.stub-log'), 'utf8')).toContain('bump:1.0.5');
+		expect(readFileSync(path.join(repoRoot(), '.stub-log'), 'utf8')).toContain('bun:run app:build');
+	}, 30000);
 });

@@ -11,12 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Status-panel state follow-up closes the remaining `1.0.4` gaps**
-  (`src/ui/statusPanel/state.ts`, status-panel tests). `ProcessingStatus`
-  now pins `idle` to `percentage: 0`, `ACTIVE_EVENT_STAGES` is typed
-  exhaustively against `ActiveEventStage` so new in-flight Rust stages must be
-  acknowledged in the frontend helper, and `JobProgress.stage` is narrowed to
-  backend `EventStage` values only (no UI-only `idle` on per-job rows).
+- Tooling/docs cleanup pass: shared release shell helpers, cheaper release
+  fixture setup, deduped context-surface lists, and compressed historical
+  release notes.
 
 ### Fixed
 
@@ -30,70 +27,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.4] - 2026-04-16
 
-Internal state-shape tightening release, continuing the "make impossible
-states unrepresentable" pass started in 1.0.3. Three focused refactors along
-the IPC seam and UI state layer. No wire-format or user-visible behavior
-changes.
+Internal state-shape tightening release that continued the "make impossible
+states unrepresentable" pass started in 1.0.3. Three boundary/UI refactors,
+no wire-format or user-visible behavior changes.
 
 ### Changed
 
-- **`unwrapGeneratedResult` narrowed to the canonical specta `Result` shape**
-  (`src/lib/tauri/appError.ts`, `src/lib/tauri/client.ts`). Rewrite the
-  function from a 4-branch duck-type across `{Ok,Err}` / `{ok: boolean}` /
-  `{status, data|error}` shapes down to a tight three-way discrimination:
-  specta success returns `.data`, specta error throws via `normalizeAppError`,
-  everything else passes through unchanged (bare-value commands like
-  `get_max_concurrent_jobs` and `list_available_encoders`). Replace the loose
-  `isResultRecord` (had-a-`status`-key) with `isSpectaResult` that checks
-  `status === 'ok' | 'error'` explicitly — removes the misclassification
-  hazard where a future domain type with an unrelated `status` field would
-  be treated as a `Result` envelope. Simplify the matching
-  `UnwrapGeneratedResult<T>` conditional type from 7 branches to 3.
-- **Cover art inline message modeled as a discriminated union**
-  (`src/ui/coverArt/state.svelte.ts`, `src/ui/coverArt/CoverArtIsland.svelte`).
-  Replace the `messageText` / `messageVariant` / `messageVisible` triple with
-  a single `CoverArtMessage` union of `{ kind: 'hidden' }` /
-  `{ kind: 'error'; text }` / `{ kind: 'success'; text }`. Impossible states
-  (`messageVisible: false` with lingering text, unknown variant values) are
-  now unrepresentable. Export `showCoverArtMessage` /
-  `clearCoverArtMessage` from `src/ui/coverArt.ts` to enable first-class unit
-  coverage of the 4-second auto-dismiss lifecycle.
-- **`ProcessingStatus` modeled as a discriminated union**
-  (`src/ui/statusPanel/state.ts`, `src/ui/statusPanel/controller.ts`).
-  Replace the flat product `{ stage; percentage; message; currentFile?;
-  etaSeconds? }` with a `stage`-keyed union where only the active-stage
-  variant (derived from `EventStage` via
-  `type ActiveEventStage = Exclude<EventStage, 'completed' | 'failed' |
-  'cancelled'>`) carries `currentFile` / `etaSeconds`. This release moved the
-  status model and `buildStatus` factory onto the discriminated-union shape;
-  the remaining idle/job-stage exhaustiveness gaps were closed in a follow-up
-  under `[Unreleased]`. The factory gates
-  active extras on the discriminant; the four construction sites in
-  `controller.ts` (`applyQueueSnapshot`, `updateAggregateUI`, `flushRender`,
-  `requestCancelAll`) route through it. The `flushRender` path at
-  `controller.ts:~416-425`, which previously copied `current_file` /
-  `eta_seconds` from `latestProgressEvent` onto any stage, is now gated at
-  the type level.
+- `unwrapGeneratedResult` now accepts only the canonical specta `Result`
+  shape, keeps bare values unchanged, and reduces `UnwrapGeneratedResult<T>`
+  to three branches (`src/lib/tauri/appError.ts`, `src/lib/tauri/client.ts`).
+- Cover art inline status is now a `CoverArtMessage` union instead of the
+  `messageText` / `messageVariant` / `messageVisible` triple, and
+  `showCoverArtMessage` / `clearCoverArtMessage` are exported for lifecycle
+  tests (`src/ui/coverArt/state.svelte.ts`, `src/ui/coverArt/CoverArtIsland.svelte`).
+- `ProcessingStatus` is now a `stage`-keyed discriminated union where only
+  active stages carry `currentFile` / `etaSeconds`, and the factory and call
+  sites route through that shape (`src/ui/statusPanel/state.ts`,
+  `src/ui/statusPanel/controller.ts`).
 
 ### Added
 
-- **New unit coverage**
-  - `src/lib/tauri-client.test.ts` — `unwrapGeneratedResult` tests for
-    the canonical success/error paths, bare-scalar and bare-object
-    passthrough, and an explicit misclassification guard
-    (`{ status: 'pending', ... }` must fall through).
-  - `src/ui/coverArt/__tests__/coverArtMessage.test.ts` — lifecycle of
-    the cover-art inline message: show sets the right variant, 4-second
-    auto-dismiss transitions to `{ kind: 'hidden' }`, and
-    `clearCoverArtMessage` cancels the pending timeout so a subsequent
-    show is not prematurely hidden by a stale timer. Per-case isolation
-    via `vi.resetModules()` + dynamic imports (timer handle lives in
-    module scope).
-  - `src/ui/statusPanel/__tests__/progressAggregator.test.ts` — one
-    targeted regression test pinning the core hazard: active progress
-    event populates `latestProgressEvent.current_file` / `eta_seconds`,
-    then a terminal event rolls the aggregate over, and the resulting
-    `ProcessingStatus` must not leak the active-stage fields.
+- New unit coverage for the three seams above:
+  - `src/lib/tauri-client.test.ts` pins canonical success/error wrapping,
+    bare-value passthrough, and the `status: 'pending'` misclassification guard.
+  - `src/ui/coverArt/__tests__/coverArtMessage.test.ts` covers show, auto-dismiss,
+    and clear behavior for the inline message timer.
+  - `src/ui/statusPanel/__tests__/progressAggregator.test.ts` verifies active
+    progress fields do not leak into terminal aggregates.
 
 ### Deferred
 
@@ -107,62 +67,27 @@ Intentionally out of scope for this release (tracked for a successor plan):
 ## [1.0.3] - 2026-04-15
 
 Internal seam-tightening release. No user-visible behavior changes; the
-`processing-progress` event wire format is unchanged (string values stay
-identical), so older frontend builds remain compatible with this backend.
+`processing-progress` wire format stayed identical, so older frontend builds
+remained compatible with this backend.
 
 ### Changed
 
-- **IPC Seam Types (Rust → TypeScript)**
-  - Replace stringly-typed `ProgressEvent.stage: String` with a typed
-    `EventStage` enum in Rust (`src-tauri/src/audio/progress/mod.rs`),
-    serialized snake_case via serde so the wire format is preserved.
-  - Add `From<&ProcessingStage> for EventStage` so the three emission
-    sites (`ProgressEmitter::emit_event`, `ProgressEmitter::emit_cancelled`,
-    and `emit_terminal_failed_event` in `commands/audio_processing.rs`)
-    derive the wire stage from the internal orchestration enum instead
-    of duplicating string literals at every callsite.
-  - Regenerate `src/lib/generated/tauri.ts`; the frontend now sees
-    `stage: EventStage` (a real string-literal union) instead of
-    `stage: string`.
-  - Tighten the seven public normalizers in `src/lib/tauri/normalizers.ts`
-    to accept their generated input types (`GeneratedAudiobookMetadata`,
-    `GeneratedFileListInfo`, `GeneratedEncoderAvailability`,
-    `GeneratedOnlineMetadataResult`, `GeneratedProcessCommandResult`,
-    `GeneratedProgressEvent`, `GeneratedQueueEvent`) instead of `unknown`,
-    and return `NullToOptionalDeep<T>` UI types — drift now surfaces at
-    compile time rather than as a runtime cast.
-  - Strengthen `normalizeNullish<T>` to return `NullToOptionalDeep<T>` so
-    output `as` casts at every call site are no longer needed.
-  - Simplify `src/types/events.ts`: re-export `EventStage` from the
-    generated bindings, type `STAGES` as `{ [K in EventStage]: K }` so
-    new Rust variants fail the TS build, collapse `ProcessingProgressEvent`
-    to `NullToOptionalDeep<GeneratedProgressEvent>` (no more `Omit + remap`),
-    and tighten the runtime `isProcessingProgressEvent` guard.
+- IPC seam types were tightened end-to-end: Rust `EventStage`, the
+  `From<&ProcessingStage>` mappings, regenerated TS bindings, stricter
+  normalizers, and a simpler `src/types/events.ts` now agree on the same
+  typed wire stage.
 
 ### Removed
 
-- **Dead TypeScript Type Definitions**
-  - Remove `ProcessingProgress` and `ProcessingStage` from
-    `src/types/audio.ts` (PascalCase duplicate of the Rust internal enum
-    with no consumers).
-  - Remove `MetadataResult`, `WriteMetadataParams`, and `WriteCoverArtParams`
-    from `src/types/metadata.ts` (the real IPC contract flows through
-    `tauriClient` and `Result<T, AppErrorEnvelope>`; these standalone
-    interfaces had zero callers).
+- Dead TypeScript type definitions: `ProcessingProgress` and `ProcessingStage`
+  from `src/types/audio.ts`, plus `MetadataResult`, `WriteMetadataParams`, and
+  `WriteCoverArtParams` from `src/types/metadata.ts`.
 
 ### DX / Documentation
 
-- **Boundary Guidance Refresh**
-  - Update `.agents/skills/job-registry-and-progress/SKILL.md` to invert
-    the stale "TS leads, Rust follows" framing — Rust `EventStage` is
-    now the wire authority and TS only re-exports it. Document the
-    distinction between `EventStage` (flat wire discriminator) and the
-    internal Rust `ProcessingStage` (carries `Failed(String)`).
-  - Refresh the file header on `src/types/events.ts` to drop the
-    obsolete "Phase 0" framing and describe present-state intent.
-  - Add a typed-input contract doc-block to `src/lib/tauri/normalizers.ts`
-    so the symmetry between `normalize*` and `denormalize*` is
-    discoverable from the file header.
+- Boundary guidance was refreshed in `.agents/skills/job-registry-and-progress/SKILL.md`,
+  `src/types/events.ts`, and `src/lib/tauri/normalizers.ts` so the current
+  Rust-authoritative wire stage model is documented in one place.
 
 ## [1.0.2] - 2026-03-31
 
