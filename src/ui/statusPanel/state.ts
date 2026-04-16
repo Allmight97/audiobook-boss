@@ -77,6 +77,12 @@ const ACTIVE_EVENT_STAGES: { readonly [K in ActiveEventStage]: true } = {
 	writing: true,
 };
 
+const ACTIVE_STAGE_PRIORITY: { readonly [K in ActiveEventStage]: number } = {
+	converting: 0,
+	analyzing: 1,
+	writing: 2,
+};
+
 export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
 	return stage !== 'idle' && stage in ACTIVE_EVENT_STAGES;
 }
@@ -131,9 +137,7 @@ export function calculateAggregateProgressAndStage(
 	let hasCompleted = false;
 	let hasFailed = false;
 	let hasCancelled = false;
-	let hasConverting = false;
-	let hasAnalyzing = false;
-	let hasWriting = false;
+	let highestPriorityActiveStage: ActiveEventStage | null = null;
 
 	for (const job of jobProgress.values()) {
 		if (job.status === 'queued') {
@@ -159,12 +163,13 @@ export function calculateAggregateProgressAndStage(
 			activeJobs++;
 			hasProcessing = true;
 			totalPercentage += job.percentage;
-			if (job.stage === 'converting') {
-				hasConverting = true;
-			} else if (job.stage === 'analyzing') {
-				hasAnalyzing = true;
-			} else if (job.stage === 'writing') {
-				hasWriting = true;
+			if (job.stage && isActiveEventStage(job.stage)) {
+				if (
+					highestPriorityActiveStage === null ||
+					ACTIVE_STAGE_PRIORITY[job.stage] < ACTIVE_STAGE_PRIORITY[highestPriorityActiveStage]
+				) {
+					highestPriorityActiveStage = job.stage;
+				}
 			}
 		}
 	}
@@ -186,9 +191,7 @@ export function calculateAggregateProgressAndStage(
 	let stage: ProcessingStatus['stage'];
 	if (hasFailed) stage = 'failed';
 	else if (hasCancelled) stage = 'cancelled';
-	else if (hasConverting) stage = 'converting';
-	else if (hasAnalyzing) stage = 'analyzing';
-	else if (hasWriting) stage = 'writing';
+	else if (highestPriorityActiveStage) stage = highestPriorityActiveStage;
 	else if (hasProcessing) stage = 'analyzing';
 	else if (hasCompleted && !hasQueued) stage = 'completed';
 	else if (hasQueued) stage = 'analyzing';

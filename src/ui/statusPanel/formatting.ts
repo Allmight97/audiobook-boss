@@ -1,5 +1,9 @@
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 
+function assertNever(value: never): never {
+	throw new Error(`Unhandled status stage: ${String(value)}`);
+}
+
 export function formatStatusDisplayText(stage: ProcessingStatus['stage']): string {
 	switch (stage) {
 		case 'idle':
@@ -16,9 +20,8 @@ export function formatStatusDisplayText(stage: ProcessingStatus['stage']): strin
 			return 'Cancelled';
 		case 'failed':
 			return 'Failed';
-		default:
-			return 'Processing';
 	}
+	return assertNever(stage);
 }
 
 export function formatAggregateMessage(
