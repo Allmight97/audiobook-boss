@@ -15,6 +15,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.3] - 2026-04-15
+
+Internal seam-tightening release. No user-visible behavior changes; the
+`processing-progress` event wire format is unchanged (string values stay
+identical), so older frontend builds remain compatible with this backend.
+
+### Changed
+
+- **IPC Seam Types (Rust → TypeScript)**
+  - Replace stringly-typed `ProgressEvent.stage: String` with a typed
+    `EventStage` enum in Rust (`src-tauri/src/audio/progress/mod.rs`),
+    serialized snake_case via serde so the wire format is preserved.
+  - Add `From<&ProcessingStage> for EventStage` so the three emission
+    sites (`ProgressEmitter::emit_event`, `ProgressEmitter::emit_cancelled`,
+    and `emit_terminal_failed_event` in `commands/audio_processing.rs`)
+    derive the wire stage from the internal orchestration enum instead
+    of duplicating string literals at every callsite.
+  - Regenerate `src/lib/generated/tauri.ts`; the frontend now sees
+    `stage: EventStage` (a real string-literal union) instead of
+    `stage: string`.
+  - Tighten the seven public normalizers in `src/lib/tauri/normalizers.ts`
+    to accept their generated input types (`GeneratedAudiobookMetadata`,
+    `GeneratedFileListInfo`, `GeneratedEncoderAvailability`,
+    `GeneratedOnlineMetadataResult`, `GeneratedProcessCommandResult`,
+    `GeneratedProgressEvent`, `GeneratedQueueEvent`) instead of `unknown`,
+    and return `NullToOptionalDeep<T>` UI types — drift now surfaces at
+    compile time rather than as a runtime cast.
+  - Strengthen `normalizeNullish<T>` to return `NullToOptionalDeep<T>` so
+    output `as` casts at every call site are no longer needed.
+  - Simplify `src/types/events.ts`: re-export `EventStage` from the
+    generated bindings, type `STAGES` as `{ [K in EventStage]: K }` so
+    new Rust variants fail the TS build, collapse `ProcessingProgressEvent`
+    to `NullToOptionalDeep<GeneratedProgressEvent>` (no more `Omit + remap`),
+    and tighten the runtime `isProcessingProgressEvent` guard.
+
+### Removed
+
+- **Dead TypeScript Type Definitions**
+  - Remove `ProcessingProgress` and `ProcessingStage` from
+    `src/types/audio.ts` (PascalCase duplicate of the Rust internal enum
+    with no consumers).
+  - Remove `MetadataResult`, `WriteMetadataParams`, and `WriteCoverArtParams`
+    from `src/types/metadata.ts` (the real IPC contract flows through
+    `tauriClient` and `Result<T, AppErrorEnvelope>`; these standalone
+    interfaces had zero callers).
+
+### DX / Documentation
+
+- **Boundary Guidance Refresh**
+  - Update `.agents/skills/job-registry-and-progress/SKILL.md` to invert
+    the stale "TS leads, Rust follows" framing — Rust `EventStage` is
+    now the wire authority and TS only re-exports it. Document the
+    distinction between `EventStage` (flat wire discriminator) and the
+    internal Rust `ProcessingStage` (carries `Failed(String)`).
+  - Refresh the file header on `src/types/events.ts` to drop the
+    obsolete "Phase 0" framing and describe present-state intent.
+  - Add a typed-input contract doc-block to `src/lib/tauri/normalizers.ts`
+    so the symmetry between `normalize*` and `denormalize*` is
+    discoverable from the file header.
+
 ## [1.0.2] - 2026-03-31
 
 Supply-chain install hardening release after the March 31, 2026 axios incident review.
