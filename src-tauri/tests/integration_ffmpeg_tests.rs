@@ -4,7 +4,6 @@
 
 use std::path::PathBuf;
 
-use audiobook_boss_lib::audio::context::ProgressContextBuilder;
 use audiobook_boss_lib::audio::processor::selection::get_engine_description;
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
@@ -62,28 +61,6 @@ fn test_encoder_settings_creation() {
     assert_eq!(encoder_settings.bitrate_kbps, 64);
     assert_eq!(encoder_settings.channels, EncoderChannelConfig::Mono);
     assert_eq!(SampleRateConfig::Auto.explicit_rate(), None);
-}
-
-#[test]
-fn test_progress_context_builder_usage() {
-    // Test ProgressContextBuilder to ensure it remains exercised
-    let ctx = ProgressContextBuilder::new(audiobook_boss_lib::audio::ProcessingStage::Analyzing)
-        .progress(5.0)
-        .message("testing")
-        .file_progress(0, 1)
-        .eta(10.0)
-        .build();
-    assert_eq!(ctx.progress, 5.0);
-    assert_eq!(
-        ctx.message
-            .as_ref()
-            .expect("progress context should capture message"),
-        "testing"
-    );
-    assert_eq!(
-        ctx.stage,
-        audiobook_boss_lib::audio::ProcessingStage::Analyzing
-    );
 }
 
 #[test]

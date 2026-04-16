@@ -170,15 +170,25 @@ fn finalize_batch_results(
 
     for (index, outcome) in outcomes.into_iter().enumerate() {
         let entry = match outcome {
-            Ok(mut success) => {
-                success.input_index = Some(index);
-                success
+            Ok(mut entry) => {
+                if entry.input_index.is_none() {
+                    entry.input_index = Some(index);
+                }
+                if entry.status == ProcessResultStatus::Failed {
+                    emit_terminal_failed_event(
+                        window,
+                        entry.input_index,
+                        entry.job_id.as_deref(),
+                        &entry.message,
+                    );
+                }
+                entry
             }
             Err(error) => {
                 let envelope: AppErrorEnvelope = error.into();
                 let error_message = envelope.message.clone();
-                emit_terminal_failed_event(window, index, &error_message);
-                failure_result(Some(index), envelope)
+                emit_terminal_failed_event(window, Some(index), None, &error_message);
+                terminal_failure_result(Some(index), None, envelope)
             }
         };
         ordered_results[index] = Some(entry);
@@ -189,9 +199,10 @@ fn finalize_batch_results(
             let error_message = format!(
                 "Missing terminal result for queued input index {index}; marking as failed"
             );
-            emit_terminal_failed_event(window, index, &error_message);
-            *slot = Some(failure_result(
+            emit_terminal_failed_event(window, Some(index), None, &error_message);
+            *slot = Some(terminal_failure_result(
                 Some(index),
+                None,
                 AppErrorEnvelope::new(
                     crate::errors::AppErrorCode::InternalError,
                     crate::errors::AppErrorCategory::Internal,
@@ -386,28 +397,31 @@ async fn run_processing_job(
     .await
     .map(|message| (message, preview_path, preview_seconds_resolved));
 
-    match &result {
-        Ok(_) => {
+    match result {
+        Ok((message, preview_path_opt, preview_seconds_used)) => {
             registry.complete_job(job_id).await;
             log::info!("Job {} completed successfully", job_id);
+            Ok(ProcessResultEntry {
+                input_index,
+                status: ProcessResultStatus::Success,
+                message,
+                error: None,
+                preview_file_path: preview_path_opt,
+                preview_actual_seconds: preview_seconds_used,
+                job_id: Some(job_id.to_string()),
+            })
         }
-        Err(e) => {
-            registry.fail_job(job_id, e.to_string()).await;
-            log::error!("Job {} failed: {}", job_id, e);
+        Err(error) => {
+            registry.fail_job(job_id, error.to_string()).await;
+            log::error!("Job {} failed: {}", job_id, error);
+            let envelope: AppErrorEnvelope = error.into();
+            Ok(terminal_failure_result(
+                input_index,
+                Some(job_id.to_string()),
+                envelope,
+            ))
         }
     }
-
-    let (message, preview_path_opt, preview_seconds_used) = result?;
-
-    Ok(ProcessResultEntry {
-        input_index,
-        status: ProcessResultStatus::Success,
-        message,
-        error: None,
-        preview_file_path: preview_path_opt,
-        preview_actual_seconds: preview_seconds_used,
-        job_id: Some(job_id.to_string()),
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -503,20 +517,25 @@ async fn execute_processing_job(
     audio::processor::process_audiobook_with_context(context, file_info.files, metadata).await
 }
 
-fn emit_terminal_failed_event(window: &tauri::Window, input_index: usize, message: &str) {
-    let event = audio::ProgressEvent {
-        stage: audio::EventStage::Failed,
-        percentage: 0.0,
-        message: message.to_string(),
-        current_file: None,
-        eta_seconds: None,
-        job_id: None,
-        input_index: Some(input_index),
-    };
-    let _ = window.emit(crate::audio::constants::PROGRESS_EVENT_NAME, &event);
+fn emit_terminal_failed_event(
+    window: &tauri::Window,
+    input_index: Option<usize>,
+    job_id: Option<&str>,
+    message: &str,
+) {
+    let emitter = audio::ProgressEmitter::with_context(
+        window.clone(),
+        job_id.map(|value| value.to_string()),
+        input_index,
+    );
+    emitter.emit_terminal_failed(message);
 }
 
-fn failure_result(input_index: Option<usize>, error: AppErrorEnvelope) -> ProcessResultEntry {
+fn terminal_failure_result(
+    input_index: Option<usize>,
+    job_id: Option<String>,
+    error: AppErrorEnvelope,
+) -> ProcessResultEntry {
     ProcessResultEntry {
         input_index,
         status: ProcessResultStatus::Failed,
@@ -524,17 +543,19 @@ fn failure_result(input_index: Option<usize>, error: AppErrorEnvelope) -> Proces
         error: Some(error),
         preview_file_path: None,
         preview_actual_seconds: None,
-        job_id: None,
+        job_id,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        resolve_effective_processing_metadata, resolve_naming_metadata, validate_batch_input_path,
+        resolve_effective_processing_metadata, resolve_naming_metadata, terminal_failure_result,
+        validate_batch_input_path,
     };
     use crate::audio::output_path::build_output_path;
-    use crate::commands::audio_types::OutputNamingConfig;
+    use crate::commands::audio_types::{OutputNamingConfig, ProcessResultStatus};
+    use crate::errors::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
     use std::fs;
     use std::path::Path;
@@ -631,6 +652,23 @@ mod tests {
             "output naming should use resolved metadata"
         );
         assert_eq!(effective.title.as_deref(), Some("Renamed Title"));
+    }
+
+    #[test]
+    fn terminal_failure_result_preserves_job_id_when_available() {
+        let error = AppErrorEnvelope::new(
+            AppErrorCode::ProcessingCancelled,
+            AppErrorCategory::Cancellation,
+            "Processing was cancelled".to_string(),
+            None,
+        );
+
+        let entry = terminal_failure_result(Some(4), Some("job-123".to_string()), error);
+
+        assert_eq!(entry.input_index, Some(4));
+        assert_eq!(entry.job_id.as_deref(), Some("job-123"));
+        assert_eq!(entry.status, ProcessResultStatus::Failed);
+        assert!(entry.error.is_some());
     }
 
     #[test]

@@ -135,10 +135,8 @@ pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
 // Core context
 pub use context::ProcessingContext;
 
-// Builders and progress context always available after cleanup
-pub use context::{
-    OutputConfig, ProcessingContextBuilder, ProgressContext, ProgressContextBuilder,
-};
+// Builders and processing context always available after cleanup
+pub use context::{OutputConfig, ProcessingContextBuilder};
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;

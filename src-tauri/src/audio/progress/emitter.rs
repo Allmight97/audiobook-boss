@@ -61,6 +61,25 @@ impl ProgressEmitter {
         self.job_id.as_deref()
     }
 
+    fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
+        ProgressEvent {
+            stage,
+            percentage: 0.0,
+            message: message.to_string(),
+            current_file: None,
+            eta_seconds: None,
+            job_id: self.job_id.clone(),
+            input_index: self.input_index,
+        }
+    }
+
+    fn emit_terminal_event(&self, stage: EventStage, message: &str) {
+        let event = self.terminal_event(stage, message);
+        if let Some(window) = &self.window {
+            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
+        }
+    }
+
     /// Emits analyzing start event
     pub fn emit_analyzing_start(&self, message: &str) {
         self.emit_event(
@@ -156,20 +175,19 @@ impl ProgressEmitter {
         );
     }
 
+    /// Emits terminal failed event.
+    pub fn emit_terminal_failed(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Failed, message);
+    }
+
+    /// Emits terminal cancelled event.
+    pub fn emit_terminal_cancelled(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Cancelled, message);
+    }
+
     /// Emits cancelled event (special-case stage not represented in ProcessingStage enum)
     pub fn emit_cancelled(&self, message: &str) {
-        let event = ProgressEvent {
-            stage: EventStage::Cancelled,
-            percentage: 0.0,
-            message: message.to_string(),
-            current_file: None,
-            eta_seconds: None,
-            job_id: self.job_id.clone(),
-            input_index: self.input_index,
-        };
-        if let Some(window) = &self.window {
-            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
-        }
+        self.emit_terminal_cancelled(message);
     }
     /// Emits custom progress event with all parameters
     pub fn emit_custom(
@@ -205,5 +223,35 @@ impl ProgressEmitter {
         if let Some(window) = &self.window {
             let _ = window.emit(PROGRESS_EVENT_NAME, &event);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminal_events_share_context_and_reset_progress() {
+        let emitter = ProgressEmitter {
+            window: None,
+            job_id: Some("job-123".to_string()),
+            input_index: Some(7),
+        };
+
+        let failed = emitter.terminal_event(EventStage::Failed, "failed");
+        let cancelled = emitter.terminal_event(EventStage::Cancelled, "cancelled");
+
+        assert_eq!(failed.stage, EventStage::Failed);
+        assert_eq!(cancelled.stage, EventStage::Cancelled);
+        assert_eq!(failed.percentage, 0.0);
+        assert_eq!(cancelled.percentage, 0.0);
+        assert_eq!(failed.job_id, Some("job-123".to_string()));
+        assert_eq!(cancelled.job_id, Some("job-123".to_string()));
+        assert_eq!(failed.input_index, Some(7));
+        assert_eq!(cancelled.input_index, Some(7));
+        assert_eq!(failed.current_file, None);
+        assert_eq!(cancelled.current_file, None);
+        assert_eq!(failed.eta_seconds, None);
+        assert_eq!(cancelled.eta_seconds, None);
     }
 }
