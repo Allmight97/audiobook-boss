@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
+import { STAGES } from '../../../types/events';
 import { StatusPanelController } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
@@ -86,7 +87,11 @@ describe('StatusPanel aggregate progress', () => {
 	// fields are type-level impossible on terminal variants; this test pins the
 	// runtime behavior so a future regression (e.g. someone reintroduces the
 	// copy-unconditional pattern behind a cast) fails loudly.
-	it('does not leak stale currentFile/etaSeconds onto terminal aggregates', () => {
+	it.each([
+		STAGES.completed,
+		STAGES.failed,
+		STAGES.cancelled,
+	])('does not leak stale currentFile/etaSeconds onto terminal aggregates for %s', (terminalStage) => {
 		const controller = new StatusPanelController();
 		const snapshot: ProcessingQueueEvent = {
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
@@ -109,14 +114,14 @@ describe('StatusPanel aggregate progress', () => {
 
 		controller.applyProgress({
 			input_index: 0,
-			stage: 'completed',
+			stage: terminalStage,
 			percentage: 100,
 			message: 'Done',
 		});
 		vi.advanceTimersByTime(20);
 
 		const status = controller.getCurrentStatus();
-		expect(status).toMatchObject({ stage: 'completed' });
+		expect(status).toMatchObject({ stage: terminalStage });
 		expect(status).not.toHaveProperty('currentFile');
 		expect(status).not.toHaveProperty('etaSeconds');
 	});

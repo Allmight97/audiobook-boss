@@ -183,16 +183,16 @@ describe('StatusPanel lifecycle', () => {
 			expectedMessage: 'Audiobook created successfully!',
 		},
 		{
-			name: 'failed present',
-			terminalStages: [STAGES.failed, STAGES.completed] as const,
-			expectedMethod: 'showError' as const,
-			expectedMessage: 'One or more files failed to process.',
-		},
-		{
 			name: 'cancelled present',
 			terminalStages: [STAGES.cancelled, STAGES.completed] as const,
 			expectedMethod: 'showInfo' as const,
 			expectedMessage: 'Processing was cancelled.',
+		},
+		{
+			name: 'failed present',
+			terminalStages: [STAGES.cancelled, STAGES.failed] as const,
+			expectedMethod: 'showError' as const,
+			expectedMessage: 'One or more files failed to process.',
 		},
 	])('applies batch terminal lifecycle reset after 2s when %s', ({
 		terminalStages,
@@ -249,13 +249,19 @@ describe('StatusPanel lifecycle', () => {
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 
-		const expectedSpy =
-			expectedMethod === 'showSuccess'
-				? showSuccessSpy
-				: expectedMethod === 'showError'
-					? showErrorSpy
-					: showInfoSpy;
+		const toastSpies = {
+			showSuccess: showSuccessSpy,
+			showError: showErrorSpy,
+			showInfo: showInfoSpy,
+		};
+		const expectedSpy = toastSpies[expectedMethod];
+		expect(expectedSpy).toHaveBeenCalledTimes(1);
 		expect(expectedSpy).toHaveBeenCalledWith(expectedMessage);
+		for (const [method, spy] of Object.entries(toastSpies)) {
+			if (method !== expectedMethod) {
+				expect(spy).not.toHaveBeenCalled();
+			}
+		}
 	});
 
 	it('uses the batch completion override message for partial failures', () => {
@@ -391,6 +397,8 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
+		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
+		const showErrorSpy = vi.spyOn(dom, 'showError');
 		const showInfoSpy = vi.spyOn(dom, 'showInfo');
 		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
 
@@ -421,6 +429,9 @@ describe('StatusPanel lifecycle', () => {
 
 		vi.advanceTimersByTime(2000);
 
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
 		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 	});

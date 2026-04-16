@@ -11,7 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Status-panel state follow-up closes the remaining `1.0.4` gaps**
+  (`src/ui/statusPanel/state.ts`, status-panel tests). `ProcessingStatus`
+  now pins `idle` to `percentage: 0`, `ACTIVE_EVENT_STAGES` is typed
+  exhaustively against `ActiveEventStage` so new in-flight Rust stages must be
+  acknowledged in the frontend helper, and `JobProgress.stage` is narrowed to
+  backend `EventStage` values only (no UI-only `idle` on per-job rows).
+
 ### Fixed
+
+- **Status-panel terminal regression coverage now includes all terminal
+  aggregates**. Failed and cancelled terminal aggregates, not just completed
+  ones, are covered against stale `currentFile` / `etaSeconds` leakage, and
+  batch terminal lifecycle tests now assert only the highest-priority toast
+  fires.
 
 ### Removed
 
@@ -51,9 +64,10 @@ changes.
   etaSeconds? }` with a `stage`-keyed union where only the active-stage
   variant (derived from `EventStage` via
   `type ActiveEventStage = Exclude<EventStage, 'completed' | 'failed' |
-  'cancelled'>`) carries `currentFile` / `etaSeconds`. Terminal and idle
-  variants drop them at the type level — stale-progress-fields-on-terminal
-  status is now type-impossible. Add a `buildStatus` factory that gates
+  'cancelled'>`) carries `currentFile` / `etaSeconds`. This release moved the
+  status model and `buildStatus` factory onto the discriminated-union shape;
+  the remaining idle/job-stage exhaustiveness gaps were closed in a follow-up
+  under `[Unreleased]`. The factory gates
   active extras on the discriminant; the four construction sites in
   `controller.ts` (`applyQueueSnapshot`, `updateAggregateUI`, `flushRender`,
   `requestCancelAll`) route through it. The `flushRender` path at
@@ -85,7 +99,6 @@ changes.
 
 Intentionally out of scope for this release (tracked for a successor plan):
 
-- `JobProgress.stage` refactor toward a stricter `EventStage`-based shape.
 - `normalizeProcessResult` inner `results` walk / `normalizeAppError(entry.error)`
   pattern in `src/lib/tauri/normalizers.ts`.
 - Cleanup of the unused `isProcessingProgressEvent` runtime guard in
