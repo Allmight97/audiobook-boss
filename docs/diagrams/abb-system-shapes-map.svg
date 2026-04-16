@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1260" viewBox="0 0 1800 1260" role="img" aria-labelledby="title desc">
+  <title id="title">Audiobook Boss system map: parts, seams, boundaries, contracts, and data shapes</title>
+  <desc id="desc">A diagram of Audiobook Boss showing the frontend, typed TypeScript boundary, Rust IPC contract, backend subsystems, external systems, and explicit legend for seam, boundary, contract, shim, and fallback.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f7f3ea"/>
+      <stop offset="100%" stop-color="#e9eef5"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fffdfa"/>
+      <stop offset="100%" stop-color="#f6f8fb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3c4b62"/>
+    </marker>
+    <marker id="arrowSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5e34"/>
+    </marker>
+    <style>
+      text { font-family: Helvetica, Arial, sans-serif; fill: #1f2937; }
+      .mono { font-family: "Courier New", Courier, monospace; }
+      .title { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; }
+      .subtitle { font-size: 18px; fill: #475569; }
+      .section { font-size: 24px; font-weight: 700; }
+      .label { font-size: 16px; font-weight: 700; }
+      .body { font-size: 15px; fill: #334155; }
+      .small { font-size: 13px; fill: #526077; }
+      .tiny { font-size: 12px; fill: #66758b; }
+      .chip { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+      .box { fill: url(#panel); stroke: #b8c4d6; stroke-width: 2; rx: 24; filter: url(#shadow); }
+      .subbox { fill: #ffffff; stroke: #c9d3e1; stroke-width: 1.5; rx: 18; }
+      .boundary { stroke: #b45309; stroke-width: 4; stroke-dasharray: 14 10; fill: none; }
+      .seam { stroke: #2563eb; stroke-width: 3; stroke-dasharray: 8 7; fill: none; }
+      .flow { stroke: #3c4b62; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .flowSoft { stroke: #8b5e34; stroke-width: 2.5; fill: none; marker-end: url(#arrowSoft); }
+      .legendBox { fill: #ffffff; stroke: #c8d2df; stroke-width: 1.5; rx: 18; }
+      .callout { fill: #fff7ed; stroke: #fdba74; stroke-width: 1.5; rx: 16; }
+      .accentBlue { fill: #dbeafe; }
+      .accentGold { fill: #fef3c7; }
+      .accentGreen { fill: #dcfce7; }
+      .accentRose { fill: #ffe4e6; }
+      .accentSlate { fill: #e2e8f0; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1260" fill="url(#bg)"/>
+  <circle cx="1490" cy="160" r="220" fill="#fff8dc" opacity="0.55"/>
+  <circle cx="250" cy="1120" r="230" fill="#dbeafe" opacity="0.35"/>
+
+  <text x="72" y="78" class="title">Audiobook Boss as a system</text>
+  <text x="72" y="112" class="subtitle">Read the project as owners, seams, contracts, and data shapes rather than as a pile of files.</text>
+
+  <rect x="64" y="154" width="1450" height="700" class="box"/>
+  <text x="92" y="196" class="section">Runtime map</text>
+
+  <rect x="92" y="226" width="280" height="580" class="subbox accentBlue"/>
+  <text x="116" y="264" class="section" style="font-size:22px;">1. Frontend UI</text>
+  <text x="116" y="294" class="body">Svelte islands and UI modules</text>
+  <text x="116" y="322" class="mono small">src/ui/*</text>
+  <rect x="116" y="346" width="232" height="110" class="subbox"/>
+  <text x="132" y="373" class="label">Examples</text>
+  <text x="132" y="398" class="body">File import</text>
+  <text x="132" y="421" class="body">Metadata form</text>
+  <text x="132" y="444" class="body">Status panel</text>
+  <rect x="116" y="484" width="232" height="142" class="subbox"/>
+  <text x="132" y="511" class="label">UI-owned state</text>
+  <text x="132" y="536" class="body">selection</text>
+  <text x="132" y="559" class="body">pending edits</text>
+  <text x="132" y="582" class="body">render-only flags</text>
+  <text x="132" y="605" class="small">Good rule: UI should not guess backend meaning.</text>
+  <rect x="116" y="654" width="232" height="128" class="callout"/>
+  <text x="132" y="682" class="chip" fill="#9a3412">SEAM</text>
+  <text x="132" y="705" class="body">A seam is a join between parts that can change independently.</text>
+  <text x="132" y="731" class="small">ABB seam here: UI calls a boundary adapter instead of Rust directly.</text>
+
+  <rect x="418" y="226" width="360" height="580" class="subbox accentGold"/>
+  <text x="444" y="264" class="section" style="font-size:22px;">2. Typed TS boundary</text>
+  <text x="444" y="294" class="body">Handwritten adapter and normalizers</text>
+  <text x="444" y="322" class="mono small">src/lib/tauri/client.ts</text>
+  <text x="444" y="344" class="mono small">src/lib/tauri/normalizers.ts</text>
+  <rect x="444" y="372" width="308" height="118" class="subbox"/>
+  <text x="460" y="399" class="label">Boundary job</text>
+  <text x="460" y="423" class="body">Compile intent patches</text>
+  <text x="460" y="446" class="body">Normalize nullish/generated shapes</text>
+  <text x="460" y="469" class="body">Turn backend errors into one envelope</text>
+  <rect x="444" y="514" width="308" height="148" class="subbox"/>
+  <text x="460" y="541" class="label">Contract examples</text>
+  <text x="460" y="565" class="mono tiny">MetadataIntentPatch</text>
+  <text x="460" y="587" class="mono tiny">{ field -&gt; { op: 'set' | 'clear' | 'noop' } }</text>
+  <text x="460" y="613" class="mono tiny">AppErrorEnvelope</text>
+  <text x="460" y="635" class="mono tiny">{ code, category, message, detail? }</text>
+  <rect x="444" y="686" width="308" height="96" class="callout"/>
+  <text x="460" y="714" class="chip" fill="#9a3412">BOUNDARY</text>
+  <text x="460" y="738" class="body">A boundary is the choke point that all traffic should pass through.</text>
+  <text x="460" y="761" class="small">ABB boundary: UI -&gt; tauriClient -&gt; Rust IPC.</text>
+
+  <rect x="824" y="226" width="258" height="580" class="subbox accentRose"/>
+  <text x="848" y="264" class="section" style="font-size:22px;">3. Contract surface</text>
+  <text x="848" y="294" class="body">TS &lt;-&gt; Rust IPC export map</text>
+  <text x="848" y="322" class="mono small">src-tauri/src/ipc_contract.rs</text>
+  <rect x="848" y="356" width="210" height="120" class="subbox"/>
+  <text x="864" y="383" class="label">Commands</text>
+  <text x="864" y="407" class="mono tiny">validate_files</text>
+  <text x="864" y="429" class="mono tiny">save_metadata_to_file</text>
+  <text x="864" y="451" class="mono tiny">process_audiobook_files</text>
+  <rect x="848" y="500" width="210" height="100" class="subbox"/>
+  <text x="864" y="527" class="label">Events</text>
+  <text x="864" y="551" class="mono tiny">processing-progress</text>
+  <text x="864" y="573" class="mono tiny">processing-queue</text>
+  <rect x="848" y="626" width="210" height="156" class="callout"/>
+  <text x="864" y="654" class="chip" fill="#9a3412">CONTRACT</text>
+  <text x="864" y="678" class="body">A contract is the allowed shape and behavior across a seam.</text>
+  <text x="864" y="705" class="small">If either side changes without updating the contract, drift appears.</text>
+  <text x="864" y="731" class="small">Generated bindings help detect drift, but they are not the human-owned seam.</text>
+
+  <rect x="1128" y="226" width="354" height="580" class="subbox accentGreen"/>
+  <text x="1154" y="264" class="section" style="font-size:22px;">4. Rust backend owners</text>
+  <text x="1154" y="294" class="body">Subsystems with explicit invariants</text>
+  <rect x="1154" y="326" width="302" height="96" class="subbox"/>
+  <text x="1170" y="353" class="label">Metadata subsystem</text>
+  <text x="1170" y="377" class="mono tiny">src-tauri/src/metadata/*</text>
+  <text x="1170" y="399" class="small">Interop, clear intent, tag ownership</text>
+  <rect x="1154" y="442" width="302" height="96" class="subbox"/>
+  <text x="1170" y="469" class="label">JobRegistry + scheduler</text>
+  <text x="1170" y="493" class="mono tiny">src-tauri/src/audio/job_registry/*</text>
+  <text x="1170" y="515" class="small">Ordering, concurrency, terminalization</text>
+  <rect x="1154" y="558" width="302" height="96" class="subbox"/>
+  <text x="1170" y="585" class="label">Processor pipeline</text>
+  <text x="1170" y="609" class="mono tiny">prepare -&gt; execute -&gt; finalize</text>
+  <text x="1170" y="631" class="small">Truthful progress, cleanup, output integrity</text>
+  <rect x="1154" y="678" width="302" height="104" class="callout"/>
+  <text x="1170" y="706" class="chip" fill="#9a3412">INVARIANTS</text>
+  <text x="1170" y="730" class="body">An invariant is what must remain true after the message is handled.</text>
+  <text x="1170" y="754" class="small">Example: every queued item must reach a terminal outcome.</text>
+
+  <path d="M372 516 C392 516, 396 516, 418 516" class="flow"/>
+  <path d="M778 516 C796 516, 804 516, 824 516" class="flow"/>
+  <path d="M1082 516 C1100 516, 1108 516, 1128 516" class="flow"/>
+
+  <rect x="404" y="210" width="388" height="612" class="boundary"/>
+  <text x="454" y="205" class="chip" fill="#b45309">PRIMARY BOUNDARY</text>
+  <rect x="814" y="210" width="278" height="612" class="seam"/>
+  <text x="848" y="205" class="chip" fill="#2563eb">HIGH-LEVERAGE SEAM</text>
+
+  <rect x="64" y="884" width="1450" height="312" class="box"/>
+  <text x="92" y="926" class="section">Data shapes and explicit compatibility paths</text>
+
+  <rect x="96" y="956" width="408" height="208" class="subbox"/>
+  <text x="120" y="991" class="label">Core request shape</text>
+  <text x="120" y="1018" class="mono tiny">ProcessPayload {</text>
+  <text x="144" y="1041" class="mono tiny">inputFiles: string[]</text>
+  <text x="144" y="1064" class="mono tiny">outputDir: string</text>
+  <text x="144" y="1087" class="mono tiny">settings: EncoderSettings</text>
+  <text x="144" y="1110" class="mono tiny">outputNaming: OutputNamingConfig</text>
+  <text x="144" y="1133" class="mono tiny">jobType: 'batch' | 'merge'</text>
+  <text x="120" y="1156" class="mono tiny">}</text>
+
+  <rect x="538" y="956" width="408" height="208" class="subbox"/>
+  <text x="562" y="991" class="label">Core result shape</text>
+  <text x="562" y="1018" class="mono tiny">ProcessCommandResult {</text>
+  <text x="586" y="1041" class="mono tiny">summary: { total, succeeded, failed }</text>
+  <text x="586" y="1064" class="mono tiny">results: ProcessResultEntry[]</text>
+  <text x="586" y="1087" class="mono tiny">error?: AppErrorEnvelope | null</text>
+  <text x="562" y="1110" class="mono tiny">}</text>
+  <text x="562" y="1140" class="small">This shape lets UI reason about truthfulness instead of scraping messages.</text>
+
+  <rect x="980" y="956" width="260" height="208" class="subbox"/>
+  <text x="1004" y="991" class="label">Live event shape</text>
+  <text x="1004" y="1018" class="mono tiny">processing-progress</text>
+  <text x="1004" y="1042" class="mono tiny">{ stage, percentage,</text>
+  <text x="1004" y="1065" class="mono tiny">message, job_id,</text>
+  <text x="1004" y="1088" class="mono tiny">input_index }</text>
+  <text x="1004" y="1120" class="mono tiny">processing-queue</text>
+  <text x="1004" y="1144" class="mono tiny">{ items[], max_concurrent }</text>
+
+  <rect x="1274" y="956" width="208" height="208" class="callout"/>
+  <text x="1296" y="991" class="chip" fill="#9a3412">SHIM / FALLBACK</text>
+  <text x="1296" y="1017" class="body">A shim or fallback is an explicit compatibility bridge, not a hidden guess.</text>
+  <text x="1296" y="1054" class="small">ABB examples:</text>
+  <text x="1296" y="1077" class="small">mp4ameta read fails</text>
+  <text x="1296" y="1100" class="small">-&gt; ffmpeg fallback</text>
+  <text x="1296" y="1131" class="small">localStorage blocked</text>
+  <text x="1296" y="1154" class="small">-&gt; default preference</text>
+
+  <path d="M1300 938 C1248 878, 1200 842, 1162 770" class="flowSoft"/>
+  <text x="1224" y="880" class="tiny">compatibility path</text>
+
+  <rect x="1542" y="154" width="208" height="1042" class="legendBox"/>
+  <text x="1568" y="198" class="section" style="font-size:22px;">Legend</text>
+
+  <line x1="1568" y1="240" x2="1664" y2="240" class="flow"/>
+  <text x="1570" y="268" class="label">Flow</text>
+  <text x="1570" y="289" class="small">Actual runtime traffic or state movement</text>
+
+  <line x1="1568" y1="336" x2="1664" y2="336" class="seam"/>
+  <text x="1570" y="364" class="label">Seam</text>
+  <text x="1570" y="385" class="small">Join where parts can evolve separately</text>
+
+  <line x1="1568" y1="432" x2="1664" y2="432" class="boundary"/>
+  <text x="1570" y="460" class="label">Boundary</text>
+  <text x="1570" y="481" class="small">Choke point that should own translation</text>
+
+  <rect x="1568" y="522" width="132" height="50" class="callout"/>
+  <text x="1582" y="553" class="chip" fill="#9a3412">CONTRACT</text>
+  <text x="1570" y="597" class="small">Agreed message shape and behavior</text>
+
+  <rect x="1568" y="638" width="132" height="50" class="subbox accentSlate"/>
+  <text x="1588" y="670" class="chip" fill="#334155">OWNER</text>
+  <text x="1570" y="713" class="small">Part responsible for truth inside that box</text>
+
+  <rect x="1568" y="752" width="132" height="50" class="callout"/>
+  <text x="1580" y="784" class="chip" fill="#9a3412">FALLBACK</text>
+  <text x="1570" y="827" class="small">Explicit escape hatch with trigger and observability</text>
+
+  <rect x="1568" y="870" width="156" height="92" class="legendBox"/>
+  <text x="1582" y="900" class="label">Rule of thumb</text>
+  <text x="1582" y="924" class="small">Better shape = less guessing</text>
+  <text x="1582" y="946" class="small">for humans and AI agents.</text>
+
+  <rect x="1568" y="994" width="156" height="150" class="legendBox"/>
+  <text x="1582" y="1024" class="label">Reading order</text>
+  <text x="1582" y="1048" class="small">1. Who owns this?</text>
+  <text x="1582" y="1071" class="small">2. What messages cross in?</text>
+  <text x="1582" y="1094" class="small">3. What shape do they have?</text>
+  <text x="1582" y="1117" class="small">4. What must stay true?</text>
+
+  <text x="92" y="1220" class="tiny">Repo-grounded sources: docs/api-map.md, src/lib/tauri/AGENTS.md, src/types/audio.ts, src/types/events.ts, src-tauri subsystem AGENTS.</text>
+</svg>
