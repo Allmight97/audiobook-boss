@@ -1,3 +1,18 @@
+/**
+ * IPC payload normalizers for the Rust → TypeScript boundary.
+ *
+ * Each public normalizer accepts a specta-generated payload type from
+ * `../generated/tauri` (where Rust `Option<T>` surfaces as `T | null`) and
+ * returns the matching UI-friendly type from `../../types/*` (where `null`
+ * has been converted to optional via `NullToOptionalDeep`). This keeps the
+ * adapter layer thin and well-typed: input drift is caught at compile time,
+ * and the runtime transform is centralized in `normalizeNullish`.
+ *
+ * Inverse direction: `denormalize*` helpers rebuild payloads with explicit
+ * `null` values for the wire (see `denormalizeMetadata`,
+ * `denormalizeProcessPayload`, and `denormalizeNullish`).
+ */
+
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	EncoderAvailability as GeneratedEncoderAvailability,

@@ -16,10 +16,22 @@ Use this skill for backend job lifecycle and UX-truthful processing state.
 
 ## Canonical Progress Source
 
-- Stage/type authority: `src/types/events.ts` (`ProgressEvent.stage`)
-- Event emission implementation: `src-tauri/src/audio/progress/emitter.rs`
+- Wire-stage authority: Rust `EventStage` enum in `src-tauri/src/audio/progress/mod.rs`
+  (specta-generated into `src/lib/generated/tauri.ts` as a string-literal union).
+- Event payload type (Rust): `ProgressEvent` in `src-tauri/src/audio/progress/mod.rs`.
+- Event emission implementations: `src-tauri/src/audio/progress/emitter.rs`
+  (`emit_event`, `emit_cancelled`) and `src-tauri/src/commands/audio_processing.rs`
+  (`emit_terminal_failed_event`).
+- Frontend re-export and runtime helpers: `src/types/events.ts` re-exports
+  `EventStage` and exposes the readable `STAGES` value-level helper, typed
+  `{ [K in EventStage]: K }` so missing variants fail the TS build.
 
-When stages evolve, update `src/types/events.ts` first, then emitter and command usage.
+When stages evolve, update the Rust `EventStage` enum + the matching
+`From<&ProcessingStage>` impl first, regenerate bindings (`bun run bindings:generate`),
+then adjust frontend consumers. The internal Rust `ProcessingStage` enum is
+distinct from `EventStage` — `ProcessingStage` carries data (e.g.
+`Failed(String)`) and drives processor orchestration, while `EventStage` is the
+flat wire-shaped discriminator the UI consumes.
 
 ## Required Workflow
 
@@ -39,7 +51,8 @@ When stages evolve, update `src/types/events.ts` first, then emitter and command
 
 - No parallel lifecycle tracker outside `JobRegistry`.
 - Cancellation is responsive in long-running loops.
-- Frontend event types and backend stage strings remain in sync.
+- Backend `EventStage` and frontend consumers stay in sync via specta-generated
+  bindings (the `check-generated-bindings` gate enforces drift detection).
 
 ## Alignment
 

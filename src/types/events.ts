@@ -1,12 +1,14 @@
 /**
- * Frontend Event Contract Documentation for Phase 0
+ * Frontend event contract for the Rust → TypeScript IPC seam.
  *
- * This file documents the complete event contract between the Rust backend
- * and TypeScript frontend as it currently exists. This serves as documentation
- * for Phase 0 and helps prevent breaking changes during refactoring.
+ * This module is the frontend-side index for events that flow from the Rust
+ * backend (via tauri-specta) and from the Tauri runtime itself. Payload
+ * shapes come from the specta-generated bindings in `src/lib/generated/tauri.ts`
+ * — the canonical source of truth — and are re-exported here in UI-friendly
+ * form (e.g. `null` collapsed to optional via `NullToOptionalDeep`).
  *
- * Created: Phase 0 - Event Contract Documentation
- * Purpose: Preserve exact behavior during refactoring
+ * When stages or payload fields evolve, change the Rust types first, run
+ * `bun run bindings:generate`, then update consumers in this file.
  */
 
 import type {
@@ -17,7 +19,7 @@ import type {
 import type { NullToOptionalDeep } from './ipc';
 
 // ============================================================================
-// EVENT CONSTANTS (P0.5.3)
+// EVENT CONSTANTS
 // ============================================================================
 
 /** Event name constants to prevent string drift */
@@ -124,11 +126,11 @@ export interface TauriFileDropEvents {
 // ============================================================================
 
 /**
- * Complete event contract for the audiobook processing application
+ * Complete event contract for the audiobook processing application.
  *
- * This interface represents all events that flow between backend and frontend.
- * Any changes to this contract during refactoring should be carefully reviewed
- * to preserve backend/frontend event contract stability.
+ * Combines Rust → frontend events (typed against the specta-generated
+ * payloads, with the bindings drift gate guarding against silent breakage)
+ * and Tauri runtime file-drop events.
  */
 export interface ApplicationEvents extends TauriFileDropEvents {
 	/** Progress updates during audiobook processing */
@@ -226,6 +228,11 @@ export type EventPayload<T extends EventName> = ApplicationEvents[T];
  * Validates the runtime shape of an arbitrary value so it can be narrowed to
  * `ProcessingProgressEvent`. The `stage` field is checked against the known
  * `EventStage` variants (exhaustively enumerated by `STAGES`).
+ *
+ * Note: the live event path in `src/lib/tauri/client.ts` is already narrowed
+ * via the typed `normalizeProgressEvent` adapter, so this guard is intended
+ * for ad-hoc/raw-listener consumers (e.g. tooling, smoke checks, or any
+ * future use that bypasses `tauriClient`).
  */
 const EVENT_STAGE_VALUES = Object.values(STAGES) as readonly EventStage[];
 
