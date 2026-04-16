@@ -15,6 +15,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.4] - 2026-04-16
+
+Internal state-shape tightening release, continuing the "make impossible
+states unrepresentable" pass started in 1.0.3. Three focused refactors along
+the IPC seam and UI state layer. No wire-format or user-visible behavior
+changes.
+
+### Changed
+
+- **`unwrapGeneratedResult` narrowed to the canonical specta `Result` shape**
+  (`src/lib/tauri/appError.ts`, `src/lib/tauri/client.ts`). Rewrite the
+  function from a 4-branch duck-type across `{Ok,Err}` / `{ok: boolean}` /
+  `{status, data|error}` shapes down to a tight three-way discrimination:
+  specta success returns `.data`, specta error throws via `normalizeAppError`,
+  everything else passes through unchanged (bare-value commands like
+  `get_max_concurrent_jobs` and `list_available_encoders`). Replace the loose
+  `isResultRecord` (had-a-`status`-key) with `isSpectaResult` that checks
+  `status === 'ok' | 'error'` explicitly — removes the misclassification
+  hazard where a future domain type with an unrelated `status` field would
+  be treated as a `Result` envelope. Simplify the matching
+  `UnwrapGeneratedResult<T>` conditional type from 7 branches to 3.
+- **Cover art inline message modeled as a discriminated union**
+  (`src/ui/coverArt/state.svelte.ts`, `src/ui/coverArt/CoverArtIsland.svelte`).
+  Replace the `messageText` / `messageVariant` / `messageVisible` triple with
+  a single `CoverArtMessage` union of `{ kind: 'hidden' }` /
+  `{ kind: 'error'; text }` / `{ kind: 'success'; text }`. Impossible states
+  (`messageVisible: false` with lingering text, unknown variant values) are
+  now unrepresentable. Export `showCoverArtMessage` /
+  `clearCoverArtMessage` from `src/ui/coverArt.ts` to enable first-class unit
+  coverage of the 4-second auto-dismiss lifecycle.
+- **`ProcessingStatus` modeled as a discriminated union**
+  (`src/ui/statusPanel/state.ts`, `src/ui/statusPanel/controller.ts`).
+  Replace the flat product `{ stage; percentage; message; currentFile?;
+  etaSeconds? }` with a `stage`-keyed union where only the active-stage
+  variant (derived from `EventStage` via
+  `type ActiveEventStage = Exclude<EventStage, 'completed' | 'failed' |
+  'cancelled'>`) carries `currentFile` / `etaSeconds`. Terminal and idle
+  variants drop them at the type level — stale-progress-fields-on-terminal
+  status is now type-impossible. Add a `buildStatus` factory that gates
+  active extras on the discriminant; the four construction sites in
+  `controller.ts` (`applyQueueSnapshot`, `updateAggregateUI`, `flushRender`,
+  `requestCancelAll`) route through it. The `flushRender` path at
+  `controller.ts:~416-425`, which previously copied `current_file` /
+  `eta_seconds` from `latestProgressEvent` onto any stage, is now gated at
+  the type level.
+
+### Added
+
+- **New unit coverage**
+  - `src/lib/tauri-client.test.ts` — `unwrapGeneratedResult` tests for
+    the canonical success/error paths, bare-scalar and bare-object
+    passthrough, and an explicit misclassification guard
+    (`{ status: 'pending', ... }` must fall through).
+  - `src/ui/coverArt/__tests__/coverArtMessage.test.ts` — lifecycle of
+    the cover-art inline message: show sets the right variant, 4-second
+    auto-dismiss transitions to `{ kind: 'hidden' }`, and
+    `clearCoverArtMessage` cancels the pending timeout so a subsequent
+    show is not prematurely hidden by a stale timer. Per-case isolation
+    via `vi.resetModules()` + dynamic imports (timer handle lives in
+    module scope).
+  - `src/ui/statusPanel/__tests__/progressAggregator.test.ts` — one
+    targeted regression test pinning the core hazard: active progress
+    event populates `latestProgressEvent.current_file` / `eta_seconds`,
+    then a terminal event rolls the aggregate over, and the resulting
+    `ProcessingStatus` must not leak the active-stage fields.
+
+### Deferred
+
+Intentionally out of scope for this release (tracked for a successor plan):
+
+- `JobProgress.stage` refactor toward a stricter `EventStage`-based shape.
+- `normalizeProcessResult` inner `results` walk / `normalizeAppError(entry.error)`
+  pattern in `src/lib/tauri/normalizers.ts`.
+- Cleanup of the unused `isProcessingProgressEvent` runtime guard in
+  `src/types/events.ts`.
+
 ## [1.0.3] - 2026-04-15
 
 Internal seam-tightening release. No user-visible behavior changes; the
