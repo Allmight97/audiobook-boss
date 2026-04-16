@@ -150,12 +150,12 @@
   <div
     id="cover-art-url-message"
     class="cover-art-url-message"
-    class:visible={coverArtUiState.messageVisible}
-    class:is-error={coverArtUiState.messageVariant === 'error'}
-    class:is-success={coverArtUiState.messageVariant === 'success'}
+    class:visible={coverArtUiState.message.kind !== 'hidden'}
+    class:is-error={coverArtUiState.message.kind === 'error'}
+    class:is-success={coverArtUiState.message.kind === 'success'}
     role="status"
     aria-live="polite"
   >
-    {coverArtUiState.messageText}
+    {coverArtUiState.message.kind === 'hidden' ? '' : coverArtUiState.message.text}
   </div>
 </div>

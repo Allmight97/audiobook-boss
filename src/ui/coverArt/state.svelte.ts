@@ -1,4 +1,13 @@
-type CoverArtMessageVariant = 'error' | 'success' | null;
+/**
+ * Cover-art inline message. Modeled as a discriminated union so impossible
+ * states (e.g. `messageVisible: false` paired with lingering `messageText`)
+ * are unrepresentable. Only `error` and `success` variants carry text — the
+ * hidden variant has no text at all.
+ */
+export type CoverArtMessage =
+	| { kind: 'hidden' }
+	| { kind: 'error'; text: string }
+	| { kind: 'success'; text: string };
 
 type CoverArtSessionState = {
 	currentCoverArt: number[] | null;
@@ -9,9 +18,7 @@ type CoverArtSessionState = {
 type CoverArtUiState = {
 	imageDataUrl: string | null;
 	isLoading: boolean;
-	messageText: string;
-	messageVariant: CoverArtMessageVariant;
-	messageVisible: boolean;
+	message: CoverArtMessage;
 	isHovered: boolean;
 	isDragOver: boolean;
 	urlInputValue: string;
@@ -26,9 +33,7 @@ export const coverArtSessionState = $state<CoverArtSessionState>({
 export const coverArtUiState = $state<CoverArtUiState>({
 	imageDataUrl: null,
 	isLoading: false,
-	messageText: '',
-	messageVariant: null,
-	messageVisible: false,
+	message: { kind: 'hidden' },
 	isHovered: false,
 	isDragOver: false,
 	urlInputValue: '',
@@ -42,19 +47,12 @@ export function setCoverArtLoading(isLoading: boolean): void {
 	coverArtUiState.isLoading = isLoading;
 }
 
-export function setCoverArtMessage(
-	message: string,
-	variant: Exclude<CoverArtMessageVariant, null>,
-): void {
-	coverArtUiState.messageText = message;
-	coverArtUiState.messageVariant = variant;
-	coverArtUiState.messageVisible = true;
+export function setCoverArtMessage(text: string, kind: 'error' | 'success'): void {
+	coverArtUiState.message = { kind, text };
 }
 
 export function clearCoverArtMessageState(): void {
-	coverArtUiState.messageText = '';
-	coverArtUiState.messageVariant = null;
-	coverArtUiState.messageVisible = false;
+	coverArtUiState.message = { kind: 'hidden' };
 }
 
 export function setCoverArtHovered(isHovered: boolean): void {

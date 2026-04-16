@@ -166,7 +166,7 @@ function showCoverArtError(message: string): void {
 	showCoverArtMessage(message, 'error');
 }
 
-function showCoverArtMessage(message: string, variant: 'error' | 'success'): void {
+export function showCoverArtMessage(message: string, variant: 'error' | 'success'): void {
 	setCoverArtMessage(message, variant);
 
 	if (coverArtMessageTimeoutId !== null) {
@@ -178,7 +178,7 @@ function showCoverArtMessage(message: string, variant: 'error' | 'success'): voi
 	}, 4000);
 }
 
-function clearCoverArtMessage(): void {
+export function clearCoverArtMessage(): void {
 	clearCoverArtMessageState();
 	if (coverArtMessageTimeoutId !== null) {
 		window.clearTimeout(coverArtMessageTimeoutId);
