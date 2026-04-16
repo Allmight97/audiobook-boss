@@ -276,10 +276,6 @@ export async function startProcessing(
 				console.warn('Failed to open preview file automatically:', error);
 			}
 		}
-		if (options?.previewSeconds) {
-			// Optionally handle showing/opening preview file via result once backend returns a path shape
-			// Placeholder: UI messaging handled by progress events for now
-		}
 	} catch (error) {
 		const msg = normalizeProcessingErrorMessage(error);
 		if (!isProcessingCancellationError(error) && !msg.toLowerCase().includes('cancelled')) {

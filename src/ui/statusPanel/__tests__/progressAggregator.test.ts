@@ -80,6 +80,39 @@ describe('StatusPanel aggregate progress', () => {
 		]);
 	});
 
+	it('counts queued jobs as zero-progress participants in batch averages', () => {
+		const controller = new StatusPanelController();
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+				{ input_index: 2, file_path: '/books/gamma.m4b' },
+			],
+			max_concurrent: 1,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: 'completed',
+			percentage: 100,
+			message: 'Done',
+		});
+		vi.advanceTimersByTime(20);
+
+		expect(controller.getCurrentStatus()).toEqual({
+			stage: 'analyzing',
+			percentage: 33.3,
+			message: 'Queued 2 files',
+		});
+		expect(statusPanelViewState.progressPercentage).toBe(33.3);
+		expect(statusPanelViewState.statusText).toBe('Analyzing');
+		expect(getJobRows()).toEqual([
+			'alpha.m4b • Completed (100.0%)',
+			'beta.m4b • Queued • #2 of 3',
+			'gamma.m4b • Queued • #3 of 3',
+		]);
+	});
+
 	// Regression guard for the discriminated-union refactor. Before `buildStatus`,
 	// `flushRender` unconditionally copied `current_file` / `eta_seconds` from
 	// `latestProgressEvent` onto the next status — even when the aggregate had

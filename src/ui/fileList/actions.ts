@@ -76,6 +76,7 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataState();
 	setCurrentFileList(fileListInfo);
+	clearSelectionPanels();
 	initDOMCache();
 
 	updateFileListDOM();

@@ -27,7 +27,7 @@ import { areAllBatchJobsTerminal, buildQueueSnapshotState } from './domain/queue
 import { readCoverArtDataUrl, shouldSkipCoverArtRead } from './services/artThumbnail';
 import {
 	findFilePathByIndex as findFilePathByIndexService,
-	findFilePathByName as findFilePathByNameService,
+	findFilePathByCurrentFile as findFilePathByCurrentFileService,
 } from './services/fileLookup';
 import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from './services/progressThrottle';
 
@@ -439,12 +439,9 @@ export class StatusPanelController {
 			if (indexedPath) {
 				void this.updateArtThumbnailForFile(indexedPath);
 			} else if (event.current_file) {
-				const filename = extractFilenameFromProgress(event.current_file);
-				if (filename) {
-					const filePath = this.findFilePathByName(filename);
-					if (filePath) {
-						void this.updateArtThumbnailForFile(filePath);
-					}
+				const filePath = this.findFilePathByCurrentFile(event.current_file);
+				if (filePath) {
+					void this.updateArtThumbnailForFile(filePath);
 				}
 			}
 		}
@@ -485,8 +482,8 @@ export class StatusPanelController {
 		}
 	}
 
-	private findFilePathByName(filename: string): string | null {
-		return findFilePathByNameService(getCurrentFileList(), filename);
+	private findFilePathByCurrentFile(currentFile: string): string | null {
+		return findFilePathByCurrentFileService(getCurrentFileList(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {

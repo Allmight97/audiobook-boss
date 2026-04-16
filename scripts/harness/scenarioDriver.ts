@@ -142,11 +142,13 @@ export async function seedFileManagementScenario(
 		results,
 		requireScenarioCheck(scenario, 'clear-and-reimport'),
 		async () => {
+			await page.locator('.inspector-context').filter({ hasText: '02-dune-part-2.mp3' }).waitFor();
 			await page.click('#clear-files-btn');
 			await page.locator('#file-count-display').filter({ hasText: '0 files' }).waitFor();
 			await page.getByRole('button', { name: 'Add audio files' }).click();
 			await page.locator('#file-count-display').filter({ hasText: '2 files' }).waitFor();
 			await page.locator('.file-list-item').nth(1).waitFor();
+			await page.locator('.inspector-context').filter({ hasText: 'No file selected' }).waitFor();
 		},
 	);
 

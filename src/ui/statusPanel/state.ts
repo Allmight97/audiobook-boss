@@ -174,10 +174,10 @@ export function calculateAggregateProgressAndStage(
 		}
 	}
 
-	const totalJobs = activeJobs + completedJobs;
-	// Simple average across active + completed jobs. This keeps the aggregate legible
-	// without over-weighting long-running jobs; consider a weighted strategy if we
-	// need time/progress proportionality later.
+	const totalJobs = activeJobs + completedJobs + queuedJobs;
+	// Aggregate progress treats queued jobs as 0%-complete participants so mixed
+	// completed/queued batches do not misleadingly report 100% before queued work starts.
+	// This remains a simple per-job average rather than a duration-weighted model.
 	const overallPercentage = totalJobs > 0 ? totalPercentage / totalJobs : 0;
 
 	const aggregate = {

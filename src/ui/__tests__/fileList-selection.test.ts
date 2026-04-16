@@ -126,4 +126,14 @@ describe('file list selection', () => {
 		expect(getCurrentFileList()?.files.length).toBe(5);
 		expect(selectedIndices()).toEqual([]);
 	});
+
+	it('resets selection state when a fresh file list is loaded', () => {
+		setSelectedFileIndices([1, 3]);
+		setSelectedIndex(3);
+
+		setCurrentFileList(makeFileList(2));
+
+		expect(getSelectedFileIndex()).toBe(-1);
+		expect(selectedIndices()).toEqual([]);
+	});
 });

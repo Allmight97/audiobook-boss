@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { moveFileUp } from '../fileList/actions';
+import { displayFileList, moveFileUp } from '../fileList/actions';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 import { showSingleSelection } from '../fileList/metadataPanel';
 import {
@@ -117,6 +117,7 @@ const makeFileList = (...files: AudioFile[]): FileListInfo => ({
 describe('file list reorder behavior', () => {
 	beforeEach(() => {
 		context.readAudioMetadataMock.mockReset();
+		context.readAudioMetadataMock.mockResolvedValue({ cover_art: null });
 		context.getMetadataForFileMock.mockReset();
 		context.setMetadataForFileMock.mockReset();
 		context.clearMetadataStateMock.mockReset();
@@ -161,5 +162,23 @@ describe('file list reorder behavior', () => {
 		expect(getSelectedFileIndex()).toBe(0);
 		expect(inspectorState.contextText).toBe('beta.m4b');
 		expect(inspectorState.contextDetail).toBe('1 of 3');
+	});
+
+	it('clears inspector context when a new file list is displayed', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+
+		setCurrentFileList(makeFileList(alpha, beta));
+		setSelectedFileIndices([1]);
+		setSelectedIndex(1);
+
+		await showSingleSelection(beta);
+		expect(inspectorState.contextText).toBe('beta.m4b');
+
+		displayFileList(makeFileList(makeFile('/books/new-alpha.m4b')));
+
+		expect(getSelectedFileIndex()).toBe(-1);
+		expect(inspectorState.contextText).toBe('No file selected');
+		expect(inspectorState.contextDetail).toBe('');
 	});
 });

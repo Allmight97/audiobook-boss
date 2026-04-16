@@ -156,10 +156,3 @@ export function onFileListDrop(index: number, e: DragEvent): void {
 export function onFileListDragEnd(): void {
 	resetDragState();
 }
-
-// Temporary no-op exports while modules finish migrating to island-owned listeners.
-export function initFileListEvents(): void {}
-
-export function setupDragStartHandlers(): void {}
-
-export function initDOMEventHandlers(): void {}

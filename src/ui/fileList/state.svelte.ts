@@ -24,25 +24,15 @@ function createSelectedIndexSet(indices: Set<number> | number[]): Set<number> {
 	return next;
 }
 
-function setSelectedFileIndexInRange(index: number, fileCount: number): void {
-	fileListSessionState.selectedFileIndex = index >= 0 && index < fileCount ? index : -1;
-}
-
 export function setCurrentFileList(fileList: FileListInfo | null): void {
 	fileListSessionState.currentFileList = fileList;
 
+	fileListSessionState.selectedFileIndex = -1;
+	fileListSessionState.selectedFileIndices = new Set<number>();
+
 	if (!fileList) {
-		fileListSessionState.selectedFileIndex = -1;
-		fileListSessionState.selectedFileIndices = new Set<number>();
 		return;
 	}
-
-	const fileCount = fileList.files.length;
-	const nextSelectedIndices = Array.from(fileListSessionState.selectedFileIndices).filter(
-		(index) => index >= 0 && index < fileCount,
-	);
-	fileListSessionState.selectedFileIndices = createSelectedIndexSet(nextSelectedIndices);
-	setSelectedFileIndexInRange(fileListSessionState.selectedFileIndex, fileCount);
 }
 
 export function setSelectedIndex(index: number): void {
@@ -93,20 +83,4 @@ export function setOrderLocked(locked: boolean): void {
 
 export function isOrderLocked(): boolean {
 	return fileListSessionState.orderLocked;
-}
-
-export function hasFiles(): boolean {
-	return (
-		fileListSessionState.currentFileList !== null &&
-		fileListSessionState.currentFileList.files.length > 0
-	);
-}
-
-export function isValidIndex(index: number): boolean {
-	if (!fileListSessionState.currentFileList) return false;
-	return index >= 0 && index < fileListSessionState.currentFileList.files.length;
-}
-
-export function getFileCount(): number {
-	return fileListSessionState.currentFileList?.files.length || 0;
 }

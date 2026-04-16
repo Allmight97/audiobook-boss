@@ -107,7 +107,8 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			},
 			{
 				id: 'clear-and-reimport',
-				label: 'Clearing the file list and re-importing restores the populated input lane.',
+				label:
+					'Clearing the file list and re-importing restores the populated input lane with an empty inspector.',
 			},
 		],
 		review: {
