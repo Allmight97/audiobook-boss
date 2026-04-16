@@ -7,7 +7,7 @@ function fileBasename(filePath: string): string {
 export function findFilePathByName(fileList: FileListInfo | null, filename: string): string | null {
 	if (!fileList) return null;
 	const matches = fileList.files.filter((file) => fileBasename(file.path) === filename);
-	return matches.length === 1 ? matches[0]?.path ?? null : null;
+	return matches.length === 1 ? (matches[0]?.path ?? null) : null;
 }
 
 function stripProgressSuffix(value: string): string {

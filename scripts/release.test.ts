@@ -107,7 +107,7 @@ exit 0
 	runOrThrow('git', ['commit', '-m', 'chore: initial fixture'], { cwd: repoRoot });
 	runOrThrow('git', ['tag', 'v1.0.4'], { cwd: repoRoot });
 
-	appendEmptyHistory(repoRoot, 20);
+	appendEmptyHistory(repoRoot, 128);
 
 	return { repoRoot };
 }

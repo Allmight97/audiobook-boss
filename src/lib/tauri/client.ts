@@ -40,7 +40,7 @@ import {
 
 type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
 type GeneratedExternalToolchain = { overridePath: string | null };
-type AppEventName = typeof TAURI_APP_EVENT_NAMES[number];
+type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
 type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
@@ -100,7 +100,7 @@ function toGeneratedOutputNamingConfig(
 	return {
 		preset: denormalized.preset,
 		includeYear: denormalized.includeYear,
-		customTemplate: denormalized.customTemplate,
+		customTemplate: denormalized.customTemplate ?? null,
 	};
 }
 
@@ -249,7 +249,10 @@ function listen(
 		return listenProcessingQueue(handler as QueueEventHandler);
 	}
 
-	return tauriListen(event, handler as (event: { payload: ApplicationEvents[RuntimeEventName] }) => void);
+	return tauriListen(
+		event,
+		handler as (event: { payload: ApplicationEvents[RuntimeEventName] }) => void,
+	);
 }
 
 export const tauriClient = {
@@ -277,8 +280,7 @@ export const tauriClient = {
 		query: string;
 		sources?: MetadataSource[] | null;
 		limit?: number | null;
-	}): Promise<CommandResult<'search_online_metadata'>> =>
-		commandSpecs.search_online_metadata(args),
+	}): Promise<CommandResult<'search_online_metadata'>> => commandSpecs.search_online_metadata(args),
 	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
 		commandSpecs.analyze_audio_files({ filePaths }),
 	validateEncoderSettings: (

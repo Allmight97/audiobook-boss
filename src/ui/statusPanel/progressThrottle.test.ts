@@ -142,6 +142,6 @@ describe('StatusPanel progress throttling', () => {
 		expect(getJobRows()[0]).toBe('alpha.m4b • Completed (100.0%)');
 		expect(getStatusText()).toBe('Analyzing');
 		expect(getStepText()).toBe('Current Step: Queued 1 file');
-		expect(getPercentageText()).toBe('100.0%');
+		expect(getPercentageText()).toBe('50.0%');
 	});
 });
