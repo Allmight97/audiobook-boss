@@ -3,8 +3,8 @@ import {
 	copyFileSync,
 	mkdtempSync,
 	mkdirSync,
-	readFileSync,
 	rmSync,
+	readFileSync,
 	writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
@@ -40,10 +40,8 @@ function runOrThrow(
 	return result.stdout;
 }
 
-function appendCommit(repoRoot: string, fileName: string, contents: string, message: string): void {
-	writeFileSync(path.join(repoRoot, fileName), contents);
-	runOrThrow('git', ['add', fileName], { cwd: repoRoot });
-	runOrThrow('git', ['commit', '-m', message], { cwd: repoRoot });
+function appendEmptyCommit(repoRoot: string, message: string): void {
+	runOrThrow('git', ['commit', '--allow-empty', '-m', message], { cwd: repoRoot });
 }
 
 function createReleaseFixture(): { repoRoot: string } {
@@ -76,7 +74,6 @@ function createReleaseFixture(): { repoRoot: string } {
 			'',
 		].join('\n'),
 	);
-	writeFileSync(path.join(repoRoot, 'commit-log.txt'), '');
 	writeFileSync(
 		path.join(repoRoot, 'scripts', 'bump-version.sh'),
 		'#!/usr/bin/env bash\nprintf "bump:%s\\n" "$1" >> .stub-log\nexit 0\n',
@@ -101,12 +98,10 @@ exit 0
 	runOrThrow('git', ['commit', '-m', 'chore: initial fixture'], { cwd: repoRoot });
 	runOrThrow('git', ['tag', 'v1.0.4'], { cwd: repoRoot });
 
-	for (let index = 0; index < 16; index += 1) {
-		appendCommit(
+	for (let index = 0; index < 320; index += 1) {
+		appendEmptyCommit(
 			repoRoot,
-			'commit-log.txt',
-			`${readFileSync(path.join(repoRoot, 'commit-log.txt'), 'utf8')}${index}\n`,
-			`chore: history ${index + 1}`,
+			`chore: history ${String(index + 1).padStart(3, '0')} ${'x'.repeat(240)}`,
 		);
 	}
 
@@ -120,8 +115,16 @@ afterEach(() => {
 });
 
 describe('release.sh', () => {
-	it('survives the preview step with more than 15 commits after the last tag', () => {
+	it('survives the preview step that previously failed under pipefail', () => {
 		const { repoRoot } = createReleaseFixture();
+		const oldPreview = spawnSync(
+			'bash',
+			['-lc', 'set -euo pipefail; git log --oneline --no-decorate v1.0.4..HEAD | head -15'],
+			{
+				cwd: repoRoot,
+				encoding: 'utf8',
+			},
+		);
 
 		const result = spawnSync(
 			'bash',
@@ -136,6 +139,7 @@ describe('release.sh', () => {
 			},
 		);
 
+		expect(oldPreview.status).not.toBe(0);
 		expect(result.status).toBe(0);
 		expect(result.stdout).toContain('Changes since last tag:');
 		expect(result.stdout).toContain('Skipped commit. To finish manually:');
