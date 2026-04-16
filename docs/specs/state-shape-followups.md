@@ -144,7 +144,7 @@ Boundary ownership:
 
 Branch 1:
 
-- `bun test src/ui/statusPanel/__tests__/state.test.ts src/ui/statusPanel/__tests__/progressAggregator.test.ts src/ui/statusPanel/__tests__/statusPanel-lifecycle.test.ts src/ui/statusPanel/__tests__/renderIncrements.test.ts src/ui/statusPanel/__tests__/renderOrder.test.ts`
+- `bun run test -- src/ui/statusPanel/__tests__/state.test.ts src/ui/statusPanel/__tests__/progressAggregator.test.ts src/ui/statusPanel/__tests__/statusPanel-lifecycle.test.ts src/ui/statusPanel/__tests__/renderIncrements.test.ts src/ui/statusPanel/__tests__/renderOrder.test.ts`
 - `bun run harness:verify --scenario status-processing`
 - `scripts/checks.sh standard`
 - final read-only audit using `gpt-5.4` with `xhigh`
