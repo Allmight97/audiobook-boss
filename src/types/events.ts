@@ -10,6 +10,7 @@
  */
 
 import type {
+	EventStage as GeneratedEventStage,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 } from '../lib/generated/tauri';
@@ -25,8 +26,24 @@ export const EVENTS = {
 	QUEUE: 'processing-queue',
 } as const;
 
-/** Stage name constants to prevent string drift */
-export const STAGES = {
+/**
+ * Processing stage identifiers emitted on the `processing-progress` event.
+ *
+ * The canonical source of these values is the Rust `EventStage` enum
+ * (`src-tauri/src/audio/progress/mod.rs`). The type alias below is re-exported
+ * from the specta-generated bindings so adding a stage in Rust is a compile
+ * error here until this file (and `STAGES`) is updated.
+ */
+export type EventStage = GeneratedEventStage;
+
+/**
+ * Readable, value-level access to stage identifiers.
+ *
+ * Typed as `{ [K in EventStage]: K }` so that this object must exhaustively
+ * cover every variant of the generated `EventStage` union. If Rust adds a
+ * variant, this declaration will fail to type-check.
+ */
+export const STAGES: { readonly [K in EventStage]: K } = {
 	analyzing: 'analyzing',
 	converting: 'converting',
 	writing: 'writing',
@@ -40,23 +57,21 @@ export const STAGES = {
 // ============================================================================
 
 /**
- * Progress event emitted by Rust backend during audio processing
+ * Progress event emitted by Rust backend during audio processing.
  *
- * Source: src-tauri/src/audio/progress/mod.rs (ProgressEvent struct)
- * Handler: src/ui/statusPanel/events.ts (listen(EVENTS.PROGRESS))
+ * Source: `src-tauri/src/audio/progress/mod.rs` (`ProgressEvent` struct)
+ * Handler: `src/ui/statusPanel/events.ts` (listen(EVENTS.PROGRESS))
  *
  * Emitted during:
  * - File analysis phase
  * - Audio conversion and merging
  * - Metadata writing
  * - Process completion/failure/cancellation
+ *
+ * Stage is a proper `EventStage` union (not a raw string) because the Rust
+ * side now uses an enum that specta serializes as a snake_case string literal.
  */
-type GeneratedProgressEventForUi = NullToOptionalDeep<GeneratedProgressEvent>;
-
-export type ProcessingProgressEvent = Omit<GeneratedProgressEventForUi, 'stage'> & {
-	/** Processing stage identifier */
-	stage: keyof typeof STAGES;
-};
+export type ProcessingProgressEvent = NullToOptionalDeep<GeneratedProgressEvent>;
 
 export type ProcessingQueueItem = NullToOptionalDeep<GeneratedQueueEvent>['items'][number];
 
@@ -167,13 +182,10 @@ export interface ApplicationEvents extends TauriFileDropEvents {
  * - isProcessing: boolean flag in StatusPanel
  * - currentStatus: ProcessingStatus with stage, percentage, message, etc.
  *
- * PROCESSING STAGES (backend ProcessingStage enum):
- * - Analyzing: File validation and preparation
- * - Converting: Audio conversion and merging with FFmpeg
- * - Merging: Historical label retained for backward-compat parsing; backend now emits Converting
- * - WritingMetadata: Adding metadata to final file
- * - Completed: Success state
- * - Failed: Error state with error message
+ * PROCESSING STAGES: see the `EventStage` type (re-exported from
+ * `src/lib/generated/tauri.ts`, sourced from the Rust `EventStage` enum in
+ * `src-tauri/src/audio/progress/mod.rs`). Adding a stage is a single-source
+ * change in Rust; specta regenerates the TS union automatically.
  */
 
 // ============================================================================
@@ -182,13 +194,6 @@ export interface ApplicationEvents extends TauriFileDropEvents {
 
 /**
  * PROCESSING PROGRESS EVENT DETAILS:
- *
- * Stage Mapping (backend → frontend):
- * - ProcessingStage::Analyzing → "analyzing"
- * - ProcessingStage::Converting → "converting"
- * - ProcessingStage::WritingMetadata → "writing"
- * - ProcessingStage::Completed → "completed"
- * - ProcessingStage::Failed(_) → "failed"
  *
  * Percentage Ranges (matches `audio::constants`):
  * - 0-10%: Initial validation and setup
@@ -216,17 +221,24 @@ export type EventName = keyof ApplicationEvents;
 export type EventPayload<T extends EventName> = ApplicationEvents[T];
 
 /**
- * Type guard for processing progress events
+ * Type guard for processing progress events.
+ *
+ * Validates the runtime shape of an arbitrary value so it can be narrowed to
+ * `ProcessingProgressEvent`. The `stage` field is checked against the known
+ * `EventStage` variants (exhaustively enumerated by `STAGES`).
  */
+const EVENT_STAGE_VALUES = Object.values(STAGES) as readonly EventStage[];
+
 export function isProcessingProgressEvent(event: unknown): event is ProcessingProgressEvent {
-	const e = event as ProcessingProgressEvent;
+	if (typeof event !== 'object' || event === null) {
+		return false;
+	}
+	const e = event as Partial<ProcessingProgressEvent>;
 	return (
-		typeof e === 'object' &&
-		e !== null &&
-		typeof e.stage === 'string' &&
 		typeof e.percentage === 'number' &&
 		typeof e.message === 'string' &&
-		Object.values(STAGES).includes(e.stage as keyof typeof STAGES)
+		typeof e.stage === 'string' &&
+		EVENT_STAGE_VALUES.includes(e.stage as EventStage)
 	);
 }
 

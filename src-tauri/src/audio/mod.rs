@@ -117,8 +117,8 @@ pub enum ProcessingStage {
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
 pub use progress::{
-    calculate_stage_progress, converting_percentage_from_seconds, format_eta, ProgressEmitter,
-    ProgressEvent, ProgressReporter, QueueEvent, QueueItem,
+    calculate_stage_progress, converting_percentage_from_seconds, format_eta, EventStage,
+    ProgressEmitter, ProgressEvent, ProgressReporter, QueueEvent, QueueItem,
 };
 
 // Job registry for parallel batch processing

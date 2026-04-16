@@ -390,6 +390,16 @@ export type EncoderType =
  * Native FFmpeg AAC encoder (aac)
  */
 "native_aac"
+/**
+ * Stage identifier emitted on `processing-progress` events.
+ *
+ * This enum defines the wire format the frontend consumes. It is distinct
+ * from [`ProcessingStage`] (internal orchestration enum that carries data
+ * such as `Failed(String)`) because the UI only needs a simple discriminator.
+ * Serde `snake_case` serialization keeps the wire values identical to the
+ * pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
+ */
+export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "failed" | "cancelled"
 export type ExternalToolchainPreference = { overridePath: string | null }
 /**
  * Summary information for a file list
@@ -444,9 +454,9 @@ export type ProcessResultSummary = { total: number; succeeded: number; failed: n
  */
 export type ProgressEvent = {
 /**
- * Current processing stage name
+ * Current processing stage
  */
-stage: string;
+stage: EventStage;
 /**
  * Progress percentage (0-100)
  */

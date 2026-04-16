@@ -1,6 +1,12 @@
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
+	EncoderAvailability as GeneratedEncoderAvailability,
+	FileListInfo as GeneratedFileListInfo,
+	OnlineMetadataResult as GeneratedOnlineMetadataResult,
+	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
+	ProgressEvent as GeneratedProgressEvent,
+	QueueEvent as GeneratedQueueEvent,
 } from '../generated/tauri';
 import type {
 	EncoderAvailability,
@@ -10,6 +16,7 @@ import type {
 } from '../../types/audio';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import type { NullToOptionalDeep } from '../../types/ipc';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
@@ -52,19 +59,29 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
 	return true;
 }
 
-export function normalizeNullish<T>(value: T): T {
+/**
+ * Recursively strips `null` from a generated Tauri payload so fields that were
+ * typed as `T | null` on the wire become `T | undefined` (optional) in app code.
+ *
+ * The return type is `NullToOptionalDeep<T>` — the type-level twin of this
+ * runtime transform. Typing the return this way means every downstream
+ * normalizer can return a UI-friendly type (e.g. `AudiobookMetadata =
+ * NullToOptionalDeep<GeneratedAudiobookMetadata>`) without an `as` cast at
+ * the call site.
+ */
+export function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
-		return undefined as T;
+		return undefined as NullToOptionalDeep<T>;
 	}
 	if (Array.isArray(value)) {
 		if (isScalarArrayWithoutNullish(value)) {
-			return value as T;
+			return value as NullToOptionalDeep<T>;
 		}
 		const normalized = new Array<unknown>(value.length);
 		for (const [index, entry] of value.entries()) {
 			normalized[index] = normalizeNullish(entry);
 		}
-		return normalized as T;
+		return normalized as NullToOptionalDeep<T>;
 	}
 	if (isPlainRecord(value)) {
 		const normalized: PlainRecord = {};
@@ -74,9 +91,9 @@ export function normalizeNullish<T>(value: T): T {
 				normalized[key] = converted;
 			}
 		}
-		return normalized as T;
+		return normalized as NullToOptionalDeep<T>;
 	}
-	return value;
+	return value as NullToOptionalDeep<T>;
 }
 
 export function denormalizeNullish<T>(value: T): T {
@@ -115,8 +132,8 @@ function toNullableShape<T extends PlainRecord, K extends keyof T>(
 	return output;
 }
 
-export function normalizeMetadata(metadata: unknown): AudiobookMetadata {
-	return normalizeNullish(metadata) as AudiobookMetadata;
+export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
+	return normalizeNullish(metadata);
 }
 
 export function denormalizeMetadata(
@@ -128,16 +145,18 @@ export function denormalizeMetadata(
 	) as GeneratedAudiobookMetadata;
 }
 
-export function normalizeFileList(info: unknown): FileListInfo {
-	return normalizeNullish(info) as FileListInfo;
+export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
+	return normalizeNullish(info);
 }
 
-export function normalizeEncoderAvailability(availability: unknown): EncoderAvailability {
-	return normalizeNullish(availability) as EncoderAvailability;
+export function normalizeEncoderAvailability(
+	availability: GeneratedEncoderAvailability,
+): EncoderAvailability {
+	return normalizeNullish(availability);
 }
 
-export function normalizeLookupResult(result: unknown): OnlineMetadataResult {
-	return normalizeNullish(result) as OnlineMetadataResult;
+export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
+	return normalizeNullish(result);
 }
 
 export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedProcessPayload {
@@ -156,7 +175,9 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	};
 }
 
-export function normalizeProcessResult(result: unknown): ProcessCommandResult {
+export function normalizeProcessResult(
+	result: GeneratedProcessCommandResult,
+): ProcessCommandResult {
 	const normalized = normalizeNullish(result) as ProcessCommandResult;
 	return {
 		...normalized,
@@ -167,14 +188,10 @@ export function normalizeProcessResult(result: unknown): ProcessCommandResult {
 	};
 }
 
-export function normalizeProgressEvent(payload: unknown): ProcessingProgressEvent {
-	const normalized = normalizeNullish(payload) as ProcessingProgressEvent;
-	return {
-		...normalized,
-		stage: normalized.stage as ProcessingProgressEvent['stage'],
-	};
+export function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {
+	return normalizeNullish(payload);
 }
 
-export function normalizeQueueEvent(payload: unknown): ProcessingQueueEvent {
-	return normalizeNullish(payload) as ProcessingQueueEvent;
+export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
+	return normalizeNullish(payload);
 }

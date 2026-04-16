@@ -101,7 +101,7 @@ const commandInvokers = {
 				(args.sources ?? null) as GeneratedMetadataSource[] | null,
 				args.limit ?? null,
 			),
-			(results) => (results as unknown[]).map(normalizeLookupResult),
+			(results) => results.map(normalizeLookupResult),
 		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),

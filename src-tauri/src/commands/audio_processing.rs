@@ -505,7 +505,7 @@ async fn execute_processing_job(
 
 fn emit_terminal_failed_event(window: &tauri::Window, input_index: usize, message: &str) {
     let event = audio::ProgressEvent {
-        stage: "failed".to_string(),
+        stage: audio::EventStage::Failed,
         percentage: 0.0,
         message: message.to_string(),
         current_file: None,

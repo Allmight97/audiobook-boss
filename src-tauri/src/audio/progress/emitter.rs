@@ -1,6 +1,6 @@
 //! Tauri progress event emitter
 
-use super::ProgressEvent;
+use super::{EventStage, ProgressEvent};
 use crate::audio::constants::*;
 use crate::audio::ProcessingStage;
 use tauri::{Emitter, Window};
@@ -159,7 +159,7 @@ impl ProgressEmitter {
     /// Emits cancelled event (special-case stage not represented in ProcessingStage enum)
     pub fn emit_cancelled(&self, message: &str) {
         let event = ProgressEvent {
-            stage: "cancelled".to_string(),
+            stage: EventStage::Cancelled,
             percentage: 0.0,
             message: message.to_string(),
             current_file: None,
@@ -192,16 +192,8 @@ impl ProgressEmitter {
         current_file: Option<String>,
         eta_seconds: Option<f64>,
     ) {
-        let stage_str = match stage {
-            ProcessingStage::Analyzing => "analyzing",
-            ProcessingStage::Converting => "converting",
-            ProcessingStage::WritingMetadata => "writing",
-            ProcessingStage::Completed => "completed",
-            ProcessingStage::Failed(_) => "failed",
-        };
-
         let event = ProgressEvent {
-            stage: stage_str.to_string(),
+            stage: EventStage::from(&stage),
             percentage,
             message: message.to_string(),
             current_file,

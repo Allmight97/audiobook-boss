@@ -28,31 +28,6 @@ export type AudiobookMetadata = NullToOptionalDeep<GeneratedAudiobookMetadata>;
 /** Per-file metadata map keyed by input path */
 export type AudiobookMetadataMap = Record<string, AudiobookMetadata>;
 
-/**
- * Result type for metadata operations
- */
-export interface MetadataResult {
-	success: boolean;
-	error?: string;
-	metadata?: AudiobookMetadata;
-}
-
-/**
- * Parameters for writing metadata
- */
-export interface WriteMetadataParams {
-	filePath: string;
-	metadata: AudiobookMetadata;
-}
-
-/**
- * Parameters for writing cover art
- */
-export interface WriteCoverArtParams {
-	filePath: string;
-	coverData: number[]; // byte array
-}
-
 export type MetadataSource = GeneratedMetadataSource;
 
 export type OnlineMetadataResult = NullToOptionalDeep<GeneratedOnlineMetadataResult>;

@@ -38,23 +38,6 @@ export interface OutputConfig {
 	outputNaming: OutputNamingConfig;
 }
 
-export interface ProcessingProgress {
-	stage: ProcessingStage;
-	progress: number;
-	currentFile?: string;
-	filesCompleted: number;
-	totalFiles: number;
-	etaSeconds?: number;
-}
-
-export type ProcessingStage =
-	| 'Analyzing'
-	| 'Converting'
-	| 'Merging'
-	| 'WritingMetadata'
-	| 'Completed'
-	| { Failed: string };
-
 // Preview command typing helpers (Tauri boundary)
 export interface PreviewRequest {
 	previewSeconds?: number;

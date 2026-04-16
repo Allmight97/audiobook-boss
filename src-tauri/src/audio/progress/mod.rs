@@ -4,17 +4,54 @@ mod emitter;
 mod state;
 
 use crate::audio::constants::*;
+use crate::audio::ProcessingStage;
 use serde::Serialize;
 
 // ============================================================================
 // Data Contract (UI boundary)
 // ============================================================================
 
+/// Stage identifier emitted on `processing-progress` events.
+///
+/// This enum defines the wire format the frontend consumes. It is distinct
+/// from [`ProcessingStage`] (internal orchestration enum that carries data
+/// such as `Failed(String)`) because the UI only needs a simple discriminator.
+/// Serde `snake_case` serialization keeps the wire values identical to the
+/// pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum EventStage {
+    Analyzing,
+    Converting,
+    Writing,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl From<&ProcessingStage> for EventStage {
+    fn from(stage: &ProcessingStage) -> Self {
+        match stage {
+            ProcessingStage::Analyzing => EventStage::Analyzing,
+            ProcessingStage::Converting => EventStage::Converting,
+            ProcessingStage::WritingMetadata => EventStage::Writing,
+            ProcessingStage::Completed => EventStage::Completed,
+            ProcessingStage::Failed(_) => EventStage::Failed,
+        }
+    }
+}
+
+impl From<ProcessingStage> for EventStage {
+    fn from(stage: ProcessingStage) -> Self {
+        EventStage::from(&stage)
+    }
+}
+
 /// Progress event structure for frontend communication
 #[derive(Clone, Serialize, specta::Type)]
 pub struct ProgressEvent {
-    /// Current processing stage name
-    pub stage: String,
+    /// Current processing stage
+    pub stage: EventStage,
     /// Progress percentage (0-100)
     pub percentage: f32,
     /// Human-readable status message
