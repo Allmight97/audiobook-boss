@@ -167,6 +167,7 @@ fn finalize_batch_results(
 ) -> Result<Vec<ProcessResultEntry>> {
     let mut ordered_results: Vec<Option<ProcessResultEntry>> =
         vec![None; payload.input_files.len()];
+    let mut cancellation_error: Option<AppError> = None;
 
     for (index, outcome) in outcomes.into_iter().enumerate() {
         let entry = match outcome {
@@ -175,7 +176,8 @@ fn finalize_batch_results(
                     entry.input_index = Some(index);
                 }
                 if let Some(error) = cancellation_error_for_failed_entry(&entry) {
-                    return Err(error);
+                    cancellation_error.get_or_insert(error);
+                    continue;
                 }
                 if entry.status == ProcessResultStatus::Failed {
                     emit_terminal_failed_event(
@@ -189,7 +191,8 @@ fn finalize_batch_results(
             }
             Err(error) => {
                 if is_cancellation_error(&error) {
-                    return Err(error);
+                    cancellation_error.get_or_insert(error);
+                    continue;
                 }
                 let envelope: AppErrorEnvelope = error.into();
                 let error_message = envelope.message.clone();
@@ -198,6 +201,10 @@ fn finalize_batch_results(
             }
         };
         ordered_results[index] = Some(entry);
+    }
+
+    if let Some(error) = cancellation_error {
+        return Err(error);
     }
 
     for (index, slot) in ordered_results.iter_mut().enumerate() {
@@ -743,6 +750,30 @@ mod tests {
         assert!(!is_cancellation_error(&AppError::toolchain_required(
             "decoder unavailable"
         )));
+    }
+
+    #[test]
+    fn mixed_cancel_and_fail_classification_keeps_failure_visible() {
+        let cancelled = AppError::cancelled();
+        let failed = ProcessResultEntry {
+            input_index: Some(1),
+            status: ProcessResultStatus::Failed,
+            message: "decoder unavailable".to_string(),
+            error: Some(AppErrorEnvelope::new(
+                AppErrorCode::ToolchainRequired,
+                AppErrorCategory::Toolchain,
+                "decoder unavailable".to_string(),
+                Some("ffmpeg missing".to_string()),
+            )),
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-2".to_string()),
+        };
+
+        assert!(is_cancellation_error(&cancelled));
+        assert!(cancellation_error_for_failed_entry(&failed).is_none());
+        assert_eq!(failed.status, ProcessResultStatus::Failed);
+        assert_eq!(failed.job_id.as_deref(), Some("job-2"));
     }
 
     #[test]
