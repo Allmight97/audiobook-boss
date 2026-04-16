@@ -83,6 +83,7 @@ export class StatusPanelController {
 					this.currentJobType = jobType;
 				},
 				setBatchCompletionMessage: (message) => this.setBatchCompletionMessage(message),
+				handleCancellation: () => this.handleProcessingCancellation(),
 				resetToIdle: () => this.resetToIdle(),
 			},
 			options,
@@ -199,6 +200,49 @@ export class StatusPanelController {
 		} finally {
 			dom.setCancelAllButtonPending(false);
 		}
+	}
+
+	public handleProcessingCancellation(): void {
+		if (this.batchCompletionTimeout || this.singleCompletionTimeout) {
+			return;
+		}
+
+		if (this.jobProgress.size === 0) {
+			dom.showInfo('Processing was cancelled.');
+			this.resetToIdle();
+			return;
+		}
+
+		const now = Date.now();
+		for (const [jobKey, job] of this.jobProgress.entries()) {
+			if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+				continue;
+			}
+			this.jobProgress.set(jobKey, {
+				...job,
+				status: 'cancelled',
+				stage: STAGES.cancelled,
+				message: 'Processing was cancelled.',
+				lastUpdate: now,
+			});
+		}
+
+		if (this.queueOrder.length > 0) {
+			this.scheduleBatchCompletion();
+		} else {
+			const [jobKey] = this.jobProgress.keys();
+			if (!jobKey) {
+				dom.showInfo('Processing was cancelled.');
+				this.resetToIdle();
+				return;
+			}
+			this.scheduleSingleCompletion(jobKey, {
+				stage: STAGES.cancelled,
+				message: 'Processing was cancelled.',
+			});
+		}
+
+		this.scheduleRender(true);
 	}
 
 	public resetToIdle(): void {

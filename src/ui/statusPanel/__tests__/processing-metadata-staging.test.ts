@@ -77,6 +77,7 @@ function processingContext() {
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentJobType: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
+		handleCancellation: vi.fn(),
 		resetToIdle: vi.fn(),
 	};
 }
@@ -298,7 +299,8 @@ describe('startProcessing metadata staging', () => {
 		await startProcessing(ctx);
 
 		expect(dom.showError).not.toHaveBeenCalled();
-		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
+		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
+		expect(ctx.resetToIdle).not.toHaveBeenCalled();
 	});
 
 	it('filters batch metadata intent to active input files only', async () => {

@@ -31,6 +31,7 @@ interface StartProcessingContext {
 	startProgressListener: () => Promise<void>;
 	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
 	setBatchCompletionMessage: (message: string | null) => void;
+	handleCancellation: () => void;
 	resetToIdle: () => void;
 }
 
@@ -278,7 +279,13 @@ export async function startProcessing(
 		}
 	} catch (error) {
 		const msg = normalizeProcessingErrorMessage(error);
-		if (!isProcessingCancellationError(error) && !msg.toLowerCase().includes('cancelled')) {
+		const wasCancelled =
+			isProcessingCancellationError(error) || msg.toLowerCase().includes('cancelled');
+		if (wasCancelled) {
+			context.handleCancellation();
+			return;
+		}
+		if (!wasCancelled) {
 			console.error('Processing failed:', error);
 			dom.showError(`Processing failed: ${msg}`);
 		}

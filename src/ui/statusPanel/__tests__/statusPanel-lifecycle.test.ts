@@ -436,6 +436,36 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 	});
 
+	it('synthesizes cancelled completion when command rejection arrives before terminal events', () => {
+		const controller = new StatusPanelController();
+		seedDisabledControls();
+
+		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
+		const showErrorSpy = vi.spyOn(dom, 'showError');
+		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		controller.handleProcessingCancellation();
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+		expect(controller.isCurrentlyProcessing).toBe(true);
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
+	});
+
 	it('cleans up listeners on reset and restarts without duplicate active handlers', async () => {
 		const controller = new StatusPanelController();
 
