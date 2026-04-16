@@ -164,7 +164,7 @@ fn finalize_batch_results(
     window: &tauri::Window,
     payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
-) -> Vec<ProcessResultEntry> {
+) -> Result<Vec<ProcessResultEntry>> {
     let mut ordered_results: Vec<Option<ProcessResultEntry>> =
         vec![None; payload.input_files.len()];
 
@@ -173,6 +173,9 @@ fn finalize_batch_results(
             Ok(mut entry) => {
                 if entry.input_index.is_none() {
                     entry.input_index = Some(index);
+                }
+                if let Some(error) = cancellation_error_for_failed_entry(&entry) {
+                    return Err(error);
                 }
                 if entry.status == ProcessResultStatus::Failed {
                     emit_terminal_failed_event(
@@ -185,6 +188,9 @@ fn finalize_batch_results(
                 entry
             }
             Err(error) => {
+                if is_cancellation_error(&error) {
+                    return Err(error);
+                }
                 let envelope: AppErrorEnvelope = error.into();
                 let error_message = envelope.message.clone();
                 emit_terminal_failed_event(window, Some(index), None, &error_message);
@@ -213,7 +219,7 @@ fn finalize_batch_results(
         }
     }
 
-    ordered_results.into_iter().flatten().collect()
+    Ok(ordered_results.into_iter().flatten().collect())
 }
 
 async fn dispatch_merge_job(
@@ -349,7 +355,7 @@ async fn dispatch_batch_jobs(
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
-    let finalized_results = finalize_batch_results(&window, payload, outcomes);
+    let finalized_results = finalize_batch_results(&window, payload, outcomes)?;
 
     Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
 }
@@ -412,6 +418,11 @@ async fn run_processing_job(
             })
         }
         Err(error) => {
+            if is_cancellation_error(&error) {
+                registry.complete_job(job_id).await;
+                log::warn!("Job {} cancelled: {}", job_id, error);
+                return Err(error);
+            }
             registry.fail_job(job_id, error.to_string()).await;
             log::error!("Job {} failed: {}", job_id, error);
             let envelope: AppErrorEnvelope = error.into();
@@ -547,15 +558,32 @@ fn terminal_failure_result(
     }
 }
 
+fn is_cancellation_error(error: &AppError) -> bool {
+    matches!(error, AppError::Cancellation(_))
+}
+
+fn cancellation_error_for_failed_entry(entry: &ProcessResultEntry) -> Option<AppError> {
+    let envelope = entry.error.as_ref()?;
+    if entry.status == ProcessResultStatus::Failed
+        && envelope.category == crate::errors::AppErrorCategory::Cancellation
+    {
+        return Some(AppError::Cancellation(envelope.message.clone()));
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
+        cancellation_error_for_failed_entry, is_cancellation_error,
         resolve_effective_processing_metadata, resolve_naming_metadata, terminal_failure_result,
         validate_batch_input_path,
     };
     use crate::audio::output_path::build_output_path;
-    use crate::commands::audio_types::{OutputNamingConfig, ProcessResultStatus};
-    use crate::errors::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
+    use crate::commands::audio_types::{
+        OutputNamingConfig, ProcessResultEntry, ProcessResultStatus,
+    };
+    use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
     use std::fs;
     use std::path::Path;
@@ -657,9 +685,9 @@ mod tests {
     #[test]
     fn terminal_failure_result_preserves_job_id_when_available() {
         let error = AppErrorEnvelope::new(
-            AppErrorCode::ProcessingCancelled,
-            AppErrorCategory::Cancellation,
-            "Processing was cancelled".to_string(),
+            AppErrorCode::InternalError,
+            AppErrorCategory::Internal,
+            "Processing failed".to_string(),
             None,
         );
 
@@ -669,6 +697,52 @@ mod tests {
         assert_eq!(entry.job_id.as_deref(), Some("job-123"));
         assert_eq!(entry.status, ProcessResultStatus::Failed);
         assert!(entry.error.is_some());
+    }
+
+    #[test]
+    fn cancellation_error_for_failed_entry_returns_cancelled_error() {
+        let entry = ProcessResultEntry {
+            input_index: Some(2),
+            status: ProcessResultStatus::Failed,
+            message: "Processing was cancelled".to_string(),
+            error: Some(AppErrorEnvelope::new(
+                AppErrorCode::ProcessingCancelled,
+                AppErrorCategory::Cancellation,
+                "Processing was cancelled".to_string(),
+                None,
+            )),
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-123".to_string()),
+        };
+
+        let error = cancellation_error_for_failed_entry(&entry).expect("cancellation error");
+
+        assert!(is_cancellation_error(&error));
+        assert_eq!(error.to_string(), "Processing was cancelled");
+    }
+
+    #[test]
+    fn non_cancellation_errors_stay_failed_results() {
+        let entry = ProcessResultEntry {
+            input_index: Some(2),
+            status: ProcessResultStatus::Failed,
+            message: "decoder unavailable".to_string(),
+            error: Some(AppErrorEnvelope::new(
+                AppErrorCode::ToolchainRequired,
+                AppErrorCategory::Toolchain,
+                "decoder unavailable".to_string(),
+                Some("ffmpeg missing".to_string()),
+            )),
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-123".to_string()),
+        };
+
+        assert!(cancellation_error_for_failed_entry(&entry).is_none());
+        assert!(!is_cancellation_error(&AppError::toolchain_required(
+            "decoder unavailable"
+        )));
     }
 
     #[test]

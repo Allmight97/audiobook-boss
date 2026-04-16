@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Status and file-list state now stay truthful under queued batches, fresh file
+  imports, and ambiguous thumbnail lookups.
+- The Tauri client boundary now uses typed command/event adapters instead of the
+  old duplicate metadata-save alias and broader cast-heavy paths.
+- Backend terminal progress cleanup now preserves failure `jobId` context
+  without degrading cancellation into failed batch results.
 - Tooling/docs cleanup pass: shared release shell helpers, cheaper release
   fixture setup, deduped context-surface lists, and compressed historical
   release notes.
