@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { defaultEncoderSettings } from '../types/audio';
+import type { ProcessingProgressEvent } from '../types/events';
 
 // Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
@@ -68,29 +69,6 @@ describe('tauriClient nullish adapters', () => {
 		vi.clearAllMocks();
 	});
 
-	it('denormalizes metadata fields to nullable generated shape on save', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce(null);
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.saveMetadataToFile('/books/a.m4b', {
-			title: { op: 'clear' },
-			series_part: { op: 'set', value: '1.0' },
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ filePath: string; metadataPatch: Record<string, unknown> },
-		];
-		expect(commandName).toBe('save_metadata_to_file');
-		expect(args.filePath).toBe('/books/a.m4b');
-		expect(args.metadataPatch.title).toEqual({ op: 'clear' });
-		expect(args.metadataPatch.series_part).toEqual({ op: 'set', value: '1.0' });
-		expect(args.metadataPatch.artist).toBeUndefined();
-	});
-
 	it('compiles metadata intent patch on save before denormalization', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -114,6 +92,12 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadataPatch.series_part).toEqual({ op: 'set', value: '2.0' });
 		expect(args.metadataPatch.cover_art).toEqual({ op: 'clear' });
 		expect(args.metadataPatch.artist).toBeUndefined();
+	});
+
+	it('exposes saveMetadataIntentToFile as the sole metadata-save helper', async () => {
+		const { tauriClient } = await import('./tauri/client');
+		expect(typeof tauriClient.saveMetadataIntentToFile).toBe('function');
+		expect('saveMetadataToFile' in tauriClient).toBe(false);
 	});
 
 	it('normalizes nullable metadata fields from backend responses', async () => {
@@ -471,17 +455,10 @@ describe('tauriClient nullish adapters', () => {
 		}) as typeof listen);
 
 		const { tauriClient } = await import('./tauri/client');
-		let received:
-			| {
-					current_file?: string;
-					eta_seconds?: number;
-					job_id?: string;
-					input_index?: number;
-			  }
-			| undefined;
+		let received: ProcessingProgressEvent | undefined;
 
 		await tauriClient.listen('processing-progress', (event) => {
-			received = event.payload as typeof received;
+			received = event.payload;
 		});
 
 		expect(received).toBeDefined();

@@ -8,7 +8,13 @@ import {
 	type MetadataSource as GeneratedMetadataSource,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 } from '../generated/tauri';
-import type { ApplicationEvents, EventName } from '../../types/events';
+import {
+	EVENTS,
+	type ApplicationEvents,
+	type EventName,
+	type ProcessingProgressEvent,
+	type ProcessingQueueEvent,
+} from '../../types/events';
 import type {
 	ExternalToolchainPreference,
 	EncoderSettings,
@@ -33,6 +39,11 @@ import {
 } from './normalizers';
 
 type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
+type GeneratedExternalToolchain = { overridePath: string | null };
+type AppEventName = typeof TAURI_APP_EVENT_NAMES[number];
+type RuntimeEventName = Exclude<EventName, AppEventName>;
+type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
+type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
 
 type UnwrapGeneratedResult<T> = T extends { status: 'error' }
 	? never
@@ -58,7 +69,69 @@ async function runGeneratedCommand<T, R>(
 	}
 }
 
-const commandInvokers = {
+function toGeneratedMetadataSource(source: MetadataSource): GeneratedMetadataSource {
+	return source;
+}
+
+function toGeneratedMetadataSources(
+	sources?: MetadataSource[] | null,
+): GeneratedMetadataSource[] | null {
+	return sources ? sources.map(toGeneratedMetadataSource) : null;
+}
+
+function toGeneratedExternalToolchain(
+	externalToolchain?: ExternalToolchainPreference | null,
+): GeneratedExternalToolchain | null {
+	return externalToolchain
+		? {
+				overridePath: externalToolchain.overridePath ?? null,
+			}
+		: null;
+}
+
+function toGeneratedOutputNamingConfig(
+	outputNaming?: ProcessPayload['outputNaming'] | null,
+): GeneratedOutputNamingConfig | null {
+	if (!outputNaming) {
+		return null;
+	}
+
+	const denormalized = denormalizeNullish(outputNaming);
+	return {
+		preset: denormalized.preset,
+		includeYear: denormalized.includeYear,
+		customTemplate: denormalized.customTemplate,
+	};
+}
+
+function compileMetadataIntentMap(
+	metadataIntent?: MetadataIntentPayload | null,
+): Record<string, MetadataIntentPatch> | null {
+	if (!metadataIntent) {
+		return null;
+	}
+
+	return Object.fromEntries(
+		Object.entries(metadataIntent).map(([path, value]) => [
+			path,
+			compileMetadataIntentPatch(value),
+		]),
+	);
+}
+
+async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
+	return generatedEvents.processingProgress.listen((event) => {
+		handler({ payload: normalizeProgressEvent(event.payload) });
+	});
+}
+
+async function listenProcessingQueue(handler: QueueEventHandler): Promise<UnlistenFn> {
+	return generatedEvents.processingQueue.listen((event) => {
+		handler({ payload: normalizeQueueEvent(event.payload) });
+	});
+}
+
+const commandSpecs = {
 	ping: (_args?: undefined) => runGeneratedCommand(generatedCommands.ping()),
 	echo: (args: { input: string }) => runGeneratedCommand(generatedCommands.echo(args.input)),
 	validate_files: (args: { filePaths: string[] }) =>
@@ -86,7 +159,7 @@ const commandInvokers = {
 		runGeneratedCommand(
 			generatedCommands.searchOnlineMetadata(
 				args.query,
-				(args.sources ?? null) as GeneratedMetadataSource[] | null,
+				toGeneratedMetadataSources(args.sources),
 				args.limit ?? null,
 			),
 			(results) => results.map(normalizeLookupResult),
@@ -100,32 +173,20 @@ const commandInvokers = {
 		runGeneratedCommand(
 			generatedCommands.validateEncoderSettings(
 				args.settings,
-				args.externalToolchain
-					? {
-							overridePath: args.externalToolchain.overridePath ?? null,
-						}
-					: null,
+				toGeneratedExternalToolchain(args.externalToolchain),
 			),
 		),
 	list_available_encoders: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
 		runGeneratedCommand(
 			generatedCommands.listAvailableEncoders(
-				args?.externalToolchain
-					? {
-							overridePath: args.externalToolchain.overridePath ?? null,
-						}
-					: null,
+				toGeneratedExternalToolchain(args?.externalToolchain),
 			),
 			normalizeEncoderAvailability,
 		),
 	refresh_external_toolchain: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
 		runGeneratedCommand(
 			generatedCommands.refreshExternalToolchain(
-				args?.externalToolchain
-					? {
-							overridePath: args.externalToolchain.overridePath ?? null,
-						}
-					: null,
+				toGeneratedExternalToolchain(args?.externalToolchain),
 			),
 			normalizeEncoderAvailability,
 		),
@@ -139,9 +200,7 @@ const commandInvokers = {
 			generatedCommands.previewOutputPath(
 				args.outputDir,
 				args.metadata ? denormalizeMetadata(args.metadata) : null,
-				args.outputNaming
-					? (denormalizeNullish(args.outputNaming) as GeneratedOutputNamingConfig)
-					: null,
+				toGeneratedOutputNamingConfig(args.outputNaming),
 				args.sourcePath ?? null,
 			),
 		),
@@ -153,97 +212,93 @@ const commandInvokers = {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
-	}) => {
-		const metadataPayload = args.metadataIntent
-			? Object.fromEntries(
-					Object.entries(args.metadataIntent).map(([path, value]) => [
-						path,
-						compileMetadataIntentPatch(value),
-					]),
-				)
-			: null;
-
-		return runGeneratedCommand(
+	}) =>
+		runGeneratedCommand(
 			generatedCommands.processAudiobookFiles(
 				denormalizeProcessPayload(args.payload),
-				metadataPayload,
+				compileMetadataIntentMap(args.metadataIntent),
 				args.previewSeconds ?? null,
 			),
 			normalizeProcessResult,
-		);
-	},
+		),
 	cancel_processing: (args?: { job_id?: string | null }) =>
 		runGeneratedCommand(generatedCommands.cancelProcessing(args?.job_id ?? null)),
 } as const;
 
-type TauriCommand = keyof typeof commandInvokers;
-type CommandArgs<K extends TauriCommand> = Parameters<(typeof commandInvokers)[K]>[0];
-type CommandResult<K extends TauriCommand> = Awaited<ReturnType<(typeof commandInvokers)[K]>>;
+type TauriCommand = keyof typeof commandSpecs;
+type CommandResult<K extends TauriCommand> = Awaited<ReturnType<(typeof commandSpecs)[K]>>;
 
-async function invokeCommand<K extends TauriCommand>(
-	cmd: K,
-	args?: CommandArgs<K>,
-): Promise<CommandResult<K>> {
-	try {
-		const command = commandInvokers[cmd];
-		return (await command(args as never)) as CommandResult<K>;
-	} catch (error) {
-		throw normalizeAppError(error);
+function listen(event: typeof EVENTS.PROGRESS, handler: ProgressEventHandler): Promise<UnlistenFn>;
+function listen(event: typeof EVENTS.QUEUE, handler: QueueEventHandler): Promise<UnlistenFn>;
+function listen<E extends RuntimeEventName>(
+	event: E,
+	handler: (event: { payload: ApplicationEvents[E] }) => void,
+): Promise<UnlistenFn>;
+function listen(
+	event: EventName,
+	handler:
+		| ProgressEventHandler
+		| QueueEventHandler
+		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
+): Promise<UnlistenFn> {
+	if (event === EVENTS.PROGRESS) {
+		return listenProcessingProgress(handler as ProgressEventHandler);
 	}
+
+	if (event === EVENTS.QUEUE) {
+		return listenProcessingQueue(handler as QueueEventHandler);
+	}
+
+	return tauriListen(event, handler as (event: { payload: ApplicationEvents[RuntimeEventName] }) => void);
 }
 
 export const tauriClient = {
-	ping: (): Promise<CommandResult<'ping'>> => invokeCommand('ping'),
-	echo: (input: string): Promise<CommandResult<'echo'>> => invokeCommand('echo', { input }),
+	ping: (): Promise<CommandResult<'ping'>> => commandSpecs.ping(),
+	echo: (input: string): Promise<CommandResult<'echo'>> => commandSpecs.echo({ input }),
 	validateFiles: (filePaths: string[]): Promise<CommandResult<'validate_files'>> =>
-		invokeCommand('validate_files', { filePaths }),
+		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
-		invokeCommand('read_audio_metadata', { filePath }),
+		commandSpecs.read_audio_metadata({ filePath }),
 	writeCoverArt: (
 		filePath: string,
 		coverData: number[],
 	): Promise<CommandResult<'write_cover_art'>> =>
-		invokeCommand('write_cover_art', { filePath, coverData }),
+		commandSpecs.write_cover_art({ filePath, coverData }),
 	loadCoverArtFile: (filePath: string): Promise<CommandResult<'load_cover_art_file'>> =>
-		invokeCommand('load_cover_art_file', { filePath }),
+		commandSpecs.load_cover_art_file({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
-		invokeCommand('load_cover_art_from_url', { url }),
-	saveMetadataToFile: (
-		filePath: string,
-		metadataIntent: MetadataIntentPatch,
-	): Promise<CommandResult<'save_metadata_to_file'>> =>
-		invokeCommand('save_metadata_to_file', { filePath, metadataIntent }),
+		commandSpecs.load_cover_art_from_url({ url }),
 	saveMetadataIntentToFile: (
 		filePath: string,
 		metadataIntent: MetadataIntentPatch,
 	): Promise<CommandResult<'save_metadata_to_file'>> =>
-		invokeCommand('save_metadata_to_file', { filePath, metadataIntent }),
+		commandSpecs.save_metadata_to_file({ filePath, metadataIntent }),
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources?: MetadataSource[] | null;
 		limit?: number | null;
 	}): Promise<CommandResult<'search_online_metadata'>> =>
-		invokeCommand('search_online_metadata', args),
+		commandSpecs.search_online_metadata(args),
 	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
-		invokeCommand('analyze_audio_files', { filePaths }),
+		commandSpecs.analyze_audio_files({ filePaths }),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
 		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>
-		invokeCommand('validate_encoder_settings', {
+		commandSpecs.validate_encoder_settings({
 			settings,
 			externalToolchain: externalToolchain ?? null,
 		}),
 	listAvailableEncoders: (
 		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'list_available_encoders'>> =>
-		invokeCommand('list_available_encoders', {
+		commandSpecs.list_available_encoders({
 			externalToolchain: externalToolchain ?? null,
 		}),
 	refreshExternalToolchain: (
 		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'refresh_external_toolchain'>> =>
-		invokeCommand('refresh_external_toolchain', {
+		commandSpecs.refresh_external_toolchain({
 			externalToolchain: externalToolchain ?? null,
 		}),
 	previewOutputPath: (args: {
@@ -251,46 +306,29 @@ export const tauriClient = {
 		metadata?: Partial<AudiobookMetadata> | null;
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
-	}): Promise<CommandResult<'preview_output_path'>> => invokeCommand('preview_output_path', args),
+	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
-		invokeCommand('get_max_concurrent_jobs'),
+		commandSpecs.get_max_concurrent_jobs(),
 	setMaxConcurrentJobs: (
 		maxConcurrent?: number | null,
 	): Promise<CommandResult<'set_max_concurrent_jobs'>> =>
-		invokeCommand('set_max_concurrent_jobs', { max_concurrent: maxConcurrent ?? null }),
+		commandSpecs.set_max_concurrent_jobs({ max_concurrent: maxConcurrent ?? null }),
 	processAudiobookFiles: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentPayload | null;
 		previewSeconds?: number | null;
-	}): Promise<ProcessCommandResult> => invokeCommand('process_audiobook_files', args),
+	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
 	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>
 		jobId === undefined
-			? invokeCommand('cancel_processing')
-			: invokeCommand('cancel_processing', { job_id: jobId }),
-	listen: async <E extends EventName>(
-		event: E,
-		handler: (event: { payload: ApplicationEvents[E] }) => void,
-	): Promise<UnlistenFn> => {
-		if (event === 'processing-progress') {
-			return generatedEvents.processingProgress.listen((evt) => {
-				handler({ payload: normalizeProgressEvent(evt.payload) as ApplicationEvents[E] });
-			});
-		}
-
-		if (event === 'processing-queue') {
-			return generatedEvents.processingQueue.listen((evt) => {
-				handler({ payload: normalizeQueueEvent(evt.payload) as ApplicationEvents[E] });
-			});
-		}
-
-		return tauriListen(event, handler as never);
-	},
+			? commandSpecs.cancel_processing()
+			: commandSpecs.cancel_processing({ job_id: jobId }),
+	listen,
 	open: (options?: OpenDialogOptions): Promise<null | string | string[]> => tauriOpen(options),
 	openExternal: (path: string): Promise<void> => tauriOpenExternal(path),
 };
 
 export const TAURI_COMMAND_NAMES = Object.freeze(
-	Object.keys(commandInvokers),
+	Object.keys(commandSpecs),
 ) as readonly TauriCommand[];
 
 export const TAURI_APP_EVENT_NAMES = Object.freeze([
