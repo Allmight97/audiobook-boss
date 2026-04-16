@@ -78,4 +78,46 @@ describe('StatusPanel aggregate progress', () => {
 			'beta.m4b • Completed (100.0%)',
 		]);
 	});
+
+	// Regression guard for the discriminated-union refactor. Before `buildStatus`,
+	// `flushRender` unconditionally copied `current_file` / `eta_seconds` from
+	// `latestProgressEvent` onto the next status — even when the aggregate had
+	// already rolled over to a terminal stage. Under the refactored union these
+	// fields are type-level impossible on terminal variants; this test pins the
+	// runtime behavior so a future regression (e.g. someone reintroduces the
+	// copy-unconditional pattern behind a cast) fails loudly.
+	it('does not leak stale currentFile/etaSeconds onto terminal aggregates', () => {
+		const controller = new StatusPanelController();
+		const snapshot: ProcessingQueueEvent = {
+			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
+			max_concurrent: 1,
+		};
+
+		controller.applyQueueSnapshot(snapshot);
+
+		// Active progress populates `latestProgressEvent` with active-stage
+		// fields; a careless flushRender would preserve these onto the terminal
+		// status that follows.
+		controller.applyProgress({
+			input_index: 0,
+			stage: 'converting',
+			percentage: 80,
+			message: 'Working',
+			current_file: '/books/alpha.m4b',
+			eta_seconds: 42,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: 'completed',
+			percentage: 100,
+			message: 'Done',
+		});
+		vi.advanceTimersByTime(20);
+
+		const status = controller.getCurrentStatus();
+		expect(status).toMatchObject({ stage: 'completed' });
+		expect(status).not.toHaveProperty('currentFile');
+		expect(status).not.toHaveProperty('etaSeconds');
+	});
 });

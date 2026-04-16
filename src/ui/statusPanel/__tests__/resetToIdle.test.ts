@@ -132,11 +132,14 @@ describe('StatusPanel resetToIdle', () => {
 		expect(statusPanelViewState.progressPercentage).toBe(0);
 		expect(statusPanelViewState.coverArtDataUrl).toBeNull();
 		expect(controller.isCurrentlyProcessing).toBe(false);
-		expect(controller.getCurrentStatus()).toEqual({
+		const idleStatus = controller.getCurrentStatus();
+		expect(idleStatus).toEqual({
 			stage: 'idle',
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
+		expect(idleStatus).not.toHaveProperty('currentFile');
+		expect(idleStatus).not.toHaveProperty('etaSeconds');
 
 		expect(mergeToggle.disabled).toBe(false);
 		expect(maxConcurrent.disabled).toBe(false);

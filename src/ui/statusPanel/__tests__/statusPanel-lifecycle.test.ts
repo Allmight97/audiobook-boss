@@ -238,11 +238,14 @@ describe('StatusPanel lifecycle', () => {
 
 		assertControlsEnabled();
 		expect(controller.isCurrentlyProcessing).toBe(false);
-		expect(controller.getCurrentStatus()).toEqual({
+		const idleStatus = controller.getCurrentStatus();
+		expect(idleStatus).toEqual({
 			stage: 'idle',
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
+		expect(idleStatus).not.toHaveProperty('currentFile');
+		expect(idleStatus).not.toHaveProperty('etaSeconds');
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 
@@ -341,11 +344,14 @@ describe('StatusPanel lifecycle', () => {
 					: showInfoSpy;
 		expect(expectedSpy).toHaveBeenCalledWith(message);
 		assertControlsEnabled();
-		expect(controller.getCurrentStatus()).toEqual({
+		const idleStatus = controller.getCurrentStatus();
+		expect(idleStatus).toEqual({
 			stage: 'idle',
 			percentage: 0,
 			message: 'Ready to process audiobook',
 		});
+		expect(idleStatus).not.toHaveProperty('currentFile');
+		expect(idleStatus).not.toHaveProperty('etaSeconds');
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});

@@ -14,6 +14,7 @@ import {
 import { startProcessing as startProcessingAction } from './processing';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
 import {
+	buildStatus,
 	createInitialStatus,
 	type AggregateProgress,
 	type JobProgress,
@@ -123,11 +124,13 @@ export class StatusPanelController {
 		this.isProcessing = this.jobProgress.size > 0;
 		const { aggregate, stage } = this.calculateAggregateProgressAndStage();
 		this.updateConcurrencyIndicator(aggregate);
-		this.updateStatus({
-			stage,
-			percentage: aggregate.overallPercentage,
-			message: formatAggregateMessage(this.jobProgress, aggregate),
-		});
+		this.updateStatus(
+			buildStatus(
+				stage,
+				aggregate.overallPercentage,
+				formatAggregateMessage(this.jobProgress, aggregate),
+			),
+		);
 		renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 	}
 
@@ -183,11 +186,13 @@ export class StatusPanelController {
 		dom.setCancelAllButtonPending(true);
 		try {
 			await tauriClient.cancelProcessing();
-			this.updateStatus({
-				stage: this.currentStatus.stage,
-				percentage: this.currentStatus.percentage,
-				message: 'Cancellation requested…',
-			});
+			this.updateStatus(
+				buildStatus(
+					this.currentStatus.stage,
+					this.currentStatus.percentage,
+					'Cancellation requested…',
+				),
+			);
 		} catch (error) {
 			console.error('Failed to cancel processing:', error);
 			dom.showError('Failed to cancel processing. Please try again.');
@@ -363,11 +368,11 @@ export class StatusPanelController {
 		}
 		this.isProcessing = this.jobProgress.size > 0;
 		const { aggregate, stage } = this.calculateAggregateProgressAndStage();
-		const status: ProcessingStatus = {
+		const status = buildStatus(
 			stage,
-			percentage: aggregate.overallPercentage,
-			message: formatAggregateMessage(this.jobProgress, aggregate),
-		};
+			aggregate.overallPercentage,
+			formatAggregateMessage(this.jobProgress, aggregate),
+		);
 		this.updateStatus(status);
 		this.updateConcurrencyIndicator(aggregate);
 		renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
@@ -416,13 +421,15 @@ export class StatusPanelController {
 		const { aggregate, stage } = this.calculateAggregateProgressAndStage();
 		this.updateConcurrencyIndicator(aggregate);
 
-		const status: ProcessingStatus = {
+		const status = buildStatus(
 			stage,
-			percentage: aggregate.overallPercentage,
-			message: formatAggregateMessage(this.jobProgress, aggregate),
-			currentFile: this.latestProgressEvent?.current_file,
-			etaSeconds: this.latestProgressEvent?.eta_seconds,
-		};
+			aggregate.overallPercentage,
+			formatAggregateMessage(this.jobProgress, aggregate),
+			{
+				currentFile: this.latestProgressEvent?.current_file,
+				etaSeconds: this.latestProgressEvent?.eta_seconds,
+			},
+		);
 		this.updateStatus(status);
 
 		if (this.currentJobType === 'batch' && this.latestProgressEvent) {

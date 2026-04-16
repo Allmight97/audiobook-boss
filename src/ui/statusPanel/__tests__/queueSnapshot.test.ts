@@ -53,11 +53,14 @@ describe('StatusPanel queue snapshot', () => {
 		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
 		expect(statusPanelViewState.statusText).toBe('Analyzing');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 2 files');
-		expect(controller.getCurrentStatus()).toEqual({
+		const status = controller.getCurrentStatus();
+		expect(status).toEqual({
 			stage: 'analyzing',
 			percentage: 0,
 			message: 'Queued 2 files',
 		});
+		expect(status).not.toHaveProperty('currentFile');
+		expect(status).not.toHaveProperty('etaSeconds');
 	});
 
 	it('applies queue snapshot order and labels after early progress arrives', async () => {
@@ -92,10 +95,13 @@ describe('StatusPanel queue snapshot', () => {
 			'alpha.m4b • Queued • #3 of 3',
 		]);
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 3 files');
-		expect(controller.getCurrentStatus()).toEqual({
+		const status = controller.getCurrentStatus();
+		expect(status).toEqual({
 			stage: 'analyzing',
 			percentage: 0,
 			message: 'Queued 3 files',
 		});
+		expect(status).not.toHaveProperty('currentFile');
+		expect(status).not.toHaveProperty('etaSeconds');
 	});
 });

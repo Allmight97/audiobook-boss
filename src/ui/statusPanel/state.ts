@@ -1,10 +1,34 @@
-export interface ProcessingStatus {
-	stage: 'idle' | 'analyzing' | 'converting' | 'writing' | 'completed' | 'cancelled' | 'failed';
-	percentage: number;
-	message: string;
-	currentFile?: string;
-	etaSeconds?: number;
-}
+import type { EventStage } from '../../types/events';
+
+/**
+ * Stage values emitted from Rust that represent ongoing work. Derived from the
+ * generated `EventStage` so adding a new active stage on the Rust side surfaces
+ * here as a TypeScript compile error until this type acknowledges it.
+ */
+export type ActiveEventStage = Exclude<EventStage, 'completed' | 'failed' | 'cancelled'>;
+
+/**
+ * UI-layer processing status modeled as a discriminated union so that fields
+ * only meaningful during active work (`currentFile`, `etaSeconds`) are
+ * unrepresentable on terminal and idle variants.
+ *
+ * `idle` is a UI-only stage — there is no corresponding wire value. Active
+ * variants track `ActiveEventStage`, which itself derives from the Rust-authored
+ * `EventStage` (see `src/types/events.ts`), so the flow `EventStage -> wire ->
+ * UI` stays consistent at the type level.
+ */
+export type ProcessingStatus =
+	| { stage: 'idle'; percentage: number; message: string }
+	| {
+			stage: ActiveEventStage;
+			percentage: number;
+			message: string;
+			currentFile?: string;
+			etaSeconds?: number;
+	  }
+	| { stage: 'completed'; percentage: number; message: string }
+	| { stage: 'failed'; percentage: number; message: string }
+	| { stage: 'cancelled'; percentage: number; message: string };
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
@@ -39,6 +63,37 @@ export function createInitialStatus(): ProcessingStatus {
 		percentage: 0,
 		message: 'Ready to process audiobook',
 	};
+}
+
+export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
+	return stage === 'analyzing' || stage === 'converting' || stage === 'writing';
+}
+
+/**
+ * Factory that constructs the correct `ProcessingStatus` variant based on the
+ * `stage` discriminant. `active` extras are applied only when `stage` is an
+ * active stage; for terminal and idle stages the extras are ignored at the
+ * type level, enforcing the "no stale `currentFile`/`etaSeconds` on terminal
+ * states" invariant.
+ */
+export function buildStatus(
+	stage: ProcessingStatus['stage'],
+	percentage: number,
+	message: string,
+	active?: { currentFile?: string | null; etaSeconds?: number | null },
+): ProcessingStatus {
+	if (isActiveEventStage(stage)) {
+		const currentFile = active?.currentFile ?? undefined;
+		const etaSeconds = active?.etaSeconds ?? undefined;
+		return {
+			stage,
+			percentage,
+			message,
+			...(currentFile !== undefined ? { currentFile } : {}),
+			...(etaSeconds !== undefined ? { etaSeconds } : {}),
+		};
+	}
+	return { stage, percentage, message };
 }
 
 /** Calculate aggregate progress across queued, active, and completed jobs */
