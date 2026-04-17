@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { displayFileList, moveFileUp } from '../fileList/actions';
+import {
+	appendFileList,
+	displayFileList,
+	moveFileUp,
+	persistPendingMetadataDraftsForCurrentSelection,
+} from '../fileList/actions';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 import { showSingleSelection } from '../fileList/metadataPanel';
 import {
+	getCurrentFileList,
 	getSelectedFileIndex,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
 } from '../fileList/state';
+import { resetFileListViewState } from '../fileList/viewState.svelte';
 
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
@@ -145,6 +152,7 @@ describe('file list reorder behavior', () => {
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
+		resetFileListViewState();
 	});
 
 	it('keeps the same file selected and updates inspector position after moving it up', async () => {
@@ -180,5 +188,48 @@ describe('file list reorder behavior', () => {
 		expect(getSelectedFileIndex()).toBe(-1);
 		expect(inspectorState.contextText).toBe('No file selected');
 		expect(inspectorState.contextDetail).toBe('');
+	});
+
+	it('persists the current single-file draft before additive import and keeps selection stable', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+
+		setCurrentFileList(makeFileList(alpha));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		await showSingleSelection(alpha);
+
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ title: 'Draft Title' });
+		context.getMetadataForFileMock.mockReturnValue({});
+
+		expect(await persistPendingMetadataDraftsForCurrentSelection()).toBe(true);
+
+		appendFileList(makeFileList(beta));
+
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/alpha.m4b',
+			{ title: 'Draft Title' },
+			{
+				markPending: true,
+				intentPatch: { title: { op: 'set', value: 'Draft Title' } },
+			},
+		);
+		expect(getSelectedFileIndex()).toBe(0);
+		expect(inspectorState.contextText).toBe('alpha.m4b');
+	});
+
+	it('appends using explicit existing files when the caller supplies the visible list', () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+
+		setCurrentFileList(null);
+
+		appendFileList(makeFileList(beta), { existingFiles: [alpha] });
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/alpha.m4b',
+			'/books/beta.m4b',
+		]);
 	});
 });

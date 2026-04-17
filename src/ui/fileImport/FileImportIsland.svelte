@@ -26,6 +26,7 @@
 		getDropZoneHeader: () => dropZoneHeader,
 		getCoverArtArea: () => document.getElementById('cover-art-area'),
 		getFileManagementContainer: () => fileManagementContainer,
+		getVisibleFiles: () => [...fileListViewState.files],
 	};
 
 	onMount(() => {
@@ -33,13 +34,13 @@
 	});
 
 	function handleHeaderClick(): void {
-		void handleClickToSelect();
+		void handleClickToSelect([...fileListViewState.files]);
 	}
 
 	function handleHeaderKeydown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
-			void handleClickToSelect();
+			void handleClickToSelect([...fileListViewState.files]);
 		}
 	}
 

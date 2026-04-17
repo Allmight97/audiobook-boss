@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Fixed
+
+### Removed
+
+## [1.0.5] - 2026-04-17
+
+Focused import-workflow release that closes the single-file re-add trap in ABB.
+`Add audio files` and file-drop now behave coherently for iterative imports, and
+the UI verification surface now proves that behavior instead of masking it.
+
+### Added
+
+- File-management harness coverage for add-while-populated behavior, plus mock
+  dialog/analyzer paths that can distinguish append from replace during UI
+  verification.
+
+### Changed
+
 - Status and file-list state now stay truthful under queued batches, fresh file
   imports, and ambiguous thumbnail lookups.
 - The Tauri client boundary now uses typed command/event adapters instead of the
@@ -23,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Add audio files` and file-drop now append unseen audio files into a populated
+  list instead of replacing the current import set on repeated adds.
+- Additive imports now preserve pending metadata drafts, keep selection stable
+  for pure append operations, and ignore duplicate-only batches with a transient
+  status instead of mutating the list.
 - **Status-panel terminal regression coverage now includes all terminal
   aggregates**. Failed and cancelled terminal aggregates, not just completed
   ones, are covered against stale `currentFile` / `etaSeconds` leakage, and
@@ -30,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fires.
 
 ### Removed
-
+ 
 ## [1.0.4] - 2026-04-16
 
 Internal state-shape tightening release that continued the "make impossible

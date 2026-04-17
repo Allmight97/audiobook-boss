@@ -22,8 +22,10 @@ import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
+	getSelectedFileIndices,
 	setCurrentFileList,
 	setSelectedIndex,
+	setSelectedFileIndices,
 	getSortAscending,
 	setSortAscending,
 	isOrderLocked,
@@ -65,6 +67,36 @@ function refreshOutputForMetadataChange(): void {
 	updateEstimatedSize();
 }
 
+function collectUniqueFiles(files: AudioFile[], seenPaths: Set<string> = new Set()): AudioFile[] {
+	const uniqueFiles: AudioFile[] = [];
+	for (const file of files) {
+		if (seenPaths.has(file.path)) {
+			continue;
+		}
+		seenPaths.add(file.path);
+		uniqueFiles.push(file);
+	}
+	return uniqueFiles;
+}
+
+function refreshDerivedFileListState(fileList: FileListInfo): void {
+	fileList.validCount = fileList.files.filter((file) => file.isValid).length;
+	fileList.invalidCount = fileList.files.length - fileList.validCount;
+	recalculateTotals();
+}
+
+function buildFileListInfoFromFiles(files: AudioFile[]): FileListInfo {
+	const fileList = {
+		files: collectUniqueFiles(files),
+		totalDuration: 0,
+		totalSize: 0,
+		validCount: 0,
+		invalidCount: 0,
+	};
+	refreshDerivedFileListState(fileList);
+	return fileList;
+}
+
 function setStatusMessage(message: string): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
 }
@@ -74,8 +106,18 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 }
 
 export function displayFileList(fileListInfo: FileListInfo): void {
+	const uniqueFiles = collectUniqueFiles(fileListInfo.files);
+	const normalizedFileListInfo =
+		uniqueFiles.length === fileListInfo.files.length
+			? fileListInfo
+			: {
+					...fileListInfo,
+					files: uniqueFiles,
+				};
+	refreshDerivedFileListState(normalizedFileListInfo);
+
 	clearMetadataState();
-	setCurrentFileList(fileListInfo);
+	setCurrentFileList(normalizedFileListInfo);
 	clearSelectionPanels();
 	initDOMCache();
 
@@ -88,6 +130,44 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	refreshOutputForFileListChange();
 
 	void autoUpdateCoverArtFromFirstValidFile();
+}
+
+export function appendFileList(
+	fileListInfo: FileListInfo,
+	options?: { existingFiles?: AudioFile[] },
+): void {
+	const currentFileList = getCurrentFileList();
+	const existingFiles = options?.existingFiles ?? currentFileList?.files ?? [];
+	if (existingFiles.length === 0) {
+		displayFileList(fileListInfo);
+		return;
+	}
+
+	initDOMCache();
+
+	const appendedFiles = collectUniqueFiles(
+		fileListInfo.files,
+		new Set(existingFiles.map((file) => file.path)),
+	);
+
+	if (appendedFiles.length === 0) {
+		setTransientStatusMessage('No new files added. All analyzed files were already in the list.');
+		return;
+	}
+
+	const selectedIndex = getSelectedFileIndex();
+	const selectedIndices = getSelectedFileIndices();
+	const mergedFileList = buildFileListInfoFromFiles([...existingFiles, ...appendedFiles]);
+	setCurrentFileList(mergedFileList);
+	setSelectedIndex(selectedIndex);
+	setSelectedFileIndices(selectedIndices);
+
+	updateFileListDOM();
+	updateTotalStats();
+	updateButtonVisibility();
+	updateSortButtonText(getSortAscending());
+
+	refreshOutputForFileListChange();
 }
 
 function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | null {

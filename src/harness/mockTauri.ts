@@ -5,6 +5,7 @@ import {
 	HARNESS_METADATA_BY_FILE,
 	HARNESS_OUTPUT_DIRECTORY,
 } from './sampleData';
+import type { FileListInfo } from '../types/audio';
 
 type TransformCallback = ((payload: unknown) => void) & { __once?: boolean };
 
@@ -36,6 +37,42 @@ const listeners = new Map<string, ListenerEntry[]>();
 let nextCallbackId = 1;
 let nextEventId = 1;
 let maxConcurrentJobs = 2;
+
+const HARNESS_ADDITIONAL_FILE_PATH = '/mock/library/Frank Herbert/Dune/03-dune-part-3.mp3';
+
+function buildFileListInfo(filePaths: string[]): FileListInfo {
+	const templates = new Map(HARNESS_FILE_LIST.files.map((file) => [file.path, file] as const));
+	const fallbackTemplate = HARNESS_FILE_LIST.files[0];
+	const files = filePaths.map((filePath, index) => {
+		const template =
+			templates.get(filePath) ??
+			(index === 0 ? fallbackTemplate : (HARNESS_FILE_LIST.files[1] ?? fallbackTemplate));
+		return {
+			...template,
+			path: filePath,
+		};
+	});
+
+	const totalDuration = files.reduce((sum, file) => sum + (file.duration ?? 0), 0);
+	const totalSize = files.reduce((sum, file) => sum + (file.size ?? 0), 0);
+	const validCount = files.filter((file) => file.isValid).length;
+
+	return {
+		files,
+		totalDuration,
+		totalSize,
+		validCount,
+		invalidCount: files.length - validCount,
+	};
+}
+
+function getHarnessFileCountFromDom(): number | null {
+	const node = document.getElementById('file-count-display');
+	if (!node) return null;
+	const text = node.textContent?.trim() ?? '';
+	const match = text.match(/^(\d+)\s+files?$/);
+	return match ? Number(match[1]) : null;
+}
 
 function unregisterListener(event: string, eventId: number): void {
 	const entries = listeners.get(event);
@@ -109,7 +146,11 @@ function buildPreviewPath(args: HarnessInvokeArgs = {}): string {
 async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): Promise<unknown> {
 	switch (cmd) {
 		case 'analyze_audio_files':
-			return HARNESS_FILE_LIST;
+			return buildFileListInfo(
+				Array.isArray(args.filePaths)
+					? args.filePaths.filter((path) => typeof path === 'string')
+					: [],
+			);
 		case 'read_audio_metadata': {
 			const filePath =
 				typeof args.filePath === 'string' ? args.filePath : HARNESS_FILE_LIST.files[0]?.path;
@@ -249,8 +290,11 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 			return null;
 		}
 		case 'plugin:dialog|open':
-			return args.directory
-				? HARNESS_OUTPUT_DIRECTORY
+			if (args.directory) {
+				return HARNESS_OUTPUT_DIRECTORY;
+			}
+			return (getHarnessFileCountFromDom() ?? 0) > 0
+				? [HARNESS_ADDITIONAL_FILE_PATH]
 				: HARNESS_FILE_LIST.files.map((file) => file.path);
 		case 'plugin:opener|open_path':
 		case 'plugin:opener|open_url':

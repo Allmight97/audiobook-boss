@@ -1,21 +1,34 @@
-import { render } from '@testing-library/svelte';
+import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../types/events';
 import FileImportIsland from '../fileImport/FileImportIsland.svelte';
 import { initFileImport } from '../fileImport';
 import { SUPPORTED_AUDIO_SUPPORT_TEXT } from '../fileImport/supportedAudio';
+import { clearFileImportError } from '../fileImport/state.svelte';
+import { clearSelectionPanels } from '../fileList/metadataPanel';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state';
+import { fileListViewState } from '../fileList/viewState.svelte';
+import { resetFileListViewState } from '../fileList/viewState.svelte';
+import { clearMetadataState } from '../metadataState';
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 type DragDropListener = (event: { payload: DragDropPayload }) => void;
 
-const { analyzeAudioFilesMock, loadCoverArtFileMock, openMock, readAudioMetadataMock, listeners } =
-	vi.hoisted(() => ({
-		analyzeAudioFilesMock: vi.fn(),
-		loadCoverArtFileMock: vi.fn(),
-		openMock: vi.fn(),
-		readAudioMetadataMock: vi.fn(),
-		listeners: {} as Record<'tauri://drag-drop', DragDropListener>,
-	}));
+const {
+	analyzeAudioFilesMock,
+	loadCoverArtFileMock,
+	openMock,
+	pushStatusPanelTransientStatusMock,
+	readAudioMetadataMock,
+	listeners,
+} = vi.hoisted(() => ({
+	analyzeAudioFilesMock: vi.fn(),
+	loadCoverArtFileMock: vi.fn(),
+	openMock: vi.fn(),
+	pushStatusPanelTransientStatusMock: vi.fn(),
+	readAudioMetadataMock: vi.fn(),
+	listeners: {} as Record<'tauri://drag-drop', DragDropListener>,
+}));
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -31,6 +44,10 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
+vi.mock('../statusPanel', () => ({
+	pushStatusPanelTransientStatus: pushStatusPanelTransientStatusMock,
+}));
+
 function fireDragDrop(position: { x: number; y: number }, paths: string[]) {
 	const handler = listeners['tauri://drag-drop'];
 	if (handler) {
@@ -43,14 +60,36 @@ async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 }
 
+function makeAnalyzedFile(path: string, overrides: Partial<Record<string, unknown>> = {}) {
+	return {
+		path,
+		isValid: true,
+		duration: 1,
+		size: 1000,
+		bitrate: 64,
+		sampleRate: 44100,
+		channels: 2,
+		format: 'mp3',
+		...overrides,
+	};
+}
+
 describe('File import drop vs cover art drop isolation', () => {
 	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
 		loadCoverArtFileMock.mockReset();
 		loadCoverArtFileMock.mockResolvedValue(null);
 		openMock.mockReset();
+		pushStatusPanelTransientStatusMock.mockReset();
 		readAudioMetadataMock.mockReset();
 		readAudioMetadataMock.mockResolvedValue({});
+		clearMetadataState();
+		clearFileImportError();
+		setCurrentFileList(null);
+		setSelectedFileIndices([]);
+		setSelectedIndex(-1);
+		clearSelectionPanels();
+		resetFileListViewState();
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
     `;
@@ -188,13 +227,120 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		const clearButton = document.getElementById('clear-files-btn') as HTMLButtonElement | null;
 		expect(clearButton).toBeTruthy();
-		expect(clearButton?.style.display).toBe('block');
-		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+		await waitFor(() => {
+			expect(clearButton?.style.display).toBe('block');
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+		});
 
 		clearButton?.click();
 		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
 		expect(clearButton?.style.display).toBe('none');
+	});
+
+	it('appends a single new file to a populated list', async () => {
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
+			totalDuration: 1,
+			totalSize: 1000,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
+		await flushAsync();
+
+		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+
+		openMock.mockResolvedValueOnce(['/tmp/book-b.mp3']);
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-b.mp3')],
+			totalDuration: 2,
+			totalSize: 2000,
+			validCount: 1,
+			invalidCount: 0,
+		});
+
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await flushAsync();
+
+		await waitFor(() => {
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(2);
+			expect(fileListViewState.files.map((file) => file.path)).toEqual([
+				'/tmp/book-a.mp3',
+				'/tmp/book-b.mp3',
+			]);
+		});
+	});
+
+	it('appends only unseen files when a mixed duplicate/new add arrives', async () => {
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
+			totalDuration: 1,
+			totalSize: 1000,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
+		await flushAsync();
+
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-a.mp3'), makeAnalyzedFile('/tmp/book-b.mp3')],
+			totalDuration: 2,
+			totalSize: 2000,
+			validCount: 2,
+			invalidCount: 0,
+		});
+		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3', '/tmp/book-b.mp3']);
+
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await flushAsync();
+
+		await waitFor(() => {
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(2);
+			expect(fileListViewState.files.map((file) => file.path)).toEqual([
+				'/tmp/book-a.mp3',
+				'/tmp/book-b.mp3',
+			]);
+		});
+	});
+
+	it('leaves the list unchanged and surfaces status when only duplicates are added', async () => {
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
+			totalDuration: 1,
+			totalSize: 1000,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
+		await flushAsync();
+
+		analyzeAudioFilesMock.mockResolvedValueOnce({
+			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
+			totalDuration: 1,
+			totalSize: 1000,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3']);
+
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await flushAsync();
+
+		await waitFor(() => {
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+		});
+		expect(pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
+			'No new files added. All analyzed files were already in the list.',
+			{ ttlMs: 2000 },
+		);
 	});
 });

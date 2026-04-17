@@ -140,8 +140,20 @@ export async function seedFileManagementScenario(
 
 	await runScenarioCheck(
 		results,
+		requireScenarioCheck(scenario, 'add-while-populated'),
+		async () => {
+			await page.getByRole('button', { name: 'Add audio files' }).click();
+			await page.locator('#file-count-display').filter({ hasText: '3 files' }).waitFor();
+			await page.locator('.file-list-item').filter({ hasText: '01-dune-part-1.mp3' }).waitFor();
+			await page.locator('.file-list-item').filter({ hasText: '03-dune-part-3.mp3' }).waitFor();
+		},
+	);
+
+	await runScenarioCheck(
+		results,
 		requireScenarioCheck(scenario, 'clear-and-reimport'),
 		async () => {
+			await page.locator('.file-list-item').filter({ hasText: '02-dune-part-2.mp3' }).click();
 			await page.locator('.inspector-context').filter({ hasText: '02-dune-part-2.mp3' }).waitFor();
 			await page.click('#clear-files-btn');
 			await page.locator('#file-count-display').filter({ hasText: '0 files' }).waitFor();

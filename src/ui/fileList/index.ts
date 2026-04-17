@@ -1,5 +1,7 @@
 export {
 	displayFileList,
+	appendFileList,
+	persistPendingMetadataDraftsForCurrentSelection,
 	toggleFileSort,
 	clearAllFiles,
 	moveFileUp,

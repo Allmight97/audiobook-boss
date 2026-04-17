@@ -1,8 +1,8 @@
 import { tauriClient } from '../../lib/tauri/client';
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import { isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
-import { displayFileList } from '../fileList';
+import { appendFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
 import { isOrderLocked } from '../fileList/state';
 import { clearFileImportError, setFileImportError } from './state.svelte';
 import {
@@ -15,12 +15,14 @@ export interface DragDropContext {
 	getDropZoneHeader: () => HTMLElement | null;
 	getCoverArtArea: () => HTMLElement | null;
 	getFileManagementContainer: () => HTMLElement | null;
+	getVisibleFiles: () => AudioFile[];
 }
 
 type Unlisten = () => void;
 
 export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
-	const { getDropZoneHeader, getCoverArtArea, getFileManagementContainer } = context;
+	const { getDropZoneHeader, getCoverArtArea, getFileManagementContainer, getVisibleFiles } =
+		context;
 	const unlisteners: Unlisten[] = [];
 	let isDisposed = false;
 
@@ -74,7 +76,7 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 		const rect = fileManagementContainer.getBoundingClientRect();
 		const { x, y } = event.payload.position;
 		if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-			await handleFileDrop(event.payload.paths);
+			await handleFileDrop(event.payload.paths, getVisibleFiles());
 		}
 	};
 
@@ -98,7 +100,7 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 	};
 }
 
-export async function handleClickToSelect(): Promise<void> {
+export async function handleClickToSelect(existingFiles: AudioFile[] = []): Promise<void> {
 	if (isOrderLocked()) {
 		setFileImportError('Order locked while processing. Wait for completion to add files.');
 		return;
@@ -117,16 +119,16 @@ export async function handleClickToSelect(): Promise<void> {
 		});
 
 		if (Array.isArray(selected) && selected.length > 0) {
-			await processFilePaths(selected);
+			await processFilePaths(selected, existingFiles);
 		} else if (typeof selected === 'string') {
-			await processFilePaths([selected]);
+			await processFilePaths([selected], existingFiles);
 		}
 	} catch (error) {
 		setFileImportError(`Failed to tauriClient.open file dialog: ${error}`);
 	}
 }
 
-async function handleFileDrop(paths: string[]): Promise<void> {
+async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {
 	if (isOrderLocked()) {
 		setFileImportError('Order locked while processing. Wait for completion to add files.');
 		return;
@@ -140,19 +142,23 @@ async function handleFileDrop(paths: string[]): Promise<void> {
 		return;
 	}
 
-	await processFilePaths(supportedPaths);
+	await processFilePaths(supportedPaths, existingFiles);
 }
 
 function filterSupportedFiles(paths: string[]): string[] {
 	return paths.filter((path) => isSupportedAudioPath(path));
 }
 
-async function processFilePaths(filePaths: string[]): Promise<void> {
+async function processFilePaths(
+	filePaths: string[],
+	existingFiles: AudioFile[] = [],
+): Promise<void> {
 	if (filePaths.length === 0) return;
 
 	try {
 		const fileListInfo: FileListInfo = await tauriClient.analyzeAudioFiles(filePaths);
-		displayFileList(fileListInfo);
+		await persistPendingMetadataDraftsForCurrentSelection();
+		appendFileList(fileListInfo, { existingFiles });
 		clearFileImportError();
 	} catch (error) {
 		setFileImportError(`Failed to analyze files: ${error}`);

@@ -92,7 +92,7 @@ const SCENARIOS: readonly HarnessScenario[] = [
 		id: 'file-management',
 		title: 'File Management',
 		description:
-			'Verifies file import, selection context, reorder behavior, and clear/reimport behavior.',
+			'Verifies file import, selection context, reorder behavior, add-while-populated, and clear/reimport behavior.',
 		route: '/harness.html',
 		screenshotName: 'file-management.png',
 		matchers: [
@@ -104,6 +104,11 @@ const SCENARIOS: readonly HarnessScenario[] = [
 				id: 'selection-follows-reorder',
 				label:
 					'Reordering a selected file preserves the logical file selection and inspector context.',
+			},
+			{
+				id: 'add-while-populated',
+				label:
+					'Adding files to a populated list appends the new selection without replacing the existing files.',
 			},
 			{
 				id: 'clear-and-reimport',
