@@ -42,8 +42,6 @@
       <div class="flex justify-between mb-0.5">
         <span class="text-xs"
           >Progress:
-          <span class="property-value" id="hours-processed">--.-- / --.-- hours</span>
-          →
           <span class="property-value" id="percentage-processed">{getProgressText()}</span></span
         >
         <span id="status-text" class="text-xs font-semibold">{statusPanelViewState.statusText}</span>
