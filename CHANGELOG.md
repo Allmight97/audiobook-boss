@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.6] - 2026-04-18
+
+Focused audiobook-edge-case fix release that closes a real xHE-AAC decode
+handoff bug, restores large embedded cover-art rendering, and brings output
+path behavior closer to the actual processing results ABB now emits.
+
+### Changed
+
+- External FDK processing now carries ABB's selected AAC-family input decoder
+  into the subprocess ffmpeg command instead of letting that handoff drift.
+- Existing output destinations now resolve to the requested path by default,
+  while same-batch naming conflicts are still deconflicted separately.
+
+### Fixed
+
+- xHE-AAC / USAC inputs that validated against Apple AAC no longer fall back to
+  ffmpeg's default external decode path during Auto(FDK AAC) processing.
+- Large embedded cover art from imported sources now renders reliably in the UI
+  without overflowing the old byte-to-data-URL conversion path.
+- The Star Trek / Libation regression investigated in this thread now produces
+  clean full-length output on the corrected external decoder path.
+
 ## [1.0.5] - 2026-04-17
 
 Focused import-workflow release that closes the single-file re-add trap in ABB.

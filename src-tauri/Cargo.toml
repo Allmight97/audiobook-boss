@@ -1,6 +1,6 @@
 [package]
 name = "audiobook-boss"
-version = "1.0.5"
+version = "1.0.6"
 description = "AudioBook Boss™ — Batch audiobook processing and metadata management"
 authors = ["JStar"]
 edition = "2021"
