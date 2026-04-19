@@ -74,6 +74,25 @@ function makeAnalyzedFile(path: string, overrides: Partial<Record<string, unknow
 	};
 }
 
+function makeAnalyzedFileList(
+	files: ReturnType<typeof makeAnalyzedFile>[],
+	overrides: Partial<{
+		totalDuration: number;
+		totalSize: number;
+		validCount: number;
+		invalidCount: number;
+	}> = {},
+) {
+	return {
+		files,
+		selectedDecoders: files.map(() => null),
+		totalDuration: overrides.totalDuration ?? files.length,
+		totalSize: overrides.totalSize ?? files.length * 1000,
+		validCount: overrides.validCount ?? files.filter((file) => file.isValid).length,
+		invalidCount: overrides.invalidCount ?? files.filter((file) => file.isValid !== true).length,
+	};
+}
+
 describe('File import drop vs cover art drop isolation', () => {
 	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
@@ -162,25 +181,13 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('filters supported files on drops over the file management container', async () => {
-		analyzeAudioFilesMock.mockResolvedValue({
-			files: [],
-			totalDuration: 0,
-			totalSize: 0,
-			validCount: 0,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/file1.wav', '/tmp/file2.flac', '/tmp/file3.txt']);
 		expect(analyzeAudioFilesMock).toHaveBeenCalledWith(['/tmp/file1.wav', '/tmp/file2.flac']);
 	});
 
 	it('processes drops on file management container (file list area)', async () => {
-		analyzeAudioFilesMock.mockResolvedValue({
-			files: [],
-			totalDuration: 0,
-			totalSize: 0,
-			validCount: 0,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
 		// Drop on file list content area (when files are present)
 		fireDragDrop({ x: 200, y: 300 }, ['/tmp/file1.mp3']);
 		expect(analyzeAudioFilesMock).toHaveBeenCalledWith(['/tmp/file1.mp3']);
@@ -191,36 +198,15 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('ignores drops outside file management container', async () => {
-		analyzeAudioFilesMock.mockResolvedValue({
-			files: [],
-			totalDuration: 0,
-			totalSize: 0,
-			validCount: 0,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
 		fireDragDrop({ x: 500, y: 500 }, ['/tmp/file1.mp3']);
 		expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
 	});
 
 	it('shows and wires the Clear button after files are loaded', async () => {
-		analyzeAudioFilesMock.mockResolvedValue({
-			files: [
-				{
-					path: '/tmp/file1.mp3',
-					isValid: true,
-					duration: 1,
-					size: 1000,
-					bitrate: 64,
-					sampleRate: 44100,
-					channels: 2,
-					format: 'mp3',
-				},
-			],
-			totalDuration: 1,
-			totalSize: 1000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValue(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/file1.mp3')]),
+		);
 
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/file1.mp3']);
 		await flushAsync();
@@ -240,26 +226,21 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('appends a single new file to a populated list', async () => {
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
-			totalDuration: 1,
-			totalSize: 1000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
+		);
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
 		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 
 		openMock.mockResolvedValueOnce(['/tmp/book-b.mp3']);
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-b.mp3')],
-			totalDuration: 2,
-			totalSize: 2000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-b.mp3')], {
+				totalDuration: 2,
+				totalSize: 2000,
+			}),
+		);
 
 		document
 			.querySelector('.drop-zone-header')
@@ -276,23 +257,22 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('appends only unseen files when a mixed duplicate/new add arrives', async () => {
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
-			totalDuration: 1,
-			totalSize: 1000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
+		);
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
 		await flushAsync();
 
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-a.mp3'), makeAnalyzedFile('/tmp/book-b.mp3')],
-			totalDuration: 2,
-			totalSize: 2000,
-			validCount: 2,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList(
+				[makeAnalyzedFile('/tmp/book-a.mp3'), makeAnalyzedFile('/tmp/book-b.mp3')],
+				{
+					totalDuration: 2,
+					totalSize: 2000,
+					validCount: 2,
+				},
+			),
+		);
 		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3', '/tmp/book-b.mp3']);
 
 		document
@@ -310,23 +290,15 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('leaves the list unchanged and surfaces status when only duplicates are added', async () => {
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
-			totalDuration: 1,
-			totalSize: 1000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
+		);
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
 		await flushAsync();
 
-		analyzeAudioFilesMock.mockResolvedValueOnce({
-			files: [makeAnalyzedFile('/tmp/book-a.mp3')],
-			totalDuration: 1,
-			totalSize: 1000,
-			validCount: 1,
-			invalidCount: 0,
-		});
+		analyzeAudioFilesMock.mockResolvedValueOnce(
+			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
+		);
 		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3']);
 
 		document

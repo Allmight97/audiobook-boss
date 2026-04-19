@@ -64,51 +64,58 @@ Every active task spec must contain these sections:
 - explicit non-goals
 - hard constraints, compatibility requirements, or policy boundaries
 
-### 3. Context And Orientation
+### 3. Solution Posture
+
+- chosen posture: local patch, subsystem refactor, or redesign
+- why that posture is preferred for this effort
+- whether a narrower option was rejected because it would preserve a bad seam, malformed contract, or other local minimum
+- what would justify broadening or narrowing scope later
+
+### 4. Context And Orientation
 
 - exact files, commands, tests, and docs that matter
 - current implementation shape relevant to the task
 - boundary ownership to prevent wandering discovery
 
-### 4. Plan Of Work
+### 5. Plan Of Work
 
 - grouped work phases or milestones
 - concrete task breakdown for execution
 - sub-agent lane breakdown when applicable
 
-### 5. Progress
+### 6. Progress
 
 - timestamped checklist or status notes for meaningful completed work
 - enough detail to resume without rereading chat transcripts
 
-### 6. Surprises And Discoveries
+### 7. Surprises And Discoveries
 
 - facts learned during execution that materially changed the plan
 - failed avenues or constraints discovered from the repo/tooling
 
-### 7. Decision Log
+### 8. Decision Log
 
 - decisions made, with the reason they were chosen
 - include reversals when the earlier plan proved wrong
 
-### 8. Validation And Acceptance
+### 9. Validation And Acceptance
 
 - exact commands and artifacts needed to claim the work is done
 - include review-agent requirements when the task calls for one
 - include documentation-alignment requirements
 
-### 9. Interfaces And Dependencies
+### 10. Interfaces And Dependencies
 
 - user-visible behavior changes
 - contract or schema changes
 - commands, docs, or tooling surfaces that must stay aligned
 
-### 10. Idempotence And Recovery
+### 11. Idempotence And Recovery
 
 - cleanup or retry guidance if the work is interrupted
 - safe restart points and what can be rerun without damage
 
-### 11. Completion And Cleanup
+### 12. Completion And Cleanup
 
 - what must be true before the task spec can be deleted
 - note that the file is deleted after full completion, not archived
@@ -124,6 +131,7 @@ surfaces instead of leaving them implicit:
 - contract work should say whether bindings, boundary adapters, and related tests must move together
 - fallback work should say whether `docs/fallbacks.md` and `scripts/check-fallback-policy.sh` are part of acceptance
 - planning should name any canonical docs that must be updated on completion, such as `AGENTS.md`, `README.md`, `docs/api-map.md`, or `docs/fallbacks.md`
+- planning should explicitly note when malformed seams, contract drift, or bad solution shape were discovered and whether the task intentionally fixes them now or defers them
 
 ## Working Rules
 

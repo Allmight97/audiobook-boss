@@ -20,6 +20,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::list_available_encoders,
             crate::commands::refresh_external_toolchain,
             crate::commands::preview_output_path,
+            crate::commands::preflight_processing_plan,
             crate::commands::get_max_concurrent_jobs,
             crate::commands::set_max_concurrent_jobs,
             crate::commands::process_audiobook_files,

@@ -10,6 +10,9 @@
  * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
  * - album_sort = Computed TSOA for library sorting ("SERIES PP - TITLE")
  * - date = Publication date (YYYY or YYYY-MM in ©day)
+ *
+ * `track` and `disk` remain readable for compatibility, but ABB does not expose
+ * them as supported writable metadata-intent fields.
  */
 
 import type {

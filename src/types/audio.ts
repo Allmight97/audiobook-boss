@@ -1,25 +1,46 @@
 // TypeScript interfaces for audio processing
 import type {
 	AudioFile as GeneratedAudioFile,
+	CollisionPolicy as GeneratedCollisionPolicy,
+	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
 	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
 	ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
+	OutputCollisionInfo as GeneratedOutputCollisionInfo,
+	OutputCollisionKind as GeneratedOutputCollisionKind,
+	OutputKind as GeneratedOutputKind,
 	OutputNamingConfig as GeneratedOutputNamingConfig,
+	PlannedOutput as GeneratedPlannedOutput,
+	PlannedOutputAction as GeneratedPlannedOutputAction,
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	ProcessResultSummary as GeneratedProcessResultSummary,
 	ProcessPayload as GeneratedProcessPayload,
+	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
 	SampleRateConfig as GeneratedSampleRateConfig,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
+export type DecoderSelection = NullToOptionalDeep<GeneratedDecoderSelection>;
 
 export type FileListInfo = NullToOptionalDeep<GeneratedFileListInfo>;
+export type CollisionPolicy = GeneratedCollisionPolicy;
+export type OutputKind = GeneratedOutputKind;
+export type OutputCollisionKind = GeneratedOutputCollisionKind;
+export type OutputCollisionInfo = NullToOptionalDeep<GeneratedOutputCollisionInfo>;
+export type PlannedOutputAction = GeneratedPlannedOutputAction;
+export type PlannedOutput = NullToOptionalDeep<GeneratedPlannedOutput>;
+export type ProcessingPreflightPlan = Omit<
+	NullToOptionalDeep<GeneratedProcessingPreflightPlan>,
+	'outputs'
+> & {
+	outputs: PlannedOutput[];
+};
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;

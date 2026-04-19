@@ -32,7 +32,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ## Preferred Path
 
 - Complete tasks end-to-end by default and report concrete outcomes.
-- Use the smallest effective diff that preserves contracts and user-visible behavior.
+- Prefer the smallest coherent solution, not the smallest diff. Do not choose a narrower patch when a modestly broader change would materially improve durability, ownership clarity, or long-term design.
+- Minimal churn means minimizing reactive user-agent correction loops and break/fix back-and-forth. It does not mean minimizing code motion or refactor scope.
+- If a broader change is the better-engineered path, say so explicitly and align with the user before materially widening scope.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
@@ -59,6 +61,12 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
+
+### Temporary Evergreen Refactor Bias
+
+- Temporarily evergreen: actively surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
+- Prioritize refactoring bad code and malformed solutions over preserving them for diff minimization, as long as the connection to the active work is real and the scope expansion is discussed when material.
+- Apply this bias until the backlog of credible seam/contract cleanup opportunities appears meaningfully exhausted or the connection becomes too speculative to justify.
 
 ## Hard Invariants
 
@@ -100,6 +108,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ## Decision Posture
 - Default: greenfield, risk-tolerant. No silent fallbacks or backward-compat shims and seams unless explicitly justified in cases where no other better engineered (as of current date) option is possible.
 - Canon informs but does not constrain nor prescribe — safe ≠ good, new ≠ risky. Use judgment; communicate tradeoffs proportional to stakes.
+- Risk is contextual, not disqualifying by itself. Do not prefer a smaller patch only because it feels safer.
+- Prefer durable, well-engineered solutions over incremental caution unless product, safety, data-integrity, or contract constraints make that inappropriate.
+- Avoid repo-wide infra or process noise with weak payoff, but do not confuse that constraint with avoiding local architectural cleanup.
 - Limit follow-up suggestions to accretive, high-ROI moves. Flag brittleness, over-engineering, and future-hostile patterns — but do not chase scope.
 
 ## Tooling Preferences

@@ -37,16 +37,29 @@ describe('harness scenario routing', () => {
 			'metadata-edit',
 			'status-processing',
 			'output-preview',
+			'collision-dialog',
 		]);
 	});
 
 	it('runs the full suite when harness bootstrap or runner surfaces change', () => {
 		expect(
 			resolveHarnessScenariosForPaths(['src/harness-main.ts']).map((scenario) => scenario.id),
-		).toEqual(['file-management', 'metadata-edit', 'status-processing', 'output-preview']);
+		).toEqual([
+			'file-management',
+			'metadata-edit',
+			'status-processing',
+			'output-preview',
+			'collision-dialog',
+		]);
 		expect(
 			resolveHarnessScenariosForPaths(['scripts/harness/verify.ts']).map((scenario) => scenario.id),
-		).toEqual(['file-management', 'metadata-edit', 'status-processing', 'output-preview']);
+		).toEqual([
+			'file-management',
+			'metadata-edit',
+			'status-processing',
+			'output-preview',
+			'collision-dialog',
+		]);
 	});
 
 	it('treats backend-only changes as outside the harness lane', () => {
@@ -65,6 +78,7 @@ describe('harness scenario routing', () => {
 			'metadata-edit',
 			'status-processing',
 			'output-preview',
+			'collision-dialog',
 		]);
 		expect(getHarnessScenario('output-preview').title).toBe('Output Preview');
 	});

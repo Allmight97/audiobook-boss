@@ -1,7 +1,9 @@
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::JobId;
-use crate::audio::output_path::build_output_path_preview;
+use crate::audio::output_path::{
+    build_output_path_preview, derive_output_artifact_path, OutputKind,
+};
 use crate::audio::settings_encoder::{
     validate_encoder_settings as validate_encoder_settings_impl,
     validate_requested_encoder_available, EncoderSettings,
@@ -11,7 +13,7 @@ use crate::audio::toolchain::{
 };
 use crate::commands::audio_processing;
 pub use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload,
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
@@ -104,17 +106,34 @@ pub fn preview_output_path(
     metadata: Option<crate::metadata::AudiobookMetadata>,
     output_naming: Option<OutputNamingConfig>,
     source_path: Option<String>,
+    output_kind: Option<OutputKind>,
 ) -> CommandResult<String> {
     let base_output_dir = PathBuf::from(output_dir);
     let source_path_buf = source_path.as_deref().map(PathBuf::from);
     let naming = output_naming.unwrap_or_default();
-    let preview = build_output_path_preview(
+    let requested = build_output_path_preview(
         &base_output_dir,
         metadata.as_ref(),
         naming,
         source_path_buf.as_deref(),
     )?;
-    Ok(preview.to_string_lossy().to_string())
+    let artifact =
+        derive_output_artifact_path(&requested, output_kind.unwrap_or(OutputKind::Final))?;
+    Ok(artifact.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preflight_processing_plan(
+    payload: ProcessPayload,
+    metadata: Option<HashMap<String, MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> CommandResult<ProcessingPreflightPlan> {
+    Ok(audio_processing::preflight_payload(
+        payload,
+        metadata,
+        preview_seconds,
+    )?)
 }
 
 /// Returns the current maximum concurrent jobs setting

@@ -1,8 +1,9 @@
 use crate::audio::processor::finalize::commit_output_boundary;
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
+use crate::audio::toolchain::validate_external_input_decoders;
 use crate::audio::toolchain::ValidatedExternalToolchain;
 use crate::audio::CleanupGuard;
-use crate::audio::{AudioFile, ProcessingContext, ProgressEmitter};
+use crate::audio::{AudioFile, DecoderSelection, ProcessingContext, ProgressEmitter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg;
 use crate::metadata::passthrough::{extract_passthrough_metadata, PassthroughMetadata};
@@ -16,6 +17,7 @@ use tokio::time::{sleep, Duration};
 pub async fn process_audiobook_with_external_fdk(
     context: ProcessingContext,
     files: Vec<AudioFile>,
+    selected_decoders: Vec<Option<DecoderSelection>>,
     metadata: Option<AudiobookMetadata>,
     toolchain: ValidatedExternalToolchain,
 ) -> Result<String> {
@@ -28,12 +30,26 @@ pub async fn process_audiobook_with_external_fdk(
         ));
     }
 
-    let valid_files: Vec<AudioFile> = files.into_iter().filter(|file| file.is_valid).collect();
+    if files.len() != selected_decoders.len() {
+        return Err(AppError::General(
+            "External FDK input decoder selections drifted from the file list.".to_string(),
+        ));
+    }
+
+    let mut valid_files = Vec::new();
+    let mut valid_selected_decoders = Vec::new();
+    for (file, selection) in files.into_iter().zip(selected_decoders.into_iter()) {
+        if file.is_valid {
+            valid_files.push(file);
+            valid_selected_decoders.push(selection);
+        }
+    }
     if valid_files.is_empty() {
         return Err(AppError::InvalidInput(
             "No valid audio files found for external FDK processing.".to_string(),
         ));
     }
+    validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
 
     let passthrough = if context.preview.is_some() {
         None
@@ -64,6 +80,7 @@ pub async fn process_audiobook_with_external_fdk(
         &ui,
         &toolchain,
         &valid_files,
+        &valid_selected_decoders,
         &temp_output,
         total_duration,
     )
@@ -84,9 +101,13 @@ pub async fn process_audiobook_with_external_fdk(
         return Err(AppError::cancelled());
     }
 
-    let destination = preview_output_path(&context);
     ui.emit_cleanup("Cleaning up...");
-    let outcome = commit_output_boundary(&context, temp_output, &destination, &mut cleanup_guard)?;
+    let outcome = commit_output_boundary(
+        &context,
+        temp_output,
+        context.output.artifact_path(),
+        &mut cleanup_guard,
+    )?;
     if outcome.cancelled {
         ui.emit_cancelled("Processing was cancelled");
         return Err(AppError::cancelled());
@@ -133,20 +154,6 @@ fn merge_cover_art(
     }
 }
 
-fn preview_output_path(context: &ProcessingContext) -> PathBuf {
-    if context.preview.is_none() {
-        return context.output.final_path().to_path_buf();
-    }
-
-    let final_output = context.output.final_path();
-    let parent = final_output.parent().unwrap_or_else(|| Path::new("."));
-    let stem = final_output
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("output");
-    parent.join(format!("{}.preview.m4b", stem))
-}
-
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {
     let path = std::env::temp_dir().join(format!("abb-fdk-worker-{}", context.session.id()));
     std::fs::create_dir_all(&path)?;
@@ -170,15 +177,23 @@ async fn run_external_ffmpeg(
     ui: &ProgressEmitter,
     toolchain: &ValidatedExternalToolchain,
     files: &[AudioFile],
+    selected_decoders: &[Option<DecoderSelection>],
     temp_output: &Path,
     total_duration_seconds: f64,
 ) -> Result<()> {
-    for file in files {
+    for (file, selection) in files.iter().zip(selected_decoders.iter()) {
         log::info!(
-            "external_fdk_input path={} selected_decoder={} forced_input_decoder={}",
+            "external_fdk_input path={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
             sanitize_path_for_display(&file.path),
-            file.selected_decoder.as_deref().unwrap_or("unknown"),
-            external_input_decoder_name(file).unwrap_or("auto"),
+            selection
+                .as_ref()
+                .map(|value| value.decoder_id.as_str())
+                .unwrap_or("unknown"),
+            selection
+                .as_ref()
+                .map(|value| value.decoder_label.as_str())
+                .unwrap_or_else(|| file.selected_decoder.as_deref().unwrap_or("unknown")),
+            external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
         );
     }
 
@@ -191,6 +206,7 @@ async fn run_external_ffmpeg(
         &context.sample_rate,
         context.preview.as_ref(),
         files,
+        selected_decoders,
         temp_output,
     ));
 
@@ -277,6 +293,7 @@ fn build_ffmpeg_args(
     sample_rate: &crate::audio::SampleRateConfig,
     preview: Option<&crate::audio::preview_config::PreviewConfig>,
     files: &[AudioFile],
+    selected_decoders: &[Option<DecoderSelection>],
     temp_output: &Path,
 ) -> Vec<String> {
     let mut args = vec![
@@ -290,12 +307,12 @@ fn build_ffmpeg_args(
     ];
 
     let preview_per_file = preview.map(|value| value.per_file_seconds(files.len()).to_string());
-    for file in files {
+    for (file, selection) in files.iter().zip(selected_decoders.iter()) {
         if let Some(seconds) = preview_per_file.as_ref() {
             args.push("-t".to_string());
             args.push(seconds.clone());
         }
-        args.extend(build_input_decoder_args(file));
+        args.extend(build_input_decoder_args(selection.as_ref()));
         args.push("-i".to_string());
         args.push(file.path.to_string_lossy().to_string());
     }
@@ -359,18 +376,18 @@ fn build_ffmpeg_args(
     args
 }
 
-fn build_input_decoder_args(file: &AudioFile) -> Vec<String> {
-    let Some(decoder_name) = external_input_decoder_name(file) else {
+fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<String> {
+    let Some(decoder_name) = external_input_decoder_name(selection) else {
         return Vec::new();
     };
 
     vec!["-c:a".to_string(), decoder_name.to_string()]
 }
 
-fn external_input_decoder_name(file: &AudioFile) -> Option<&'static str> {
-    match file.selected_decoder.as_deref() {
-        Some("Apple AAC") => Some("aac_at"),
-        Some("FDK AAC") => Some("libfdk_aac"),
+fn external_input_decoder_name(selection: Option<&DecoderSelection>) -> Option<&str> {
+    match selection.map(|value| value.decoder_id.as_str()) {
+        Some("aac_at") => Some("aac_at"),
+        Some("libfdk_aac") => Some("libfdk_aac"),
         _ => None,
     }
 }
@@ -453,10 +470,12 @@ mod tests {
                 is_valid: true,
                 error: None,
             }],
+            vec![None],
             None,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
+                decoder_capabilities: Default::default(),
             },
         )
         .await
@@ -501,10 +520,12 @@ mod tests {
         let result = process_audiobook_with_external_fdk(
             context,
             vec![test_audio_file(input_path.clone())],
+            vec![None],
             None,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
+                decoder_capabilities: Default::default(),
             },
         )
         .await;
@@ -552,6 +573,7 @@ mod tests {
         let result = process_audiobook_with_external_fdk(
             context,
             vec![test_audio_file(input_path.clone())],
+            vec![None],
             Some(AudiobookMetadata {
                 title: Some("Trigger rewrite".to_string()),
                 ..AudiobookMetadata::default()
@@ -559,6 +581,7 @@ mod tests {
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
+                decoder_capabilities: Default::default(),
             },
         )
         .await;
@@ -613,10 +636,12 @@ mod tests {
         let result = process_audiobook_with_external_fdk(
             context,
             vec![test_audio_file(input_path.clone())],
+            vec![None],
             None,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
+                decoder_capabilities: Default::default(),
             },
         )
         .await;
@@ -673,6 +698,11 @@ mod tests {
                 audio_file_with_decoder(&second_input, None),
                 audio_file_with_decoder(&third_input, Some("FDK AAC")),
             ],
+            &[
+                decoder_selection("aac_at", "Apple AAC"),
+                None,
+                decoder_selection("libfdk_aac", "FDK AAC"),
+            ],
             &output_path,
         );
 
@@ -724,6 +754,7 @@ mod tests {
                 &input_path,
                 Some("Native AAC (FFmpeg)"),
             )],
+            &[decoder_selection("default", "Renamed display label")],
             &output_path,
         );
 
@@ -734,6 +765,43 @@ mod tests {
         assert!(input_index >= 1, "expected option before -i");
         assert_ne!(args[input_index - 1], "aac_at");
         assert_ne!(args[input_index - 1], "libfdk_aac");
+    }
+
+    #[test]
+    fn build_ffmpeg_args_depend_on_decoder_id_not_friendly_label() {
+        let output_path = PathBuf::from("/tmp/output.m4b");
+        let input_path = PathBuf::from("/tmp/input.m4b");
+        let settings = EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: crate::audio::settings_encoder::ChannelConfig::Auto,
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+            twoloop: true,
+        };
+
+        let args = build_ffmpeg_args(
+            &settings,
+            &crate::audio::SampleRateConfig::Auto,
+            None,
+            &[audio_file_with_decoder(
+                &input_path,
+                Some("Renamed Apple Label"),
+            )],
+            &[decoder_selection("aac_at", "Renamed Apple Label")],
+            &output_path,
+        );
+
+        assert!(args.windows(4).any(|window| {
+            window
+                == [
+                    "-c:a".to_string(),
+                    "aac_at".to_string(),
+                    "-i".to_string(),
+                    input_path.to_string_lossy().to_string(),
+                ]
+        }));
     }
 
     fn write_fake_ffmpeg(root: &Path) -> PathBuf {
@@ -762,6 +830,13 @@ mod tests {
 
     fn test_audio_file(path: PathBuf) -> AudioFile {
         audio_file_with_decoder(&path, None)
+    }
+
+    fn decoder_selection(decoder_id: &str, decoder_label: &str) -> Option<DecoderSelection> {
+        Some(DecoderSelection {
+            decoder_id: decoder_id.to_string(),
+            decoder_label: decoder_label.to_string(),
+        })
     }
 
     fn audio_file_with_decoder(path: &Path, selected_decoder: Option<&str>) -> AudioFile {

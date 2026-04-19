@@ -30,6 +30,7 @@ export const HARNESS_FILE_LIST: FileListInfo = {
 			selectedDecoder: 'Native MP3',
 		},
 	],
+	selectedDecoders: [null, null],
 	totalDuration: 700,
 	totalSize: 35 * 1024 * 1024,
 	validCount: 2,

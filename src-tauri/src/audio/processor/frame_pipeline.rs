@@ -162,6 +162,41 @@ fn process_and_encode_frame(
     Ok(PreviewAction::Continue)
 }
 
+fn should_drain_decoder_after_input(ctx: &FramePipelineCtx, action: PreviewAction) -> bool {
+    if action != PreviewAction::Continue {
+        return false;
+    }
+
+    if *ctx.early_stop {
+        return false;
+    }
+
+    true
+}
+
+pub(crate) fn flush_accumulator_tail(
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    output_context: &mut ff::format::context::Output,
+    ctx: &mut FramePipelineCtx,
+    accumulator: &mut crate::audio::buffer::SampleAccumulator,
+) -> Result<bool> {
+    if let Some(mut tail) = accumulator.flush_tail(true) {
+        tail.set_pts(Some(*ctx.running_pts));
+        *ctx.running_pts += tail.samples() as i64;
+        *ctx.encoded_samples_total += tail.samples() as u64;
+        crate::audio::processor::encoder::encode_and_write_frame(
+            encoder,
+            &tail,
+            output_context,
+            ctx.output_stream_index,
+            ctx.output_time_base,
+        )?;
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
 /// Processes audio frames from decoder through resample and encode pipeline
 /// Returns PreviewAction to signal adaptive preview file transitions
 pub(crate) fn process_decoded_frames(
@@ -178,7 +213,8 @@ pub(crate) fn process_decoded_frames(
     let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
-    let fastpath_enabled = !disable_fastpath;
+    // Preview runs prioritize deterministic excerpt boundaries over the decoder-format fast path.
+    let fastpath_enabled = !disable_fastpath && ctx.context.preview.is_none();
     let encoder_format = encoder.format();
     let encoder_channel_layout = encoder.channel_layout();
     let encoder_sample_rate = encoder.rate();
@@ -294,48 +330,19 @@ pub(crate) fn process_input_packets(
             log::debug!("Processed {} packets so far", packet_count);
         }
 
-        if log::log_enabled!(log::Level::Debug) {
-            log::debug!("Sending packet {} to decoder", packet_count);
-        }
-        match decoder.send_packet(&packet) {
-            Ok(()) => log::debug!("✓ Packet {} sent to decoder successfully", packet_count),
-            Err(e) => {
-                log::error!("✗ Failed to send packet {} to decoder: {}", packet_count, e);
-                return Err(AppError::General(format!(
-                    "Decoder send packet failed: {}",
-                    e
-                )));
-            }
-        }
+        send_packet_to_decoder(decoder, &packet, packet_count)?;
 
-        log::debug!("Processing decoded frames for packet {}", packet_count);
-        match process_decoded_frames(
+        final_action = process_packet_frames(
             decoder,
             encoder,
             resampler,
             output_context,
             ctx,
             accumulator,
-        ) {
-            Ok(action) => {
-                log::debug!(
-                    "✓ Decoded frames processed successfully for packet {} (action={:?})",
-                    packet_count,
-                    action
-                );
-                if action != PreviewAction::Continue {
-                    final_action = action;
-                    break;
-                }
-            }
-            Err(e) => {
-                log::error!(
-                    "✗ Failed to process decoded frames for packet {}: {}",
-                    packet_count,
-                    e
-                );
-                return Err(e);
-            }
+            packet_count,
+        )?;
+        if final_action != PreviewAction::Continue {
+            break;
         }
 
         if *ctx.early_stop {
@@ -345,6 +352,90 @@ pub(crate) fn process_input_packets(
             break;
         }
     }
+
+    let should_drain = should_drain_decoder_after_input(ctx, final_action);
+    if should_drain {
+        log::debug!("Sending decoder EOF after packet processing");
+        let _ = decoder.send_eof();
+        log::debug!("Draining decoder after EOF");
+        let drain_action = process_decoded_frames(
+            decoder,
+            encoder,
+            resampler,
+            output_context,
+            ctx,
+            accumulator,
+        )?;
+        if drain_action != PreviewAction::Continue {
+            final_action = drain_action;
+        }
+    } else {
+        log::debug!("Skipping decoder drain after preview boundary");
+    }
+
     log::info!("✓ Processed {} packets total", packet_count);
     Ok(final_action)
+}
+
+fn send_packet_to_decoder(
+    decoder: &mut ff::codec::decoder::Audio,
+    packet: &ff::Packet,
+    packet_count: usize,
+) -> Result<()> {
+    use crate::errors::AppError;
+
+    if log::log_enabled!(log::Level::Debug) {
+        log::debug!("Sending packet {} to decoder", packet_count);
+    }
+
+    match decoder.send_packet(packet) {
+        Ok(()) => {
+            log::debug!("✓ Packet {} sent to decoder successfully", packet_count);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("✗ Failed to send packet {} to decoder: {}", packet_count, e);
+            Err(AppError::General(format!(
+                "Decoder send packet failed: {e}"
+            )))
+        }
+    }
+}
+
+fn process_packet_frames(
+    decoder: &mut ff::codec::decoder::Audio,
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    resampler: &mut ff::software::resampling::Context,
+    output_context: &mut ff::format::context::Output,
+    ctx: &mut FramePipelineCtx,
+    accumulator: &mut crate::audio::buffer::SampleAccumulator,
+    packet_count: usize,
+) -> Result<PreviewAction> {
+    log::debug!("Processing decoded frames for packet {}", packet_count);
+
+    match process_decoded_frames(
+        decoder,
+        encoder,
+        resampler,
+        output_context,
+        ctx,
+        accumulator,
+    ) {
+        Ok(action) => {
+            log::debug!(
+                "✓ Decoded frames processed successfully for packet {} (action={:?})",
+                packet_count,
+                action
+            );
+            Ok(action)
+        }
+        Err(e) => {
+            log::error!(
+                "✗ Failed to process decoded frames for packet {}: {}",
+                packet_count,
+                e
+            );
+            Err(e)
+        }
+    }
 }

@@ -31,7 +31,7 @@ export type ProcessingStatus =
 	| { stage: 'failed'; percentage: number; message: string }
 	| { stage: 'cancelled'; percentage: number; message: string };
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'skipped' | 'failed' | 'cancelled';
 
 /**
  * Per-job progress tracking for queued and running work.
@@ -146,6 +146,12 @@ export function calculateAggregateProgressAndStage(
 			continue;
 		}
 		if (job.status === 'completed') {
+			completedJobs++;
+			hasCompleted = true;
+			totalPercentage += 100;
+			continue;
+		}
+		if (job.status === 'skipped') {
 			completedJobs++;
 			hasCompleted = true;
 			totalPercentage += 100;

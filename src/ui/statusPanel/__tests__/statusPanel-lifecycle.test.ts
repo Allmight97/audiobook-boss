@@ -264,6 +264,44 @@ describe('StatusPanel lifecycle', () => {
 		}
 	});
 
+	it('reconciles merge skip_existing results back to idle and unlocks controls', () => {
+		const controller = new StatusPanelController();
+		seedDisabledControls();
+
+		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+
+		controller.reconcileProcessResult({
+			jobType: 'merge',
+			summary: { total: 1, succeeded: 0, skipped: 1, failed: 0 },
+			results: [
+				{
+					status: 'skipped',
+					message: 'Skipped existing output at /books/output.m4b',
+				},
+			],
+		});
+
+		expect(controller.isCurrentlyProcessing).toBe(true);
+		expect(getJobRows()).toEqual([
+			'Merge output • Skipped existing output at /books/output.m4b (100.0%)',
+		]);
+
+		vi.advanceTimersByTime(1499);
+		expect(controller.isCurrentlyProcessing).toBe(true);
+		assertControlsDisabled();
+
+		vi.advanceTimersByTime(1);
+
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		assertControlsEnabled();
+		expect(showInfoSpy).toHaveBeenCalledWith('Skipped existing output at /books/output.m4b');
+		expect(controller.getCurrentStatus()).toEqual({
+			stage: 'idle',
+			percentage: 0,
+			message: 'Ready to process audiobook',
+		});
+	});
+
 	it('uses the batch completion override message for partial failures', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();

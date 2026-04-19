@@ -22,6 +22,7 @@ import {
 	} from './ui/jobControls';
 	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
+	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
 	import { createHarnessFixture, type PartialHarnessFixture } from './harness/fixtures';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
 	import { fileListViewState } from './ui/fileList/viewState.svelte';
@@ -131,3 +132,5 @@ import {
 		<MetadataLookupIsland />
 	</div>
 {/if}
+
+<CollisionDialogIsland />

@@ -9,21 +9,12 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
+use crate::audio::output_path::{OutputKind, PlannedOutputAction};
 use crate::audio::{ProcessingStage, ProgressReporter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 
 use super::ProcessingWorkflow;
-
-/// Derives a preview output path `<final_basename>.preview.m4b` alongside the final output
-fn derive_preview_output_path(final_output: &Path) -> PathBuf {
-    let parent = final_output.parent().unwrap_or_else(|| Path::new("."));
-    let stem = final_output
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    parent.join(format!("{}.preview.m4b", stem))
-}
 
 // Note: cover art detection helper removed; metadata writes handled during mux
 
@@ -31,7 +22,11 @@ fn derive_preview_output_path(final_output: &Path) -> PathBuf {
 // This approach ensures compatibility across different output destinations and provides
 // atomic completion semantics for the processing pipeline.
 /// Moves temporary output to final location (filesystem boundary)
-pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) -> Result<PathBuf> {
+pub(crate) fn move_to_final_location(
+    temp_output: PathBuf,
+    final_path: &Path,
+    action: PlannedOutputAction,
+) -> Result<PathBuf> {
     if let Some(parent) = final_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             AppError::FileValidation(format!(
@@ -39,6 +34,23 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
                 sanitize_path_for_display(parent)
             ))
         })?;
+    }
+    match action {
+        PlannedOutputAction::Write | PlannedOutputAction::RenameNew => {
+            if final_path.exists() {
+                return Err(AppError::FileValidation(format!(
+                    "Output collision state changed for '{}'. Review collisions and try again.",
+                    sanitize_path_for_display(final_path)
+                )));
+            }
+        }
+        PlannedOutputAction::ReplaceExisting => {}
+        PlannedOutputAction::SkipExisting | PlannedOutputAction::ReviewRequired => {
+            return Err(AppError::FileValidation(format!(
+                "Output commit is not allowed for '{}'. Review the output plan and retry.",
+                sanitize_path_for_display(final_path)
+            )));
+        }
     }
     match std::fs::rename(&temp_output, final_path) {
         Ok(()) => {
@@ -59,6 +71,12 @@ pub(crate) fn move_to_final_location(temp_output: PathBuf, final_path: &Path) ->
             // sunset=2026-06-30 issue=#195
             // Fallback: copy then remove temp (handles cross-volume or other rename failures)
             if final_path.exists() {
+                if action != PlannedOutputAction::ReplaceExisting {
+                    return Err(AppError::FileValidation(format!(
+                        "Output collision state changed for '{}'. Review collisions and try again.",
+                        sanitize_path_for_display(final_path)
+                    )));
+                }
                 if let Err(e) = std::fs::remove_file(final_path) {
                     log::warn!("finalize_move overwrite remove failed: {}", e);
                 }
@@ -96,7 +114,8 @@ fn commit_output_boundary_internal<F>(
 where
     F: FnOnce(),
 {
-    let final_output = move_to_final_location(temp_output, destination)?;
+    let final_output =
+        move_to_final_location(temp_output, destination, context.output.commit_action())?;
 
     // Destination output is now canonical and must not be cleaned up on cancellation.
     cleanup_guard.remove_path(&final_output);
@@ -171,7 +190,7 @@ pub(crate) fn complete_processing(
     log::info!("Temporary file: {}", merged_output.display());
     log::info!(
         "Final output path: {}",
-        context.output.final_path().display()
+        context.output.artifact_path().display()
     );
 
     let ui = context.new_emitter();
@@ -182,7 +201,7 @@ pub(crate) fn complete_processing(
     let outcome = commit_output_boundary(
         context,
         merged_output,
-        context.output.final_path(),
+        context.output.artifact_path(),
         &mut cleanup_guard,
     )?;
     log::info!(
@@ -197,12 +216,19 @@ pub(crate) fn complete_processing(
     }
 
     reporter.complete();
-    ui.emit_complete("Processing complete");
-
-    let success_message = format!(
-        "Successfully created audiobook: {}",
-        outcome.final_output.display()
-    );
+    let success_message = if context.output.output_kind() == OutputKind::Preview {
+        ui.emit_complete("Preview created successfully");
+        format!(
+            "Successfully created preview: {}",
+            outcome.final_output.display()
+        )
+    } else {
+        ui.emit_complete("Processing complete");
+        format!(
+            "Successfully created audiobook: {}",
+            outcome.final_output.display()
+        )
+    };
     log::info!("🎉 {}", success_message);
     Ok(success_message)
 }
@@ -218,49 +244,6 @@ pub(crate) async fn finalize_processing(
 ) -> Result<String> {
     let passthrough_ref = passthrough.as_ref();
     write_metadata_stage(context, &merged_output, metadata, passthrough_ref, reporter)?;
-
-    // If preview mode is enabled, move to preview-named path with overwrite policy
-    if let Some(preview_cfg) = context.preview.as_ref() {
-        let preview_path = derive_preview_output_path(context.output.final_path());
-        log::info!(
-            "Preview finalize: total_seconds={:.3} dest={}",
-            preview_cfg.total_seconds,
-            preview_path.display()
-        );
-
-        // Overwrite any existing preview file
-        if preview_path.exists() {
-            if let Err(e) = std::fs::remove_file(&preview_path) {
-                log::warn!(
-                    "Failed to remove existing preview file ({}): {}",
-                    preview_path.display(),
-                    e
-                );
-            }
-        }
-        let mut cleanup_guard = CleanupGuard::new(context.session.id());
-        cleanup_guard.add_path(workflow.temp_dir);
-        let outcome = commit_output_boundary(
-            context,
-            merged_output.clone(),
-            &preview_path,
-            &mut cleanup_guard,
-        )?;
-        if outcome.cancelled {
-            let ui = context.new_emitter();
-            ui.emit_cancelled("Processing was cancelled");
-            return Err(AppError::cancelled());
-        }
-        reporter.complete();
-        let ui = context.new_emitter();
-        ui.emit_complete("Preview created successfully");
-        let msg = format!(
-            "Successfully created preview: {}",
-            outcome.final_output.display()
-        );
-        log::info!("🎉 {}", msg);
-        return Ok(msg);
-    }
 
     complete_processing(context, workflow, merged_output, reporter)
 }

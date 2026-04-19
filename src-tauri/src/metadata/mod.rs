@@ -21,7 +21,10 @@ pub mod mp4ameta_bridge;
 // Passthrough helpers for chapter/cover preservation
 pub mod passthrough;
 
-/// Represents audiobook metadata
+/// Represents audiobook metadata.
+///
+/// `track` and `disk` are preserved for read compatibility with files in the wild,
+/// but ABB does not expose them as supported writable metadata-intent fields.
 ///
 /// Field mapping for Plex/Audiobookshelf compatibility:
 /// - `artist` = Author (also written to AlbumArtist)
@@ -75,6 +78,10 @@ pub enum PatchOp<T> {
     Noop,
 }
 
+/// Writable metadata-intent surface for ABB.
+///
+/// This intentionally omits `track` and `disk`; those tags remain readable in
+/// [`AudiobookMetadata`] but are not part of the supported write contract.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
 pub struct MetadataIntentPatch {
     #[serde(default)]
@@ -552,6 +559,24 @@ mod tests {
             PatchOp::Clear => {}
             other => panic!("expected cover art clear patch, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn metadata_intent_patch_write_contract_keeps_track_and_disk_read_only() {
+        let patch = MetadataIntentPatch::from(AudiobookMetadata {
+            title: Some("Read Compatible".to_string()),
+            track: Some((3, Some(12))),
+            disk: Some((1, Some(2))),
+            ..Default::default()
+        });
+
+        let resolved = patch
+            .to_write_metadata()
+            .expect("write metadata should still compile without track/disk support");
+
+        assert_eq!(resolved.title.as_deref(), Some("Read Compatible"));
+        assert_eq!(resolved.track, None);
+        assert_eq!(resolved.disk, None);
     }
 
     #[test]

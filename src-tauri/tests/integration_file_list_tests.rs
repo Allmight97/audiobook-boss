@@ -71,13 +71,25 @@ fn validate_wav_file_is_supported() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let file_path = create_test_wav_file(&temp_dir, "valid.wav");
 
-    let files = vec![file_path];
+    let files = vec![file_path.clone()];
     let result =
         validate_audio_files(&files).expect("validation should succeed for a valid wav file");
 
     assert_eq!(result.len(), 1);
     assert!(result[0].is_valid);
     assert_eq!(result[0].format.as_deref(), Some("WAV"));
+    assert_eq!(
+        result[0].selected_decoder.as_deref(),
+        Some("Native AAC (FFmpeg)")
+    );
+
+    let file_list_info = get_file_list_info(&files).expect("file list info should be available");
+    assert_eq!(file_list_info.selected_decoders.len(), 1);
+    let selected_decoder = file_list_info.selected_decoders[0]
+        .as_ref()
+        .expect("decoder identity should be present");
+    assert_eq!(selected_decoder.decoder_id, "default");
+    assert_eq!(selected_decoder.decoder_label, "Native AAC (FFmpeg)");
 }
 
 #[test]

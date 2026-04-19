@@ -79,15 +79,34 @@ function collectUniqueFiles(files: AudioFile[], seenPaths: Set<string> = new Set
 	return uniqueFiles;
 }
 
+function buildSelectedDecoderByPath(
+	fileList: Pick<FileListInfo, 'files' | 'selectedDecoders'>,
+): Map<string, FileListInfo['selectedDecoders'][number]> {
+	const byPath = new Map<string, FileListInfo['selectedDecoders'][number]>();
+	for (const [index, file] of fileList.files.entries()) {
+		byPath.set(file.path, fileList.selectedDecoders[index] ?? null);
+	}
+	return byPath;
+}
+
 function refreshDerivedFileListState(fileList: FileListInfo): void {
+	if (fileList.selectedDecoders.length !== fileList.files.length) {
+		const decoderByPath = buildSelectedDecoderByPath(fileList);
+		fileList.selectedDecoders = fileList.files.map((file) => decoderByPath.get(file.path) ?? null);
+	}
 	fileList.validCount = fileList.files.filter((file) => file.isValid).length;
 	fileList.invalidCount = fileList.files.length - fileList.validCount;
 	recalculateTotals();
 }
 
-function buildFileListInfoFromFiles(files: AudioFile[]): FileListInfo {
+function buildFileListInfoFromFiles(
+	files: AudioFile[],
+	decoderByPath: Map<string, FileListInfo['selectedDecoders'][number]> = new Map(),
+): FileListInfo {
+	const uniqueFiles = collectUniqueFiles(files);
 	const fileList = {
-		files: collectUniqueFiles(files),
+		files: uniqueFiles,
+		selectedDecoders: uniqueFiles.map((file) => decoderByPath.get(file.path) ?? null),
 		totalDuration: 0,
 		totalSize: 0,
 		validCount: 0,
@@ -107,12 +126,14 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 
 export function displayFileList(fileListInfo: FileListInfo): void {
 	const uniqueFiles = collectUniqueFiles(fileListInfo.files);
+	const decoderByPath = buildSelectedDecoderByPath(fileListInfo);
 	const normalizedFileListInfo =
 		uniqueFiles.length === fileListInfo.files.length
 			? fileListInfo
 			: {
 					...fileListInfo,
 					files: uniqueFiles,
+					selectedDecoders: uniqueFiles.map((file) => decoderByPath.get(file.path) ?? null),
 				};
 	refreshDerivedFileListState(normalizedFileListInfo);
 
@@ -157,7 +178,19 @@ export function appendFileList(
 
 	const selectedIndex = getSelectedFileIndex();
 	const selectedIndices = getSelectedFileIndices();
-	const mergedFileList = buildFileListInfoFromFiles([...existingFiles, ...appendedFiles]);
+	const decoderByPath = new Map<string, FileListInfo['selectedDecoders'][number]>();
+	if (currentFileList) {
+		for (const [path, selection] of buildSelectedDecoderByPath(currentFileList)) {
+			decoderByPath.set(path, selection);
+		}
+	}
+	for (const [path, selection] of buildSelectedDecoderByPath(fileListInfo)) {
+		decoderByPath.set(path, selection);
+	}
+	const mergedFileList = buildFileListInfoFromFiles(
+		[...existingFiles, ...appendedFiles],
+		decoderByPath,
+	);
 	setCurrentFileList(mergedFileList);
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);

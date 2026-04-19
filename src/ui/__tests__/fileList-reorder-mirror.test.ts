@@ -81,6 +81,7 @@ const makeFileList = (count: number): FileListInfo => ({
 		format: 'M4B',
 		duration: 1,
 	})),
+	selectedDecoders: Array.from({ length: count }, () => null),
 	totalDuration: count,
 	totalSize: count,
 	validCount: count,

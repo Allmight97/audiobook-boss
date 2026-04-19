@@ -67,6 +67,7 @@ const makeFile = (overrides: Partial<AudioFile>): AudioFile => ({
 
 const makeFileList = (...files: AudioFile[]): FileListInfo => ({
 	files,
+	selectedDecoders: files.map(() => null),
 	totalDuration: files.length,
 	totalSize: files.length,
 	validCount: files.filter((file) => file.isValid).length,

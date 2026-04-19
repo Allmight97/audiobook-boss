@@ -1,5 +1,7 @@
 use crate::audio::settings_encoder::{self, EncoderType};
+use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::sanitize_path_for_display;
+use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -42,6 +44,24 @@ pub struct EncoderAvailability {
 pub struct ValidatedExternalToolchain {
     pub ffmpeg_path: PathBuf,
     pub source: EncoderCapabilitySource,
+    pub decoder_capabilities: ExternalDecoderCapabilities,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExternalDecoderCapabilities {
+    pub aac_at: bool,
+    pub libfdk_aac: bool,
+}
+
+impl ExternalDecoderCapabilities {
+    pub fn supports_decoder(self, decoder_id: &str) -> bool {
+        match decoder_id {
+            "default" => true,
+            "aac_at" => self.aac_at,
+            "libfdk_aac" => self.libfdk_aac,
+            _ => false,
+        }
+    }
 }
 
 pub(crate) struct ToolchainResolution {
@@ -363,10 +383,96 @@ fn validate_candidate(
         ));
     }
 
+    let decoder_capabilities = inspect_decoder_capabilities(candidate)?;
+
     Ok(ValidatedExternalToolchain {
         ffmpeg_path: candidate.to_path_buf(),
         source,
+        decoder_capabilities,
     })
+}
+
+fn inspect_decoder_capabilities(candidate: &Path) -> Result<ExternalDecoderCapabilities, String> {
+    let decoders = Command::new(candidate)
+        .args(["-hide_banner", "-decoders"])
+        .output()
+        .map_err(|error| {
+            format!(
+                "Failed to inspect decoders from '{}': {}",
+                sanitize_path_for_display(candidate),
+                error
+            )
+        })?;
+    if !decoders.status.success() {
+        return Err(format!(
+            "FFmpeg executable '{}' did not return decoder information.",
+            sanitize_path_for_display(candidate)
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&decoders.stdout);
+    Ok(ExternalDecoderCapabilities {
+        aac_at: ffmpeg_list_contains_codec(&stdout, "aac_at"),
+        libfdk_aac: ffmpeg_list_contains_codec(&stdout, "libfdk_aac"),
+    })
+}
+
+fn ffmpeg_list_contains_codec(stdout: &str, codec_name: &str) -> bool {
+    stdout.lines().any(|line| {
+        let mut fields = line.split_whitespace();
+        let _flags = fields.next();
+        matches!(fields.next(), Some(name) if name == codec_name)
+    })
+}
+
+fn required_external_input_decoder(selection: Option<&DecoderSelection>) -> Option<&str> {
+    match selection.map(|value| value.decoder_id.as_str()) {
+        Some("aac_at") => Some("aac_at"),
+        Some("libfdk_aac") => Some("libfdk_aac"),
+        _ => None,
+    }
+}
+
+pub fn validate_external_input_decoders(
+    files: &[AudioFile],
+    selected_decoders: &[Option<DecoderSelection>],
+    toolchain: &ValidatedExternalToolchain,
+) -> crate::errors::Result<()> {
+    if files.len() != selected_decoders.len() {
+        return Err(AppError::General(
+            "Decoder inspection drifted from the file list length.".to_string(),
+        ));
+    }
+
+    for (file, selection) in files.iter().zip(selected_decoders.iter()) {
+        if !file.is_valid {
+            continue;
+        }
+
+        let Some(selection) = selection.as_ref() else {
+            continue;
+        };
+        let Some(required_decoder) = required_external_input_decoder(Some(selection)) else {
+            continue;
+        };
+
+        if toolchain
+            .decoder_capabilities
+            .supports_decoder(required_decoder)
+        {
+            continue;
+        }
+
+        return Err(AppError::toolchain_required(format!(
+            "External FFmpeg toolchain '{}' does not expose decoder '{}' required for '{}' (selected decoder '{}'). Choose a different encoder or install a compatible FFmpeg toolchain.",
+            sanitize_path_for_display(&toolchain.ffmpeg_path),
+            required_decoder,
+            sanitize_path_for_display(&file.path),
+            selection.decoder_label,
+        )));
+    }
+
+    Ok(())
 }
 
 fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
@@ -427,6 +533,7 @@ fn command_stdout_known(commands: &[&str], args: &[&str]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::AudioFile;
     use std::fs::{set_permissions, write};
     use std::os::unix::fs::PermissionsExt;
     use tempfile::TempDir;
@@ -479,6 +586,7 @@ mod tests {
 
         let validated = resolution.validated.expect("validated toolchain");
         assert_eq!(validated.source, EncoderCapabilitySource::Detected);
+        assert!(validated.decoder_capabilities.libfdk_aac);
         assert_eq!(resolution.fdk_source, EncoderCapabilitySource::Detected);
         assert_eq!(
             resolution.detected_toolchain_path.as_deref(),
@@ -556,16 +664,77 @@ mod tests {
         assert!(!matches_supported_apple_silicon_arch("x86_64"));
     }
 
+    #[test]
+    fn toolchain_validation_captures_decoder_capabilities() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let ffmpeg_path = write_fake_ffmpeg_with_decoders(temp_dir.path(), true, true, false);
+
+        let validated =
+            validate_candidate(&ffmpeg_path, EncoderCapabilitySource::Override).expect("toolchain");
+
+        assert!(validated.decoder_capabilities.libfdk_aac);
+        assert!(!validated.decoder_capabilities.aac_at);
+    }
+
+    #[test]
+    fn external_decoder_contract_rejects_unsupported_named_decoder() {
+        let toolchain = ValidatedExternalToolchain {
+            ffmpeg_path: PathBuf::from("/tmp/fake-ffmpeg"),
+            source: EncoderCapabilitySource::Override,
+            decoder_capabilities: ExternalDecoderCapabilities {
+                aac_at: false,
+                libfdk_aac: true,
+            },
+        };
+        let files = vec![AudioFile {
+            path: PathBuf::from("/books/input.m4b"),
+            size: Some(1.0),
+            duration: Some(5.0),
+            format: Some("M4B".to_string()),
+            bitrate: None,
+            sample_rate: None,
+            channels: None,
+            codec_label: None,
+            selected_decoder: Some("Apple AAC".to_string()),
+            is_valid: true,
+            error: None,
+        }];
+        let selected_decoders = vec![Some(DecoderSelection {
+            decoder_id: "aac_at".to_string(),
+            decoder_label: "Apple AAC".to_string(),
+        })];
+
+        let err = validate_external_input_decoders(&files, &selected_decoders, &toolchain)
+            .expect_err("unsupported named decoder should fail");
+
+        assert!(err.to_string().contains("does not expose decoder 'aac_at'"));
+    }
+
     fn write_fake_ffmpeg(root: &Path, include_fdk: bool) -> PathBuf {
+        write_fake_ffmpeg_with_decoders(root, include_fdk, include_fdk, false)
+    }
+
+    fn write_fake_ffmpeg_with_decoders(
+        root: &Path,
+        include_fdk_encoder: bool,
+        include_fdk_decoder: bool,
+        include_aac_at_decoder: bool,
+    ) -> PathBuf {
         std::fs::create_dir_all(root).expect("create fake ffmpeg root");
         let script_path = root.join("fake-ffmpeg");
-        let encoder_line = if include_fdk {
+        let encoder_line = if include_fdk_encoder {
             "echo ' V..... libfdk_aac'"
         } else {
             "echo ' V..... aac'"
         };
+        let decoder_lines = match (include_fdk_decoder, include_aac_at_decoder) {
+            (true, true) => "echo ' V..... libfdk_aac'\n    echo ' V..... aac_at'",
+            (true, false) => "echo ' V..... libfdk_aac'",
+            (false, true) => "echo ' V..... aac_at'",
+            (false, false) => "echo ' V..... aac'",
+        };
         let script = format!(
-            "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'ffmpeg version fake'\n    exit 0\n  fi\n  if [ \"$arg\" = \"-encoders\" ]; then\n    {encoder_line}\n    exit 0\n  fi\ndone\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\n: > \"$last\"\necho 'out_time_ms=5000'\nexit 0\n"
+            "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'ffmpeg version fake'\n    exit 0\n  fi\n  if [ \"$arg\" = \"-encoders\" ]; then\n    {encoder_line}\n    exit 0\n  fi\n  if [ \"$arg\" = \"-decoders\" ]; then\n    {decoder_lines}\n    exit 0\n  fi\ndone\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\n: > \"$last\"\necho 'out_time_ms=5000'\nexit 0\n"
         );
         write(&script_path, script).expect("write fake ffmpeg");
         let mut permissions = std::fs::metadata(&script_path)

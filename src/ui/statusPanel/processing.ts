@@ -1,9 +1,9 @@
 import { tauriClient } from '../../lib/tauri/client';
-import type { OutputConfig } from '../../types/audio';
+import type { OutputConfig, OutputKind } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { getCurrentFileList, getSelectedFileIndex, setFileOrderLocked } from '../fileList';
 import { getSelectedFileIndices } from '../fileList/state';
-import { readOutputConfigForProcessing } from '../outputPanel';
+import { readOutputConfigForProcessing, updateOutputPath } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {
@@ -22,7 +22,14 @@ import {
 import * as dom from './dom';
 import type { ProcessingStatus } from './state';
 import { isProcessingCancellationError, normalizeProcessingErrorMessage } from './errorHelpers';
-import type { ProcessCommandJobResult, ProcessCommandResult } from '../../types/audio';
+import { openCollisionDialog } from '../collisionDialog';
+import type {
+	CollisionPolicy,
+	ProcessCommandJobResult,
+	ProcessCommandResult,
+	ProcessPayload,
+	ProcessingPreflightPlan,
+} from '../../types/audio';
 
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -31,6 +38,7 @@ interface StartProcessingContext {
 	startProgressListener: () => Promise<void>;
 	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
 	setBatchCompletionMessage: (message: string | null) => void;
+	reconcileProcessResult?: (result: ProcessCommandResult) => void;
 	handleCancellation: () => void;
 	resetToIdle: () => void;
 }
@@ -53,10 +61,7 @@ function formatFilenameForDisplay(path: string): string {
 	return segments[segments.length - 1] || path;
 }
 
-function summarizeFailedBatchFiles(
-	result: ProcessCommandResult,
-	filePaths: string[],
-): string | null {
+function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]): string | null {
 	if (result.jobType !== 'batch') {
 		return null;
 	}
@@ -65,10 +70,12 @@ function summarizeFailedBatchFiles(
 	const succeeded =
 		result.summary?.succeeded ??
 		result.results.filter((entry) => entry.status === 'success').length;
+	const skipped =
+		result.summary?.skipped ?? result.results.filter((entry) => entry.status === 'skipped').length;
 	const failed =
 		result.summary?.failed ?? result.results.filter((entry) => entry.status === 'failed').length;
 
-	if (failed <= 0) {
+	if (failed <= 0 && skipped <= 0) {
 		return null;
 	}
 
@@ -103,12 +110,79 @@ function summarizeFailedBatchFiles(
 		visibleNames.length > 0
 			? ` Failed: ${visibleNames.join(', ')}${moreCount > 0 ? ` (+${moreCount} more)` : ''}`
 			: '';
+	const skippedSuffix = skipped > 0 ? ` Skipped: ${skipped}.` : '';
 
 	if (succeeded <= 0) {
-		return `No files were processed successfully.${failureSuffix}`;
+		return `No files were processed successfully.${skippedSuffix}${failureSuffix}`;
 	}
 
-	return `Processed ${succeeded}/${total}.${failureSuffix}`;
+	return `Processed ${succeeded}/${total}.${skippedSuffix}${failureSuffix}`;
+}
+
+function getHardBlockingCollisionMessage(plan: ProcessingPreflightPlan): string | null {
+	const blocked = plan.outputs.find(
+		(output) =>
+			output.collision?.kind === 'source_destination_overlap' ||
+			output.collision?.kind === 'canonical_path_overlap',
+	);
+	if (!blocked) {
+		return null;
+	}
+	return (
+		blocked.collision?.detail ??
+		`Output path '${blocked.requestedPath}' targets an input source file. Choose a different destination.`
+	);
+}
+
+async function reviewOutputPlanBeforeProcessing(
+	processPayload: ProcessPayload,
+	metadataIntentPayload: Record<string, MetadataIntentPatch> | null,
+	previewSeconds?: number,
+): Promise<ProcessPayload | null> {
+	const initialPlan = await tauriClient.preflightProcessingPlan({
+		payload: processPayload,
+		metadataIntent: metadataIntentPayload,
+		previewSeconds,
+	});
+	const hardBlockMessage = getHardBlockingCollisionMessage(initialPlan);
+	if (hardBlockMessage) {
+		dom.showError(hardBlockMessage);
+		return null;
+	}
+
+	const needsReview = initialPlan.outputs.some((output) => output.action === 'review_required');
+	if (!needsReview) {
+		return {
+			...processPayload,
+			collisionPolicy: initialPlan.collisionPolicy,
+			preflightSignature: initialPlan.planSignature,
+		};
+	}
+
+	const selectedPolicy = await openCollisionDialog(initialPlan);
+	if (!selectedPolicy) {
+		return null;
+	}
+
+	const reviewedPayload: ProcessPayload = {
+		...processPayload,
+		collisionPolicy: selectedPolicy as CollisionPolicy,
+	};
+	const reviewedPlan = await tauriClient.preflightProcessingPlan({
+		payload: reviewedPayload,
+		metadataIntent: metadataIntentPayload,
+		previewSeconds,
+	});
+	const reviewedHardBlock = getHardBlockingCollisionMessage(reviewedPlan);
+	if (reviewedHardBlock) {
+		dom.showError(reviewedHardBlock);
+		return null;
+	}
+
+	return {
+		...reviewedPayload,
+		preflightSignature: reviewedPlan.planSignature,
+	};
 }
 
 export async function startProcessing(
@@ -117,7 +191,10 @@ export async function startProcessing(
 		previewSeconds?: number;
 	},
 ): Promise<void> {
+	const outputKind: OutputKind = options?.previewSeconds == null ? 'final' : 'preview';
+
 	try {
+		updateOutputPath(outputKind);
 		const fileList = getCurrentFileList();
 		console.log('StatusPanel: Starting processing...');
 		console.log('Current file list:', fileList);
@@ -148,24 +225,6 @@ export async function startProcessing(
 			dom.showError(`Settings validation failed: ${error}`);
 			return;
 		}
-
-		// Update UI to processing state
-		context.setProcessingState(true);
-		context.updateStatus({
-			stage: 'analyzing',
-			percentage: 0,
-			message: 'Starting processing...',
-		});
-
-		// Disable job controls
-		setJobControlsEnabled(false);
-		setFileOrderLocked(true);
-
-		// Update art thumbnail with current file's cover art
-		await context.updateArtThumbnail();
-
-		// Start listening for progress events
-		await context.startProgressListener();
 
 		// Get file paths for processing
 		const filePaths = fileList.files.filter((file) => file.isValid).map((file) => file.path);
@@ -200,7 +259,7 @@ export async function startProcessing(
 		const jobType = getJobType();
 		context.setCurrentJobType(jobType);
 
-		const processPayload = {
+		const processPayload: ProcessPayload = {
 			inputFiles: filePaths,
 			outputDir: outputConfig.outputPath,
 			settings: outputConfig.encoderSettings,
@@ -252,14 +311,38 @@ export async function startProcessing(
 				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
 		}
 
+		const reviewedPayload = await reviewOutputPlanBeforeProcessing(
+			processPayload,
+			metadataIntentPayload,
+			options?.previewSeconds,
+		);
+		if (!reviewedPayload) {
+			return;
+		}
+
+		// Update UI to processing state only after output planning is approved.
+		context.setProcessingState(true);
+		context.updateStatus({
+			stage: 'analyzing',
+			percentage: 0,
+			message: 'Starting processing...',
+		});
+
+		setJobControlsEnabled(false);
+		setFileOrderLocked(true);
+
+		await context.updateArtThumbnail();
+		await context.startProgressListener();
+
 		const result = await tauriClient.processAudiobookFiles({
-			payload: processPayload,
+			payload: reviewedPayload,
 			metadataIntent: metadataIntentPayload,
 			previewSeconds: options?.previewSeconds,
 		});
 
 		console.log('Processing command resolved:', result);
-		context.setBatchCompletionMessage(summarizeFailedBatchFiles(result, filePaths));
+		context.reconcileProcessResult?.(result);
+		context.setBatchCompletionMessage(summarizeBatchOutcome(result, filePaths));
 
 		const previewPaths = extractSuccessfulPreviewPaths(result);
 		if (previewPaths.length === 1) {
@@ -290,5 +373,7 @@ export async function startProcessing(
 			dom.showError(`Processing failed: ${msg}`);
 		}
 		context.resetToIdle();
+	} finally {
+		updateOutputPath('final');
 	}
 }

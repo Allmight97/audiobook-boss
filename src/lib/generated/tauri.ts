@@ -152,9 +152,17 @@ async refreshExternalToolchain(externalToolchain: ExternalToolchainPreference | 
 /**
  * Builds an output path preview using backend naming rules without collision suffixing.
  */
-async previewOutputPath(outputDir: string, metadata: AudiobookMetadata | null, outputNaming: OutputNamingConfig | null, sourcePath: string | null) : Promise<Result<string, AppErrorEnvelope>> {
+async previewOutputPath(outputDir: string, metadata: AudiobookMetadata | null, outputNaming: OutputNamingConfig | null, sourcePath: string | null, outputKind: OutputKind | null) : Promise<Result<string, AppErrorEnvelope>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath }) };
+    return { status: "ok", data: await TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async preflightProcessingPlan(payload: ProcessPayload, metadata: Partial<{ [key in string]: MetadataIntentPatch }> | null, previewSeconds: number | null) : Promise<Result<ProcessingPreflightPlan, AppErrorEnvelope>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -262,7 +270,7 @@ channels: number | null;
  */
 codecLabel: string | null;
 /**
- * Friendly selected decoder label for display (None if unavailable)
+ * Friendly selected decoder label for display only (None if unavailable)
  */
 selectedDecoder: string | null;
 /**
@@ -274,7 +282,10 @@ isValid: boolean;
  */
 error: string | null }
 /**
- * Represents audiobook metadata
+ * Represents audiobook metadata.
+ *
+ * `track` and `disk` are preserved for read compatibility with files in the wild,
+ * but ABB does not expose them as supported writable metadata-intent fields.
  *
  * Field mapping for Plex/Audiobookshelf compatibility:
  * - `artist` = Author (also written to AlbumArtist)
@@ -356,6 +367,19 @@ export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; va
  * Channel selection strategy
  */
 export type ChannelConfig = "auto" | "mono" | "stereo"
+export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing"
+/**
+ * Machine-readable decoder identity paired with the friendly display label.
+ */
+export type DecoderSelection = {
+/**
+ * Stable decoder identifier used for routing and comparisons.
+ */
+decoderId: string;
+/**
+ * Friendly decoder label used for display only.
+ */
+decoderLabel: string }
 export type EncoderAvailability = { fdkAvailable: boolean; fdkSource: EncoderCapabilitySource; aacAtAvailable: boolean; nativeAacAvailable: boolean; autoEncoder: EncoderType; detectedToolchainPath: string | null; overrideToolchainPath: string | null; activeToolchainPath: string | null; overrideInvalid: boolean; overrideError: string | null; statusMessage: string }
 export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override"
 /**
@@ -410,6 +434,10 @@ export type FileListInfo = {
  */
 files: AudioFile[];
 /**
+ * Stable decoder identities aligned by index with `files`.
+ */
+selectedDecoders: (DecoderSelection | null)[];
+/**
  * Total duration in seconds
  */
 totalDuration: number;
@@ -426,12 +454,23 @@ validCount: number;
  */
 invalidCount: number }
 export type JobType = "merge" | "batch"
+/**
+ * Writable metadata-intent surface for ABB.
+ *
+ * This intentionally omits `track` and `disk`; those tags remain readable in
+ * [`AudiobookMetadata`] but are not part of the supported write contract.
+ */
 export type MetadataIntentPatch = { title?: PatchOp<string>; artist?: PatchOp<string>; album?: PatchOp<string>; composer?: PatchOp<string>; genre?: PatchOp<string>; date?: PatchOp<string>; description?: PatchOp<string>; series?: PatchOp<string>; series_part?: PatchOp<string>; subseries?: PatchOp<string>; subseries_part?: PatchOp<string>; cover_art?: PatchOp<number[]> }
 export type MetadataSource = "audnexus" | "openlibrary"
 export type NamingPreset = "absDefault" | "customTemplate"
 export type OnlineMetadataResult = { source: MetadataSource; sourceId: string; title: string; authors: string[]; narrators: string[]; series: string | null; seriesPart: string | null; subseries: string | null; subseriesPart: string | null; description: string | null; publishedDate: string | null; durationSeconds: number | null; coverUrl: string | null; audibleOnly: boolean | null }
+export type OutputCollisionInfo = { kind: OutputCollisionKind; conflictingPath: string | null; detail: string | null }
+export type OutputCollisionKind = "existing_file" | "batch_duplicate" | "source_destination_overlap" | "canonical_path_overlap" | "case_insensitive_match"
+export type OutputKind = "final" | "preview"
 export type OutputNamingConfig = { preset: NamingPreset; includeYear: boolean; customTemplate: string | null }
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" }
+export type PlannedOutput = { inputIndex: number | null; inputPath: string | null; kind: OutputKind; requestedPath: string; resolvedPath: string; renameCandidate: string | null; collision: OutputCollisionInfo | null; action: PlannedOutputAction }
+export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | "skip_existing" | "review_required"
 export type ProcessCommandResult = { jobType: JobType; summary: ProcessResultSummary; results: ProcessResultEntry[] }
 export type ProcessPayload = { inputFiles: string[]; outputDir: string; settings: EncoderSettings; externalToolchain: ExternalToolchainPreference | null;
 /**
@@ -441,14 +480,23 @@ sampleRate: SampleRateConfig | null; jobType: JobType | null;
 /**
  * Output naming configuration (defaults to ABS-compatible)
  */
-outputNaming: OutputNamingConfig | null }
+outputNaming: OutputNamingConfig | null;
+/**
+ * Explicit collision policy selected by the user after preflight review.
+ */
+collisionPolicy: CollisionPolicy | null;
+/**
+ * Signature returned by preflight so execution can reject stale destination assumptions.
+ */
+preflightSignature: string | null }
 export type ProcessResultEntry = { inputIndex: number | null; status: ProcessResultStatus; message: string; error: AppErrorEnvelope | null; previewFilePath: string | null; previewActualSeconds: number | null; jobId: string | null }
 /**
  * Processes multiple audio files into a single M4B audiobook
  * Merges files with specified settings and optional metadata
  */
-export type ProcessResultStatus = "success" | "failed"
-export type ProcessResultSummary = { total: number; succeeded: number; failed: number }
+export type ProcessResultStatus = "success" | "skipped" | "failed"
+export type ProcessResultSummary = { total: number; succeeded: number; skipped: number; failed: number }
+export type ProcessingPreflightPlan = { jobType: JobType; previewSeconds: number | null; collisionPolicy: CollisionPolicy; planSignature: string; outputs: PlannedOutput[] }
 /**
  * Progress event structure for frontend communication
  */

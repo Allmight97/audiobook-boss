@@ -24,6 +24,7 @@ import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
+import type { OutputKind } from '../../types/audio';
 
 type OutputPreviewCallSiteState = {
 	outputDirectory: string;
@@ -104,11 +105,11 @@ export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
 	setSubseriesPartWarning(message, visible);
 }
 
-export function updateOutputPath(): void {
-	void updateOutputPathAsync();
+export function updateOutputPath(outputKind: OutputKind = 'final'): void {
+	void updateOutputPathAsync(outputKind);
 }
 
-async function updateOutputPathAsync(): Promise<void> {
+async function updateOutputPathAsync(outputKind: OutputKind): Promise<void> {
 	const state = getState();
 	const metadata = getCurrentMetadata();
 
@@ -134,6 +135,7 @@ async function updateOutputPathAsync(): Promise<void> {
 			metadata,
 			outputNaming: getOutputNamingConfig(),
 			sourcePath: previewCallSiteState.sourcePath,
+			outputKind,
 		});
 		if (!isLatestOutputPreviewRequest(requestId)) {
 			return;

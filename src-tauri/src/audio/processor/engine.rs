@@ -7,7 +7,9 @@ use ffmpeg_next as ff;
 
 use crate::audio::buffer::SampleAccumulator;
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::processor::frame_pipeline::{FramePipelineCtx, PreviewAction};
+use crate::audio::processor::frame_pipeline::{
+    flush_accumulator_tail, FramePipelineCtx, PreviewAction,
+};
 use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
 use crate::audio::processor::preview_state::PreviewState;
 use crate::audio::{ProcessingContext, SampleRateConfig};
@@ -93,9 +95,6 @@ impl FfmpegNextProcessor {
             action
         );
 
-        // Flush decoder for this input (noop currently)
-        log::info!("✓ Decoder frames flushed successfully (skipped for simplicity)");
-
         log::info!("✅ Completed processing file: {}", input_path.display());
         Ok(action)
     }
@@ -151,18 +150,22 @@ impl MediaProcessor for FfmpegNextProcessor {
             let mut input_samples_total: u64 = 0;
             let mut encoded_samples_total: u64 = 0;
             let mut preview_early_stop = false;
-            // Initialize adaptive preview state if preview mode is enabled
             let file_count = plan.input_file_paths.len();
-            let mut preview_state_storage = context.preview.as_ref().map(|cfg| {
-                let per_file_sec = cfg.per_file_seconds(file_count);
-                log::info!(
-                    "Adaptive preview: {} files × {:.3}s/file = {:.3}s total",
-                    file_count,
-                    per_file_sec,
-                    per_file_sec * file_count as f64
-                );
-                PreviewState::new(file_count, per_file_sec)
-            });
+            // Only enable adaptive preview splitting when there are multiple files.
+            let mut preview_state_storage = context
+                .preview
+                .as_ref()
+                .filter(|_| file_count > 1)
+                .map(|cfg| {
+                    let per_file_sec = cfg.per_file_seconds(file_count);
+                    log::info!(
+                        "Adaptive preview: {} files × {:.3}s/file = {:.3}s total",
+                        file_count,
+                        per_file_sec,
+                        per_file_sec * file_count as f64
+                    );
+                    PreviewState::new(file_count, per_file_sec)
+                });
 
             let mut ctx = FramePipelineCtx {
                 context,
@@ -183,19 +186,20 @@ impl MediaProcessor for FfmpegNextProcessor {
                 preview_state: preview_state_storage.as_mut(),
             };
 
+            let mut accumulator = SampleAccumulator::new(
+                enc_ctx.channel_layout().channels() as usize,
+                enc_ctx.frame_size() as usize,
+                enc_ctx.rate(),
+                enc_ctx.channel_layout(),
+                enc_ctx.format(),
+            );
+
             // Process each input file
             log::info!(
                 "Starting audio processing for {} input files",
                 plan.input_file_paths.len()
             );
             tokio::task::block_in_place(|| -> Result<()> {
-                let mut accumulator = SampleAccumulator::new(
-                    enc_ctx.channel_layout().channels() as usize,
-                    enc_ctx.frame_size() as usize,
-                    enc_ctx.rate(),
-                    enc_ctx.channel_layout(),
-                    enc_ctx.format(),
-                );
                 for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
                     let file_label = in_path
                         .file_name()
@@ -222,6 +226,14 @@ impl MediaProcessor for FfmpegNextProcessor {
                         plan.input_file_paths.len()
                     );
 
+                    if *ctx.early_stop {
+                        log::info!(
+                            "Preview boundary reached after file {}; stopping further input processing",
+                            idx + 1
+                        );
+                        break;
+                    }
+
                     // Handle adaptive preview actions
                     match action {
                         PreviewAction::StopAll => {
@@ -244,6 +256,10 @@ impl MediaProcessor for FfmpegNextProcessor {
                 Ok(())
             })?;
             log::info!("✓ All input files processed successfully");
+
+            if flush_accumulator_tail(&mut enc_ctx, &mut octx, &mut ctx, &mut accumulator)? {
+                log::info!("✓ Flushed final accumulator tail frame");
+            }
 
             // Log preview chapter count for diagnostics
             if let Some(ref ps) = preview_state_storage {

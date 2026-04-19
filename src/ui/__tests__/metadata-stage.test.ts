@@ -57,6 +57,7 @@ describe('stageMetadataToSelection', () => {
 					channels: 2,
 				},
 			],
+			selectedDecoders: [null, null],
 			totalDuration: 2,
 			totalSize: 2,
 			validCount: 2,

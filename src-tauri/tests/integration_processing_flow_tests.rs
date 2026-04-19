@@ -135,11 +135,20 @@ async fn process_roundtrip(
     assert_eq!(input_info.valid_count, 1, "input fixture should be valid");
 
     let session = Arc::new(audio::session::ProcessingSession::new());
+    let resolved_output = if preview_seconds.is_some() {
+        preview_output_path(output_path)
+    } else {
+        output_path.to_path_buf()
+    };
     let mut context = audio::ProcessingContext::new_headless(
         session,
         native_encoder_settings(),
         audio::SampleRateConfig::Auto,
-        audio::OutputConfig::new(output_path),
+        if preview_seconds.is_some() {
+            audio::OutputConfig::for_preview(&resolved_output)
+        } else {
+            audio::OutputConfig::new(&resolved_output)
+        },
     );
     if let Some(seconds) = preview_seconds {
         context.preview = Some(audio::context::PreviewConfig::new(seconds));

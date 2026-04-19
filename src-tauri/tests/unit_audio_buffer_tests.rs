@@ -158,6 +158,32 @@ fn f32_planar_preserves_order_across_multiple_consumption_cycles() {
 }
 
 #[test]
+fn f32_planar_flush_tail_preserves_remaining_samples_once() {
+    let mut acc = SampleAccumulator::new(
+        1,
+        4,
+        44_100,
+        ff::channel_layout::ChannelLayout::MONO,
+        ff::format::Sample::F32(ff::format::sample::Type::Planar),
+    );
+
+    let frame = mono_f32_frame(&[0.25, -0.25, 0.5]);
+    assert!(acc.push_frame(&frame).is_empty());
+
+    let tail = acc.flush_tail(true).expect("expected padded tail frame");
+    let tail_plane = tail.data(0);
+    let tail_samples: &[f32] =
+        unsafe { std::slice::from_raw_parts(tail_plane.as_ptr() as *const f32, tail.samples()) };
+    assert_eq!(tail.samples(), 4);
+    assert_eq!(tail_samples, &[0.25, -0.25, 0.5, 0.0]);
+
+    assert!(
+        acc.flush_tail(true).is_none(),
+        "tail flush should only emit the residual samples once"
+    );
+}
+
+#[test]
 fn s16_packed_preserves_interleaved_order_with_short_flush_tail() {
     let mut acc = SampleAccumulator::new(
         2,
