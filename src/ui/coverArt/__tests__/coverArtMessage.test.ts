@@ -96,4 +96,15 @@ describe('CoverArtMessage lifecycle', () => {
 			text: 'second message',
 		});
 	});
+
+	it('renders large embedded cover art without overflowing the JS call stack', async () => {
+		const { coverArt, state } = await loadFreshModules();
+		const bytes = new Array<number>(200_000).fill(0);
+		bytes[0] = 0xff;
+		bytes[1] = 0xd8;
+		bytes[2] = 0xff;
+
+		expect(() => coverArt.setCoverArt(bytes)).not.toThrow();
+		expect(state.coverArtUiState.imageDataUrl?.startsWith('data:image/jpeg;base64,')).toBe(true);
+	});
 });

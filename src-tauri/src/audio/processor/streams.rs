@@ -103,12 +103,10 @@ pub fn preferred_aac_decoder_order_labels(
         .collect()
 }
 
-fn build_aac_decoder_candidates(availability: AacDecoderAvailability) -> Vec<DecoderCandidate> {
+fn build_named_aac_decoder_candidates(
+    availability: AacDecoderAvailability,
+) -> Vec<DecoderCandidate> {
     let mut candidates = Vec::new();
-
-    if availability.default_aac {
-        candidates.push(DecoderCandidate::Default);
-    }
 
     if cfg!(target_os = "macos") && availability.aac_at {
         candidates.push(DecoderCandidate::Named("aac_at"));
@@ -121,12 +119,45 @@ fn build_aac_decoder_candidates(availability: AacDecoderAvailability) -> Vec<Dec
     candidates
 }
 
-fn build_decoder_candidates(codec_id: ff::codec::Id) -> Vec<DecoderCandidate> {
-    if codec_id == ff::codec::Id::AAC {
-        build_aac_decoder_candidates(detect_aac_decoder_availability())
-    } else {
-        vec![DecoderCandidate::Default]
+fn build_aac_decoder_candidates(availability: AacDecoderAvailability) -> Vec<DecoderCandidate> {
+    let mut candidates = Vec::new();
+
+    if availability.default_aac {
+        candidates.push(DecoderCandidate::Default);
     }
+
+    candidates.extend(build_named_aac_decoder_candidates(availability));
+
+    candidates
+}
+
+fn build_aac_decoder_candidates_for_object_type(
+    availability: AacDecoderAvailability,
+    audio_object_type: Option<u32>,
+) -> Vec<DecoderCandidate> {
+    if audio_object_type == Some(42) && availability.has_compatible_named_decoder() {
+        let mut candidates = build_named_aac_decoder_candidates(availability);
+        if availability.default_aac {
+            candidates.push(DecoderCandidate::Default);
+        }
+        return candidates;
+    }
+
+    build_aac_decoder_candidates(availability)
+}
+
+fn build_decoder_candidates_from_parameters(
+    params: &ff::codec::Parameters,
+) -> Vec<DecoderCandidate> {
+    if params.id() != ff::codec::Id::AAC {
+        return vec![DecoderCandidate::Default];
+    }
+
+    let availability = detect_aac_decoder_availability();
+    let audio_object_type =
+        read_codec_extradata(params).and_then(|extradata| parse_aac_audio_object_type(&extradata));
+
+    build_aac_decoder_candidates_for_object_type(availability, audio_object_type)
 }
 
 fn format_decoder_selection_failure(
@@ -395,8 +426,11 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
     }
 }
 
-fn select_decoder_candidate(path: &Path, codec_id: ff::codec::Id) -> Result<DecoderCandidate> {
-    let candidates = build_decoder_candidates(codec_id);
+fn select_decoder_candidate(
+    path: &Path,
+    params: &ff::codec::Parameters,
+) -> Result<DecoderCandidate> {
+    let candidates = build_decoder_candidates_from_parameters(params);
     let attempted_labels = candidates
         .iter()
         .map(|candidate| candidate.label())
@@ -434,11 +468,11 @@ fn select_decoder_candidate(path: &Path, codec_id: ff::codec::Id) -> Result<Deco
 fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
     log::info!("Opening FFmpeg input context...");
     let inspect_ctx = open_input_context(path)?;
-    let codec_id = {
+    let params = {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
-        inspect_stream.parameters().id()
+        inspect_stream.parameters()
     };
-    let selected_candidate = select_decoder_candidate(path, codec_id)?;
+    let selected_candidate = select_decoder_candidate(path, &params)?;
     drop(inspect_ctx);
 
     let input = open_input_context(path)?;
@@ -555,11 +589,13 @@ pub(crate) fn setup_decoder_and_resampler(
 #[cfg(test)]
 mod tests {
     use super::{
-        aac_audio_object_type_label, build_aac_decoder_candidates, build_decoder_candidates,
+        aac_audio_object_type_label, build_aac_decoder_candidates,
+        build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
         format_decoder_selection_failure, friendly_codec_label_from_id,
         parse_aac_audio_object_type, preferred_aac_decoder_order_labels, AacDecoderAvailability,
         DecoderCandidate,
     };
+    use ffmpeg_next as ff;
     use std::path::Path;
 
     #[test]
@@ -621,9 +657,43 @@ mod tests {
 
     #[test]
     fn non_aac_inputs_keep_default_decoder_only() {
-        let candidates = build_decoder_candidates(ffmpeg_next::codec::Id::MP3);
+        let mut params = ff::codec::Parameters::new();
+        unsafe {
+            (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
+        }
+        let candidates = build_decoder_candidates_from_parameters(&params);
 
         assert_eq!(candidates, vec![DecoderCandidate::Default]);
+    }
+
+    #[test]
+    fn xhe_aac_candidates_prefer_compatible_named_decoders() {
+        let availability = AacDecoderAvailability {
+            default_aac: true,
+            aac_at: true,
+            libfdk_aac: true,
+        };
+
+        let candidates = build_aac_decoder_candidates_for_object_type(availability, Some(42));
+
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            candidates,
+            vec![
+                DecoderCandidate::Named("aac_at"),
+                DecoderCandidate::Named("libfdk_aac"),
+                DecoderCandidate::Default
+            ]
+        );
+
+        #[cfg(not(target_os = "macos"))]
+        assert_eq!(
+            candidates,
+            vec![
+                DecoderCandidate::Named("libfdk_aac"),
+                DecoderCandidate::Default
+            ]
+        );
     }
 
     #[test]

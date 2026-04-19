@@ -173,6 +173,15 @@ async fn run_external_ffmpeg(
     temp_output: &Path,
     total_duration_seconds: f64,
 ) -> Result<()> {
+    for file in files {
+        log::info!(
+            "external_fdk_input path={} selected_decoder={} forced_input_decoder={}",
+            sanitize_path_for_display(&file.path),
+            file.selected_decoder.as_deref().unwrap_or("unknown"),
+            external_input_decoder_name(file).unwrap_or("auto"),
+        );
+    }
+
     let mut command = Command::new(&toolchain.ffmpeg_path);
     command.stdin(Stdio::null());
     command.stdout(Stdio::piped());
@@ -286,6 +295,7 @@ fn build_ffmpeg_args(
             args.push("-t".to_string());
             args.push(seconds.clone());
         }
+        args.extend(build_input_decoder_args(file));
         args.push("-i".to_string());
         args.push(file.path.to_string_lossy().to_string());
     }
@@ -347,6 +357,22 @@ fn build_ffmpeg_args(
 
     args.push(temp_output.to_string_lossy().to_string());
     args
+}
+
+fn build_input_decoder_args(file: &AudioFile) -> Vec<String> {
+    let Some(decoder_name) = external_input_decoder_name(file) else {
+        return Vec::new();
+    };
+
+    vec!["-c:a".to_string(), decoder_name.to_string()]
+}
+
+fn external_input_decoder_name(file: &AudioFile) -> Option<&'static str> {
+    match file.selected_decoder.as_deref() {
+        Some("Apple AAC") => Some("aac_at"),
+        Some("FDK AAC") => Some("libfdk_aac"),
+        _ => None,
+    }
 }
 
 fn build_concat_filter(input_count: usize) -> String {
@@ -622,6 +648,94 @@ mod tests {
         assert_eq!(parse_progress_ms("progress=continue"), None);
     }
 
+    #[test]
+    fn build_ffmpeg_args_forces_selected_input_decoder_before_each_input() {
+        let output_path = PathBuf::from("/tmp/output.m4b");
+        let first_input = PathBuf::from("/tmp/first.m4b");
+        let second_input = PathBuf::from("/tmp/second.m4b");
+        let third_input = PathBuf::from("/tmp/third.m4b");
+        let settings = EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: crate::audio::settings_encoder::ChannelConfig::Auto,
+            afterburner: true,
+            threads: ThreadSetting::Auto,
+            twoloop: true,
+        };
+
+        let args = build_ffmpeg_args(
+            &settings,
+            &crate::audio::SampleRateConfig::Auto,
+            None,
+            &[
+                audio_file_with_decoder(&first_input, Some("Apple AAC")),
+                audio_file_with_decoder(&second_input, None),
+                audio_file_with_decoder(&third_input, Some("FDK AAC")),
+            ],
+            &output_path,
+        );
+
+        assert!(args.windows(4).any(|window| {
+            window
+                == [
+                    "-c:a".to_string(),
+                    "aac_at".to_string(),
+                    "-i".to_string(),
+                    first_input.to_string_lossy().to_string(),
+                ]
+        }));
+        assert!(args.windows(2).any(|window| {
+            window == ["-i".to_string(), second_input.to_string_lossy().to_string()]
+        }));
+        assert!(args.windows(4).any(|window| {
+            window
+                == [
+                    "-c:a".to_string(),
+                    "libfdk_aac".to_string(),
+                    "-i".to_string(),
+                    third_input.to_string_lossy().to_string(),
+                ]
+        }));
+        assert!(args
+            .windows(2)
+            .any(|window| { window == ["-c:a".to_string(), "libfdk_aac".to_string()] }));
+    }
+
+    #[test]
+    fn build_ffmpeg_args_keeps_default_decoder_inputs_unforced() {
+        let output_path = PathBuf::from("/tmp/output.m4b");
+        let input_path = PathBuf::from("/tmp/input.m4b");
+        let settings = EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: crate::audio::settings_encoder::ChannelConfig::Auto,
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+            twoloop: true,
+        };
+
+        let args = build_ffmpeg_args(
+            &settings,
+            &crate::audio::SampleRateConfig::Auto,
+            None,
+            &[audio_file_with_decoder(
+                &input_path,
+                Some("Native AAC (FFmpeg)"),
+            )],
+            &output_path,
+        );
+
+        let input_index = args
+            .iter()
+            .position(|value| value == "-i")
+            .expect("input flag present");
+        assert!(input_index >= 1, "expected option before -i");
+        assert_ne!(args[input_index - 1], "aac_at");
+        assert_ne!(args[input_index - 1], "libfdk_aac");
+    }
+
     fn write_fake_ffmpeg(root: &Path) -> PathBuf {
         let script_path = root.join("fake-ffmpeg");
         let script = "#!/bin/sh\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\necho 'out_time_ms=5000'\n: > \"$last\"\nexit 0\n";
@@ -647,8 +761,12 @@ mod tests {
     }
 
     fn test_audio_file(path: PathBuf) -> AudioFile {
+        audio_file_with_decoder(&path, None)
+    }
+
+    fn audio_file_with_decoder(path: &Path, selected_decoder: Option<&str>) -> AudioFile {
         AudioFile {
-            path,
+            path: path.to_path_buf(),
             size: Some(1.0),
             duration: Some(5.0),
             format: Some("MP3".to_string()),
@@ -656,7 +774,7 @@ mod tests {
             sample_rate: None,
             channels: None,
             codec_label: None,
-            selected_decoder: None,
+            selected_decoder: selected_decoder.map(ToOwned::to_owned),
             is_valid: true,
             error: None,
         }

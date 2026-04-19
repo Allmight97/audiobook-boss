@@ -125,7 +125,12 @@ function applyLoadedCoverArt(imageData: number[]): void {
 
 function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
 	const uint8Array = new Uint8Array(coverArtBytes);
-	const base64String = btoa(String.fromCharCode(...uint8Array));
+	const chunkSize = 0x8000;
+	let binary = '';
+	for (let offset = 0; offset < uint8Array.length; offset += chunkSize) {
+		binary += String.fromCharCode(...uint8Array.subarray(offset, offset + chunkSize));
+	}
+	const base64String = btoa(binary);
 
 	let mimeType = 'image/jpeg';
 	if (coverArtBytes.length >= 12) {

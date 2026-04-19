@@ -1,8 +1,6 @@
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
-use crate::audio::output_path::{
-    build_output_path, resolve_collision, resolve_collision_with_claimed,
-};
+use crate::audio::output_path::{build_output_path, resolve_collision_with_claimed};
 use crate::audio::settings_encoder::{
     validate_encoder_settings, validate_requested_encoder_available,
 };
@@ -263,7 +261,7 @@ async fn dispatch_merge_job(
         inputs.output_naming.clone(),
         Some(&merge_source_path),
     )?;
-    let resolved_output = resolve_collision(&output_path)?;
+    let resolved_output = output_path;
 
     let result = run_processing_job(
         window,

@@ -393,39 +393,16 @@ pub fn build_output_path_preview(
     build_output_path_inner(base_dir, &values, &naming, false)
 }
 
-pub(crate) fn resolve_collision(path: &Path) -> Result<PathBuf> {
-    if !path.exists() {
-        return Ok(path.to_path_buf());
-    }
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = path
-        .file_stem()
-        .map(|s| s.to_string_lossy())
-        .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
-    let ext = path
-        .extension()
-        .map(|s| s.to_string_lossy())
-        .unwrap_or_else(|| Cow::from("m4b"));
-
-    for idx in 1..=99 {
-        let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
-        if !candidate.exists() {
-            crate::audio::settings::validate_output_path(&candidate)?;
-            return Ok(candidate);
-        }
-    }
-    Err(AppError::FileValidation(
-        "Could not find collision-free output filename after 99 attempts".to_string(),
-    ))
-}
-
-/// Resolves output filename collisions considering both filesystem state and
-/// paths already claimed within this batch command invocation.
+/// Resolves output filename collisions for paths already claimed within the
+/// current batch command invocation.
+///
+/// Existing files on disk are intentionally preserved as-is so processing
+/// overwrites the requested destination instead of silently suffixing it.
 pub(crate) fn resolve_collision_with_claimed(
     path: &Path,
     claimed: &HashSet<PathBuf>,
 ) -> Result<PathBuf> {
-    if !path.exists() && !claimed.contains(path) {
+    if !claimed.contains(path) {
         return Ok(path.to_path_buf());
     }
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
@@ -452,7 +429,10 @@ pub(crate) fn resolve_collision_with_claimed(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_subseries_folder;
+    use super::{normalize_subseries_folder, resolve_collision_with_claimed};
+    use std::collections::HashSet;
+    use std::fs::write;
+    use tempfile::TempDir;
 
     // EXCEPTION: inline tests for private helper functions.
     #[test]
@@ -469,5 +449,30 @@ mod tests {
             normalize_subseries_folder("Part 2 - Rogue Castes", Some("2")),
             "Part 2 - Rogue Castes"
         );
+    }
+
+    #[test]
+    fn claimed_collision_resolution_overwrites_existing_files_by_default() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let existing_path = temp_dir.path().join("book.m4b");
+        write(&existing_path, b"existing").expect("write existing file");
+
+        let resolved =
+            resolve_collision_with_claimed(&existing_path, &HashSet::new()).expect("path");
+
+        assert_eq!(resolved, existing_path);
+    }
+
+    #[test]
+    fn claimed_collision_resolution_suffixes_only_when_batch_already_claimed_path() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let requested_path = temp_dir.path().join("book.m4b");
+        let mut claimed = HashSet::new();
+        claimed.insert(requested_path.clone());
+
+        let resolved =
+            resolve_collision_with_claimed(&requested_path, &claimed).expect("resolved path");
+
+        assert_eq!(resolved, temp_dir.path().join("book-1.m4b"));
     }
 }
