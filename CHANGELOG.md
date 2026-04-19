@@ -15,6 +15,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.7] - 2026-04-19
+
+Focused contract-hardening release that makes output collision handling explicit
+and finalization-aware, stabilizes external decoder routing, and closes the
+in-process tail-loss gap in ABB's native pipeline.
+
+### Added
+
+- Backend output preflight planning plus a batch collision-resolution dialog
+  with explicit replace, rename, and skip policies before processing starts.
+- Skipped-result reporting and harness coverage for collision-dialog behavior
+  and preview-path parity.
+
+### Changed
+
+- Output planning now flows through one backend-owned resolver across preview,
+  queueing, execution, and finalization, including `.preview.m4b` artifacts.
+- External decoder routing now uses stable decoder IDs instead of friendly UI
+  labels, with toolchain validation that fails preflight when the chosen ffmpeg
+  cannot honor the requested decoder.
+- `track` and `disk` remain readable for compatibility but are no longer part
+  of ABB's supported writable metadata contract.
+
+### Fixed
+
+- Existing destinations are no longer replaced unless the user selected an
+  explicit collision policy, and source/destination overlap now hard-fails in
+  backend planning.
+- Preview output naming now matches the real preview artifact path, including
+  finalization and fallback flows.
+- The native in-process pipeline now drains decoder tail audio correctly and
+  flushes accumulator tail samples exactly once, covering both loss and
+  duplication regressions.
+
 ## [1.0.6] - 2026-04-18
 
 Focused audiobook-edge-case fix release that closes a real xHE-AAC decode
