@@ -31,6 +31,21 @@
 	function formatOutputKind(kind: (typeof collisionDialogState.outputs)[number]['kind']): string {
 		return kind === 'preview' ? 'Preview' : 'Final';
 	}
+
+	function getBasename(path: string): string {
+		const segments = path.split(/[\\/]/).filter((segment) => segment.length > 0);
+		return segments[segments.length - 1] ?? path;
+	}
+
+	function getParentPath(path: string): string {
+		const normalized = path.replace(/[\\/]+$/, '');
+		const lastSeparator = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+		if (lastSeparator <= 0) {
+			return normalized;
+		}
+		return normalized.slice(0, lastSeparator);
+	}
+
 </script>
 
 <div
@@ -60,24 +75,31 @@
 
 			<div id="collision-dialog-results" class="metadata-lookup-results">
 				{#each collisionDialogState.outputs as output}
-					<div class="metadata-lookup-result" data-testid="collision-dialog-item">
-						<div class="metadata-lookup-details">
-							<div class="metadata-lookup-title">{output.resolvedPath}</div>
-							<div class="metadata-lookup-meta">
-								{formatOutputKind(output.kind)} • {output.collision ? formatKind(output.collision.kind) : 'No collision'}
+					<div class="metadata-lookup-result collision-dialog-result" data-testid="collision-dialog-item">
+						<div class="collision-dialog-paths">
+							<div
+								class="collision-dialog-filename"
+								title={output.resolvedPath}
+							>
+								{getBasename(output.resolvedPath)}
 							</div>
-							{#if output.renameCandidate}
-								<div class="metadata-lookup-meta">Rename target: {output.renameCandidate}</div>
-							{/if}
-							{#if output.collision?.detail}
-								<div class="metadata-lookup-meta">{output.collision.detail}</div>
-							{/if}
+							<div
+								class="collision-dialog-parent-path"
+								title={output.resolvedPath}
+							>
+								{getParentPath(output.resolvedPath)}
+							</div>
 						</div>
+						{#if output.collision && output.collision.kind !== 'existing_file'}
+							<div class="collision-dialog-summary" title={output.collision.detail ?? undefined}>
+								{formatOutputKind(output.kind)} • {formatKind(output.collision.kind)}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
 
-			<div class="metadata-lookup-controls" style="margin-top: 1rem;">
+			<div class="metadata-lookup-controls collision-dialog-controls" style="margin-top: 1rem;">
 				<div class="metadata-lookup-field metadata-lookup-field-button">
 					<button
 						id="collision-dialog-replace"
@@ -86,18 +108,7 @@
 						type="button"
 						on:click={() => chooseCollisionPolicy('replace_existing')}
 					>
-						Overwrite Conflicts
-					</button>
-				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
-					<button
-						id="collision-dialog-rename"
-						class="btn-pill btn-pill-secondary"
-						data-testid="collision-dialog-rename"
-						type="button"
-						on:click={() => chooseCollisionPolicy('rename_new')}
-					>
-						Keep Both
+						Overwrite Existing
 					</button>
 				</div>
 				<div class="metadata-lookup-field metadata-lookup-field-button">
@@ -109,6 +120,17 @@
 						on:click={() => chooseCollisionPolicy('skip_existing')}
 					>
 						Skip Existing
+					</button>
+				</div>
+				<div class="metadata-lookup-field metadata-lookup-field-button">
+					<button
+						id="collision-dialog-rename"
+						class="btn-pill btn-pill-secondary"
+						data-testid="collision-dialog-rename"
+						type="button"
+						on:click={() => chooseCollisionPolicy('rename_new')}
+					>
+						Keep Existing
 					</button>
 				</div>
 				<div class="metadata-lookup-field metadata-lookup-field-button">

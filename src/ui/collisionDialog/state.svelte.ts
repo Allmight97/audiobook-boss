@@ -11,7 +11,7 @@ function createInitialState(): CollisionDialogState {
 	return {
 		isOpen: false,
 		outputs: [],
-		title: 'Resolve Output Collisions',
+		title: 'Resolve Existing File Conflicts',
 		body: '',
 	};
 }
@@ -23,42 +23,17 @@ let pendingResolve: ((policy: CollisionPolicy | null) => void) | null = null;
 function closeDialogState(): void {
 	collisionDialogState.isOpen = false;
 	collisionDialogState.outputs = [];
-	collisionDialogState.title = 'Resolve Output Collisions';
+	collisionDialogState.title = 'Resolve Existing File Conflicts';
 	collisionDialogState.body = '';
 }
 
 function buildBody(outputs: PlannedOutput[]): string {
-	const existingCount = outputs.filter(
-		(output) => output.collision?.kind === 'existing_file',
-	).length;
-	const duplicateCount = outputs.filter(
-		(output) => output.collision?.kind === 'batch_duplicate',
-	).length;
-	const previewCount = outputs.filter((output) => output.kind === 'preview').length;
-	const parts: string[] = [];
-	if (existingCount > 0) {
-		parts.push(
-			existingCount === 1
-				? '1 existing output already occupies a destination path.'
-				: `${existingCount} existing outputs already occupy destination paths.`,
-		);
+	const count = outputs.length;
+	if (count === 1) {
+		return '1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?';
 	}
-	if (duplicateCount > 0) {
-		parts.push(
-			duplicateCount === 1
-				? '1 output in this run collides with another planned output.'
-				: `${duplicateCount} outputs in this run collide with other planned outputs.`,
-		);
-	}
-	if (previewCount > 0) {
-		parts.push(
-			previewCount === 1
-				? 'Preview artifact naming is included in this review.'
-				: 'Preview artifact naming is included in this review.',
-		);
-	}
-	parts.push('Choose one batch-wide policy before processing starts.');
-	return parts.join(' ');
+
+	return `${count} files with the same name already exist in the target output folders. How do you want to resolve the conflicts?`;
 }
 
 export function openCollisionDialog(

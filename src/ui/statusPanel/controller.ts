@@ -34,9 +34,10 @@ import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from './service
 
 function toTerminalJobStatus(
 	stage: ProcessingProgressEvent['stage'],
-): Extract<JobStatus, 'completed' | 'failed' | 'cancelled'> {
+): Extract<JobStatus, 'completed' | 'skipped' | 'failed' | 'cancelled'> {
 	if (stage === STAGES.failed) return 'failed';
 	if (stage === STAGES.cancelled) return 'cancelled';
+	if (stage === STAGES.skipped) return 'skipped';
 	return 'completed';
 }
 
@@ -284,7 +285,12 @@ export class StatusPanelController {
 
 		const now = Date.now();
 		for (const [jobKey, job] of this.jobProgress.entries()) {
-			if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+			if (
+				job.status === 'completed' ||
+				job.status === 'skipped' ||
+				job.status === 'failed' ||
+				job.status === 'cancelled'
+			) {
 				continue;
 			}
 			this.jobProgress.set(jobKey, {
@@ -410,6 +416,12 @@ export class StatusPanelController {
 			const hasCancelled = Array.from(this.jobProgress.values()).some(
 				(job) => job.status === 'cancelled',
 			);
+			const hasCompleted = Array.from(this.jobProgress.values()).some(
+				(job) => job.status === 'completed',
+			);
+			const hasSkipped = Array.from(this.jobProgress.values()).some(
+				(job) => job.status === 'skipped',
+			);
 
 			if (hasFailed) {
 				dom.showError(
@@ -417,6 +429,8 @@ export class StatusPanelController {
 				);
 			} else if (hasCancelled) {
 				dom.showInfo('Processing was cancelled.');
+			} else if (!hasCompleted && hasSkipped) {
+				dom.showInfo(this.batchCompletionMessageOverride ?? 'No files were processed.');
 			} else if (this.batchCompletionMessageOverride) {
 				dom.showSuccess(this.batchCompletionMessageOverride);
 			} else {

@@ -22,6 +22,7 @@ describe('statusPanel state helpers', () => {
 		['converting', true],
 		['writing', true],
 		['completed', false],
+		['skipped', false],
 		['failed', false],
 		['cancelled', false],
 		['idle', false],

@@ -423,7 +423,7 @@ export type EncoderType =
  * Serde `snake_case` serialization keeps the wire values identical to the
  * pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
  */
-export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "failed" | "cancelled"
+export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled"
 export type ExternalToolchainPreference = { overridePath: string | null }
 /**
  * Summary information for a file list

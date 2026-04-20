@@ -64,7 +64,11 @@ impl ProgressEmitter {
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
         ProgressEvent {
             stage,
-            percentage: 0.0,
+            percentage: if stage == EventStage::Skipped {
+                100.0
+            } else {
+                0.0
+            },
             message: message.to_string(),
             current_file: None,
             eta_seconds: None,
@@ -185,6 +189,11 @@ impl ProgressEmitter {
         self.emit_terminal_event(EventStage::Cancelled, message);
     }
 
+    /// Emits terminal skipped event.
+    pub fn emit_terminal_skipped(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Skipped, message);
+    }
+
     /// Emits cancelled event (special-case stage not represented in ProcessingStage enum)
     pub fn emit_cancelled(&self, message: &str) {
         self.emit_terminal_cancelled(message);
@@ -240,18 +249,25 @@ mod tests {
 
         let failed = emitter.terminal_event(EventStage::Failed, "failed");
         let cancelled = emitter.terminal_event(EventStage::Cancelled, "cancelled");
+        let skipped = emitter.terminal_event(EventStage::Skipped, "skipped");
 
         assert_eq!(failed.stage, EventStage::Failed);
         assert_eq!(cancelled.stage, EventStage::Cancelled);
+        assert_eq!(skipped.stage, EventStage::Skipped);
         assert_eq!(failed.percentage, 0.0);
         assert_eq!(cancelled.percentage, 0.0);
+        assert_eq!(skipped.percentage, 100.0);
         assert_eq!(failed.job_id, Some("job-123".to_string()));
         assert_eq!(cancelled.job_id, Some("job-123".to_string()));
+        assert_eq!(skipped.job_id, Some("job-123".to_string()));
         assert_eq!(failed.input_index, Some(7));
         assert_eq!(cancelled.input_index, Some(7));
+        assert_eq!(skipped.input_index, Some(7));
         assert_eq!(failed.current_file, None);
         assert_eq!(cancelled.current_file, None);
+        assert_eq!(skipped.current_file, None);
         assert_eq!(failed.eta_seconds, None);
         assert_eq!(cancelled.eta_seconds, None);
+        assert_eq!(skipped.eta_seconds, None);
     }
 }

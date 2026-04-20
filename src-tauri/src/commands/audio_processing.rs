@@ -65,6 +65,7 @@ pub async fn process_payload(
         preview_seconds: resolve_preview_seconds(preview_seconds),
     };
     let plan = build_processing_plan(&payload, metadata.as_ref(), &inputs)?;
+    log_output_plan("process", &payload, &plan);
     enforce_plan_review(&payload, &plan)?;
     ensure_output_parent_dirs(&plan)?;
 
@@ -88,6 +89,7 @@ pub fn preflight_payload(
         preview_seconds: resolve_preview_seconds(preview_seconds),
     };
     let plan = build_processing_plan(&payload, metadata.as_ref(), &inputs)?;
+    log_output_plan("preflight", &payload, &plan);
     Ok(plan.to_public())
 }
 
@@ -427,6 +429,40 @@ fn build_processing_plan(
     })
 }
 
+fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcessingPlan) {
+    for job in &plan.jobs {
+        if job.output.action == PlannedOutputAction::Write
+            && job.output.collision.is_none()
+            && job.output.kind == OutputKind::Final
+        {
+            continue;
+        }
+
+        log::info!(
+            "output_plan phase={} reviewed={} policy={:?} input_index={:?} kind={:?} action={:?} requested={} resolved={} collision_kind={} collision_path={}",
+            phase,
+            payload.preflight_signature.is_some(),
+            plan.collision_policy,
+            job.input_index,
+            job.output.kind,
+            job.output.action,
+            job.output.requested_path.display(),
+            job.output.resolved_path.display(),
+            job.output
+                .collision
+                .as_ref()
+                .map(|value| format!("{:?}", value.kind))
+                .unwrap_or_else(|| "none".to_string()),
+            job.output
+                .collision
+                .as_ref()
+                .and_then(|value| value.conflicting_path.as_ref())
+                .map(|value| value.display().to_string())
+                .unwrap_or_default(),
+        );
+    }
+}
+
 fn build_merge_processing_job(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
@@ -711,9 +747,14 @@ async fn dispatch_batch_jobs(
         if planned_job.output.action == PlannedOutputAction::SkipExisting {
             let input_index = planned_job.input_index;
             let output = planned_job.output.clone();
-            scheduled_jobs.push(Box::pin(async move {
-                Ok(skipped_result(input_index, None, &output))
-            }));
+            let skipped_entry = skipped_result(input_index, None, &output);
+            emit_terminal_skipped_event(
+                &window,
+                skipped_entry.input_index,
+                skipped_entry.job_id.as_deref(),
+                &skipped_entry.message,
+            );
+            scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
             continue;
         }
 
@@ -863,11 +904,7 @@ fn build_processing_context(
 }
 
 fn resolve_preview_seconds(preview_seconds: Option<f64>) -> Option<f64> {
-    let resolved = preview_seconds.or_else(|| {
-        std::env::var("ABB_PREVIEW_SECONDS")
-            .ok()
-            .and_then(|value| value.parse::<f64>().ok())
-    })?;
+    let resolved = preview_seconds?;
 
     (resolved.is_finite() && resolved > 0.0).then_some(resolved)
 }
@@ -923,6 +960,20 @@ fn emit_terminal_failed_event(
         input_index,
     );
     emitter.emit_terminal_failed(message);
+}
+
+fn emit_terminal_skipped_event(
+    window: &tauri::Window,
+    input_index: Option<usize>,
+    job_id: Option<&str>,
+    message: &str,
+) {
+    let emitter = audio::ProgressEmitter::with_context(
+        window.clone(),
+        job_id.map(|value| value.to_string()),
+        input_index,
+    );
+    emitter.emit_terminal_skipped(message);
 }
 
 fn skipped_result(
@@ -1090,6 +1141,13 @@ mod tests {
             "output naming should use resolved metadata"
         );
         assert_eq!(effective.title.as_deref(), Some("Renamed Title"));
+    }
+
+    #[test]
+    fn resolve_preview_seconds_only_uses_explicit_request() {
+        assert_eq!(super::resolve_preview_seconds(None), None);
+        assert_eq!(super::resolve_preview_seconds(Some(30.0)), Some(30.0));
+        assert_eq!(super::resolve_preview_seconds(Some(-1.0)), None);
     }
 
     #[test]
@@ -1398,6 +1456,82 @@ mod tests {
             crate::audio::output_path::PlannedOutputAction::ReviewRequired
         );
         assert_eq!(first_output.resolved_path, beta_path.to_string_lossy());
+    }
+
+    #[test]
+    fn batch_preflight_marks_existing_output_file_for_review() {
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let source_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .join("media")
+            .join("media_20sec.mp3");
+        let input_path = temp_dir.path().join("input.m4b");
+        fs::copy(&source_fixture, &input_path).expect("copy fixture");
+
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Collision Title".to_string()),
+            artist: PatchOp::Set("Collision Author".to_string()),
+            ..Default::default()
+        };
+        let expected_output = temp_dir
+            .path()
+            .join("Collision Author")
+            .join("Collision Title")
+            .join("Collision Title.m4b");
+        fs::create_dir_all(
+            expected_output
+                .parent()
+                .expect("expected output should have parent"),
+        )
+        .expect("create output directory");
+        fs::write(&expected_output, b"existing output").expect("write existing output");
+
+        let mut metadata = HashMap::new();
+        metadata.insert(input_path.to_string_lossy().to_string(), patch);
+
+        let plan = preflight_payload(
+            ProcessPayload {
+                input_files: vec![input_path.to_string_lossy().to_string()],
+                output_dir: temp_dir.path().to_string_lossy().to_string(),
+                settings: EncoderSettings {
+                    encoder_type: EncoderType::Auto,
+                    bitrate_kbps: 64,
+                    bitrate_mode: BitrateMode::Vbr(3),
+                    channels: ChannelConfig::Auto,
+                    afterburner: true,
+                    threads: ThreadSetting::Auto,
+                    twoloop: true,
+                },
+                external_toolchain: None,
+                sample_rate: None,
+                job_type: Some(JobType::Batch),
+                output_naming: None,
+                collision_policy: None,
+                preflight_signature: None,
+            },
+            Some(metadata),
+            None,
+        )
+        .expect("preflight plan");
+
+        let first_output = &plan.outputs[0];
+        assert_eq!(
+            first_output.requested_path,
+            expected_output.to_string_lossy()
+        );
+        assert_eq!(
+            first_output.resolved_path,
+            expected_output.to_string_lossy()
+        );
+        assert_eq!(
+            first_output.collision.as_ref().map(|value| value.kind),
+            Some(OutputCollisionKind::ExistingFile)
+        );
+        assert_eq!(
+            first_output.action,
+            crate::audio::output_path::PlannedOutputAction::ReviewRequired
+        );
     }
 
     fn write_fake_external_ffmpeg(

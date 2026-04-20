@@ -32,6 +32,7 @@ export const STAGES: { readonly [K in EventStage]: K } = {
 	converting: 'converting',
 	writing: 'writing',
 	completed: 'completed',
+	skipped: 'skipped',
 	failed: 'failed',
 	cancelled: 'cancelled',
 } as const;

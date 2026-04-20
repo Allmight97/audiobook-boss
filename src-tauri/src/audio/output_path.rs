@@ -2,6 +2,7 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
@@ -522,6 +523,18 @@ fn find_case_insensitive_claim_conflict(
         .cloned()
 }
 
+pub(crate) fn path_entry_exists(path: &Path) -> Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(AppError::FileValidation(format!(
+            "Failed to inspect output path '{}': {}",
+            sanitize_path_for_display(path),
+            error
+        ))),
+    }
+}
+
 fn find_case_insensitive_disk_conflict(candidate: &Path) -> Result<Option<PathBuf>> {
     let parent = candidate.parent().unwrap_or_else(|| Path::new("."));
     if !parent.exists() {
@@ -620,7 +633,7 @@ fn detect_output_collision(
         }));
     }
 
-    if candidate.exists() {
+    if path_entry_exists(candidate)? {
         return Ok(Some(OutputCollision {
             kind: OutputCollisionKind::ExistingFile,
             conflicting_path: Some(candidate.to_path_buf()),
@@ -779,8 +792,8 @@ impl ResolvedOutputPlan {
 #[cfg(test)]
 mod tests {
     use super::{
-        derive_output_artifact_path, normalize_subseries_folder, resolve_output_plan,
-        CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction,
+        derive_output_artifact_path, normalize_subseries_folder, path_entry_exists,
+        resolve_output_plan, CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction,
     };
     use std::collections::HashSet;
     use std::fs::write;
@@ -901,5 +914,16 @@ mod tests {
 
         assert_eq!(plan.action, PlannedOutputAction::SkipExisting);
         assert_eq!(plan.resolved_path, existing_path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_entry_exists_treats_dangling_symlink_as_occupied() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let target = temp_dir.path().join("missing-target.m4b");
+        let link = temp_dir.path().join("book.m4b");
+        std::os::unix::fs::symlink(&target, &link).expect("create dangling symlink");
+
+        assert!(path_entry_exists(&link).expect("inspect path"));
     }
 }

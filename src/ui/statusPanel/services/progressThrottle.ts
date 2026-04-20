@@ -6,6 +6,7 @@ const DEFAULT_PROGRESS_THROTTLE_MS = 1000;
 export function isTerminalProgressEvent(event: ProcessingProgressEvent): boolean {
 	return (
 		event.stage === STAGES.completed ||
+		event.stage === STAGES.skipped ||
 		event.stage === STAGES.failed ||
 		event.stage === STAGES.cancelled
 	);

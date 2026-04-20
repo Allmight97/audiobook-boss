@@ -122,6 +122,7 @@ describe('StatusPanel aggregate progress', () => {
 	// copy-unconditional pattern behind a cast) fails loudly.
 	it.each([
 		STAGES.completed,
+		STAGES.skipped,
 		STAGES.failed,
 		STAGES.cancelled,
 	])('does not leak stale currentFile/etaSeconds onto terminal aggregates for %s', (terminalStage) => {
@@ -154,7 +155,9 @@ describe('StatusPanel aggregate progress', () => {
 		vi.advanceTimersByTime(20);
 
 		const status = controller.getCurrentStatus();
-		expect(status).toMatchObject({ stage: terminalStage });
+		expect(status).toMatchObject({
+			stage: terminalStage === STAGES.skipped ? 'completed' : terminalStage,
+		});
 		expect(status).not.toHaveProperty('currentFile');
 		expect(status).not.toHaveProperty('etaSeconds');
 	});
