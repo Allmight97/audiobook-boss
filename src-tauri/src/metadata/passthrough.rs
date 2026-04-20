@@ -23,6 +23,21 @@ pub struct PassthroughMetadata {
     pub cover_art: Option<Vec<u8>>,
 }
 
+impl PassthroughMetadata {
+    pub fn into_option(self) -> Option<Self> {
+        if self.chapters.is_empty() && self.cover_art.is_none() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+
+    pub fn cover_art_only(mut self) -> Option<Self> {
+        self.chapters.clear();
+        self.into_option()
+    }
+}
+
 fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpec> {
     let mut chapters = Vec::new();
     let mut offset_ms: i64 = 0;
@@ -171,4 +186,47 @@ fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
     use ffmpeg_next::Rescale;
 
     value.rescale(time_base, Rational(1, 1000))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChapterSpec, PassthroughMetadata};
+
+    #[test]
+    fn into_option_returns_none_for_empty_passthrough() {
+        assert!(PassthroughMetadata::default().into_option().is_none());
+    }
+
+    #[test]
+    fn cover_art_only_drops_chapters_and_keeps_cover_art() {
+        let passthrough = PassthroughMetadata {
+            chapters: vec![ChapterSpec {
+                title: Some("Chapter 1".to_string()),
+                start_ms: 0,
+                end_ms: 1_000,
+            }],
+            cover_art: Some(vec![1, 2, 3]),
+        };
+
+        let cover_only = passthrough.cover_art_only().expect("cover art passthrough");
+        assert!(
+            cover_only.chapters.is_empty(),
+            "preview should not preserve chapters"
+        );
+        assert_eq!(cover_only.cover_art, Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn cover_art_only_returns_none_when_passthrough_only_has_chapters() {
+        let passthrough = PassthroughMetadata {
+            chapters: vec![ChapterSpec {
+                title: Some("Chapter 1".to_string()),
+                start_ms: 0,
+                end_ms: 1_000,
+            }],
+            cover_art: None,
+        };
+
+        assert!(passthrough.cover_art_only().is_none());
+    }
 }

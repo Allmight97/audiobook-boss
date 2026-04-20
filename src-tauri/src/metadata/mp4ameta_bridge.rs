@@ -30,6 +30,8 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     metadata.description = tag.description().map(str::to_string);
     metadata.album_sort = tag.album_sort_order().map(str::to_string);
     metadata.date = tag.year().and_then(normalize_publication_date);
+    metadata.track = read_tuple_field(tag.track());
+    metadata.disk = read_tuple_field(tag.disc());
 
     let series_raw = read_series_raw(&tag);
     let series_part_raw = read_series_part_raw(&tag);
@@ -43,6 +45,10 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     metadata.cover_art = tag.artwork().map(|img| img.data.to_vec());
 
     Ok(metadata)
+}
+
+fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32, Option<u32>)> {
+    number.map(|number| (u32::from(number), total.map(u32::from)))
 }
 
 pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {

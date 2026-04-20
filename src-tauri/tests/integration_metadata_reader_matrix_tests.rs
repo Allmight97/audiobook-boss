@@ -20,6 +20,10 @@ const SERIES_PART_KEYS: [&str; 4] = [
     "episode_sort",
     "MVIN",
 ];
+const TRACK_NUMBER_KEYS: [&str; 3] = ["track", "tracknumber", "trkn"];
+const TRACK_TOTAL_KEYS: [&str; 3] = ["tracktotal", "totaltracks", "totaltrack"];
+const DISK_NUMBER_KEYS: [&str; 4] = ["disc", "disk", "discnumber", "disknumber"];
+const DISK_TOTAL_KEYS: [&str; 4] = ["disctotal", "disktotal", "totaldiscs", "totaldisks"];
 
 #[derive(Debug)]
 struct ReaderComparison {
@@ -254,6 +258,41 @@ fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
         .find_map(|key| dict.get(key).map(str::to_string))
 }
 
+fn parse_number_pair(raw: &str) -> Option<(u32, Option<u32>)> {
+    let mut parts = raw.split('/');
+    let number = parts.next()?.trim().parse::<u32>().ok()?;
+    let total = parts
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(|value| value.parse::<u32>().ok());
+    Some((number, total))
+}
+
+fn parse_total_value(raw: &str) -> Option<u32> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        trimmed.parse::<u32>().ok()
+    }
+}
+
+fn parse_position_field(primary: Option<&str>, total: Option<&str>) -> Option<(u32, Option<u32>)> {
+    let primary = primary?.trim();
+    if primary.is_empty() {
+        return None;
+    }
+
+    if let Some((number, total)) = parse_number_pair(primary) {
+        return Some((number, total));
+    }
+
+    let number = primary.parse::<u32>().ok()?;
+    let total = total.and_then(parse_total_value);
+    Some((number, total))
+}
+
 fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     use ff::format::stream::Disposition;
 
@@ -287,6 +326,14 @@ fn read_with_ffmpeg_only(path: &Path) -> Result<AudiobookMetadata, String> {
     metadata.comment = dict.get("comment").map(str::to_string);
     metadata.description = dict.get("description").map(str::to_string);
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
+    metadata.track = parse_position_field(
+        first_tag(&dict, &TRACK_NUMBER_KEYS).as_deref(),
+        first_tag(&dict, &TRACK_TOTAL_KEYS).as_deref(),
+    );
+    metadata.disk = parse_position_field(
+        first_tag(&dict, &DISK_NUMBER_KEYS).as_deref(),
+        first_tag(&dict, &DISK_TOTAL_KEYS).as_deref(),
+    );
 
     let series_raw = first_tag(&dict, &SERIES_KEYS);
     let series_part_raw = first_tag(&dict, &SERIES_PART_KEYS);
@@ -382,6 +429,8 @@ fn assert_metadata_eq(actual: &AudiobookMetadata, expected: &AudiobookMetadata, 
         actual.album_sort, expected.album_sort,
         "{context}: album_sort"
     );
+    assert_eq!(actual.track, expected.track, "{context}: track");
+    assert_eq!(actual.disk, expected.disk, "{context}: disk");
     assert_eq!(
         actual.cover_art.as_ref().map(|bytes| bytes.is_empty()),
         expected.cover_art.as_ref().map(|bytes| bytes.is_empty()),
@@ -413,6 +462,49 @@ fn write_legacy_alias_series(output: &Path) {
     };
     tag.write_with_path(output, &config)
         .expect("write legacy alias tags");
+}
+
+fn remux_with_container_metadata(input: &Path, output: &Path, metadata: &[(&str, &str)]) {
+    ff::init().expect("ffmpeg init");
+
+    let mut ictx = ff::format::input(input).expect("open source input");
+    let mut octx = ff::format::output(output).expect("create output context");
+    let mut stream_mapping = vec![-1isize; ictx.streams().len()];
+    let mut output_time_bases: Vec<Option<ff::Rational>> = vec![None; ictx.streams().len()];
+
+    for (index, istream) in ictx.streams().enumerate() {
+        let codec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
+            .expect("build stream context");
+        let mut ostream = octx.add_stream_with(&codec_ctx).expect("add output stream");
+        ostream.set_time_base(istream.time_base());
+        ostream.set_metadata(istream.metadata().to_owned());
+        stream_mapping[index] = ostream.index() as isize;
+        output_time_bases[ostream.index()] = Some(ostream.time_base());
+    }
+
+    let mut dict = ictx.metadata().to_owned();
+    for (key, value) in metadata {
+        dict.set(key, value);
+    }
+    octx.set_metadata(dict);
+    octx.write_header().expect("write output header");
+
+    for (input_stream, mut packet) in ictx.packets() {
+        let out_index = stream_mapping[input_stream.index()];
+        if out_index < 0 {
+            continue;
+        }
+
+        let out_time_base =
+            output_time_bases[out_index as usize].unwrap_or_else(|| input_stream.time_base());
+        packet.set_stream(out_index as usize);
+        packet.rescale_ts(input_stream.time_base(), out_time_base);
+        packet
+            .write_interleaved(&mut octx)
+            .expect("stream-copy packet with metadata");
+    }
+
+    octx.write_trailer().expect("write output trailer");
 }
 
 #[tokio::test]
@@ -642,6 +734,39 @@ async fn mislabeled_mp3_as_m4b_is_a_routing_artifact() {
     assert_eq!(current.artist.as_deref(), Some("Fallback Author"));
     assert_eq!(ffmpeg_only.title.as_deref(), Some("Fallback Title"));
     assert_eq!(ffmpeg_only.artist.as_deref(), Some("Fallback Author"));
+    assert!(mp4ameta_only.is_err(), "mp4ameta-only should fail");
+}
+
+#[tokio::test]
+async fn forced_ffmpeg_fallback_reads_track_and_disk_truthfully() {
+    let temp = TempDir::new().expect("temp dir");
+    let staged_mp3 = temp.path().join("track-disk-source.mp3");
+    remux_with_container_metadata(
+        &sample_mp3_path(),
+        &staged_mp3,
+        &[
+            ("title", "Fallback Track Test"),
+            ("artist", "Fallback Artist"),
+            ("track", "3/12"),
+            ("disc", "1/2"),
+        ],
+    );
+
+    let spoofed = temp.path().join("fallback-track-disk.m4b");
+    std::fs::rename(&staged_mp3, &spoofed).expect("rename spoofed fallback source");
+
+    let current = read_audio_metadata(spoofed.to_string_lossy().to_string())
+        .await
+        .expect("current read");
+    let ffmpeg_only = read_with_ffmpeg_only(&spoofed).expect("ffmpeg-only read");
+    let mp4ameta_only = read_with_mp4ameta_only(&spoofed);
+
+    assert_eq!(current.title.as_deref(), Some("Fallback Track Test"));
+    assert_eq!(current.artist.as_deref(), Some("Fallback Artist"));
+    assert_eq!(current.track, Some((3, Some(12))));
+    assert_eq!(current.disk, Some((1, Some(2))));
+    assert_eq!(ffmpeg_only.track, Some((3, Some(12))));
+    assert_eq!(ffmpeg_only.disk, Some((1, Some(2))));
     assert!(mp4ameta_only.is_err(), "mp4ameta-only should fail");
 }
 

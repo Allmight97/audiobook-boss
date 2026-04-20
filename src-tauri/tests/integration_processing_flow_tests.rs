@@ -20,6 +20,7 @@ use tempfile::TempDir;
 
 /// Test media file path - relative to src-tauri directory
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
+const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
 
 fn verify_test_media_exists() -> Option<PathBuf> {
     let media_path = PathBuf::from(TEST_MEDIA_FILE);
@@ -110,7 +111,7 @@ fn source_roundtrip_metadata() -> AudiobookMetadata {
         series_part: Some("1".into()),
         subseries: Some("Sub-Test".into()),
         subseries_part: Some("1".into()),
-        cover_art: Some(include_bytes!("support/minimal.jpg").to_vec()),
+        cover_art: Some(MINIMAL_JPEG.to_vec()),
         ..Default::default()
     }
 }
@@ -130,9 +131,27 @@ async fn process_roundtrip(
     preview_seconds: Option<f64>,
     metadata: AudiobookMetadata,
 ) -> String {
-    let input_info =
-        audio::get_file_list_info(&[input_path.to_path_buf()]).expect("input should be analyzable");
-    assert_eq!(input_info.valid_count, 1, "input fixture should be valid");
+    process_roundtrip_files(
+        &[input_path.to_path_buf()],
+        output_path,
+        preview_seconds,
+        metadata,
+    )
+    .await
+}
+
+async fn process_roundtrip_files(
+    input_paths: &[PathBuf],
+    output_path: &Path,
+    preview_seconds: Option<f64>,
+    metadata: AudiobookMetadata,
+) -> String {
+    let input_info = audio::get_file_list_info(input_paths).expect("inputs should be analyzable");
+    assert_eq!(
+        input_info.valid_count,
+        input_paths.len(),
+        "all input fixtures should be valid"
+    );
 
     let session = Arc::new(audio::session::ProcessingSession::new());
     let resolved_output = if preview_seconds.is_some() {
@@ -159,6 +178,23 @@ async fn process_roundtrip(
         .expect("processing should complete")
 }
 
+fn chapter_count(path: &Path) -> usize {
+    ff::init().expect("ffmpeg init");
+    let ictx = ff::format::input(path).expect("open output for chapter inspection");
+    ictx.nb_chapters() as usize
+}
+
+async fn assert_cover_art_matches_fixture(output_path: &Path) {
+    let read_back = read_audio_metadata(output_path.to_string_lossy().to_string())
+        .await
+        .expect("read metadata back");
+    assert_eq!(
+        read_back.cover_art.as_deref(),
+        Some(MINIMAL_JPEG),
+        "cover art bytes should match the seeded source fixture"
+    );
+}
+
 async fn assert_metadata_round_trip(
     output_path: &Path,
     expected_series: &str,
@@ -182,7 +218,11 @@ async fn assert_metadata_round_trip(
         tag.album_sort_order(),
         Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")
     );
-    assert!(tag.artwork().is_some(), "cover art should persist");
+    assert_eq!(
+        tag.artwork().map(|image| image.data),
+        Some(MINIMAL_JPEG),
+        "tag artwork bytes should match the seeded source fixture"
+    );
 
     let read_back = read_audio_metadata(output_path.to_string_lossy().to_string())
         .await
@@ -195,7 +235,11 @@ async fn assert_metadata_round_trip(
         read_back.album_sort.as_deref(),
         Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")
     );
-    assert!(read_back.cover_art.is_some(), "cover art should persist");
+    assert_eq!(
+        read_back.cover_art.as_deref(),
+        Some(MINIMAL_JPEG),
+        "read-path cover art bytes should match the seeded source fixture"
+    );
 }
 
 /// Test that captures the current end-to-end audio processing flow
@@ -627,4 +671,110 @@ async fn preview_and_full_processing_preserve_series_metadata_from_source_file()
     );
     assert!(full_output.exists(), "full output should exist");
     assert_metadata_round_trip(&full_output, "Series Test", "Sub-Test").await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn preview_and_full_processing_preserve_source_cover_art_when_request_omits_cover_art() {
+    ff::init().expect("ffmpeg init");
+
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let source_path = temp_dir.path().join("cover-source.m4b");
+    let preview_base_output = temp_dir.path().join("cover-preview.m4b");
+    let full_output = temp_dir.path().join("cover-full.m4b");
+
+    write_minimal_m4b(&source_path);
+    save_metadata_to_file(
+        source_path.to_string_lossy().to_string(),
+        source_roundtrip_metadata().into(),
+    )
+    .await
+    .expect("seed source metadata");
+
+    let mut request_metadata = read_audio_metadata(source_path.to_string_lossy().to_string())
+        .await
+        .expect("read source metadata");
+    request_metadata.cover_art = None;
+
+    let preview_message = process_roundtrip(
+        &source_path,
+        &preview_base_output,
+        Some(30.0),
+        request_metadata.clone(),
+    )
+    .await;
+    assert!(
+        preview_message.contains("Successfully created preview"),
+        "preview processing should succeed: {preview_message}"
+    );
+
+    let preview_output = preview_output_path(&preview_base_output);
+    assert_cover_art_matches_fixture(&preview_output).await;
+
+    let full_message = process_roundtrip(&source_path, &full_output, None, request_metadata).await;
+    assert!(
+        full_message.contains("Successfully created audiobook"),
+        "full processing should succeed: {full_message}"
+    );
+
+    assert_cover_art_matches_fixture(&full_output).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn multi_input_preview_preserves_cover_art_and_suppresses_passthrough_chapters() {
+    ff::init().expect("ffmpeg init");
+
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let first_source = temp_dir.path().join("01_multi_input_one.m4b");
+    let second_source = temp_dir.path().join("02_multi_input_two.m4b");
+    let preview_base_output = temp_dir.path().join("multi-preview.m4b");
+    let full_output = temp_dir.path().join("multi-full.m4b");
+
+    write_minimal_m4b(&first_source);
+    write_minimal_m4b(&second_source);
+    save_metadata_to_file(
+        first_source.to_string_lossy().to_string(),
+        source_roundtrip_metadata().into(),
+    )
+    .await
+    .expect("seed first source metadata");
+
+    let mut request_metadata = read_audio_metadata(first_source.to_string_lossy().to_string())
+        .await
+        .expect("read source metadata");
+    request_metadata.cover_art = None;
+
+    let input_paths = vec![first_source.clone(), second_source.clone()];
+    let preview_message = process_roundtrip_files(
+        &input_paths,
+        &preview_base_output,
+        Some(30.0),
+        request_metadata.clone(),
+    )
+    .await;
+    assert!(
+        preview_message.contains("Successfully created preview"),
+        "preview processing should succeed: {preview_message}"
+    );
+
+    let preview_output = preview_output_path(&preview_base_output);
+    assert_cover_art_matches_fixture(&preview_output).await;
+    assert_eq!(
+        chapter_count(&preview_output),
+        0,
+        "preview should suppress passthrough chapters for shortened output"
+    );
+
+    let full_message =
+        process_roundtrip_files(&input_paths, &full_output, None, request_metadata).await;
+    assert!(
+        full_message.contains("Successfully created audiobook"),
+        "full processing should succeed: {full_message}"
+    );
+
+    assert_cover_art_matches_fixture(&full_output).await;
+    assert_eq!(
+        chapter_count(&full_output),
+        2,
+        "full processing should keep synthesized passthrough chapters for both inputs"
+    );
 }

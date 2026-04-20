@@ -677,6 +677,32 @@ async fn reads_cover_art_when_attached_pic_present() {
     );
 }
 
+#[tokio::test]
+async fn reads_track_and_disk_from_mp4_tags() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("track-disk-read.m4b");
+
+    write_minimal_m4b(&output);
+
+    let mut tag = Tag::read_from_path(&output).expect("read tag");
+    tag.set_track(3, 12);
+    tag.set_disc(1, 2);
+    let config = WriteConfig {
+        write_meta_items: true,
+        ..WriteConfig::NONE
+    };
+    tag.write_with_path(&output, &config)
+        .expect("seed track and disk tags");
+
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert_eq!(read_back.track, Some((3, Some(12))));
+    assert_eq!(read_back.disk, Some((1, Some(2))));
+}
+
 // ============================================================================
 // Metadata compatibility + misc behavior
 // ============================================================================

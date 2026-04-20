@@ -5,6 +5,11 @@ use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
 use ffmpeg_next as ff;
 use std::path::Path;
 
+const TRACK_NUMBER_READ_KEYS: [&str; 3] = ["track", "tracknumber", "trkn"];
+const TRACK_TOTAL_READ_KEYS: [&str; 3] = ["tracktotal", "totaltracks", "totaltrack"];
+const DISK_NUMBER_READ_KEYS: [&str; 4] = ["disc", "disk", "discnumber", "disknumber"];
+const DISK_TOTAL_READ_KEYS: [&str; 4] = ["disctotal", "disktotal", "totaldiscs", "totaldisks"];
+
 /// Reads audiobook metadata, preferring mp4ameta for MP4/M4B and ffmpeg otherwise.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
@@ -50,6 +55,14 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
     metadata.comment = dict.get("comment").map(str::to_string);
     metadata.description = dict.get("description").map(str::to_string);
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
+    metadata.track = parse_position_field(
+        first_tag(&dict, &TRACK_NUMBER_READ_KEYS).as_deref(),
+        first_tag(&dict, &TRACK_TOTAL_READ_KEYS).as_deref(),
+    );
+    metadata.disk = parse_position_field(
+        first_tag(&dict, &DISK_NUMBER_READ_KEYS).as_deref(),
+        first_tag(&dict, &DISK_TOTAL_READ_KEYS).as_deref(),
+    );
 
     // FALLBACK[FB-007]: trigger=legacy files with movement-tag-only series metadata
     // observe=covered via metadata fallback tests and migration fallback register
@@ -91,6 +104,32 @@ fn first_tag(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
     first_tag_with_lookup(keys, |key| dict.get(key).map(str::to_string))
 }
 
+fn parse_position_field(primary: Option<&str>, total: Option<&str>) -> Option<(u32, Option<u32>)> {
+    let primary = primary?.trim();
+    if primary.is_empty() {
+        return None;
+    }
+
+    if let Some((number, total)) = parse_number_pair(primary) {
+        return Some((number, total));
+    }
+
+    let number = primary.parse::<u32>().ok()?;
+    let total = total.and_then(parse_total_value);
+    Some((number, total))
+}
+
+fn parse_number_pair(value: &str) -> Option<(u32, Option<u32>)> {
+    let (number, total) = value.split_once('/')?;
+    let number = number.trim().parse::<u32>().ok()?;
+    let total = parse_total_value(total);
+    Some((number, total))
+}
+
+fn parse_total_value(value: &str) -> Option<u32> {
+    value.trim().parse::<u32>().ok()
+}
+
 /// Extracts the first attached picture (cover art) from the container streams.
 fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     use ff::format::stream::Disposition;
@@ -113,7 +152,7 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
-    use super::first_tag_with_lookup;
+    use super::{first_tag_with_lookup, parse_position_field};
     use crate::metadata::tag_registry::{SERIES_PART_READ_KEYS, SERIES_READ_KEYS};
     use std::collections::BTreeMap;
 
@@ -176,5 +215,27 @@ mod tests {
         let tags = BTreeMap::from([("MVNM", "Movement".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("Movement"));
+    }
+
+    #[test]
+    fn parses_track_number_with_inline_total() {
+        assert_eq!(
+            parse_position_field(Some("3/12"), None),
+            Some((3, Some(12)))
+        );
+    }
+
+    #[test]
+    fn parses_track_number_with_separate_total() {
+        assert_eq!(
+            parse_position_field(Some("3"), Some("12")),
+            Some((3, Some(12)))
+        );
+    }
+
+    #[test]
+    fn ignores_invalid_position_values() {
+        assert_eq!(parse_position_field(Some("abc"), Some("12")), None);
+        assert_eq!(parse_position_field(Some(""), Some("12")), None);
     }
 }

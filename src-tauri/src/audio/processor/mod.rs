@@ -83,16 +83,8 @@ pub async fn process_audiobook_with_context(
     let workflow = prepare::validate_and_prepare(&context, &files)?;
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
-    let passthrough_metadata = if context.preview.is_none() {
-        let data = crate::metadata::passthrough::extract_passthrough_metadata(&files);
-        if data.chapters.is_empty() && data.cover_art.is_none() {
-            None
-        } else {
-            Some(data)
-        }
-    } else {
-        None
-    };
+    let passthrough_metadata =
+        crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option();
 
     // Merge passthrough cover art when user metadata is absent or missing cover art.
     let mut effective_metadata = metadata;
