@@ -41,7 +41,11 @@ export function areAllBatchJobsTerminal(
 	return queueOrder.every((key) => {
 		const job = jobProgress.get(key);
 		return (
-			job && (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled')
+			job &&
+			(job.status === 'completed' ||
+				job.status === 'skipped' ||
+				job.status === 'failed' ||
+				job.status === 'cancelled')
 		);
 	});
 }

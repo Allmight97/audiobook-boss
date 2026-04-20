@@ -24,6 +24,7 @@
 	} from './ui/jobControls';
 	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
+	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
 	import { initializeAppShell, saveMetadataFromUI, startPreviewAudio } from './ui/core/bootstrap';
 	import { shellState } from './ui/core/shellState.svelte';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
@@ -218,4 +219,5 @@
 	</div>
 </div>
 <MetadataLookupIsland />
+<CollisionDialogIsland />
 {/if}

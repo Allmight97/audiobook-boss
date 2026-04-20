@@ -2,7 +2,8 @@ export type HarnessScenarioId =
 	| 'file-management'
 	| 'metadata-edit'
 	| 'status-processing'
-	| 'output-preview';
+	| 'output-preview'
+	| 'collision-dialog';
 
 export type HarnessScenarioVerifyCheck = {
 	id: string;
@@ -271,7 +272,8 @@ const SCENARIOS: readonly HarnessScenario[] = [
 			},
 			{
 				id: 'preview-remains-anchored',
-				label: 'Output preview remains anchored to the chosen library path.',
+				label:
+					'Output preview stays anchored to the chosen library path and resolves to a concrete .m4b artifact path.',
 			},
 		],
 		review: {
@@ -308,6 +310,53 @@ const SCENARIOS: readonly HarnessScenario[] = [
 					selector: '#output-preview-text',
 					message:
 						'Review preview copy density and truncation behavior; the path preview should stay legible without dominating the panel.',
+				},
+			],
+		},
+	},
+	{
+		id: 'collision-dialog',
+		title: 'Collision Dialog',
+		description:
+			'Verifies collision preflight opens a batch dialog, shows preview artifact naming, and applies the chosen policy before processing starts.',
+		route: '/harness.html',
+		screenshotName: 'collision-dialog.png',
+		matchers: [
+			/^src\/ui\/collisionDialog\//,
+			/^src\/ui\/statusPanel\//,
+			/^src\/lib\/tauri\//,
+			/^src\/types\/audio\.ts$/,
+			/^src\/harness\//,
+		],
+		verifyChecks: [
+			{
+				id: 'collision-dialog-opens',
+				label: 'Starting processing with planned collisions opens the batch collision dialog.',
+			},
+			{
+				id: 'preview-artifact-path-visible',
+				label: 'The collision dialog shows preview artifact naming with the .preview.m4b suffix.',
+			},
+			{
+				id: 'skip-policy-propagates',
+				label:
+					'Choosing Skip Existing propagates into processing and produces a skipped batch summary.',
+			},
+		],
+		review: {
+			controls: [
+				{ selector: '#collision-dialog-modal', label: 'Collision dialog modal' },
+				{ selector: '#collision-dialog-results', label: 'Collision dialog result list' },
+				{ selector: '#collision-dialog-skip', label: 'Skip existing button' },
+			],
+			actions: [
+				{
+					id: 'collision-dialog-toggle',
+					label: 'Collision dialog opens and closes cleanly.',
+					type: 'dialog-toggle',
+					triggerSelector: '#preview-button',
+					dialogSelector: '#collision-dialog-modal',
+					dismissSelector: '#collision-dialog-cancel',
 				},
 			],
 		},

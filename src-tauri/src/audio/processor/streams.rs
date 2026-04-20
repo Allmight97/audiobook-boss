@@ -1,5 +1,6 @@
 //! Decoder and resampler setup.
 
+use crate::audio::DecoderSelection;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
@@ -14,7 +15,7 @@ enum DecoderCandidate {
 }
 
 impl DecoderCandidate {
-    fn label(self) -> &'static str {
+    fn stable_id(self) -> &'static str {
         match self {
             Self::Default => "default",
             Self::Named(name) => name,
@@ -27,6 +28,13 @@ impl DecoderCandidate {
             Self::Named("aac_at") => "Apple AAC",
             Self::Named("libfdk_aac") => "FDK AAC",
             Self::Named(name) => name,
+        }
+    }
+
+    fn selection(self) -> DecoderSelection {
+        DecoderSelection {
+            decoder_id: self.stable_id().to_string(),
+            decoder_label: self.display_label().to_string(),
         }
     }
 }
@@ -49,7 +57,7 @@ struct OpenedAudioInput {
     input: ff::format::context::Input,
     decoder: ff::codec::decoder::Audio,
     stream_index: usize,
-    selected_decoder: &'static str,
+    selected_decoder: DecoderSelection,
     codec_label: Option<String>,
 }
 
@@ -57,7 +65,7 @@ pub(crate) struct AudioDecoderInspection {
     pub sample_rate: u32,
     pub channels: u32,
     pub bitrate: Option<u32>,
-    pub selected_decoder: String,
+    pub selected_decoder: DecoderSelection,
     pub codec_label: Option<String>,
 }
 
@@ -99,7 +107,7 @@ pub fn preferred_aac_decoder_order_labels(
 ) -> Vec<&'static str> {
     build_aac_decoder_candidates(availability)
         .into_iter()
-        .map(DecoderCandidate::label)
+        .map(DecoderCandidate::stable_id)
         .collect()
 }
 
@@ -359,7 +367,7 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
         decoder.send_packet(&packet).map_err(|e| {
             AppError::General(format!(
                 "Decoder '{}' rejected packet {} for '{}': {}",
-                candidate.label(),
+                candidate.stable_id(),
                 packets_seen,
                 sanitize_path_for_display(path),
                 e
@@ -378,7 +386,7 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
                 Err(e) => {
                     return Err(AppError::General(format!(
                         "Decoder '{}' failed receiving frames for '{}': {}",
-                        candidate.label(),
+                        candidate.stable_id(),
                         sanitize_path_for_display(path),
                         e
                     )))
@@ -405,7 +413,7 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
             Err(e) => {
                 return Err(AppError::General(format!(
                     "Decoder '{}' failed during drain for '{}': {}",
-                    candidate.label(),
+                    candidate.stable_id(),
                     sanitize_path_for_display(path),
                     e
                 )))
@@ -418,7 +426,7 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
     } else {
         Err(AppError::General(format!(
             "Decoder '{}' only decoded {} frames within {} packets for '{}'",
-            candidate.label(),
+            candidate.stable_id(),
             decoded_frames,
             AAC_DECODER_PROBE_PACKET_LIMIT,
             sanitize_path_for_display(path)
@@ -433,7 +441,7 @@ fn select_decoder_candidate(
     let candidates = build_decoder_candidates_from_parameters(params);
     let attempted_labels = candidates
         .iter()
-        .map(|candidate| candidate.label())
+        .map(|candidate| candidate.stable_id())
         .collect::<Vec<_>>();
 
     let mut first_failure = None;
@@ -445,7 +453,7 @@ fn select_decoder_candidate(
                 log::warn!(
                     "decoder_probe path={} decoder={} status=failed err={}",
                     sanitize_path_for_display(path),
-                    candidate.label(),
+                    candidate.stable_id(),
                     error
                 );
                 if first_failure.is_none() {
@@ -486,7 +494,7 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         input,
         decoder,
         stream_index,
-        selected_decoder: selected_candidate.display_label(),
+        selected_decoder: selected_candidate.selection(),
         codec_label,
     })
 }
@@ -505,7 +513,7 @@ pub(crate) fn inspect_audio_decoder(path: &Path) -> Result<AudioDecoderInspectio
         sample_rate,
         channels,
         bitrate,
-        selected_decoder: opened.selected_decoder.to_string(),
+        selected_decoder: opened.selected_decoder,
         codec_label: opened.codec_label,
     })
 }
@@ -541,8 +549,9 @@ pub(crate) fn setup_decoder_and_resampler(
         codec_label: _codec_label,
     } = open_best_audio_decoder(input_path)?;
     log::info!(
-        "✓ Audio decoder opened successfully (selected={})",
-        selected_decoder
+        "✓ Audio decoder opened successfully (selected_id={} selected_label={})",
+        selected_decoder.decoder_id.as_str(),
+        selected_decoder.decoder_label.as_str()
     );
 
     log::info!("Creating resampler...");
@@ -734,5 +743,16 @@ mod tests {
             friendly_codec_label_from_id(ffmpeg_next::codec::Id::FLAC),
             Some("FLAC".to_string())
         );
+    }
+
+    #[test]
+    fn decoder_candidate_identity_keeps_stable_ids_separate_from_labels() {
+        let apple = DecoderCandidate::Named("aac_at").selection();
+        assert_eq!(apple.decoder_id, "aac_at");
+        assert_eq!(apple.decoder_label, "Apple AAC");
+
+        let fdk = DecoderCandidate::Named("libfdk_aac").selection();
+        assert_eq!(fdk.decoder_id, "libfdk_aac");
+        assert_eq!(fdk.decoder_label, "FDK AAC");
     }
 }

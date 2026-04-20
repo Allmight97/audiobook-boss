@@ -4,6 +4,7 @@
 //! progress reporting, and the full merge pipeline.
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
 
 pub mod buffer;
@@ -44,12 +45,28 @@ pub struct AudioFile {
     pub channels: Option<u32>,
     /// Friendly codec label for display (None if unavailable)
     pub codec_label: Option<String>,
-    /// Friendly selected decoder label for display (None if unavailable)
+    /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
     pub error: Option<String>,
+}
+
+/// Machine-readable decoder identity paired with the friendly display label.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DecoderSelection {
+    /// Stable decoder identifier used for routing and comparisons.
+    pub decoder_id: String,
+    /// Friendly decoder label used for display only.
+    pub decoder_label: String,
+}
+
+impl fmt::Display for DecoderSelection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.decoder_label)
+    }
 }
 
 impl AudioFile {

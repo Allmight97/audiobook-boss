@@ -21,6 +21,7 @@ import {
 	type JobStatus,
 	type ProcessingStatus,
 } from './state';
+import type { ProcessCommandResult } from '../../types/audio';
 import { calculateAggregateProgressAndStage as calculateAggregateProgressAndStageDomain } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
 import { areAllBatchJobsTerminal, buildQueueSnapshotState } from './domain/queueState';
@@ -33,9 +34,10 @@ import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from './service
 
 function toTerminalJobStatus(
 	stage: ProcessingProgressEvent['stage'],
-): Extract<JobStatus, 'completed' | 'failed' | 'cancelled'> {
+): Extract<JobStatus, 'completed' | 'skipped' | 'failed' | 'cancelled'> {
 	if (stage === STAGES.failed) return 'failed';
 	if (stage === STAGES.cancelled) return 'cancelled';
+	if (stage === STAGES.skipped) return 'skipped';
 	return 'completed';
 }
 
@@ -83,6 +85,7 @@ export class StatusPanelController {
 					this.currentJobType = jobType;
 				},
 				setBatchCompletionMessage: (message) => this.setBatchCompletionMessage(message),
+				reconcileProcessResult: (result) => this.reconcileProcessResult(result),
 				handleCancellation: () => this.handleProcessingCancellation(),
 				resetToIdle: () => this.resetToIdle(),
 			},
@@ -92,6 +95,73 @@ export class StatusPanelController {
 
 	public setBatchCompletionMessage(message: string | null): void {
 		this.batchCompletionMessageOverride = message;
+	}
+
+	public reconcileProcessResult(result: ProcessCommandResult): void {
+		if (result.jobType === 'merge') {
+			const skippedMergeEntry = result.results.find((entry) => entry.status === 'skipped');
+			if (skippedMergeEntry) {
+				this.reconcileMergeSkip(skippedMergeEntry);
+				return;
+			}
+		}
+
+		let updated = false;
+		for (const entry of result.results) {
+			if (entry.status !== 'skipped' || typeof entry.inputIndex !== 'number') {
+				continue;
+			}
+
+			const key = this.buildJobKey(entry.inputIndex, undefined);
+			const existing = this.jobProgress.get(key);
+			this.jobProgress.set(key, {
+				jobId: existing?.jobId,
+				inputIndex: entry.inputIndex,
+				label:
+					existing?.label ??
+					this.findFilePathByIndex(entry.inputIndex) ??
+					`Input ${entry.inputIndex + 1}`,
+				status: 'skipped',
+				stage: existing?.stage,
+				percentage: 100,
+				message: entry.message,
+				lastUpdate: Date.now(),
+			});
+			updated = true;
+		}
+
+		if (!updated) {
+			return;
+		}
+
+		this.updateAggregateUI();
+		renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+		if (areAllBatchJobsTerminal(this.queueOrder, this.jobProgress)) {
+			this.scheduleBatchCompletion();
+		}
+	}
+
+	private reconcileMergeSkip(entry: ProcessCommandResult['results'][number]): void {
+		const now = Date.now();
+		const key = this.buildJobKey(undefined, entry.jobId ?? undefined);
+		const fileList = getCurrentFileList();
+		const firstValidPath = fileList?.files.find((file) => file.isValid)?.path;
+		const label = firstValidPath
+			? (buildQueueLabels([firstValidPath])[0] ?? firstValidPath)
+			: 'Merge output';
+
+		this.jobProgress.set(key, {
+			jobId: entry.jobId ?? undefined,
+			inputIndex: undefined,
+			label,
+			status: 'skipped',
+			percentage: 100,
+			message: entry.message,
+			lastUpdate: now,
+		});
+		this.isProcessing = true;
+		this.updateAggregateUI();
+		this.scheduleMergeSkipCompletion(key, entry.message);
 	}
 
 	public async startEventListeners(): Promise<void> {
@@ -215,7 +285,12 @@ export class StatusPanelController {
 
 		const now = Date.now();
 		for (const [jobKey, job] of this.jobProgress.entries()) {
-			if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+			if (
+				job.status === 'completed' ||
+				job.status === 'skipped' ||
+				job.status === 'failed' ||
+				job.status === 'cancelled'
+			) {
 				continue;
 			}
 			this.jobProgress.set(jobKey, {
@@ -341,6 +416,12 @@ export class StatusPanelController {
 			const hasCancelled = Array.from(this.jobProgress.values()).some(
 				(job) => job.status === 'cancelled',
 			);
+			const hasCompleted = Array.from(this.jobProgress.values()).some(
+				(job) => job.status === 'completed',
+			);
+			const hasSkipped = Array.from(this.jobProgress.values()).some(
+				(job) => job.status === 'skipped',
+			);
 
 			if (hasFailed) {
 				dom.showError(
@@ -348,6 +429,10 @@ export class StatusPanelController {
 				);
 			} else if (hasCancelled) {
 				dom.showInfo('Processing was cancelled.');
+			} else if (!hasCompleted && hasSkipped) {
+				dom.showInfo(this.batchCompletionMessageOverride ?? 'No files were processed.');
+			} else if (this.batchCompletionMessageOverride) {
+				dom.showSuccess(this.batchCompletionMessageOverride);
 			} else {
 				dom.showSuccess('Audiobook created successfully!');
 			}
@@ -379,6 +464,22 @@ export class StatusPanelController {
 			this.updateAggregateUI();
 			renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
 		}, 2000);
+	}
+
+	private scheduleMergeSkipCompletion(jobKey: string, message: string): void {
+		this.clearSingleCompletionTimeout();
+		this.singleCompletionTimeout = window.setTimeout(() => {
+			this.singleCompletionTimeout = undefined;
+			this.jobProgress.delete(jobKey);
+			if (this.jobProgress.size === 0) {
+				this.resetToIdle();
+				dom.showInfo(message);
+				return;
+			}
+
+			this.updateAggregateUI();
+			renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
+		}, 1500);
 	}
 
 	private clearBatchCompletionTimeout(): void {

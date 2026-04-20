@@ -5,6 +5,7 @@ import { startProcessing } from '../processing';
 import * as dom from '../dom';
 
 const context = vi.hoisted(() => ({
+	preflightProcessingPlanMock: vi.fn(),
 	processAudiobookFilesMock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
 	openExternalMock: vi.fn(),
@@ -12,6 +13,7 @@ const context = vi.hoisted(() => ({
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
 	readOutputConfigForProcessingMock: vi.fn(),
+	updateOutputPathMock: vi.fn(),
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
 	hasDirtyMetadataFieldsMock: vi.fn(),
@@ -24,6 +26,7 @@ const context = vi.hoisted(() => ({
 
 vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
+		preflightProcessingPlan: context.preflightProcessingPlanMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		readAudioMetadata: context.readAudioMetadataMock,
 		openExternal: context.openExternalMock,
@@ -42,6 +45,7 @@ vi.mock('../../fileList/state', () => ({
 
 vi.mock('../../outputPanel', () => ({
 	readOutputConfigForProcessing: context.readOutputConfigForProcessingMock,
+	updateOutputPath: context.updateOutputPathMock,
 }));
 
 vi.mock('../../jobControls', () => ({
@@ -84,6 +88,7 @@ function processingContext() {
 
 describe('startProcessing metadata staging', () => {
 	beforeEach(() => {
+		context.preflightProcessingPlanMock.mockReset();
 		context.processAudiobookFilesMock.mockReset();
 		context.readAudioMetadataMock.mockReset();
 		context.openExternalMock.mockReset();
@@ -91,6 +96,7 @@ describe('startProcessing metadata staging', () => {
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
 		context.readOutputConfigForProcessingMock.mockReset();
+		context.updateOutputPathMock.mockReset();
 		context.getJobTypeMock.mockReset();
 		context.readMetadataFormMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
@@ -120,9 +126,25 @@ describe('startProcessing metadata staging', () => {
 		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
 		context.getMetadataForFileMock.mockReturnValue(undefined);
 		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
+		context.preflightProcessingPlanMock.mockImplementation(async ({ payload, previewSeconds }) => ({
+			jobType: payload.jobType ?? 'merge',
+			previewSeconds: previewSeconds ?? undefined,
+			collisionPolicy: payload.collisionPolicy ?? 'fail',
+			planSignature: 'preflight-clean',
+			outputs: (payload.inputFiles ?? []).map((filePath: string, index: number) => ({
+				inputIndex: index,
+				inputPath: filePath,
+				kind: previewSeconds == null ? 'final' : 'preview',
+				requestedPath: `/tmp/out/${index}.m4b`,
+				resolvedPath: `/tmp/out/${index}.m4b`,
+				renameCandidate: undefined,
+				collision: undefined,
+				action: 'write',
+			})),
+		}));
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
-			summary: { total: 1, succeeded: 1, failed: 0 },
+			summary: { total: 1, succeeded: 1, skipped: 0, failed: 0 },
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
 		context.readAudioMetadataMock.mockResolvedValue({});
@@ -363,6 +385,8 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.openExternalMock).toHaveBeenCalledTimes(1);
 		expect(context.openExternalMock).toHaveBeenCalledWith('/tmp/out/one.preview.m4b');
+		expect(context.updateOutputPathMock).toHaveBeenNthCalledWith(1, 'preview');
+		expect(context.updateOutputPathMock).toHaveBeenLastCalledWith('final');
 	});
 
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {

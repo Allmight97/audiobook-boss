@@ -10,6 +10,7 @@ import {
 	type OutputNamingPreset,
 } from '../ui/outputPanel/state';
 import { updateNamingOptionState, updateOutputPath } from '../ui/outputPanel/dom';
+import { getStatusPanel } from '../ui/statusPanel';
 import {
 	resetStatusPanelViewState,
 	setStatusPanelCancelAllPending,
@@ -21,7 +22,7 @@ import {
 	setStatusPanelStepText,
 } from '../ui/statusPanel/viewState.svelte';
 import { bootstrapHarnessRuntime } from './bootstrap';
-import { installHarnessTauriMock } from './mockTauri';
+import { installHarnessTauriMock, setHarnessCollisionMode } from './mockTauri';
 
 type HarnessOutputSeed = {
 	outputDirectory?: string;
@@ -45,6 +46,8 @@ type HarnessBrowserApi = {
 	seedMetadata: (metadata: Partial<AudiobookMetadata>) => Promise<void>;
 	seedOutput: (seed: HarnessOutputSeed) => Promise<void>;
 	seedStatus: (seed: HarnessStatusSeed) => Promise<void>;
+	seedCollisionMode: (enabled: boolean) => Promise<void>;
+	triggerPreview: (seconds: number) => void;
 };
 
 declare global {
@@ -129,6 +132,7 @@ export function installHarnessRuntime(): void {
 				namingTemplate: '',
 				absIncludeYear: false,
 			});
+			setHarnessCollisionMode(false);
 			await settleUi();
 		},
 		seedMetadata: async (metadata) => {
@@ -146,6 +150,14 @@ export function installHarnessRuntime(): void {
 			await harnessReady;
 			applyStatusSeed(seed);
 			await settleUi();
+		},
+		seedCollisionMode: async (enabled) => {
+			await harnessReady;
+			setHarnessCollisionMode(enabled);
+			await settleUi();
+		},
+		triggerPreview: (seconds) => {
+			void harnessReady.then(() => getStatusPanel()?.startProcessing({ previewSeconds: seconds }));
 		},
 	};
 	void harnessReady;

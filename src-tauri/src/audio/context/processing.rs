@@ -1,5 +1,6 @@
 //! Processing context structures and builders.
 
+use crate::audio::output_path::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::audio::preview_config::PreviewConfig;
 use crate::audio::session::ProcessingSession;
 use crate::audio::settings_encoder::EncoderSettings;
@@ -13,8 +14,10 @@ use tauri::Window;
 /// Output configuration derived from user input
 #[derive(Debug, Clone)]
 pub struct OutputConfig {
-    /// Final destination for the processed audiobook
+    /// Final destination artifact for the processed audiobook or preview.
     final_path: PathBuf,
+    kind: OutputKind,
+    action: PlannedOutputAction,
 }
 
 impl OutputConfig {
@@ -22,12 +25,43 @@ impl OutputConfig {
     pub fn new<P: Into<PathBuf>>(final_path: P) -> Self {
         Self {
             final_path: final_path.into(),
+            kind: OutputKind::Final,
+            action: PlannedOutputAction::Write,
+        }
+    }
+
+    /// Creates an output configuration for a preview artifact path.
+    pub fn for_preview<P: Into<PathBuf>>(final_path: P) -> Self {
+        Self {
+            final_path: final_path.into(),
+            kind: OutputKind::Preview,
+            action: PlannedOutputAction::Write,
+        }
+    }
+
+    pub(crate) fn from_plan(plan: ResolvedOutputPlan) -> Self {
+        Self {
+            final_path: plan.resolved_path,
+            kind: plan.kind,
+            action: plan.action,
         }
     }
 
     /// Returns a reference to the final output path
     pub fn final_path(&self) -> &Path {
         &self.final_path
+    }
+
+    pub fn artifact_path(&self) -> &Path {
+        &self.final_path
+    }
+
+    pub fn output_kind(&self) -> OutputKind {
+        self.kind
+    }
+
+    pub fn commit_action(&self) -> PlannedOutputAction {
+        self.action
     }
 
     /// Consumes the config and returns the final path

@@ -58,6 +58,9 @@ function formatJobStatusText(
 	if (job.status === 'completed') {
 		return 'Completed';
 	}
+	if (job.status === 'skipped') {
+		return 'Skipped';
+	}
 	if (job.status === 'failed') {
 		return 'Failed';
 	}
@@ -105,7 +108,9 @@ export function renderJobList(
 		const statusText = formatJobStatusText(job, position, total);
 		const canCancel = job.status === 'processing' && !!job.jobId;
 		const percentage =
-			job.status === 'processing' || job.status === 'completed' ? job.percentage : undefined;
+			job.status === 'processing' || job.status === 'completed' || job.status === 'skipped'
+				? job.percentage
+				: undefined;
 
 		const item: JobListItem = {
 			key,

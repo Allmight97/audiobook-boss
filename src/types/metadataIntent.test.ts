@@ -106,4 +106,16 @@ describe('metadata intent patch helpers', () => {
 			date: { op: 'set', value: '2024-07' },
 		});
 	});
+
+	it('ignores read-only track and disk fields when building write intent', () => {
+		const patch = buildMetadataIntentPatchFromMetadata({
+			title: 'Writable',
+			track: [3, 12],
+			disk: [1, 2],
+		} as unknown as Parameters<typeof buildMetadataIntentPatchFromMetadata>[0]);
+
+		expect(patch).toEqual({
+			title: { op: 'set', value: 'Writable' },
+		});
+	});
 });

@@ -21,6 +21,8 @@ import type {
 	ProcessPayload,
 	FileListInfo,
 	ProcessCommandResult,
+	ProcessingPreflightPlan,
+	OutputKind,
 } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
@@ -29,6 +31,7 @@ import {
 	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
+	normalizeNullish,
 	normalizeEncoderAvailability,
 	normalizeFileList,
 	normalizeLookupResult,
@@ -195,6 +198,7 @@ const commandSpecs = {
 		metadata?: Partial<AudiobookMetadata> | null;
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
+		outputKind?: OutputKind | null;
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.previewOutputPath(
@@ -202,7 +206,21 @@ const commandSpecs = {
 				args.metadata ? denormalizeMetadata(args.metadata) : null,
 				toGeneratedOutputNamingConfig(args.outputNaming),
 				args.sourcePath ?? null,
+				args.outputKind ?? null,
 			),
+		),
+	preflight_processing_plan: (args: {
+		payload: ProcessPayload;
+		metadataIntent?: MetadataIntentPayload | null;
+		previewSeconds?: number | null;
+	}) =>
+		runGeneratedCommand(
+			generatedCommands.preflightProcessingPlan(
+				denormalizeProcessPayload(args.payload),
+				compileMetadataIntentMap(args.metadataIntent),
+				args.previewSeconds ?? null,
+			),
+			(plan) => normalizeNullish(plan) as ProcessingPreflightPlan,
 		),
 	get_max_concurrent_jobs: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getMaxConcurrentJobs()),
@@ -308,7 +326,13 @@ export const tauriClient = {
 		metadata?: Partial<AudiobookMetadata> | null;
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
+		outputKind?: OutputKind | null;
 	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
+	preflightProcessingPlan: (args: {
+		payload: ProcessPayload;
+		metadataIntent?: MetadataIntentPayload | null;
+		previewSeconds?: number | null;
+	}): Promise<ProcessingPreflightPlan> => commandSpecs.preflight_processing_plan(args),
 	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
 		commandSpecs.get_max_concurrent_jobs(),
 	setMaxConcurrentJobs: (

@@ -268,10 +268,75 @@ export async function seedOutputScenario(
 						`Expected preview text to stay anchored to /Library/Audiobooks, received ${text}`,
 					);
 				}
+				if (!text.includes('.m4b')) {
+					throw new Error(
+						`Expected preview text to resolve to a .m4b artifact path, received ${text}`,
+					);
+				}
 				if (text.includes('Select output directory')) {
 					throw new Error('Expected preview text to resolve to a concrete path.');
 				}
 			});
+		},
+	);
+
+	return results;
+}
+
+export async function seedCollisionScenario(
+	page: Page,
+	scenario: HarnessScenario,
+): Promise<HarnessScenarioCheckResult[]> {
+	await resetHarnessState(page);
+	await page.evaluate(async () => {
+		await window.__ABB_HARNESS__?.seedMetadata({
+			title: 'Dune',
+			artist: 'Frank Herbert',
+			series: 'Dune Chronicles',
+			series_part: '1',
+			date: '1965',
+		});
+		await window.__ABB_HARNESS__?.seedOutput({
+			outputDirectory: '/Library/Audiobooks',
+			namingPreset: 'absDefault',
+			absIncludeYear: true,
+		});
+		await window.__ABB_HARNESS__?.seedCollisionMode(true);
+	});
+
+	const results: HarnessScenarioCheckResult[] = [];
+	await page.evaluate(() => {
+		window.__ABB_HARNESS__?.triggerPreview(30);
+	});
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'collision-dialog-opens'),
+		async () => {
+			await page.locator('#collision-dialog-modal.open').waitFor();
+		},
+	);
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'preview-artifact-path-visible'),
+		async () => {
+			await page.locator('#collision-dialog-results').evaluate((node) => {
+				const text = node.textContent ?? '';
+				if (!text.includes('.preview.m4b')) {
+					throw new Error(`Expected preview artifact naming in collision dialog, received ${text}`);
+				}
+			});
+		},
+	);
+
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'skip-policy-propagates'),
+		async () => {
+			await page.click('#collision-dialog-skip');
+			await page.locator('#job-list').filter({ hasText: 'Skipped' }).waitFor();
+			await page.locator('#percentage-processed').filter({ hasText: '100.0%' }).waitFor();
 		},
 	);
 
@@ -292,6 +357,8 @@ export async function seedHarnessScenario(
 			return seedStatusScenario(page, scenario);
 		case 'output-preview':
 			return seedOutputScenario(page, scenario);
+		case 'collision-dialog':
+			return seedCollisionScenario(page, scenario);
 		default:
 			throw new Error(`No seed runner implemented for scenario ${scenarioId}`);
 	}

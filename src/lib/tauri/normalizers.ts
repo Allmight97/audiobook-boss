@@ -60,6 +60,8 @@ const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
 	'sampleRate',
 	'jobType',
 	'outputNaming',
+	'collisionPolicy',
+	'preflightSignature',
 ] as const satisfies readonly (keyof GeneratedProcessPayload)[];
 
 const isPlainRecord = (value: unknown): value is PlainRecord =>

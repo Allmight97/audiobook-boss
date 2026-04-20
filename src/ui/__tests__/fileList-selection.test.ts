@@ -26,6 +26,7 @@ const makeFileList = (count: number): FileListInfo => {
 
 	return {
 		files,
+		selectedDecoders: files.map(() => null),
 		totalDuration: 0,
 		totalSize: 0,
 		validCount: count,

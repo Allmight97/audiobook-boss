@@ -81,7 +81,7 @@ function extractPublicationYear(date: string | undefined): string | undefined {
 }
 
 /**
- * Calculates the full output path based on current settings for PREVIEW
+ * Calculates the full output path based on current settings.
  */
 export function calculateOutputPath(metadata: AudiobookMetadata): string {
 	const state = getState();

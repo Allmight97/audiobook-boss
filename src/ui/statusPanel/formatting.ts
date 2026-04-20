@@ -16,6 +16,8 @@ export function formatStatusDisplayText(stage: ProcessingStatus['stage']): strin
 			return 'Writing Metadata';
 		case 'completed':
 			return 'Completed';
+		case 'skipped':
+			return 'Skipped';
 		case 'cancelled':
 			return 'Cancelled';
 		case 'failed':

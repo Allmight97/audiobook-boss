@@ -37,11 +37,17 @@ const listeners = new Map<string, ListenerEntry[]>();
 let nextCallbackId = 1;
 let nextEventId = 1;
 let maxConcurrentJobs = 2;
+let collisionMode = false;
 
 const HARNESS_ADDITIONAL_FILE_PATH = '/mock/library/Frank Herbert/Dune/03-dune-part-3.mp3';
 
 function buildFileListInfo(filePaths: string[]): FileListInfo {
 	const templates = new Map(HARNESS_FILE_LIST.files.map((file) => [file.path, file] as const));
+	const decoderSelections = new Map(
+		HARNESS_FILE_LIST.files.map(
+			(file, index) => [file.path, HARNESS_FILE_LIST.selectedDecoders[index]] as const,
+		),
+	);
 	const fallbackTemplate = HARNESS_FILE_LIST.files[0];
 	const files = filePaths.map((filePath, index) => {
 		const template =
@@ -52,6 +58,7 @@ function buildFileListInfo(filePaths: string[]): FileListInfo {
 			path: filePath,
 		};
 	});
+	const selectedDecoders = filePaths.map((filePath) => decoderSelections.get(filePath) ?? null);
 
 	const totalDuration = files.reduce((sum, file) => sum + (file.duration ?? 0), 0);
 	const totalSize = files.reduce((sum, file) => sum + (file.size ?? 0), 0);
@@ -59,6 +66,7 @@ function buildFileListInfo(filePaths: string[]): FileListInfo {
 
 	return {
 		files,
+		selectedDecoders,
 		totalDuration,
 		totalSize,
 		validCount,
@@ -114,6 +122,7 @@ function buildPreviewPath(args: HarnessInvokeArgs = {}): string {
 			? (args.outputNaming as Record<string, unknown>)
 			: {};
 	const includeYear = outputNaming.includeYear === true;
+	const outputKind = args.outputKind === 'preview' ? 'preview' : 'final';
 	const author =
 		typeof metadata.artist === 'string' && metadata.artist.length > 0
 			? metadata.artist
@@ -136,11 +145,129 @@ function buildPreviewPath(args: HarnessInvokeArgs = {}): string {
 		const leaf = includeYear
 			? `Book ${seriesPart} - ${year} - ${title}`
 			: `Book ${seriesPart} - ${title}`;
-		return `${base}/${leaf}/${leaf}.m4b`;
+		const finalPath = `${base}/${leaf}/${leaf}.m4b`;
+		return outputKind === 'preview' ? finalPath.replace(/\.m4b$/i, '.preview.m4b') : finalPath;
 	}
 
 	const leaf = includeYear ? `${year} - ${title}` : title;
-	return `${outputDir}/${author}/${leaf}/${leaf}.m4b`;
+	const finalPath = `${outputDir}/${author}/${leaf}/${leaf}.m4b`;
+	return outputKind === 'preview' ? finalPath.replace(/\.m4b$/i, '.preview.m4b') : finalPath;
+}
+
+function buildHarnessPreflightPlan(args: HarnessInvokeArgs = {}): Record<string, unknown> {
+	const payload =
+		typeof args.payload === 'object' && args.payload !== null
+			? (args.payload as Record<string, unknown>)
+			: {};
+	const inputFiles = Array.isArray(payload.inputFiles)
+		? payload.inputFiles.filter((value): value is string => typeof value === 'string')
+		: [];
+	const previewSeconds = typeof args.previewSeconds === 'number' ? args.previewSeconds : null;
+	const outputKind = previewSeconds == null ? 'final' : 'preview';
+	const collisionPolicy =
+		payload.collisionPolicy === 'replace_existing' ||
+		payload.collisionPolicy === 'rename_new' ||
+		payload.collisionPolicy === 'skip_existing'
+			? payload.collisionPolicy
+			: 'fail';
+
+	const firstRequestedPath =
+		inputFiles.length > 0
+			? buildPreviewPath({
+					outputDir: payload.outputDir,
+					metadata:
+						HARNESS_METADATA_BY_FILE[inputFiles[0]] ??
+						HARNESS_METADATA_BY_FILE[HARNESS_FILE_LIST.files[0].path],
+					outputNaming: payload.outputNaming,
+					outputKind,
+				})
+			: buildPreviewPath({
+					outputDir: payload.outputDir,
+					metadata: HARNESS_METADATA_BY_FILE[HARNESS_FILE_LIST.files[0].path],
+					outputNaming: payload.outputNaming,
+					outputKind,
+				});
+
+	const outputs = inputFiles.map((filePath, index) => {
+		const requestedPath = buildPreviewPath({
+			outputDir: payload.outputDir,
+			metadata:
+				HARNESS_METADATA_BY_FILE[filePath] ??
+				HARNESS_METADATA_BY_FILE[HARNESS_FILE_LIST.files[0].path],
+			outputNaming: payload.outputNaming,
+			outputKind,
+		});
+
+		if (!collisionMode) {
+			return {
+				inputIndex: index,
+				inputPath: filePath,
+				kind: outputKind,
+				requestedPath,
+				resolvedPath: requestedPath,
+				renameCandidate: null,
+				collision: null,
+				action: 'write',
+			};
+		}
+
+		if (index === 0) {
+			const renameCandidate = requestedPath.replace(/\.m4b$/i, '-1.m4b');
+			const action =
+				collisionPolicy === 'replace_existing'
+					? 'replace_existing'
+					: collisionPolicy === 'rename_new'
+						? 'rename_new'
+						: collisionPolicy === 'skip_existing'
+							? 'skip_existing'
+							: 'review_required';
+			return {
+				inputIndex: index,
+				inputPath: filePath,
+				kind: outputKind,
+				requestedPath,
+				resolvedPath: action === 'rename_new' ? renameCandidate : requestedPath,
+				renameCandidate,
+				collision: {
+					kind: 'existing_file',
+					conflictingPath: requestedPath,
+					detail: 'Harness existing-file collision',
+				},
+				action,
+			};
+		}
+
+		const duplicateRequested = firstRequestedPath;
+		const renameCandidate = duplicateRequested.replace(/\.m4b$/i, '-2.m4b');
+		const action =
+			collisionPolicy === 'rename_new' || collisionPolicy === 'replace_existing'
+				? 'rename_new'
+				: collisionPolicy === 'skip_existing'
+					? 'skip_existing'
+					: 'review_required';
+		return {
+			inputIndex: index,
+			inputPath: filePath,
+			kind: outputKind,
+			requestedPath: duplicateRequested,
+			resolvedPath: action === 'rename_new' ? renameCandidate : duplicateRequested,
+			renameCandidate,
+			collision: {
+				kind: 'batch_duplicate',
+				conflictingPath: duplicateRequested,
+				detail: 'Harness batch-duplicate collision',
+			},
+			action,
+		};
+	});
+
+	return {
+		jobType: payload.jobType === 'merge' ? 'merge' : 'batch',
+		previewSeconds,
+		collisionPolicy,
+		planSignature: `harness-plan-${collisionMode ? collisionPolicy : 'clean'}-${outputKind}`,
+		outputs,
+	};
 }
 
 async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): Promise<unknown> {
@@ -180,6 +307,8 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 			return null;
 		case 'preview_output_path':
 			return buildPreviewPath(args);
+		case 'preflight_processing_plan':
+			return buildHarnessPreflightPlan(args);
 		case 'process_audiobook_files': {
 			const payload =
 				typeof args.payload === 'object' && args.payload !== null
@@ -193,6 +322,12 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 				typeof payload.outputDir === 'string' && payload.outputDir.length > 0
 					? payload.outputDir
 					: HARNESS_OUTPUT_DIRECTORY;
+			const collisionPolicy =
+				payload.collisionPolicy === 'replace_existing' ||
+				payload.collisionPolicy === 'rename_new' ||
+				payload.collisionPolicy === 'skip_existing'
+					? payload.collisionPolicy
+					: 'fail';
 			const jobId = `harness-job-${Date.now()}`;
 			const totalJobs = Math.max(1, inputFiles.length);
 
@@ -227,21 +362,29 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 				});
 			}
 
+			const shouldSkip =
+				collisionMode && collisionPolicy === 'skip_existing' && inputFiles.length > 0;
 			return {
 				jobType,
 				summary: {
 					total: totalJobs,
-					succeeded: totalJobs,
+					succeeded: shouldSkip ? Math.max(0, totalJobs - 1) : totalJobs,
+					skipped: shouldSkip ? 1 : 0,
 					failed: 0,
 				},
 				results: inputFiles.map((filePath, index) => ({
 					inputIndex: index,
-					status: 'success',
-					message: 'Harness processing completed',
+					status: shouldSkip && index === 0 ? 'skipped' : 'success',
+					message:
+						shouldSkip && index === 0
+							? 'Skipped existing output at harness destination'
+							: 'Harness processing completed',
 					jobId: `${jobId}-${index}`,
 					error: null,
 					previewFilePath:
-						previewSeconds === null ? null : `${outputDir}/harness-preview-${previewSeconds}.m4b`,
+						previewSeconds === null
+							? null
+							: `${outputDir}/harness-preview-${previewSeconds}.preview.m4b`,
 					previewActualSeconds: previewSeconds,
 					currentFile: filePath,
 				})),
@@ -303,6 +446,10 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 			console.warn(`[harness:mock] unhandled invoke ${cmd}`);
 			return null;
 	}
+}
+
+export function setHarnessCollisionMode(enabled: boolean): void {
+	collisionMode = enabled;
 }
 
 export function installHarnessTauriMock(): void {

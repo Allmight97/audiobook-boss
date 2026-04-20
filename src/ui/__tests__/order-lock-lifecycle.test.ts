@@ -72,6 +72,7 @@ function makeFileList(count: number): FileListInfo {
 			channels: 2,
 			format: 'M4B',
 		})),
+		selectedDecoders: Array.from({ length: count }, () => null),
 		totalDuration: count * 300,
 		totalSize: count * 1000,
 		validCount: count,

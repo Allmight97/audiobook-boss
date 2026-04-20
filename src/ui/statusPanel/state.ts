@@ -5,7 +5,10 @@ import type { EventStage } from '../../types/events';
  * `ACTIVE_EVENT_STAGES` map below is typed against this alias, so a new active
  * Rust stage must be acknowledged here before the frontend compiles again.
  */
-export type ActiveEventStage = Exclude<EventStage, 'completed' | 'failed' | 'cancelled'>;
+export type ActiveEventStage = Exclude<
+	EventStage,
+	'completed' | 'skipped' | 'failed' | 'cancelled'
+>;
 
 /**
  * UI-layer processing status modeled as a discriminated union so that fields
@@ -28,10 +31,11 @@ export type ProcessingStatus =
 			etaSeconds?: number;
 	  }
 	| { stage: 'completed'; percentage: number; message: string }
+	| { stage: 'skipped'; percentage: number; message: string }
 	| { stage: 'failed'; percentage: number; message: string }
 	| { stage: 'cancelled'; percentage: number; message: string };
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'skipped' | 'failed' | 'cancelled';
 
 /**
  * Per-job progress tracking for queued and running work.
@@ -146,6 +150,12 @@ export function calculateAggregateProgressAndStage(
 			continue;
 		}
 		if (job.status === 'completed') {
+			completedJobs++;
+			hasCompleted = true;
+			totalPercentage += 100;
+			continue;
+		}
+		if (job.status === 'skipped') {
 			completedJobs++;
 			hasCompleted = true;
 			totalPercentage += 100;

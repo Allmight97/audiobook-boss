@@ -18,6 +18,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_cover_art_file',
 	'load_cover_art_from_url',
 	'ping',
+	'preflight_processing_plan',
 	'preview_output_path',
 	'process_audiobook_files',
 	'read_audio_metadata',

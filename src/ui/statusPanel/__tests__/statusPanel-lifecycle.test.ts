@@ -264,6 +264,44 @@ describe('StatusPanel lifecycle', () => {
 		}
 	});
 
+	it('reconciles merge skip_existing results back to idle and unlocks controls', () => {
+		const controller = new StatusPanelController();
+		seedDisabledControls();
+
+		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+
+		controller.reconcileProcessResult({
+			jobType: 'merge',
+			summary: { total: 1, succeeded: 0, skipped: 1, failed: 0 },
+			results: [
+				{
+					status: 'skipped',
+					message: 'Skipped existing output at /books/output.m4b',
+				},
+			],
+		});
+
+		expect(controller.isCurrentlyProcessing).toBe(true);
+		expect(getJobRows()).toEqual([
+			'Merge output • Skipped existing output at /books/output.m4b (100.0%)',
+		]);
+
+		vi.advanceTimersByTime(1499);
+		expect(controller.isCurrentlyProcessing).toBe(true);
+		assertControlsDisabled();
+
+		vi.advanceTimersByTime(1);
+
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		assertControlsEnabled();
+		expect(showInfoSpy).toHaveBeenCalledWith('Skipped existing output at /books/output.m4b');
+		expect(controller.getCurrentStatus()).toEqual({
+			stage: 'idle',
+			percentage: 0,
+			message: 'Ready to process audiobook',
+		});
+	});
+
 	it('uses the batch completion override message for partial failures', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
@@ -295,6 +333,66 @@ describe('StatusPanel lifecycle', () => {
 		vi.advanceTimersByTime(2000);
 
 		expect(showErrorSpy).toHaveBeenCalledWith('Processed 1/2. Failed: beta.m4b');
+	});
+
+	it('preserves skipped batch rows when cancellation arrives after a skipped terminal event', () => {
+		const controller = new StatusPanelController();
+		seedDisabledControls();
+
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: STAGES.skipped,
+			percentage: 100,
+			message: 'Skipped existing output at /books/alpha.m4b',
+		});
+
+		controller.handleProcessingCancellation();
+
+		expect(getJobRows()).toEqual(['alpha.m4b • Skipped (100.0%)', 'beta.m4b • Cancelled']);
+	});
+
+	it('shows an informational toast when every batch row is skipped', () => {
+		const controller = new StatusPanelController();
+		seedDisabledControls();
+
+		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
+		controller.setBatchCompletionMessage('No files were processed successfully. Skipped: 2.');
+
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: STAGES.skipped,
+			percentage: 100,
+			message: 'Skipped existing output at /books/alpha.m4b',
+		});
+		controller.applyProgress({
+			input_index: 1,
+			stage: STAGES.skipped,
+			percentage: 100,
+			message: 'Skipped existing output at /books/beta.m4b',
+		});
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showInfoSpy).toHaveBeenCalledWith('No files were processed successfully. Skipped: 2.');
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(controller.isCurrentlyProcessing).toBe(false);
 	});
 
 	it.each([

@@ -68,6 +68,23 @@ describe('output panel preview resilience', () => {
 		expect(previewText?.textContent).not.toContain('/Library/Audiobooks');
 	});
 
+	it('requests preview artifact naming when asked to show a preview destination', async () => {
+		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		vi.mocked(tauriClient.previewOutputPath).mockResolvedValueOnce(
+			'/Library/Audiobooks/Ghosts.preview.m4b',
+		);
+
+		updateOutputPath('preview');
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledWith(
+			expect.objectContaining({
+				outputKind: 'preview',
+			}),
+		);
+		expect(outputPanelState.previewText).toBe('/Library/Audiobooks/Ghosts.preview.m4b');
+	});
+
 	it('clears hidden output directory mirror when directory state is emptied', async () => {
 		const hiddenDirInput = document.getElementById('output-dir-text') as HTMLInputElement;
 		updateOutputDirectory('');

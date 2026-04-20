@@ -25,6 +25,7 @@ pub enum EventStage {
     Converting,
     Writing,
     Completed,
+    Skipped,
     Failed,
     Cancelled,
 }
