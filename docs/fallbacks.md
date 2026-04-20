@@ -13,3 +13,5 @@ Active register for intentional fallback behavior that is still enforced by repo
 | FB-016 | `scripts/perf/benches/metadata-lookup-latency.mjs` | real-network perf probe is disabled or fails | benchmark details include `fixture-fallback` | 2026-06-30 | #195 | OK |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifacts are missing on disk | report output shows empty baseline or history bootstrap | 2026-06-30 | #195 | OK |
 | FB-018 | `scripts/checks.sh` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | OK |
+
+Renewals, when needed, stay compact: append `renewal=YYYY-MM-DD; reason=...` to the Audit Status cell and make sure the renewal date is a valid calendar date that extends the sunset.
