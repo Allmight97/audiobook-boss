@@ -22,8 +22,15 @@ import type {
 } from './audio';
 import { defaultEncoderSettings, VALID_ENCODER_BITRATES } from './audio';
 
-export type EncoderFlavor = 'auto' | 'aac_at' | 'fdk_he_aac' | 'native_aac';
-type VbrLevel = Extract<BitrateMode, { mode: 'vbr' }>['value'];
+export type EncoderFlavor = EncoderType;
+type VbrLevel = 1 | 2 | 3 | 4 | 5;
+
+const BOUNDARY_ENCODER_TYPES = {
+	auto: true,
+	aac_at: true,
+	fdk_he_aac: true,
+	native_aac: true,
+} satisfies Record<EncoderType, true>;
 
 export interface VbrSetting {
 	enabled: boolean;
@@ -60,17 +67,46 @@ export type EncoderSettingsLike =
 	| null
 	| undefined;
 
-const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode => {
-	switch (encoderType) {
-		case 'fdk_he_aac':
-		case 'auto':
-			return { mode: 'vbr', value: 3 };
-		case 'aac_at':
-			return { mode: 'cvbr' };
-		default:
-			return { mode: 'cbr' };
+const DEFAULT_BITRATE_MODE_BY_ENCODER = {
+	auto: (): BitrateMode => ({ mode: 'vbr', value: 3 }),
+	aac_at: (): BitrateMode => ({ mode: 'cvbr' }),
+	fdk_he_aac: (): BitrateMode => ({ mode: 'vbr', value: 3 }),
+	native_aac: (): BitrateMode => ({ mode: 'cbr' }),
+} satisfies Record<EncoderType, () => BitrateMode>;
+
+const defaultBitrateModeFor = (encoderType: EncoderType): BitrateMode =>
+	DEFAULT_BITRATE_MODE_BY_ENCODER[encoderType]();
+
+const isBitrateMode = (value: unknown): value is BitrateMode => {
+	if (!value || typeof value !== 'object') {
+		return false;
 	}
+	const candidate = value as Record<string, unknown>;
+	if (candidate.mode === 'cbr' || candidate.mode === 'cvbr') {
+		return true;
+	}
+	if (candidate.mode !== 'vbr') {
+		return false;
+	}
+	return typeof candidate.value === 'number';
 };
+
+const isThreadSetting = (value: unknown): value is ThreadSetting => {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	if (candidate.mode === 'auto' || candidate.mode === 'off') {
+		return true;
+	}
+	if (candidate.mode !== 'fixed') {
+		return false;
+	}
+	return typeof candidate.value === 'number';
+};
+
+const isBoundaryEncoderType = (value: unknown): value is EncoderType =>
+	typeof value === 'string' && value in BOUNDARY_ENCODER_TYPES;
 
 const isBoundaryEncoderSettings = (value: unknown): value is EncoderSettings => {
 	if (!value || typeof value !== 'object') {
@@ -80,12 +116,13 @@ const isBoundaryEncoderSettings = (value: unknown): value is EncoderSettings => 
 	const channels = candidate.channels;
 	const bitrateMode = candidate.bitrateMode;
 	return (
-		typeof candidate.encoderType === 'string' &&
+		isBoundaryEncoderType(candidate.encoderType) &&
 		typeof candidate.bitrateKbps === 'number' &&
 		(channels === 'auto' || channels === 'mono' || channels === 'stereo') &&
-		typeof bitrateMode === 'object' &&
-		bitrateMode !== null &&
-		typeof (bitrateMode as BitrateMode).mode === 'string'
+		typeof candidate.afterburner === 'boolean' &&
+		isThreadSetting(candidate.threads) &&
+		isBitrateMode(bitrateMode) &&
+		(candidate.twoloop === undefined || typeof candidate.twoloop === 'boolean')
 	);
 };
 
@@ -93,11 +130,8 @@ const sanitizeBitrate = (
 	value: unknown,
 	fallback: EncoderSettings['bitrateKbps'],
 ): EncoderSettings['bitrateKbps'] => {
-	if (
-		typeof value === 'number' &&
-		VALID_ENCODER_BITRATES.includes(value as EncoderSettings['bitrateKbps'])
-	) {
-		return value as EncoderSettings['bitrateKbps'];
+	if (typeof value === 'number' && VALID_ENCODER_BITRATES.includes(value as BitrateKbps)) {
+		return value as BitrateKbps;
 	}
 	return fallback;
 };
@@ -117,28 +151,22 @@ const sanitizeBitrateMode = (
 	encoderType: EncoderType,
 	fallback: BitrateMode,
 ): BitrateMode => {
-	if (typeof value === 'object' && value !== null && 'mode' in (value as BitrateMode)) {
-		const candidate = value as BitrateMode;
-		if (candidate.mode === 'cbr' || candidate.mode === 'cvbr') {
-			return { mode: candidate.mode };
+	if (isBitrateMode(value)) {
+		if (value.mode === 'cbr' || value.mode === 'cvbr') {
+			return { mode: value.mode };
 		}
-		if (candidate.mode === 'vbr') {
-			const numeric = Number((candidate as { value?: number }).value ?? 3);
-			if (Number.isFinite(numeric)) {
-				const clamped = Math.max(1, Math.min(5, Math.round(numeric))) as VbrLevel;
-				return { mode: 'vbr', value: clamped };
-			}
-			return { mode: 'vbr', value: 3 };
+		const numeric = Number(value.value ?? 3);
+		if (Number.isFinite(numeric)) {
+			const clamped = Math.max(1, Math.min(5, Math.round(numeric))) as VbrLevel;
+			return { mode: 'vbr', value: clamped };
 		}
+		return { mode: 'vbr', value: 3 };
 	}
 	return fallback ?? defaultBitrateModeFor(encoderType);
 };
 
-const sanitizeThreads = (
-	value: ThreadSetting | undefined,
-	fallback: ThreadSetting,
-): ThreadSetting => {
-	if (!value) {
+const sanitizeThreads = (value: unknown, fallback: ThreadSetting): ThreadSetting => {
+	if (!isThreadSetting(value)) {
 		return fallback;
 	}
 	switch (value.mode) {
@@ -161,20 +189,7 @@ const sanitizeThreads = (
 const resolveEncoderType = (
 	flavor: EncoderFlavor | undefined,
 	fallback: EncoderType,
-): EncoderType => {
-	switch (flavor) {
-		case 'auto':
-			return 'auto';
-		case 'aac_at':
-			return 'aac_at';
-		case 'fdk_he_aac':
-			return 'fdk_he_aac';
-		case 'native_aac':
-			return 'native_aac';
-		default:
-			return fallback;
-	}
-};
+): EncoderType => (isBoundaryEncoderType(flavor) ? flavor : fallback);
 
 const normalizeBoundary = (candidate: EncoderSettings, base: EncoderSettings): EncoderSettings => {
 	const encoderType = candidate.encoderType;
@@ -182,7 +197,7 @@ const normalizeBoundary = (candidate: EncoderSettings, base: EncoderSettings): E
 	const bitrateMode = sanitizeBitrateMode(candidate.bitrateMode, encoderType, base.bitrateMode);
 	const channels = sanitizeChannels(candidate.channels, base.channels);
 	const threads = sanitizeThreads(candidate.threads, base.threads);
-	const afterburner = encoderType === 'fdk_he_aac' ? candidate.afterburner : false;
+	const afterburner = encoderType === 'fdk_he_aac' ? !!candidate.afterburner : false;
 
 	return {
 		encoderType,
@@ -191,7 +206,7 @@ const normalizeBoundary = (candidate: EncoderSettings, base: EncoderSettings): E
 		channels,
 		afterburner,
 		threads,
-		twoloop: candidate.twoloop ?? true,
+		...(candidate.twoloop === undefined ? {} : { twoloop: candidate.twoloop }),
 	};
 };
 

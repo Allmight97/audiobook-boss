@@ -1,10 +1,14 @@
 // TypeScript interfaces for audio processing
 import type {
+	BitrateMode as GeneratedBitrateMode,
+	ChannelConfig as GeneratedChannelConfig,
 	AudioFile as GeneratedAudioFile,
 	CollisionPolicy as GeneratedCollisionPolicy,
 	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
 	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
+	EncoderSettings as GeneratedEncoderSettings,
+	EncoderType as GeneratedEncoderType,
 	ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
@@ -21,6 +25,7 @@ import type {
 	ProcessPayload as GeneratedProcessPayload,
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
 	SampleRateConfig as GeneratedSampleRateConfig,
+	ThreadSetting as GeneratedThreadSetting,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
@@ -45,6 +50,11 @@ export type ProcessingPreflightPlan = Omit<
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
 export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
+export type BitrateMode = GeneratedBitrateMode;
+export type EncoderChannelConfig = GeneratedChannelConfig;
+export type EncoderType = GeneratedEncoderType;
+export type ThreadSetting = GeneratedThreadSetting;
+export type EncoderSettings = GeneratedEncoderSettings;
 export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalToolchainPreference>;
 
 // Output naming options for folder/filename generation
@@ -80,29 +90,10 @@ export type ProcessCommandResult = Omit<
 	results: ProcessCommandJobResult[];
 };
 
-// Encoder settings types (Enhanced engine)
-export type EncoderType = 'auto' | 'fdk_he_aac' | 'aac_at' | 'native_aac';
-export type BitrateMode =
-	| { mode: 'cbr' }
-	| { mode: 'cvbr' }
-	| { mode: 'vbr'; value: 1 | 2 | 3 | 4 | 5 };
-export type ThreadSetting = { mode: 'auto' } | { mode: 'off' } | { mode: 'fixed'; value: number };
-export type EncoderChannelConfig = 'auto' | 'mono' | 'stereo';
-
 // Single source of truth for valid encoder bitrates (kbps)
 // Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs
 export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128] as const;
 export type BitrateKbps = (typeof VALID_ENCODER_BITRATES)[number];
-
-export interface EncoderSettings {
-	encoderType: EncoderType; // default: auto (resolver picks best available encoder)
-	bitrateKbps: BitrateKbps;
-	bitrateMode: BitrateMode;
-	channels: EncoderChannelConfig;
-	afterburner: boolean;
-	threads: ThreadSetting;
-	twoloop: boolean;
-}
 
 // Job Type for batch processing (Issue #81)
 export type JobType = GeneratedJobType;
@@ -115,7 +106,7 @@ export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, '
 // Default encoder settings with runtime auto resolution.
 // Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.
 export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
-	return {
+	const defaults = {
 		encoderType: 'auto',
 		bitrateKbps: 64,
 		bitrateMode: { mode: 'vbr', value: 3 },
@@ -123,7 +114,8 @@ export const getDefaultEncoderSettingsForPlatform = (): EncoderSettings => {
 		afterburner: true,
 		threads: { mode: 'auto' },
 		twoloop: true,
-	};
+	} satisfies EncoderSettings;
+	return defaults;
 };
 
 // Default encoder settings (delegates to platform-aware helper)

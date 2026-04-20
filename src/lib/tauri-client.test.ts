@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defaultEncoderSettings } from '../types/audio';
+import { defaultEncoderSettings, type EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
 
 // Note: Tauri APIs are auto-mocked by src/test/setup.ts
@@ -223,6 +223,37 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.externalToolchain).toEqual({
 			overridePath: '/opt/toolchains/ffmpeg',
 		});
+	});
+
+	it('preserves a boundary encoder payload with omitted twoloop through validate_encoder_settings', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
+
+		const boundarySettings = {
+			encoderType: 'native_aac',
+			bitrateKbps: 96,
+			bitrateMode: { mode: 'cbr' },
+			channels: 'stereo',
+			afterburner: false,
+			threads: { mode: 'auto' },
+		} satisfies EncoderSettings;
+
+		const { tauriClient } = await import('./tauri/client');
+		await tauriClient.validateEncoderSettings(boundarySettings);
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{
+				settings: Record<string, unknown>;
+				externalToolchain: { overridePath: string | null } | null;
+			},
+		];
+		expect(commandName).toBe('validate_encoder_settings');
+		expect(args.settings).toEqual(boundarySettings);
+		expect('twoloop' in args.settings).toBe(false);
+		expect(args.externalToolchain).toBeNull();
 	});
 
 	it('denormalizes external toolchain input for list_available_encoders', async () => {

@@ -187,7 +187,7 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	return {
 		inputFiles: payload.inputFiles,
 		outputDir: payload.outputDir,
-		settings: payload.settings as GeneratedProcessPayload['settings'],
+		settings: payload.settings,
 		...nullableFields,
 	};
 }
