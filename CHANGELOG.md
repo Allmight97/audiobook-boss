@@ -15,6 +15,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.8] - 2026-04-20
+
+Release follow-through for the durable output-contract branch, plus the final
+status-panel and collision-dialog refinements needed to ship it cleanly.
+
+### Added
+
+- Existing-file collision preflight and one batch-wide resolution flow with
+  explicit overwrite, keep-existing, and skip-existing choices before work
+  starts.
+
+### Changed
+
+- Decoder/toolchain routing now uses stable decoder IDs at runtime while
+  keeping friendly labels as display-only UI text.
+- Preview and final outputs now share one backend-owned output plan and
+  finalization contract, including `.preview.m4b` path resolution.
+- Collision dialog copy and layout were tightened for clearer existing-file
+  review without changing policy behavior.
+- `track` and `disk` remain readable for compatibility but are no longer part
+  of ABB's supported writable metadata contract.
+
+### Fixed
+
+- Existing output files are no longer replaced unless the user explicitly
+  selects that policy, and finalization now re-checks destination occupancy
+  before commit.
+- Skipped batch rows now emit truthful terminal progress, all-skipped runs no
+  longer surface as success, and skipped rows are preserved if cancellation
+  arrives later.
+- Hidden env-driven preview fallback was removed so normal processing no longer
+  drifts into preview behavior without an explicit request.
+- Frontend progress/status types now include the `skipped` terminal wire stage,
+  keeping the TypeScript build aligned with regenerated Rust bindings.
+
 ## [1.0.7] - 2026-04-19
 
 Focused contract-hardening release that makes output collision handling explicit
