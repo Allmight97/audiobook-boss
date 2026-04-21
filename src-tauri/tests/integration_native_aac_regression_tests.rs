@@ -3,8 +3,14 @@ use audiobook_boss_lib::audio::settings_encoder::{
 };
 use audiobook_boss_lib::audio::{self, OutputConfig, SampleRateConfig};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tempfile::TempDir;
+use tokio::sync::Mutex;
+
+fn native_aac_test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 fn sample_mp3_path() -> Option<PathBuf> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -30,6 +36,7 @@ fn preview_output_path(output: &Path) -> PathBuf {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn native_aac_regression_encodes_valid_output() {
+    let _guard = native_aac_test_lock().lock().await;
     let input_path = match sample_mp3_path() {
         Some(path) => path,
         None => {
@@ -86,6 +93,7 @@ async fn native_aac_regression_encodes_valid_output() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn native_aac_preview_stops_near_requested_boundary() {
+    let _guard = native_aac_test_lock().lock().await;
     let input_path = match sample_mp3_path() {
         Some(path) => path,
         None => {

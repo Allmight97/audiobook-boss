@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.9] - 2026-04-20
+
+Focused contract-truth release that closes the remaining metadata proof gaps,
+hardens fallback sunset enforcement, and reduces handwritten encoder boundary
+drift at the Tauri edge.
+
+### Changed
+
+- Preview and full metadata proof now explicitly cover source-derived cover art
+  preservation, multi-input chapter behavior, external-FDK preview parity, and
+  ffmpeg-path `track` / `disk` reads.
+- TypeScript encoder/process boundary types now derive from generated Tauri
+  bindings more directly, keeping UI-only wrappers explicit while making Rust
+  contract drift fail loudly.
+
+### Fixed
+
+- Fallback policy expiry and renewal checks now validate real calendar dates
+  instead of accepting impossible `YYYY-MM-DD` values.
+- Preview metadata behavior is now proven against both native and external
+  processing paths, including exact cover-art byte preservation and truthful
+  preview chapter suppression.
+- FFmpeg-only and forced-fallback metadata reads now hydrate `track` and `disk`
+  truthfully instead of leaving that proof limited to the mp4ameta path.
+
 ## [1.0.8] - 2026-04-20
 
 Release follow-through for the durable output-contract branch, plus the final
