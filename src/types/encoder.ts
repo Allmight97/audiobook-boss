@@ -197,7 +197,12 @@ const normalizeBoundary = (candidate: EncoderSettings, base: EncoderSettings): E
 	const bitrateMode = sanitizeBitrateMode(candidate.bitrateMode, encoderType, base.bitrateMode);
 	const channels = sanitizeChannels(candidate.channels, base.channels);
 	const threads = sanitizeThreads(candidate.threads, base.threads);
-	const afterburner = encoderType === 'fdk_he_aac' ? !!candidate.afterburner : false;
+	const afterburner =
+		encoderType === 'fdk_he_aac' || encoderType === 'auto'
+			? typeof candidate.afterburner === 'boolean'
+				? candidate.afterburner
+				: base.afterburner
+			: false;
 
 	return {
 		encoderType,
@@ -226,7 +231,10 @@ export const toBoundaryEncoderSettings = (
 	const bitrateMode = sanitizeBitrateMode(ui.bitrateMode, encoderType, base.bitrateMode);
 	const channels = sanitizeChannels(ui.channels, base.channels);
 	const threads = sanitizeThreads(ui.threads ?? base.threads, base.threads);
-	const afterburner = encoderType === 'fdk_he_aac' ? !!ui.fdkAfterburner : false;
+	const afterburner =
+		encoderType === 'fdk_he_aac' || encoderType === 'auto'
+			? (ui.fdkAfterburner ?? base.afterburner)
+			: false;
 
 	return {
 		encoderType,

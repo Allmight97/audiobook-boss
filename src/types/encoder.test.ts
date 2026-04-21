@@ -13,6 +13,16 @@ describe('toBoundaryEncoderSettings', () => {
 		expect(toBoundaryEncoderSettings(defaults)).toEqual(defaults);
 	});
 
+	it('preserves afterburner on auto boundary payloads so auto-FDK keeps the user preference', () => {
+		const boundary = {
+			...defaultEncoderSettings(),
+			encoderType: 'auto',
+			afterburner: true,
+		} satisfies EncoderSettings;
+
+		expect(toBoundaryEncoderSettings(boundary)).toEqual(boundary);
+	});
+
 	it('preserves a valid boundary encoder payload when twoloop is omitted', () => {
 		const boundary = {
 			encoderType: 'native_aac',
@@ -42,7 +52,7 @@ describe('toBoundaryEncoderSettings', () => {
 		const normalized = toBoundaryEncoderSettings(malformed, defaults);
 
 		expect(normalized.encoderType).toBe(defaults.encoderType);
-		expect(normalized.afterburner).toBe(false);
+		expect(normalized.afterburner).toBe(defaults.afterburner);
 		expect(normalized.threads).toEqual(defaults.threads);
 		expect(normalized.twoloop).toBe(defaults.twoloop);
 	});
@@ -52,5 +62,15 @@ describe('toBoundaryEncoderSettings', () => {
 		const normalized = toBoundaryEncoderSettings({ flavor: 'bogus' as never }, defaults);
 
 		expect(normalized.encoderType).toBe(defaults.encoderType);
+	});
+
+	it('preserves the FDK afterburner preference when UI flavor is auto', () => {
+		const normalized = toBoundaryEncoderSettings({
+			flavor: 'auto',
+			fdkAfterburner: true,
+		});
+
+		expect(normalized.encoderType).toBe('auto');
+		expect(normalized.afterburner).toBe(true);
 	});
 });

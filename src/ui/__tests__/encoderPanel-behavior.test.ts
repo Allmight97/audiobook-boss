@@ -106,6 +106,25 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
+	it('keeps afterburner enabled in output state when auto resolves to FDK', async () => {
+		context.listAvailableEncodersMock.mockResolvedValue(
+			availabilityFixture({
+				fdkAvailable: true,
+				aacAtAvailable: true,
+				nativeAacAvailable: true,
+			}),
+		);
+
+		const { initEncoderPanel } = await import('../encoderPanel');
+		render(EncoderPanelIsland);
+		initEncoderPanel();
+
+		await vi.waitFor(() => {
+			expect(outputPanelState.encoderSettings.encoderType).toBe('auto');
+			expect(outputPanelState.encoderSettings.afterburner).toBe(true);
+		});
+	});
+
 	it('shows twoloop only for manual Native AAC and hides all behavior controls for Apple AAC', async () => {
 		context.listAvailableEncodersMock.mockResolvedValue(
 			availabilityFixture({
