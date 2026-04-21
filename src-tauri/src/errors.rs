@@ -217,11 +217,8 @@ impl From<AppError> for tauri::ipc::InvokeError {
 }
 
 impl specta::Type for AppError {
-    fn inline(
-        type_map: &mut specta::TypeCollection,
-        generics: specta::Generics,
-    ) -> specta::datatype::DataType {
-        <String as specta::Type>::inline(type_map, generics)
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        <String as specta::Type>::definition(types)
     }
 }
 

@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterAll, describe, expect, it } from 'bun:test';
 
 import {
 	assertSupportedMacOsHost,
@@ -40,7 +40,7 @@ function createRepoFixture(): { applicationsDir: string; repoRoot: string } {
 	return { applicationsDir, repoRoot };
 }
 
-afterEach(() => {
+afterAll(() => {
 	for (const tempRoot of tempRoots.splice(0, tempRoots.length)) {
 		rmSync(tempRoot, { force: true, recursive: true });
 	}

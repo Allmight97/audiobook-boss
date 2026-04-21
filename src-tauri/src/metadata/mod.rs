@@ -65,7 +65,6 @@ pub struct AudiobookMetadata {
     /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
     pub album_sort: Option<String>,
     /// Cover art as raw bytes
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover_art: Option<Vec<u8>>,
 }
 

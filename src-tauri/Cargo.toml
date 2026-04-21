@@ -16,32 +16,32 @@ name = "audiobook_boss_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.3", features = [] }
+tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
-tauri = { version = "2.10.1", features = [] }
+tauri = { version = "2.10.3", features = [] }
 tauri-plugin-opener = "2.5.3"
-tauri-plugin-dialog = "2.6.0"
+tauri-plugin-dialog = "2.7.0"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.148"
-thiserror = "2.0.17"
-tokio = { version = "1.48.0", features = ["full"] }
-anyhow = "1.0.100"
-clap = { version = "4.5.32", features = ["derive"] }
-uuid = { version = "1.19.0", features = ["v4"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+tokio = { version = "1.52.1", features = ["full"] }
+anyhow = "1.0.102"
+clap = { version = "4.6.1", features = ["derive"] }
+uuid = { version = "1.23.1", features = ["v4"] }
 log = "0.4.29"
-env_logger = "0.11.8"
+env_logger = "0.11.10"
 num_cpus = "1.17.0"
 ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
-image = { version = "0.25.9", default-features = false, features = ["jpeg", "png", "webp"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
-chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
-specta = "=2.0.0-rc.22"
-specta-typescript = "=0.0.9"
-tauri-specta = { version = "=2.0.0-rc.21", features = ["typescript"] }
+specta = "=2.0.0-rc.24"
+specta-typescript = "=0.0.11"
+tauri-specta = { version = "=2.0.0-rc.24", features = ["typescript"] }
 urlencoding = "2.1.3"
 
 [features]
@@ -54,6 +54,6 @@ default = []
 bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
 
 [dev-dependencies]
-tempfile = "3.24.0"
-tauri = { version = "2.10.1", features = ["test"] }
-futures = "0.3.31"
+tempfile = "3.27.0"
+tauri = { version = "2.10.3", features = ["test"] }
+futures = "0.3.32"

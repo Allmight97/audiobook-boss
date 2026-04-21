@@ -48,20 +48,23 @@ stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
 
 append_unique_paths() {
-  local -n dest="$1"
+  local dest_name="$1"
   shift
 
-  local -A seen=()
+  local seen_paths=$'\n'
   local source_name path
+  local source_values=()
 
-  dest=()
+  eval "$dest_name=()"
   for source_name in "$@"; do
-    local -n source_ref="$source_name"
-    for path in "${source_ref[@]}"; do
+    eval "source_values=(\"\${${source_name}[@]-}\")"
+    for path in "${source_values[@]}"; do
       [[ -e "$path" ]] || continue
-      [[ -n ${seen["$path"]+x} ]] && continue
-      seen["$path"]=1
-      dest+=("$path")
+      case "$seen_paths" in
+        *$'\n'"$path"$'\n'*) continue ;;
+      esac
+      seen_paths+="$path"$'\n'
+      eval "$dest_name+=(\"\$path\")"
     done
   done
 }

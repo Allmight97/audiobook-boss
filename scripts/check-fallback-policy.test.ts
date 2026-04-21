@@ -1,10 +1,20 @@
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	unlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
-const tempRoots: string[] = [];
+const SYSTEM_BASH = '/bin/bash';
+const SYSTEM_GIT = '/usr/bin/git';
+const TEST_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 
 function runOrThrow(
 	command: string,
@@ -35,7 +45,6 @@ function runOrThrow(
 
 function createFixtureRepo(auditStatus = 'OK'): string {
 	const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'abb-fallback-policy-'));
-	tempRoots.push(repoRoot);
 
 	mkdirSync(path.join(repoRoot, 'docs'), { recursive: true });
 	mkdirSync(path.join(repoRoot, 'scripts'), { recursive: true });
@@ -72,11 +81,11 @@ function createFixtureRepo(auditStatus = 'OK'): string {
 		].join('\n'),
 	);
 
-	runOrThrow('git', ['init'], { cwd: repoRoot });
-	runOrThrow('git', ['config', 'user.name', 'Codex Test'], { cwd: repoRoot });
-	runOrThrow('git', ['config', 'user.email', 'codex@example.com'], { cwd: repoRoot });
-	runOrThrow('git', ['add', '.'], { cwd: repoRoot });
-	runOrThrow('git', ['commit', '-m', 'test: initial fallback fixture'], { cwd: repoRoot });
+	runOrThrow(SYSTEM_GIT, ['init'], { cwd: repoRoot, env: { ...process.env, PATH: TEST_PATH } });
+	runOrThrow(SYSTEM_GIT, ['config', 'user.name', 'Codex Test'], { cwd: repoRoot });
+	runOrThrow(SYSTEM_GIT, ['config', 'user.email', 'codex@example.com'], { cwd: repoRoot });
+	runOrThrow(SYSTEM_GIT, ['add', '.'], { cwd: repoRoot });
+	runOrThrow(SYSTEM_GIT, ['commit', '-m', 'test: initial fallback fixture'], { cwd: repoRoot });
 
 	return repoRoot;
 }
@@ -84,96 +93,130 @@ function createFixtureRepo(auditStatus = 'OK'): string {
 function runFallbackPolicy(
 	repoRoot: string,
 	options?: { today?: string },
-): ReturnType<typeof spawnSync> {
-	return spawnSync('bash', ['scripts/check-fallback-policy.sh'], {
-		cwd: repoRoot,
-		encoding: 'utf8',
-		env: {
-			...process.env,
-			...(options?.today ? { ABB_TODAY: options.today } : {}),
+): { status: number | null; stdout: string; stderr: string } {
+	const env = {
+		HOME: process.env.HOME ?? '',
+		PATH: TEST_PATH,
+		TMPDIR: process.env.TMPDIR ?? '',
+		...(options?.today ? { ABB_TODAY: options.today } : {}),
+	};
+	const stdoutPath = path.join(repoRoot, '.fallback-policy.stdout');
+	const stderrPath = path.join(repoRoot, '.fallback-policy.stderr');
+
+	for (const outputPath of [stdoutPath, stderrPath]) {
+		try {
+			unlinkSync(outputPath);
+		} catch {}
+	}
+
+	const result = spawnSync(
+		SYSTEM_BASH,
+		[
+			'-c',
+			'./scripts/check-fallback-policy.sh > .fallback-policy.stdout 2> .fallback-policy.stderr',
+		],
+		{
+			cwd: repoRoot,
+			encoding: 'utf8',
+			env,
 		},
-	});
+	);
+
+	return {
+		status: result.status,
+		stdout: readFileSync(stdoutPath, 'utf8'),
+		stderr: readFileSync(stderrPath, 'utf8'),
+	};
 }
 
-afterEach(() => {
-	for (const tempRoot of tempRoots.splice(0, tempRoots.length)) {
-		rmSync(tempRoot, { force: true, recursive: true });
-	}
-});
-
 describe('check-fallback-policy.sh', () => {
-	it('rejects invalid ABB_TODAY values', () => {
-		const repoRoot = createFixtureRepo();
-		const result = runFallbackPolicy(repoRoot, { today: '2026-13-01' });
+	it('covers invalid dates, renewals, and malformed fallback metadata', () => {
+		const assertScenario = (
+			auditStatus: string,
+			today: string,
+			verify: (repoRoot: string, result: ReturnType<typeof runFallbackPolicy>) => void,
+		): void => {
+			const repoRoot = createFixtureRepo(auditStatus);
 
-		expect(result.status).toBe(1);
-		expect(result.stderr).toContain("Invalid ABB_TODAY value '2026-13-01'");
-	});
+			try {
+				const result = runFallbackPolicy(repoRoot, { today });
+				verify(repoRoot, result);
+			} finally {
+				rmSync(repoRoot, { force: true, recursive: true });
+			}
+		};
 
-	it('accepts a valid renewal that extends the sunset', () => {
-		const repoRoot = createFixtureRepo('renewal=2026-04-21; reason=fixture extension');
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
+		assertScenario('OK', '2026-13-01', (_repoRoot, result) => {
+			expect(result.status).toBe(1);
+			expect(result.stderr).toContain("Invalid ABB_TODAY value '2026-13-01'");
+		});
 
-		expect(result.status).toBe(0);
-		expect(result.stdout).toContain('[fallback-policy] OK');
-	});
-
-	it('rejects malformed register sunset dates', () => {
-		const repoRoot = createFixtureRepo();
-		const docsPath = path.join(repoRoot, 'docs', 'fallbacks.md');
-		writeFileSync(
-			docsPath,
-			readFileSync(docsPath, 'utf8').replace('| 2026-04-20 |', '| 2026-13-01 |'),
+		assertScenario(
+			'renewal=2026-04-21; reason=fixture extension',
+			'2026-04-20',
+			(_repoRoot, result) => {
+				expect(result.status).toBe(0);
+				expect(result.stdout).toContain('[fallback-policy] OK');
+			},
 		);
 
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
+		assertScenario('OK', '2026-04-20', (repoRoot, result) => {
+			const docsPath = path.join(repoRoot, 'docs', 'fallbacks.md');
+			writeFileSync(
+				docsPath,
+				readFileSync(docsPath, 'utf8').replace('| 2026-04-20 |', '| 2026-13-01 |'),
+			);
 
-		expect(result.status).toBe(1);
-		expect(result.stdout).toContain("has malformed sunset '2026-13-01'");
-	});
+			const updatedResult = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
+			expect(updatedResult.status).toBe(1);
+			expect(updatedResult.stdout).toContain("has malformed sunset '2026-13-01'");
+			expect(result.status).toBe(0);
+		});
 
-	it('rejects malformed marker sunset dates', () => {
-		const repoRoot = createFixtureRepo();
-		const markerPath = path.join(repoRoot, 'src', 'fallback-fixture.sh');
-		writeFileSync(
-			markerPath,
-			readFileSync(markerPath, 'utf8').replace('// sunset=2026-04-20', '// sunset=2026-13-01'),
+		assertScenario('OK', '2026-04-20', (repoRoot, _result) => {
+			const markerPath = path.join(repoRoot, 'src', 'fallback-fixture.sh');
+			writeFileSync(
+				markerPath,
+				readFileSync(markerPath, 'utf8').replace('// sunset=2026-04-20', '// sunset=2026-13-01'),
+			);
+
+			const updatedResult = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
+			expect(updatedResult.status).toBe(1);
+			expect(updatedResult.stdout).toContain("has malformed sunset '2026-13-01'");
+		});
+
+		assertScenario(
+			'renewal=2026-04-20; reason=fixture extension',
+			'2026-04-20',
+			(_repoRoot, result) => {
+				expect(result.status).toBe(1);
+				expect(result.stdout).toContain(
+					"renewal date '2026-04-20' does not extend sunset '2026-04-20'",
+				);
+				expect(result.stdout).not.toContain('expired on 2026-04-20');
+			},
 		);
 
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
-
-		expect(result.status).toBe(1);
-		expect(result.stdout).toContain("has malformed sunset '2026-13-01'");
-	});
-
-	it('rejects equal-date renewals', () => {
-		const repoRoot = createFixtureRepo('renewal=2026-04-20; reason=fixture extension');
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
-
-		expect(result.status).toBe(1);
-		expect(result.stdout).toContain(
-			"renewal date '2026-04-20' does not extend sunset '2026-04-20'",
+		assertScenario(
+			'renewal=2026-04-19; reason=fixture extension',
+			'2026-04-20',
+			(_repoRoot, result) => {
+				expect(result.status).toBe(1);
+				expect(result.stdout).toContain(
+					"renewal date '2026-04-19' does not extend sunset '2026-04-20'",
+				);
+				expect(result.stdout).not.toContain('expired on 2026-04-19');
+			},
 		);
-		expect(result.stdout).not.toContain('expired on 2026-04-20');
-	});
 
-	it('rejects backward renewals without treating them as expiry deadlines', () => {
-		const repoRoot = createFixtureRepo('renewal=2026-04-19; reason=fixture extension');
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
-
-		expect(result.status).toBe(1);
-		expect(result.stdout).toContain(
-			"renewal date '2026-04-19' does not extend sunset '2026-04-20'",
+		assertScenario(
+			'renewal=2026-13-01; reason=fixture extension',
+			'2026-04-20',
+			(_repoRoot, result) => {
+				expect(result.status).toBe(1);
+				expect(result.stdout).toContain("has malformed renewal date '2026-13-01'");
+				expect(result.stdout).not.toContain('expired on 2026-13-01');
+			},
 		);
-		expect(result.stdout).not.toContain('expired on 2026-04-19');
-	});
-
-	it('rejects malformed renewal calendar dates', () => {
-		const repoRoot = createFixtureRepo('renewal=2026-13-01; reason=fixture extension');
-		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
-
-		expect(result.status).toBe(1);
-		expect(result.stdout).toContain("has malformed renewal date '2026-13-01'");
-		expect(result.stdout).not.toContain('expired on 2026-13-01');
 	});
 });

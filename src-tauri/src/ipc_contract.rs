@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use specta_typescript::{BigIntExportBehavior, Typescript};
+use specta_typescript::Typescript;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
 pub fn builder() -> Builder<tauri::Wry> {
@@ -49,19 +49,9 @@ pub fn export_typescript_bindings() -> std::result::Result<(), Box<dyn std::erro
         std::fs::create_dir_all(parent)?;
     }
 
-    builder().export(
-        Typescript::default().bigint(BigIntExportBehavior::Number),
-        &output_path,
-    )?;
+    builder().export(Typescript::default(), &output_path)?;
 
-    let mut generated = std::fs::read_to_string(&output_path)?;
-    if !generated.contains("void TAURI_CHANNEL;") {
-        // Appending is more robust than relying on a specific generated import string.
-        generated.push_str(
-            "\n\n// Injected by export_bindings.rs to prevent tree-shaking of TAURI_CHANNEL.\nvoid TAURI_CHANNEL;\n",
-        );
-    }
-
+    let generated = std::fs::read_to_string(&output_path)?;
     let normalized = trim_generated_typescript(&generated);
     if normalized != generated {
         std::fs::write(&output_path, normalized)?;
@@ -71,6 +61,10 @@ pub fn export_typescript_bindings() -> std::result::Result<(), Box<dyn std::erro
 }
 
 fn trim_generated_typescript(input: &str) -> String {
+    let input = input.replace(
+        "\n\n// Injected by export_bindings.rs to prevent tree-shaking of TAURI_CHANNEL.\nvoid TAURI_CHANNEL;\n",
+        "\n",
+    );
     let mut normalized = String::with_capacity(input.len());
 
     for line in input.split_inclusive('\n') {

@@ -25,6 +25,12 @@ ignore = [
   # Acceptance: transitive unmaintained warning; used for non-cryptographic internal hashing.
   "RUSTSEC-2025-0057",
 
+  # Rand via selectors -> kuchikiki-speedreader -> (wry/tauri-utils).
+  # Acceptance: remaining warning is upstream-only rand 0.7.3; ABB does not install a
+  # logger that re-enters rand::rng()/thread_rng, and the current tauri/wry stack does
+  # not expose a direct top-level patch path.
+  "RUSTSEC-2026-0097",
+
   # Unicode identifier tables via urlpattern -> tauri-utils.
   # Acceptance: transitive unmaintained utility crates with no direct top-level override in current tauri stack.
   "RUSTSEC-2025-0075",
