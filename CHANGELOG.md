@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.10] - 2026-04-20
+
+Focused contract-truth follow-through release that closes the last small
+enforcement and invariant gaps left after the `1.0.9` branch cluster.
+
+### Changed
+
+- Encoder construction now treats unresolved `Auto` as an invariant violation
+  instead of quietly collapsing it to Native AAC behavior.
+- Exported encoder bitrate docs now match the actual validated whitelist,
+  including `104` and `120` kbps, across Rust source and generated bindings.
+- Fallback policy docs now state that marker-side sunsets are validated as real
+  calendar dates, not just register rows.
+
+### Fixed
+
+- `scripts/check-fallback-policy.sh` now rejects malformed source-adjacent
+  `sunset=` metadata instead of only checking that the marker field exists.
+
 ## [1.0.9] - 2026-04-20
 
 Focused contract-truth release that closes the remaining metadata proof gaps,

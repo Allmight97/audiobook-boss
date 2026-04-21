@@ -108,6 +108,12 @@ while IFS= read -r entry; do
   if ! echo "$chunk" | rg -q "sunset="; then
     echo "[fallback-policy] Marker ${marker_id} in ${file}:${line} missing sunset=... metadata."
     missing_meta=1
+  else
+    marker_sunset="$(printf '%s\n' "$chunk" | sed -n 's/.*sunset=\([^[:space:]]*\).*/\1/p' | head -n 1)"
+    if ! is_calendar_date "$marker_sunset"; then
+      echo "[fallback-policy] Marker ${marker_id} in ${file}:${line} has malformed sunset '${marker_sunset}'."
+      missing_meta=1
+    fi
   fi
 
   if [[ -z "$register_line" ]]; then

@@ -1,6 +1,7 @@
 # Fallback Register
 
 Active register for intentional fallback behavior that is still enforced by repo checks.
+Repo checks validate register sunsets, source-adjacent marker sunsets, and any renewal dates as real calendar dates.
 
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |

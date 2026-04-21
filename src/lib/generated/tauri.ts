@@ -387,7 +387,7 @@ export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "overrid
  */
 export type EncoderSettings = { encoderType: EncoderType;
 /**
- * Allowed: 48|56|64|72|80|88|96|112|128 (kbps)
+ * Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps)
  */
 bitrateKbps: number; bitrateMode: BitrateMode; channels: ChannelConfig;
 /**

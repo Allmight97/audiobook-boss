@@ -132,6 +132,20 @@ describe('check-fallback-policy.sh', () => {
 		expect(result.stdout).toContain("has malformed sunset '2026-13-01'");
 	});
 
+	it('rejects malformed marker sunset dates', () => {
+		const repoRoot = createFixtureRepo();
+		const markerPath = path.join(repoRoot, 'src', 'fallback-fixture.sh');
+		writeFileSync(
+			markerPath,
+			readFileSync(markerPath, 'utf8').replace('// sunset=2026-04-20', '// sunset=2026-13-01'),
+		);
+
+		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });
+
+		expect(result.status).toBe(1);
+		expect(result.stdout).toContain("has malformed sunset '2026-13-01'");
+	});
+
 	it('rejects equal-date renewals', () => {
 		const repoRoot = createFixtureRepo('renewal=2026-04-20; reason=fixture extension');
 		const result = runFallbackPolicy(repoRoot, { today: '2026-04-20' });

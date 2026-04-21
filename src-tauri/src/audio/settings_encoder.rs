@@ -78,7 +78,7 @@ pub enum ThreadSetting {
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
-    /// Allowed: 48|56|64|72|80|88|96|112|128 (kbps)
+    /// Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps)
     pub bitrate_kbps: u16,
     pub bitrate_mode: BitrateMode,
     pub channels: ChannelConfig,
@@ -255,7 +255,8 @@ pub fn validate_requested_encoder_available(
 /// This does not open the encoder; it only maps the already-resolved selection.
 pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
     match encoder_type {
-        EncoderType::Auto | EncoderType::NativeAac => "aac",
+        EncoderType::Auto => unreachable!("resolve_encoder_name requires a resolved encoder type"),
+        EncoderType::NativeAac => "aac",
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
     }

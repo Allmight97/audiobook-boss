@@ -65,8 +65,9 @@ pub(crate) fn create_audio_encoder(
     let opts = match resolved_encoder {
         EncoderType::FdkHeAac => build_fdk_options(encoder_settings)?,
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
-        EncoderType::NativeAac | EncoderType::Auto => {
-            build_native_options(&mut opened, encoder_settings)
+        EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
+        EncoderType::Auto => {
+            unreachable!("create_audio_encoder requires a resolved encoder type")
         }
     };
 
