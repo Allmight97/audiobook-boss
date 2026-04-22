@@ -67,18 +67,13 @@ jobs:
       - name: Build release artifact
         run: bun run app:build:dmg
 
-      - name: Resolve DMG artifact
+      - name: Resolve tagged DMG artifact
         id: artifact
         shell: bash
         run: |
           set -euo pipefail
 
-          dmg_path="$(find target/release/bundle/dmg -type f -name '*.dmg' | head -n 1)"
-          if [[ -z "$dmg_path" ]]; then
-            echo "No DMG artifact found under target/release/bundle/dmg." >&2
-            exit 1
-          fi
-
+          dmg_path="$(bun scripts/resolve-release-dmg.ts --version "${{ steps.meta.outputs.version }}")"
           echo "dmg_path=$dmg_path" >> "$GITHUB_OUTPUT"
 
       - name: Create or update GitHub Release

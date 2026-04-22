@@ -139,8 +139,8 @@ echo "Bumping version to $NEW_VERSION..."
 
 # Run build
 echo ""
-echo "Building app..."
-bun run app:build
+echo "Building release DMG..."
+bun run app:build:dmg
 
 echo ""
 echo -e "${GREEN}Build successful!${NC}"

@@ -12,6 +12,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'bun:test';
 
+import { resolveReleaseDmgArtifact } from './resolve-release-dmg';
+
 const SYSTEM_BASH = '/bin/bash';
 const SYSTEM_GIT = '/usr/bin/git';
 const TEST_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
@@ -65,6 +67,7 @@ function createReleaseFixture(): { repoRoot: string } {
 
 	mkdirSync(path.join(repoRoot, 'scripts'), { recursive: true });
 	mkdirSync(path.join(repoRoot, 'scripts', 'lib'), { recursive: true });
+	mkdirSync(path.join(repoRoot, 'src-tauri'), { recursive: true });
 	mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
 
 	runOrThrow(SYSTEM_GIT, ['init'], { cwd: repoRoot, env: { ...process.env, ...TEST_ENV } });
@@ -74,6 +77,10 @@ function createReleaseFixture(): { repoRoot: string } {
 	writeFileSync(
 		path.join(repoRoot, 'package.json'),
 		JSON.stringify({ name: 'audiobook-boss', version: '1.0.4' }, null, 2),
+	);
+	writeFileSync(
+		path.join(repoRoot, 'src-tauri', 'tauri.conf.json'),
+		JSON.stringify({ productName: 'AudioBook Boss' }, null, 2),
 	);
 	writeFileSync(
 		path.join(repoRoot, 'CHANGELOG.md'),
@@ -124,7 +131,7 @@ exit 0
 }
 
 describe('release.sh', () => {
-	it('guards the old preview pipeline and preserves the fixed release proof', () => {
+	it('preflights the dmg release artifact before tagging', () => {
 		const { repoRoot } = createReleaseFixture();
 
 		try {
@@ -175,7 +182,7 @@ describe('release.sh', () => {
 				expect(stderr).toBe('');
 				expect(readFileSync(path.join(repoRoot, '.stub-log'), 'utf8')).toContain('bump:1.0.5');
 				expect(readFileSync(path.join(repoRoot, '.stub-log'), 'utf8')).toContain(
-					'bun:run app:build',
+					'bun:run app:build:dmg',
 				);
 			} finally {
 				rmSync(outputRoot, { force: true, recursive: true });
@@ -184,4 +191,40 @@ describe('release.sh', () => {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
 	}, 30000);
+});
+
+describe('resolveReleaseDmgArtifact', () => {
+	it('resolves the single version-matching dmg artifact', () => {
+		const { repoRoot } = createReleaseFixture();
+
+		try {
+			const bundleDir = path.join(repoRoot, 'target', 'release', 'bundle', 'dmg');
+			mkdirSync(bundleDir, { recursive: true });
+			const dmgPath = path.join(bundleDir, 'AudioBook Boss_1.0.5_aarch64.dmg');
+			writeFileSync(dmgPath, '');
+
+			expect(resolveReleaseDmgArtifact(repoRoot, '1.0.5')).toBe(
+				path.join(bundleDir, 'AudioBook Boss_1.0.5_aarch64.dmg'),
+			);
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
+
+	it('fails when multiple dmg artifacts match the tagged version', () => {
+		const { repoRoot } = createReleaseFixture();
+
+		try {
+			const bundleDir = path.join(repoRoot, 'target', 'release', 'bundle', 'dmg');
+			mkdirSync(bundleDir, { recursive: true });
+			writeFileSync(path.join(bundleDir, 'AudioBook Boss_1.0.5_aarch64.dmg'), '');
+			writeFileSync(path.join(bundleDir, 'AudioBook Boss_1.0.5_x64.dmg'), '');
+
+			expect(() => resolveReleaseDmgArtifact(repoRoot, '1.0.5')).toThrow(
+				'Expected exactly one DMG for release 1.0.5, found 2.',
+			);
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
 });

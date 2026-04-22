@@ -55,8 +55,10 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - Release: `bun run release:notes`, `bun run release:run`
+  `bun run app:build` remains the direct local `.app` path.
+  `bun run release:run` now preflights the DMG release artifact.
   GitHub Releases are published from pushed `v*` tags and use the matching
-  `CHANGELOG.md` section as the release body.
+  `CHANGELOG.md` section as the release body and attach the versioned DMG.
 
 ## Project Operation
 
