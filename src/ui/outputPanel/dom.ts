@@ -198,7 +198,7 @@ function calculateEstimatedSize(totalDurationSeconds: number): number {
 
 export function updateEstimatedSize(): void {
 	const fileList = getCurrentFileList();
-	if (!fileList || !fileList.files.length) {
+	if (!fileList?.files.length) {
 		setEstimatedSizeText('~ --- MB');
 		return;
 	}

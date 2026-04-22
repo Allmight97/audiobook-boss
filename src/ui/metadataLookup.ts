@@ -336,7 +336,7 @@ export function openMetadataLookup(): void {
 	const queue = selectedIndices
 		.map((index) => {
 			const file = fileList?.files[index];
-			if (!file || !file.isValid) return null;
+			if (!file?.isValid) return null;
 			return { file, index };
 		})
 		.filter((item): item is LookupQueueItem => Boolean(item));

@@ -594,7 +594,7 @@ export class StatusPanelController {
 
 	private async updateArtThumbnail(): Promise<void> {
 		const fileList = getCurrentFileList();
-		if (!fileList || !fileList.files.length) {
+		if (!fileList?.files.length) {
 			dom.resetArtThumbnail();
 			return;
 		}

@@ -153,6 +153,23 @@ Compatibility flags:
 `);
 }
 
+function benchSupportsMode(bench, mode) {
+	if (!Array.isArray(bench.supportedModes) || bench.supportedModes.length === 0) {
+		return true;
+	}
+	return bench.supportedModes.includes(mode);
+}
+
+function filterBenchNamesForMode(names, mode) {
+	return names.filter((name) => {
+		const bench = BENCHMARKS_BY_NAME.get(name);
+		if (!bench) {
+			throw new Error(`Unknown benchmark '${name}' in selection list.`);
+		}
+		return benchSupportsMode(bench, mode);
+	});
+}
+
 function resolveBenchSelection(parsed) {
 	if (parsed.benchScope) {
 		if (parsed.benchScope === 'single') {
@@ -163,12 +180,13 @@ function resolveBenchSelection(parsed) {
 			return [name];
 		}
 		if (parsed.benchScope === 'core3') {
-			return CORE3_BENCH_NAMES;
+			return filterBenchNamesForMode(CORE3_BENCH_NAMES, parsed.mode);
 		}
 		if (parsed.benchScope === 'all') {
-			return parsed.includePhase2
-				? [...PHASE1_BENCH_NAMES, ...PHASE2_BENCH_NAMES]
-				: PHASE1_BENCH_NAMES;
+			return filterBenchNamesForMode(
+				parsed.includePhase2 ? [...PHASE1_BENCH_NAMES, ...PHASE2_BENCH_NAMES] : PHASE1_BENCH_NAMES,
+				parsed.mode,
+			);
 		}
 		throw new Error(`Unsupported --bench-scope '${parsed.benchScope}'.`);
 	}
@@ -178,9 +196,10 @@ function resolveBenchSelection(parsed) {
 	}
 
 	if (parsed.all) {
-		return parsed.includePhase2
-			? [...PHASE1_BENCH_NAMES, ...PHASE2_BENCH_NAMES]
-			: PHASE1_BENCH_NAMES;
+		return filterBenchNamesForMode(
+			parsed.includePhase2 ? [...PHASE1_BENCH_NAMES, ...PHASE2_BENCH_NAMES] : PHASE1_BENCH_NAMES,
+			parsed.mode,
+		);
 	}
 
 	throw new Error('Select benchmarks with --bench <name> or --all.');
@@ -191,6 +210,9 @@ function listBenchmarks() {
 	BENCHMARKS.forEach((bench) => {
 		console.log(`  ${bench.name} (phase ${bench.phase})`);
 		console.log(`    Metric: ${bench.metricType} (${bench.direction.replace(/_/g, ' ')})`);
+		if (Array.isArray(bench.supportedModes) && bench.supportedModes.length > 0) {
+			console.log(`    Modes: ${bench.supportedModes.join(', ')}`);
+		}
 		if (bench.userImpact) {
 			console.log(`    Impact: ${bench.userImpact}`);
 		}

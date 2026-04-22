@@ -749,6 +749,14 @@ textarea:hover:not(:focus) {
 	align-items: flex-end;
 }
 
+.checkbox-label {
+	display: flex;
+	align-items: center;
+	margin-top: 0.5rem;
+	font-size: 0.875rem;
+	color: var(--text-primary);
+}
+
 .metadata-lookup-field-toggle .checkbox-label {
 	display: flex;
 	align-items: center;
@@ -1053,14 +1061,6 @@ textarea:hover:not(:focus) {
 }
 
 /* Checkbox styling */
-.checkbox-label {
-	display: flex;
-	align-items: center;
-	margin-top: 0.5rem;
-	font-size: 0.875rem;
-	color: var(--text-primary);
-}
-
 .checkbox-label input[type="checkbox"] {
 	width: auto;
 	margin-right: 0.5rem;
@@ -1229,6 +1229,11 @@ textarea:hover:not(:focus) {
 }
 
 /* Art thumbnail in status bar */
+.art-thumbnail {
+	width: 40px;
+	height: 40px;
+}
+
 .status-panel-content .art-thumbnail {
 	height: 3rem;
 	width: 3rem;
@@ -1578,11 +1583,6 @@ textarea {
 /* Compact status panel */
 .status-panel {
 	padding: 0.5rem 0.75rem;
-}
-
-.art-thumbnail {
-	width: 40px;
-	height: 40px;
 }
 
 .progress-bar-bg {

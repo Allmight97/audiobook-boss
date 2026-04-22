@@ -15,6 +15,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.11] - 2026-04-21
+
+Repo-hygiene and perf-signal cleanup release that removes the last standing
+Biome warning noise from current `main`, splits the overloaded metadata perf
+lane into honest synthetic vs network-probe semantics, and defers the broader
+settings-panel and metadata-routing work into durable issue owners.
+
+### Added
+
+- A dedicated `metadata-lookup-network-probe` perf benchmark for optional
+  external metadata-provider latency measurement in real mode.
+- Follow-on issue `#269` to design a basic user-accessible settings panel and
+  move durable preferences out of scattered frontend persistence.
+- Follow-on issue `#270` to replace suffix-based metadata routing with shared
+  container classification and retire `FB-001`.
+
+### Changed
+
+- `metadata-lookup-latency` is now a synthetic-only benchmark for deterministic
+  local parsing/mapping work instead of overloading real-mode runs with hidden
+  synthetic fallback behavior.
+- Perf benchmark selection now respects supported modes so `--all` and
+  `--bench-scope core3` do not fabricate inapplicable metadata results.
+- Shared checkbox and art-thumbnail CSS rules now follow intentional base-first,
+  override-later cascade order so Biome’s selector-specificity lint stays
+  meaningful.
+
+### Fixed
+
+- Removed the `FB-016` path where real metadata perf runs silently recorded
+  synthetic numbers as successful real-mode results.
+- Eliminated the remaining Biome warning noise on current `main`, including the
+  repeated manual null-guard patterns Biome was flagging for optional chaining.
+
 ## [1.0.10] - 2026-04-20
 
 Focused contract-truth follow-through release that closes the last small

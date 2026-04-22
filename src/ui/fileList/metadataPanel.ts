@@ -240,7 +240,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 	try {
 		if (getHasCustomCoverArt()) return;
 		const fileList = getCurrentFileList();
-		if (!fileList || !fileList.files.length) {
+		if (!fileList?.files.length) {
 			setCoverArt(null);
 			return;
 		}

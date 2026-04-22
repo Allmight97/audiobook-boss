@@ -1,17 +1,7 @@
-const ALLOWED_REGIONS = new Set(['au', 'ca', 'de', 'es', 'fr', 'in', 'it', 'jp', 'us', 'uk']);
-
 const SYNTHETIC_WORKLOAD = {
 	queryCount: 200,
 	loops: 100,
 	itemCount: 120,
-};
-
-const REAL_WORKLOAD = {
-	requests: [
-		'https://api.audible.com/1.0/catalog/products?response_groups=contributors,product_desc,product_attrs,product_extended_attrs,media,product_details,series&products_sort_by=Relevance&num_results=3&image_sizes=500,1024&keywords=project%20hail%20mary',
-		'https://api.audnex.us/books/B08G9PRS1K?region=us',
-	],
-	timeoutMs: 12000,
 };
 
 function extractAsin(query) {
@@ -31,7 +21,7 @@ function extractRegionOverride(query) {
 	for (let i = 0; i <= query.length - 4; i += 1) {
 		if (query[i] !== '[' || query[i + 3] !== ']') continue;
 		const region = query.slice(i + 1, i + 3).toLowerCase();
-		if (ALLOWED_REGIONS.has(region)) {
+		if (['au', 'ca', 'de', 'es', 'fr', 'in', 'it', 'jp', 'us', 'uk'].includes(region)) {
 			return region;
 		}
 	}
@@ -144,105 +134,21 @@ function runSyntheticMetadataBench() {
 	};
 }
 
-async function fetchWithTiming(url, timeoutMs) {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-	const started = performance.now();
-	try {
-		const response = await fetch(url, {
-			signal: controller.signal,
-			headers: {
-				'user-agent': 'audiobook-boss-perf/1.0',
-			},
-		});
-
-		const text = await response.text();
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`);
-		}
-
-		return {
-			ok: true,
-			elapsedMs: performance.now() - started,
-			bytes: text.length,
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			elapsedMs: performance.now() - started,
-			error: error instanceof Error ? error.message : String(error),
-		};
-	} finally {
-		clearTimeout(timer);
-	}
-}
-
-async function runRealMetadataBench() {
-	const allowNetwork = process.env.ABB_PERF_ALLOW_NETWORK === '1';
-	if (!allowNetwork) {
-		// FALLBACK[FB-016]: trigger=network mode disabled for deterministic local perf runs
-		// observe=result details include mode=fixture-fallback + fallback_reason
-		// sunset=2026-06-30 issue=#195
-		const fallback = runSyntheticMetadataBench();
-		return {
-			...fallback,
-			details: {
-				...fallback.details,
-				mode: 'fixture-fallback',
-				fallback_reason: 'Set ABB_PERF_ALLOW_NETWORK=1 to enable network requests.',
-			},
-		};
-	}
-
-	const samples = [];
-	for (const url of REAL_WORKLOAD.requests) {
-		const sample = await fetchWithTiming(url, REAL_WORKLOAD.timeoutMs);
-		if (sample.ok) {
-			samples.push(sample);
-			continue;
-		}
-
-		// FALLBACK[FB-016]: trigger=real network request fails mid-benchmark sequence
-		// observe=result details include failing URL and fallback_reason
-		// sunset=2026-06-30 issue=#195
-		const fallback = runSyntheticMetadataBench();
-		return {
-			...fallback,
-			details: {
-				...fallback.details,
-				mode: 'fixture-fallback',
-				fallback_reason: `Network request failed for ${url}: ${sample.error}`,
-			},
-		};
-	}
-
-	const elapsed = samples.map((sample) => sample.elapsedMs);
-	const avgElapsed = elapsed.reduce((sum, value) => sum + value, 0) / elapsed.length;
-
-	return {
-		value: avgElapsed,
-		details: {
-			mode: 'real',
-			requests: REAL_WORKLOAD.requests.length,
-			request_latencies_ms: elapsed.map((value) => Number(value.toFixed(3))),
-			bytes: samples.reduce((sum, sample) => sum + (sample.bytes ?? 0), 0),
-			elapsed_avg_ms: Number(avgElapsed.toFixed(3)),
-		},
-	};
-}
-
 export const benchmark = {
 	name: 'metadata-lookup-latency',
-	description: 'Metadata lookup pipeline latency (synthetic) and optional network probes (real).',
-	userImpact: 'Book metadata resolves near-instantly when adding files to the library',
+	description: 'Deterministic metadata lookup pipeline latency for local parsing and mapping work.',
+	userImpact: 'Metadata lookup pipeline bookkeeping stays fast before any network request happens',
 	phase: 1,
 	metricType: 'duration_ms',
 	direction: 'lower_is_better',
-	warmupRuns: 1,
+	supportedModes: ['synthetic'],
 	async run({ mode }) {
 		if (mode === 'real') {
-			return runRealMetadataBench();
+			return {
+				skipped: true,
+				reason:
+					'metadata-lookup-latency is synthetic-only; use metadata-lookup-network-probe for external latency.',
+			};
 		}
 		return runSyntheticMetadataBench();
 	},

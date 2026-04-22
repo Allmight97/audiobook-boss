@@ -201,7 +201,7 @@ export async function startProcessing(
 		context.setBatchCompletionMessage(null);
 
 		// Validate inputs
-		if (!fileList || !fileList.files || fileList.files.length === 0) {
+		if (!fileList?.files?.length) {
 			console.log('StatusPanel: No files found');
 			dom.showError('No audio files selected. Please add files to process.');
 			return;
