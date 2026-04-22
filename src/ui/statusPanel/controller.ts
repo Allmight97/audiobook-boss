@@ -31,6 +31,10 @@ import {
 import { createProgressSubscription } from './services/progressSubscription';
 import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from './services/progressThrottle';
 
+const BATCH_COMPLETION_HOLD_MS = 2000;
+const SINGLE_COMPLETION_HOLD_MS = 2000;
+const MERGE_SKIP_COMPLETION_HOLD_MS = 1500;
+
 function toTerminalJobStatus(
 	stage: ProcessingProgressEvent['stage'],
 ): Extract<JobStatus, 'completed' | 'skipped' | 'failed' | 'cancelled'> {
@@ -195,7 +199,9 @@ export class StatusPanelRuntime {
 		const now = Date.now();
 		const isTerminal = isTerminalProgressEvent(event);
 		const lastRender = this.lastProgressRenderByKey.get(jobKey) ?? 0;
-		if (shouldThrottleProgressUpdate(now, lastRender, isTerminal)) {
+		const prevStage = this.jobProgress.get(jobKey)?.stage;
+		const isStageTransition = prevStage !== undefined && prevStage !== event.stage;
+		if (!isStageTransition && shouldThrottleProgressUpdate(now, lastRender, isTerminal)) {
 			return;
 		}
 		this.lastProgressRenderByKey.set(jobKey, now);
@@ -383,35 +389,30 @@ export class StatusPanelRuntime {
 		this.batchCompletionTimeout = window.setTimeout(() => {
 			this.batchCompletionTimeout = undefined;
 
-			const hasFailed = Array.from(this.jobProgress.values()).some(
-				(job) => job.status === 'failed',
-			);
-			const hasCancelled = Array.from(this.jobProgress.values()).some(
-				(job) => job.status === 'cancelled',
-			);
-			const hasCompleted = Array.from(this.jobProgress.values()).some(
-				(job) => job.status === 'completed',
-			);
-			const hasSkipped = Array.from(this.jobProgress.values()).some(
-				(job) => job.status === 'skipped',
-			);
+			// Snapshot outcome before resetToIdle clears state. resetToIdle must run
+			// before feedback.show* so the final message is not clobbered by the
+			// idle renderStatus write in the same synchronous tick.
+			const statuses = Array.from(this.jobProgress.values()).map((job) => job.status);
+			const hasFailed = statuses.includes('failed');
+			const hasCancelled = statuses.includes('cancelled');
+			const hasCompleted = statuses.includes('completed');
+			const hasSkipped = statuses.includes('skipped');
+			const override = this.batchCompletionMessageOverride;
+
+			this.resetToIdle();
 
 			if (hasFailed) {
-				feedback.showError(
-					this.batchCompletionMessageOverride ?? 'One or more files failed to process.',
-				);
+				feedback.showError(override ?? 'One or more files failed to process.');
 			} else if (hasCancelled) {
 				feedback.showInfo('Processing was cancelled.');
 			} else if (!hasCompleted && hasSkipped) {
-				feedback.showInfo(this.batchCompletionMessageOverride ?? 'No files were processed.');
-			} else if (this.batchCompletionMessageOverride) {
-				feedback.showSuccess(this.batchCompletionMessageOverride);
+				feedback.showInfo(override ?? 'No files were processed.');
+			} else if (override) {
+				feedback.showSuccess(override);
 			} else {
 				feedback.showSuccess('Audiobook created successfully!');
 			}
-
-			this.resetToIdle();
-		}, 2000);
+		}, BATCH_COMPLETION_HOLD_MS);
 	}
 
 	private scheduleSingleCompletion(
@@ -436,7 +437,7 @@ export class StatusPanelRuntime {
 
 			this.updateAggregateUI();
 			renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
-		}, 2000);
+		}, SINGLE_COMPLETION_HOLD_MS);
 	}
 
 	private scheduleMergeSkipCompletion(jobKey: string, message: string): void {
@@ -452,7 +453,7 @@ export class StatusPanelRuntime {
 
 			this.updateAggregateUI();
 			renderJobList(this.jobProgress, this.queueOrder, (id) => this.cancelJob(id));
-		}, 1500);
+		}, MERGE_SKIP_COMPLETION_HOLD_MS);
 	}
 
 	private clearBatchCompletionTimeout(): void {
@@ -596,8 +597,4 @@ export function pushStatusPanelTransientStatus(
 	options?: { ttlMs?: number },
 ): void {
 	feedback.pushTransientStatusMessage(message, options?.ttlMs);
-}
-
-export function clearStatusPanelTransientStatusLock(): void {
-	feedback.clearTransientStatusMessageLock();
 }

@@ -129,23 +129,27 @@ describe('StatusPanel lifecycle', () => {
 			terminalStages: [STAGES.completed, STAGES.completed] as const,
 			expectedMethod: 'showSuccess' as const,
 			expectedMessage: 'Audiobook created successfully!',
+			expectedStepText: 'Audiobook created successfully!',
 		},
 		{
 			name: 'cancelled present',
 			terminalStages: [STAGES.cancelled, STAGES.completed] as const,
 			expectedMethod: 'showInfo' as const,
 			expectedMessage: 'Processing was cancelled.',
+			expectedStepText: 'Processing was cancelled.',
 		},
 		{
 			name: 'failed present',
 			terminalStages: [STAGES.cancelled, STAGES.failed] as const,
 			expectedMethod: 'showError' as const,
 			expectedMessage: 'One or more files failed to process.',
+			expectedStepText: 'Error: One or more files failed to process.',
 		},
 	])('applies batch terminal lifecycle reset after 2s when %s', ({
 		terminalStages,
 		expectedMethod,
 		expectedMessage,
+		expectedStepText,
 	}) => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
@@ -195,7 +199,7 @@ describe('StatusPanel lifecycle', () => {
 		expect(idleStatus).not.toHaveProperty('currentFile');
 		expect(idleStatus).not.toHaveProperty('etaSeconds');
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
-		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
+		expect(getStepText()).toBe(expectedStepText);
 
 		const toastSpies = {
 			showSuccess: showSuccessSpy,
@@ -479,7 +483,7 @@ describe('StatusPanel lifecycle', () => {
 		expect(showErrorSpy).not.toHaveBeenCalled();
 		expect(showInfoSpy).toHaveBeenCalledTimes(1);
 		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
-		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
+		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
 	it('synthesizes cancelled completion when command rejection arrives before terminal events', () => {
@@ -509,7 +513,72 @@ describe('StatusPanel lifecycle', () => {
 		expect(showInfoSpy).toHaveBeenCalledTimes(1);
 		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
 		expect(controller.isCurrentlyProcessing).toBe(false);
-		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
+		expect(getStepText()).toBe('Processing was cancelled.');
+	});
+
+	it('retains the batch completion toast message in stepText after resetToIdle', () => {
+		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
+
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+		controller.applyProgress({
+			input_index: 0,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'terminal-0',
+		});
+		controller.applyProgress({
+			input_index: 1,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'terminal-1',
+		});
+
+		vi.advanceTimersByTime(2000);
+
+		// Regression guard: prior to fix, resetToIdle ran AFTER feedback.showSuccess
+		// in the same tick, clobbering stepText back to the idle label. The user never
+		// saw the success message.
+		expect(getStepText()).toBe('Audiobook created successfully!');
+		expect(controller.isCurrentlyProcessing).toBe(false);
+	});
+
+	it('bypasses progress throttle on stage transitions so mid-job stage changes render immediately', () => {
+		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
+
+		controller.applyQueueSnapshot({
+			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
+			max_concurrent: 1,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: 'analyzing',
+			percentage: 10,
+			message: 'Analyzing audio',
+		});
+		vi.advanceTimersByTime(20);
+		expect(getJobRows()[0]).toContain('(10.0%)');
+
+		// Same job, same tick (< 1s throttle window), non-terminal, but stage changed:
+		// must NOT be throttled — user needs to see stage transitions (e.g. writing).
+		// Prior to fix, shouldThrottleProgressUpdate dropped this update entirely and
+		// the stage transition never reached the UI until the next 1s tick.
+		controller.applyProgress({
+			input_index: 0,
+			stage: 'writing',
+			percentage: 60,
+			message: 'Writing output',
+		});
+		vi.advanceTimersByTime(20);
+		expect(getJobRows()[0]).toContain('(60.0%)');
 	});
 
 	it('resets queued progress state cleanly before new progress arrives', async () => {

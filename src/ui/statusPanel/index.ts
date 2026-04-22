@@ -1,5 +1,4 @@
 export {
-	clearStatusPanelTransientStatusLock,
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
