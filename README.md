@@ -55,6 +55,8 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - Release: `bun run release:notes`, `bun run release:run`
+  GitHub Releases are published from pushed `v*` tags and use the matching
+  `CHANGELOG.md` section as the release body.
 
 ## Project Operation
 

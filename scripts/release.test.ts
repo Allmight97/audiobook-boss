@@ -16,6 +16,11 @@ const SYSTEM_BASH = '/bin/bash';
 const SYSTEM_GIT = '/usr/bin/git';
 const TEST_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 const REPO_ROOT = path.resolve(import.meta.dir, '..');
+const TEST_ENV = {
+	HOME: process.env.HOME ?? os.tmpdir(),
+	PATH: TEST_PATH,
+	TMPDIR: process.env.TMPDIR ?? os.tmpdir(),
+};
 
 function runOrThrow(
 	command: string,
@@ -62,7 +67,7 @@ function createReleaseFixture(): { repoRoot: string } {
 	mkdirSync(path.join(repoRoot, 'scripts', 'lib'), { recursive: true });
 	mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
 
-	runOrThrow(SYSTEM_GIT, ['init'], { cwd: repoRoot, env: { ...process.env, PATH: TEST_PATH } });
+	runOrThrow(SYSTEM_GIT, ['init'], { cwd: repoRoot, env: { ...process.env, ...TEST_ENV } });
 	runOrThrow(SYSTEM_GIT, ['config', 'user.name', 'Codex Test'], { cwd: repoRoot });
 	runOrThrow(SYSTEM_GIT, ['config', 'user.email', 'codex@example.com'], { cwd: repoRoot });
 

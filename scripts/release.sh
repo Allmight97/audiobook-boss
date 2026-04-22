@@ -165,6 +165,9 @@ if [[ "$DO_COMMIT" =~ ^[Yy]$ ]]; then
   echo ""
   echo "To publish:"
   echo "  git push && git push --tags"
+  echo ""
+  echo "Pushing v$NEW_VERSION will trigger the GitHub Release workflow,"
+  echo "which publishes a release from the matching CHANGELOG.md section."
 else
   echo ""
   echo "Skipped commit. To finish manually:"
@@ -172,4 +175,7 @@ else
   echo "  git commit -m \"rel: release v$NEW_VERSION\""
   echo "  git tag v$NEW_VERSION"
   echo "  git push && git push --tags"
+  echo ""
+  echo "Pushing v$NEW_VERSION will trigger the GitHub Release workflow,"
+  echo "which publishes a release from the matching CHANGELOG.md section."
 fi
