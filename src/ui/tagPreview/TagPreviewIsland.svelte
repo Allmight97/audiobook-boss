@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { initTagPreview } from "../tagPreview";
   import { tagPreviewValues, type TagField } from "./state.svelte";
 
   type TagRow = {
@@ -81,6 +83,10 @@
       title: "Genre tag. Used for library filtering and display.",
     },
   ];
+
+  onMount(() => {
+    initTagPreview();
+  });
 </script>
 
 <div class="tag-grid mb-2">
@@ -106,3 +112,44 @@
     {/each}
   </div>
 </div>
+
+<style>
+	.tag-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		padding: 0.5rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background: var(--bg-input);
+	}
+
+	.tag-column {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.tag-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		font-size: 0.7rem;
+		line-height: 1.4;
+	}
+
+	.tag-name {
+		min-width: 70px;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		white-space: nowrap;
+	}
+
+	.tag-value {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--text-primary);
+	}
+</style>

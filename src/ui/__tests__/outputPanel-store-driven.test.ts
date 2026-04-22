@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../types/audio';
-import { appStore } from '../core/appStore.svelte';
 import { updateEstimatedSize } from '../outputPanel/dom';
 import {
 	outputPanelState,
@@ -22,7 +21,7 @@ vi.mock('../fileList', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 }));
 
-describe('output panel store-driven contracts', () => {
+describe('output panel state-driven contracts', () => {
 	beforeEach(() => {
 		context.getCurrentFileListMock.mockReset();
 		context.getCurrentFileListMock.mockReturnValue({
@@ -50,20 +49,6 @@ describe('output panel store-driven contracts', () => {
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		expect(config.encoderSettings).toEqual(defaultEncoderSettings());
-	});
-
-	it('publishes output draft mirror state for preset/template/directory', () => {
-		updateOutputDirectory('/tmp/custom');
-		updateNamingPreset('customTemplate');
-		updateNamingTemplate('{author}/{title}.m4b');
-		updateAbsIncludeYear(true);
-
-		expect(appStore.outputDraft).toEqual({
-			directory: '/tmp/custom',
-			namingPreset: 'customTemplate',
-			namingTemplate: '{author}/{title}.m4b',
-			includeYear: true,
-		});
 	});
 
 	it('defaults custom template when custom preset is selected without template text', () => {

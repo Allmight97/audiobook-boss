@@ -1,5 +1,6 @@
 import { getCurrentFileList, isOrderLocked } from './state';
 import { isMetadataSaveInProgress } from '../metadataSaveState';
+import { setFileListDragState } from './viewState.svelte';
 import {
 	clearSelectionAction,
 	moveFileDown,
@@ -11,8 +12,6 @@ import {
 } from './actions';
 
 let draggedIndex: number | null = null;
-let draggedItem: HTMLElement | null = null;
-let hoveredItem: HTMLElement | null = null;
 
 function stopInteraction(event: Event): void {
 	event.stopPropagation();
@@ -25,15 +24,8 @@ function hasValidIndex(index: number): boolean {
 }
 
 function resetDragState(): void {
-	if (draggedItem) {
-		draggedItem.classList.remove('dragging');
-	}
-	if (hoveredItem) {
-		hoveredItem.classList.remove('drag-over');
-	}
-	draggedItem = null;
-	hoveredItem = null;
 	draggedIndex = null;
+	setFileListDragState({ draggedIndex: null, hoveredIndex: null });
 }
 
 export function onFileListClick(index: number, event: MouseEvent): void {
@@ -107,10 +99,9 @@ export function onFileListDragStart(index: number, e: DragEvent): void {
 	if (!item) return;
 
 	draggedIndex = index;
-	draggedItem = item;
 	e.dataTransfer.effectAllowed = 'move';
 	e.dataTransfer.setData('text/plain', index.toString());
-	item.classList.add('dragging');
+	setFileListDragState({ draggedIndex: index, hoveredIndex: null });
 }
 
 export function onFileListDragOver(index: number, e: DragEvent): void {
@@ -122,16 +113,10 @@ export function onFileListDragOver(index: number, e: DragEvent): void {
 	e.dataTransfer.dropEffect = 'move';
 	if (!hasValidIndex(index)) return;
 
-	const item = e.currentTarget as HTMLElement | null;
-	if (!item) return;
-
-	if (hoveredItem && hoveredItem !== item) {
-		hoveredItem.classList.remove('drag-over');
-	}
-	hoveredItem = item;
-	if (!item.classList.contains('dragging')) {
-		item.classList.add('drag-over');
-	}
+	setFileListDragState({
+		draggedIndex,
+		hoveredIndex: draggedIndex === index ? null : index,
+	});
 }
 
 export function onFileListDrop(index: number, e: DragEvent): void {

@@ -250,12 +250,13 @@ const SCENARIOS: readonly HarnessScenario[] = [
 		id: 'output-preview',
 		title: 'Output Preview',
 		description:
-			'Verifies output naming controls, encoder panel behavior, preview fallback, and metadata-driven warnings.',
+			'Verifies output naming controls, encoder panel behavior, preview controls, and metadata-driven warnings.',
 		route: '/harness.html',
 		screenshotName: 'output-preview.png',
 		matchers: [
 			/^src\/ui\/outputPanel\//,
 			/^src\/ui\/encoderPanel(?:\/|\.ts$)/,
+			/^src\/ui\/previewAudio\//,
 			/^src\/ui\/__tests__\/encoderPanel/,
 			/^src\/ui\/metadataValidation\.ts$/,
 			/^src\/ui\/metadataForm(?:\/|\.ts$)/,
@@ -323,6 +324,7 @@ const SCENARIOS: readonly HarnessScenario[] = [
 		screenshotName: 'collision-dialog.png',
 		matchers: [
 			/^src\/ui\/collisionDialog\//,
+			/^src\/ui\/previewAudio\//,
 			/^src\/ui\/statusPanel\//,
 			/^src\/lib\/tauri\//,
 			/^src\/types\/audio\.ts$/,

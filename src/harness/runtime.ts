@@ -10,7 +10,6 @@ import {
 	type OutputNamingPreset,
 } from '../ui/outputPanel/state';
 import { updateNamingOptionState, updateOutputPath } from '../ui/outputPanel/dom';
-import { getStatusPanel } from '../ui/statusPanel';
 import {
 	resetStatusPanelViewState,
 	setStatusPanelCancelAllPending,
@@ -47,7 +46,6 @@ type HarnessBrowserApi = {
 	seedOutput: (seed: HarnessOutputSeed) => Promise<void>;
 	seedStatus: (seed: HarnessStatusSeed) => Promise<void>;
 	seedCollisionMode: (enabled: boolean) => Promise<void>;
-	triggerPreview: (seconds: number) => void;
 };
 
 declare global {
@@ -155,9 +153,6 @@ export function installHarnessRuntime(): void {
 			await harnessReady;
 			setHarnessCollisionMode(enabled);
 			await settleUi();
-		},
-		triggerPreview: (seconds) => {
-			void harnessReady.then(() => getStatusPanel()?.startProcessing({ previewSeconds: seconds }));
 		},
 	};
 	void harnessReady;

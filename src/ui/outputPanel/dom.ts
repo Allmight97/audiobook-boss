@@ -19,7 +19,6 @@ import {
 	setOutputNamingUiState,
 	setOutputPreview,
 } from './state';
-import { calculateOutputPath } from './pathBuilder';
 import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
@@ -30,10 +29,6 @@ type OutputPreviewCallSiteState = {
 	outputDirectory: string;
 	sourcePath?: string;
 };
-function hasTauriRuntime(): boolean {
-	const globalLike = globalThis as { __TAURI_INTERNALS__?: unknown };
-	return typeof globalLike.__TAURI_INTERNALS__ !== 'undefined';
-}
 
 export function getCurrentMetadata(): AudiobookMetadata {
 	const metadata = readMetadataForm({
@@ -122,12 +117,6 @@ async function updateOutputPathAsync(outputKind: OutputKind): Promise<void> {
 	}
 
 	const previewCallSiteState = buildOutputPreviewCallSiteState();
-	if (!hasTauriRuntime()) {
-		const fallbackPath = calculateOutputPath(metadata);
-		setOutputPreview(fallbackPath);
-		return;
-	}
-
 	const requestId = beginOutputPreviewRequest();
 	try {
 		const previewPath = await tauriClient.previewOutputPath({

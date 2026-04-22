@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { initMetadataFormEvents } from '../metadataForm';
 	import { openMetadataLookup } from '../metadataLookup';
 	import { metadataSaveInProgressStore } from '../metadataSaveState';
 	import { metadataFormState } from './state.svelte';
@@ -30,6 +32,10 @@
 			onFieldInput?.(target.id);
 		}
 	}
+
+	onMount(() => {
+		initMetadataFormEvents();
+	});
 </script>
 
 <div

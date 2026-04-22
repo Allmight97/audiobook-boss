@@ -5,15 +5,12 @@ import {
 	resetFileListViewState,
 	setFileListCombinedSizeText,
 	setFileListControlsState,
+	setFileListDragState,
 	setFileListOrderLockVisible,
 	setFileListSortLabel,
 	setFileListViewFiles,
 	setFileListViewSelection,
 } from './viewState.svelte';
-
-export function initDOMCache(): void {
-	// Intentionally a no-op after Svelte list render cutover.
-}
 
 export function updateFileListDOM(): void {
 	const fileList = getCurrentFileList();
@@ -69,6 +66,7 @@ export function setOrderLockNotice(locked: boolean): void {
 export function clearContainer(): void {
 	setFileListViewFiles([]);
 	setFileListViewSelection(new Set<number>());
+	setFileListDragState({ draggedIndex: null, hoveredIndex: null });
 	setFileImportHasFiles(false);
 }
 

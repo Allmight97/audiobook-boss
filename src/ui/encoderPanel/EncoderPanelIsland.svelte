@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { encoderPanelState } from './state.svelte';
 	import { outputPanelState } from '../outputPanel/state.svelte';
 	import {
@@ -14,8 +15,13 @@
 		handleSampleRateSelectionChange,
 		handleToolchainPathCommit,
 		handleToolchainPathInput,
+		initializeEncoderPanelLogic,
 		refreshExternalToolchain,
 	} from './logic';
+
+	onMount(() => {
+		initializeEncoderPanelLogic();
+	});
 </script>
 
 <div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
@@ -301,3 +307,93 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.profile-display {
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-input);
+		color: var(--text-secondary);
+		font-size: 0.875rem;
+	}
+
+	.encoder-inline-option-row {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		margin: 0.125rem 0 0.5rem;
+	}
+
+	.encoder-option-group {
+		padding: 0;
+	}
+
+	.secondary-button.compact-button {
+		margin-top: 0;
+		padding: 0.35rem 0.65rem;
+		border: 1px solid var(--border-secondary);
+		border-radius: 0.375rem;
+		background: var(--bg-input);
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+	}
+
+	.toolchain-status-card {
+		margin: 0.25rem 0 0.75rem;
+		padding: 0.625rem 0.75rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.5rem;
+		background: color-mix(in srgb, var(--bg-input) 78%, var(--bg-drag-area) 22%);
+	}
+
+	.toolchain-status-main {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.toolchain-status-copy {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.toolchain-path {
+		font-family: var(--font-mono);
+		word-break: break-all;
+	}
+
+	.toolchain-error-text {
+		color: #dc2626;
+	}
+
+	.toolchain-action-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.toolchain-override-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 0.625rem;
+	}
+
+	.toolchain-override-input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.toolchain-override-actions {
+		padding-top: 1.5rem;
+	}
+
+	.encoder-inline-toggle {
+		margin-top: 0;
+		align-items: center;
+	}
+</style>

@@ -8,6 +8,10 @@ const coverArtHandlers = vi.hoisted(() => ({
 }));
 
 vi.mock('../ui/coverArt', () => ({
+	getCurrentCoverArt: vi.fn(() => null),
+	getHasCustomCoverArt: vi.fn(() => false),
+	isCoverArtRemovalRequested: vi.fn(() => false),
+	setCoverArt: vi.fn(),
 	onLoadCoverArtFromFilePicker: coverArtHandlers.onLoadFromFile,
 	onLoadCoverArtFromInput: coverArtHandlers.onLoadFromInput,
 	onClearCoverArt: coverArtHandlers.onClearCoverArt,

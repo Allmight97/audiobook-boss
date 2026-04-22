@@ -200,9 +200,8 @@ describe('order lock lifecycle', () => {
 
 	describe('view state reflects lock', () => {
 		it('disables sort and clear controls when locked', async () => {
-			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
-			initDOMCache();
 			setOrderLocked(true);
 
 			updateButtonVisibility();
@@ -212,9 +211,8 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('enables sort and clear controls when unlocked', async () => {
-			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
-			initDOMCache();
 			setOrderLocked(false);
 
 			updateButtonVisibility();
@@ -224,8 +222,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('shows lock notice when locked', async () => {
-			const { initDOMCache, setOrderLockNotice } = await import('../fileList/dom');
-			initDOMCache();
+			const { setOrderLockNotice } = await import('../fileList/dom');
 
 			setOrderLockNotice(true);
 
@@ -233,8 +230,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('hides lock notice when unlocked', async () => {
-			const { initDOMCache, setOrderLockNotice } = await import('../fileList/dom');
-			initDOMCache();
+			const { setOrderLockNotice } = await import('../fileList/dom');
 			setOrderLockNotice(true);
 
 			setOrderLockNotice(false);
@@ -260,9 +256,8 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('view controls re-enabled after lock/unlock cycle', async () => {
-			const { initDOMCache, updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../fileList/dom');
 			setCurrentFileList(makeFileList(3));
-			initDOMCache();
 
 			// Lock
 			setOrderLocked(true);

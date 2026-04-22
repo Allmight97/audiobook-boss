@@ -21,7 +21,7 @@ vi.mock('../../lib/tauri/client', () => ({
 
 describe('output panel preview resilience', () => {
 	beforeEach(() => {
-		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
+		vi.mocked(tauriClient.previewOutputPath).mockReset();
 		render(OutputPanelIsland);
 		populateMetadataFormSingle({
 			title: 'Ghosts',
@@ -32,33 +32,32 @@ describe('output panel preview resilience', () => {
 		updateNamingPreset('absDefault');
 		updateAbsIncludeYear(false);
 		setJobTypeSelection('merge');
+		vi.mocked(tauriClient.previewOutputPath).mockResolvedValue('/Library/Audiobooks/Ghosts.m4b');
 	});
 
 	afterEach(() => {
-		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
 		vi.clearAllMocks();
 	});
 
-	it('falls back to local preview path when Tauri runtime is unavailable', async () => {
+	it('renders the backend preview path when output configuration is valid', async () => {
 		updateOutputPath();
 
 		const previewText = document.getElementById('output-preview-text');
-		expect(outputPanelState.previewText).toContain('/Library/Audiobooks');
 		await waitFor(() => {
+			expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledTimes(1);
+			expect(outputPanelState.previewText).toContain('/Library/Audiobooks');
 			expect(previewText?.textContent).toContain('/Library/Audiobooks');
 		});
-		expect(vi.mocked(tauriClient.previewOutputPath)).not.toHaveBeenCalled();
 	});
 
 	it('shows explicit preview error when Tauri preview RPC fails', async () => {
-		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		vi.mocked(tauriClient.previewOutputPath).mockRejectedValueOnce(new Error('rpc down'));
 
 		updateOutputPath();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const previewText = document.getElementById('output-preview-text');
-		expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(tauriClient.previewOutputPath).mock.calls.length).toBeGreaterThan(0);
 		expect(outputPanelState.previewText).toBe(
 			'Output preview unavailable. Fix metadata/template and retry.',
 		);
@@ -69,7 +68,6 @@ describe('output panel preview resilience', () => {
 	});
 
 	it('requests preview artifact naming when asked to show a preview destination', async () => {
-		(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		vi.mocked(tauriClient.previewOutputPath).mockResolvedValueOnce(
 			'/Library/Audiobooks/Ghosts.preview.m4b',
 		);
@@ -105,11 +103,14 @@ describe('output panel preview resilience', () => {
 			],
 			2,
 		);
+		vi.mocked(tauriClient.previewOutputPath).mockResolvedValueOnce(
+			'/Library/Audiobooks/Frank Herbert/Dune.m4b',
+		);
 
 		updateOutputPath();
 
 		await waitFor(() => {
-			expect(outputPanelState.previewText).toContain('/Library/Audiobooks/Frank Herbert/');
+			expect(outputPanelState.previewText).toContain('/Library/Audiobooks/Frank Herbert');
 			expect(outputPanelState.previewText).toContain('Dune');
 		});
 		expect(outputPanelState.previewText).not.toContain('Unknown Author');

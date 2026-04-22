@@ -5,18 +5,12 @@ import { jobControlsState } from './jobControls/state.svelte';
 import { updateOutputPath } from './outputPanel';
 import { setStatusPanelConcurrencyText } from './statusPanel/viewState.svelte';
 
-const MAX_CONCURRENT_STORAGE_KEY = 'abb:maxConcurrentJobs';
-
 export function initJobControls(): void {
 	initializeMaxConcurrentControl();
 }
 
 function initializeMaxConcurrentControl(): void {
-	const saved = readMaxConcurrentPreference();
-	jobControlsState.maxConcurrentSelection = saved;
-
-	// Push initial selection
-	void pushMaxConcurrentToBackend(saved);
+	void pushMaxConcurrentToBackend(jobControlsState.maxConcurrentSelection);
 }
 
 export function handleMergeModeChange(checked: boolean): void {
@@ -25,7 +19,6 @@ export function handleMergeModeChange(checked: boolean): void {
 
 export function handleMaxConcurrentSelectionChange(value: string): void {
 	jobControlsState.maxConcurrentSelection = value;
-	writeMaxConcurrentPreference(value);
 	void pushMaxConcurrentToBackend(value);
 }
 
@@ -78,34 +71,6 @@ function updateMaxConcurrentIndicator(): void {
 	setStatusPanelConcurrencyText(`Max jobs: ${jobControlsState.effectiveMaxConcurrent}${suffix}`);
 }
 
-function readMaxConcurrentPreference(): string {
-	// FALLBACK[FB-004]: trigger=localStorage unavailable/blocked (privacy mode, restricted contexts)
-	// observe=console.warn markers on read/write/parse fallback paths
-	// sunset=2026-04-30 issue=#199
-	if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
-		console.warn('FALLBACK[FB-004] localStorage.getItem unavailable; using auto max concurrency');
-		return 'auto';
-	}
-	try {
-		return localStorage.getItem(MAX_CONCURRENT_STORAGE_KEY) ?? 'auto';
-	} catch (error) {
-		console.warn('FALLBACK[FB-004] failed to read max concurrency preference; using auto', error);
-		return 'auto';
-	}
-}
-
-function writeMaxConcurrentPreference(value: string): void {
-	if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') {
-		return;
-	}
-	try {
-		localStorage.setItem(MAX_CONCURRENT_STORAGE_KEY, value);
-	} catch (error) {
-		// localStorage may be unavailable in private browsing; non-critical
-		console.warn('FALLBACK[FB-004] failed to persist max concurrency preference', error);
-	}
-}
-
 async function pushMaxConcurrentToBackend(value: string): Promise<void> {
 	try {
 		let effective: number;
@@ -114,7 +79,7 @@ async function pushMaxConcurrentToBackend(value: string): Promise<void> {
 		} else {
 			const parsed = parseInt(value, 10);
 			if (!Number.isFinite(parsed)) {
-				console.warn('FALLBACK[FB-004] invalid max concurrency selection ignored:', value);
+				console.warn('Invalid max concurrency selection ignored:', value);
 				return;
 			}
 			effective = await tauriClient.setMaxConcurrentJobs(parsed);

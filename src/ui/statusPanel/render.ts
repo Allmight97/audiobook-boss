@@ -1,15 +1,15 @@
 import { getMaxConcurrentStatus } from '../jobControls';
-import * as dom from './dom';
+import * as feedback from './feedback';
 import { formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 import type { JobListItem } from './viewTypes';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
-	dom.updateProgressBar(status.percentage);
-	dom.updatePercentageText(status.percentage);
-	dom.updateStatusText(formatStatusDisplayText(status.stage));
-	dom.updateStepText(`Current Step: ${status.message}`);
-	dom.updateProcessButton(isProcessing);
+	feedback.updateProgressBar(status.percentage);
+	feedback.updatePercentageText(status.percentage);
+	feedback.updateStatusText(formatStatusDisplayText(status.stage));
+	feedback.updateStepText(`Current Step: ${status.message}`);
+	feedback.updateProcessButton(isProcessing);
 }
 
 export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
@@ -17,7 +17,7 @@ export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
 	const suffix = selection === 'auto' ? ' (Auto)' : '';
 
 	if (effective === null) {
-		dom.updateConcurrencyStatus('Max jobs: —');
+		feedback.updateConcurrencyStatus('Max jobs: —');
 		return;
 	}
 
@@ -28,13 +28,13 @@ export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
 		const queuedSuffix = aggregate.queuedJobs > 0 ? ` • Queued ${aggregate.queuedJobs}` : '';
 		const completedSuffix =
 			aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : '';
-		dom.updateConcurrencyStatus(
+		feedback.updateConcurrencyStatus(
 			`Running ${aggregate.activeJobs} / Max ${effective}${suffix}${queuedSuffix}${completedSuffix}`,
 		);
 		return;
 	}
 
-	dom.updateConcurrencyStatus(`Max jobs: ${effective}${suffix}`);
+	feedback.updateConcurrencyStatus(`Max jobs: ${effective}${suffix}`);
 }
 
 function formatJobStatusText(
@@ -129,5 +129,5 @@ export function renderJobList(
 		return acc;
 	}, []);
 
-	dom.renderJobList(jobs);
+	feedback.renderJobList(jobs);
 }

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { initJobControls } from '../jobControls';
 	import { jobControlsState } from './state.svelte';
 
 	export let onMergeModeChange: (checked: boolean) => void = () => {};
@@ -13,6 +15,10 @@
 		const select = event.currentTarget as HTMLSelectElement | null;
 		onMaxConcurrentSelectionChange(select?.value ?? 'auto');
 	}
+
+	onMount(() => {
+		initJobControls();
+	});
 </script>
 
 <div class="flex items-center gap-2">

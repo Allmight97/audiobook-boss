@@ -38,7 +38,6 @@ vi.mock('../fileList/events', () => ({
 }));
 
 vi.mock('../fileList/dom', () => ({
-	initDOMCache: vi.fn(),
 	updateFileListDOM: vi.fn(),
 	updateTotalStats: vi.fn(),
 	updateSelection: vi.fn(),

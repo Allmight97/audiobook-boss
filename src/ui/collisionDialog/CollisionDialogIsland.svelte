@@ -50,14 +50,14 @@
 
 <div
 	id="collision-dialog-modal"
-	class="metadata-lookup-modal"
+	class="app-modal-backdrop"
 	class:open={collisionDialogState.isOpen}
 	data-testid="collision-dialog-modal"
 	aria-hidden={!collisionDialogState.isOpen}
 	on:click={handleBackdropClick}
 >
-	<div class="metadata-lookup-dialog" role="dialog" aria-modal="true" aria-labelledby="collision-dialog-title">
-		<div class="metadata-lookup-header">
+	<div class="app-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="collision-dialog-title">
+		<div class="app-modal-header">
 			<h3 id="collision-dialog-title">{collisionDialogState.title}</h3>
 			<button
 				id="collision-dialog-close"
@@ -70,12 +70,12 @@
 			</button>
 		</div>
 
-		<div class="metadata-lookup-body">
+		<div class="app-modal-body">
 			<p id="collision-dialog-body" class="text-xs muted-text">{collisionDialogState.body}</p>
 
-			<div id="collision-dialog-results" class="metadata-lookup-results">
+			<div id="collision-dialog-results" class="app-modal-results">
 				{#each collisionDialogState.outputs as output}
-					<div class="metadata-lookup-result collision-dialog-result" data-testid="collision-dialog-item">
+					<div class="app-modal-result collision-dialog-result" data-testid="collision-dialog-item">
 						<div class="collision-dialog-paths">
 							<div
 								class="collision-dialog-filename"
@@ -99,8 +99,8 @@
 				{/each}
 			</div>
 
-			<div class="metadata-lookup-controls collision-dialog-controls" style="margin-top: 1rem;">
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+			<div class="app-modal-controls collision-dialog-controls" style="margin-top: 1rem;">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-replace"
 						class="btn-pill btn-pill-primary"
@@ -111,7 +111,7 @@
 						Overwrite Existing
 					</button>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-skip"
 						class="btn-pill btn-pill-secondary"
@@ -122,7 +122,7 @@
 						Skip Existing
 					</button>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-rename"
 						class="btn-pill btn-pill-secondary"
@@ -133,7 +133,7 @@
 						Keep Existing
 					</button>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-cancel"
 						class="btn-pill btn-pill-secondary"

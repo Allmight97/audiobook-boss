@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type DomModule = typeof import('../dom');
+type FeedbackModule = typeof import('../feedback');
 type ViewStateModule = typeof import('../viewState.svelte');
 
 function setupDom() {
@@ -17,14 +17,14 @@ function setupDom() {
   `;
 }
 
-describe('statusPanel cover art DOM rendering', () => {
-	let domModule: DomModule;
+describe('statusPanel feedback and view-state updates', () => {
+	let feedbackModule: FeedbackModule;
 	let viewStateModule: ViewStateModule;
 
 	beforeEach(async () => {
 		setupDom();
 		vi.resetModules();
-		domModule = await import('../dom');
+		feedbackModule = await import('../feedback');
 		viewStateModule = await import('../viewState.svelte');
 		viewStateModule.resetStatusPanelViewState();
 	});
@@ -32,31 +32,31 @@ describe('statusPanel cover art DOM rendering', () => {
 	it('syncs cover art changes into reactive view state', () => {
 		const dataUrl = 'data:image/png;base64,Zm9v';
 
-		domModule.displayCoverArt(dataUrl);
+		feedbackModule.displayCoverArt(dataUrl);
 		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBe(dataUrl);
 
-		domModule.resetArtThumbnail();
+		feedbackModule.resetArtThumbnail();
 		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBeNull();
 	});
 
 	it('does not overwrite transient user status text until lock expires', () => {
 		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
-		domModule.pushTransientStatusMessage('Metadata saved!', 10_000);
+		feedbackModule.pushTransientStatusMessage('Metadata saved!', 10_000);
 		expect(viewStateModule.statusPanelViewState.statusText).toBe('Metadata saved!');
 
-		domModule.updateStatusText('Idle');
+		feedbackModule.updateStatusText('Idle');
 		expect(viewStateModule.statusPanelViewState.statusText).toBe('Metadata saved!');
 
 		nowSpy.mockReturnValue(11_001);
-		domModule.updateStatusText('Idle');
+		feedbackModule.updateStatusText('Idle');
 		expect(viewStateModule.statusPanelViewState.statusText).toBe('Idle');
 		nowSpy.mockRestore();
 	});
 
 	it('clears transient lock explicitly when requested', () => {
-		domModule.pushTransientStatusMessage('Saving…', 10_000);
-		domModule.clearTransientStatusMessageLock();
-		domModule.updateStatusText('Idle');
+		feedbackModule.pushTransientStatusMessage('Saving…', 10_000);
+		feedbackModule.clearTransientStatusMessageLock();
+		feedbackModule.updateStatusText('Idle');
 		expect(viewStateModule.statusPanelViewState.statusText).toBe('Idle');
 	});
 });

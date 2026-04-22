@@ -3,6 +3,8 @@ import type { AudioFile } from '../../types/audio';
 type FileListViewState = {
 	files: AudioFile[];
 	selectedIndices: number[];
+	draggedIndex: number | null;
+	hoveredIndex: number | null;
 	sortLabel: string;
 	showSortButton: boolean;
 	showClearButton: boolean;
@@ -15,6 +17,8 @@ type FileListViewState = {
 const EMPTY_STATE: FileListViewState = {
 	files: [],
 	selectedIndices: [],
+	draggedIndex: null,
+	hoveredIndex: null,
 	sortLabel: 'Sort: A-Z',
 	showSortButton: false,
 	showClearButton: false,
@@ -32,6 +36,14 @@ export function setFileListViewFiles(files: AudioFile[]): void {
 
 export function setFileListViewSelection(indices: Set<number>): void {
 	fileListViewState.selectedIndices = Array.from(indices);
+}
+
+export function setFileListDragState(options: {
+	draggedIndex: number | null;
+	hoveredIndex: number | null;
+}): void {
+	fileListViewState.draggedIndex = options.draggedIndex;
+	fileListViewState.hoveredIndex = options.hoveredIndex;
 }
 
 export function setFileListSortLabel(ascending: boolean): void {
@@ -57,6 +69,8 @@ export function setFileListOrderLockVisible(visible: boolean): void {
 export function resetFileListViewState(): void {
 	fileListViewState.files = EMPTY_STATE.files;
 	fileListViewState.selectedIndices = EMPTY_STATE.selectedIndices;
+	fileListViewState.draggedIndex = EMPTY_STATE.draggedIndex;
+	fileListViewState.hoveredIndex = EMPTY_STATE.hoveredIndex;
 	fileListViewState.sortLabel = EMPTY_STATE.sortLabel;
 	fileListViewState.showSortButton = EMPTY_STATE.showSortButton;
 	fileListViewState.showClearButton = EMPTY_STATE.showClearButton;

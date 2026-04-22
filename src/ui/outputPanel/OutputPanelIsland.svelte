@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import {
 		handleAbsIncludeYearChange,
 		handleDirectoryBrowse,
 		handleNamingPresetChange,
 		handleNamingTemplateInput,
 	} from './handlers';
+	import { initOutputPanel } from './index';
 	import { outputPanelState } from './state.svelte';
 
 	const customTemplatePlaceholder = '{author}/{series}/Book {seriesPart} - {title}';
@@ -12,6 +14,10 @@
 	function handleBrowseClick(): void {
 		void handleDirectoryBrowse();
 	}
+
+	onMount(() => {
+		initOutputPanel();
+	});
 </script>
 
 <div>
@@ -46,10 +52,10 @@
 
     <div class="output-options-panel">
       <div class="path-option-row flex items-center gap-2">
-        <label for="output-naming-preset" class="input-label text-xs mt-0">Naming preset</label>
+        <label for="output-naming-preset" class="text-xs mt-0">Naming preset</label>
         <select
           id="output-naming-preset"
-          class="input-text"
+          class="w-auto min-w-40"
           value={outputPanelState.namingPreset}
           on:change={handleNamingPresetChange}
         >
@@ -68,11 +74,11 @@
         id="output-template-row"
         hidden={outputPanelState.templateRowHidden}
       >
-        <label for="output-template-input" class="input-label text-xs mt-0">Template</label>
+        <label for="output-template-input" class="text-xs mt-0">Template</label>
 	        <input
 	          id="output-template-input"
 	          type="text"
-	          class="input-text w-full"
+	          class="w-full"
 	          value={outputPanelState.namingTemplate}
 	          placeholder={customTemplatePlaceholder}
 	          on:input={handleNamingTemplateInput}
@@ -101,3 +107,50 @@
     </div>
   </div>
 </div>
+
+<style>
+	.output-preview-box {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-input);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-primary);
+	}
+
+	.output-path-text {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--text-muted);
+	}
+
+	.btn-pill-primary-soft {
+		background-color: #6ba3f7;
+		color: #ffffff;
+	}
+
+	.btn-pill-primary-soft:hover {
+		background-color: #5b93e7;
+	}
+
+	.output-options-panel {
+		margin-top: 0.25rem;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-input);
+	}
+
+	.path-option-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.25rem 0;
+	}
+</style>

@@ -6,7 +6,6 @@ import type {
 	SampleRateConfig,
 } from '../../types/audio';
 import { defaultEncoderSettings } from '../../types/audio';
-import { publishOutputDraft } from '../core/appStore.svelte';
 
 export type OutputNamingPreset = OutputNamingConfig['preset'];
 const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
@@ -92,23 +91,12 @@ export function readOutputConfigForProcessing(): OutputConfig {
 	};
 }
 
-function publishOutputDraftState(): void {
-	publishOutputDraft({
-		directory: outputPanelState.outputDirectory,
-		namingPreset: outputPanelState.namingPreset,
-		namingTemplate: outputPanelState.namingTemplate,
-		includeYear: outputPanelState.absIncludeYear,
-	});
-}
-
 export function updateOutputDirectory(path: string): void {
 	outputPanelState.outputDirectory = path;
-	publishOutputDraftState();
 }
 
 export function updateNamingPreset(preset: OutputNamingPreset): void {
 	outputPanelState.namingPreset = preset;
-	publishOutputDraftState();
 }
 
 export function updateAbsCompatible(enabled: boolean): void {
@@ -117,12 +105,10 @@ export function updateAbsCompatible(enabled: boolean): void {
 
 export function updateNamingTemplate(template: string): void {
 	outputPanelState.namingTemplate = template;
-	publishOutputDraftState();
 }
 
 export function updateAbsIncludeYear(enabled: boolean): void {
 	outputPanelState.absIncludeYear = enabled;
-	publishOutputDraftState();
 }
 
 export function updateEncoderSettings(settings: EncoderSettings): void {
@@ -157,5 +143,5 @@ export function setEstimatedSizeText(value: string): void {
 }
 
 export function loadInitialState(): void {
-	publishOutputDraftState();
+	// No-op: outputPanelState is already the canonical state surface.
 }

@@ -8,5 +8,5 @@ if (!target) {
 	throw new Error('Harness root #app not found');
 }
 
-mount(HarnessApp, { target });
 installHarnessRuntime();
+mount(HarnessApp, { target });

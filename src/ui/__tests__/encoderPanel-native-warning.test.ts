@@ -45,7 +45,6 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 describe('encoder panel native AAC warning', () => {
 	beforeEach(() => {
 		context.listAvailableEncodersMock.mockReset();
-		localStorage.clear();
 		resetEncoderPanelState();
 	});
 

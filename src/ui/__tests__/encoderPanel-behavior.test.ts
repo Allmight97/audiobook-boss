@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
 import { defaultEncoderSettings } from '../../types/audio';
-import { resetEncoderPanelState } from '../encoderPanel/state.svelte';
+import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { outputPanelState } from '../outputPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
@@ -50,8 +50,6 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
-const encoderPanelStorageKey = 'abb.encoderPanel';
-
 describe('encoder panel behavior controls', () => {
 	beforeEach(() => {
 		context.listAvailableEncodersMock.mockReset();
@@ -61,7 +59,6 @@ describe('encoder panel behavior controls', () => {
 			files: [{ path: '/books/a.m4b', isValid: true }],
 			totalDuration: 3600,
 		});
-		localStorage.clear();
 		resetEncoderPanelState();
 		outputPanelState.estimatedSizeText = '~ --- MB';
 	});
@@ -165,15 +162,10 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('respects persisted explicit opt-outs for afterburner and twoloop', async () => {
-		localStorage.setItem(
-			encoderPanelStorageKey,
-			JSON.stringify({
-				flavor: 'native_aac',
-				fdkAfterburner: false,
-				twoloop: false,
-			}),
-		);
+	it('retains session opt-outs for afterburner and twoloop across re-init', async () => {
+		encoderPanelState.flavor = 'native_aac';
+		encoderPanelState.fdkAfterburner = false;
+		encoderPanelState.nativeTwoloop = false;
 		context.listAvailableEncodersMock.mockResolvedValue(
 			availabilityFixture({
 				fdkAvailable: true,
@@ -190,31 +182,14 @@ describe('encoder panel behavior controls', () => {
 			expect(
 				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
 			).toBe(true);
+			expect(encoderPanelState.fdkAfterburner).toBe(false);
+			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
 
-		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'native_aac');
-
+		initEncoderPanel();
 		await vi.waitFor(() => {
-			expect(
-				(document.getElementById('adv-native-twoloop') as HTMLInputElement | null)?.checked,
-			).toBe(false);
-		});
-
-		changeSelectValue(select, 'auto');
-
-		await vi.waitFor(() => {
-			expect(
-				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
-			).toBe(true);
-		});
-
-		changeSelectValue(select, 'fdk_he_aac');
-
-		await vi.waitFor(() => {
-			expect(
-				(document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null)?.checked,
-			).toBe(false);
+			expect(encoderPanelState.fdkAfterburner).toBe(false);
+			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
 	});
 
@@ -257,16 +232,8 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('migrates legacy custom toolchain state into the new override-path model', async () => {
-		localStorage.setItem(
-			encoderPanelStorageKey,
-			JSON.stringify({
-				externalToolchain: {
-					mode: 'custom',
-					customPath: '/custom/ffmpeg',
-				},
-			}),
-		);
+	it('keeps the current session toolchain override path on init', async () => {
+		encoderPanelState.externalToolchainOverridePath = '/custom/ffmpeg';
 		context.listAvailableEncodersMock.mockResolvedValue({
 			...availabilityFixture({
 				fdkAvailable: true,
@@ -349,13 +316,8 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('falls back to detected FDK when a saved override is invalid and keeps the input visible', async () => {
-		localStorage.setItem(
-			encoderPanelStorageKey,
-			JSON.stringify({
-				externalToolchainOverridePath: '/broken/ffmpeg',
-			}),
-		);
+	it('keeps the override input visible when the current session path is invalid', async () => {
+		encoderPanelState.externalToolchainOverridePath = '/broken/ffmpeg';
 		context.listAvailableEncodersMock.mockResolvedValue({
 			...availabilityFixture({
 				fdkAvailable: true,
@@ -385,13 +347,8 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('normalizes a persisted unavailable Apple AAC selection back to auto', async () => {
-		localStorage.setItem(
-			encoderPanelStorageKey,
-			JSON.stringify({
-				flavor: 'aac_at',
-			}),
-		);
+	it('normalizes a session-selected unavailable Apple AAC flavor back to auto', async () => {
+		encoderPanelState.flavor = 'aac_at';
 		context.listAvailableEncodersMock.mockResolvedValue(
 			availabilityFixture({
 				fdkAvailable: false,
@@ -415,13 +372,8 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('normalizes a persisted unavailable native AAC selection back to auto', async () => {
-		localStorage.setItem(
-			encoderPanelStorageKey,
-			JSON.stringify({
-				flavor: 'native_aac',
-			}),
-		);
+	it('normalizes a session-selected unavailable native AAC flavor back to auto', async () => {
+		encoderPanelState.flavor = 'native_aac';
 		context.listAvailableEncodersMock.mockResolvedValue(
 			availabilityFixture({
 				fdkAvailable: false,

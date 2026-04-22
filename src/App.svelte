@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
 	import { fileListViewState } from './ui/fileList/viewState.svelte';
 	import EncoderPanelIsland from './ui/encoderPanel/EncoderPanelIsland.svelte';
@@ -25,11 +24,9 @@
 	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
-	import { initializeAppShell, saveMetadataFromUI, startPreviewAudio } from './ui/core/bootstrap';
-	import { shellState } from './ui/core/shellState.svelte';
+	import { saveMetadataFromUI } from './ui/core/actions';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
-	let previewDropdownElement: HTMLDivElement | null = null;
-	let previewDropdownToggleElement: HTMLButtonElement | null = null;
+	import PreviewAudioControls from './ui/previewAudio/PreviewAudioControls.svelte';
 
 	function handleGlobalKeyDown(event: KeyboardEvent): void {
 		if ((event.metaKey || event.ctrlKey) && event.key === 's') {
@@ -37,46 +34,10 @@
 			void saveMetadataFromUI();
 		}
 	}
-
-	function handlePreviewButtonClick(): void {
-		startPreviewAudio(shellState.previewDuration);
-	}
-
-	function handlePreviewDropdownToggle(event: MouseEvent): void {
-		event.stopPropagation();
-		shellState.previewDropdownOpen = !shellState.previewDropdownOpen;
-	}
-
-	function handlePreviewDurationSelect(duration: number): void {
-		shellState.previewDuration = duration;
-		shellState.previewDropdownOpen = false;
-		startPreviewAudio(duration);
-	}
-
-	function handleWindowClick(event: MouseEvent): void {
-		if (!shellState.previewDropdownOpen) return;
-		const target = event.target;
-		if (!(target instanceof Node)) return;
-		if (previewDropdownElement?.contains(target) || previewDropdownToggleElement?.contains(target)) {
-			return;
-		}
-		shellState.previewDropdownOpen = false;
-	}
-
-	onMount(() => {
-		shellState.uiInitFatalMessage = initializeAppShell();
-	});
 </script>
 
-<svelte:window on:keydown={handleGlobalKeyDown} on:click={handleWindowClick} />
+<svelte:window on:keydown={handleGlobalKeyDown} />
 
-{#if shellState.uiInitFatalMessage}
-	<div class="fatal-init-banner" role="alert" aria-live="assertive">
-		<h2>Initialization Error</h2>
-		<p>{shellState.uiInitFatalMessage}</p>
-		<p class="fatal-init-help">Restart the app. If this keeps happening, share the console logs.</p>
-	</div>
-{:else}
 <div class="main-container">
 	<div class="panel input-panel">
 		<div class="flex flex-col gap-2 mb-2">
@@ -172,42 +133,7 @@
 				<div class="section-divider">
 					<div class="section-header justify-between">
 						<h3>Preview Audio and Metadata Tags</h3>
-						<div class="split-button">
-							<button
-								id="preview-button"
-								class="btn-pill btn-pill-primary split-main"
-								on:click={handlePreviewButtonClick}
-							>
-								Preview Audio
-							</button>
-							<button
-								id="preview-dropdown-toggle"
-								class="btn-pill btn-pill-primary split-caret"
-								bind:this={previewDropdownToggleElement}
-								on:click={handlePreviewDropdownToggle}
-							>
-								▼
-							</button>
-							<div
-								id="preview-dropdown"
-								class="split-dropdown"
-								style={`display: ${shellState.previewDropdownOpen ? 'block' : 'none'}`}
-								bind:this={previewDropdownElement}
-							>
-								<button class="split-option" data-duration="15" on:click={() => handlePreviewDurationSelect(15)}
-									>15 seconds</button
-								>
-								<button class="split-option" data-duration="30" on:click={() => handlePreviewDurationSelect(30)}
-									>30 seconds</button
-								>
-								<button class="split-option" data-duration="45" on:click={() => handlePreviewDurationSelect(45)}
-									>45 seconds</button
-								>
-								<button class="split-option" data-duration="60" on:click={() => handlePreviewDurationSelect(60)}
-									>60 seconds</button
-								>
-							</div>
-						</div>
+						<PreviewAudioControls />
 					</div>
 
 					<TagPreviewIsland />
@@ -220,4 +146,3 @@
 </div>
 <MetadataLookupIsland />
 <CollisionDialogIsland />
-{/if}

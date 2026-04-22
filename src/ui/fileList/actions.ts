@@ -32,7 +32,6 @@ import {
 	setOrderLocked,
 } from './state';
 import {
-	initDOMCache,
 	updateFileListDOM,
 	updateTotalStats,
 	updateSelection,
@@ -140,7 +139,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataState();
 	setCurrentFileList(normalizedFileListInfo);
 	clearSelectionPanels();
-	initDOMCache();
 
 	updateFileListDOM();
 
@@ -163,8 +161,6 @@ export function appendFileList(
 		displayFileList(fileListInfo);
 		return;
 	}
-
-	initDOMCache();
 
 	const appendedFiles = collectUniqueFiles(
 		fileListInfo.files,

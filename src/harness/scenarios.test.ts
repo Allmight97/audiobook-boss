@@ -18,7 +18,7 @@ describe('harness scenario routing', () => {
 	});
 
 	it('maps status surfaces to the status-processing scenario', () => {
-		const scenarios = resolveHarnessScenariosForPaths(['src/ui/statusPanel/logic.ts']);
+		const scenarios = resolveHarnessScenariosForPaths(['src/ui/statusPanel/controller.ts']);
 
 		expect(scenarios.map((scenario) => scenario.id)).toContain('status-processing');
 	});

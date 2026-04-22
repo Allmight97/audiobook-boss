@@ -11,7 +11,7 @@
 - Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
 - Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
-- Keep layout/token changes anchored to `src/styles.css` as the spacing and token source of truth.
+- Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.
 - Route UI proof-of-done through the harness substrate (`bun run harness:verify --scenario <name>` or `--changed`) plus targeted tests for the touched surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
@@ -44,6 +44,6 @@
 
 - Tauri runtime calls are centralized through `tauriClient`.
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
-- Token/spacing changes resolve through `src/styles.css` source-of-truth.
+- Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Svelte surface.
 - UI-facing changes have targeted tests plus harness verification coverage for the touched surface.
 - Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).

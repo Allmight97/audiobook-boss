@@ -14,7 +14,7 @@ import {
 	setJobControlsEnabled,
 	setJobTypeSelection,
 } from '../../jobControls';
-import * as dom from '../dom';
+import * as feedback from '../feedback';
 import { StatusPanelController } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
@@ -202,9 +202,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
-		const showErrorSpy = vi.spyOn(dom, 'showError');
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showErrorSpy = vi.spyOn(feedback, 'showError');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyQueueSnapshot({
 			items: [
@@ -268,7 +268,7 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.reconcileProcessResult({
 			jobType: 'merge',
@@ -306,7 +306,7 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showErrorSpy = vi.spyOn(dom, 'showError');
+		const showErrorSpy = vi.spyOn(feedback, 'showError');
 		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		controller.applyQueueSnapshot({
@@ -363,8 +363,8 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
-		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
 		controller.setBatchCompletionMessage('No files were processed successfully. Skipped: 2.');
 
 		controller.applyQueueSnapshot({
@@ -422,9 +422,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
-		const showErrorSpy = vi.spyOn(dom, 'showError');
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showErrorSpy = vi.spyOn(feedback, 'showError');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyProgress({
 			job_id: 'job-1',
@@ -495,9 +495,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
-		const showErrorSpy = vi.spyOn(dom, 'showError');
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showErrorSpy = vi.spyOn(feedback, 'showError');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
 
 		controller.applyQueueSnapshot({
@@ -538,9 +538,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelController();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(dom, 'showSuccess');
-		const showErrorSpy = vi.spyOn(dom, 'showError');
-		const showInfoSpy = vi.spyOn(dom, 'showInfo');
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showErrorSpy = vi.spyOn(feedback, 'showError');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyQueueSnapshot({
 			items: [

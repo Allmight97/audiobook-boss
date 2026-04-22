@@ -1,9 +1,3 @@
-/**
- * StatusPanel view-state adapter.
- *
- * This module intentionally avoids direct DOM querying/mutation so the
- * Svelte island remains the single rendering authority.
- */
 import {
 	clearStatusPanelUserMessageLock,
 	pushStatusPanelUserMessageLock,

@@ -1,6 +1,5 @@
 import type { AudiobookMetadata } from '../types/metadata';
 import type { MetadataIntentPatch } from '../types/metadataIntent';
-import { publishPendingMetadataSummary } from './core/appStore.svelte';
 import {
 	buildMetadataIntentPatchFromMetadata,
 	hasActionableMetadataIntentPatch,
@@ -10,10 +9,6 @@ import {
 const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
 const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
 const pendingSavePaths = new Set<string>();
-
-function syncPendingMetadataSummary(): void {
-	publishPendingMetadataSummary(pendingSavePaths.size);
-}
 
 const isNullish = (value: unknown): value is null | undefined => value == null;
 
@@ -65,7 +60,6 @@ export function setMetadataForFile(
 			metadataIntentByFile.set(filePath, mergeMetadataIntentPatches(existing, nextPatch));
 		}
 		pendingSavePaths.add(filePath);
-		syncPendingMetadataSummary();
 	}
 }
 
@@ -119,7 +113,6 @@ export function hasPendingMetadataChanges(): boolean {
 export function clearPendingMetadataForFile(filePath: string): void {
 	pendingSavePaths.delete(filePath);
 	metadataIntentByFile.delete(filePath);
-	syncPendingMetadataSummary();
 }
 
 export function clearPendingMetadataForFiles(filePaths: string[]): void {
@@ -127,19 +120,16 @@ export function clearPendingMetadataForFiles(filePaths: string[]): void {
 		pendingSavePaths.delete(filePath);
 		metadataIntentByFile.delete(filePath);
 	});
-	syncPendingMetadataSummary();
 }
 
 export function removeMetadataForFile(filePath: string): void {
 	metadataByFile.delete(filePath);
 	metadataIntentByFile.delete(filePath);
 	pendingSavePaths.delete(filePath);
-	syncPendingMetadataSummary();
 }
 
 export function clearMetadataState(): void {
 	metadataByFile.clear();
 	metadataIntentByFile.clear();
 	pendingSavePaths.clear();
-	syncPendingMetadataSummary();
 }

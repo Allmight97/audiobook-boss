@@ -1,5 +1,4 @@
 import { ENABLE_FDK } from './featureFlags';
-import { loadState, saveState } from './state';
 import { updateEstimatedSize } from '../outputPanel/dom';
 import {
 	updateEncoderSettings,
@@ -7,10 +6,8 @@ import {
 	updateToolchainSettings,
 } from '../outputPanel/state';
 import {
-	applyPersistedEncoderState,
 	encoderPanelState,
 	readBoundaryEncoderSettings,
-	readPersistedEncoderState,
 	readSampleRateFromState,
 	readToolchainSettingsFromState,
 	setChannelsAutoHint,
@@ -30,7 +27,6 @@ const debugLog = (...args: unknown[]): void => {
 	if (DEBUG) console.log('[EncoderPanel]', ...args);
 };
 
-const PERSIST_DEBOUNCE_MS = 300;
 const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	auto: 'HE-AAC v1',
 	fdk_he_aac: 'HE-AAC v1',
@@ -47,8 +43,6 @@ const VBR_BITRATE_ESTIMATES: Record<VbrLevel, number> = {
 const NATIVE_AAC_WARNING =
 	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
 const AUTO_LABEL_BASE = 'Auto';
-
-let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
@@ -95,16 +89,6 @@ const syncOutputState = (): void => {
 const syncOutputSizingFromEncoderState = (): void => {
 	syncOutputState();
 	updateEstimatedSize();
-};
-
-const queuePersistState = (): void => {
-	if (persistTimer) {
-		clearTimeout(persistTimer);
-	}
-	persistTimer = setTimeout(() => {
-		saveState(readPersistedEncoderState());
-		persistTimer = null;
-	}, PERSIST_DEBOUNCE_MS);
 };
 
 const updateAutoOptionLabel = (): void => {
@@ -246,8 +230,8 @@ const normalizeUnavailableFlavorSelection = (): boolean => {
 	return true;
 };
 
-const syncEncoderState = (): boolean => {
-	const normalizedUnavailableFlavor = normalizeUnavailableFlavorSelection();
+const syncEncoderState = (): void => {
+	normalizeUnavailableFlavorSelection();
 	enforceAllowedEncoderSelection();
 	const effectiveEncoder = resolveEffectiveEncoder(encoderPanelState.flavor);
 	enforceBitrateModeCompatibility(effectiveEncoder);
@@ -257,12 +241,10 @@ const syncEncoderState = (): boolean => {
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
 	updateAvailabilityHint();
-	return normalizedUnavailableFlavor;
 };
 
 const syncAfterStateChange = (): void => {
 	syncEncoderState();
-	queuePersistState();
 	syncOutputSizingFromEncoderState();
 };
 
@@ -280,22 +262,17 @@ const hydrateAvailability = async (mode: 'initial' | 'refresh' = 'initial'): Pro
 		setEncoderAvailability(null);
 	}
 
-	const normalizedUnavailableFlavor = syncEncoderState();
-	if (normalizedUnavailableFlavor) {
-		queuePersistState();
-	}
+	syncEncoderState();
 	syncOutputSizingFromEncoderState();
 	debugLog('Encoder panel ready');
 };
 
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
-	applyPersistedEncoderState(loadState());
 	resetAutoResolutionHints();
 	setSampleRateAutoHint('Auto resolves from source audio.');
 	setChannelsAutoHint('Auto resolves from source audio.');
 	syncOutputSizingFromEncoderState();
-	queuePersistState();
 	void hydrateAvailability();
 };
 
@@ -342,21 +319,18 @@ export const handleBitrateValueChange = (event: Event): void => {
 export const handleFdkAfterburnerChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
-	queuePersistState();
 	syncOutputState();
 };
 
 export const handleNativeTwoloopChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
-	queuePersistState();
 	syncOutputState();
 };
 
 export const handleToolchainPathInput = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	setExternalToolchainOverridePath(target?.value ?? '');
-	queuePersistState();
 	syncOutputState();
 };
 

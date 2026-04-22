@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as dom from '../dom';
+import * as feedback from '../feedback';
 import { renderJobList as renderJobListView } from '../render';
 import type { JobProgress } from '../state';
 
-vi.mock('../dom', () => ({
+vi.mock('../feedback', () => ({
 	renderJobList: vi.fn(),
 }));
 
 describe('renderJobList order and queue status text', () => {
-	const renderListMock = vi.mocked(dom.renderJobList);
+	const renderListMock = vi.mocked(feedback.renderJobList);
 
 	beforeEach(() => {
 		renderListMock.mockClear();

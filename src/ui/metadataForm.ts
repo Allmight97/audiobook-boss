@@ -27,8 +27,6 @@ import {
 } from './metadataForm/state.svelte';
 import { updateTagPreview } from './tagPreview';
 
-type MetadataFormSaveHandler = () => void;
-
 function readFieldValue(inputId: MetadataFieldId): string {
 	return metadataFormState.fields[inputId].value;
 }
@@ -59,18 +57,6 @@ function markDirty(inputId: MetadataFieldId): void {
 
 function isDirty(inputId: MetadataFieldId): boolean {
 	return metadataFormState.fields[inputId].dirty;
-}
-
-/**
- * Kept for compatibility during migration.
- * New callers should invoke bootstrap-level save actions directly from UI intent.
- */
-export function setMetadataFormSaveHandler(_handler: MetadataFormSaveHandler): void {
-	// Deprecated: module-global save handler registration is no longer used.
-}
-
-export function triggerMetadataFormSave(handler?: MetadataFormSaveHandler): void {
-	handler?.();
 }
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {

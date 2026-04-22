@@ -1,10 +1,9 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { STAGES } from '../../types/events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { publishQueueMirror } from '../core/appStore.svelte';
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
-import * as dom from './dom';
+import * as feedback from './feedback';
 import { listenForProgressEvents, listenForQueueEvents } from './events';
 import {
 	buildQueueLabels,
@@ -41,7 +40,7 @@ function toTerminalJobStatus(
 	return 'completed';
 }
 
-export class StatusPanelController {
+export class StatusPanelRuntime {
 	private progressUnlisten?: () => void;
 	private queueUnlisten?: () => void;
 	private isProcessing = false;
@@ -62,7 +61,7 @@ export class StatusPanelController {
 		this.currentStatus = createInitialStatus();
 		this.updateUI();
 		this.updateConcurrencyIndicator();
-		dom.resetArtThumbnail();
+		feedback.resetArtThumbnail();
 
 		window.addEventListener('beforeunload', () => {
 			this.teardownEventListeners();
@@ -254,7 +253,7 @@ export class StatusPanelController {
 	}
 
 	public async requestCancelAll(): Promise<void> {
-		dom.setCancelAllButtonPending(true);
+		feedback.setCancelAllButtonPending(true);
 		try {
 			await tauriClient.cancelProcessing();
 			this.updateStatus(
@@ -266,9 +265,9 @@ export class StatusPanelController {
 			);
 		} catch (error) {
 			console.error('Failed to cancel processing:', error);
-			dom.showError('Failed to cancel processing. Please try again.');
+			feedback.showError('Failed to cancel processing. Please try again.');
 		} finally {
-			dom.setCancelAllButtonPending(false);
+			feedback.setCancelAllButtonPending(false);
 		}
 	}
 
@@ -278,7 +277,7 @@ export class StatusPanelController {
 		}
 
 		if (this.jobProgress.size === 0) {
-			dom.showInfo('Processing was cancelled.');
+			feedback.showInfo('Processing was cancelled.');
 			this.resetToIdle();
 			return;
 		}
@@ -307,7 +306,7 @@ export class StatusPanelController {
 		} else {
 			const [jobKey] = this.jobProgress.keys();
 			if (!jobKey) {
-				dom.showInfo('Processing was cancelled.');
+				feedback.showInfo('Processing was cancelled.');
 				this.resetToIdle();
 				return;
 			}
@@ -343,7 +342,7 @@ export class StatusPanelController {
 
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		dom.resetArtThumbnail();
+		feedback.resetArtThumbnail();
 	}
 
 	public get isCurrentlyProcessing(): boolean {
@@ -424,17 +423,17 @@ export class StatusPanelController {
 			);
 
 			if (hasFailed) {
-				dom.showError(
+				feedback.showError(
 					this.batchCompletionMessageOverride ?? 'One or more files failed to process.',
 				);
 			} else if (hasCancelled) {
-				dom.showInfo('Processing was cancelled.');
+				feedback.showInfo('Processing was cancelled.');
 			} else if (!hasCompleted && hasSkipped) {
-				dom.showInfo(this.batchCompletionMessageOverride ?? 'No files were processed.');
+				feedback.showInfo(this.batchCompletionMessageOverride ?? 'No files were processed.');
 			} else if (this.batchCompletionMessageOverride) {
-				dom.showSuccess(this.batchCompletionMessageOverride);
+				feedback.showSuccess(this.batchCompletionMessageOverride);
 			} else {
-				dom.showSuccess('Audiobook created successfully!');
+				feedback.showSuccess('Audiobook created successfully!');
 			}
 
 			this.resetToIdle();
@@ -453,11 +452,11 @@ export class StatusPanelController {
 				this.resetToIdle();
 
 				if (event.stage === STAGES.completed) {
-					dom.showSuccess('Audiobook created successfully!');
+					feedback.showSuccess('Audiobook created successfully!');
 				} else if (event.stage === STAGES.failed) {
-					dom.showError(event.message);
+					feedback.showError(event.message);
 				} else if (event.stage === STAGES.cancelled) {
-					dom.showInfo('Processing was cancelled.');
+					feedback.showInfo('Processing was cancelled.');
 				}
 			}
 
@@ -473,7 +472,7 @@ export class StatusPanelController {
 			this.jobProgress.delete(jobKey);
 			if (this.jobProgress.size === 0) {
 				this.resetToIdle();
-				dom.showInfo(message);
+				feedback.showInfo(message);
 				return;
 			}
 
@@ -530,10 +529,6 @@ export class StatusPanelController {
 	private updateStatus(status: ProcessingStatus): void {
 		this.currentStatus = status;
 		this.updateUI();
-		publishQueueMirror({
-			summary: status.message,
-			statusText: String(status.stage),
-		});
 	}
 
 	private updateUI(): void {
@@ -545,7 +540,7 @@ export class StatusPanelController {
 			await tauriClient.cancelProcessing(jobId);
 		} catch (error) {
 			console.error(`Failed to cancel job ${jobId}:`, error);
-			dom.showError(`Failed to cancel job ${jobId}`);
+			feedback.showError(`Failed to cancel job ${jobId}`);
 		}
 	}
 
@@ -595,13 +590,13 @@ export class StatusPanelController {
 	private async updateArtThumbnail(): Promise<void> {
 		const fileList = getCurrentFileList();
 		if (!fileList?.files.length) {
-			dom.resetArtThumbnail();
+			feedback.resetArtThumbnail();
 			return;
 		}
 
 		const firstValidFile = fileList.files.find((file) => file.isValid);
 		if (!firstValidFile) {
-			dom.resetArtThumbnail();
+			feedback.resetArtThumbnail();
 			return;
 		}
 
@@ -617,13 +612,13 @@ export class StatusPanelController {
 		try {
 			const dataUrl = await readCoverArtDataUrl(filePath);
 			if (dataUrl) {
-				dom.displayCoverArt(dataUrl);
+				feedback.displayCoverArt(dataUrl);
 			} else {
-				dom.resetArtThumbnail();
+				feedback.resetArtThumbnail();
 			}
 		} catch (error) {
 			console.warn('Failed to load cover art for thumbnail:', error);
-			dom.resetArtThumbnail();
+			feedback.resetArtThumbnail();
 		}
 	}
 
@@ -635,3 +630,37 @@ export class StatusPanelController {
 		return findFilePathByIndexService(getCurrentFileList(), index);
 	}
 }
+
+let statusPanelInstance: StatusPanelRuntime | null = null;
+
+export function initStatusPanel(): StatusPanelRuntime {
+	if (!statusPanelInstance) {
+		statusPanelInstance = new StatusPanelRuntime();
+	}
+	return statusPanelInstance;
+}
+
+export function isStatusPanelProcessing(): boolean {
+	return Boolean(statusPanelInstance?.isCurrentlyProcessing);
+}
+
+export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {
+	void initStatusPanel().startProcessing(options);
+}
+
+export function triggerCancelAllFromStatusPanel(): void {
+	void statusPanelInstance?.requestCancelAll();
+}
+
+export function pushStatusPanelTransientStatus(
+	message: string,
+	options?: { ttlMs?: number },
+): void {
+	feedback.pushTransientStatusMessage(message, options?.ttlMs);
+}
+
+export function clearStatusPanelTransientStatusLock(): void {
+	feedback.clearTransientStatusMessageLock();
+}
+
+export { StatusPanelRuntime as StatusPanelController };

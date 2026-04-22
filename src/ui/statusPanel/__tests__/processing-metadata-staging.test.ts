@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../../types/audio';
 import type { ProcessingStatus } from '../state';
 import { startProcessing } from '../processing';
-import * as dom from '../dom';
+import * as feedback from '../feedback';
 
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
@@ -69,7 +69,7 @@ vi.mock('../../fileList/actions', () => ({
 	stageMetadataToSelection: context.stageMetadataToSelectionMock,
 }));
 
-vi.mock('../dom', () => ({
+vi.mock('../feedback', () => ({
 	showError: vi.fn(),
 }));
 
@@ -316,11 +316,11 @@ describe('startProcessing metadata staging', () => {
 		});
 
 		const ctx = processingContext();
-		vi.mocked(dom.showError).mockClear();
+		vi.mocked(feedback.showError).mockClear();
 
 		await startProcessing(ctx);
 
-		expect(dom.showError).not.toHaveBeenCalled();
+		expect(feedback.showError).not.toHaveBeenCalled();
 		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(ctx.resetToIdle).not.toHaveBeenCalled();
 	});

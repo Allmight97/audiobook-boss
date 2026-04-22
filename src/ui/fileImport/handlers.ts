@@ -4,7 +4,7 @@ import { isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
 import { appendFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
 import { isOrderLocked } from '../fileList/state';
-import { clearFileImportError, setFileImportError } from './state.svelte';
+import { clearFileImportError, setFileImportDragOver, setFileImportError } from './state.svelte';
 import {
 	SUPPORTED_AUDIO_EXTENSIONS,
 	SUPPORTED_AUDIO_FORMATS_TEXT,
@@ -12,7 +12,6 @@ import {
 } from './supportedAudio';
 
 export interface DragDropContext {
-	getDropZoneHeader: () => HTMLElement | null;
 	getCoverArtArea: () => HTMLElement | null;
 	getFileManagementContainer: () => HTMLElement | null;
 	getVisibleFiles: () => AudioFile[];
@@ -21,8 +20,7 @@ export interface DragDropContext {
 type Unlisten = () => void;
 
 export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
-	const { getDropZoneHeader, getCoverArtArea, getFileManagementContainer, getVisibleFiles } =
-		context;
+	const { getCoverArtArea, getFileManagementContainer, getVisibleFiles } = context;
 	const unlisteners: Unlisten[] = [];
 	let isDisposed = false;
 
@@ -51,7 +49,7 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 	const dragDropHandler = async (event: {
 		payload: { position: { x: number; y: number }; paths: string[] };
 	}) => {
-		getDropZoneHeader()?.classList.remove('drag-over');
+		setFileImportDragOver(false);
 		if (!isFileDropEvent(event.payload)) {
 			return;
 		}
@@ -83,12 +81,12 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 	captureUnlistener(tauriClient.listen('tauri://drag-drop', dragDropHandler));
 	captureUnlistener(
 		tauriClient.listen('tauri://drag-enter', () => {
-			getDropZoneHeader()?.classList.add('drag-over');
+			setFileImportDragOver(true);
 		}),
 	);
 	captureUnlistener(
 		tauriClient.listen('tauri://drag-leave', () => {
-			getDropZoneHeader()?.classList.remove('drag-over');
+			setFileImportDragOver(false);
 		}),
 	);
 

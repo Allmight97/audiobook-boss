@@ -7,7 +7,6 @@ import {
 	onMetadataFormActionSelectChange,
 	onMetadataFormFieldInput,
 	setMetadataFormMode,
-	triggerMetadataFormSave,
 } from '../metadataForm';
 
 describe('MetadataForm island mount + multi-select action sync', () => {
@@ -21,7 +20,7 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		render(MetadataFormFieldsIsland, {
 			onFieldInput: onMetadataFormFieldInput,
 			onActionChange: onMetadataFormActionSelectChange,
-			onSaveMetadata: triggerMetadataFormSave,
+			onSaveMetadata: () => {},
 		});
 	});
 

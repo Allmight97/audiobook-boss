@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import {
 		applyMetadataLookupResult,
 		closeMetadataLookup,
+		initMetadataLookup,
 		searchMetadataLookup,
 		skipMetadataLookupQueueItem,
 		useManualMetadataEntryFromLookup,
@@ -47,23 +49,27 @@
 		}
 		return parts.length ? parts.join(' • ') : 'Series: —';
 	}
+
+	onMount(() => {
+		initMetadataLookup();
+	});
 </script>
 
 <div
 	id="metadata-lookup-modal"
-	class="metadata-lookup-modal"
+	class="app-modal-backdrop"
 	class:open={metadataLookupState.isOpen}
 	data-testid="metadata-lookup-modal"
 	aria-hidden={!metadataLookupState.isOpen}
 	on:click={handleBackdropClick}
 >
 	<div
-		class="metadata-lookup-dialog"
+		class="app-modal-dialog"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="metadata-lookup-title"
 	>
-		<div class="metadata-lookup-header">
+		<div class="app-modal-header">
 			<h3 id="metadata-lookup-title">Find Metadata Online</h3>
 			<button
 				id="metadata-lookup-close"
@@ -75,9 +81,9 @@
 				Close
 			</button>
 		</div>
-		<div class="metadata-lookup-body">
-			<div class="metadata-lookup-controls">
-				<div class="metadata-lookup-field">
+		<div class="app-modal-body">
+			<div class="app-modal-controls">
+				<div class="app-modal-field">
 					<label for="metadata-lookup-query">Search</label>
 					<input
 						id="metadata-lookup-query"
@@ -88,7 +94,7 @@
 						on:keydown={handleQueryKeyDown}
 					/>
 				</div>
-				<div class="metadata-lookup-field">
+				<div class="app-modal-field">
 					<label for="metadata-lookup-source">Source</label>
 					<select
 						id="metadata-lookup-source"
@@ -100,7 +106,7 @@
 						<option value="openlibrary">OpenLibrary</option>
 					</select>
 				</div>
-				<div class="metadata-lookup-field">
+				<div class="app-modal-field">
 					<label for="metadata-lookup-apply-mode">Apply</label>
 					<select
 						id="metadata-lookup-apply-mode"
@@ -115,7 +121,7 @@
 						{/if}
 					</select>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-toggle">
+				<div class="app-modal-field app-modal-field-toggle">
 					<label class="checkbox-label text-xs mb-0">
 						<input
 							type="checkbox"
@@ -126,7 +132,7 @@
 						<span class="option-label">Replace cover art</span>
 					</label>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-search-btn"
 						class="btn-pill btn-pill-primary"
@@ -137,7 +143,7 @@
 						Search
 					</button>
 				</div>
-				<div class="metadata-lookup-field metadata-lookup-field-button">
+				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-skip-btn"
 						class="btn-pill btn-pill-secondary"
@@ -166,7 +172,7 @@
 			</div>
 			<div
 				id="metadata-lookup-results"
-				class="metadata-lookup-results"
+				class="app-modal-results"
 				>
 					{#if metadataLookupState.hasSearched && metadataLookupState.results.length === 0}
 						<div class="metadata-lookup-empty muted-text">
@@ -186,7 +192,7 @@
 						</div>
 					{/if}
 				{#each metadataLookupState.results as result, index}
-					<div class="metadata-lookup-result">
+					<div class="app-modal-result">
 						<div class="metadata-lookup-cover">
 							{#if result.coverUrl}
 								<img src={result.coverUrl} alt={`${result.title} cover art`} loading="lazy" />
@@ -239,3 +245,93 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.metadata-lookup-cover {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 4rem;
+		height: 4rem;
+		overflow: hidden;
+		border: 1px solid var(--border-secondary);
+		border-radius: 0.375rem;
+		background: var(--bg-drag-area);
+		color: var(--text-muted);
+		font-size: 0.7rem;
+		text-align: center;
+	}
+
+	.metadata-lookup-cover img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.metadata-lookup-details {
+		min-width: 0;
+	}
+
+	.metadata-lookup-title {
+		margin-bottom: 0.25rem;
+		font-weight: 600;
+	}
+
+	.metadata-lookup-meta {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+	}
+
+	.metadata-lookup-source {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+		padding: 0.15rem 0.5rem;
+		border: 1px solid var(--border-secondary);
+		border-radius: 9999px;
+		color: var(--text-secondary);
+		font-size: 0.7rem;
+	}
+
+	.metadata-lookup-source.is-fallback {
+		color: var(--text-muted);
+	}
+
+	.metadata-lookup-actions {
+		display: flex;
+		align-items: flex-start;
+	}
+
+	.metadata-lookup-empty {
+		padding: 0.75rem;
+		border: 1px dashed var(--border-secondary);
+		border-radius: 0.375rem;
+		color: var(--text-muted);
+		text-align: center;
+	}
+
+	.metadata-lookup-context,
+	.metadata-lookup-status {
+		min-height: 1rem;
+	}
+
+	.metadata-lookup-status.is-error {
+		color: var(--text-error, #ef4444);
+	}
+
+	.metadata-lookup-status.is-success {
+		color: var(--text-success, #10b981);
+	}
+
+	@media (max-width: 720px) {
+		.app-modal-controls {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.app-modal-field-button,
+		.app-modal-field-toggle {
+			align-items: stretch;
+		}
+	}
+</style>

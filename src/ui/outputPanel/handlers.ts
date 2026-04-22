@@ -2,7 +2,6 @@
  * Event handlers for output panel controls
  */
 import { tauriClient } from '../../lib/tauri/client';
-import { publishOutputDraft } from '../core/appStore.svelte';
 import {
 	updateOutputDirectory,
 	updateNamingPreset,
@@ -51,7 +50,6 @@ export async function handleDirectoryBrowse(): Promise<void> {
 
 		if (normalized) {
 			updateOutputDirectory(normalized);
-			publishOutputDraft({ directory: normalized });
 			updateOutputPath();
 		}
 	} catch (error) {

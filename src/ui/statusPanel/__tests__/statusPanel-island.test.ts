@@ -9,17 +9,15 @@ const { initStatusPanelLogicMock, triggerProcessMock, triggerCancelAllMock } = v
 	triggerCancelAllMock: vi.fn(),
 }));
 
-vi.mock('../logic', () => ({
-	StatusPanel: class {},
-	getStatusPanel: vi.fn(() => null),
+vi.mock('../controller', () => ({
+	StatusPanelRuntime: class {},
+	StatusPanelController: class {},
 	initStatusPanel: initStatusPanelLogicMock,
 	clearStatusPanelTransientStatusLock: vi.fn(),
 	pushStatusPanelTransientStatus: vi.fn(),
 	triggerProcessFromStatusPanel: triggerProcessMock,
 	triggerCancelAllFromStatusPanel: triggerCancelAllMock,
 }));
-
-import { initStatusPanel } from '../index';
 
 describe('StatusPanel island mount', () => {
 	beforeEach(() => {
@@ -31,7 +29,6 @@ describe('StatusPanel island mount', () => {
 
 	it('renders status panel controls and delegates initialization', () => {
 		render(StatusPanelIsland);
-		initStatusPanel();
 
 		expect(document.querySelector('.panel.status-panel')).toBeTruthy();
 		const requiredIds = [

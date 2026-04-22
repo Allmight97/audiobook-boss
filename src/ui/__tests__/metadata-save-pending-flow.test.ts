@@ -7,10 +7,6 @@ const context = vi.hoisted(() => ({
 	getPendingIntentEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
 	clearPendingMock: vi.fn(),
 	resetDirtyStateMock: vi.fn(),
-	statusPanel: {
-		isCurrentlyProcessing: false,
-		startProcessing: vi.fn(),
-	},
 	getCurrentFileListMock: vi.fn(() => ({
 		files: [
 			{ path: '/books/a.m4b', isValid: true },
@@ -18,6 +14,7 @@ const context = vi.hoisted(() => ({
 		],
 	})),
 	metadataSaveInProgress: false,
+	statusPanelProcessing: false,
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -36,24 +33,21 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileImport', () => ({ initFileImport: vi.fn() }));
-vi.mock('../outputPanel', () => ({ initOutputPanel: vi.fn() }));
-vi.mock('../encoderPanel', () => ({ initEncoderPanel: vi.fn() }));
 vi.mock('../coverArt', () => ({
-	initCoverArt: vi.fn(),
+	getCurrentCoverArt: vi.fn(() => null),
 	onLoadCoverArtFromFilePicker: vi.fn(),
 	onLoadCoverArtFromInput: vi.fn(),
 	onClearCoverArt: vi.fn(),
 }));
-vi.mock('../tagPreview', () => ({ initTagPreview: vi.fn() }));
 vi.mock('../jobControls', () => ({
 	initJobControls: vi.fn(),
 	handleMergeModeChange: vi.fn(),
 	handleMaxConcurrentSelectionChange: vi.fn(),
+	getMaxConcurrentStatus: vi.fn(() => ({ effective: 2, selection: 'auto' })),
 }));
-vi.mock('../metadataLookup', () => ({ initMetadataLookup: vi.fn() }));
 vi.mock('../statusPanel/index', () => ({
-	initStatusPanel: vi.fn(() => context.statusPanel),
+	initStatusPanel: vi.fn(),
+	isStatusPanelProcessing: () => context.statusPanelProcessing,
 	pushStatusPanelTransientStatus: (message: string) => {
 		const status = document.getElementById('status-text');
 		if (status instanceof HTMLElement) {
@@ -64,11 +58,10 @@ vi.mock('../statusPanel/index', () => ({
 
 vi.mock('../metadataForm', () => ({
 	initMetadataFormEvents: vi.fn(),
+	readMetadataForm: vi.fn(() => ({})),
 	resetDirtyState: context.resetDirtyStateMock,
 	onMetadataFormFieldInput: vi.fn(),
 	onMetadataFormActionSelectChange: vi.fn(),
-	triggerMetadataFormSave: vi.fn(),
-	setMetadataFormSaveHandler: vi.fn(),
 }));
 
 vi.mock('../fileList', () => ({
@@ -101,7 +94,7 @@ function getStatusText(): HTMLElement {
 }
 
 describe('metadata save pending flow', () => {
-	let saveMetadataFromUI: typeof import('../core/bootstrap').saveMetadataFromUI;
+	let saveMetadataFromUI: typeof import('../core/actions').saveMetadataFromUI;
 
 	beforeAll(async () => {
 		document.body.innerHTML = `
@@ -111,7 +104,7 @@ describe('metadata save pending flow', () => {
     `;
 
 		await import('../../main');
-		({ saveMetadataFromUI } = await import('../core/bootstrap'));
+		({ saveMetadataFromUI } = await import('../core/actions'));
 	});
 
 	beforeEach(() => {
@@ -121,8 +114,7 @@ describe('metadata save pending flow', () => {
 		context.resetDirtyStateMock.mockReset();
 		context.getPendingIntentEntriesMock.mockReset();
 		context.metadataSaveInProgress = false;
-		context.statusPanel.isCurrentlyProcessing = false;
-		context.statusPanel.startProcessing.mockReset();
+		context.statusPanelProcessing = false;
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [
 				{ path: '/books/a.m4b', isValid: true },
@@ -191,7 +183,7 @@ describe('metadata save pending flow', () => {
 	});
 
 	it('short-circuits while status panel processing is active', async () => {
-		context.statusPanel.isCurrentlyProcessing = true;
+		context.statusPanelProcessing = true;
 		context.persistPendingDraftsMock.mockResolvedValue(true);
 		context.getPendingIntentEntriesMock.mockReturnValue([
 			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],

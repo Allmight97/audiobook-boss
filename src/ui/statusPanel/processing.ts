@@ -19,13 +19,13 @@ import {
 	hasActionableMetadataIntentPatch,
 	type MetadataIntentPatch,
 } from '../../types/metadataIntent';
-import * as dom from './dom';
+import * as feedback from './feedback';
+import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
 import { isProcessingCancellationError, normalizeProcessingErrorMessage } from './errorHelpers';
 import { openCollisionDialog } from '../collisionDialog';
 import type {
 	CollisionPolicy,
-	ProcessCommandJobResult,
 	ProcessCommandResult,
 	ProcessPayload,
 	ProcessingPreflightPlan,
@@ -41,24 +41,6 @@ interface StartProcessingContext {
 	reconcileProcessResult?: (result: ProcessCommandResult) => void;
 	handleCancellation: () => void;
 	resetToIdle: () => void;
-}
-
-function isSuccessfulResultEntry(entry: ProcessCommandJobResult): boolean {
-	return entry.status === 'success';
-}
-
-function extractSuccessfulPreviewPaths(result: ProcessCommandResult): string[] {
-	return result.results
-		.filter(
-			(entry) => typeof entry.previewFilePath === 'string' && entry.previewFilePath.length > 0,
-		)
-		.filter(isSuccessfulResultEntry)
-		.map((entry) => entry.previewFilePath as string);
-}
-
-function formatFilenameForDisplay(path: string): string {
-	const segments = path.split(/[\\/]/);
-	return segments[segments.length - 1] || path;
 }
 
 function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]): string | null {
@@ -87,7 +69,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 					if (typeof entry.inputIndex === 'number') {
 						const path = filePaths[entry.inputIndex];
 						if (path) {
-							return formatFilenameForDisplay(path);
+							return path.split(/[\\/]/).pop() || path;
 						}
 					}
 					if (entry.error != null) {
@@ -146,7 +128,7 @@ async function reviewOutputPlanBeforeProcessing(
 	});
 	const hardBlockMessage = getHardBlockingCollisionMessage(initialPlan);
 	if (hardBlockMessage) {
-		dom.showError(hardBlockMessage);
+		feedback.showError(hardBlockMessage);
 		return null;
 	}
 
@@ -175,7 +157,7 @@ async function reviewOutputPlanBeforeProcessing(
 	});
 	const reviewedHardBlock = getHardBlockingCollisionMessage(reviewedPlan);
 	if (reviewedHardBlock) {
-		dom.showError(reviewedHardBlock);
+		feedback.showError(reviewedHardBlock);
 		return null;
 	}
 
@@ -203,13 +185,13 @@ export async function startProcessing(
 		// Validate inputs
 		if (!fileList?.files?.length) {
 			console.log('StatusPanel: No files found');
-			dom.showError('No audio files selected. Please add files to process.');
+			feedback.showError('No audio files selected. Please add files to process.');
 			return;
 		}
 
 		if (fileList.validCount === 0) {
 			console.log('StatusPanel: No valid files found');
-			dom.showError('No valid audio files found. Please check your files and try again.');
+			feedback.showError('No valid audio files found. Please check your files and try again.');
 			return;
 		}
 
@@ -222,7 +204,7 @@ export async function startProcessing(
 			console.log('StatusPanel: Output configuration retrieved:', outputConfig);
 		} catch (error) {
 			console.log('StatusPanel: Settings validation failed:', error);
-			dom.showError(`Settings validation failed: ${error}`);
+			feedback.showError(`Settings validation failed: ${error}`);
 			return;
 		}
 
@@ -343,23 +325,7 @@ export async function startProcessing(
 		console.log('Processing command resolved:', result);
 		context.reconcileProcessResult?.(result);
 		context.setBatchCompletionMessage(summarizeBatchOutcome(result, filePaths));
-
-		const previewPaths = extractSuccessfulPreviewPaths(result);
-		if (previewPaths.length === 1) {
-			const successfulPreview = result.results.find(
-				(entry) => entry.previewFilePath === previewPaths[0] && isSuccessfulResultEntry(entry),
-			);
-			const seconds =
-				typeof successfulPreview?.previewActualSeconds === 'number'
-					? successfulPreview.previewActualSeconds.toFixed(3)
-					: '≈30';
-			console.log(`Preview file created at: ${previewPaths[0]} (${seconds}s)`);
-			try {
-				await tauriClient.openExternal(previewPaths[0]);
-			} catch (error) {
-				console.warn('Failed to open preview file automatically:', error);
-			}
-		}
+		await openGeneratedPreviewIfSingle(result);
 	} catch (error) {
 		const msg = normalizeProcessingErrorMessage(error);
 		const wasCancelled =
@@ -370,7 +336,7 @@ export async function startProcessing(
 		}
 		if (!wasCancelled) {
 			console.error('Processing failed:', error);
-			dom.showError(`Processing failed: ${msg}`);
+			feedback.showError(`Processing failed: ${msg}`);
 		}
 		context.resetToIdle();
 	} finally {

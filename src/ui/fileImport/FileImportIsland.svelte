@@ -23,7 +23,6 @@
 	let fileManagementContainer: HTMLDivElement | null = null;
 
 	const context: DragDropContext = {
-		getDropZoneHeader: () => dropZoneHeader,
 		getCoverArtArea: () => document.getElementById('cover-art-area'),
 		getFileManagementContainer: () => fileManagementContainer,
 		getVisibleFiles: () => [...fileListViewState.files],
@@ -102,6 +101,210 @@
   </div>
 </div>
 
+<style>
+	.file-management-container {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		min-height: 8rem;
+		overflow: hidden;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-input);
+	}
+
+	.drop-zone-header[data-has-files='false'] {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem 1rem;
+		border: 2px dashed var(--border-secondary);
+		background-color: var(--bg-drag-area);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.drop-zone-header[data-has-files='false']:hover,
+	.drop-zone-header[data-has-files='false'].drag-over {
+		border-color: var(--accent-primary);
+		background-color: var(--bg-hover);
+	}
+
+	.drop-zone-header[data-has-files='false'].drag-over {
+		transform: scale(1.02);
+	}
+
+	.drop-zone-header[data-has-files='false']:focus {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+	}
+
+	.drop-zone-header[data-has-files='true'] {
+		flex-shrink: 0;
+		min-height: 2.5rem;
+		padding: 0.5rem 1rem;
+		border-bottom: 1px solid var(--border-primary);
+		background-color: var(--bg-input);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.drop-zone-header[data-has-files='true']:hover {
+		background-color: var(--bg-hover);
+	}
+
+	.drop-zone-header[data-has-files='true']:focus {
+		outline: 2px solid var(--border-focus);
+		outline-offset: -2px;
+	}
+
+	.file-list-content {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	.file-list-item {
+		padding: 0.75rem;
+		border-bottom: 1px solid var(--border-primary);
+		cursor: pointer;
+		transition: background-color 0.2s ease;
+		user-select: none;
+	}
+
+	.file-list-item:last-child {
+		border-bottom: none;
+	}
+
+	.file-list-item:hover {
+		background-color: var(--bg-hover);
+	}
+
+	.file-list-item.selected {
+		background-color: var(--accent-primary);
+		color: var(--text-inverse);
+	}
+
+	.file-list-item.dragging {
+		opacity: 0.5;
+	}
+
+	.file-list-item.drag-over {
+		border-top: 2px solid var(--accent-primary);
+	}
+
+	.file-item-content {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		min-width: 0;
+	}
+
+	.file-status {
+		min-width: 1rem;
+		font-size: 1rem;
+		font-weight: bold;
+	}
+
+	.file-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.file-name {
+		margin-bottom: 0.25rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	.file-details {
+		overflow: hidden;
+		color: var(--text-muted);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.75rem;
+	}
+
+	.file-list-item.selected .file-details {
+		color: var(--text-inverse);
+		opacity: 0.9;
+	}
+
+	.remove-file-btn,
+	.move-up-btn,
+	.move-down-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.5rem;
+		height: 1.5rem;
+		padding: 0.25rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: none;
+		color: var(--text-muted);
+		font-size: 1.25rem;
+		font-weight: bold;
+		cursor: pointer;
+	}
+
+	.remove-file-btn:hover {
+		background-color: rgb(239 68 68 / 0.1);
+		color: #ef4444;
+	}
+
+	.move-up-btn:hover,
+	.move-down-btn:hover {
+		background-color: var(--bg-hover);
+		color: var(--accent-primary);
+		transform: translateY(-1px);
+	}
+
+	.move-up-btn:focus-visible,
+	.move-down-btn:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+	}
+
+	.move-up-btn:disabled,
+	.move-down-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.move-up-btn:disabled:hover,
+	.move-down-btn:disabled:hover {
+		background-color: transparent;
+		color: var(--text-muted);
+		transform: none;
+	}
+
+	.file-list-item.selected .remove-file-btn,
+	.file-list-item.selected .move-up-btn,
+	.file-list-item.selected .move-down-btn {
+		color: var(--text-inverse);
+		opacity: 0.8;
+	}
+
+	.file-list-item.selected .remove-file-btn:hover,
+	.file-list-item.selected .move-up-btn:hover,
+	.file-list-item.selected .move-down-btn:hover {
+		background-color: rgb(255 255 255 / 0.2);
+		color: var(--text-inverse);
+		opacity: 1;
+	}
+
+	.file-list-item.selected .move-up-btn:disabled,
+	.file-list-item.selected .move-down-btn:disabled {
+		color: var(--text-inverse);
+	}
+</style>
+
 <div
   id="file-import-error"
   class="error-message mb-3"
@@ -119,6 +322,7 @@
   <div
     bind:this={dropZoneHeader}
     class="drop-zone-header"
+    class:drag-over={fileImportUiState.isDragOver}
     data-has-files={fileImportUiState.hasFiles.toString()}
     role="button"
     aria-label="Add audio files"
@@ -136,6 +340,8 @@
       <div
         class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
         class:selected={fileListViewState.selectedIndices.includes(index)}
+        class:dragging={fileListViewState.draggedIndex === index}
+        class:drag-over={fileListViewState.hoveredIndex === index}
         draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
         role="listitem"
         aria-label={getFileName(file.path)}

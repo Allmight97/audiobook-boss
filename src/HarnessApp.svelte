@@ -26,7 +26,8 @@ import {
 	import { createHarnessFixture, type PartialHarnessFixture } from './harness/fixtures';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
 	import { fileListViewState } from './ui/fileList/viewState.svelte';
-	import { saveMetadataFromUI } from './ui/core/bootstrap';
+	import { saveMetadataFromUI } from './ui/core/actions';
+	import PreviewAudioControls from './ui/previewAudio/PreviewAudioControls.svelte';
 
 	export let fixture: PartialHarnessFixture = {};
 
@@ -116,9 +117,15 @@ import {
 			{#if harnessFixture.islands.outputPanel.enabled}
 				<OutputPanelIsland />
 			{/if}
-			{#if harnessFixture.islands.tagPreview.enabled}
-				<TagPreviewIsland />
-			{/if}
+			<div class="section-divider">
+				<div class="section-header justify-between">
+					<h3>Preview Audio and Metadata Tags</h3>
+					<PreviewAudioControls />
+				</div>
+				{#if harnessFixture.islands.tagPreview.enabled}
+					<TagPreviewIsland />
+				{/if}
+			</div>
 		</div>
 		{#if harnessFixture.islands.statusPanel.enabled}
 			<StatusPanelIsland />

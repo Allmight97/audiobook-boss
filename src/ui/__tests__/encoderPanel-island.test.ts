@@ -10,8 +10,6 @@ vi.mock('../encoderPanel/logic', () => ({
 	initializeEncoderPanelLogic: initializeMock,
 }));
 
-import { initEncoderPanel } from '../encoderPanel';
-
 describe('EncoderPanel island mount', () => {
 	beforeEach(() => {
 		initializeMock.mockReset();
@@ -19,7 +17,6 @@ describe('EncoderPanel island mount', () => {
 
 	it('mounts encoder controls and runs panel initialization logic', () => {
 		render(EncoderPanelIsland);
-		initEncoderPanel();
 
 		expect(document.getElementById('encoder-settings-panel')).toBeTruthy();
 		expect(document.getElementById('adv-encoder')).toBeTruthy();

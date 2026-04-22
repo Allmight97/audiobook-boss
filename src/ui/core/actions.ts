@@ -1,37 +1,25 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { initFileImport } from '../fileImport';
 import { getCurrentFileList } from '../fileList';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/actions';
-import { initEncoderPanel } from '../encoderPanel';
-import { initOutputPanel } from '../outputPanel';
-import { initStatusPanel, pushStatusPanelTransientStatus } from '../statusPanel';
-import { initCoverArt } from '../coverArt';
-import { initMetadataFormEvents, resetDirtyState } from '../metadataForm';
-import { initTagPreview } from '../tagPreview';
-import { initJobControls } from '../jobControls';
-import { initMetadataLookup } from '../metadataLookup';
 import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
 import { isMetadataSaveInProgress, setMetadataSaveInProgress } from '../metadataSaveState';
-import type { StatusPanel } from '../statusPanel';
-
-let shellStatusPanel: StatusPanel | null = null;
-
-function ensureShellStatusPanel(): StatusPanel {
-	if (!shellStatusPanel) {
-		shellStatusPanel = initStatusPanel();
-	}
-	return shellStatusPanel;
-}
+import { resetDirtyState } from '../metadataForm';
+import {
+	initStatusPanel,
+	isStatusPanelProcessing,
+	pushStatusPanelTransientStatus,
+	triggerProcessFromStatusPanel,
+} from '../statusPanel';
 
 export async function saveMetadataFromUI(): Promise<void> {
 	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length === 0) {
+	if (!fileList?.files.length) {
 		console.log('No files loaded - nothing to save');
 		return;
 	}
 
-	const statusPanel = ensureShellStatusPanel();
-	if (statusPanel.isCurrentlyProcessing) {
+	initStatusPanel();
+	if (isStatusPanelProcessing()) {
 		console.log('Processing in progress - cannot save metadata now');
 		return;
 	}
@@ -97,25 +85,5 @@ export async function saveMetadataFromUI(): Promise<void> {
 }
 
 export function startPreviewAudio(duration: number): void {
-	ensureShellStatusPanel().startProcessing({ previewSeconds: duration });
-}
-
-export function initializeAppShell(): string | null {
-	try {
-		initFileImport();
-		initEncoderPanel();
-		initOutputPanel();
-		ensureShellStatusPanel();
-		initCoverArt();
-		initMetadataFormEvents();
-		initTagPreview();
-		initMetadataLookup();
-		initJobControls();
-		console.log('UI initialized');
-		return null;
-	} catch (error) {
-		const fatalMessage = `UI initialization failed. ${error instanceof Error ? error.message : String(error)}`;
-		console.error('[ui:init] fatal failure', error);
-		return fatalMessage;
-	}
+	triggerProcessFromStatusPanel({ previewSeconds: duration });
 }

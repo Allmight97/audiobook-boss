@@ -1,21 +1,11 @@
-import {
-	StatusPanel,
-	clearStatusPanelTransientStatusLock,
-	getStatusPanel,
-	isStatusPanelProcessing,
-	initStatusPanel as initStatusPanelLogic,
-	pushStatusPanelTransientStatus,
-} from './logic';
-
-export function initStatusPanel(): StatusPanel {
-	return initStatusPanelLogic();
-}
-
 export {
-	StatusPanel,
 	clearStatusPanelTransientStatusLock,
+	initStatusPanel,
 	isStatusPanelProcessing,
-	getStatusPanel,
 	pushStatusPanelTransientStatus,
-};
+	StatusPanelController,
+	StatusPanelRuntime,
+	triggerCancelAllFromStatusPanel,
+	triggerProcessFromStatusPanel,
+} from './controller';
 export { default as StatusPanelIsland } from './StatusPanelIsland.svelte';

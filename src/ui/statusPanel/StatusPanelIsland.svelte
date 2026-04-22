@@ -1,6 +1,15 @@
 <script lang="ts">
-	import { triggerCancelAllFromStatusPanel, triggerProcessFromStatusPanel } from './logic';
+	import { onMount } from 'svelte';
+	import {
+		initStatusPanel,
+		triggerCancelAllFromStatusPanel,
+		triggerProcessFromStatusPanel,
+	} from './controller';
 	import { statusPanelViewState } from './viewState.svelte';
+
+	onMount(() => {
+		initStatusPanel();
+	});
 
 	function handleProcessClick(): void {
 		triggerProcessFromStatusPanel();
@@ -104,3 +113,84 @@
     </div>
   </div>
 </div>
+
+<style>
+	.status-panel {
+		flex-shrink: 0;
+		padding: 0.5rem 0.75rem;
+	}
+
+	.status-panel-content {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.art-thumbnail {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 42px;
+		height: 42px;
+		flex-shrink: 0;
+		overflow: hidden;
+		border: 2px dashed var(--border-secondary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-drag-area);
+		color: var(--text-placeholder);
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.art-thumbnail span {
+		font-size: 0.75rem;
+	}
+
+	.progress-details {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.progress-bar-bg {
+		position: relative;
+		overflow: hidden;
+		height: 6px;
+		border-radius: 9999px;
+		background-color: var(--progress-bg);
+	}
+
+	.progress-bar-fg {
+		position: relative;
+		height: 100%;
+		border-radius: 9999px;
+		background: linear-gradient(
+			90deg,
+			var(--progress-fg),
+			color-mix(in srgb, var(--progress-fg) 70%, white 30%)
+		);
+		transition: width 0.3s ease-in-out;
+	}
+
+	.progress-bar-fg::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.25) 35%,
+			transparent 70%
+		);
+		animation: progress-shimmer 1.6s linear infinite;
+	}
+
+	@keyframes progress-shimmer {
+		from {
+			transform: translateX(-100%);
+		}
+
+		to {
+			transform: translateX(100%);
+		}
+	}
+</style>

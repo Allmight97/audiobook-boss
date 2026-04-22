@@ -2,7 +2,6 @@ import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../types/events';
 import FileImportIsland from '../fileImport/FileImportIsland.svelte';
-import { initFileImport } from '../fileImport';
 import { SUPPORTED_AUDIO_SUPPORT_TEXT } from '../fileImport/supportedAudio';
 import { clearFileImportError } from '../fileImport/state.svelte';
 import { clearSelectionPanels } from '../fileList/metadataPanel';
@@ -111,9 +110,8 @@ describe('File import drop vs cover art drop isolation', () => {
 		resetFileListViewState();
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
-    `;
+		`;
 		render(FileImportIsland);
-		initFileImport();
 
 		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;
 		if (!dropZone) {

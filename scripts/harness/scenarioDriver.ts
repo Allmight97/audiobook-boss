@@ -305,9 +305,7 @@ export async function seedCollisionScenario(
 	});
 
 	const results: HarnessScenarioCheckResult[] = [];
-	await page.evaluate(() => {
-		window.__ABB_HARNESS__?.triggerPreview(30);
-	});
+	await page.click('#preview-button');
 
 	await runScenarioCheck(
 		results,
