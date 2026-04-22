@@ -2,11 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
-import {
-	STAGES,
-	type ProcessingProgressEvent,
-	type ProcessingQueueEvent,
-} from '../../../types/events';
+import { STAGES } from '../../../types/events';
 import {
 	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
@@ -15,45 +11,8 @@ import {
 	setJobTypeSelection,
 } from '../../jobControls';
 import * as feedback from '../feedback';
-import { StatusPanelController } from '../controller';
+import { StatusPanelRuntime } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
-
-const listenerState = vi.hoisted(() => {
-	const progressCallbacks = new Set<(event: ProcessingProgressEvent) => void>();
-	const queueCallbacks = new Set<(event: ProcessingQueueEvent) => void>();
-	const progressUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
-	const queueUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
-
-	return {
-		progressCallbacks,
-		queueCallbacks,
-		progressUnlisteners,
-		queueUnlisteners,
-		listenForProgressEventsMock: vi.fn(
-			async (handler: (event: ProcessingProgressEvent) => void) => {
-				progressCallbacks.add(handler);
-				const unlisten = vi.fn(() => {
-					progressCallbacks.delete(handler);
-				});
-				progressUnlisteners.push(unlisten);
-				return unlisten;
-			},
-		),
-		listenForQueueEventsMock: vi.fn(async (handler: (event: ProcessingQueueEvent) => void) => {
-			queueCallbacks.add(handler);
-			const unlisten = vi.fn(() => {
-				queueCallbacks.delete(handler);
-			});
-			queueUnlisteners.push(unlisten);
-			return unlisten;
-		}),
-	};
-});
-
-vi.mock('../events', () => ({
-	listenForProgressEvents: listenerState.listenForProgressEventsMock,
-	listenForQueueEvents: listenerState.listenForQueueEventsMock,
-}));
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -93,10 +52,6 @@ function assertControlsDisabled() {
 	expect(maxConcurrent.disabled).toBe(true);
 }
 
-function emitProgressToActiveListeners(event: ProcessingProgressEvent) {
-	listenerState.progressCallbacks.forEach((callback) => callback(event));
-}
-
 function getStepText(): string {
 	return statusPanelViewState.stepText;
 }
@@ -123,13 +78,6 @@ describe('StatusPanel lifecycle', () => {
 		setJobTypeSelection('batch');
 		initJobControls();
 		await flushAsync();
-
-		listenerState.progressCallbacks.clear();
-		listenerState.queueCallbacks.clear();
-		listenerState.progressUnlisteners.length = 0;
-		listenerState.queueUnlisteners.length = 0;
-		listenerState.listenForProgressEventsMock.mockClear();
-		listenerState.listenForQueueEventsMock.mockClear();
 	});
 
 	afterEach(() => {
@@ -139,7 +87,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 
 		let resolveCancel!: (value: string) => void;
 		const inFlightCancel = new Promise<string>((resolve) => {
@@ -162,7 +110,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
 			new Error('tauriClient cancellation failed'),
@@ -199,7 +147,7 @@ describe('StatusPanel lifecycle', () => {
 		expectedMethod,
 		expectedMessage,
 	}) => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
@@ -265,7 +213,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('reconciles merge skip_existing results back to idle and unlocks controls', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
@@ -303,7 +251,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('uses the batch completion override message for partial failures', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showErrorSpy = vi.spyOn(feedback, 'showError');
@@ -336,7 +284,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('preserves skipped batch rows when cancellation arrives after a skipped terminal event', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		controller.applyQueueSnapshot({
@@ -360,7 +308,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('shows an informational toast when every batch row is skipped', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
@@ -419,7 +367,7 @@ describe('StatusPanel lifecycle', () => {
 		message,
 		method,
 	}) => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
@@ -461,7 +409,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('prevents stale single-job completion timeout from resetting a newer active run', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		controller.applyProgress({
@@ -492,7 +440,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('shows cancellation requested before final cancelled summary in batch flow', async () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
@@ -535,7 +483,7 @@ describe('StatusPanel lifecycle', () => {
 	});
 
 	it('synthesizes cancelled completion when command rejection arrives before terminal events', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
 		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
@@ -564,14 +512,10 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe('Current Step: Ready to process audiobook');
 	});
 
-	it('cleans up listeners on reset and restarts without duplicate active handlers', async () => {
-		const controller = new StatusPanelController();
+	it('resets queued progress state cleanly before new progress arrives', async () => {
+		const controller = new StatusPanelRuntime();
 
-		await controller.startEventListeners();
-		expect(listenerState.progressCallbacks.size).toBe(1);
-		expect(listenerState.queueCallbacks.size).toBe(1);
-
-		emitProgressToActiveListeners({
+		controller.applyProgress({
 			job_id: 'job-123',
 			stage: 'converting',
 			percentage: 35,
@@ -582,28 +526,21 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe('Current Step: Converting');
 
 		controller.resetToIdle();
-		expect(listenerState.progressUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.queueUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.progressCallbacks.size).toBe(0);
-		expect(listenerState.queueCallbacks.size).toBe(0);
 
 		const stepAfterReset = getStepText();
-		emitProgressToActiveListeners({
+		controller.applyProgress({
 			job_id: 'job-123',
 			stage: 'converting',
 			percentage: 50,
 			message: 'Still converting',
 		});
 		vi.advanceTimersByTime(20);
-		expect(getStepText()).toBe(stepAfterReset);
+		expect(getStepText()).not.toBe(stepAfterReset);
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('(50.0%)');
 
-		await controller.startEventListeners();
-		expect(listenerState.listenForProgressEventsMock).toHaveBeenCalledTimes(2);
-		expect(listenerState.listenForQueueEventsMock).toHaveBeenCalledTimes(2);
-		expect(listenerState.progressCallbacks.size).toBe(1);
-		expect(listenerState.queueCallbacks.size).toBe(1);
-
-		emitProgressToActiveListeners({
+		controller.resetToIdle();
+		controller.applyProgress({
 			job_id: 'job-456',
 			stage: 'converting',
 			percentage: 42,
@@ -613,9 +550,5 @@ describe('StatusPanel lifecycle', () => {
 
 		expect(getJobRows()).toHaveLength(1);
 		expect(getJobRows()[0]).toContain('(42.0%)');
-
-		controller.resetToIdle();
-		expect(listenerState.progressUnlisteners[1]).toHaveBeenCalledTimes(1);
-		expect(listenerState.queueUnlisteners[1]).toHaveBeenCalledTimes(1);
 	});
 });

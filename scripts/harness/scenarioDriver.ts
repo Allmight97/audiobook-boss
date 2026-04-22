@@ -280,6 +280,31 @@ export async function seedOutputScenario(
 		},
 	);
 
+	await runScenarioCheck(
+		results,
+		requireScenarioCheck(scenario, 'preview-duration-propagates'),
+		async () => {
+			await page.click('#preview-dropdown-toggle');
+			await page.locator('#preview-dropdown.open').waitFor();
+			await page.click('#preview-dropdown .split-option[data-duration="45"]');
+			await page.waitForFunction(async () => {
+				const api = window.__ABB_HARNESS__;
+				if (!api?.readLastPreviewSeconds) {
+					return false;
+				}
+				return (await api.readLastPreviewSeconds()) === 45;
+			});
+			const previewSeconds = await page.evaluate(async () => {
+				return await window.__ABB_HARNESS__?.readLastPreviewSeconds?.();
+			});
+			if (previewSeconds !== 45) {
+				throw new Error(
+					`Expected preview duration 45 to reach processing, received ${previewSeconds}`,
+				);
+			}
+		},
+	);
+
 	return results;
 }
 

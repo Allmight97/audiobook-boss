@@ -1,6 +1,6 @@
 import { displayFileList, selectFile } from '../ui/fileList/actions';
 import { updateOutputDirectory, updateNamingPreset } from '../ui/outputPanel/state';
-import { initJobControls, setJobTypeSelection } from '../ui/jobControls';
+import { setJobTypeSelection } from '../ui/jobControls';
 import { clearMetadataState, setMetadataForFile } from '../ui/metadataState';
 import {
 	HARNESS_FILE_LIST,
@@ -16,8 +16,6 @@ function seedMetadataState(): void {
 }
 
 export async function bootstrapHarnessRuntime(): Promise<void> {
-	initJobControls();
-
 	updateOutputDirectory(HARNESS_OUTPUT_DIRECTORY);
 	updateNamingPreset('absDefault');
 	setJobTypeSelection('batch');

@@ -83,6 +83,15 @@ describe('harness scenario routing', () => {
 		expect(getHarnessScenario('output-preview').title).toBe('Output Preview');
 	});
 
+	it('keeps output-preview wired to non-default preview-duration verification', () => {
+		const scenario = getHarnessScenario('output-preview');
+
+		expect(scenario.verifyChecks.map((check) => check.id)).toContain('preview-duration-propagates');
+		expect(scenario.review.controls.map((control) => control.selector)).toContain(
+			'#preview-dropdown-toggle',
+		);
+	});
+
 	it('exposes review controls and verification checks for each scenario', () => {
 		for (const scenario of listHarnessScenarios()) {
 			expect(scenario.verifyChecks.length).toBeGreaterThan(0);

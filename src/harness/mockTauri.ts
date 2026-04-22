@@ -38,6 +38,7 @@ let nextCallbackId = 1;
 let nextEventId = 1;
 let maxConcurrentJobs = 2;
 let collisionMode = false;
+let lastProcessPreviewSeconds: number | null = null;
 
 const HARNESS_ADDITIONAL_FILE_PATH = '/mock/library/Frank Herbert/Dune/03-dune-part-3.mp3';
 
@@ -318,6 +319,7 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 			const jobType =
 				payload.jobType === 'merge' || payload.jobType === 'batch' ? payload.jobType : 'batch';
 			const previewSeconds = typeof args.previewSeconds === 'number' ? args.previewSeconds : null;
+			lastProcessPreviewSeconds = previewSeconds;
 			const outputDir =
 				typeof payload.outputDir === 'string' && payload.outputDir.length > 0
 					? payload.outputDir
@@ -450,6 +452,14 @@ async function invokeHarnessCommand(cmd: string, args: HarnessInvokeArgs = {}): 
 
 export function setHarnessCollisionMode(enabled: boolean): void {
 	collisionMode = enabled;
+}
+
+export function getHarnessLastPreviewSeconds(): number | null {
+	return lastProcessPreviewSeconds;
+}
+
+export function resetHarnessProcessCapture(): void {
+	lastProcessPreviewSeconds = null;
 }
 
 export function installHarnessTauriMock(): void {

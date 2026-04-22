@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
-import { StatusPanelController } from '../controller';
+import { StatusPanelRuntime } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
@@ -39,7 +39,7 @@ describe('StatusPanel queue snapshot', () => {
 	});
 
 	it('initializes queued items in order', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
@@ -64,7 +64,7 @@ describe('StatusPanel queue snapshot', () => {
 	});
 
 	it('applies queue snapshot order and labels after early progress arrives', async () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const earlyProgress: ProcessingProgressEvent = {
 			input_index: 1,
 			stage: 'converting',

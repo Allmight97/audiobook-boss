@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import { STAGES } from '../../../types/events';
-import { StatusPanelController } from '../controller';
+import { StatusPanelRuntime } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
 function setupDom() {
@@ -41,7 +41,7 @@ describe('StatusPanel aggregate progress', () => {
 	});
 
 	it('computes simple averages across active and completed jobs', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
@@ -81,7 +81,7 @@ describe('StatusPanel aggregate progress', () => {
 	});
 
 	it('counts queued jobs as zero-progress participants in batch averages', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		controller.applyQueueSnapshot({
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
@@ -126,7 +126,7 @@ describe('StatusPanel aggregate progress', () => {
 		STAGES.failed,
 		STAGES.cancelled,
 	])('does not leak stale currentFile/etaSeconds onto terminal aggregates for %s', (terminalStage) => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
 			max_concurrent: 1,

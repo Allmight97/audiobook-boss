@@ -11,7 +11,6 @@ const { initStatusPanelLogicMock, triggerProcessMock, triggerCancelAllMock } = v
 
 vi.mock('../controller', () => ({
 	StatusPanelRuntime: class {},
-	StatusPanelController: class {},
 	initStatusPanel: initStatusPanelLogicMock,
 	clearStatusPanelTransientStatusLock: vi.fn(),
 	pushStatusPanelTransientStatus: vi.fn(),

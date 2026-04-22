@@ -21,7 +21,12 @@ import {
 	setStatusPanelStepText,
 } from '../ui/statusPanel/viewState.svelte';
 import { bootstrapHarnessRuntime } from './bootstrap';
-import { installHarnessTauriMock, setHarnessCollisionMode } from './mockTauri';
+import {
+	getHarnessLastPreviewSeconds,
+	installHarnessTauriMock,
+	resetHarnessProcessCapture,
+	setHarnessCollisionMode,
+} from './mockTauri';
 
 type HarnessOutputSeed = {
 	outputDirectory?: string;
@@ -46,6 +51,7 @@ type HarnessBrowserApi = {
 	seedOutput: (seed: HarnessOutputSeed) => Promise<void>;
 	seedStatus: (seed: HarnessStatusSeed) => Promise<void>;
 	seedCollisionMode: (enabled: boolean) => Promise<void>;
+	readLastPreviewSeconds: () => Promise<number | null>;
 };
 
 declare global {
@@ -131,6 +137,7 @@ export function installHarnessRuntime(): void {
 				absIncludeYear: false,
 			});
 			setHarnessCollisionMode(false);
+			resetHarnessProcessCapture();
 			await settleUi();
 		},
 		seedMetadata: async (metadata) => {
@@ -153,6 +160,10 @@ export function installHarnessRuntime(): void {
 			await harnessReady;
 			setHarnessCollisionMode(enabled);
 			await settleUi();
+		},
+		readLastPreviewSeconds: async () => {
+			await harnessReady;
+			return getHarnessLastPreviewSeconds();
 		},
 	};
 	void harnessReady;

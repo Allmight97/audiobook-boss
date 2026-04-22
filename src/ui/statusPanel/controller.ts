@@ -4,7 +4,6 @@ import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import * as feedback from './feedback';
-import { listenForProgressEvents, listenForQueueEvents } from './events';
 import {
 	buildQueueLabels,
 	extractFilenameFromProgress,
@@ -21,14 +20,15 @@ import {
 	type ProcessingStatus,
 } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
-import { calculateAggregateProgressAndStage as calculateAggregateProgressAndStageDomain } from './domain/aggregate';
+import { calculateAggregateProgressAndStage } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
 import { areAllBatchJobsTerminal, buildQueueSnapshotState } from './domain/queueState';
-import { readCoverArtDataUrl, shouldSkipCoverArtRead } from './services/artThumbnail';
+import { createCoverArtTracker } from './services/coverArtTracker';
 import {
 	findFilePathByIndex as findFilePathByIndexService,
 	findFilePathByCurrentFile as findFilePathByCurrentFileService,
 } from './services/fileLookup';
+import { createProgressSubscription } from './services/progressSubscription';
 import { isTerminalProgressEvent, shouldThrottleProgressUpdate } from './services/progressThrottle';
 
 function toTerminalJobStatus(
@@ -41,8 +41,11 @@ function toTerminalJobStatus(
 }
 
 export class StatusPanelRuntime {
-	private progressUnlisten?: () => void;
-	private queueUnlisten?: () => void;
+	private readonly progressSubscription = createProgressSubscription({
+		onProgress: (event) => this.updateProgress(event),
+		onQueue: (event) => this.handleQueueSnapshot(event),
+	});
+	private readonly coverArt = createCoverArtTracker();
 	private isProcessing = false;
 	private currentStatus: ProcessingStatus;
 	private jobProgress: Map<string, JobProgress> = new Map();
@@ -53,7 +56,6 @@ export class StatusPanelRuntime {
 	private singleCompletionTimeout?: number;
 	private batchCompletionMessageOverride: string | null = null;
 	private currentJobType: 'merge' | 'batch' | null = null;
-	private lastCoverArtPath: string | null = null;
 	private pendingRender = false;
 	private latestProgressEvent: ProcessingProgressEvent | null = null;
 
@@ -61,11 +63,7 @@ export class StatusPanelRuntime {
 		this.currentStatus = createInitialStatus();
 		this.updateUI();
 		this.updateConcurrencyIndicator();
-		feedback.resetArtThumbnail();
-
-		window.addEventListener('beforeunload', () => {
-			this.teardownEventListeners();
-		});
+		this.coverArt.reset();
 	}
 
 	public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
@@ -78,8 +76,8 @@ export class StatusPanelRuntime {
 				setProcessingState: (isProcessing) => {
 					this.isProcessing = isProcessing;
 				},
-				updateArtThumbnail: () => this.updateArtThumbnail(),
-				startProgressListener: () => this.startEventListeners(),
+				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
+				startProgressListener: () => this.progressSubscription.start(),
 				setCurrentJobType: (jobType) => {
 					this.currentJobType = jobType;
 				},
@@ -161,18 +159,6 @@ export class StatusPanelRuntime {
 		this.isProcessing = true;
 		this.updateAggregateUI();
 		this.scheduleMergeSkipCompletion(key, entry.message);
-	}
-
-	public async startEventListeners(): Promise<void> {
-		this.teardownEventListeners();
-
-		this.progressUnlisten = await listenForProgressEvents((progress) => {
-			this.updateProgress(progress);
-		});
-
-		this.queueUnlisten = await listenForQueueEvents((queue) => {
-			this.handleQueueSnapshot(queue);
-		});
 	}
 
 	public applyQueueSnapshot(event: ProcessingQueueEvent): void {
@@ -323,9 +309,8 @@ export class StatusPanelRuntime {
 		this.isProcessing = false;
 		this.batchCompletionMessageOverride = null;
 		this.currentJobType = null;
-		this.lastCoverArtPath = null;
 
-		this.teardownEventListeners();
+		this.progressSubscription.stop();
 		this.clearBatchCompletionTimeout();
 		this.clearSingleCompletionTimeout();
 
@@ -342,7 +327,7 @@ export class StatusPanelRuntime {
 
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		feedback.resetArtThumbnail();
+		this.coverArt.reset();
 	}
 
 	public get isCurrentlyProcessing(): boolean {
@@ -359,17 +344,6 @@ export class StatusPanelRuntime {
 
 	public updateProgress(event: ProcessingProgressEvent): void {
 		this.applyProgress(event);
-	}
-
-	private teardownEventListeners(): void {
-		if (this.progressUnlisten) {
-			this.progressUnlisten();
-			this.progressUnlisten = undefined;
-		}
-		if (this.queueUnlisten) {
-			this.queueUnlisten();
-			this.queueUnlisten = undefined;
-		}
 	}
 
 	private buildJobKey(inputIndex?: number, jobId?: string): string {
@@ -503,7 +477,7 @@ export class StatusPanelRuntime {
 		aggregate: AggregateProgress;
 		stage: ProcessingStatus['stage'];
 	} {
-		return calculateAggregateProgressAndStageDomain(this.jobProgress);
+		return calculateAggregateProgressAndStage(this.jobProgress);
 	}
 
 	private updateAggregateUI(): void {
@@ -577,48 +551,13 @@ export class StatusPanelRuntime {
 			const indexedPath =
 				typeof event.input_index === 'number' ? this.findFilePathByIndex(event.input_index) : null;
 			if (indexedPath) {
-				void this.updateArtThumbnailForFile(indexedPath);
+				void this.coverArt.syncForFile(indexedPath);
 			} else if (event.current_file) {
 				const filePath = this.findFilePathByCurrentFile(event.current_file);
 				if (filePath) {
-					void this.updateArtThumbnailForFile(filePath);
+					void this.coverArt.syncForFile(filePath);
 				}
 			}
-		}
-	}
-
-	private async updateArtThumbnail(): Promise<void> {
-		const fileList = getCurrentFileList();
-		if (!fileList?.files.length) {
-			feedback.resetArtThumbnail();
-			return;
-		}
-
-		const firstValidFile = fileList.files.find((file) => file.isValid);
-		if (!firstValidFile) {
-			feedback.resetArtThumbnail();
-			return;
-		}
-
-		await this.updateArtThumbnailForFile(firstValidFile.path);
-	}
-
-	private async updateArtThumbnailForFile(filePath: string): Promise<void> {
-		if (shouldSkipCoverArtRead(this.lastCoverArtPath, filePath)) {
-			return;
-		}
-		this.lastCoverArtPath = filePath;
-
-		try {
-			const dataUrl = await readCoverArtDataUrl(filePath);
-			if (dataUrl) {
-				feedback.displayCoverArt(dataUrl);
-			} else {
-				feedback.resetArtThumbnail();
-			}
-		} catch (error) {
-			console.warn('Failed to load cover art for thumbnail:', error);
-			feedback.resetArtThumbnail();
 		}
 	}
 
@@ -662,5 +601,3 @@ export function pushStatusPanelTransientStatus(
 export function clearStatusPanelTransientStatusLock(): void {
 	feedback.clearTransientStatusMessageLock();
 }
-
-export { StatusPanelRuntime as StatusPanelController };

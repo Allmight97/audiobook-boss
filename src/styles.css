@@ -124,20 +124,6 @@ button {
 	transition: all 0.2s ease-in-out;
 }
 
-.button-secondary {
-	background-color: var(--accent-secondary);
-	color: var(--text-inverse);
-}
-
-.button-secondary:hover {
-	background-color: var(--accent-secondary-hover);
-}
-
-.button-secondary:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
 .btn-pill {
 	margin-top: 0;
 	display: inline-flex;
@@ -564,62 +550,4 @@ textarea:hover:not(:focus) {
 	border-left: 1px solid var(--border-primary);
 	background: var(--bg-panel);
 	transform: rotate(45deg);
-}
-
-.collision-dialog-result {
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: center;
-}
-
-.collision-dialog-controls {
-	grid-template-columns: repeat(4, auto);
-	justify-content: flex-start;
-}
-
-.collision-dialog-paths {
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 0.2rem;
-}
-
-.collision-dialog-filename {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: 0.95rem;
-	font-weight: 600;
-	color: var(--text-primary);
-}
-
-.collision-dialog-parent-path {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-family: var(--font-mono);
-	font-size: 0.76rem;
-	color: var(--text-secondary);
-}
-
-.collision-dialog-summary {
-	max-width: 16rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	text-align: right;
-	font-size: 0.76rem;
-	color: var(--text-secondary);
-}
-
-@media (max-width: 720px) {
-	.collision-dialog-controls,
-	.collision-dialog-result {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.collision-dialog-summary {
-		min-width: 0;
-		max-width: none;
-		text-align: left;
-	}
 }

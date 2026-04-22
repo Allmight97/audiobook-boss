@@ -10,45 +10,8 @@ import {
 	setJobControlsEnabled,
 	setJobTypeSelection,
 } from '../../jobControls';
-import { StatusPanelController } from '../controller';
+import { StatusPanelRuntime } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
-
-const listenerState = vi.hoisted(() => {
-	const progressCallbacks = new Set<(event: ProcessingProgressEvent) => void>();
-	const queueCallbacks = new Set<(event: ProcessingQueueEvent) => void>();
-	const progressUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
-	const queueUnlisteners: Array<ReturnType<typeof vi.fn>> = [];
-
-	return {
-		progressCallbacks,
-		queueCallbacks,
-		progressUnlisteners,
-		queueUnlisteners,
-		listenForProgressEventsMock: vi.fn(
-			async (handler: (event: ProcessingProgressEvent) => void) => {
-				progressCallbacks.add(handler);
-				const unlisten = vi.fn(() => {
-					progressCallbacks.delete(handler);
-				});
-				progressUnlisteners.push(unlisten);
-				return unlisten;
-			},
-		),
-		listenForQueueEventsMock: vi.fn(async (handler: (event: ProcessingQueueEvent) => void) => {
-			queueCallbacks.add(handler);
-			const unlisten = vi.fn(() => {
-				queueCallbacks.delete(handler);
-			});
-			queueUnlisteners.push(unlisten);
-			return unlisten;
-		}),
-	};
-});
-
-vi.mock('../events', () => ({
-	listenForProgressEvents: listenerState.listenForProgressEventsMock,
-	listenForQueueEvents: listenerState.listenForQueueEventsMock,
-}));
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -82,12 +45,6 @@ describe('StatusPanel resetToIdle', () => {
 		setJobTypeSelection('batch');
 		initJobControls();
 		await flushAsync();
-		listenerState.progressCallbacks.clear();
-		listenerState.queueCallbacks.clear();
-		listenerState.progressUnlisteners.length = 0;
-		listenerState.queueUnlisteners.length = 0;
-		listenerState.listenForProgressEventsMock.mockClear();
-		listenerState.listenForQueueEventsMock.mockClear();
 	});
 
 	afterEach(() => {
@@ -96,8 +53,8 @@ describe('StatusPanel resetToIdle', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('clears state, listeners, and control locks', async () => {
-		const controller = new StatusPanelController();
+	it('clears state and control locks', async () => {
+		const controller = new StatusPanelRuntime();
 		const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
 		const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
 		const snapshot: ProcessingQueueEvent = {
@@ -112,19 +69,11 @@ describe('StatusPanel resetToIdle', () => {
 		};
 
 		setJobControlsEnabled(false);
-		await controller.startEventListeners();
 		controller.applyQueueSnapshot(snapshot);
 		controller.applyProgress(progress);
 		vi.advanceTimersByTime(20);
 
 		controller.resetToIdle();
-
-		expect(listenerState.progressUnlisteners).toHaveLength(1);
-		expect(listenerState.queueUnlisteners).toHaveLength(1);
-		expect(listenerState.progressUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.queueUnlisteners[0]).toHaveBeenCalledTimes(1);
-		expect(listenerState.progressCallbacks.size).toBe(0);
-		expect(listenerState.queueCallbacks.size).toBe(0);
 
 		expect(statusPanelViewState.jobItems).toHaveLength(0);
 		expect(statusPanelViewState.statusText).toBe('Idle');

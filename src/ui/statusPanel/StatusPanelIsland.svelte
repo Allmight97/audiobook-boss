@@ -78,7 +78,7 @@
             <span class="flex-1">{getJobLabel(item)}</span>
             <button
               id={"cancel-" + item.key}
-              class="button-secondary"
+              class="job-cancel-button"
               style="padding: 0.1rem 0.4rem;"
               disabled={
                 statusPanelViewState.cancelAllPending || !item.canCancel || !item.cancelId || !item.onCancel
@@ -192,5 +192,26 @@
 		to {
 			transform: translateX(100%);
 		}
+	}
+
+	.job-cancel-button {
+		padding: 0.5rem 1rem;
+		border: none;
+		border-radius: 0.375rem;
+		background-color: var(--accent-secondary);
+		color: var(--text-inverse);
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: all 0.2s ease-in-out;
+	}
+
+	.job-cancel-button:hover {
+		background-color: var(--accent-secondary-hover);
+	}
+
+	.job-cancel-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>

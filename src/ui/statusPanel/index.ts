@@ -3,8 +3,6 @@ export {
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
-	StatusPanelController,
-	StatusPanelRuntime,
 	triggerCancelAllFromStatusPanel,
 	triggerProcessFromStatusPanel,
 } from './controller';

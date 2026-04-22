@@ -250,7 +250,7 @@ const SCENARIOS: readonly HarnessScenario[] = [
 		id: 'output-preview',
 		title: 'Output Preview',
 		description:
-			'Verifies output naming controls, encoder panel behavior, preview controls, and metadata-driven warnings.',
+			'Verifies output naming controls, encoder panel behavior, preview controls including duration propagation, and metadata-driven warnings.',
 		route: '/harness.html',
 		screenshotName: 'output-preview.png',
 		matchers: [
@@ -276,12 +276,18 @@ const SCENARIOS: readonly HarnessScenario[] = [
 				label:
 					'Output preview stays anchored to the chosen library path and resolves to a concrete .m4b artifact path.',
 			},
+			{
+				id: 'preview-duration-propagates',
+				label:
+					'Selecting a non-default preview duration from the dropdown reaches the processing call.',
+			},
 		],
 		review: {
 			controls: [
 				{ selector: '#output-dir-browse', label: 'Output directory browse button' },
 				{ selector: '#output-naming-preset', label: 'Output naming preset' },
 				{ selector: '#output-abs-include-year', label: 'Include year toggle' },
+				{ selector: '#preview-dropdown-toggle', label: 'Preview duration dropdown' },
 				{ selector: '#output-preview-text', label: 'Output preview text' },
 			],
 			actions: [

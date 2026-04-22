@@ -1,0 +1,89 @@
+import type { FileListInfo } from '../../../types/audio';
+import { getCurrentFileList } from '../../fileList';
+import * as feedback from '../feedback';
+import { readCoverArtDataUrl } from './artThumbnail';
+
+export interface CoverArtTracker {
+	syncForCurrentList(): Promise<void>;
+	syncFromFileList(fileList: FileListInfo | null): Promise<void>;
+	syncForFile(filePath: string): Promise<void>;
+	reset(): void;
+}
+
+interface CoverArtTrackerDeps {
+	getCurrentFileList?: () => FileListInfo | null;
+	readCoverArtDataUrl?: (filePath: string) => Promise<string | null>;
+	displayCoverArt?: (dataUrl: string) => void;
+	resetArtThumbnail?: () => void;
+	warn?: (message: string, error: unknown) => void;
+}
+
+function findFirstValidFilePath(fileList: FileListInfo | null): string | null {
+	if (!fileList?.files.length) {
+		return null;
+	}
+
+	return fileList.files.find((file) => file.isValid)?.path ?? null;
+}
+
+export function createCoverArtTracker(deps: CoverArtTrackerDeps = {}): CoverArtTracker {
+	const readCurrentFileList = deps.getCurrentFileList ?? getCurrentFileList;
+	const readCoverArt = deps.readCoverArtDataUrl ?? readCoverArtDataUrl;
+	const displayCoverArt = deps.displayCoverArt ?? feedback.displayCoverArt;
+	const resetArtThumbnail = deps.resetArtThumbnail ?? feedback.resetArtThumbnail;
+	const warn =
+		deps.warn ??
+		((message: string, error: unknown) => {
+			console.warn(message, error);
+		});
+
+	// Keep the path sticky until explicit reset so repeated progress for the same
+	// file does not churn metadata reads after a successful, empty, or failed load.
+	let lastCoverArtPath: string | null = null;
+
+	async function syncForFile(filePath: string): Promise<void> {
+		if (lastCoverArtPath === filePath) {
+			return;
+		}
+
+		lastCoverArtPath = filePath;
+
+		try {
+			const dataUrl = await readCoverArt(filePath);
+			if (dataUrl) {
+				displayCoverArt(dataUrl);
+			} else {
+				resetArtThumbnail();
+			}
+		} catch (error) {
+			warn('Failed to load cover art for thumbnail:', error);
+			resetArtThumbnail();
+		}
+	}
+
+	async function syncFromFileList(fileList: FileListInfo | null): Promise<void> {
+		const filePath = findFirstValidFilePath(fileList);
+		if (!filePath) {
+			resetArtThumbnail();
+			return;
+		}
+
+		await syncForFile(filePath);
+	}
+
+	async function syncForCurrentList(): Promise<void> {
+		await syncFromFileList(readCurrentFileList());
+	}
+
+	function reset(): void {
+		lastCoverArtPath = null;
+		resetArtThumbnail();
+	}
+
+	return {
+		syncForCurrentList,
+		syncFromFileList,
+		syncForFile,
+		reset,
+	};
+}

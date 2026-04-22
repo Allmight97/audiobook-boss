@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { StatusPanelController } from './controller';
+import { StatusPanelRuntime } from './controller';
 import { resetStatusPanelViewState, statusPanelViewState } from './viewState.svelte';
 
 function setupDom() {
@@ -53,7 +53,7 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('throttles rapid non-terminal progress events', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const evt: ProcessingProgressEvent = {
 			job_id: 'job-1',
 			stage: 'converting',
@@ -83,7 +83,7 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('does not throttle different jobs within the same window', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const evt1: ProcessingProgressEvent = {
 			job_id: 'job-1',
 			stage: 'converting',
@@ -113,7 +113,7 @@ describe('StatusPanel progress throttling', () => {
 	});
 
 	it('does not throttle terminal events inside the throttle window', () => {
-		const controller = new StatusPanelController();
+		const controller = new StatusPanelRuntime();
 		const queueSnapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },

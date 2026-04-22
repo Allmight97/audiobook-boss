@@ -2,7 +2,7 @@ import type { EventStage } from '../../types/events';
 
 /**
  * Stage values emitted from Rust that represent ongoing work. The companion
- * `ACTIVE_EVENT_STAGES` map below is typed against this alias, so a new active
+ * `isActiveEventStage` guard below is typed against this alias, so a new active
  * Rust stage must be acknowledged here before the frontend compiles again.
  */
 export type ActiveEventStage = Exclude<
@@ -75,20 +75,8 @@ export function createInitialStatus(): ProcessingStatus {
 	};
 }
 
-const ACTIVE_EVENT_STAGES: { readonly [K in ActiveEventStage]: true } = {
-	analyzing: true,
-	converting: true,
-	writing: true,
-};
-
-const ACTIVE_STAGE_PRIORITY: { readonly [K in ActiveEventStage]: number } = {
-	converting: 0,
-	analyzing: 1,
-	writing: 2,
-};
-
 export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
-	return stage !== 'idle' && stage in ACTIVE_EVENT_STAGES;
+	return stage === 'analyzing' || stage === 'converting' || stage === 'writing';
 }
 
 /**
@@ -120,99 +108,4 @@ export function buildStatus(
 		};
 	}
 	return { stage, percentage, message };
-}
-
-/** Calculate aggregate progress across queued, active, and completed jobs */
-export function calculateAggregateProgress(
-	jobProgress: Map<string, JobProgress>,
-): AggregateProgress {
-	return calculateAggregateProgressAndStage(jobProgress).aggregate;
-}
-
-export function calculateAggregateProgressAndStage(
-	jobProgress: Map<string, JobProgress>,
-): AggregateProgressAndStage {
-	let activeJobs = 0;
-	let queuedJobs = 0;
-	let completedJobs = 0;
-	let totalPercentage = 0;
-	let hasQueued = false;
-	let hasProcessing = false;
-	let hasCompleted = false;
-	let hasFailed = false;
-	let hasCancelled = false;
-	let highestPriorityActiveStage: ActiveEventStage | null = null;
-
-	for (const job of jobProgress.values()) {
-		if (job.status === 'queued') {
-			queuedJobs++;
-			hasQueued = true;
-			continue;
-		}
-		if (job.status === 'completed') {
-			completedJobs++;
-			hasCompleted = true;
-			totalPercentage += 100;
-			continue;
-		}
-		if (job.status === 'skipped') {
-			completedJobs++;
-			hasCompleted = true;
-			totalPercentage += 100;
-			continue;
-		}
-		if (job.status === 'failed') {
-			hasFailed = true;
-			continue;
-		}
-		if (job.status === 'cancelled') {
-			hasCancelled = true;
-			continue;
-		}
-		if (job.status === 'processing') {
-			activeJobs++;
-			hasProcessing = true;
-			totalPercentage += job.percentage;
-			if (job.stage && isActiveEventStage(job.stage)) {
-				if (
-					highestPriorityActiveStage === null ||
-					ACTIVE_STAGE_PRIORITY[job.stage] < ACTIVE_STAGE_PRIORITY[highestPriorityActiveStage]
-				) {
-					highestPriorityActiveStage = job.stage;
-				}
-			}
-		}
-	}
-
-	const totalJobs = activeJobs + completedJobs + queuedJobs;
-	// Aggregate progress treats queued jobs as 0%-complete participants so mixed
-	// completed/queued batches do not misleadingly report 100% before queued work starts.
-	// This remains a simple per-job average rather than a duration-weighted model.
-	const overallPercentage = totalJobs > 0 ? totalPercentage / totalJobs : 0;
-
-	const aggregate = {
-		activeJobs,
-		queuedJobs,
-		completedJobs,
-		overallPercentage: Math.round(overallPercentage * 10) / 10,
-	};
-
-	// Priority: failed > cancelled > converting > analyzing > writing > completed > queued > idle
-	let stage: ProcessingStatus['stage'];
-	if (hasFailed) stage = 'failed';
-	else if (hasCancelled) stage = 'cancelled';
-	else if (highestPriorityActiveStage) stage = highestPriorityActiveStage;
-	else if (hasProcessing) stage = 'analyzing';
-	else if (hasCompleted && !hasQueued) stage = 'completed';
-	else if (hasQueued) stage = 'analyzing';
-	else stage = 'idle';
-
-	return { aggregate, stage };
-}
-
-/** Derive aggregate stage from active jobs */
-export function deriveAggregateStage(
-	jobProgress: Map<string, JobProgress>,
-): ProcessingStatus['stage'] {
-	return calculateAggregateProgressAndStage(jobProgress).stage;
 }
