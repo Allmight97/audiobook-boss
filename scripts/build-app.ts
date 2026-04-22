@@ -3,6 +3,7 @@ import {
 	existsSync,
 	lstatSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	readlinkSync,
 	symlinkSync,
@@ -24,9 +25,11 @@ interface BundlePaths {
 	canonicalAppPath: string;
 	executablePath: string;
 	applicationsLinkPath: string;
+	dmgDir: string;
 }
 
 type ApplicationsLinkOutcome = 'created' | 'updated' | 'skipped';
+type RequestedBundle = 'app' | 'dmg';
 
 interface LinkFsOps {
 	lstatSync: typeof lstatSync;
@@ -132,7 +135,40 @@ export function resolveMacOsBundlePaths(
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
 		applicationsLinkPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
+		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
 	};
+}
+
+export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundle> {
+	const bundles = new Set<RequestedBundle>();
+
+	for (let index = 0; index < buildArgs.length; index += 1) {
+		const token = buildArgs[index];
+		let rawValue: string | null = null;
+
+		if (token === '--bundles' || token === '-b') {
+			rawValue = buildArgs[index + 1] ?? '';
+			index += 1;
+		} else if (token.startsWith('--bundles=')) {
+			rawValue = token.slice('--bundles='.length);
+		}
+
+		if (rawValue === null) {
+			continue;
+		}
+
+		for (const entry of rawValue.split(',').map((value) => value.trim().toLowerCase())) {
+			if (entry === 'app' || entry === 'dmg') {
+				bundles.add(entry);
+			}
+		}
+	}
+
+	if (bundles.size === 0) {
+		bundles.add('app');
+	}
+
+	return bundles;
 }
 
 export function buildTauriApp(repoRoot: string, buildArgs: string[]): void {
@@ -179,6 +215,17 @@ export function verifyMacOsBundle(paths: BundlePaths): void {
 				...forbiddenMatches,
 			].join('\n'),
 		);
+	}
+}
+
+export function verifyDmgBundle(paths: BundlePaths): void {
+	if (!existsSync(paths.dmgDir)) {
+		throw new Error(`Expected dmg bundle directory at ${paths.dmgDir}`);
+	}
+
+	const dmgArtifacts = readdirSync(paths.dmgDir).filter((entry) => entry.endsWith('.dmg'));
+	if (dmgArtifacts.length === 0) {
+		throw new Error(`Expected at least one dmg artifact under ${paths.dmgDir}`);
 	}
 }
 
@@ -301,6 +348,7 @@ function isPermissionDeniedError(error: unknown): boolean {
 function main(): void {
 	const repoRoot = path.resolve(import.meta.dir, '..');
 	const buildArgs = process.argv.slice(2);
+	const requestedBundles = resolveRequestedBundles(buildArgs);
 
 	assertSupportedMacOsHost();
 	buildTauriApp(repoRoot, buildArgs);
@@ -310,13 +358,19 @@ function main(): void {
 	}
 
 	const bundlePaths = resolveMacOsBundlePaths(repoRoot);
-	verifyMacOsBundle(bundlePaths);
+	if (requestedBundles.has('app')) {
+		verifyMacOsBundle(bundlePaths);
 
-	const linkOutcome = refreshApplicationsLink(bundlePaths);
-	if (linkOutcome !== 'skipped') {
-		console.log(
-			`Refreshed /Applications link: ${bundlePaths.applicationsLinkPath} -> ${bundlePaths.canonicalAppPath}`,
-		);
+		const linkOutcome = refreshApplicationsLink(bundlePaths);
+		if (linkOutcome !== 'skipped') {
+			console.log(
+				`Refreshed /Applications link: ${bundlePaths.applicationsLinkPath} -> ${bundlePaths.canonicalAppPath}`,
+			);
+		}
+	}
+
+	if (requestedBundles.has('dmg')) {
+		verifyDmgBundle(bundlePaths);
 	}
 }
 

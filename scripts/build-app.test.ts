@@ -18,7 +18,9 @@ import {
 	findForbiddenLinkedLibraries,
 	findUnsupportedMacOsArchitectures,
 	refreshApplicationsLink,
+	resolveRequestedBundles,
 	resolveMacOsBundlePaths,
+	verifyDmgBundle,
 } from './build-app';
 
 const tempRoots: string[] = [];
@@ -61,6 +63,7 @@ describe('resolveMacOsBundlePaths', () => {
 			),
 		);
 		expect(paths.applicationsLinkPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
+		expect(paths.dmgDir).toBe(path.join(repoRoot, 'target/release/bundle/dmg'));
 	});
 });
 
@@ -164,6 +167,39 @@ describe('ensureFeatureArg', () => {
 			'--features',
 			'custom-protocol,bundled-ffmpeg',
 		]);
+	});
+});
+
+describe('resolveRequestedBundles', () => {
+	it('defaults to app when no bundle selection is passed', () => {
+		expect([...resolveRequestedBundles([])]).toEqual(['app']);
+	});
+
+	it('parses explicit app and dmg bundle selections', () => {
+		expect(resolveRequestedBundles(['--bundles', 'dmg'])).toEqual(new Set(['dmg']));
+		expect(resolveRequestedBundles(['--bundles=app,dmg'])).toEqual(new Set(['app', 'dmg']));
+		expect(resolveRequestedBundles(['-b', 'app'])).toEqual(new Set(['app']));
+	});
+});
+
+describe('verifyDmgBundle', () => {
+	it('accepts dmg artifacts without requiring a surviving app bundle', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.dmgDir, { recursive: true });
+		writeFileSync(path.join(paths.dmgDir, 'AudioBook Boss_1.0.12_aarch64.dmg'), '');
+
+		expect(() => verifyDmgBundle(paths)).not.toThrow();
+	});
+
+	it('rejects missing dmg artifacts', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.dmgDir, { recursive: true });
+
+		expect(() => verifyDmgBundle(paths)).toThrow(
+			`Expected at least one dmg artifact under ${paths.dmgDir}`,
+		);
 	});
 });
 
