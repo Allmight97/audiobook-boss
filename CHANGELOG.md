@@ -15,6 +15,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.12] - 2026-04-22
+
+Status-panel follow-through release that fixes the remaining user-visible
+completion-message and progress-stage seams uncovered by post-cutover audit,
+while keeping the cutover architecture intact.
+
+### Added
+
+- Regression coverage for batch completion message retention after idle reset.
+- Regression coverage proving stage transitions bypass the progress throttle and
+  render immediately.
+
+### Changed
+
+- Batch, single, and merge-skip completion holds now use named constants
+  instead of scattered literals in the status-panel runtime.
+
+### Fixed
+
+- Batch completion now preserves the terminal user-facing message instead of
+  clobbering it with the idle step text in the same tick.
+- Mid-job stage transitions are no longer dropped by the one-second progress
+  throttle window.
+- Removed the dead `clearStatusPanelTransientStatusLock` public status-panel
+  export and corresponding stale test mock.
+
+### Removed
+
 ## [1.0.11] - 2026-04-21
 
 Repo-hygiene and perf-signal cleanup release that removes the last standing
