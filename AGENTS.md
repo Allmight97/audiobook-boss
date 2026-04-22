@@ -41,16 +41,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Experimental Codex lifecycle hooks live in repo-root `hooks.json` and `./.agents/hooks/`; use them only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
+- For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
-
-### Skill Trigger Policy
-
-- Load `lib-research` when external library/API behavior affects implementation or review findings.
-- Load `contract-guardrails` for TS↔Rust command/event shape changes.
-- Load `path-security-validation` when adding/modifying path inputs or outputs.
-- Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
-- Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
-- Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
 
 ### Execution Defaults
 
