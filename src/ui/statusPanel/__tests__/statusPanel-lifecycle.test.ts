@@ -224,7 +224,7 @@ describe('StatusPanel lifecycle', () => {
 
 		controller.reconcileProcessResult({
 			jobType: 'merge',
-			summary: { total: 1, succeeded: 0, skipped: 1, failed: 0 },
+			summary: { total: 1, succeeded: 0, skipped: 1, cancelled: 0, failed: 0 },
 			results: [
 				{
 					status: 'skipped',
@@ -285,6 +285,55 @@ describe('StatusPanel lifecycle', () => {
 		vi.advanceTimersByTime(2000);
 
 		expect(showErrorSpy).toHaveBeenCalledWith('Processed 1/2. Failed: beta.m4b');
+	});
+
+	it('uses a success override when batch results include completed and cancelled entries', () => {
+		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
+
+		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+
+		controller.applyQueueSnapshot({
+			items: [
+				{ input_index: 0, file_path: '/books/alpha.m4b' },
+				{ input_index: 1, file_path: '/books/beta.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		controller.applyProgress({
+			input_index: 0,
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'terminal-0',
+		});
+
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					status: 'success',
+					message: 'Successfully created audiobook: /books/alpha.m4b',
+				},
+				{
+					inputIndex: 1,
+					status: 'cancelled',
+					message: 'Processing was cancelled',
+				},
+			],
+		});
+		controller.setBatchCompletionMessage('Processed 1/2. Cancelled: 1.');
+
+		expect(getJobRows()).toEqual(['alpha.m4b • Completed (100.0%)', 'beta.m4b • Cancelled']);
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showSuccessSpy).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
+		expect(showInfoSpy).not.toHaveBeenCalled();
+		expect(getStepText()).toBe('Processed 1/2. Cancelled: 1.');
 	});
 
 	it('preserves skipped batch rows when cancellation arrives after a skipped terminal event', () => {

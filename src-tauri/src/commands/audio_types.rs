@@ -39,6 +39,7 @@ pub struct ProcessPayload {
 pub enum ProcessResultStatus {
     Success,
     Skipped,
+    Cancelled,
     Failed,
 }
 
@@ -48,6 +49,7 @@ pub struct ProcessResultSummary {
     pub total: usize,
     pub succeeded: usize,
     pub skipped: usize,
+    pub cancelled: usize,
     pub failed: usize,
 }
 
@@ -91,11 +93,18 @@ impl ProcessCommandResult {
             .iter()
             .filter(|result| result.status == ProcessResultStatus::Skipped)
             .count();
-        let failed = results.len().saturating_sub(succeeded + skipped);
+        let cancelled = results
+            .iter()
+            .filter(|result| result.status == ProcessResultStatus::Cancelled)
+            .count();
+        let failed = results
+            .len()
+            .saturating_sub(succeeded + skipped + cancelled);
         let summary = ProcessResultSummary {
             total: results.len(),
             succeeded,
             skipped,
+            cancelled,
             failed,
         };
 

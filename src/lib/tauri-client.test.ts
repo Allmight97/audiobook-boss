@@ -138,6 +138,7 @@ describe('tauriClient nullish adapters', () => {
 			summary: {
 				total: 1,
 				succeeded: 1,
+				cancelled: 0,
 				failed: 0,
 			},
 			results: [
@@ -193,7 +194,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
 		expect(args.previewSeconds).toBeNull();
 		expect(result.jobType).toBe('batch');
-		expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 });
+		expect(result.summary).toEqual({ total: 1, succeeded: 1, cancelled: 0, failed: 0 });
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]?.inputIndex).toBe(0);
 		expect(result.results[0]?.status).toBe('success');
@@ -383,6 +384,7 @@ describe('tauriClient nullish adapters', () => {
 			summary: {
 				total: 2,
 				succeeded: 1,
+				cancelled: 0,
 				failed: 1,
 			},
 			results: [
@@ -426,7 +428,7 @@ describe('tauriClient nullish adapters', () => {
 			previewSeconds: undefined,
 		});
 
-		expect(result.summary).toEqual({ total: 2, succeeded: 1, failed: 1 });
+		expect(result.summary).toEqual({ total: 2, succeeded: 1, cancelled: 0, failed: 1 });
 		expect(result.results[1]).toEqual({
 			inputIndex: 1,
 			status: 'failed',

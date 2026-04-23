@@ -109,7 +109,10 @@ export class StatusPanelRuntime {
 
 		let updated = false;
 		for (const entry of result.results) {
-			if (entry.status !== 'skipped' || typeof entry.inputIndex !== 'number') {
+			if (
+				(entry.status !== 'skipped' && entry.status !== 'cancelled') ||
+				typeof entry.inputIndex !== 'number'
+			) {
 				continue;
 			}
 
@@ -122,8 +125,8 @@ export class StatusPanelRuntime {
 					existing?.label ??
 					this.findFilePathByIndex(entry.inputIndex) ??
 					`Input ${entry.inputIndex + 1}`,
-				status: 'skipped',
-				stage: existing?.stage,
+				status: entry.status,
+				stage: entry.status === 'cancelled' ? STAGES.cancelled : existing?.stage,
 				percentage: 100,
 				message: entry.message,
 				lastUpdate: Date.now(),
@@ -403,12 +406,16 @@ export class StatusPanelRuntime {
 
 			if (hasFailed) {
 				feedback.showError(override ?? 'One or more files failed to process.');
+			} else if (override) {
+				if (hasCompleted) {
+					feedback.showSuccess(override);
+				} else {
+					feedback.showInfo(override);
+				}
 			} else if (hasCancelled) {
 				feedback.showInfo('Processing was cancelled.');
 			} else if (!hasCompleted && hasSkipped) {
-				feedback.showInfo(override ?? 'No files were processed.');
-			} else if (override) {
-				feedback.showSuccess(override);
+				feedback.showInfo('No files were processed.');
 			} else {
 				feedback.showSuccess('Audiobook created successfully!');
 			}

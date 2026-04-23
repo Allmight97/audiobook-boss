@@ -54,10 +54,13 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 		result.results.filter((entry) => entry.status === 'success').length;
 	const skipped =
 		result.summary?.skipped ?? result.results.filter((entry) => entry.status === 'skipped').length;
+	const cancelled =
+		result.summary?.cancelled ??
+		result.results.filter((entry) => entry.status === 'cancelled').length;
 	const failed =
 		result.summary?.failed ?? result.results.filter((entry) => entry.status === 'failed').length;
 
-	if (failed <= 0 && skipped <= 0) {
+	if (failed <= 0 && skipped <= 0 && cancelled <= 0) {
 		return null;
 	}
 
@@ -93,12 +96,13 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 			? ` Failed: ${visibleNames.join(', ')}${moreCount > 0 ? ` (+${moreCount} more)` : ''}`
 			: '';
 	const skippedSuffix = skipped > 0 ? ` Skipped: ${skipped}.` : '';
+	const cancelledSuffix = cancelled > 0 ? ` Cancelled: ${cancelled}.` : '';
 
 	if (succeeded <= 0) {
-		return `No files were processed successfully.${skippedSuffix}${failureSuffix}`;
+		return `No files were processed successfully.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
 	}
 
-	return `Processed ${succeeded}/${total}.${skippedSuffix}${failureSuffix}`;
+	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
 }
 
 function getHardBlockingCollisionMessage(plan: ProcessingPreflightPlan): string | null {
