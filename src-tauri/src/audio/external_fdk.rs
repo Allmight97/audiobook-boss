@@ -243,7 +243,11 @@ async fn run_external_ffmpeg(
                     }
                     Ok(None) => break,
                     Err(error) => {
-                        terminate_external_child(&mut child).await?;
+                        terminate_external_child_best_effort(
+                            &mut child,
+                            "after external ffmpeg progress read failure",
+                        )
+                        .await;
                         return Err(AppError::ProcessTermination(format!(
                             "Failed to read external ffmpeg progress: {}",
                             error
@@ -253,7 +257,11 @@ async fn run_external_ffmpeg(
             }
             _ = sleep(Duration::from_millis(200)) => {
                 if context.is_cancelled() {
-                    terminate_external_child(&mut child).await?;
+                    terminate_external_child_best_effort(
+                        &mut child,
+                        "after external ffmpeg cancellation",
+                    )
+                    .await;
                     ui.emit_cancelled("Processing was cancelled");
                     return Err(AppError::cancelled());
                 }
@@ -275,6 +283,12 @@ async fn run_external_ffmpeg(
 
     ui.emit_converting_progress(89.0, "External FDK encode complete.", current_file, None);
     Ok(())
+}
+
+async fn terminate_external_child_best_effort(child: &mut tokio::process::Child, context: &str) {
+    if let Err(error) = terminate_external_child(child).await {
+        log::error!("Failed to terminate external ffmpeg child {context}: {error}");
+    }
 }
 
 async fn terminate_external_child(child: &mut tokio::process::Child) -> Result<()> {
