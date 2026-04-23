@@ -38,7 +38,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
-- Experimental Codex lifecycle hooks live in repo-root `hooks.json` and `./.agents/hooks/`; use them only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification.
+- Codex lifecycle hooks live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`. Use hooks only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
 - For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.

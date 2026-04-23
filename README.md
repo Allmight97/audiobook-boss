@@ -66,5 +66,5 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - For substantial multi-step work, use [PLANS.md](PLANS.md) and keep at most active implementation specs under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
 - For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.
 - UI work is not done from static inspection alone. Run `bun run harness:verify --changed` for UI-affecting changes.
-- Cheap deterministic repo guardrails live in `hooks.json` and `./.agents/hooks/`.
+- Cheap deterministic repo guardrails live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`.
 - Durable truth lives in code, GitHub issues, this file, and [AGENTS.md](AGENTS.md). `.artifacts/` is temporary local state only.
