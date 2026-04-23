@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import MetadataFormFieldsIsland from '../metadataForm/MetadataFormFieldsIsland.svelte';
 import { metadataFormState } from '../metadataForm/state.svelte';
 import {
@@ -24,9 +25,19 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		});
 	});
 
-	it('mounts fields into root and syncs action select on multi-select input', () => {
+	it('hides bulk action selects in single-select mode', async () => {
+		initMetadataFormEvents();
+		setMetadataFormMode('single');
+		await tick();
+
+		expect(document.getElementById('meta-title-action')).toBeNull();
+		expect(document.getElementById('meta-author-action')).toBeNull();
+	});
+
+	it('mounts fields into root and syncs action select on multi-select input', async () => {
 		initMetadataFormEvents();
 		setMetadataFormMode('multi', 2);
+		await tick();
 
 		const titleInput = document.getElementById('meta-title') as HTMLInputElement | null;
 		const titleAction = document.getElementById('meta-title-action') as HTMLSelectElement | null;

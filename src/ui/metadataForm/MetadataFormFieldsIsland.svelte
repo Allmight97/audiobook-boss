@@ -44,18 +44,20 @@
 	on:change={handleMetadataFieldChange}
 >
   <div class="col-span-3">
-    <div class="meta-field-header">
-      <label for="meta-title">Book Title</label>
-      <select
-        id="meta-title-action"
-        class="meta-apply-select"
-        data-testid="meta-title-action"
-        bind:value={metadataFormState.fields['meta-title'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-title">Book Title</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-title-action"
+	          class="meta-apply-select"
+	          data-testid="meta-title-action"
+	          bind:value={metadataFormState.fields['meta-title'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-title"
@@ -69,18 +71,20 @@
     />
   </div>
   <div class="col-span-1">
-    <div class="meta-field-header">
-      <label for="meta-year">Publication Date</label>
-      <select
-        id="meta-year-action"
-        class="meta-apply-select"
-        data-testid="meta-year-action"
-        bind:value={metadataFormState.fields['meta-year'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-year">Publication Date</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-year-action"
+	          class="meta-apply-select"
+	          data-testid="meta-year-action"
+	          bind:value={metadataFormState.fields['meta-year'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-year"
@@ -94,18 +98,20 @@
     />
   </div>
   <div class="col-span-2">
-    <div class="meta-field-header">
-      <label for="meta-author">Author</label>
-      <select
-        id="meta-author-action"
-        class="meta-apply-select"
-        data-testid="meta-author-action"
-        bind:value={metadataFormState.fields['meta-author'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-author">Author</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-author-action"
+	          class="meta-apply-select"
+	          data-testid="meta-author-action"
+	          bind:value={metadataFormState.fields['meta-author'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-author"
@@ -119,18 +125,20 @@
     />
   </div>
   <div class="col-span-2">
-    <div class="meta-field-header">
-      <label for="meta-narrator">Narrator</label>
-      <select
-        id="meta-narrator-action"
-        class="meta-apply-select"
-        data-testid="meta-narrator-action"
-        bind:value={metadataFormState.fields['meta-narrator'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-narrator">Narrator</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-narrator-action"
+	          class="meta-apply-select"
+	          data-testid="meta-narrator-action"
+	          bind:value={metadataFormState.fields['meta-narrator'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-narrator"
@@ -144,18 +152,20 @@
     />
   </div>
   <div class="col-span-2">
-    <div class="meta-field-header">
-      <label for="meta-series">Series</label>
-      <select
-        id="meta-series-action"
-        class="meta-apply-select"
-        data-testid="meta-series-action"
-        bind:value={metadataFormState.fields['meta-series'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-series">Series</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-series-action"
+	          class="meta-apply-select"
+	          data-testid="meta-series-action"
+	          bind:value={metadataFormState.fields['meta-series'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-series"
@@ -169,18 +179,20 @@
     />
   </div>
   <div class="col-span-1">
-    <div class="meta-field-header">
-      <label for="meta-series-part">Book #</label>
-      <select
-        id="meta-series-part-action"
-        class="meta-apply-select"
-        data-testid="meta-series-part-action"
-        bind:value={metadataFormState.fields['meta-series-part'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-series-part">Book #</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-series-part-action"
+	          class="meta-apply-select"
+	          data-testid="meta-series-part-action"
+	          bind:value={metadataFormState.fields['meta-series-part'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-series-part"
@@ -201,18 +213,20 @@
     </div>
   </div>
   <div class="col-span-2">
-    <div class="meta-field-header">
-      <label for="meta-subseries">Sub-series</label>
-      <select
-        id="meta-subseries-action"
-        class="meta-apply-select"
-        data-testid="meta-subseries-action"
-        bind:value={metadataFormState.fields['meta-subseries'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-subseries">Sub-series</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-subseries-action"
+	          class="meta-apply-select"
+	          data-testid="meta-subseries-action"
+	          bind:value={metadataFormState.fields['meta-subseries'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-subseries"
@@ -226,18 +240,20 @@
     />
   </div>
   <div class="col-span-1">
-    <div class="meta-field-header">
-      <label for="meta-subseries-part">Sub-series #</label>
-      <select
-        id="meta-subseries-part-action"
-        class="meta-apply-select"
-        data-testid="meta-subseries-part-action"
-        bind:value={metadataFormState.fields['meta-subseries-part'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-subseries-part">Sub-series #</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-subseries-part-action"
+	          class="meta-apply-select"
+	          data-testid="meta-subseries-part-action"
+	          bind:value={metadataFormState.fields['meta-subseries-part'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-subseries-part"
@@ -258,18 +274,20 @@
     </div>
   </div>
   <div class="col-span-1">
-    <div class="meta-field-header">
-      <label for="meta-genre">Genre</label>
-      <select
-        id="meta-genre-action"
-        class="meta-apply-select"
-        data-testid="meta-genre-action"
-        bind:value={metadataFormState.fields['meta-genre'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-genre">Genre</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-genre-action"
+	          class="meta-apply-select"
+	          data-testid="meta-genre-action"
+	          bind:value={metadataFormState.fields['meta-genre'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <input
       type="text"
       id="meta-genre"
@@ -283,18 +301,20 @@
     />
   </div>
   <div class="col-span-4">
-    <div class="meta-field-header">
-      <label for="meta-description">Description</label>
-      <select
-        id="meta-description-action"
-        class="meta-apply-select"
-        data-testid="meta-description-action"
-        bind:value={metadataFormState.fields['meta-description'].action}
-      >
-        <option value="keep">Keep</option>
-        <option value="blank">Blank</option>
-      </select>
-    </div>
+	    <div class="meta-field-header">
+	      <label for="meta-description">Description</label>
+	      {#if metadataFormState.mode === 'multi'}
+	        <select
+	          id="meta-description-action"
+	          class="meta-apply-select"
+	          data-testid="meta-description-action"
+	          bind:value={metadataFormState.fields['meta-description'].action}
+	        >
+	          <option value="keep">Keep</option>
+	          <option value="blank">Blank</option>
+	        </select>
+	      {/if}
+	    </div>
     <textarea
       id="meta-description"
       rows="2"
