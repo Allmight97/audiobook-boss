@@ -1,5 +1,5 @@
 use super::artifact::derive_output_artifact_path;
-use super::collision::{detect_output_collision, next_rename_candidate};
+use super::collision::{detect_output_collision, next_rename_candidate, OutputCollisionCache};
 use super::types::{
     CollisionPolicy, OutputCollision, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     PlannedOutput, PlannedOutputAction, ResolvedOutputPlan,
@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Default, Clone)]
 pub(crate) struct OutputPlanLedger {
     claimed: HashSet<PathBuf>,
+    collision_cache: OutputCollisionCache,
 }
 
 impl OutputPlanLedger {
@@ -25,12 +26,14 @@ impl OutputPlanLedger {
         policy: CollisionPolicy,
         source_paths: &[PathBuf],
     ) -> Result<ResolvedOutputPlan> {
-        let plan = resolve_output_plan(
+        self.collision_cache.cache_source_paths(source_paths);
+        let plan = resolve_output_plan_with_cache(
             requested_final_path,
             kind,
             policy,
             &self.claimed,
             source_paths,
+            &mut self.collision_cache,
         )?;
         if action_requires_output_write(plan.action) {
             self.claimed.insert(plan.resolved_path.clone());
@@ -68,6 +71,7 @@ pub(crate) fn plan_is_hard_block(plan: &ResolvedOutputPlan) -> bool {
         && collision_is_hard_block(plan.collision.as_ref())
 }
 
+#[cfg(test)]
 pub(crate) fn resolve_output_plan(
     requested_final_path: &Path,
     kind: OutputKind,
@@ -75,8 +79,28 @@ pub(crate) fn resolve_output_plan(
     claimed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
 ) -> Result<ResolvedOutputPlan> {
+    let mut cache = OutputCollisionCache::default();
+    cache.cache_source_paths(source_paths);
+    resolve_output_plan_with_cache(
+        requested_final_path,
+        kind,
+        policy,
+        claimed,
+        source_paths,
+        &mut cache,
+    )
+}
+
+fn resolve_output_plan_with_cache(
+    requested_final_path: &Path,
+    kind: OutputKind,
+    policy: CollisionPolicy,
+    claimed: &HashSet<PathBuf>,
+    source_paths: &[PathBuf],
+    cache: &mut OutputCollisionCache,
+) -> Result<ResolvedOutputPlan> {
     let requested_path = derive_output_artifact_path(requested_final_path, kind)?;
-    let collision = detect_output_collision(&requested_path, claimed, source_paths)?;
+    let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
     let hard_block = collision
         .as_ref()
         .map(|value| {
@@ -103,6 +127,7 @@ pub(crate) fn resolve_output_plan(
             &requested_path,
             claimed,
             source_paths,
+            cache,
         )?)
     } else {
         None

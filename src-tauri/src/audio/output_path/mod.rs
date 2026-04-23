@@ -10,9 +10,7 @@ pub(crate) use collision::path_entry_exists;
 pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;
 #[allow(unused_imports)]
-pub(crate) use plan::{
-    action_requires_output_write, plan_is_hard_block, resolve_output_plan, OutputPlanLedger,
-};
+pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, PlannedOutput, PlannedOutputAction,
