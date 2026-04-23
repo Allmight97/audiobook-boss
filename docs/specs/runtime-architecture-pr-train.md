@@ -111,6 +111,10 @@ Existing issues:
 - `#272` is the Processing Run boundary RFC and is the intended issue for PR3.
 - `#273` is the Metadata write intent / album sort RFC and is the intended issue
   for PR4.
+- `#277` is open for frontend boundary glue cleanup. It is not a task ledger for
+  this train. Use it as a reference for high-ROI wrapper removals only when the
+  owning PR already touches that boundary, and close it only after the accepted
+  cleanup is complete or explicitly narrowed.
 
 Current setup status:
 
@@ -193,6 +197,14 @@ Expected direction:
 - Test adapter command-building, cancel behavior, and finalization without
   requiring real FFmpeg for every case.
 
+Boundary glue cleanup, if the PR touches encoder-panel/toolchain UI (`Refs #277`):
+
+- Remove `initEncoderPanel` from `src/ui/encoderPanel/index.ts` and update tests
+  to import `initializeEncoderPanelLogic` directly. This wrapper is dead in
+  production and its options parameter is ignored.
+- Skip this cleanup if PR2 remains backend-only. Do not pull encoder-panel test
+  churn into the adapter PR without a real touched boundary.
+
 ### PR3: Processing Run Boundary
 
 Branch: `arch/processing-run-boundary`
@@ -211,6 +223,18 @@ Expected direction:
   `ProcessingRun::execute(...)`.
 - Move responsibilities out of command orchestration only when the new owner can
   keep tests at the boundary rather than scattering helper tests.
+
+Boundary glue posture (`Refs #277`):
+
+- Do not collapse `tauriClient` and `commandSpecs` as part of PR3. The current
+  `tauriClient` object is the frontend runtime boundary; `commandSpecs` is a
+  private implementation table. Collapsing them is not a Processing Run concern.
+- Keep `statusPanel/errorHelpers.ts` unless PR3's status/error handling work makes
+  the names misleading. The helpers are thin, but they preserve local
+  status-panel intent.
+- Treat `toGeneratedMetadataSource` / `toGeneratedMetadataSources` as optional
+  low-ROI cleanup only if PR3 already changes the relevant Tauri client adapter
+  path. Do not make it a required PR3 acceptance item.
 
 ### PR4: Metadata Draft / Intent Workflow
 
@@ -231,6 +255,17 @@ Expected direction:
   details into UI state.
 - Keep generated bindings and contract tests aligned with any shape changes.
 
+Boundary glue cleanup (`Refs #277`):
+
+- Remove `setMetadataSaveInProgress` and `isMetadataSaveInProgress` wrappers from
+  `src/ui/metadataSaveState.ts`. Export/use `metadataSaveInProgressStore`
+  directly from `src/ui/fileList/events.ts` and `src/ui/core/actions.ts`.
+- If PR4 already touches `src/ui/metadataValidation.ts`, deduplicate
+  `getSeriesPartValidationError` and `getSubseriesPartValidationError` behind a
+  shared sequence-validation helper and add direct validator coverage. Otherwise
+  leave this as optional cleanup; it is safe but not core to the metadata
+  draft/intent boundary.
+
 ### PR5: Status Panel Event State Machine
 
 Branch: `arch/status-panel-state-machine`
@@ -249,6 +284,14 @@ Expected direction:
 - Use reducer-style event-sequence tests for cancellation, skipped jobs, completed
   jobs, progress updates, and terminal delay behavior.
 
+Boundary glue posture (`Refs #277`):
+
+- Do not make `initTagPreview` cleanup part of PR5. It is thin, but it is used by
+  `TagPreviewIsland.svelte` in production and belongs to metadata/tag-preview
+  ownership, not status-panel state.
+- Do not remove status-panel error helpers solely because they are thin. Revisit
+  only if the PR5 reducer creates a clearer local error-normalization boundary.
+
 ## 6. Progress
 
 - 2026-04-23: Created spec on `main` as the single planning/tracking artifact.
@@ -261,6 +304,14 @@ Expected direction:
 - 2026-04-23: PR1 validation passed with `scripts/checks.sh standard`,
   `bun run harness:verify --scenario collision-dialog`, and
   `bun run harness:verify --scenario output-preview`.
+- 2026-04-23: Addressed PR1 review feedback by caching output collision
+  directory listings and canonical source paths in the output planning ledger.
+  Pushed follow-up commit `5049902`.
+- 2026-04-23: Reviewed `#277` with local inspection plus targeted scout lanes.
+  Integrated only high-ROI boundary glue cleanup into this train: PR4
+  metadata-save wrappers, PR2 encoder-panel init only if that UI boundary is
+  touched, and optional validator/tag-preview cleanup only at the owning
+  boundary.
 
 ## 7. Surprises And Discoveries
 
@@ -274,6 +325,12 @@ Expected direction:
 - `cargo clippy --workspace --all-targets -- -D warnings` flagged
   `external_fdk::run_external_ffmpeg` as exceeding the line threshold. PR1 added
   a local exception comment only; PR2 is still the owning adapter refactor.
+- `#277` overstates two items. `initTagPreview` is not test-only; it is used by
+  `TagPreviewIsland.svelte` at mount. `statusPanel/errorHelpers.ts` is thin, but
+  its names carry status-panel intent and are not automatic deletion candidates.
+- The `tauriClient` / `commandSpecs` double layer is not a PR3 target. The former
+  is the public frontend runtime boundary and the latter is a private generated
+  command adapter table.
 
 ## 8. Decision Log
 
@@ -287,6 +344,10 @@ Expected direction:
 - 2026-04-23: Start with Output Naming / Collision Planning. Reason: it has
   concrete input/output invariants and reduces the blast radius before the heavier
   Processing Run boundary.
+- 2026-04-23: Fold `#277` into the PR train only where cleanup follows the
+  owning boundary. Reason: frontend wrapper cleanup is useful when it reduces
+  tracing inside a boundary already being edited, but creating standalone churn or
+  broadening PR3/PR5 around unrelated UI helpers would weaken the roadmap.
 
 ## 9. Validation And Acceptance
 
@@ -321,6 +382,9 @@ Per code PR validation:
   review flow changes.
 - `bun run harness:verify --scenario output-preview` when output preview or
   preview behavior changes.
+- For `#277` boundary-glue cleanup, run targeted frontend tests for the touched
+  module plus the standard gate. Before deleting a wrapper, verify usage with
+  `rg` and distinguish production usage from test-only imports.
 
 Acceptance for the entire train:
 
