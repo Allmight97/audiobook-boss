@@ -258,6 +258,7 @@ async fn run_external_ffmpeg(
                     }
                     Ok(None) => break,
                     Err(error) => {
+                        terminate_external_child(&mut child).await?;
                         return Err(AppError::ProcessTermination(format!(
                             "Failed to read external ffmpeg progress: {}",
                             error
@@ -267,7 +268,7 @@ async fn run_external_ffmpeg(
             }
             _ = sleep(Duration::from_millis(200)) => {
                 if context.is_cancelled() {
-                    let _ = child.kill().await;
+                    terminate_external_child(&mut child).await?;
                     ui.emit_cancelled("Processing was cancelled");
                     return Err(AppError::cancelled());
                 }
@@ -288,6 +289,22 @@ async fn run_external_ffmpeg(
     }
 
     ui.emit_converting_progress(89.0, "External FDK encode complete.", current_file, None);
+    Ok(())
+}
+
+async fn terminate_external_child(child: &mut tokio::process::Child) -> Result<()> {
+    if child.try_wait()?.is_some() {
+        return Ok(());
+    }
+
+    if let Err(error) = child.kill().await {
+        if child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        return Err(error.into());
+    }
+
+    child.wait().await?;
     Ok(())
 }
 
@@ -761,6 +778,65 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn worker_reaps_child_when_progress_stream_is_invalid_utf8() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let input_path = temp_dir.path().join("input.mp3");
+        let output_path = temp_dir.path().join("output.m4b");
+        let pid_file = temp_dir.path().join("fake-ffmpeg.pid");
+        let fake_ffmpeg = write_invalid_utf8_sleeping_fake_ffmpeg(temp_dir.path(), &pid_file);
+        write(&input_path, b"not-real-audio").expect("write fake input");
+
+        let session = Arc::new(ProcessingSession::new());
+        let session_id = session.id();
+        let expected_worker_temp =
+            std::env::temp_dir().join(format!("abb-fdk-worker-{session_id}"));
+
+        let context = ProcessingContext::new_headless(
+            session,
+            fdk_test_settings(),
+            crate::audio::SampleRateConfig::Auto,
+            OutputConfig::new(&output_path),
+        );
+
+        let result = process_audiobook_with_external_fdk(
+            context,
+            vec![test_audio_file(input_path)],
+            vec![None],
+            None,
+            ValidatedExternalToolchain {
+                ffmpeg_path: fake_ffmpeg,
+                source: EncoderCapabilitySource::Override,
+                decoder_capabilities: Default::default(),
+            },
+        )
+        .await;
+
+        let error = result.expect_err("invalid utf-8 progress should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to read external ffmpeg progress"),
+            "unexpected error: {error}"
+        );
+
+        let pid = std::fs::read_to_string(&pid_file)
+            .expect("pid file should exist")
+            .trim()
+            .parse::<u32>()
+            .expect("pid file should contain numeric pid");
+        assert_process_exited(pid).await;
+        assert!(
+            !expected_worker_temp.exists(),
+            "worker temp dir should be cleaned after progress read failure"
+        );
+        assert!(
+            !output_path.exists(),
+            "final output should not exist after progress read failure"
+        );
+    }
+
     #[test]
     fn progress_parser_handles_ffmpeg_variants() {
         assert_eq!(parse_progress_ms("out_time_ms=1500"), Some(1.5));
@@ -1069,6 +1145,46 @@ mod tests {
         permissions.set_mode(0o755);
         set_permissions(&script_path, permissions).expect("chmod failing fake ffmpeg");
         script_path
+    }
+
+    #[cfg(unix)]
+    fn write_invalid_utf8_sleeping_fake_ffmpeg(root: &Path, pid_file: &Path) -> PathBuf {
+        let script_path = root.join("fake-ffmpeg-invalid-utf8");
+        let script = format!(
+            "#!/bin/sh\necho \"$$\" > '{}'\nprintf '\\377\\n'\nexec sleep 30\n",
+            pid_file.display()
+        );
+        write(&script_path, script).expect("write invalid utf8 fake ffmpeg");
+        let mut permissions = std::fs::metadata(&script_path)
+            .expect("metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        set_permissions(&script_path, permissions).expect("chmod invalid utf8 fake ffmpeg");
+        script_path
+    }
+
+    #[cfg(unix)]
+    async fn assert_process_exited(pid: u32) {
+        for _ in 0..20 {
+            if !process_is_alive(pid) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+
+        assert!(
+            !process_is_alive(pid),
+            "expected external ffmpeg child {pid} to be reaped"
+        );
+    }
+
+    #[cfg(unix)]
+    fn process_is_alive(pid: u32) -> bool {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 
     fn test_audio_file(path: PathBuf) -> AudioFile {
