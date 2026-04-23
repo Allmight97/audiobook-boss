@@ -1,5 +1,6 @@
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
+use crate::audio::job_registry::{CancellationChecker, JobId};
 use crate::audio::output_path::{
     build_output_path_preview, resolve_output_plan, CollisionPolicy, OutputKind,
     PlannedOutputAction, ResolvedOutputPlan,
@@ -24,6 +25,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tauri::Emitter;
+use tokio::sync::OwnedSemaphorePermit;
 
 struct ProcessingInputs {
     output_naming: OutputNamingConfig,
@@ -808,14 +810,8 @@ async fn run_processing_job(
     metadata: Option<crate::metadata::AudiobookMetadata>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessResultEntry> {
-    let (job_id, _permit) = registry.register_job().await?;
-    log::info!(
-        "Job {} started for output: {}",
-        job_id,
-        output_plan.resolved_path.display()
-    );
-    let cancellation_checker = registry.cancellation_checker(job_id).await;
-    audio::settings::validate_output_path(&output_plan.resolved_path)?;
+    let (job_id, _permit, cancellation_checker) =
+        register_job_and_validate_output(&registry, &output_plan.resolved_path).await?;
 
     let (context, preview_seconds_resolved) = build_processing_context(
         window,
@@ -869,6 +865,26 @@ async fn run_processing_job(
             ))
         }
     }
+}
+
+async fn register_job_and_validate_output(
+    registry: &crate::ManagedJobRegistry,
+    output_path: &Path,
+) -> Result<(JobId, OwnedSemaphorePermit, CancellationChecker)> {
+    let (job_id, permit) = registry.register_job().await?;
+    log::info!(
+        "Job {} started for output: {}",
+        job_id,
+        output_path.display()
+    );
+    let cancellation_checker = registry.cancellation_checker(job_id).await;
+
+    if let Err(error) = audio::settings::validate_output_path(output_path) {
+        registry.fail_job(job_id, error.to_string()).await;
+        return Err(error);
+    }
+
+    Ok((job_id, permit, cancellation_checker))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1148,6 +1164,41 @@ mod tests {
         assert_eq!(super::resolve_preview_seconds(None), None);
         assert_eq!(super::resolve_preview_seconds(Some(30.0)), Some(30.0));
         assert_eq!(super::resolve_preview_seconds(Some(-1.0)), None);
+    }
+
+    #[tokio::test]
+    async fn register_job_and_validate_output_cleans_up_failed_validation() {
+        let registry = std::sync::Arc::new(crate::audio::JobRegistry::new(2));
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let invalid_output = temp_dir.path().join("output.mp3");
+
+        let error = match super::register_job_and_validate_output(&registry, &invalid_output).await
+        {
+            Ok(_) => panic!("invalid extension should fail validation"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error
+                .to_string()
+                .contains("Output must be .m4b file, got: .mp3"),
+            "unexpected error: {error}"
+        );
+
+        let status = registry.get_aggregate_status().await;
+        assert_eq!(status.active_jobs, 0, "active jobs should be cleared");
+        assert_eq!(status.total_jobs, 0, "tracked jobs should be cleared");
+        assert!(
+            registry.list_active_jobs().await.is_empty(),
+            "active job list should be empty after failed validation"
+        );
+        assert_eq!(
+            registry
+                .update_max_concurrent(1)
+                .await
+                .expect("idle registry should allow concurrency updates"),
+            1
+        );
     }
 
     #[test]
