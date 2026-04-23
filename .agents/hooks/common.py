@@ -22,6 +22,8 @@ DOCS_ONLY_PREFIXES = (
 )
 DOC_SURFACE_FILES = {
     *DOCS_ONLY_FILES,
+    ".agents/hooks.json",
+    ".codex/hooks.json",
     "hooks.json",
     "scripts/check-context-surface.sh",
 }

@@ -9,7 +9,7 @@ active_files=(
   "PLANS.md"
   "docs/fallbacks.md"
   "docs/api-map.md"
-  "hooks.json"
+  ".codex/hooks.json"
 )
 
 retained_skills=(
@@ -22,6 +22,7 @@ retained_skills=(
 )
 
 retained_hook_files=(
+  ".codex/hooks.json"
   ".agents/hooks/common.py"
   ".agents/hooks/session_start.py"
   ".agents/hooks/stop_context_surface.py"
@@ -79,6 +80,11 @@ append_unique_paths() {
   exit 1
 }
 
+[[ ! -e "hooks.json" ]] || {
+  echo "[context-surface] Root hooks.json is retired; use .codex/hooks.json" >&2
+  exit 1
+}
+
 for file in "${active_files[@]}"; do
   [[ -f "$file" ]] || {
     echo "[context-surface] Missing active file: $file" >&2
@@ -131,7 +137,8 @@ surface_paths=(
   "docs/fallbacks.md"
   "docs/api-map.md"
   "package.json"
-  "hooks.json"
+  ".codex/hooks.json"
+  ".agents/hooks.json"
   "scripts/checks.sh"
   "scripts/check-context-surface.sh"
   "src/AGENTS.md"
@@ -146,7 +153,8 @@ legacy_surface_paths=(
   "docs/fallbacks.md"
   "docs/api-map.md"
   "package.json"
-  "hooks.json"
+  ".codex/hooks.json"
+  ".agents/hooks.json"
   "scripts/checks.sh"
   "src/AGENTS.md"
   "src/harness/AGENTS.md"
