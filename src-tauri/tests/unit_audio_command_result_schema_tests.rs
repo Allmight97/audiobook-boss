@@ -4,7 +4,7 @@ use audiobook_boss_lib::commands::{
 use audiobook_boss_lib::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 
 #[test]
-fn process_command_result_batch_summary_counts_success_and_failures() {
+fn process_command_result_batch_summary_counts_success_cancelled_and_failures() {
     let results = vec![
         ProcessResultEntry {
             input_index: Some(0),
@@ -17,6 +17,20 @@ fn process_command_result_batch_summary_counts_success_and_failures() {
         },
         ProcessResultEntry {
             input_index: Some(1),
+            status: ProcessResultStatus::Cancelled,
+            message: "Processing was cancelled".to_string(),
+            error: Some(AppErrorEnvelope::new(
+                AppErrorCode::ProcessingCancelled,
+                AppErrorCategory::Cancellation,
+                "Processing was cancelled".to_string(),
+                None,
+            )),
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-2".to_string()),
+        },
+        ProcessResultEntry {
+            input_index: Some(2),
             status: ProcessResultStatus::Failed,
             message: "failed".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -34,8 +48,9 @@ fn process_command_result_batch_summary_counts_success_and_failures() {
     let response = ProcessCommandResult::new(JobType::Batch, results.clone());
 
     assert_eq!(response.job_type, JobType::Batch);
-    assert_eq!(response.summary.total, 2);
+    assert_eq!(response.summary.total, 3);
     assert_eq!(response.summary.succeeded, 1);
+    assert_eq!(response.summary.cancelled, 1);
     assert_eq!(response.summary.failed, 1);
     assert_eq!(response.results, results);
 }
@@ -57,6 +72,7 @@ fn process_command_result_merge_has_single_success_entry() {
     assert_eq!(response.job_type, JobType::Merge);
     assert_eq!(response.summary.total, 1);
     assert_eq!(response.summary.succeeded, 1);
+    assert_eq!(response.summary.cancelled, 0);
     assert_eq!(response.summary.failed, 0);
     assert_eq!(response.results, vec![entry]);
 }

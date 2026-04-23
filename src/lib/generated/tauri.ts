@@ -416,12 +416,13 @@ export type ProcessResultEntry = {
  *  Processes multiple audio files into a single M4B audiobook
  *  Merges files with specified settings and optional metadata
  */
-export type ProcessResultStatus = "success" | "skipped" | "failed";
+export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
 
 export type ProcessResultSummary = {
 	total: number,
 	succeeded: number,
 	skipped: number,
+	cancelled: number,
 	failed: number,
 };
 

@@ -144,7 +144,7 @@ describe('startProcessing metadata staging', () => {
 		}));
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
-			summary: { total: 1, succeeded: 1, skipped: 0, failed: 0 },
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
 		context.readAudioMetadataMock.mockResolvedValue({});
@@ -275,7 +275,7 @@ describe('startProcessing metadata staging', () => {
 		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'batch',
-			summary: { total: 2, succeeded: 0, failed: 1 },
+			summary: { total: 2, succeeded: 0, skipped: 0, cancelled: 0, failed: 1 },
 			results: [
 				{
 					inputIndex: null,
@@ -301,6 +301,48 @@ describe('startProcessing metadata staging', () => {
 		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith(
 			'No files were processed successfully. Failed: decoder unavailable',
 		);
+	});
+
+	it('summarizes mixed batch success and cancellation truthfully', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
+		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
+		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
+		context.processAudiobookFilesMock.mockResolvedValue({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					status: 'success',
+					message: 'Successfully created audiobook: /tmp/out/a.m4b',
+					jobId: 'job-1',
+					error: null,
+					previewFilePath: null,
+					previewActualSeconds: null,
+				},
+				{
+					inputIndex: 1,
+					status: 'cancelled',
+					message: 'Processing was cancelled',
+					jobId: 'job-2',
+					error: {
+						code: 'processing_cancelled',
+						category: 'cancellation',
+						message: 'Processing was cancelled',
+						detail: null,
+					},
+					previewFilePath: null,
+					previewActualSeconds: null,
+				},
+			],
+		});
+
+		const ctx = processingContext();
+
+		await startProcessing(ctx);
+
+		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
 	});
 
 	it('treats structured cancellation errors as cancellation instead of failures', async () => {
@@ -368,7 +410,7 @@ describe('startProcessing metadata staging', () => {
 	it('auto-opens preview only when exactly one successful preview path is returned', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
-			summary: { total: 1, succeeded: 1, failed: 0 },
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 			results: [
 				{
 					inputIndex: 0,
@@ -392,7 +434,7 @@ describe('startProcessing metadata staging', () => {
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'batch',
-			summary: { total: 2, succeeded: 2, failed: 0 },
+			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
 			results: [
 				{
 					inputIndex: 0,
@@ -419,7 +461,7 @@ describe('startProcessing metadata staging', () => {
 	it('does not auto-open preview for failed result entries', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'merge',
-			summary: { total: 1, succeeded: 0, failed: 1 },
+			summary: { total: 1, succeeded: 0, skipped: 0, cancelled: 0, failed: 1 },
 			results: [
 				{
 					inputIndex: 0,

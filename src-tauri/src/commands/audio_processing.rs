@@ -627,68 +627,17 @@ fn finalize_batch_results(
     payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
 ) -> Result<Vec<ProcessResultEntry>> {
-    let mut ordered_results: Vec<Option<ProcessResultEntry>> =
-        vec![None; payload.input_files.len()];
-    let mut cancellation_error: Option<AppError> = None;
-
-    for (index, outcome) in outcomes.into_iter().enumerate() {
-        let entry = match outcome {
-            Ok(mut entry) => {
-                if entry.input_index.is_none() {
-                    entry.input_index = Some(index);
-                }
-                if let Some(error) = cancellation_error_for_failed_entry(&entry) {
-                    cancellation_error.get_or_insert(error);
-                    continue;
-                }
-                if entry.status == ProcessResultStatus::Failed {
-                    emit_terminal_failed_event(
-                        window,
-                        entry.input_index,
-                        entry.job_id.as_deref(),
-                        &entry.message,
-                    );
-                }
-                entry
-            }
-            Err(error) => {
-                if is_cancellation_error(&error) {
-                    cancellation_error.get_or_insert(error);
-                    continue;
-                }
-                let envelope: AppErrorEnvelope = error.into();
-                let error_message = envelope.message.clone();
-                emit_terminal_failed_event(window, Some(index), None, &error_message);
-                terminal_failure_result(Some(index), None, envelope)
-            }
-        };
-        ordered_results[index] = Some(entry);
+    let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
+    for event in finalized.failure_events {
+        emit_terminal_failed_event(
+            window,
+            event.input_index,
+            event.job_id.as_deref(),
+            &event.message,
+        );
     }
 
-    if let Some(error) = cancellation_error {
-        return Err(error);
-    }
-
-    for (index, slot) in ordered_results.iter_mut().enumerate() {
-        if slot.is_none() {
-            let error_message = format!(
-                "Missing terminal result for queued input index {index}; marking as failed"
-            );
-            emit_terminal_failed_event(window, Some(index), None, &error_message);
-            *slot = Some(terminal_failure_result(
-                Some(index),
-                None,
-                AppErrorEnvelope::new(
-                    crate::errors::AppErrorCode::InternalError,
-                    crate::errors::AppErrorCategory::Internal,
-                    error_message,
-                    None,
-                ),
-            ));
-        }
-    }
-
-    Ok(ordered_results.into_iter().flatten().collect())
+    Ok(finalized.results)
 }
 
 async fn dispatch_merge_job(
@@ -1012,6 +961,41 @@ fn skipped_result(
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TerminalFailureEvent {
+    input_index: Option<usize>,
+    job_id: Option<String>,
+    message: String,
+}
+
+#[derive(Debug, PartialEq)]
+struct FinalizedBatchResults {
+    results: Vec<ProcessResultEntry>,
+    failure_events: Vec<TerminalFailureEvent>,
+}
+
+fn terminal_cancelled_result(
+    input_index: Option<usize>,
+    job_id: Option<String>,
+    message: impl Into<String>,
+) -> ProcessResultEntry {
+    let message = message.into();
+    ProcessResultEntry {
+        input_index,
+        status: ProcessResultStatus::Cancelled,
+        message: message.clone(),
+        error: Some(AppErrorEnvelope::new(
+            crate::errors::AppErrorCode::ProcessingCancelled,
+            crate::errors::AppErrorCategory::Cancellation,
+            message,
+            None,
+        )),
+        preview_file_path: None,
+        preview_actual_seconds: None,
+        job_id,
+    }
+}
+
 fn terminal_failure_result(
     input_index: Option<usize>,
     job_id: Option<String>,
@@ -1032,6 +1016,100 @@ fn is_cancellation_error(error: &AppError) -> bool {
     matches!(error, AppError::Cancellation(_))
 }
 
+fn collect_batch_results(
+    input_count: usize,
+    outcomes: Vec<Result<ProcessResultEntry>>,
+) -> Result<FinalizedBatchResults> {
+    let mut ordered_results: Vec<Option<ProcessResultEntry>> = vec![None; input_count];
+    let mut failure_events = Vec::new();
+    let mut saw_cancellation = false;
+    let mut saw_non_cancelled_terminal_result = false;
+
+    for (index, outcome) in outcomes.into_iter().enumerate() {
+        let entry = match outcome {
+            Ok(mut entry) => {
+                if entry.input_index.is_none() {
+                    entry.input_index = Some(index);
+                }
+                if let Some(error) = cancellation_error_for_failed_entry(&entry) {
+                    saw_cancellation = true;
+                    terminal_cancelled_result(
+                        entry.input_index,
+                        entry.job_id.clone(),
+                        error.to_string(),
+                    )
+                } else {
+                    match entry.status {
+                        ProcessResultStatus::Cancelled => {
+                            saw_cancellation = true;
+                        }
+                        ProcessResultStatus::Failed => {
+                            saw_non_cancelled_terminal_result = true;
+                            failure_events.push(TerminalFailureEvent {
+                                input_index: entry.input_index,
+                                job_id: entry.job_id.clone(),
+                                message: entry.message.clone(),
+                            });
+                        }
+                        ProcessResultStatus::Success | ProcessResultStatus::Skipped => {
+                            saw_non_cancelled_terminal_result = true;
+                        }
+                    }
+                    entry
+                }
+            }
+            Err(error) => {
+                if is_cancellation_error(&error) {
+                    saw_cancellation = true;
+                    terminal_cancelled_result(Some(index), None, error.to_string())
+                } else {
+                    saw_non_cancelled_terminal_result = true;
+                    let envelope: AppErrorEnvelope = error.into();
+                    failure_events.push(TerminalFailureEvent {
+                        input_index: Some(index),
+                        job_id: None,
+                        message: envelope.message.clone(),
+                    });
+                    terminal_failure_result(Some(index), None, envelope)
+                }
+            }
+        };
+        ordered_results[index] = Some(entry);
+    }
+
+    if saw_cancellation && !saw_non_cancelled_terminal_result {
+        return Err(AppError::cancelled());
+    }
+
+    for (index, slot) in ordered_results.iter_mut().enumerate() {
+        if slot.is_none() {
+            let error_message = format!(
+                "Missing terminal result for queued input index {index}; marking as failed"
+            );
+            failure_events.push(TerminalFailureEvent {
+                input_index: Some(index),
+                job_id: None,
+                message: error_message.clone(),
+            });
+            *slot = Some(terminal_failure_result(
+                Some(index),
+                None,
+                AppErrorEnvelope::new(
+                    crate::errors::AppErrorCode::InternalError,
+                    crate::errors::AppErrorCategory::Internal,
+                    error_message,
+                    None,
+                ),
+            ));
+        }
+    }
+
+    Ok(FinalizedBatchResults {
+        results: ordered_results.into_iter().flatten().collect(),
+        failure_events,
+    })
+}
+
 fn cancellation_error_for_failed_entry(entry: &ProcessResultEntry) -> Option<AppError> {
     let envelope = entry.error.as_ref()?;
     if entry.status == ProcessResultStatus::Failed
@@ -1045,9 +1123,10 @@ fn cancellation_error_for_failed_entry(entry: &ProcessResultEntry) -> Option<App
 #[cfg(test)]
 mod tests {
     use super::{
-        cancellation_error_for_failed_entry, is_cancellation_error, preflight_payload,
-        resolve_effective_processing_metadata, resolve_naming_metadata, terminal_failure_result,
-        validate_batch_input_path, validate_external_processing_contract_with_file_info,
+        cancellation_error_for_failed_entry, collect_batch_results, is_cancellation_error,
+        preflight_payload, resolve_effective_processing_metadata, resolve_naming_metadata,
+        terminal_cancelled_result, terminal_failure_result, validate_batch_input_path,
+        validate_external_processing_contract_with_file_info,
     };
     use crate::audio::file_list::FileListInfo;
     use crate::audio::output_path::{build_output_path, CollisionPolicy, OutputCollisionKind};
@@ -1219,6 +1298,28 @@ mod tests {
     }
 
     #[test]
+    fn terminal_cancelled_result_preserves_job_id_when_available() {
+        let entry = terminal_cancelled_result(
+            Some(4),
+            Some("job-123".to_string()),
+            "Processing was cancelled",
+        );
+
+        assert_eq!(entry.input_index, Some(4));
+        assert_eq!(entry.job_id.as_deref(), Some("job-123"));
+        assert_eq!(entry.status, ProcessResultStatus::Cancelled);
+        assert_eq!(entry.message, "Processing was cancelled");
+        assert_eq!(
+            entry
+                .error
+                .as_ref()
+                .expect("cancelled entry should include structured error")
+                .category,
+            AppErrorCategory::Cancellation
+        );
+    }
+
+    #[test]
     fn cancellation_error_for_failed_entry_returns_cancelled_error() {
         let entry = ProcessResultEntry {
             input_index: Some(2),
@@ -1286,6 +1387,47 @@ mod tests {
         assert!(cancellation_error_for_failed_entry(&failed).is_none());
         assert_eq!(failed.status, ProcessResultStatus::Failed);
         assert_eq!(failed.job_id.as_deref(), Some("job-2"));
+    }
+
+    #[test]
+    fn collect_batch_results_preserves_mixed_success_and_cancelled_entries() {
+        let results = collect_batch_results(
+            2,
+            vec![
+                Ok(ProcessResultEntry {
+                    input_index: Some(0),
+                    status: ProcessResultStatus::Success,
+                    message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
+                    error: None,
+                    preview_file_path: None,
+                    preview_actual_seconds: None,
+                    job_id: Some("job-1".to_string()),
+                }),
+                Err(AppError::cancelled()),
+            ],
+        )
+        .expect("mixed success and cancellation should remain a successful batch result");
+
+        assert_eq!(
+            results.failure_events,
+            Vec::<super::TerminalFailureEvent>::new()
+        );
+        assert_eq!(results.results.len(), 2);
+        assert_eq!(results.results[0].status, ProcessResultStatus::Success);
+        assert_eq!(results.results[1].status, ProcessResultStatus::Cancelled);
+        assert_eq!(results.results[1].input_index, Some(1));
+        assert_eq!(results.results[1].message, "Processing was cancelled");
+    }
+
+    #[test]
+    fn collect_batch_results_returns_cancelled_when_every_job_cancelled() {
+        let error = collect_batch_results(
+            2,
+            vec![Err(AppError::cancelled()), Err(AppError::cancelled())],
+        )
+        .expect_err("fully cancelled batch should stay a top-level cancellation");
+
+        assert!(is_cancellation_error(&error));
     }
 
     #[test]

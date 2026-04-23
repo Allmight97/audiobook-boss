@@ -208,6 +208,11 @@ pub(crate) struct FinalizeCommitOutcome {
     pub cancelled: bool,
 }
 
+pub(crate) struct FinalizedOutputSuccess {
+    pub ui_message: &'static str,
+    pub result_message: String,
+}
+
 fn commit_output_boundary_internal<F>(
     context: &ProcessingContext,
     temp_output: PathBuf,
@@ -255,6 +260,30 @@ where
     F: FnOnce(),
 {
     commit_output_boundary_internal(context, temp_output, destination, cleanup_guard, after_move)
+}
+
+pub(crate) fn finalized_output_success(
+    output_kind: OutputKind,
+    final_output: &Path,
+    cancelled_after_commit: bool,
+) -> FinalizedOutputSuccess {
+    if cancelled_after_commit {
+        log::warn!(
+            "Cancellation arrived after final output commit; reporting success for {}",
+            final_output.display()
+        );
+    }
+
+    match output_kind {
+        OutputKind::Preview => FinalizedOutputSuccess {
+            ui_message: "Preview created successfully",
+            result_message: format!("Successfully created preview: {}", final_output.display()),
+        },
+        OutputKind::Final => FinalizedOutputSuccess {
+            ui_message: "Processing complete",
+            result_message: format!("Successfully created audiobook: {}", final_output.display()),
+        },
+    }
 }
 
 /// Writes metadata if provided (UI emission included)
@@ -312,29 +341,15 @@ pub(crate) fn complete_processing(
         "✓ File moved successfully to: {}",
         outcome.final_output.display()
     );
-
-    if outcome.cancelled {
-        log::warn!("Processing was cancelled during completion");
-        ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::cancelled());
-    }
-
     reporter.complete();
-    let success_message = if context.output.output_kind() == OutputKind::Preview {
-        ui.emit_complete("Preview created successfully");
-        format!(
-            "Successfully created preview: {}",
-            outcome.final_output.display()
-        )
-    } else {
-        ui.emit_complete("Processing complete");
-        format!(
-            "Successfully created audiobook: {}",
-            outcome.final_output.display()
-        )
-    };
-    log::info!("🎉 {}", success_message);
-    Ok(success_message)
+    let success = finalized_output_success(
+        context.output.output_kind(),
+        &outcome.final_output,
+        outcome.cancelled,
+    );
+    ui.emit_complete(success.ui_message);
+    log::info!("🎉 {}", success.result_message);
+    Ok(success.result_message)
 }
 
 /// Finalize pipeline: metadata + completion
@@ -427,6 +442,25 @@ mod tests {
         assert!(
             !temp_dir.exists(),
             "temp directory should still be cleaned after post-move cancellation"
+        );
+    }
+
+    #[test]
+    fn finalized_output_success_keeps_success_messages_after_post_commit_cancel() {
+        let output = Path::new("/tmp/final-output.m4b");
+
+        let preview = finalized_output_success(OutputKind::Preview, output, true);
+        assert_eq!(preview.ui_message, "Preview created successfully");
+        assert_eq!(
+            preview.result_message,
+            "Successfully created preview: /tmp/final-output.m4b"
+        );
+
+        let full = finalized_output_success(OutputKind::Final, output, true);
+        assert_eq!(full.ui_message, "Processing complete");
+        assert_eq!(
+            full.result_message,
+            "Successfully created audiobook: /tmp/final-output.m4b"
         );
     }
 

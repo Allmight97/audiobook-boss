@@ -1,4 +1,4 @@
-use crate::audio::processor::finalize::commit_output_boundary;
+use crate::audio::processor::finalize::{commit_output_boundary, finalized_output_success};
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
 use crate::audio::toolchain::validate_external_input_decoders;
 use crate::audio::toolchain::ValidatedExternalToolchain;
@@ -99,28 +99,13 @@ pub async fn process_audiobook_with_external_fdk(
         context.output.artifact_path(),
         &mut cleanup_guard,
     )?;
-    if outcome.cancelled {
-        ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::cancelled());
-    }
-
-    ui.emit_complete(if context.preview.is_some() {
-        "Preview created successfully"
-    } else {
-        "Processing complete"
-    });
-
-    if context.preview.is_some() {
-        Ok(format!(
-            "Successfully created preview: {}",
-            outcome.final_output.display()
-        ))
-    } else {
-        Ok(format!(
-            "Successfully created audiobook: {}",
-            outcome.final_output.display()
-        ))
-    }
+    let success = finalized_output_success(
+        context.output.output_kind(),
+        &outcome.final_output,
+        outcome.cancelled,
+    );
+    ui.emit_complete(success.ui_message);
+    Ok(success.result_message)
 }
 
 fn merge_cover_art(

@@ -102,6 +102,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					summary: {
 						total: 1,
 						succeeded: 1,
+						cancelled: 0,
 						failed: 0,
 					},
 					results: [
