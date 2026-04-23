@@ -31,7 +31,7 @@ pub mod passthrough;
 /// - `composer` = Narrator (also mirrored to freeform NARRATOR)
 /// - `series` = Series name (freeform SERIES, mirrored to MVNM)
 /// - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
-/// - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
+/// - `album_sort` = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     /// Title of the audiobook (©nam)
@@ -62,7 +62,7 @@ pub struct AudiobookMetadata {
     pub subseries: Option<String>,
     /// Series sequence / book # in sub-series (secondary series part)
     pub subseries_part: Option<String>,
-    /// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
+    /// Album sort order for library sorting (soal/TSOA)
     pub album_sort: Option<String>,
     /// Cover art as raw bytes
     pub cover_art: Option<Vec<u8>>,
@@ -75,6 +75,45 @@ pub enum PatchOp<T> {
     Clear,
     #[default]
     Noop,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+#[serde(tag = "op", rename_all = "snake_case", content = "value")]
+pub enum AlbumSortPatchOp {
+    Set(String),
+    Clear,
+    Recompute,
+    #[default]
+    Noop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum AlbumSortWriteAction {
+    Preserve,
+    Set(String),
+    Clear,
+    Recompute,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct MetadataWritePlan {
+    pub(crate) metadata: AudiobookMetadata,
+    pub(crate) album_sort: AlbumSortWriteAction,
+}
+
+impl MetadataWritePlan {
+    pub(crate) fn from_metadata(metadata: AudiobookMetadata) -> Self {
+        let album_sort = match metadata.album_sort.as_deref() {
+            Some(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
+            Some(value) => AlbumSortWriteAction::Set(value.to_string()),
+            None => AlbumSortWriteAction::Preserve,
+        };
+
+        Self {
+            metadata,
+            album_sort,
+        }
+    }
 }
 
 /// Writable metadata-intent surface for ABB.
@@ -105,6 +144,8 @@ pub struct MetadataIntentPatch {
     pub subseries: PatchOp<String>,
     #[serde(default)]
     pub subseries_part: PatchOp<String>,
+    #[serde(default)]
+    pub album_sort: AlbumSortPatchOp,
     #[serde(default)]
     pub cover_art: PatchOp<Vec<u8>>,
 }
@@ -159,6 +200,8 @@ impl MetadataIntentPatch {
             }
         }
 
+        apply_album_sort_patch(&self.album_sort, &mut base);
+
         Ok(base)
     }
 
@@ -166,7 +209,7 @@ impl MetadataIntentPatch {
         self.apply_to_metadata(AudiobookMetadata::new())
     }
 
-    pub fn to_write_metadata(&self) -> Result<AudiobookMetadata> {
+    pub(crate) fn to_write_plan(&self) -> Result<MetadataWritePlan> {
         let mut metadata = AudiobookMetadata::new();
 
         apply_string_patch(&self.title, &mut metadata.title);
@@ -215,7 +258,28 @@ impl MetadataIntentPatch {
             }
         }
 
-        Ok(metadata)
+        let album_sort = match &self.album_sort {
+            AlbumSortPatchOp::Set(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
+            AlbumSortPatchOp::Set(value) => {
+                metadata.album_sort = Some(value.clone());
+                AlbumSortWriteAction::Set(value.clone())
+            }
+            AlbumSortPatchOp::Clear => {
+                metadata.album_sort = Some(String::new());
+                AlbumSortWriteAction::Clear
+            }
+            AlbumSortPatchOp::Recompute => AlbumSortWriteAction::Recompute,
+            AlbumSortPatchOp::Noop => AlbumSortWriteAction::Preserve,
+        };
+
+        Ok(MetadataWritePlan {
+            metadata,
+            album_sort,
+        })
+    }
+
+    pub fn to_write_metadata(&self) -> Result<AudiobookMetadata> {
+        Ok(self.to_write_plan()?.metadata)
     }
 }
 
@@ -246,6 +310,11 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
             Some(bytes) => PatchOp::Set(bytes),
             None => PatchOp::Noop,
         };
+        let album_sort = match metadata.album_sort {
+            Some(text) if text.trim().is_empty() => AlbumSortPatchOp::Clear,
+            Some(text) => AlbumSortPatchOp::Set(text),
+            None => AlbumSortPatchOp::Noop,
+        };
 
         Self {
             title: to_string_patch(metadata.title),
@@ -259,6 +328,7 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
             series_part: to_string_patch(metadata.series_part),
             subseries: to_string_patch(metadata.subseries),
             subseries_part: to_string_patch(metadata.subseries_part),
+            album_sort,
             cover_art,
         }
     }
@@ -286,6 +356,33 @@ fn apply_processing_string_patch(patch: &PatchOp<String>, output: &mut Option<St
         }
         PatchOp::Noop => {}
     }
+}
+
+fn apply_album_sort_patch(patch: &AlbumSortPatchOp, metadata: &mut AudiobookMetadata) {
+    match patch {
+        AlbumSortPatchOp::Set(value) => {
+            if value.trim().is_empty() {
+                metadata.album_sort = None;
+            } else {
+                metadata.album_sort = Some(value.clone());
+            }
+        }
+        AlbumSortPatchOp::Clear => {
+            metadata.album_sort = None;
+        }
+        AlbumSortPatchOp::Recompute => {
+            metadata.album_sort = recompute_album_sort(metadata);
+        }
+        AlbumSortPatchOp::Noop => {}
+    }
+}
+
+fn recompute_album_sort(metadata: &AudiobookMetadata) -> Option<String> {
+    compute_album_sort(
+        metadata.series.as_deref()?,
+        metadata.series_part.as_deref(),
+        metadata.title.as_deref()?,
+    )
 }
 
 fn validate_publication_date(value: &str) -> Result<String> {
@@ -472,6 +569,7 @@ mod tests {
             title: PatchOp::Set("Project Hail Mary".to_string()),
             artist: PatchOp::Clear,
             date: PatchOp::Clear,
+            album_sort: AlbumSortPatchOp::Clear,
             cover_art: PatchOp::Clear,
             ..Default::default()
         };
@@ -483,7 +581,57 @@ mod tests {
         assert_eq!(metadata.title.as_deref(), Some("Project Hail Mary"));
         assert_eq!(metadata.artist.as_deref(), Some(""));
         assert_eq!(metadata.date.as_deref(), Some(""));
+        assert_eq!(metadata.album_sort.as_deref(), Some(""));
         assert_eq!(metadata.cover_art, Some(Vec::new()));
+    }
+
+    #[test]
+    fn metadata_intent_patch_keeps_album_sort_noop_explicit() {
+        let patch = MetadataIntentPatch {
+            genre: PatchOp::Set("Sci-Fi".to_string()),
+            ..Default::default()
+        };
+
+        let plan = patch
+            .to_write_plan()
+            .expect("write plan should preserve album sort");
+
+        assert_eq!(plan.metadata.genre.as_deref(), Some("Sci-Fi"));
+        assert_eq!(plan.metadata.album_sort, None);
+        assert_eq!(plan.album_sort, AlbumSortWriteAction::Preserve);
+    }
+
+    #[test]
+    fn metadata_intent_patch_supports_album_sort_set_clear_and_recompute() {
+        let set_plan = MetadataIntentPatch {
+            album_sort: AlbumSortPatchOp::Set("Custom Sort".to_string()),
+            ..Default::default()
+        }
+        .to_write_plan()
+        .expect("album sort set should compile");
+        assert_eq!(set_plan.metadata.album_sort.as_deref(), Some("Custom Sort"));
+        assert_eq!(
+            set_plan.album_sort,
+            AlbumSortWriteAction::Set("Custom Sort".to_string())
+        );
+
+        let clear_plan = MetadataIntentPatch {
+            album_sort: AlbumSortPatchOp::Clear,
+            ..Default::default()
+        }
+        .to_write_plan()
+        .expect("album sort clear should compile");
+        assert_eq!(clear_plan.metadata.album_sort.as_deref(), Some(""));
+        assert_eq!(clear_plan.album_sort, AlbumSortWriteAction::Clear);
+
+        let recompute_plan = MetadataIntentPatch {
+            album_sort: AlbumSortPatchOp::Recompute,
+            ..Default::default()
+        }
+        .to_write_plan()
+        .expect("album sort recompute should compile");
+        assert_eq!(recompute_plan.metadata.album_sort, None);
+        assert_eq!(recompute_plan.album_sort, AlbumSortWriteAction::Recompute);
     }
 
     #[test]
@@ -534,6 +682,7 @@ mod tests {
             artist: Some(String::new()),
             genre: None,
             date: Some(String::new()),
+            album_sort: Some("Stormlight 01 - The Way of Kings".to_string()),
             cover_art: Some(Vec::new()),
             ..Default::default()
         });
@@ -557,6 +706,12 @@ mod tests {
         match patch.cover_art {
             PatchOp::Clear => {}
             other => panic!("expected cover art clear patch, got: {other:?}"),
+        }
+        match patch.album_sort {
+            AlbumSortPatchOp::Set(value) => {
+                assert_eq!(value, "Stormlight 01 - The Way of Kings");
+            }
+            other => panic!("expected album sort set patch, got: {other:?}"),
         }
     }
 
@@ -600,6 +755,7 @@ mod tests {
         let base = AudiobookMetadata {
             title: Some("Old Title".to_string()),
             artist: Some("Old Artist".to_string()),
+            album_sort: Some("Old Sort".to_string()),
             cover_art: Some(vec![1, 2, 3]),
             date: Some("2020".to_string()),
             ..Default::default()
@@ -607,6 +763,7 @@ mod tests {
         let patch = MetadataIntentPatch {
             title: PatchOp::Set("New Title".to_string()),
             artist: PatchOp::Clear,
+            album_sort: AlbumSortPatchOp::Clear,
             date: PatchOp::Set("2024-09-01".to_string()),
             cover_art: PatchOp::Clear,
             ..Default::default()
@@ -618,8 +775,35 @@ mod tests {
 
         assert_eq!(resolved.title.as_deref(), Some("New Title"));
         assert_eq!(resolved.artist, None);
+        assert_eq!(resolved.album_sort, None);
         assert_eq!(resolved.date.as_deref(), Some("2024-09"));
         assert_eq!(resolved.cover_art, None);
+    }
+
+    #[test]
+    fn processing_patch_can_recompute_album_sort_from_effective_metadata() {
+        let base = AudiobookMetadata {
+            title: Some("Old Title".to_string()),
+            series: Some("Series".to_string()),
+            series_part: Some("1".to_string()),
+            album_sort: Some("Custom Sort".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("New Title".to_string()),
+            series_part: PatchOp::Set("2".to_string()),
+            album_sort: AlbumSortPatchOp::Recompute,
+            ..Default::default()
+        };
+
+        let resolved = patch
+            .apply_to_metadata(base)
+            .expect("recompute patch should apply");
+
+        assert_eq!(
+            resolved.album_sort.as_deref(),
+            Some("Series 02 - New Title")
+        );
     }
 
     #[test]

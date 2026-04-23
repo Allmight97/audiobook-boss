@@ -40,6 +40,7 @@ describe('metadata intent patch helpers', () => {
 			title: { op: 'clear' },
 			date: { op: 'clear' },
 			series_part: { op: 'set', value: '3.5' },
+			album_sort: { op: 'set', value: 'Series 03 - Title' },
 			cover_art: { op: 'clear' },
 		});
 
@@ -47,7 +48,25 @@ describe('metadata intent patch helpers', () => {
 			title: { op: 'clear' },
 			date: { op: 'clear' },
 			series_part: { op: 'set', value: '3.5' },
+			album_sort: { op: 'set', value: 'Series 03 - Title' },
 			cover_art: { op: 'clear' },
+		});
+	});
+
+	it('compiles album sort clear and recompute operations explicitly', () => {
+		expect(
+			compileMetadataIntentPatch({
+				album_sort: { op: 'clear' },
+			}),
+		).toEqual({
+			album_sort: { op: 'clear' },
+		});
+		expect(
+			compileMetadataIntentPatch({
+				album_sort: { op: 'recompute' },
+			}),
+		).toEqual({
+			album_sort: { op: 'recompute' },
 		});
 	});
 
@@ -67,16 +86,36 @@ describe('metadata intent patch helpers', () => {
 
 	it('applies patches on top of existing metadata', () => {
 		const merged = applyMetadataIntentPatch(
-			{ title: 'Old', artist: 'Author', series: 'Series A' },
+			{ title: 'Old', artist: 'Author', series: 'Series A', album_sort: 'Custom Sort' },
 			{
 				title: { op: 'set', value: 'New' },
 				series: { op: 'clear' },
+				album_sort: { op: 'recompute' },
 			},
 		);
 
 		expect(merged).toEqual({
 			title: 'New',
 			artist: 'Author',
+			album_sort: 'Custom Sort',
+		});
+	});
+
+	it('builds album sort set and clear intents from explicit metadata', () => {
+		expect(
+			buildMetadataIntentPatchFromMetadata({
+				album_sort: 'Custom Sort',
+			}),
+		).toEqual({
+			album_sort: { op: 'set', value: 'Custom Sort' },
+		});
+
+		expect(
+			buildMetadataIntentPatchFromMetadata({
+				album_sort: '',
+			}),
+		).toEqual({
+			album_sort: { op: 'clear' },
 		});
 	});
 

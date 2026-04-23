@@ -10,6 +10,7 @@ pub use super::cover_art::{
 };
 pub use super::ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
 pub use super::remux::rewrite_metadata_with_ffmpeg;
+pub(crate) use super::remux::rewrite_metadata_with_ffmpeg_plan;
 
 // EXCEPTION: requires private API access
 #[cfg(test)]

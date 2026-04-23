@@ -1,5 +1,5 @@
 use super::passthrough::PassthroughMetadata;
-use super::AudiobookMetadata;
+use super::{AudiobookMetadata, MetadataWritePlan};
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
@@ -7,7 +7,6 @@ use super::cover_art::embedding::{
     add_cover_art_stream_pre_header, write_cover_art_packet_post_header,
 };
 use super::ffi::set_stream_disposition_and_clear_codec_tag;
-use super::ffmpeg_dict::merge_metadata;
 
 /// Rewrite metadata and optional passthrough state using ffmpeg-next via remux/stream-copy.
 /// - Copies all non-attached_pic streams (audio + chapters handled separately)
@@ -21,17 +20,27 @@ pub fn rewrite_metadata_with_ffmpeg(
     metadata: Option<&AudiobookMetadata>,
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
+    let metadata_plan = metadata.cloned().map(MetadataWritePlan::from_metadata);
+    rewrite_metadata_with_ffmpeg_plan(input_path, metadata_plan.as_ref(), passthrough)
+}
+
+pub(crate) fn rewrite_metadata_with_ffmpeg_plan(
+    input_path: &std::path::Path,
+    metadata: Option<&MetadataWritePlan>,
+    passthrough: Option<&PassthroughMetadata>,
+) -> Result<()> {
     use crate::errors::AppError;
 
     ff::init().map_err(AppError::Ffmpeg)?;
     let mut ictx = ff::format::input(input_path).map_err(AppError::Ffmpeg)?;
     let temp_path = build_temp_output_path(input_path)?;
     let mut octx = ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?;
-    let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata)?;
+    let metadata_value = metadata.map(|plan| &plan.metadata);
+    let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata_value)?;
     copy_chapters(&ictx, &mut octx, passthrough);
     copy_container_metadata(&ictx, &mut octx, metadata)?;
 
-    let cover = select_cover_art(metadata, passthrough);
+    let cover = select_cover_art(metadata_value, passthrough);
     let cover_stream_info =
         cover.and_then(|bytes| add_cover_art_stream_pre_header(&mut octx, bytes));
     octx.write_header().map_err(AppError::Ffmpeg)?;
@@ -151,10 +160,11 @@ fn copy_chapters(
 fn copy_container_metadata(
     ictx: &ff::format::context::Input,
     octx: &mut ff::format::context::Output,
-    metadata: Option<&AudiobookMetadata>,
+    metadata: Option<&MetadataWritePlan>,
 ) -> Result<()> {
-    if let Some(metadata) = metadata {
-        let merged_dict = merge_metadata(ictx.metadata().to_owned(), metadata)?;
+    if let Some(plan) = metadata {
+        let merged_dict =
+            super::ffmpeg_dict::merge_metadata_with_plan(ictx.metadata().to_owned(), plan)?;
         octx.set_metadata(merged_dict);
     } else {
         octx.set_metadata(ictx.metadata().to_owned());
