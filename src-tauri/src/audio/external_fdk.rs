@@ -160,6 +160,8 @@ fn expected_duration_seconds(
     total.max(1.0)
 }
 
+// EXCEPTION: this temporary worker orchestration is split in PR2 when external FDK becomes a processor adapter.
+#[allow(clippy::too_many_lines)]
 async fn run_external_ffmpeg(
     context: &ProcessingContext,
     ui: &ProgressEmitter,

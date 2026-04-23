@@ -42,12 +42,12 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 
 - `preview_output_path`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helper: `src-tauri/src/audio/output_path.rs`
+  - Core helper: `src-tauri/src/audio/output_path/`
   - Use: backend-owned naming preview without collision suffixing
 
 - `get_max_concurrent_jobs`, `set_max_concurrent_jobs`, `process_audiobook_files`, `cancel_processing`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helpers: `src-tauri/src/commands/audio_processing.rs`, `src-tauri/src/audio/job_registry/`
+  - Core helpers: `src-tauri/src/commands/audio_processing.rs`, `src-tauri/src/commands/audio_processing/plan.rs`, `src-tauri/src/audio/job_registry/`
   - Use: queueing, processing, cancellation, batch orchestration
 
 ### Metadata

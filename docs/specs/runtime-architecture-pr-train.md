@@ -253,6 +253,14 @@ Expected direction:
 
 - 2026-04-23: Created spec on `main` as the single planning/tracking artifact.
   Confirmed no new GitHub issues should be created for this PR train by default.
+- 2026-04-23: Started PR1 on `arch/output-planning-boundary`. Split
+  `audio/output_path` into facade/types/naming/artifact/collision/plan modules,
+  added `OutputPlanLedger`, extracted command planning/review ownership into
+  `commands/audio_processing/plan.rs`, and extracted frontend output-review flow
+  into `statusPanel/outputPlanReview.ts`.
+- 2026-04-23: PR1 validation passed with `scripts/checks.sh standard`,
+  `bun run harness:verify --scenario collision-dialog`, and
+  `bun run harness:verify --scenario output-preview`.
 
 ## 7. Surprises And Discoveries
 
@@ -261,6 +269,11 @@ Expected direction:
 - Current issue state reinforces the no-new-issues rule: `#272` and `#273` are
   clean reuse points, while `#256` and `#268` are broader than the first likely
   PR slices.
+- Direct `bun test` does not load the Vite/Svelte rune transform used by this
+  repo; frontend targeted tests should run through `bun run test ...`.
+- `cargo clippy --workspace --all-targets -- -D warnings` flagged
+  `external_fdk::run_external_ffmpeg` as exceeding the line threshold. PR1 added
+  a local exception comment only; PR2 is still the owning adapter refactor.
 
 ## 8. Decision Log
 

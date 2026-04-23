@@ -23,13 +23,8 @@ import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
 import { isProcessingCancellationError, normalizeProcessingErrorMessage } from './errorHelpers';
-import { openCollisionDialog } from '../collisionDialog';
-import type {
-	CollisionPolicy,
-	ProcessCommandResult,
-	ProcessPayload,
-	ProcessingPreflightPlan,
-} from '../../types/audio';
+import { reviewOutputPlanForProcessing } from './outputPlanReview';
+import type { ProcessCommandResult, ProcessPayload } from '../../types/audio';
 
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -103,72 +98,6 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 	}
 
 	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
-}
-
-function getHardBlockingCollisionMessage(plan: ProcessingPreflightPlan): string | null {
-	const blocked = plan.outputs.find(
-		(output) =>
-			output.collision?.kind === 'source_destination_overlap' ||
-			output.collision?.kind === 'canonical_path_overlap',
-	);
-	if (!blocked) {
-		return null;
-	}
-	return (
-		blocked.collision?.detail ??
-		`Output path '${blocked.requestedPath}' targets an input source file. Choose a different destination.`
-	);
-}
-
-async function reviewOutputPlanBeforeProcessing(
-	processPayload: ProcessPayload,
-	metadataIntentPayload: Record<string, MetadataIntentPatch> | null,
-	previewSeconds?: number,
-): Promise<ProcessPayload | null> {
-	const initialPlan = await tauriClient.preflightProcessingPlan({
-		payload: processPayload,
-		metadataIntent: metadataIntentPayload,
-		previewSeconds,
-	});
-	const hardBlockMessage = getHardBlockingCollisionMessage(initialPlan);
-	if (hardBlockMessage) {
-		feedback.showError(hardBlockMessage);
-		return null;
-	}
-
-	const needsReview = initialPlan.outputs.some((output) => output.action === 'review_required');
-	if (!needsReview) {
-		return {
-			...processPayload,
-			collisionPolicy: initialPlan.collisionPolicy,
-			preflightSignature: initialPlan.planSignature,
-		};
-	}
-
-	const selectedPolicy = await openCollisionDialog(initialPlan);
-	if (!selectedPolicy) {
-		return null;
-	}
-
-	const reviewedPayload: ProcessPayload = {
-		...processPayload,
-		collisionPolicy: selectedPolicy as CollisionPolicy,
-	};
-	const reviewedPlan = await tauriClient.preflightProcessingPlan({
-		payload: reviewedPayload,
-		metadataIntent: metadataIntentPayload,
-		previewSeconds,
-	});
-	const reviewedHardBlock = getHardBlockingCollisionMessage(reviewedPlan);
-	if (reviewedHardBlock) {
-		feedback.showError(reviewedHardBlock);
-		return null;
-	}
-
-	return {
-		...reviewedPayload,
-		preflightSignature: reviewedPlan.planSignature,
-	};
 }
 
 export async function startProcessing(
@@ -297,12 +226,16 @@ export async function startProcessing(
 				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
 		}
 
-		const reviewedPayload = await reviewOutputPlanBeforeProcessing(
-			processPayload,
-			metadataIntentPayload,
-			options?.previewSeconds,
-		);
-		if (!reviewedPayload) {
+		const reviewResult = await reviewOutputPlanForProcessing({
+			payload: processPayload,
+			metadataIntent: metadataIntentPayload,
+			previewSeconds: options?.previewSeconds,
+		});
+		if (reviewResult.status === 'blocked') {
+			feedback.showError(reviewResult.message);
+			return;
+		}
+		if (reviewResult.status === 'cancelled') {
 			return;
 		}
 
@@ -321,7 +254,7 @@ export async function startProcessing(
 		await context.startProgressListener();
 
 		const result = await tauriClient.processAudiobookFiles({
-			payload: reviewedPayload,
+			payload: reviewResult.payload,
 			metadataIntent: metadataIntentPayload,
 			previewSeconds: options?.previewSeconds,
 		});
