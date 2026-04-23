@@ -1,13 +1,99 @@
 use super::types::{OutputCollision, OutputCollisionKind};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct OutputCollisionCache {
+    disk_entries_by_dir: HashMap<PathBuf, Vec<PathBuf>>,
+    canonical_sources: HashMap<PathBuf, Option<PathBuf>>,
+}
+
+impl OutputCollisionCache {
+    pub(crate) fn cache_source_paths(&mut self, source_paths: &[PathBuf]) {
+        for source_path in source_paths {
+            self.canonical_source(source_path);
+        }
+    }
+
+    fn canonical_source(&mut self, source_path: &Path) -> Option<PathBuf> {
+        if let Some(canonical) = self.canonical_sources.get(source_path) {
+            return canonical.clone();
+        }
+
+        let canonical = source_path.canonicalize().map_or_else(
+            |error| {
+                log::warn!(
+                    "output_plan source canonicalization failed path={} error={}",
+                    sanitize_path_for_display(source_path),
+                    error
+                );
+                None
+            },
+            Some,
+        );
+        self.canonical_sources
+            .insert(source_path.to_path_buf(), canonical.clone());
+        canonical
+    }
+
+    fn disk_entries_for_dir(&mut self, dir: &Path) -> Result<&[PathBuf]> {
+        if !self.disk_entries_by_dir.contains_key(dir) {
+            let entries = match std::fs::read_dir(dir) {
+                Ok(read_dir) => read_dir
+                    .map(|entry| {
+                        entry.map(|value| value.path()).map_err(|error| {
+                            log::warn!(
+                                "output_plan directory entry inspection failed dir={} error={}",
+                                sanitize_path_for_display(dir),
+                                error
+                            );
+                            AppError::FileValidation(format!(
+                                "Failed to inspect output directory '{}'. See logs for details.",
+                                sanitize_path_for_display(dir),
+                            ))
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+                Err(error) if error.kind() == ErrorKind::NotFound => Vec::new(),
+                Err(error) => {
+                    log::warn!(
+                        "output_plan directory inspection failed dir={} error={}",
+                        sanitize_path_for_display(dir),
+                        error
+                    );
+                    return Err(AppError::FileValidation(format!(
+                        "Failed to inspect output directory '{}'. See logs for details.",
+                        sanitize_path_for_display(dir),
+                    )));
+                }
+            };
+            self.disk_entries_by_dir.insert(dir.to_path_buf(), entries);
+        }
+
+        Ok(self
+            .disk_entries_by_dir
+            .get(dir)
+            .expect("directory entries were cached")
+            .as_slice())
+    }
+}
+
 fn canonicalize_best_effort(path: &Path) -> Option<PathBuf> {
     if path.exists() {
-        return path.canonicalize().ok();
+        return path.canonicalize().map_or_else(
+            |error| {
+                log::warn!(
+                    "output_plan candidate canonicalization failed path={} error={}",
+                    sanitize_path_for_display(path),
+                    error
+                );
+                None
+            },
+            Some,
+        );
     }
 
     let mut pending = Vec::new();
@@ -18,7 +104,17 @@ fn canonicalize_best_effort(path: &Path) -> Option<PathBuf> {
         current = current.parent()?;
     }
 
-    let mut canonical = current.canonicalize().ok()?;
+    let mut canonical = current.canonicalize().map_or_else(
+        |error| {
+            log::warn!(
+                "output_plan parent canonicalization failed path={} error={}",
+                sanitize_path_for_display(current),
+                error
+            );
+            None
+        },
+        Some,
+    )?;
     for component in pending.iter().rev() {
         canonical.push(component);
     }
@@ -52,32 +148,17 @@ pub(crate) fn path_entry_exists(path: &Path) -> Result<bool> {
     }
 }
 
-fn find_case_insensitive_disk_conflict(candidate: &Path) -> Result<Option<PathBuf>> {
+fn find_case_insensitive_disk_conflict(
+    candidate: &Path,
+    cache: &mut OutputCollisionCache,
+) -> Result<Option<PathBuf>> {
     let parent = candidate.parent().unwrap_or_else(|| Path::new("."));
-    if !parent.exists() {
-        return Ok(None);
-    }
-
     let candidate_name = candidate
         .file_name()
         .map(|value| value.to_string_lossy().to_lowercase())
         .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
 
-    for entry in std::fs::read_dir(parent).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Failed to inspect output directory '{}': {}",
-            sanitize_path_for_display(parent),
-            error
-        ))
-    })? {
-        let entry = entry.map_err(|error| {
-            AppError::FileValidation(format!(
-                "Failed to inspect output directory '{}': {}",
-                sanitize_path_for_display(parent),
-                error
-            ))
-        })?;
-        let path = entry.path();
+    for path in cache.disk_entries_for_dir(parent)? {
         let Some(name) = path
             .file_name()
             .map(|value| value.to_string_lossy().to_lowercase())
@@ -85,14 +166,18 @@ fn find_case_insensitive_disk_conflict(candidate: &Path) -> Result<Option<PathBu
             continue;
         };
         if name == candidate_name && path != candidate {
-            return Ok(Some(path));
+            return Ok(Some(path.clone()));
         }
     }
 
     Ok(None)
 }
 
-fn detect_source_overlap(candidate: &Path, source_paths: &[PathBuf]) -> Option<OutputCollision> {
+fn detect_source_overlap(
+    candidate: &Path,
+    source_paths: &[PathBuf],
+    cache: &mut OutputCollisionCache,
+) -> Option<OutputCollision> {
     let candidate_canonical = canonicalize_best_effort(candidate);
 
     for source_path in source_paths {
@@ -105,7 +190,7 @@ fn detect_source_overlap(candidate: &Path, source_paths: &[PathBuf]) -> Option<O
         }
 
         if let Some(candidate_canonical) = candidate_canonical.as_ref() {
-            if let Ok(source_canonical) = source_path.canonicalize() {
+            if let Some(source_canonical) = cache.canonical_source(source_path) {
                 if candidate_canonical == &source_canonical {
                     return Some(OutputCollision {
                         kind: OutputCollisionKind::CanonicalPathOverlap,
@@ -126,8 +211,9 @@ pub(crate) fn detect_output_collision(
     candidate: &Path,
     claimed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
+    cache: &mut OutputCollisionCache,
 ) -> Result<Option<OutputCollision>> {
-    if let Some(overlap) = detect_source_overlap(candidate, source_paths) {
+    if let Some(overlap) = detect_source_overlap(candidate, source_paths, cache) {
         return Ok(Some(overlap));
     }
 
@@ -158,7 +244,7 @@ pub(crate) fn detect_output_collision(
         }));
     }
 
-    if let Some(conflict) = find_case_insensitive_disk_conflict(candidate)? {
+    if let Some(conflict) = find_case_insensitive_disk_conflict(candidate, cache)? {
         return Ok(Some(OutputCollision {
             kind: OutputCollisionKind::CaseInsensitiveMatch,
             conflicting_path: Some(conflict),
@@ -176,6 +262,7 @@ pub(crate) fn next_rename_candidate(
     requested_path: &Path,
     claimed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
+    cache: &mut OutputCollisionCache,
 ) -> Result<PathBuf> {
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = requested_path
@@ -189,7 +276,7 @@ pub(crate) fn next_rename_candidate(
 
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
-        if detect_output_collision(&candidate, claimed, source_paths)?.is_none() {
+        if detect_output_collision(&candidate, claimed, source_paths, cache)?.is_none() {
             return Ok(candidate);
         }
     }
@@ -201,7 +288,9 @@ pub(crate) fn next_rename_candidate(
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_output_collision, next_rename_candidate, path_entry_exists};
+    use super::{
+        detect_output_collision, next_rename_candidate, path_entry_exists, OutputCollisionCache,
+    };
     use crate::audio::output_path::OutputCollisionKind;
     use std::collections::HashSet;
     use std::fs::write;
@@ -215,7 +304,8 @@ mod tests {
         let mut claimed = HashSet::new();
         claimed.insert(claimed_path.clone());
 
-        let collision = detect_output_collision(&candidate, &claimed, &[])
+        let mut cache = OutputCollisionCache::default();
+        let collision = detect_output_collision(&candidate, &claimed, &[], &mut cache)
             .expect("collision check")
             .expect("case-insensitive claim conflict");
 
@@ -233,7 +323,8 @@ mod tests {
             return;
         }
 
-        let collision = detect_output_collision(&candidate, &HashSet::new(), &[])
+        let mut cache = OutputCollisionCache::default();
+        let collision = detect_output_collision(&candidate, &HashSet::new(), &[], &mut cache)
             .expect("collision check")
             .expect("case-insensitive disk conflict");
 
@@ -251,8 +342,9 @@ mod tests {
         let mut claimed = HashSet::new();
         claimed.insert(claimed_candidate);
 
-        let candidate =
-            next_rename_candidate(&requested_path, &claimed, &[]).expect("rename candidate");
+        let mut cache = OutputCollisionCache::default();
+        let candidate = next_rename_candidate(&requested_path, &claimed, &[], &mut cache)
+            .expect("rename candidate");
 
         assert_eq!(candidate, temp_dir.path().join("book-3.m4b"));
     }

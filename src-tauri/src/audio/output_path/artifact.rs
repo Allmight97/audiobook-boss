@@ -14,8 +14,8 @@ pub(crate) fn derive_output_artifact_path(
                 .unwrap_or_else(|| Path::new("."));
             let stem = requested_final_path
                 .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or("output");
+                .map(|value| value.to_string_lossy())
+                .unwrap_or_else(|| "output".into());
             Ok(parent.join(format!("{stem}.preview.m4b")))
         }
     }
