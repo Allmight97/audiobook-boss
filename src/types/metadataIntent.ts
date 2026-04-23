@@ -13,6 +13,7 @@ export const METADATA_INTENT_FIELDS = [
 	'series_part',
 	'subseries',
 	'subseries_part',
+	'album_sort',
 	'cover_art',
 ] as const;
 
@@ -20,7 +21,7 @@ export type MetadataIntentField = (typeof METADATA_INTENT_FIELDS)[number];
 export type MetadataIntentValueMap = Pick<AudiobookMetadata, MetadataIntentField>;
 type MetadataIntentValue<K extends MetadataIntentField> = NonNullable<MetadataIntentValueMap[K]>;
 
-export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentField> =
+type MetadataSetClearNoopIntent<K extends MetadataIntentField> =
 	| {
 			op: 'set';
 			value: MetadataIntentValue<K>;
@@ -32,9 +33,27 @@ export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentFi
 			op: 'noop';
 	  };
 
+export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentField> =
+	| MetadataSetClearNoopIntent<K>
+	| (K extends 'album_sort'
+			? {
+					op: 'recompute';
+				}
+			: never);
+
 export type MetadataIntentPatch = Partial<{
 	[K in MetadataIntentField]: MetadataFieldIntent<K>;
 }>;
+
+type MetadataIntentPatchRecord = Partial<Record<MetadataIntentField, MetadataFieldIntent>>;
+
+function setMetadataIntent(
+	patch: MetadataIntentPatch,
+	key: MetadataIntentField,
+	intent: MetadataFieldIntent,
+): void {
+	(patch as MetadataIntentPatchRecord)[key] = intent;
+}
 
 function isMetadataIntentField(key: string): key is MetadataIntentField {
 	return (METADATA_INTENT_FIELDS as readonly string[]).includes(key);
@@ -88,9 +107,12 @@ export function mergeMetadataIntentPatches(
 
 function toGeneratedPatchOp(
 	intent: Exclude<MetadataFieldIntent, { op: 'noop' }>,
-): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'noop' } {
+): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'recompute' } | { op: 'noop' } {
 	if (intent.op === 'clear') {
 		return { op: 'clear' };
+	}
+	if (intent.op === 'recompute') {
+		return { op: 'recompute' };
 	}
 	return { op: 'set', value: intent.value };
 }
@@ -123,6 +145,9 @@ export function applyMetadataIntentPatch(
 			delete next[key];
 			continue;
 		}
+		if (intent.op === 'recompute') {
+			continue;
+		}
 		(next as Record<MetadataIntentField, unknown>)[key] = intent.value;
 	}
 	return next;
@@ -138,7 +163,7 @@ export function buildMetadataIntentPatchFromMetadata(
 		}
 		const key = rawKey;
 		if (value == null) {
-			patch[key] = { op: 'clear' };
+			setMetadataIntent(patch, key, { op: 'clear' });
 			continue;
 		}
 		if (key === 'date') {
@@ -147,12 +172,12 @@ export function buildMetadataIntentPatchFromMetadata(
 			}
 			const trimmed = value.trim();
 			if (trimmed.length === 0) {
-				patch[key] = { op: 'clear' };
+				setMetadataIntent(patch, key, { op: 'clear' });
 				continue;
 			}
 			const normalized = normalizePublicationDateInput(trimmed);
 			if (normalized) {
-				patch[key] = { op: 'set', value: normalized };
+				setMetadataIntent(patch, key, { op: 'set', value: normalized });
 			}
 			continue;
 		}
@@ -160,14 +185,22 @@ export function buildMetadataIntentPatchFromMetadata(
 			if (!isNumberArray(value)) {
 				continue;
 			}
-			patch[key] = value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] };
+			setMetadataIntent(
+				patch,
+				key,
+				value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] },
+			);
 			continue;
 		}
 		if (typeof value !== 'string') {
 			continue;
 		}
 		const normalized = normalizeStringInput(value);
-		patch[key] = normalized.length === 0 ? { op: 'clear' } : { op: 'set', value: normalized };
+		setMetadataIntent(
+			patch,
+			key,
+			normalized.length === 0 ? { op: 'clear' } : { op: 'set', value: normalized },
+		);
 	}
 	return patch;
 }

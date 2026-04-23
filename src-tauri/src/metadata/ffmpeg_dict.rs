@@ -2,7 +2,7 @@
 
 use super::{
     build_series_list, compute_album_sort, publication_year_from_date, split_series_list,
-    AudiobookMetadata,
+    AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan,
 };
 use crate::errors::Result;
 use crate::metadata::tag_registry::{
@@ -122,13 +122,14 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     Ok(dict)
 }
 
-pub(crate) fn merge_metadata<'a>(
+pub(crate) fn merge_metadata_with_plan<'a>(
     existing: ff::Dictionary<'a>,
-    metadata: &AudiobookMetadata,
+    plan: &MetadataWritePlan,
 ) -> Result<ff::Dictionary<'a>> {
+    let metadata = &plan.metadata;
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        if should_remove_key(metadata, key) {
+        if should_remove_key(metadata, &plan.album_sort, key) {
             continue;
         }
         merged.set(key, value);
@@ -139,18 +140,37 @@ pub(crate) fn merge_metadata<'a>(
         merged.set(key, value);
     }
 
-    let should_recompute =
-        metadata.series.is_some() || metadata.title.is_some() || metadata.series_part.is_some();
-    if should_recompute || metadata.album_sort.is_none() {
-        if let Some(album_sort) = compute_album_sort_from_dict(&merged) {
-            merged.set("sort_album", &album_sort);
+    match &plan.album_sort {
+        AlbumSortWriteAction::Preserve => {}
+        AlbumSortWriteAction::Set(value) => {
+            if !value.trim().is_empty() {
+                merged.set("sort_album", value);
+            }
+        }
+        AlbumSortWriteAction::Clear => {}
+        AlbumSortWriteAction::Recompute => {
+            if let Some(album_sort) = compute_album_sort_from_dict(&merged) {
+                merged.set("sort_album", &album_sort);
+            }
         }
     }
 
     Ok(merged)
 }
 
-fn should_remove_key(metadata: &AudiobookMetadata, key: &str) -> bool {
+fn should_remove_key(
+    metadata: &AudiobookMetadata,
+    album_sort: &AlbumSortWriteAction,
+    key: &str,
+) -> bool {
+    if matches!(
+        album_sort,
+        AlbumSortWriteAction::Clear | AlbumSortWriteAction::Recompute
+    ) && key == "sort_album"
+    {
+        return true;
+    }
+
     let series_clear = metadata
         .series
         .as_deref()
@@ -354,4 +374,69 @@ pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<Stri
     }
 
     warnings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_dict() -> ff::Dictionary<'static> {
+        let mut dict = ff::Dictionary::new();
+        dict.set("title", "Existing Title");
+        dict.set("series", "Existing Series");
+        dict.set("series-part", "1");
+        dict.set("sort_album", "Custom Sort");
+        dict
+    }
+
+    #[test]
+    fn merge_metadata_preserves_album_sort_without_explicit_intent() {
+        let plan = MetadataWritePlan {
+            metadata: AudiobookMetadata {
+                genre: Some("Sci-Fi".to_string()),
+                ..Default::default()
+            },
+            album_sort: AlbumSortWriteAction::Preserve,
+        };
+
+        let merged = merge_metadata_with_plan(base_dict(), &plan).expect("merge metadata");
+
+        assert_eq!(merged.get("genre"), Some("Sci-Fi"));
+        assert_eq!(merged.get("sort_album"), Some("Custom Sort"));
+    }
+
+    #[test]
+    fn merge_metadata_sets_and_clears_album_sort_explicitly() {
+        let set_plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+            album_sort: Some("Requested Sort".to_string()),
+            ..Default::default()
+        });
+        let set = merge_metadata_with_plan(base_dict(), &set_plan).expect("set album sort");
+        assert_eq!(set.get("sort_album"), Some("Requested Sort"));
+
+        let clear_plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+            album_sort: Some(String::new()),
+            ..Default::default()
+        });
+        let cleared = merge_metadata_with_plan(base_dict(), &clear_plan).expect("clear album sort");
+        assert_eq!(cleared.get("sort_album"), None);
+    }
+
+    #[test]
+    fn merge_metadata_recomputes_album_sort_only_when_requested() {
+        let plan = MetadataWritePlan {
+            metadata: AudiobookMetadata {
+                series_part: Some("2".to_string()),
+                ..Default::default()
+            },
+            album_sort: AlbumSortWriteAction::Recompute,
+        };
+
+        let merged = merge_metadata_with_plan(base_dict(), &plan).expect("recompute album sort");
+
+        assert_eq!(
+            merged.get("sort_album"),
+            Some("Existing Series 02 - Existing Title")
+        );
+    }
 }

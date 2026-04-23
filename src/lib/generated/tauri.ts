@@ -42,10 +42,10 @@ export const commands = {
 	 */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**
-	 *  Saves metadata to an audio file with TSOA computation (metadata-only editing)
+	 *  Saves metadata to an audio file using explicit write intent (metadata-only editing)
 	 *
 	 *  This command is designed for metadata-only editing (Cmd+S workflow):
-	 *  1. Computes TSOA (Album Sort) from series + series_part + title
+	 *  1. Preserves album sort unless explicit set, clear, or recompute intent is provided
 	 *  2. Writes metadata non-destructively (preserves existing cover art if not replaced)
 	 *  3. Handles cover art: preserves existing if not provided, replaces if new art given
 	 */
@@ -98,7 +98,7 @@ export const commands = {
 	subseries: string | null,
 	// Series sequence / book # in sub-series (secondary series part)
 	subseries_part: string | null,
-	// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
+	// Album sort order for library sorting (soal/TSOA)
 	album_sort: string | null,
 	// Cover art as raw bytes
 	cover_art: number[] | null,
@@ -133,6 +133,8 @@ export const events = {
 };
 
 /* Types */
+export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | { op: "recompute" } | { op: "noop" };
+
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
 export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required" | "semaphore_closed";
@@ -181,7 +183,7 @@ export type AudioFile = {
  *  - `composer` = Narrator (also mirrored to freeform NARRATOR)
  *  - `series` = Series name (freeform SERIES, mirrored to MVNM)
  *  - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
- *  - `album_sort` = Computed TSOA for sorting ("SERIES PP - TITLE")
+ *  - `album_sort` = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
  */
 export type AudiobookMetadata = {
 	// Title of the audiobook (©nam)
@@ -212,7 +214,7 @@ export type AudiobookMetadata = {
 	subseries: string | null,
 	// Series sequence / book # in sub-series (secondary series part)
 	subseries_part: string | null,
-	// Album sort order for library sorting (soal/TSOA) - computed as "SERIES PP - TITLE"
+	// Album sort order for library sorting (soal/TSOA)
 	album_sort: string | null,
 	// Cover art as raw bytes
 	cover_art: number[] | null,
@@ -325,6 +327,7 @@ export type MetadataIntentPatch = {
 	series_part?: PatchOp<string>,
 	subseries?: PatchOp<string>,
 	subseries_part?: PatchOp<string>,
+	album_sort?: AlbumSortPatchOp,
 	cover_art?: PatchOp<number[]>,
 };
 

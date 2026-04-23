@@ -8,7 +8,7 @@
  * - series_part = Series sequence / book # within a series (©mvi/MVIN)
  * - subseries = Secondary series name (2nd entry in SERIES list)
  * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
- * - album_sort = Computed TSOA for library sorting ("SERIES PP - TITLE")
+ * - album_sort = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
  * - date = Publication date (YYYY or YYYY-MM in ©day)
  *
  * `track` and `disk` remain readable for compatibility, but ABB does not expose

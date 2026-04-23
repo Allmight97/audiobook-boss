@@ -5,7 +5,8 @@
 use audiobook_boss_lib::commands::metadata::{read_audio_metadata, save_metadata_to_file};
 use audiobook_boss_lib::{
     ffmpeg_add_cover_art_stream_pre_header, ffmpeg_validate_metadata_compatibility,
-    ffmpeg_write_cover_art_packet_post_header, AudiobookMetadata,
+    ffmpeg_write_cover_art_packet_post_header, AlbumSortPatchOp, AudiobookMetadata,
+    MetadataIntentPatch, PatchOp,
 };
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, Tag, WriteConfig};
@@ -393,6 +394,7 @@ async fn preserves_series_tags_on_metadata_only_save() {
             title: Some("This Inevitable Spanking".into()),
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("7".into()),
+            album_sort: Some("Dungeon Crawler Carl 07 - This Inevitable Spanking".into()),
             ..Default::default()
         }
         .into(),
@@ -484,7 +486,86 @@ async fn clearing_series_fields_removes_mirrors_and_canonical_reads() {
 }
 
 #[tokio::test]
-async fn recomputes_album_sort_when_only_series_part_changes() {
+async fn preserves_custom_album_sort_on_unrelated_metadata_save() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("album-sort-preserve.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            title: Some("Original Title".into()),
+            series: Some("Original Series".into()),
+            series_part: Some("1".into()),
+            album_sort: Some("Hand Curated Sort".into()),
+            ..Default::default()
+        }
+        .into(),
+    )
+    .await
+    .expect("seed metadata");
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            genre: Some("Progression Fantasy".into()),
+            ..Default::default()
+        }
+        .into(),
+    )
+    .await
+    .expect("save unrelated metadata");
+
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read metadata");
+    assert_eq!(read_back.genre.as_deref(), Some("Progression Fantasy"));
+    assert_eq!(read_back.album_sort.as_deref(), Some("Hand Curated Sort"));
+}
+
+#[tokio::test]
+async fn sets_and_clears_album_sort_when_explicit() {
+    ff::init().expect("ffmpeg init");
+
+    let temp = TempDir::new().expect("temp dir");
+    let output = temp.path().join("album-sort-set-clear.m4b");
+
+    write_minimal_m4b(&output);
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            album_sort: Some("Requested Sort".into()),
+            ..Default::default()
+        }
+        .into(),
+    )
+    .await
+    .expect("set album sort");
+    let set = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read set album sort");
+    assert_eq!(set.album_sort.as_deref(), Some("Requested Sort"));
+
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        AudiobookMetadata {
+            album_sort: Some(String::new()),
+            ..Default::default()
+        }
+        .into(),
+    )
+    .await
+    .expect("clear album sort");
+    let cleared = read_audio_metadata(output.to_string_lossy().to_string())
+        .await
+        .expect("read cleared album sort");
+    assert_eq!(cleared.album_sort, None);
+}
+
+#[tokio::test]
+async fn explicitly_recomputes_album_sort_when_only_series_part_changes() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -497,6 +578,7 @@ async fn recomputes_album_sort_when_only_series_part_changes() {
             title: Some("The Ashen Apocalypse".into()),
             series: Some("System Apocalypse".into()),
             series_part: Some("1".into()),
+            album_sort: Some("System Apocalypse 01 - The Ashen Apocalypse".into()),
             ..Default::default()
         }
         .into(),
@@ -506,11 +588,11 @@ async fn recomputes_album_sort_when_only_series_part_changes() {
 
     save_metadata_to_file(
         output.to_string_lossy().to_string(),
-        AudiobookMetadata {
-            series_part: Some("2".into()),
+        MetadataIntentPatch {
+            series_part: PatchOp::Set("2".into()),
+            album_sort: AlbumSortPatchOp::Recompute,
             ..Default::default()
-        }
-        .into(),
+        },
     )
     .await
     .expect("save metadata");
@@ -531,7 +613,7 @@ async fn recomputes_album_sort_when_only_series_part_changes() {
 }
 
 #[tokio::test]
-async fn recomputes_album_sort_when_series_part_changes() {
+async fn explicitly_recomputes_album_sort_when_series_part_changes() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -544,6 +626,7 @@ async fn recomputes_album_sort_when_series_part_changes() {
             title: Some("The Dungeon Anarchist's Cookbook".into()),
             series: Some("Dungeon Crawler Carl".into()),
             series_part: Some("6".into()),
+            album_sort: Some("Dungeon Crawler Carl 06 - The Dungeon Anarchist's Cookbook".into()),
             ..Default::default()
         }
         .into(),
@@ -551,7 +634,7 @@ async fn recomputes_album_sort_when_series_part_changes() {
     .await
     .expect("save metadata");
 
-    let mut read_back = read_audio_metadata(output.to_string_lossy().to_string())
+    let read_back = read_audio_metadata(output.to_string_lossy().to_string())
         .await
         .expect("read metadata");
     assert_eq!(
@@ -559,10 +642,16 @@ async fn recomputes_album_sort_when_series_part_changes() {
         Some("Dungeon Crawler Carl 06 - The Dungeon Anarchist's Cookbook")
     );
 
-    read_back.series_part = Some("7".into());
-    save_metadata_to_file(output.to_string_lossy().to_string(), read_back.into())
-        .await
-        .expect("save metadata");
+    save_metadata_to_file(
+        output.to_string_lossy().to_string(),
+        MetadataIntentPatch {
+            series_part: PatchOp::Set("7".into()),
+            album_sort: AlbumSortPatchOp::Recompute,
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("save metadata");
 
     let updated = read_audio_metadata(output.to_string_lossy().to_string())
         .await

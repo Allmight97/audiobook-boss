@@ -26,10 +26,10 @@ pub async fn read_audio_metadata(file_path: String) -> CommandResult<AudiobookMe
     Ok(result?)
 }
 
-/// Saves metadata to an audio file with TSOA computation (metadata-only editing)
+/// Saves metadata to an audio file using explicit write intent (metadata-only editing)
 ///
 /// This command is designed for metadata-only editing (Cmd+S workflow):
-/// 1. Computes TSOA (Album Sort) from series + series_part + title
+/// 1. Preserves album sort unless explicit set, clear, or recompute intent is provided
 /// 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
 /// 3. Handles cover art: preserves existing if not provided, replaces if new art given
 #[tauri::command]
@@ -41,15 +41,18 @@ pub async fn save_metadata_to_file(
     let result: Result<()> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
-        let validated_metadata = metadata_patch.to_write_metadata()?;
+        let write_plan = metadata_patch.to_write_plan()?;
 
         if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
-            crate::metadata::mp4ameta_bridge::write_metadata(&validated_path, &validated_metadata)?;
+            crate::metadata::mp4ameta_bridge::write_metadata_with_plan(
+                &validated_path,
+                &write_plan,
+            )?;
         } else {
             // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
-            crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
+            crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg_plan(
                 &validated_path,
-                Some(&validated_metadata),
+                Some(&write_plan),
                 None,
             )?;
         }

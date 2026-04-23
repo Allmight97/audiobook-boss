@@ -111,6 +111,9 @@ fn source_roundtrip_metadata() -> AudiobookMetadata {
         series_part: Some("1".into()),
         subseries: Some("Sub-Test".into()),
         subseries_part: Some("1".into()),
+        album_sort: Some(
+            "Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists".into(),
+        ),
         cover_art: Some(MINIMAL_JPEG.to_vec()),
         ..Default::default()
     }

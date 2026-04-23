@@ -16,7 +16,7 @@ pub use metadata::ffmpeg_bridge::{
     write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     CoverFormat as FfmpegCoverFormat,
 };
-pub use metadata::AudiobookMetadata;
+pub use metadata::{AlbumSortPatchOp, AudiobookMetadata, MetadataIntentPatch, PatchOp};
 
 // Test-facing passthrough helpers used by integration tests.
 pub use metadata::passthrough::{

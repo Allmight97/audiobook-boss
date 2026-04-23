@@ -2,7 +2,8 @@ use crate::errors::{AppError, Result};
 use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
 use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{
-    build_series_list, normalize_publication_date, split_series_list, AudiobookMetadata,
+    build_series_list, normalize_publication_date, split_series_list, AlbumSortWriteAction,
+    AudiobookMetadata, MetadataWritePlan,
 };
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
@@ -52,10 +53,15 @@ fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32,
 }
 
 pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
+    let plan = MetadataWritePlan::from_metadata(metadata.clone());
+    write_metadata_with_plan(path, &plan)
+}
+
+pub(crate) fn write_metadata_with_plan(path: &Path, plan: &MetadataWritePlan) -> Result<()> {
     let mut tag = Tag::read_from_path(path)
         .map_err(|e| AppError::General(format!("mp4ameta read failed: {e}")))?;
 
-    apply_metadata(&mut tag, metadata)?;
+    apply_metadata(&mut tag, plan)?;
 
     let config = WriteConfig {
         write_meta_items: true,
@@ -68,7 +74,8 @@ pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
     Ok(())
 }
 
-fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
+fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
+    let metadata = &plan.metadata;
     let (effective_title, effective_series, effective_series_part) =
         resolve_effective_metadata(tag, metadata);
 
@@ -116,7 +123,7 @@ fn apply_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
 
     apply_album_sort(
         tag,
-        metadata,
+        &plan.album_sort,
         effective_title.as_deref(),
         effective_series.as_deref(),
         effective_series_part.as_deref(),
@@ -243,26 +250,35 @@ fn resolve_effective_metadata(
 
 fn apply_album_sort(
     tag: &mut Tag,
-    metadata: &AudiobookMetadata,
+    action: &AlbumSortWriteAction,
     effective_title: Option<&str>,
     effective_series: Option<&str>,
     effective_series_part: Option<&str>,
 ) {
-    let should_recompute =
-        metadata.series.is_some() || metadata.title.is_some() || metadata.series_part.is_some();
-
-    if !should_recompute {
-        if let Some(ref album_sort) = metadata.album_sort {
-            tag.set_album_sort_order(album_sort);
-            return;
+    match action {
+        AlbumSortWriteAction::Preserve => {}
+        AlbumSortWriteAction::Set(value) => {
+            if value.trim().is_empty() {
+                tag.remove_album_sort_order();
+            } else {
+                tag.set_album_sort_order(value);
+            }
         }
-    }
-
-    if let (Some(series), Some(title)) = (effective_series, effective_title) {
-        if let Some(computed) =
-            crate::metadata::compute_album_sort(series, effective_series_part, title)
-        {
-            tag.set_album_sort_order(&computed);
+        AlbumSortWriteAction::Clear => {
+            tag.remove_album_sort_order();
+        }
+        AlbumSortWriteAction::Recompute => {
+            let computed = match (effective_series, effective_title) {
+                (Some(series), Some(title)) => {
+                    crate::metadata::compute_album_sort(series, effective_series_part, title)
+                }
+                _ => None,
+            };
+            if let Some(computed) = computed {
+                tag.set_album_sort_order(&computed);
+            } else {
+                tag.remove_album_sort_order();
+            }
         }
     }
 }
