@@ -180,8 +180,19 @@ describe('File import drop vs cover art drop isolation', () => {
 
 	it('filters supported files on drops over the file management container', async () => {
 		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
-		fireDragDrop({ x: 200, y: 200 }, ['/tmp/file1.wav', '/tmp/file2.flac', '/tmp/file3.txt']);
-		expect(analyzeAudioFilesMock).toHaveBeenCalledWith(['/tmp/file1.wav', '/tmp/file2.flac']);
+		fireDragDrop({ x: 200, y: 200 }, [
+			'/tmp/file1.wav',
+			'/tmp/file2.flac',
+			'/tmp/file3.txt',
+			'/tmp/file4.M4B',
+			'/tmp/file5.Mp3',
+		]);
+		expect(analyzeAudioFilesMock).toHaveBeenCalledWith([
+			'/tmp/file1.wav',
+			'/tmp/file2.flac',
+			'/tmp/file4.M4B',
+			'/tmp/file5.Mp3',
+		]);
 	});
 
 	it('processes drops on file management container (file list area)', async () => {

@@ -102,18 +102,7 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
 
 /// Validates audio file extension against whitelist
 fn validate_audio_extension(path: &Path) -> Result<()> {
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_ascii_lowercase())
-        .ok_or_else(|| AppError::InvalidInput("File has no extension".to_string()))?;
-
-    if !super::constants::ALLOWED_AUDIO_EXTENSIONS.contains(&ext.as_str()) {
-        return Err(AppError::InvalidInput(format!(
-            "Unsupported audio format: {ext}"
-        )));
-    }
-
+    super::extensions::audio_format_for_path(path)?;
     Ok(())
 }
 

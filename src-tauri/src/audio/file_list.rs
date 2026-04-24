@@ -125,23 +125,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     // First check if we support the file extension
-    let format = match path.extension().and_then(|s| s.to_str()) {
-        Some("mp3") => "MP3",
-        Some("m4a") | Some("m4b") => "M4A/M4B",
-        Some("aac") => "AAC",
-        Some("wav") => "WAV",
-        Some("flac") => "FLAC",
-        Some(ext) => {
-            return Err(AppError::InvalidInput(format!(
-                "Unsupported audio format: {ext}"
-            )))
-        }
-        None => {
-            return Err(AppError::InvalidInput(
-                "Cannot determine file format - file has no extension".to_string(),
-            ))
-        }
-    };
+    let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
     let audio_stream = ictx

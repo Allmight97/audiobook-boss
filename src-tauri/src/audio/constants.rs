@@ -61,9 +61,6 @@ pub const DEFAULT_SAMPLE_RATE: u32 = 22050;
 /// Default output file extension
 pub const DEFAULT_OUTPUT_EXTENSION: &str = "m4b";
 
-/// Supported audio file extensions (lowercase)
-pub const ALLOWED_AUDIO_EXTENSIONS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav", "flac"];
-
 /// Temporary merged output filename
 pub const TEMP_MERGED_FILENAME: &str = "merged.m4b";
 

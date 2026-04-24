@@ -11,6 +11,7 @@ pub mod buffer;
 pub mod cleanup;
 pub mod constants;
 pub mod context;
+pub mod extensions;
 pub mod file_list;
 pub mod job_registry;
 pub mod metrics;

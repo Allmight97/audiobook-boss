@@ -1,6 +1,6 @@
 //! Integration tests for file list validation and metadata extraction.
 
-use audiobook_boss_lib::audio::constants::ALLOWED_AUDIO_EXTENSIONS;
+use audiobook_boss_lib::audio::extensions::supported_audio_extensions;
 use audiobook_boss_lib::audio::file_list::{get_file_list_info, validate_audio_files};
 use std::fs;
 use std::path::PathBuf;
@@ -66,6 +66,14 @@ fn create_test_wav_file(temp_dir: &TempDir, filename: &str) -> PathBuf {
     test_file_path
 }
 
+fn feedback_fixture_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root should be the manifest parent")
+        .join("media")
+        .join("Feedback.m4b")
+}
+
 #[test]
 fn validate_wav_file_is_supported() {
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -93,9 +101,24 @@ fn validate_wav_file_is_supported() {
 }
 
 #[test]
-fn allowed_audio_extensions_include_wav_and_flac() {
-    assert!(ALLOWED_AUDIO_EXTENSIONS.contains(&"wav"));
-    assert!(ALLOWED_AUDIO_EXTENSIONS.contains(&"flac"));
+fn supported_audio_extensions_include_wav_and_flac() {
+    let extensions = supported_audio_extensions().collect::<Vec<_>>();
+    assert!(extensions.contains(&"wav"));
+    assert!(extensions.contains(&"flac"));
+}
+
+#[test]
+fn validate_uppercase_m4b_file_is_supported() {
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let file_path = temp_dir.path().join("Feedback.M4B");
+    fs::copy(feedback_fixture_path(), &file_path).expect("copy m4b fixture");
+
+    let file_list_info =
+        get_file_list_info(&[file_path]).expect("uppercase m4b should be analyzable");
+
+    assert_eq!(file_list_info.valid_count, 1);
+    assert_eq!(file_list_info.invalid_count, 0);
+    assert_eq!(file_list_info.files[0].format.as_deref(), Some("M4A/M4B"));
 }
 
 #[test]

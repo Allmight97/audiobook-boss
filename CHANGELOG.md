@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.14] - 2026-04-24
+
+Audio import hardening release for extension-case handling.
+
+### Fixed
+
+- Audio files with uppercase or mixed-case supported extensions, including
+  `.M4B`, now validate through one canonical backend extension table instead of
+  failing the file-list format pass.
+- Drag-and-drop import coverage now proves uppercase and mixed-case supported
+  audio paths are forwarded for analysis.
+
 ## [1.0.13] - 2026-04-24
 
 Runtime architecture release that lands the first two PRs of the architecture
