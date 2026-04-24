@@ -236,18 +236,18 @@ async fn dispatch_merge_job(
         ));
     }
 
-    let result = run_processing_job(
+    let result = run_processing_job(ProcessingJobRequest {
         window,
         registry,
-        payload.settings.clone(),
-        payload.external_toolchain.clone(),
-        resolve_sample_rate(payload)?,
-        None,
-        planned_job.output,
+        encoder_settings: payload.settings.clone(),
+        external_toolchain: payload.external_toolchain.clone(),
+        sample_rate: resolve_sample_rate(payload)?,
+        input_index: None,
+        output_plan: planned_job.output,
         file_info,
-        planned_job.metadata,
-        plan.preview_seconds,
-    )
+        metadata: planned_job.metadata,
+        preview_seconds: plan.preview_seconds,
+    })
     .await?;
 
     Ok(ProcessCommandResult::new(JobType::Merge, vec![result]))
@@ -301,18 +301,18 @@ async fn dispatch_batch_jobs(
 
         scheduled_jobs.push(Box::pin(async move {
             let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
-            run_processing_job(
-                window_cloned,
-                registry_cloned,
-                settings_cloned,
-                external_toolchain_cloned,
-                sr_cloned,
+            run_processing_job(ProcessingJobRequest {
+                window: window_cloned,
+                registry: registry_cloned,
+                encoder_settings: settings_cloned,
+                external_toolchain: external_toolchain_cloned,
+                sample_rate: sr_cloned,
                 input_index,
-                output,
+                output_plan: output,
                 file_info,
-                md_cloned,
-                preview_cloned,
-            )
+                metadata: md_cloned,
+                preview_seconds: preview_cloned,
+            })
             .await
         }));
     }
@@ -323,8 +323,7 @@ async fn dispatch_batch_jobs(
     Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn run_processing_job(
+struct ProcessingJobRequest {
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     encoder_settings: audio::settings_encoder::EncoderSettings,
@@ -335,38 +334,41 @@ async fn run_processing_job(
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
     preview_seconds: Option<f64>,
-) -> Result<ProcessResultEntry> {
-    let (job_id, _permit, cancellation_checker) =
-        register_job_and_validate_output(&registry, &output_plan.resolved_path).await?;
+}
 
-    let (context, preview_seconds_resolved) = build_processing_context(
-        window,
+async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
+    let (job_id, _permit, cancellation_checker) =
+        register_job_and_validate_output(&request.registry, &request.output_plan.resolved_path)
+            .await?;
+
+    let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
+        window: request.window,
         cancellation_checker,
         job_id,
-        encoder_settings.clone(),
-        sample_rate,
-        input_index,
-        output_plan.clone(),
-        preview_seconds,
-    );
-    let preview_path = (output_plan.kind == OutputKind::Preview)
-        .then(|| output_plan.resolved_path.display().to_string());
+        encoder_settings: request.encoder_settings.clone(),
+        sample_rate: request.sample_rate,
+        input_index: request.input_index,
+        output_plan: request.output_plan.clone(),
+        preview_seconds: request.preview_seconds,
+    });
+    let preview_path = (request.output_plan.kind == OutputKind::Preview)
+        .then(|| request.output_plan.resolved_path.display().to_string());
     let result = execute_processing_job(
         context,
-        file_info,
-        metadata,
-        encoder_settings,
-        external_toolchain,
+        request.file_info,
+        request.metadata,
+        request.encoder_settings,
+        request.external_toolchain,
     )
     .await
     .map(|message| (message, preview_path, preview_seconds_resolved));
 
     match result {
         Ok((message, preview_path_opt, preview_seconds_used)) => {
-            registry.complete_job(job_id).await;
+            request.registry.complete_job(job_id).await;
             log::info!("Job {} completed successfully", job_id);
             Ok(ProcessResultEntry {
-                input_index,
+                input_index: request.input_index,
                 status: ProcessResultStatus::Success,
                 message,
                 error: None,
@@ -377,15 +379,15 @@ async fn run_processing_job(
         }
         Err(error) => {
             if is_cancellation_error(&error) {
-                registry.complete_job(job_id).await;
+                request.registry.complete_job(job_id).await;
                 log::warn!("Job {} cancelled: {}", job_id, error);
                 return Err(error);
             }
-            registry.fail_job(job_id, error.to_string()).await;
+            request.registry.fail_job(job_id, error.to_string()).await;
             log::error!("Job {} failed: {}", job_id, error);
             let envelope: AppErrorEnvelope = error.into();
             Ok(terminal_failure_result(
-                input_index,
+                request.input_index,
                 Some(job_id.to_string()),
                 envelope,
             ))
@@ -413,8 +415,7 @@ async fn register_job_and_validate_output(
     Ok((job_id, permit, cancellation_checker))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn build_processing_context(
+struct ProcessingContextRequest {
     window: tauri::Window,
     cancellation_checker: crate::audio::job_registry::CancellationChecker,
     job_id: crate::audio::job_registry::JobId,
@@ -423,20 +424,26 @@ fn build_processing_context(
     input_index: Option<usize>,
     output_plan: ResolvedOutputPlan,
     preview_seconds: Option<f64>,
-) -> (audio::ProcessingContext, Option<f64>) {
-    let session =
-        audio::session::ProcessingSession::from_job_registry(job_id.0, cancellation_checker);
-    let mut context = audio::ProcessingContext::new(
-        window,
-        std::sync::Arc::new(session),
-        encoder_settings,
-        sample_rate,
-        audio::OutputConfig::from_plan(output_plan),
-    );
-    context.job_id = Some(job_id.to_string());
-    context.input_index = input_index;
+}
 
-    let preview_seconds_resolved = resolve_preview_seconds(preview_seconds);
+fn build_processing_context(
+    request: ProcessingContextRequest,
+) -> (audio::ProcessingContext, Option<f64>) {
+    let session = audio::session::ProcessingSession::from_job_registry(
+        request.job_id.0,
+        request.cancellation_checker,
+    );
+    let mut context = audio::ProcessingContext::new(
+        request.window,
+        std::sync::Arc::new(session),
+        request.encoder_settings,
+        request.sample_rate,
+        audio::OutputConfig::from_plan(request.output_plan),
+    );
+    context.job_id = Some(request.job_id.to_string());
+    context.input_index = request.input_index;
+
+    let preview_seconds_resolved = resolve_preview_seconds(request.preview_seconds);
     if let Some(seconds) = preview_seconds_resolved {
         context.preview = Some(crate::audio::context::PreviewConfig::new(seconds));
         log::info!("Preview requested: total_seconds={:.3}", seconds);
@@ -533,6 +540,12 @@ struct FinalizedBatchResults {
     failure_events: Vec<TerminalFailureEvent>,
 }
 
+#[derive(Default)]
+struct BatchTerminalSummary {
+    saw_cancellation: bool,
+    saw_non_cancelled_terminal_result: bool,
+}
+
 fn terminal_cancelled_result(
     input_index: Option<usize>,
     job_id: Option<String>,
@@ -581,65 +594,101 @@ fn collect_batch_results(
 ) -> Result<FinalizedBatchResults> {
     let mut ordered_results: Vec<Option<ProcessResultEntry>> = vec![None; input_count];
     let mut failure_events = Vec::new();
-    let mut saw_cancellation = false;
-    let mut saw_non_cancelled_terminal_result = false;
+    let mut summary = BatchTerminalSummary::default();
 
     for (index, outcome) in outcomes.into_iter().enumerate() {
-        let entry = match outcome {
-            Ok(mut entry) => {
-                if entry.input_index.is_none() {
-                    entry.input_index = Some(index);
-                }
-                if let Some(error) = cancellation_error_for_failed_entry(&entry) {
-                    saw_cancellation = true;
-                    terminal_cancelled_result(
-                        entry.input_index,
-                        entry.job_id.clone(),
-                        error.to_string(),
-                    )
-                } else {
-                    match entry.status {
-                        ProcessResultStatus::Cancelled => {
-                            saw_cancellation = true;
-                        }
-                        ProcessResultStatus::Failed => {
-                            saw_non_cancelled_terminal_result = true;
-                            failure_events.push(TerminalFailureEvent {
-                                input_index: entry.input_index,
-                                job_id: entry.job_id.clone(),
-                                message: entry.message.clone(),
-                            });
-                        }
-                        ProcessResultStatus::Success | ProcessResultStatus::Skipped => {
-                            saw_non_cancelled_terminal_result = true;
-                        }
-                    }
-                    entry
-                }
-            }
-            Err(error) => {
-                if is_cancellation_error(&error) {
-                    saw_cancellation = true;
-                    terminal_cancelled_result(Some(index), None, error.to_string())
-                } else {
-                    saw_non_cancelled_terminal_result = true;
-                    let envelope: AppErrorEnvelope = error.into();
-                    failure_events.push(TerminalFailureEvent {
-                        input_index: Some(index),
-                        job_id: None,
-                        message: envelope.message.clone(),
-                    });
-                    terminal_failure_result(Some(index), None, envelope)
-                }
-            }
-        };
+        let entry = normalize_batch_outcome(index, outcome, &mut failure_events, &mut summary);
         ordered_results[index] = Some(entry);
     }
 
-    if saw_cancellation && !saw_non_cancelled_terminal_result {
+    if summary.saw_cancellation && !summary.saw_non_cancelled_terminal_result {
         return Err(AppError::cancelled());
     }
 
+    repair_missing_batch_results(&mut ordered_results, &mut failure_events);
+
+    Ok(FinalizedBatchResults {
+        results: ordered_results.into_iter().flatten().collect(),
+        failure_events,
+    })
+}
+
+fn normalize_batch_outcome(
+    index: usize,
+    outcome: Result<ProcessResultEntry>,
+    failure_events: &mut Vec<TerminalFailureEvent>,
+    summary: &mut BatchTerminalSummary,
+) -> ProcessResultEntry {
+    match outcome {
+        Ok(entry) => normalize_batch_entry(index, entry, failure_events, summary),
+        Err(error) => normalize_batch_error(index, error, failure_events, summary),
+    }
+}
+
+fn normalize_batch_entry(
+    index: usize,
+    mut entry: ProcessResultEntry,
+    failure_events: &mut Vec<TerminalFailureEvent>,
+    summary: &mut BatchTerminalSummary,
+) -> ProcessResultEntry {
+    if entry.input_index.is_none() {
+        entry.input_index = Some(index);
+    }
+
+    if let Some(error) = cancellation_error_for_failed_entry(&entry) {
+        summary.saw_cancellation = true;
+        return terminal_cancelled_result(
+            entry.input_index,
+            entry.job_id.clone(),
+            error.to_string(),
+        );
+    }
+
+    match entry.status {
+        ProcessResultStatus::Cancelled => {
+            summary.saw_cancellation = true;
+        }
+        ProcessResultStatus::Failed => {
+            summary.saw_non_cancelled_terminal_result = true;
+            failure_events.push(TerminalFailureEvent {
+                input_index: entry.input_index,
+                job_id: entry.job_id.clone(),
+                message: entry.message.clone(),
+            });
+        }
+        ProcessResultStatus::Success | ProcessResultStatus::Skipped => {
+            summary.saw_non_cancelled_terminal_result = true;
+        }
+    }
+
+    entry
+}
+
+fn normalize_batch_error(
+    index: usize,
+    error: AppError,
+    failure_events: &mut Vec<TerminalFailureEvent>,
+    summary: &mut BatchTerminalSummary,
+) -> ProcessResultEntry {
+    if is_cancellation_error(&error) {
+        summary.saw_cancellation = true;
+        return terminal_cancelled_result(Some(index), None, error.to_string());
+    }
+
+    summary.saw_non_cancelled_terminal_result = true;
+    let envelope: AppErrorEnvelope = error.into();
+    failure_events.push(TerminalFailureEvent {
+        input_index: Some(index),
+        job_id: None,
+        message: envelope.message.clone(),
+    });
+    terminal_failure_result(Some(index), None, envelope)
+}
+
+fn repair_missing_batch_results(
+    ordered_results: &mut [Option<ProcessResultEntry>],
+    failure_events: &mut Vec<TerminalFailureEvent>,
+) {
     for (index, slot) in ordered_results.iter_mut().enumerate() {
         if slot.is_none() {
             let error_message = format!(
@@ -662,11 +711,6 @@ fn collect_batch_results(
             ));
         }
     }
-
-    Ok(FinalizedBatchResults {
-        results: ordered_results.into_iter().flatten().collect(),
-        failure_events,
-    })
 }
 
 fn cancellation_error_for_failed_entry(entry: &ProcessResultEntry) -> Option<AppError> {
