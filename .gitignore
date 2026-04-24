@@ -25,6 +25,14 @@ dist-ssr
 *.sw?
 docs/model_tests/*
 
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyc.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Rust build artifacts (root workspace + src-tauri)
 /target/
 /src-tauri/target/

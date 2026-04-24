@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import subprocess
 
-from common import REPO_ROOT, changed_paths, emit, ipc_surface_touched
+from common import (
+    REPO_ROOT,
+    changed_paths,
+    emit,
+    ipc_surface_touched,
+    meaningful_changed_paths,
+)
 
 
-paths = changed_paths()
+paths = meaningful_changed_paths(changed_paths())
 if not ipc_surface_touched(paths):
     emit({"continue": True})
     raise SystemExit(0)

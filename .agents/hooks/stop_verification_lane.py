@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from common import changed_paths, docs_only_paths, emit
+from common import changed_paths, docs_only_paths, emit, meaningful_changed_paths
 
 
-paths = [entry for entry in changed_paths() if not entry.startswith(".artifacts/")]
+paths = meaningful_changed_paths(changed_paths())
 if not paths:
     emit({"continue": True})
     raise SystemExit(0)

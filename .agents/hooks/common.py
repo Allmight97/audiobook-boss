@@ -40,6 +40,22 @@ IPC_GUARD_FILES = {
     "src/lib/generated/tauri.ts",
 }
 GENERATED_BINDINGS_PATH = "src/lib/generated/tauri.ts"
+EPHEMERAL_PATH_EXACT = {
+    ".DS_Store",
+}
+EPHEMERAL_PATH_PREFIXES = (
+    ".artifacts/",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    "__pycache__/",
+)
+EPHEMERAL_PATH_SUFFIXES = (
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    "~",
+)
 
 
 def git_output(args: list[str], allow_failure: bool = False) -> str:
@@ -71,6 +87,20 @@ def changed_paths() -> list[str]:
         if entry:
             paths.append(entry)
     return paths
+
+
+def is_ephemeral_path(entry: str) -> bool:
+    if entry in EPHEMERAL_PATH_EXACT:
+        return True
+    if any(entry.startswith(prefix) for prefix in EPHEMERAL_PATH_PREFIXES):
+        return True
+    if any(entry.endswith(suffix) for suffix in EPHEMERAL_PATH_SUFFIXES):
+        return True
+    return False
+
+
+def meaningful_changed_paths(paths: list[str]) -> list[str]:
+    return [entry for entry in paths if not is_ephemeral_path(entry)]
 
 
 def docs_surface_touched(paths: list[str]) -> bool:
