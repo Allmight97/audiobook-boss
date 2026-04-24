@@ -82,8 +82,10 @@ Canonical docs and repo policy:
 Runtime surfaces:
 
 - `src-tauri/src/commands/audio_processing.rs`
-- `src-tauri/src/audio/output_path.rs`
-- `src-tauri/src/audio/external_fdk.rs`
+- `src-tauri/src/commands/audio_processing/run.rs`
+- `src-tauri/src/commands/audio_processing/plan.rs`
+- `src-tauri/src/audio/output_path/`
+- `src-tauri/src/audio/processor/external_fdk.rs`
 - `src-tauri/src/audio/processor/mod.rs`
 - `src-tauri/src/audio/job_registry/`
 - `src-tauri/src/audio/progress/`
@@ -327,6 +329,14 @@ Boundary glue posture (`Refs #277`):
 - 2026-04-24: PR2 validation passed with `scripts/checks.sh package`, including
   `scripts/checks.sh standard`, app packaging, and
   `verify_aac_decoder_contract`.
+- 2026-04-24: Started PR3 on `arch/processing-run-boundary`. Introduced a
+  command-adjacent `ProcessingRun` owner in `commands/audio_processing/run.rs`
+  while preserving public IPC, output planning ownership, processor adapter
+  ownership, and final file commit ownership. Added batch terminal truth
+  regressions for mixed success/failure/cancellation and missing-result repair.
+  Initial review posture is `Refs #272`, not automatic closure, because final
+  artifact commit and some terminal progress emission intentionally remain under
+  processor/finalize ownership unless review confirms this satisfies the RFC.
 
 ## 7. Surprises And Discoveries
 
