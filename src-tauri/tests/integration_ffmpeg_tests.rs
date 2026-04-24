@@ -22,8 +22,8 @@ fn ensure_media() -> Option<PathBuf> {
 }
 
 #[test]
-fn test_engine_is_single_and_available() {
-    // After the nuclear transition, engine selection should report ffmpeg-next only.
+fn test_native_engine_is_available() {
+    // Engine diagnostics should report the native in-process ffmpeg-next path.
     let description = get_engine_description();
     assert!(
         description.contains("FfmpegNextProcessor"),
@@ -79,10 +79,10 @@ fn test_ffmpeg_next_dependency_available() {
 
 #[test]
 fn test_compilation_status_report() {
-    println!("=== FFmpeg-next Integration Test Status (Single Engine) ===");
+    println!("=== FFmpeg-next Integration Test Status (Native Engine) ===");
     println!("Test media file path: {}", TEST_MEDIA_FILE);
     println!("Media file exists: {}", ensure_media().is_some());
-    println!("✓ Single-engine ffmpeg-next architecture active (no feature flags)");
+    println!("✓ Native ffmpeg-next architecture active (no feature flags)");
     let media_path = PathBuf::from(TEST_MEDIA_FILE);
     assert_eq!(
         media_path

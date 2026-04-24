@@ -63,7 +63,9 @@ impl MediaProcessingPlan {
 /// Trait defining a media processor boundary for executing processing plans.
 ///
 /// This provides a stable interface for media processing implementations.
-/// Currently uses ffmpeg-next as the single processing engine.
+/// The default implementation is the native ffmpeg-next path; command-level
+/// encoder selection routes external FDK work through the processor adapter
+/// boundary before execution reaches this plan.
 pub trait MediaProcessor {
     fn execute<'a>(
         &'a self,

@@ -14,7 +14,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 
-pub async fn process_audiobook_with_external_fdk(
+pub(super) async fn process_audiobook_with_external_fdk(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     selected_decoders: Vec<Option<DecoderSelection>>,
@@ -160,8 +160,6 @@ fn expected_duration_seconds(
     total.max(1.0)
 }
 
-// EXCEPTION: this temporary worker orchestration is split in PR2 when external FDK becomes a processor adapter.
-#[allow(clippy::too_many_lines)]
 async fn run_external_ffmpeg(
     context: &ProcessingContext,
     ui: &ProgressEmitter,
@@ -171,6 +169,36 @@ async fn run_external_ffmpeg(
     temp_output: &Path,
     total_duration_seconds: f64,
 ) -> Result<()> {
+    log_external_inputs(files, selected_decoders);
+    let mut child =
+        spawn_external_ffmpeg(context, toolchain, files, selected_decoders, temp_output)?;
+    let stdout = take_child_stdout(&mut child)?;
+    let stderr = take_child_stderr(&mut child)?;
+    let mut progress_lines = BufReader::new(stdout).lines();
+    let stderr_task = tokio::spawn(read_stderr_to_string(stderr));
+    let current_file = files
+        .first()
+        .map(|file| sanitize_path_for_display(&file.path));
+
+    monitor_external_progress(
+        context,
+        ui,
+        &mut child,
+        &mut progress_lines,
+        total_duration_seconds,
+        current_file.clone(),
+    )
+    .await?;
+
+    let status = child.wait().await?;
+    let stderr_output = stderr_task.await.unwrap_or_default();
+    ensure_external_success(status, &stderr_output)?;
+
+    ui.emit_converting_progress(89.0, "External FDK encode complete.", current_file, None);
+    Ok(())
+}
+
+fn log_external_inputs(files: &[AudioFile], selected_decoders: &[Option<DecoderSelection>]) {
     for (file, selection) in files.iter().zip(selected_decoders.iter()) {
         log::info!(
             "external_fdk_input path={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
@@ -186,7 +214,15 @@ async fn run_external_ffmpeg(
             external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
         );
     }
+}
 
+fn spawn_external_ffmpeg(
+    context: &ProcessingContext,
+    toolchain: &ValidatedExternalToolchain,
+    files: &[AudioFile],
+    selected_decoders: &[Option<DecoderSelection>],
+    temp_output: &Path,
+) -> Result<tokio::process::Child> {
     let mut command = Command::new(&toolchain.ffmpeg_path);
     command.stdin(Stdio::null());
     command.stdout(Stdio::piped());
@@ -200,53 +236,55 @@ async fn run_external_ffmpeg(
         temp_output,
     ));
 
-    let mut child = command.spawn().map_err(|error| {
+    command.spawn().map_err(|error| {
         AppError::ProcessTermination(format!(
             "Failed to launch external ffmpeg '{}': {}",
             sanitize_path_for_display(&toolchain.ffmpeg_path),
             error
         ))
-    })?;
+    })
+}
 
-    let stdout = child.stdout.take().ok_or_else(|| {
+fn take_child_stdout(child: &mut tokio::process::Child) -> Result<tokio::process::ChildStdout> {
+    child.stdout.take().ok_or_else(|| {
         AppError::ProcessTermination("External ffmpeg stdout was unavailable.".to_string())
-    })?;
-    let stderr = child.stderr.take().ok_or_else(|| {
+    })
+}
+
+fn take_child_stderr(child: &mut tokio::process::Child) -> Result<tokio::process::ChildStderr> {
+    child.stderr.take().ok_or_else(|| {
         AppError::ProcessTermination("External ffmpeg stderr was unavailable.".to_string())
-    })?;
+    })
+}
 
-    let mut progress_lines = BufReader::new(stdout).lines();
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr);
-        let mut buffer = String::new();
-        let _ = reader.read_to_string(&mut buffer).await;
-        buffer
-    });
+async fn read_stderr_to_string(stderr: tokio::process::ChildStderr) -> String {
+    let mut reader = BufReader::new(stderr);
+    let mut buffer = String::new();
+    let _ = reader.read_to_string(&mut buffer).await;
+    buffer
+}
 
+async fn monitor_external_progress<R>(
+    context: &ProcessingContext,
+    ui: &ProgressEmitter,
+    child: &mut tokio::process::Child,
+    progress_lines: &mut tokio::io::Lines<R>,
+    total_duration_seconds: f64,
+    current_file: Option<String>,
+) -> Result<()>
+where
+    R: tokio::io::AsyncBufRead + Unpin,
+{
     let total_ms = (total_duration_seconds * 1000.0).max(1.0);
-    let current_file = files
-        .first()
-        .map(|file| sanitize_path_for_display(&file.path));
-
     loop {
         tokio::select! {
             line = progress_lines.next_line() => {
                 match line {
-                    Ok(Some(line)) => {
-                        if let Some(progress_ms) = parse_progress_ms(&line) {
-                            let percentage = ((progress_ms / total_ms) * 89.0) as f32;
-                            ui.emit_converting_progress(
-                                percentage.clamp(1.0, 89.0),
-                                "Encoding with external FDK AAC...",
-                                current_file.clone(),
-                                None,
-                            );
-                        }
-                    }
+                    Ok(Some(line)) => emit_external_progress(ui, &line, total_ms, current_file.clone()),
                     Ok(None) => break,
                     Err(error) => {
                         terminate_external_child_best_effort(
-                            &mut child,
+                            child,
                             "after external ffmpeg progress read failure",
                         )
                         .await;
@@ -260,7 +298,7 @@ async fn run_external_ffmpeg(
             _ = sleep(Duration::from_millis(200)) => {
                 if context.is_cancelled() {
                     terminate_external_child_best_effort(
-                        &mut child,
+                        child,
                         "after external ffmpeg cancellation",
                     )
                     .await;
@@ -270,21 +308,38 @@ async fn run_external_ffmpeg(
             }
         }
     }
+    Ok(())
+}
 
-    let status = child.wait().await?;
-    let stderr_output = stderr_task.await.unwrap_or_default();
-    if !status.success() {
-        let details = stderr_output
-            .lines()
-            .last()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("External ffmpeg process failed.");
-        return Err(AppError::ProcessTermination(details.to_string()));
+fn emit_external_progress(
+    ui: &ProgressEmitter,
+    line: &str,
+    total_ms: f64,
+    current_file: Option<String>,
+) {
+    if let Some(progress_ms) = parse_progress_ms(line) {
+        let percentage = ((progress_ms / total_ms) * 89.0) as f32;
+        ui.emit_converting_progress(
+            percentage.clamp(1.0, 89.0),
+            "Encoding with external FDK AAC...",
+            current_file,
+            None,
+        );
+    }
+}
+
+fn ensure_external_success(status: std::process::ExitStatus, stderr_output: &str) -> Result<()> {
+    if status.success() {
+        return Ok(());
     }
 
-    ui.emit_converting_progress(89.0, "External FDK encode complete.", current_file, None);
-    Ok(())
+    let details = stderr_output
+        .lines()
+        .last()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("External ffmpeg process failed.");
+    Err(AppError::ProcessTermination(details.to_string()))
 }
 
 async fn terminate_external_child_best_effort(child: &mut tokio::process::Child, context: &str) {
@@ -456,7 +511,7 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    const MINIMAL_JPEG: &[u8] = include_bytes!("../../tests/support/minimal.jpg");
+    const MINIMAL_JPEG: &[u8] = include_bytes!("../../../tests/support/minimal.jpg");
 
     #[tokio::test]
     async fn worker_processes_with_fake_external_ffmpeg() {

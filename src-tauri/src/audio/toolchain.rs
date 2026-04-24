@@ -78,6 +78,12 @@ pub(crate) struct ToolchainResolution {
 pub fn detect_encoder_availability(
     preference: Option<&ExternalToolchainPreference>,
 ) -> EncoderAvailability {
+    detect_encoder_availability_with_resolution(preference).0
+}
+
+pub(crate) fn detect_encoder_availability_with_resolution(
+    preference: Option<&ExternalToolchainPreference>,
+) -> (EncoderAvailability, ToolchainResolution) {
     let native_aac = settings_encoder::is_encoder_available_by_name("aac");
     let aac_at =
         cfg!(target_os = "macos") && settings_encoder::is_encoder_available_by_name("aac_at");
@@ -91,19 +97,20 @@ pub fn detect_encoder_availability(
         EncoderType::NativeAac
     };
 
-    EncoderAvailability {
+    let availability = EncoderAvailability {
         fdk_available,
         fdk_source: resolution.fdk_source,
         aac_at_available: aac_at,
         native_aac_available: native_aac,
         auto_encoder,
-        detected_toolchain_path: resolution.detected_toolchain_path,
-        override_toolchain_path: resolution.override_toolchain_path,
-        active_toolchain_path: resolution.active_toolchain_path,
+        detected_toolchain_path: resolution.detected_toolchain_path.clone(),
+        override_toolchain_path: resolution.override_toolchain_path.clone(),
+        active_toolchain_path: resolution.active_toolchain_path.clone(),
         override_invalid: resolution.override_invalid,
-        override_error: resolution.override_error,
-        status_message: resolution.status_message,
-    }
+        override_error: resolution.override_error.clone(),
+        status_message: resolution.status_message.clone(),
+    };
+    (availability, resolution)
 }
 
 pub(crate) fn resolve_external_toolchain(

@@ -1,4 +1,4 @@
-//! ffmpeg-next engine implementation (single-engine path)
+//! ffmpeg-next engine implementation (native in-process path)
 
 use std::path::Path;
 use std::sync::Once;

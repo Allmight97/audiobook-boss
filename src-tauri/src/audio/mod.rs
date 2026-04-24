@@ -11,7 +11,6 @@ pub mod buffer;
 pub mod cleanup;
 pub mod constants;
 pub mod context;
-pub mod external_fdk;
 pub mod file_list;
 pub mod job_registry;
 pub mod metrics;
@@ -158,5 +157,8 @@ pub use context::{OutputConfig, ProcessingContextBuilder};
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;
 
-// Processor plan and engine surface (single-engine)
-pub use processor::{FfmpegNextProcessor, MediaProcessingPlan, MediaProcessor};
+// Processor plan, native engine, and adapter routing surface
+pub use processor::{
+    FfmpegNextProcessor, MediaProcessingPlan, MediaProcessor, ProcessorAdapterKind,
+    ResolvedProcessorAdapter,
+};
