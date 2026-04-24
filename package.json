@@ -2,7 +2,7 @@
 	"name": "audiobook-boss",
 	"private": true,
 	"description": "AudioBook Boss™ — Batch audiobook processing and metadata management",
-	"version": "1.0.12",
+	"version": "1.0.13",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",

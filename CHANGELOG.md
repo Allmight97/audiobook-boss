@@ -15,6 +15,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.13] - 2026-04-24
+
+Runtime architecture release that lands the first two PRs of the architecture
+train: output planning ownership and external FDK processor ownership, with
+real xHE-AAC fixture evidence for the external path.
+
+### Added
+
+- A processor adapter boundary that routes native `ffmpeg-next` processing and
+  external FFmpeg/libfdk_aac processing through one processor-owned decision
+  point.
+- An ignored `ABB_XHE_AAC_FIXTURE` regression lane for proving real USAC /
+  xHE-AAC fixtures through the external FDK preview path.
+- Runtime architecture train notes that fold in the high-ROI boundary-glue audit
+  without creating extra GitHub issue churn.
+
+### Changed
+
+- Output naming, collision detection, preview suffix planning, duplicate
+  handling, rename candidates, source-overlap blocking, and preflight signatures
+  now live behind a deeper output planning boundary.
+- External FDK processing moved under `audio::processor` ownership instead of
+  being selected directly by command orchestration.
+- README, API map, processor docs, and tests now describe ABB as having a native
+  in-process path plus an external FFmpeg/FDK adapter path, not an embedded-only
+  single-engine runtime.
+
+### Fixed
+
+- Cached output collision planning avoids repeated directory scans and canonical
+  source-path work during batch review.
+- External FDK stderr-reader tasks are now awaited on early progress/cancel
+  errors, child wait errors, and normal process exit.
+- Real USAC / xHE-AAC preview validation confirmed both tested sources select
+  `aac_at`, force that decoder through the external FDK adapter, and produce
+  valid 60-second preview outputs.
+
 ## [1.0.12] - 2026-04-22
 
 Status-panel follow-through release that fixes the remaining user-visible
