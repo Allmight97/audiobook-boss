@@ -180,7 +180,7 @@ async fn run_external_ffmpeg(
         .first()
         .map(|file| sanitize_path_for_display(&file.path));
 
-    monitor_external_progress(
+    let progress_result = monitor_external_progress(
         context,
         ui,
         &mut child,
@@ -188,10 +188,27 @@ async fn run_external_ffmpeg(
         total_duration_seconds,
         current_file.clone(),
     )
-    .await?;
+    .await;
+    if let Err(error) = progress_result {
+        let stderr_output = await_stderr_reader(
+            stderr_task,
+            "after external ffmpeg progress monitoring ended",
+        )
+        .await;
+        log_external_stderr_on_early_exit(&stderr_output);
+        return Err(error);
+    }
 
-    let status = child.wait().await?;
-    let stderr_output = stderr_task.await.unwrap_or_default();
+    let status = match child.wait().await {
+        Ok(status) => status,
+        Err(error) => {
+            let stderr_output =
+                await_stderr_reader(stderr_task, "after external ffmpeg wait failed").await;
+            log_external_stderr_on_early_exit(&stderr_output);
+            return Err(error.into());
+        }
+    };
+    let stderr_output = await_stderr_reader(stderr_task, "after external ffmpeg exit").await;
     ensure_external_success(status, &stderr_output)?;
 
     ui.emit_converting_progress(89.0, "External FDK encode complete.", current_file, None);
@@ -264,6 +281,25 @@ async fn read_stderr_to_string(stderr: tokio::process::ChildStderr) -> String {
     buffer
 }
 
+async fn await_stderr_reader(
+    stderr_task: tokio::task::JoinHandle<String>,
+    context: &str,
+) -> String {
+    match stderr_task.await {
+        Ok(output) => output,
+        Err(error) => {
+            log::warn!("External ffmpeg stderr reader task failed {context}: {error}");
+            String::new()
+        }
+    }
+}
+
+fn log_external_stderr_on_early_exit(stderr_output: &str) {
+    if let Some(details) = last_nonempty_stderr_line(stderr_output) {
+        log::warn!("External ffmpeg stderr before early exit: {details}");
+    }
+}
+
 async fn monitor_external_progress<R>(
     context: &ProcessingContext,
     ui: &ProgressEmitter,
@@ -333,13 +369,17 @@ fn ensure_external_success(status: std::process::ExitStatus, stderr_output: &str
         return Ok(());
     }
 
-    let details = stderr_output
-        .lines()
-        .last()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("External ffmpeg process failed.");
+    let details =
+        last_nonempty_stderr_line(stderr_output).unwrap_or("External ffmpeg process failed.");
     Err(AppError::ProcessTermination(details.to_string()))
+}
+
+fn last_nonempty_stderr_line(stderr_output: &str) -> Option<&str> {
+    stderr_output
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|value| !value.is_empty())
 }
 
 async fn terminate_external_child_best_effort(child: &mut tokio::process::Child, context: &str) {

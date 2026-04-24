@@ -319,9 +319,11 @@ Boundary glue posture (`Refs #277`):
 - 2026-04-24: PR2 implementation added the processor adapter boundary, moved
   the external FDK worker under processor ownership, removed stale single-engine
   language, and added an ignored `ABB_XHE_AAC_FIXTURE` validation test. The
-  previously recorded local fixture was not present on disk, so PR2 should
-  reference `#256` but not close it unless fixture evidence is added before
-  merge.
+  initial recorded local fixture was not present on disk, but manual ABB dev
+  validation later used two real USAC/xHE-AAC audiobooks. Both selected
+  `aac_at`, the external FDK adapter forced `aac_at`, completed 60-second
+  previews, and `ffprobe` validated both preview outputs. PR2 can now close
+  `#256`.
 - 2026-04-24: PR2 validation passed with `scripts/checks.sh package`, including
   `scripts/checks.sh standard`, app packaging, and
   `verify_aac_decoder_contract`.
