@@ -2,14 +2,8 @@ use crate::audio;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::job_registry::{CancellationChecker, JobId};
 use crate::audio::output_path::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
-use crate::audio::settings_encoder::{
-    resolve_encoder_type, validate_encoder_settings, validate_requested_encoder_available,
-    EncoderType,
-};
-use crate::audio::toolchain::{
-    detect_encoder_availability, resolve_external_toolchain, validate_external_input_decoders,
-    ExternalToolchainPreference,
-};
+use crate::audio::settings_encoder::validate_encoder_settings;
+use crate::audio::toolchain::ExternalToolchainPreference;
 use crate::audio::{QueueEvent, QueueItem};
 use crate::commands::audio_types::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
@@ -157,18 +151,11 @@ fn validate_external_processing_contract_with_file_info(
     payload: &ProcessPayload,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    let availability = detect_encoder_availability(payload.external_toolchain.as_ref());
-    validate_requested_encoder_available(payload.settings.encoder_type, &availability)?;
-    let resolved_encoder = resolve_encoder_type(&payload.settings, &availability);
-    if !matches!(resolved_encoder, EncoderType::FdkHeAac) {
-        return Ok(());
-    }
-
-    let resolution = resolve_external_toolchain(payload.external_toolchain.as_ref());
-    let toolchain = resolution.validated.ok_or_else(|| {
-        AppError::toolchain_required("FDK AAC requires a validated external FFmpeg toolchain.")
-    })?;
-    validate_external_input_decoders(&file_info.files, &file_info.selected_decoders, &toolchain)?;
+    let adapter = audio::processor::resolve_processor_adapter(
+        &payload.settings,
+        payload.external_toolchain.as_ref(),
+    )?;
+    adapter.validate_inputs(file_info)?;
     Ok(())
 }
 
@@ -456,31 +443,13 @@ async fn execute_processing_job(
         selected_decoders,
         ..
     } = file_info;
-    let availability = detect_encoder_availability(external_toolchain.as_ref());
-    validate_requested_encoder_available(encoder_settings.encoder_type, &availability)?;
-    let resolved_encoder =
-        audio::settings_encoder::resolve_encoder_type(&encoder_settings, &availability);
-
-    if matches!(
-        resolved_encoder,
-        audio::settings_encoder::EncoderType::FdkHeAac
-    ) {
-        let resolution = resolve_external_toolchain(external_toolchain.as_ref());
-        let toolchain = resolution.validated.ok_or_else(|| {
-            AppError::toolchain_required("FDK AAC requires a validated external FFmpeg toolchain.")
-        })?;
-        validate_external_input_decoders(&files, &selected_decoders, &toolchain)?;
-        return audio::external_fdk::process_audiobook_with_external_fdk(
-            context,
-            files,
-            selected_decoders,
-            metadata,
-            toolchain,
-        )
-        .await;
-    }
-
-    audio::processor::process_audiobook_with_context(context, files, metadata).await
+    let adapter = audio::processor::resolve_processor_adapter(
+        &encoder_settings,
+        external_toolchain.as_ref(),
+    )?;
+    adapter
+        .execute(context, files, selected_decoders, metadata)
+        .await
 }
 
 fn emit_terminal_failed_event(

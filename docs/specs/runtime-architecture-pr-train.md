@@ -312,6 +312,19 @@ Boundary glue posture (`Refs #277`):
   metadata-save wrappers, PR2 encoder-panel init only if that UI boundary is
   touched, and optional validator/tag-preview cleanup only at the owning
   boundary.
+- 2026-04-24: Started PR2 on `arch/external-fdk-processor-adapter`. `#256`
+  was inspected before coding: doc/comment alignment fits PR2 directly, while
+  closure also requires an env-gated xHE-AAC/USAC fixture validation path and
+  PR evidence from a real local fixture.
+- 2026-04-24: PR2 implementation added the processor adapter boundary, moved
+  the external FDK worker under processor ownership, removed stale single-engine
+  language, and added an ignored `ABB_XHE_AAC_FIXTURE` validation test. The
+  previously recorded local fixture was not present on disk, so PR2 should
+  reference `#256` but not close it unless fixture evidence is added before
+  merge.
+- 2026-04-24: PR2 validation passed with `scripts/checks.sh package`, including
+  `scripts/checks.sh standard`, app packaging, and
+  `verify_aac_decoder_contract`.
 
 ## 7. Surprises And Discoveries
 

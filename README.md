@@ -26,7 +26,7 @@ bun install
 bun run tauri dev
 ```
 
-**AAC runtime contract**: output encoder choice and input decoder choice are separate concerns. The app stays on the single `ffmpeg-next` engine, but may select compatible AAC decoders such as `aac_at` or `libfdk_aac` at runtime for AAC-family inputs that the default decoder cannot handle. For higher quality AAC encoding and broader AAC decode compatibility on macOS, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
+**AAC runtime contract**: output encoder choice and input decoder choice are separate concerns. Normal processing uses the in-process `ffmpeg-next` engine. FDK HE-AAC output routes through an external FFmpeg/libfdk_aac processor adapter, which can force compatible AAC-family input decoders such as `aac_at` or `libfdk_aac` when the default decoder cannot handle the source. For higher quality AAC encoding and broader AAC decode compatibility on macOS, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
 
 Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
@@ -54,6 +54,8 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - UI proof loop: `bun run harness:verify --changed`
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
+- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
+  Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
 - Release: `bun run release:notes`, `bun run release:run`
   `bun run app:build` remains the direct local `.app` path.
   `bun run release:run` now preflights the DMG release artifact.

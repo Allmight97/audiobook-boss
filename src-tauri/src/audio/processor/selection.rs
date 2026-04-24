@@ -1,10 +1,10 @@
 //! Engine selection module for media processing
 //!
-//! Provides access to the single FFmpeg processing engine.
+//! Provides access to the default native FFmpeg processing engine.
 //!
 //! ## Processing Engine
 //!
-//! - **Single Engine**: Uses `FfmpegNextProcessor` - Rust FFmpeg bindings
+//! - **Native Engine**: Uses `FfmpegNextProcessor` - Rust FFmpeg bindings
 //!
 //! ## Engine Characteristics
 //!
@@ -16,7 +16,7 @@
 
 use crate::audio::processor::FfmpegNextProcessor;
 
-/// The default media processor implementation (single-engine state).
+/// The default native media processor implementation.
 ///
 /// Retained as a type alias so future experimental engines (e.g., hardware
 /// accelerated or alternative codecs) can slot in with minimal churn.
@@ -26,7 +26,7 @@ pub type DefaultProcessor = FfmpegNextProcessor;
 ///
 /// Always returns the current engine description.
 pub fn get_engine_description() -> &'static str {
-    "FfmpegNextProcessor (single-engine)"
+    "FfmpegNextProcessor (native ffmpeg-next)"
 }
 
 /// Creates an instance of the default media processor.

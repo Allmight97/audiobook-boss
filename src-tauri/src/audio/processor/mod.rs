@@ -4,9 +4,10 @@
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
-//!   - selection.rs : engine selection
+//!   - adapter.rs   : native vs external processor adapter resolution
 //!
-//! Single-engine architecture using ffmpeg-next (`FfmpegNextProcessor`).
+//! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
+//! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
 
 // Imports for orchestrator function
 use crate::audio::context::ProcessingContext;
@@ -17,9 +18,11 @@ use crate::metadata::AudiobookMetadata;
 use std::time::Duration;
 
 // Submodules
+pub mod adapter;
 pub mod encoder;
 pub mod engine;
 pub mod execute;
+pub mod external_fdk;
 pub mod finalize;
 pub mod frame_pipeline;
 pub mod plan;
@@ -29,6 +32,7 @@ pub mod selection;
 pub mod streams;
 
 // Re-exports
+pub use adapter::{resolve_processor_adapter, ProcessorAdapterKind, ResolvedProcessorAdapter};
 pub use engine::FfmpegNextProcessor;
 pub use plan::{MediaProcessingPlan, MediaProcessor};
 pub use prepare::detect_input_sample_rate;
