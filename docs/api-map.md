@@ -47,7 +47,7 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 
 - `get_max_concurrent_jobs`, `set_max_concurrent_jobs`, `process_audiobook_files`, `cancel_processing`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helpers: `src-tauri/src/commands/audio_processing.rs`, `src-tauri/src/commands/audio_processing/plan.rs`, `src-tauri/src/audio/job_registry/`
+  - Core helpers: `src-tauri/src/commands/audio_processing/run.rs`, `src-tauri/src/commands/audio_processing/plan.rs`, `src-tauri/src/audio/job_registry/`
   - Processor routing: native `ffmpeg-next` and external FFmpeg/FDK adapter selection live under `src-tauri/src/audio/processor/`
   - Use: queueing, processing, cancellation, batch orchestration
 
