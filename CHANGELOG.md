@@ -15,6 +15,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.16] - 2026-04-25
+
+Formal runtime architecture train closeout release. This tag includes the
+already-recorded 1.0.13 through 1.0.15 architecture work plus the final
+status-panel state-machine pass and repo hygiene needed to close the train.
+
+### Added
+
+- A pure status-panel state machine for queue, progress, cancellation, skipped,
+  failed, and completion-hold transitions.
+- A repo-local `audit-boundary-glue` skill for classifying accidental
+  indirection, trivial wrappers, dead public exports, identity adapters, and
+  related boundary-glue cleanup.
+
+### Changed
+
+- `StatusPanelRuntime` now acts as the side-effect shell for subscriptions,
+  timers, feedback, cover art, cancel commands, and rendering while the domain
+  state machine owns event truth.
+- Issue tracking was narrowed after the runtime architecture train: native AAC
+  decoder-probe follow-up is merged into the fixture validation lane, Processing
+  Run follow-up now focuses on terminal/artifact truth, and boundary-glue
+  cleanup tracks only remaining live wrapper debt.
+
+### Fixed
+
+- Skipped single-job completion now reports as skipped instead of cancelled.
+- Command-result reconciliation now repairs missed failed terminal rows as well
+  as skipped and cancelled rows.
+
+### Removed
+
+- Removed the completed runtime architecture PR train spec after all five PRs
+  landed and related issue state was reconciled.
+
 ## [1.0.15] - 2026-04-25
 
 Runtime architecture release that lands the Processing Run boundary and the
