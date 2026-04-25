@@ -15,6 +15,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.15] - 2026-04-25
+
+Runtime architecture release that lands the Processing Run boundary and the
+Metadata Draft / Intent workflow from the architecture train.
+
+### Added
+
+- A `ProcessingRun` command-layer boundary for preflight and execution flow,
+  keeping output planning, job lifecycle, execution routing, cancellation
+  interpretation, terminal result handling, and artifact truth behind one
+  runtime owner.
+- A frontend metadata draft owner that compiles single-selection edits,
+  multi-selection staging, metadata lookup application, processing overlays,
+  and pending-save state into the existing metadata intent contract.
+
+### Changed
+
+- Processing command orchestration now delegates run construction and terminal
+  result normalization through the Processing Run boundary instead of spreading
+  those decisions across private command helpers.
+- Metadata docs and generated bindings now describe the writable intent surface
+  directly: UI draft fields are separate from read-compatible fields, and
+  `album_sort` remains explicit backend intent.
+
+### Fixed
+
+- Metadata lookup, save, and processing-overlay paths now preserve set, clear,
+  and noop intent consistently through the draft boundary.
+- Removed PR4-owned boundary glue around metadata-save state and deduplicated
+  series/subseries sequence validation while keeping the public validator names.
+
 ## [1.0.14] - 2026-04-24
 
 Audio import hardening release for extension-case handling.
