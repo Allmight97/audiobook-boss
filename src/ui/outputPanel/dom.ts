@@ -18,7 +18,7 @@ import {
 	setEstimatedSizeText,
 	setOutputNamingUiState,
 	setOutputPreview,
-} from './state';
+} from './state.svelte';
 import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,

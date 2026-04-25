@@ -7,7 +7,7 @@ import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
-import { getOutputNamingConfig, getState } from './state';
+import { getOutputNamingConfig, getState } from './state.svelte';
 
 /**
  * Sanitizes a string for use in filenames by replacing problematic characters

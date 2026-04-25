@@ -5,7 +5,7 @@ import {
 	updateOutputDirectory,
 	updateAbsIncludeYear,
 	updateNamingPreset,
-} from '../outputPanel/state';
+} from '../outputPanel/state.svelte';
 import type { AudiobookMetadata } from '../../types/metadata';
 
 const baseMetadata: AudiobookMetadata = {

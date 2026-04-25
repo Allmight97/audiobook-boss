@@ -11,7 +11,7 @@ import {
 	updateOutputDirectory,
 	updateSampleRate,
 	updateToolchainSettings,
-} from '../outputPanel/state';
+} from '../outputPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),

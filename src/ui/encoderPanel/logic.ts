@@ -4,7 +4,7 @@ import {
 	updateEncoderSettings,
 	updateSampleRate,
 	updateToolchainSettings,
-} from '../outputPanel/state';
+} from '../outputPanel/state.svelte';
 import {
 	encoderPanelState,
 	readBoundaryEncoderSettings,

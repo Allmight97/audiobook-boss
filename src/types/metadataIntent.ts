@@ -67,7 +67,7 @@ function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
 }
 
-function normalizePublicationDateInput(value: string): string | null {
+export function normalizePublicationDate(value: string): string | null {
 	const trimmed = value.trim();
 	if (/^\d{4}$/.test(trimmed)) {
 		return trimmed;
@@ -175,7 +175,7 @@ export function buildMetadataIntentPatchFromMetadata(
 				setMetadataIntent(patch, key, { op: 'clear' });
 				continue;
 			}
-			const normalized = normalizePublicationDateInput(trimmed);
+			const normalized = normalizePublicationDate(trimmed);
 			if (normalized) {
 				setMetadataIntent(patch, key, { op: 'set', value: normalized });
 			}

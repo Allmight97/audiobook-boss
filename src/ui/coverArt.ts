@@ -17,14 +17,6 @@ import {
 let coverArtMessageTimeoutId: number | null = null;
 
 /**
- * Initializes the cover art functionality
- */
-export function initCoverArt(): void {
-	// no-op lifecycle hook kept for init ordering and tests
-	// drag/drop routing is handled by fileImport handlers now.
-}
-
-/**
  * Handles the Clear Cover Art action
  */
 export function onClearCoverArt(): void {

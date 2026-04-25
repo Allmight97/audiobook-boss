@@ -11,7 +11,7 @@ import {
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateAbsIncludeYear,
-} from '../outputPanel/state';
+} from '../outputPanel/state.svelte';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {

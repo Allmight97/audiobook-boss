@@ -5,7 +5,6 @@ import { openPath as tauriOpenExternal } from '@tauri-apps/plugin-opener';
 import {
 	commands as generatedCommands,
 	events as generatedEvents,
-	type MetadataSource as GeneratedMetadataSource,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 } from '../generated/tauri';
 import {
@@ -70,16 +69,6 @@ async function runGeneratedCommand<T, R>(
 	} catch (error) {
 		throw normalizeAppError(error);
 	}
-}
-
-function toGeneratedMetadataSource(source: MetadataSource): GeneratedMetadataSource {
-	return source;
-}
-
-function toGeneratedMetadataSources(
-	sources?: MetadataSource[] | null,
-): GeneratedMetadataSource[] | null {
-	return sources ? sources.map(toGeneratedMetadataSource) : null;
 }
 
 function toGeneratedExternalToolchain(
@@ -160,11 +149,7 @@ const commandSpecs = {
 		limit?: number | null;
 	}) =>
 		runGeneratedCommand(
-			generatedCommands.searchOnlineMetadata(
-				args.query,
-				toGeneratedMetadataSources(args.sources),
-				args.limit ?? null,
-			),
+			generatedCommands.searchOnlineMetadata(args.query, args.sources ?? null, args.limit ?? null),
 			(results) => results.map(normalizeLookupResult),
 		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>

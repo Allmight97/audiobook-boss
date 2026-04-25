@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleNamingTemplateInput, setupEventHandlers } from '../outputPanel/handlers';
+import { handleNamingTemplateInput, resetOutputPanelHandlers } from '../outputPanel/handlers';
 import { updateOutputPath } from '../outputPanel/dom';
-import { updateNamingTemplate } from '../outputPanel/state';
+import { updateNamingTemplate } from '../outputPanel/state.svelte';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -15,7 +15,7 @@ vi.mock('../outputPanel/dom', () => ({
 	showOutputError: vi.fn(),
 }));
 
-vi.mock('../outputPanel/state', () => ({
+vi.mock('../outputPanel/state.svelte', () => ({
 	updateOutputDirectory: vi.fn(),
 	updateNamingPreset: vi.fn(),
 	updateNamingTemplate: vi.fn(),
@@ -61,7 +61,7 @@ describe('output panel handlers', () => {
 		input.value = '{author}/{title}';
 		handleNamingTemplateInput(asInputEvent(input));
 
-		setupEventHandlers();
+		resetOutputPanelHandlers();
 		vi.advanceTimersByTime(150);
 
 		expect(vi.mocked(updateOutputPath)).not.toHaveBeenCalled();
