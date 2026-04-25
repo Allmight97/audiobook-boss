@@ -9,6 +9,7 @@ import {
 	applyProgress,
 	applyQueueSnapshot,
 	buildBatchCompletionFeedback,
+	completeSingleCompletionHold,
 	createStatusPanelModel,
 	reconcileProcessResult,
 	withBatchCompletionMessage,
@@ -184,6 +185,39 @@ describe('statusPanel state machine', () => {
 		expect(result.model.jobProgress.get('job:job-single')?.status).toBe('completed');
 	});
 
+	it('reports a single skipped terminal event as skipped, not cancelled', () => {
+		const result = applyProgress(
+			createStatusPanelModel(),
+			{
+				job_id: 'job-single',
+				stage: 'skipped',
+				percentage: 100,
+				message: 'Skipped existing output',
+			},
+			5_000,
+		);
+
+		expect(result.intents).toEqual([
+			{
+				kind: 'single-completion-hold',
+				jobKey: 'job:job-single',
+				terminalStage: 'skipped',
+				message: 'Skipped existing output',
+				holdMs: SINGLE_COMPLETION_HOLD_MS,
+			},
+		]);
+
+		const completed = completeSingleCompletionHold(result.model, 'job:job-single', {
+			terminalStage: 'skipped',
+			message: 'Skipped existing output',
+		});
+
+		expect(completed.feedback).toEqual({
+			kind: 'info',
+			message: 'Skipped existing output',
+		});
+	});
+
 	it('emits a batch completion hold intent with final feedback classification', () => {
 		const snapshot: ProcessingQueueEvent = {
 			items: [
@@ -310,11 +344,12 @@ describe('statusPanel state machine', () => {
 		expect(cancelled.model.jobProgress.get('idx:2')?.status).toBe('cancelled');
 	});
 
-	it('repairs rows from command results for skipped and cancelled terminal statuses', () => {
+	it('repairs rows from command results for skipped, cancelled, and failed terminal statuses', () => {
 		const snapshot: ProcessingQueueEvent = {
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
+				{ input_index: 2, file_path: '/books/c.m4b' },
 			],
 			max_concurrent: 2,
 		};
@@ -332,7 +367,7 @@ describe('statusPanel state machine', () => {
 		);
 		const reconcile: ProcessCommandResult = {
 			jobType: 'batch',
-			summary: { total: 2, succeeded: 0, skipped: 1, cancelled: 1, failed: 0 },
+			summary: { total: 3, succeeded: 0, skipped: 1, cancelled: 1, failed: 1 },
 			results: [
 				{
 					status: 'skipped',
@@ -344,6 +379,12 @@ describe('statusPanel state machine', () => {
 					status: 'cancelled',
 					inputIndex: 1,
 					message: 'Processing was cancelled',
+					error: null,
+				},
+				{
+					status: 'failed',
+					inputIndex: 2,
+					message: 'Encoding failed',
 					error: null,
 				},
 				{
@@ -359,7 +400,8 @@ describe('statusPanel state machine', () => {
 
 		expect(repaired.model.jobProgress.get('idx:0')?.status).toBe('skipped');
 		expect(repaired.model.jobProgress.get('idx:1')?.status).toBe('cancelled');
+		expect(repaired.model.jobProgress.get('idx:2')?.status).toBe('failed');
 		expect(toCounts(repaired.model).queued ?? 0).toBe(0);
-		expect(repaired.model.currentStatus.stage).toBe('cancelled');
+		expect(repaired.model.currentStatus.stage).toBe('failed');
 	});
 });

@@ -208,7 +208,7 @@ export function reconcileProcessResult(
 	const next = cloneModel(model);
 	let didUpdate = false;
 	for (const entry of result.results) {
-		if (entry.status !== 'skipped' && entry.status !== 'cancelled') {
+		if (entry.status === 'success') {
 			continue;
 		}
 
@@ -282,7 +282,7 @@ export function applyCancellation(model: StatusPanelModel, now: number): StatusP
 			holdMs: BATCH_COMPLETION_HOLD_MS,
 		});
 	} else {
-		const firstEntry = [...updated.jobProgress.keys()][0];
+		const firstEntry = updated.jobProgress.keys().next().value;
 		if (firstEntry) {
 			intents.push({
 				kind: 'single-completion-hold',

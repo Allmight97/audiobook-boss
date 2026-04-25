@@ -62,6 +62,9 @@ export function buildSingleCompletionFeedback(
 	if (event.terminalStage === STAGES.failed) {
 		return { kind: 'error', message: event.message };
 	}
+	if (event.terminalStage === STAGES.skipped) {
+		return { kind: 'info', message: event.message || 'No files were processed.' };
+	}
 	return { kind: 'info', message: 'Processing was cancelled.' };
 }
 
