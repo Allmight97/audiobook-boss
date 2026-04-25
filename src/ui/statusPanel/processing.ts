@@ -22,9 +22,9 @@ import {
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
-import { isProcessingCancellationError, normalizeProcessingErrorMessage } from './errorHelpers';
 import { reviewOutputPlanForProcessing } from './outputPlanReview';
 import type { ProcessCommandResult, ProcessPayload } from '../../types/audio';
+import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError';
 
 interface StartProcessingContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -71,7 +71,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 						}
 					}
 					if (entry.error != null) {
-						const errorMessage = normalizeProcessingErrorMessage(entry.error, '');
+						const errorMessage = normalizeAppError(entry.error, '').message;
 						if (errorMessage.length > 0) {
 							return errorMessage;
 						}
@@ -264,9 +264,9 @@ export async function startProcessing(
 		context.setBatchCompletionMessage(summarizeBatchOutcome(result, filePaths));
 		await openGeneratedPreviewIfSingle(result);
 	} catch (error) {
-		const msg = normalizeProcessingErrorMessage(error);
+		const msg = normalizeAppError(error).message;
 		const wasCancelled =
-			isProcessingCancellationError(error) || msg.toLowerCase().includes('cancelled');
+			isAppErrorCategory(error, 'cancellation') || msg.toLowerCase().includes('cancelled');
 		if (wasCancelled) {
 			context.handleCancellation();
 			return;
