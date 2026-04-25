@@ -344,6 +344,17 @@ Boundary glue posture (`Refs #277`):
   removed metadata-save store wrappers, deduplicated sequence validation, and
   updated Rust/generated metadata-intent docs. PR4 is expected to close `#273`
   and `#267`, reference `#277`, and leave `#270` open.
+- 2026-04-24: Started PR5 on `arch/status-panel-state-machine`. Extracted
+  status-panel queue/progress/cancellation transitions into
+  `src/ui/statusPanel/domain/stateMachine.ts`, kept `StatusPanelRuntime` as the
+  side-effect shell for listeners, timers, feedback, cover art, cancel commands,
+  and rendering, and removed the now-dead status-panel progress-throttle service.
+  PR5 references `#268` and does not close it; it references `#277` only for
+  status-panel-local glue cleanup.
+- 2026-04-24: PR5 validation passed with `bun run test -- statusPanel`,
+  `bun run test -- src/harness/scenarios.test.ts`,
+  `bun run harness:verify --scenario status-processing`,
+  `bun run harness:verify --changed`, and `scripts/checks.sh standard`.
 
 ## 7. Surprises And Discoveries
 
@@ -414,6 +425,8 @@ Per code PR validation:
   review flow changes.
 - `bun run harness:verify --scenario output-preview` when output preview or
   preview behavior changes.
+- `bun run harness:verify --scenario status-processing` when status-panel event
+  state, queue rows, progress rendering, or cancellation UX changes.
 - For `#277` boundary-glue cleanup, run targeted frontend tests for the touched
   module plus the standard gate. Before deleting a wrapper, verify usage with
   `rg` and distinguish production usage from test-only imports.
