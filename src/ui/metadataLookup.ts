@@ -275,13 +275,11 @@ async function runSearch(): Promise<void> {
 
 	// Convert UI source selection to backend sources
 	const selectedSource = metadataLookupState.source;
-	let sources: MetadataSource[] | undefined;
+	let sources: MetadataSource[] | null = null;
 
 	if (selectedSource === 'auto') {
-		// Auto mode: search all sources, backend will prioritize Audnexus
 		sources = ['audnexus', 'openlibrary'];
 	} else if (selectedSource) {
-		// Manual source selection
 		sources = [selectedSource];
 	}
 

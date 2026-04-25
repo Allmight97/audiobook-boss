@@ -145,11 +145,11 @@ const commandSpecs = {
 		),
 	search_online_metadata: (args: {
 		query: string;
-		sources?: MetadataSource[] | null;
+		sources: MetadataSource[] | null;
 		limit?: number | null;
 	}) =>
 		runGeneratedCommand(
-			generatedCommands.searchOnlineMetadata(args.query, args.sources ?? null, args.limit ?? null),
+			generatedCommands.searchOnlineMetadata(args.query, args.sources, args.limit ?? null),
 			(results) => results.map(normalizeLookupResult),
 		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
@@ -281,7 +281,7 @@ export const tauriClient = {
 		commandSpecs.save_metadata_to_file({ filePath, metadataIntent }),
 	searchOnlineMetadata: (args: {
 		query: string;
-		sources?: MetadataSource[] | null;
+		sources: MetadataSource[] | null;
 		limit?: number | null;
 	}): Promise<CommandResult<'search_online_metadata'>> => commandSpecs.search_online_metadata(args),
 	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
