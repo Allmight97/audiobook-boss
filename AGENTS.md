@@ -72,8 +72,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ### Code Shape Review Triggers
 
-- File size target (non-test): prefer `< 400` LOC; at `~350` LOC run a cohesion check before adding more.
-- Function size target: prefer focused functions around `<= 55` LOC; allow larger orchestrator/adapter functions when they preserve boundary clarity.
+- File size target (non-test): prefer `< 475` LOC; at `~350` LOC run a cohesion check before adding more.
+- Function size target: prefer focused functions around `<= 70` LOC; allow larger orchestrator/adapter functions when they preserve boundary clarity.
 - When function boundaries exceed `~80` LOC, document why splitting would reduce clarity or violate external contracts.
 - Parameter count trigger: when a function exceeds `7` parameters, prefer a typed config object unless an external signature is fixed.
 - Complexity trigger: if nesting/branching grows hard to scan in one pass, split into named helpers at semantic boundaries.
@@ -106,7 +106,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Limit follow-up suggestions to accretive, high-ROI moves. Flag brittleness, over-engineering, and future-hostile patterns — but do not chase scope.
 
 ## Tooling Preferences
-- Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Revert to legacy equivalents only when the modern tool is unavailable or inappropriate.
+- Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Use legacy equivalents only when the modern tool is unavailable or inappropriate.
 - Documentation lookup: Use skill `.agents/skills/lib-research`
 
 ## Done Criteria
