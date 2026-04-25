@@ -337,6 +337,13 @@ Boundary glue posture (`Refs #277`):
   Initial review posture is `Refs #272`, not automatic closure, because final
   artifact commit and some terminal progress emission intentionally remain under
   processor/finalize ownership unless review confirms this satisfies the RFC.
+- 2026-04-24: Started PR4 on `arch/metadata-draft-intent`. Introduced
+  `src/ui/metadataDraft.ts` as the UI draft owner above the lower-level
+  `MetadataIntentPatch` wire contract, routed single selection, multi-selection,
+  lookup queue, processing overlay, and pending-save state through that owner,
+  removed metadata-save store wrappers, deduplicated sequence validation, and
+  updated Rust/generated metadata-intent docs. PR4 is expected to close `#273`
+  and `#267`, reference `#277`, and leave `#270` open.
 
 ## 7. Surprises And Discoveries
 

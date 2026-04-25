@@ -152,6 +152,8 @@ const SCENARIOS: readonly HarnessScenario[] = [
 		matchers: [
 			/^src\/ui\/metadataForm(?:\/|\.ts$)/,
 			/^src\/ui\/metadataLookup(?:\/|\.ts$)/,
+			/^src\/ui\/metadataDraft\.ts$/,
+			/^src\/ui\/metadataSaveState\.ts$/,
 			/^src\/ui\/metadataState\.ts$/,
 			/^src\/ui\/coverArt(?:\/|\.ts$)/,
 			/^src\/ui\/fileList\/metadataPanel\.ts$/,

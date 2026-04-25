@@ -79,10 +79,6 @@ vi.mock('../metadataState', () => ({
 
 vi.mock('../metadataSaveState', () => ({
 	metadataSaveInProgressStore: writable(false),
-	isMetadataSaveInProgress: () => context.metadataSaveInProgress,
-	setMetadataSaveInProgress: (value: boolean) => {
-		context.metadataSaveInProgress = value;
-	},
 }));
 
 function getStatusText(): HTMLElement {

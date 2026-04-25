@@ -175,8 +175,9 @@ export type AudioFile = {
 /**
  *  Represents audiobook metadata.
  *
- *  `track` and `disk` are preserved for read compatibility with files in the wild,
- *  but ABB does not expose them as supported writable metadata-intent fields.
+ *  `track`, `disk`, and `comment` are preserved for read compatibility with files
+ *  in the wild, but ABB does not expose them as supported UI draft write fields.
+ *  `album_sort` is writable only through explicit backend intent.
  *
  *  Field mapping for Plex/Audiobookshelf compatibility:
  *  - `artist` = Author (also written to AlbumArtist)
@@ -310,10 +311,13 @@ export type FileListInfo = {
 export type JobType = "merge" | "batch";
 
 /**
- *  Writable metadata-intent surface for ABB.
+ *  Writable metadata-intent contract for ABB.
  *
- *  This intentionally omits `track` and `disk`; those tags remain readable in
- *  [`AudiobookMetadata`] but are not part of the supported write contract.
+ *  UI drafts support title, author, album, narrator, genre, publication date,
+ *  description, series, subseries, and cover-art intent. `album_sort` is included
+ *  as an explicit backend operation for set, clear, preserve, or recompute.
+ *  Read-compatible `track`, `disk`, and `comment` fields remain outside this
+ *  write-intent contract.
  */
 export type MetadataIntentPatch = {
 	title?: PatchOp<string>,
