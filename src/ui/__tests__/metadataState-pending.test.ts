@@ -13,6 +13,7 @@ import {
 	applyMetadataIntentPatch,
 	buildMetadataIntentPatchFromMetadata,
 } from '../../types/metadataIntent';
+import { buildMetadataDraftIntent } from '../metadataDraft';
 
 describe('metadataState pending draft tracking', () => {
 	beforeEach(() => {
@@ -38,6 +39,22 @@ describe('metadataState pending draft tracking', () => {
 		expect(getPendingMetadataEntries()).toEqual([['/a.mp3', { title: 'Book A' }]]);
 		expect(getPendingMetadataIntentEntries()).toEqual([
 			['/a.mp3', { title: { op: 'set', value: 'Book A' } }],
+		]);
+	});
+
+	it('uses UI draft intent when no explicit pending patch is provided', () => {
+		setMetadataForFile(
+			'/a.mp3',
+			{
+				title: 'Book A',
+				album_sort: 'Curated Sort',
+				comment: 'Reader note',
+			},
+			{ markPending: true },
+		);
+
+		expect(getPendingMetadataIntentEntries()).toEqual([
+			['/a.mp3', buildMetadataDraftIntent({ title: 'Book A' })],
 		]);
 	});
 

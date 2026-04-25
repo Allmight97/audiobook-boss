@@ -146,11 +146,12 @@ describe('metadata intent patch helpers', () => {
 		});
 	});
 
-	it('ignores read-only track and disk fields when building write intent', () => {
+	it('ignores read-only track, disk, and comment fields when building write intent', () => {
 		const patch = buildMetadataIntentPatchFromMetadata({
 			title: 'Writable',
 			track: [3, 12],
 			disk: [1, 2],
+			comment: 'Reader note',
 		} as unknown as Parameters<typeof buildMetadataIntentPatchFromMetadata>[0]);
 
 		expect(patch).toEqual({

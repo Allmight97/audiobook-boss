@@ -1,11 +1,8 @@
 import { tauriClient } from '../lib/tauri/client';
 import type { AudioFile } from '../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../types/metadata';
-import {
-	applyMetadataIntentPatch,
-	buildMetadataIntentPatchFromMetadata,
-	type MetadataIntentPatch,
-} from '../types/metadataIntent';
+import type { MetadataIntentPatch } from '../types/metadataIntent';
+import { applyMetadataDraftIntent, buildMetadataDraftIntent } from './metadataDraft';
 import { applyMetadataToForm, readMetadataForm } from './metadataForm';
 import { updateEstimatedSize, updateOutputPath } from './outputPanel';
 import { updateTagPreview } from './tagPreview';
@@ -124,15 +121,13 @@ function resetResults(): void {
 }
 
 function buildQueueMetadataPatch(): MetadataIntentPatch {
-	return buildMetadataIntentPatchFromMetadata(
-		readMetadataForm({ mode: 'single', includeCoverArt: false }),
-	);
+	return buildMetadataDraftIntent(readMetadataForm({ mode: 'single', includeCoverArt: false }));
 }
 
 function persistQueueMetadata(file: AudioFile, state: QueueItemState): void {
 	if (!file.isValid) return;
 	const existing = getMetadataForFile(file.path) ?? {};
-	const merged: Partial<AudiobookMetadata> = applyMetadataIntentPatch(
+	const merged: Partial<AudiobookMetadata> = applyMetadataDraftIntent(
 		existing,
 		state.metadataPatch,
 	);

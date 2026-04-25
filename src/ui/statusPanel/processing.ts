@@ -13,12 +13,12 @@ import {
 	setMetadataForFile,
 } from '../metadataState';
 import { stageMetadataToSelection } from '../fileList/actions';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
-	applyMetadataIntentPatch,
-	buildMetadataIntentPatchFromMetadata,
-	hasActionableMetadataIntentPatch,
-	type MetadataIntentPatch,
-} from '../../types/metadataIntent';
+	applyMetadataDraftIntent,
+	buildMetadataDraftIntent,
+	hasActionableMetadataDraftIntent,
+} from '../metadataDraft';
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
@@ -153,14 +153,14 @@ export async function startProcessing(
 			if (hasDirtyMetadataFields()) {
 				const selectedFileIndex = getSelectedFileIndex();
 				const formMetadata = readMetadataForm({ mode: 'single' });
-				const intentPatch = buildMetadataIntentPatchFromMetadata(formMetadata);
+				const intentPatch = buildMetadataDraftIntent(formMetadata);
 				const activeFile =
 					selectedFileIndex >= 0
 						? fileList.files[selectedFileIndex]
 						: fileList.files.find((file) => file.isValid);
-				if (activeFile?.isValid && hasActionableMetadataIntentPatch(intentPatch)) {
+				if (activeFile?.isValid && hasActionableMetadataDraftIntent(intentPatch)) {
 					const existing = getMetadataForFile(activeFile.path) ?? {};
-					currentMetadata = applyMetadataIntentPatch(existing, intentPatch);
+					currentMetadata = applyMetadataDraftIntent(existing, intentPatch);
 					setMetadataForFile(activeFile.path, currentMetadata, {
 						markPending: true,
 						intentPatch,
@@ -207,7 +207,7 @@ export async function startProcessing(
 			if (
 				mergeKey &&
 				processPayload.inputFiles.length > 0 &&
-				hasActionableMetadataIntentPatch(mergeIntentPatch)
+				hasActionableMetadataDraftIntent(mergeIntentPatch)
 			) {
 				metadataIntentPayload = {
 					[mergeKey]: mergeIntentPatch,
@@ -219,7 +219,7 @@ export async function startProcessing(
 			const filteredMetadataIntent = Object.fromEntries(
 				Object.entries(storedMetadataIntent).filter(
 					([filePath, value]) =>
-						activeInputFiles.has(filePath) && hasActionableMetadataIntentPatch(value),
+						activeInputFiles.has(filePath) && hasActionableMetadataDraftIntent(value),
 				),
 			);
 			metadataIntentPayload =

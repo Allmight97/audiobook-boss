@@ -1,8 +1,10 @@
+import { get } from 'svelte/store';
+
 import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList } from '../fileList';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/actions';
 import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
-import { isMetadataSaveInProgress, setMetadataSaveInProgress } from '../metadataSaveState';
+import { metadataSaveInProgressStore } from '../metadataSaveState';
 import { resetDirtyState } from '../metadataForm';
 import {
 	initStatusPanel,
@@ -26,13 +28,13 @@ export async function saveMetadataFromUI(): Promise<void> {
 
 	pushStatusPanelTransientStatus('Preparing metadata save...', { ttlMs: 1_000 });
 
-	if (isMetadataSaveInProgress()) {
+	if (get(metadataSaveInProgressStore)) {
 		pushStatusPanelTransientStatus('Save already in progress...', { ttlMs: 1_500 });
 		return;
 	}
 
 	try {
-		setMetadataSaveInProgress(true);
+		metadataSaveInProgressStore.set(true);
 		await persistPendingMetadataDraftsForCurrentSelection({ showStatus: false });
 
 		const validFilePaths = new Set(
@@ -80,7 +82,7 @@ export async function saveMetadataFromUI(): Promise<void> {
 		console.error('Failed to save metadata:', error);
 		pushStatusPanelTransientStatus('Save failed - see console', { ttlMs: 3_000 });
 	} finally {
-		setMetadataSaveInProgress(false);
+		metadataSaveInProgressStore.set(false);
 	}
 }
 

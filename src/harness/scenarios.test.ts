@@ -12,6 +12,8 @@ describe('harness scenario routing', () => {
 		const scenarios = resolveHarnessScenariosForPaths([
 			'src/ui/metadataLookup.ts',
 			'src/ui/metadataForm/MetadataFormFieldsIsland.svelte',
+			'src/ui/metadataDraft.ts',
+			'src/ui/metadataSaveState.ts',
 		]);
 
 		expect(scenarios.map((scenario) => scenario.id)).toContain('metadata-edit');

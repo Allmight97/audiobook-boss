@@ -1,10 +1,10 @@
 import type { AudiobookMetadata } from '../types/metadata';
 import type { MetadataIntentPatch } from '../types/metadataIntent';
 import {
-	buildMetadataIntentPatchFromMetadata,
-	hasActionableMetadataIntentPatch,
-	mergeMetadataIntentPatches,
-} from '../types/metadataIntent';
+	buildMetadataDraftIntent,
+	hasActionableMetadataDraftIntent,
+	mergeMetadataDraftIntents,
+} from './metadataDraft';
 
 const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
 const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
@@ -54,10 +54,10 @@ export function setMetadataForFile(
 ): void {
 	metadataByFile.set(filePath, metadata);
 	if (options?.markPending) {
-		const nextPatch = options.intentPatch ?? buildMetadataIntentPatchFromMetadata(metadata);
-		if (hasActionableMetadataIntentPatch(nextPatch)) {
+		const nextPatch = options.intentPatch ?? buildMetadataDraftIntent(metadata);
+		if (hasActionableMetadataDraftIntent(nextPatch)) {
 			const existing = metadataIntentByFile.get(filePath) ?? {};
-			metadataIntentByFile.set(filePath, mergeMetadataIntentPatches(existing, nextPatch));
+			metadataIntentByFile.set(filePath, mergeMetadataDraftIntents(existing, nextPatch));
 		}
 		pendingSavePaths.add(filePath);
 	}

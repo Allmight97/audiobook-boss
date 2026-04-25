@@ -11,8 +11,9 @@
  * - album_sort = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
  * - date = Publication date (YYYY or YYYY-MM in ©day)
  *
- * `track` and `disk` remain readable for compatibility, but ABB does not expose
- * them as supported writable metadata-intent fields.
+ * `track`, `disk`, and `comment` remain readable for compatibility, but ABB does
+ * not expose them as supported UI draft write fields. `album_sort` is writable
+ * only through explicit backend intent.
  */
 
 import type {

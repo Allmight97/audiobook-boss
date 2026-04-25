@@ -23,8 +23,9 @@ pub mod passthrough;
 
 /// Represents audiobook metadata.
 ///
-/// `track` and `disk` are preserved for read compatibility with files in the wild,
-/// but ABB does not expose them as supported writable metadata-intent fields.
+/// `track`, `disk`, and `comment` are preserved for read compatibility with files
+/// in the wild, but ABB does not expose them as supported UI draft write fields.
+/// `album_sort` is writable only through explicit backend intent.
 ///
 /// Field mapping for Plex/Audiobookshelf compatibility:
 /// - `artist` = Author (also written to AlbumArtist)
@@ -116,10 +117,13 @@ impl MetadataWritePlan {
     }
 }
 
-/// Writable metadata-intent surface for ABB.
+/// Writable metadata-intent contract for ABB.
 ///
-/// This intentionally omits `track` and `disk`; those tags remain readable in
-/// [`AudiobookMetadata`] but are not part of the supported write contract.
+/// UI drafts support title, author, album, narrator, genre, publication date,
+/// description, series, subseries, and cover-art intent. `album_sort` is included
+/// as an explicit backend operation for set, clear, preserve, or recompute.
+/// Read-compatible `track`, `disk`, and `comment` fields remain outside this
+/// write-intent contract.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
 pub struct MetadataIntentPatch {
     #[serde(default)]
@@ -716,21 +720,23 @@ mod tests {
     }
 
     #[test]
-    fn metadata_intent_patch_write_contract_keeps_track_and_disk_read_only() {
+    fn metadata_intent_patch_write_contract_keeps_read_compatible_fields_out_of_write_intent() {
         let patch = MetadataIntentPatch::from(AudiobookMetadata {
             title: Some("Read Compatible".to_string()),
             track: Some((3, Some(12))),
             disk: Some((1, Some(2))),
+            comment: Some("Reader note".to_string()),
             ..Default::default()
         });
 
         let resolved = patch
             .to_write_metadata()
-            .expect("write metadata should still compile without track/disk support");
+            .expect("write metadata should still compile without read-compatible fields");
 
         assert_eq!(resolved.title.as_deref(), Some("Read Compatible"));
         assert_eq!(resolved.track, None);
         assert_eq!(resolved.disk, None);
+        assert_eq!(resolved.comment, None);
     }
 
     #[test]
