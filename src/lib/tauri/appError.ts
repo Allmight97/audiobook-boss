@@ -92,10 +92,6 @@ export function normalizeAppError(
 	};
 }
 
-export function formatAppErrorMessage(error: unknown, fallbackMessage = 'Unknown error'): string {
-	return normalizeAppError(error, fallbackMessage).message;
-}
-
 /**
  * Canonical Result shape produced by specta-generated command bindings:
  *

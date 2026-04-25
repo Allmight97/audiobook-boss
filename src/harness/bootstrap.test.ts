@@ -16,7 +16,7 @@ vi.mock('../ui/fileList/actions', () => ({
 	selectFile: bootstrapDeps.selectFile,
 }));
 
-vi.mock('../ui/outputPanel/state', () => ({
+vi.mock('../ui/outputPanel/state.svelte', () => ({
 	updateOutputDirectory: bootstrapDeps.updateOutputDirectory,
 	updateNamingPreset: bootstrapDeps.updateNamingPreset,
 }));

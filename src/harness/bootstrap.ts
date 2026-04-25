@@ -1,5 +1,5 @@
 import { displayFileList, selectFile } from '../ui/fileList/actions';
-import { updateOutputDirectory, updateNamingPreset } from '../ui/outputPanel/state';
+import { updateOutputDirectory, updateNamingPreset } from '../ui/outputPanel/state.svelte';
 import { setJobTypeSelection } from '../ui/jobControls';
 import { clearMetadataState, setMetadataForFile } from '../ui/metadataState';
 import {

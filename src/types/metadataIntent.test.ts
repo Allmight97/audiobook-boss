@@ -6,6 +6,7 @@ import {
 	compileMetadataIntentPatch,
 	hasActionableMetadataIntentPatch,
 	mergeMetadataIntentPatches,
+	normalizePublicationDate,
 } from './metadataIntent';
 
 describe('metadata intent patch helpers', () => {
@@ -157,5 +158,39 @@ describe('metadata intent patch helpers', () => {
 		expect(patch).toEqual({
 			title: { op: 'set', value: 'Writable' },
 		});
+	});
+});
+
+describe('normalizePublicationDate', () => {
+	it('accepts bare year', () => {
+		expect(normalizePublicationDate('2024')).toBe('2024');
+	});
+
+	it('accepts year-month', () => {
+		expect(normalizePublicationDate('2024-01')).toBe('2024-01');
+	});
+
+	it('truncates day component to YYYY-MM', () => {
+		expect(normalizePublicationDate('2024-01-15')).toBe('2024-01');
+	});
+
+	it('truncates ISO timestamp to YYYY-MM', () => {
+		expect(normalizePublicationDate('2024-01-15T12:00:00Z')).toBe('2024-01');
+	});
+
+	it('rejects invalid month', () => {
+		expect(normalizePublicationDate('2024-13')).toBeNull();
+	});
+
+	it('rejects invalid format', () => {
+		expect(normalizePublicationDate('not a date')).toBeNull();
+	});
+
+	it('rejects empty string', () => {
+		expect(normalizePublicationDate('')).toBeNull();
+	});
+
+	it('trims surrounding whitespace', () => {
+		expect(normalizePublicationDate('  2024-01  ')).toBe('2024-01');
 	});
 });

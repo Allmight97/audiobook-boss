@@ -7,7 +7,7 @@ import {
 	updateNamingPreset,
 	updateNamingTemplate,
 	updateAbsIncludeYear,
-} from './state';
+} from './state.svelte';
 import { updateOutputPath, updateNamingOptionState, showOutputError } from './dom';
 
 const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
@@ -90,8 +90,4 @@ export function handleNamingTemplateInput(event: Event): void {
 
 export function resetOutputPanelHandlers(): void {
 	resetTemplatePreviewDebounce();
-}
-
-export function setupEventHandlers(): void {
-	resetOutputPanelHandlers();
 }

@@ -79,9 +79,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const behaviorRow = document.getElementById('encoder-inline-option-row');
@@ -112,9 +112,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(outputPanelState.encoderSettings.encoderType).toBe('auto');
@@ -131,9 +131,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(
@@ -174,9 +174,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(
@@ -186,7 +186,7 @@ describe('encoder panel behavior controls', () => {
 			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
 
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 		await vi.waitFor(() => {
 			expect(encoderPanelState.fdkAfterburner).toBe(false);
 			expect(encoderPanelState.nativeTwoloop).toBe(false);
@@ -202,9 +202,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		const encoderSelect = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(encoderSelect, 'native_aac');
@@ -246,9 +246,9 @@ describe('encoder panel behavior controls', () => {
 			statusMessage: 'FDK AAC is using the saved override path.',
 		});
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('external-toolchain-path-display')?.textContent).toContain(
@@ -267,9 +267,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('external-toolchain-status')?.textContent).toContain(
@@ -296,9 +296,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -330,9 +330,9 @@ describe('encoder panel behavior controls', () => {
 			statusMessage: 'Saved override path is invalid. Auto-detected FDK AAC is active.',
 		});
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('external-toolchain-status')?.textContent).toContain(
@@ -357,9 +357,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -382,9 +382,9 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;

@@ -8,7 +8,7 @@ import {
 	updateNamingTemplate,
 	updateOutputDirectory,
 	type OutputNamingPreset,
-} from '../ui/outputPanel/state';
+} from '../ui/outputPanel/state.svelte';
 import { updateNamingOptionState, updateOutputPath } from '../ui/outputPanel/dom';
 import {
 	resetStatusPanelViewState,

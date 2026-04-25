@@ -57,9 +57,9 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -79,9 +79,9 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -100,9 +100,9 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -123,9 +123,9 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -151,9 +151,9 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initEncoderPanel } = await import('../encoderPanel');
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
-		initEncoderPanel();
+		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;

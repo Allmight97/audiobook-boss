@@ -3,7 +3,7 @@
  *
  * Re-exports public API from submodules.
  */
-import { loadInitialState } from './state';
+import { loadInitialState } from './state.svelte';
 import { resetOutputPanelHandlers } from './handlers';
 import { updateOutputPath, updateEstimatedSize, updateNamingOptionState } from './dom';
 
@@ -19,8 +19,8 @@ export function initOutputPanel(): void {
 }
 
 // Re-export commonly needed items
-export { getState } from './state';
-export { readOutputConfigForProcessing } from './state';
+export { getState } from './state.svelte';
+export { readOutputConfigForProcessing } from './state.svelte';
 export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './dom';
 export { sanitizeFilename, calculateOutputPath } from './pathBuilder';
 export { default as OutputPanelIsland } from './OutputPanelIsland.svelte';

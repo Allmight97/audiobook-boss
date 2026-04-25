@@ -3,7 +3,6 @@ import { render } from '@testing-library/svelte';
 import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
 import {
 	getCurrentCoverArt,
-	initCoverArt,
 	isCoverArtRemovalRequested,
 	onClearCoverArt,
 	onLoadCoverArtFromFilePicker,
@@ -30,7 +29,6 @@ describe('CoverArt island mount + clear behavior', () => {
 	});
 
 	it('mounts from root and clears cover art through UI action', () => {
-		initCoverArt();
 		setCoverArt([0x89, 0x50, 0x4e, 0x47]);
 
 		const clearButton = document.getElementById('cover-art-clear-btn') as HTMLButtonElement | null;

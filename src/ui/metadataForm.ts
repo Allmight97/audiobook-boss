@@ -1,4 +1,5 @@
 import type { AudiobookMetadata } from '../types/metadata';
+import { normalizePublicationDate } from '../types/metadataIntent';
 import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
@@ -33,22 +34,6 @@ function readFieldValue(inputId: MetadataFieldId): string {
 
 function readFieldAction(inputId: MetadataFieldId): MetadataFieldAction {
 	return metadataFormState.fields[inputId].action;
-}
-
-function normalizePublicationDate(raw: string): string | null {
-	const trimmed = raw.trim();
-	if (/^\d{4}$/.test(trimmed)) {
-		return trimmed;
-	}
-	const match = trimmed.match(/^(\d{4})-(\d{2})$/);
-	if (!match) {
-		return null;
-	}
-	const month = Number.parseInt(match[2], 10);
-	if (!Number.isInteger(month) || month < 1 || month > 12) {
-		return null;
-	}
-	return `${match[1]}-${match[2]}`;
 }
 
 function markDirty(inputId: MetadataFieldId): void {
