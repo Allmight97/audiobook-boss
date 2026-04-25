@@ -28,6 +28,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
+- Load `audit-boundary-glue` when reviewing wrapper-heavy boundary code,
+  deciding whether thin adapters/init functions should stay, or bundling
+  cleanup into an architecture/refactor PR.
 
 ## Preferred Path
 
@@ -43,6 +46,13 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
 - For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
+
+### Communication With Repo Owner
+
+- Prefer outcome-first explanations with concrete domain framing.
+- When introducing engineering jargon or subtle code-shape concepts, use a short
+  concrete analogy if it makes the category easier to recognize. Keep the analogy
+  tied to the decision; do not let it replace file-backed reasoning.
 
 ### Execution Defaults
 
