@@ -56,46 +56,65 @@ def is_test_file(path: Path) -> bool:
     return any(pattern in path_str for pattern in test_patterns)
 
 
-def get_test_type(path: Path) -> str | None:
-    """Check test type in Rust files: 'inline' for actual test code, 'import' for test module imports."""
+def analyze_test_content(path: Path) -> tuple[str, int] | None:
+    """Return (test_type, test_percent) for Rust files.
+    
+    test_type: 'import' for cfg(test) mod name; — points to external file.
+               'inline' for actual test code in a cfg(test) module.
+    test_percent: percentage of file that is test code (0-100).
+    """
     if path.suffix != ".rs":
         return None
     try:
         with path.open("r", encoding="utf-8", errors="ignore") as handle:
             content = handle.read()
-            if "#[cfg(test)]" not in content:
-                return None
 
-            # Check if it's just importing a test module: #[cfg(test)]\nmod name;
-            # vs actual inline tests: #[cfg(test)]\nmod name { or #[test]
-            # Look for pattern: #[cfg(test)] followed by mod name; (with semicolon, not brace)
-            if re.search(r'#\[cfg\(test\)\]\s*mod\s+\w+\s*;', content):
-                return "import"
-            # If has #[cfg(test)] but not the import pattern, assume inline
-            return "inline"
+        if "#[cfg(test)]" not in content:
+            return None
+
+        total_lines = content.count('\n')
+        if total_lines == 0:
+            return None
+
+        # Check if it's just importing a test module: #[cfg(test)] mod name;
+        if re.search(r'#\[cfg\(test\)\]\s*mod\s+\w+\s*;', content):
+            return ("import", 0)
+
+        # Find the first #[cfg(test)] marker and measure from there
+        match = re.search(r'^#\[cfg\(test\)\]', content, re.MULTILINE)
+        if match:
+            test_lines = content[match.start():].count('\n')
+            pct = round(test_lines / total_lines * 100)
+        else:
+            pct = 0
+
+        return ("inline", pct)
     except OSError:
         return None
 
 
 def main() -> None:
-    results: List[Tuple[str, int, str | None]] = []  # (path, lines, test_type)
+    results: List[Tuple[str, int, str | None, int]] = []  # (path, lines, test_type, test_pct)
     cwd = Path.cwd()
 
     for file_path in iter_source_files():
         line_count = count_lines(file_path)
-        test_type = get_test_type(file_path)
+        test_info = analyze_test_content(file_path)
+        if test_info:
+            test_type, test_pct = test_info
+        else:
+            test_type, test_pct = None, 0
         try:
             rel_path = str(file_path.relative_to(cwd))
         except ValueError:
-            # Fallback if paths don't align
             rel_path = str(file_path)
-        results.append((rel_path, line_count, test_type))
+        results.append((rel_path, line_count, test_type, test_pct))
 
     results.sort(key=lambda item: item[1], reverse=True)
 
     # Separate source modules from test files
-    source_modules = [(m, l, t) for m, l, t in results if not is_test_file(Path(m))]
-    test_files = [(m, l, t) for m, l, t in results if is_test_file(Path(m))]
+    source_modules = [(m, l, t, p) for m, l, t, p in results if not is_test_file(Path(m))]
+    test_files = [(m, l, t, p) for m, l, t, p in results if is_test_file(Path(m))]
 
     # Print source modules
     print(f"Source modules >= {THRESHOLD} lines (scanned: {', '.join(str(p) for p in BASE_DIRS)})")
@@ -104,10 +123,12 @@ def main() -> None:
     print("-" * 72)
 
     source_over_count = 0
-    for module, lines, test_type in source_modules:
+    for module, lines, test_type, test_pct in source_modules:
         flag = "OVER" if lines >= THRESHOLD else ""
-        if test_type:
-            flag = f"{flag} [tests:{test_type}]".strip()
+        if test_type == "import":
+            flag = f"{flag} [test import]".strip()
+        elif test_type == "inline":
+            flag = f"{flag} [{test_pct}% tests]".strip()
         if lines >= THRESHOLD:
             source_over_count += 1
         display_name = module if len(module) <= 50 else "..." + module[-47:]
@@ -121,10 +142,12 @@ def main() -> None:
     print("-" * 72)
 
     test_over_count = 0
-    for module, lines, test_type in test_files:
+    for module, lines, test_type, test_pct in test_files:
         flag = "OVER" if lines >= THRESHOLD else ""
-        if test_type:
-            flag = f"{flag} [tests:{test_type}]".strip()
+        if test_type == "import":
+            flag = f"{flag} [test import]".strip()
+        elif test_type == "inline":
+            flag = f"{flag} [{test_pct}% tests]".strip()
         if lines >= THRESHOLD:
             test_over_count += 1
         display_name = module if len(module) <= 50 else "..." + module[-47:]
