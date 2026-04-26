@@ -8,6 +8,9 @@ const context = vi.hoisted(() => ({
 	getSelectedFilesMock: vi.fn(),
 	handleSelectionMock: vi.fn(() => ({ changed: true })),
 	showSingleSelectionMock: vi.fn(),
+	pushStatusPanelTransientStatusMock: vi.fn(),
+	validationErrorMock: vi.fn<() => string | null>(() => null),
+	clearSelectionMock: vi.fn(() => true),
 }));
 
 vi.mock('../metadataForm', () => ({
@@ -30,7 +33,7 @@ vi.mock('../outputPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: vi.fn(() => null),
+	getSeriesPartValidationError: context.validationErrorMock,
 	getSubseriesPartValidationError: vi.fn(() => null),
 }));
 
@@ -50,7 +53,7 @@ vi.mock('../fileList/events', () => ({
 }));
 
 vi.mock('../fileList/selection', () => ({
-	clearSelection: vi.fn(() => true),
+	clearSelection: context.clearSelectionMock,
 	handleSelection: context.handleSelectionMock,
 	reindexSelectionAfterMove: vi.fn(),
 	reindexSelectionAfterRemoval: vi.fn(),
@@ -65,6 +68,10 @@ vi.mock('../fileList/metadataPanel', () => ({
 	getSelectedFiles: context.getSelectedFilesMock,
 	showMultiSelection: vi.fn(async () => undefined),
 	showSingleSelection: context.showSingleSelectionMock,
+}));
+
+vi.mock('../statusPanel', () => ({
+	pushStatusPanelTransientStatus: context.pushStatusPanelTransientStatusMock,
 }));
 
 describe('selectFile transition options', () => {
@@ -111,6 +118,10 @@ describe('selectFile transition options', () => {
 		context.setMetadataForFileMock.mockClear();
 		context.handleSelectionMock.mockClear();
 		context.showSingleSelectionMock.mockClear();
+		context.pushStatusPanelTransientStatusMock.mockClear();
+		context.validationErrorMock.mockReset();
+		context.validationErrorMock.mockReturnValue(null);
+		context.clearSelectionMock.mockClear();
 		context.getSelectedFilesMock.mockReset();
 		context.getSelectedFilesMock.mockReturnValue([
 			{
@@ -137,6 +148,37 @@ describe('selectFile transition options', () => {
 			'/books/alpha.m4b',
 			{ title: 'Persisted Title' },
 			expect.objectContaining({ markPending: true }),
+		);
+	});
+
+	it('keeps the current selection when staging validation fails', async () => {
+		context.validationErrorMock.mockReturnValue('Series part must be a number');
+		const { selectFile } = await import('../fileList/actions');
+
+		await selectFile(1, { multi: false, range: false });
+
+		expect(context.handleSelectionMock).not.toHaveBeenCalled();
+		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
+			'Series part must be a number',
+			expect.objectContaining({ ttlMs: 2500 }),
+		);
+		expect(context.showSingleSelectionMock).not.toHaveBeenCalled();
+	});
+
+	it('keeps the current selection when clear-selection staging validation fails', async () => {
+		context.validationErrorMock.mockReturnValue('Series part must be a number');
+		context.getSelectedFilesMock.mockReturnValue([
+			{ path: '/books/alpha.m4b', isValid: true },
+			{ path: '/books/beta.m4b', isValid: true },
+		]);
+		const { clearSelectionAction } = await import('../fileList/actions');
+
+		await clearSelectionAction();
+
+		expect(context.clearSelectionMock).not.toHaveBeenCalled();
+		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
+			'Fix metadata validation errors before clearing the selection.',
+			expect.objectContaining({ ttlMs: 2500 }),
 		);
 	});
 });

@@ -150,10 +150,6 @@ export function isTerminalProgressStage(stage: EventStage): boolean {
 	);
 }
 
-export function isTerminalProgressEvent(stage: EventStage): boolean {
-	return isTerminalProgressStage(stage);
-}
-
 export function toTerminalJobStatus(
 	stage: EventStage,
 ): Exclude<JobStatus, 'processing' | 'queued'> {

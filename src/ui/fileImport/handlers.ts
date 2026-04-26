@@ -155,7 +155,11 @@ async function processFilePaths(
 
 	try {
 		const fileListInfo: FileListInfo = await tauriClient.analyzeAudioFiles(filePaths);
-		await persistPendingMetadataDraftsForCurrentSelection();
+		const staged = await persistPendingMetadataDraftsForCurrentSelection();
+		if (!staged) {
+			setFileImportError('Fix metadata validation errors before adding files.');
+			return;
+		}
 		appendFileList(fileListInfo, { existingFiles });
 		clearFileImportError();
 	} catch (error) {

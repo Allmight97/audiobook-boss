@@ -1,23 +1,24 @@
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 
 use super::super::ffi::set_attached_pic_disposition;
 use super::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
 
-/// Adds a cover art stream prior to header writing. Returns output stream index if added.
+/// Adds a cover art stream prior to header writing.
 ///
 /// For M4B/MP4 containers, this properly sets the `attached_pic` disposition using
 /// FFI to ensure the stream is treated as cover art rather than a regular video stream.
 pub fn add_cover_art_stream_pre_header(
     octx: &mut ff::format::context::Output,
     cover_data: &[u8],
-) -> Option<(usize, CoverFormat)> {
+) -> Result<Option<(usize, CoverFormat)>> {
     if cover_data.is_empty() {
-        return None;
+        return Ok(None);
     }
     let Some(format) = detect_cover_art_format(cover_data) else {
-        log::warn!("Unsupported cover art format (only JPEG/PNG). Cover art will be skipped.");
-        return None;
+        return Err(AppError::General(
+            "Unsupported cover art format (only JPEG and PNG are supported)".to_string(),
+        ));
     };
 
     let codec_id = match format {
@@ -25,11 +26,10 @@ pub fn add_cover_art_stream_pre_header(
         CoverFormat::Png => ff::codec::Id::PNG,
     };
     let Some(codec) = ff::encoder::find(codec_id) else {
-        log::warn!(
-            "Cover art codec {:?} missing in ffmpeg build; cover art will be skipped",
+        return Err(AppError::General(format!(
+            "Cover art codec {:?} missing in ffmpeg build",
             format
-        );
-        return None;
+        )));
     };
 
     match octx.add_stream(codec) {
@@ -37,31 +37,20 @@ pub fn add_cover_art_stream_pre_header(
             let idx = stream.index();
 
             // Configure stream parameters for cover art
-            if let Err(e) = configure_cover_art_stream_parameters(&mut stream, format, cover_data) {
-                log::warn!("Failed to configure cover art stream parameters ({}); cover art will be skipped", e);
-                return None;
-            }
+            configure_cover_art_stream_parameters(&mut stream, format, cover_data)?;
 
             // Set the ATTACHED_PIC disposition using FFI
             // This is crucial for M4B/MP4 containers to properly recognize cover art
-            if let Err(e) = set_attached_pic_disposition(octx, idx) {
-                log::warn!(
-                    "Failed to set attached_pic disposition ({}); trying without disposition",
-                    e
-                );
-            }
+            set_attached_pic_disposition(octx, idx)?;
 
             log::info!("Added cover art stream with attached_pic disposition (index={}, format={:?}, bytes={})",
                       idx, format, cover_data.len());
-            Some((idx, format))
+            Ok(Some((idx, format)))
         }
-        Err(e) => {
-            log::warn!(
-                "Failed adding cover art stream ({}); cover art will be skipped",
-                e
-            );
-            None
-        }
+        Err(e) => Err(AppError::General(format!(
+            "Failed adding cover art stream: {}",
+            e
+        ))),
     }
 }
 
@@ -75,9 +64,9 @@ pub fn write_cover_art_packet_post_header(
     stream_index: usize,
     cover_data: &[u8],
     format: CoverFormat,
-) {
+) -> Result<()> {
     if cover_data.is_empty() {
-        return;
+        return Ok(());
     }
 
     let mut pkt = ff::Packet::copy(cover_data);
@@ -89,19 +78,14 @@ pub fn write_cover_art_packet_post_header(
     pkt.set_pts(Some(0));
     pkt.set_dts(Some(0));
 
-    if let Err(e) = pkt.write_interleaved(octx) {
-        log::warn!(
-            "Failed writing cover art packet ({}); finalize stage will attempt embedding",
-            e
-        );
-    } else {
-        log::info!(
-            "Cover art packet written as attached pic (stream={}, format={:?}, size={} bytes)",
-            stream_index,
-            format,
-            cover_data.len()
-        );
-    }
+    pkt.write_interleaved(octx).map_err(AppError::Ffmpeg)?;
+    log::info!(
+        "Cover art packet written as attached pic (stream={}, format={:?}, size={} bytes)",
+        stream_index,
+        format,
+        cover_data.len()
+    );
+    Ok(())
 }
 
 /// Configures stream parameters for cover art embedding
@@ -129,10 +113,9 @@ fn configure_cover_art_stream_parameters(
         .video()
         .map_err(|e| AppError::General(format!("Failed to create video encoder context: {}", e)))?;
 
-    // Return an error when dimensions cannot be detected; the caller
-    // (add_cover_art_stream_pre_header) will log a warning and skip embedding.
-    // Using a fixed 600×600 here would produce wrong codec parameters,
-    // which is worse than omitting cover art entirely.
+    // Return an error when dimensions cannot be detected; explicit cover-art
+    // writes must not be reported as successful if the stream cannot be built.
+    // Using a fixed 600×600 here would produce wrong codec parameters.
     let (width, height) = detect_image_dimensions(cover_data, format).ok_or_else(|| {
         AppError::General(format!(
             "Cannot detect dimensions for {:?} cover art ({} bytes); skipping embedding",

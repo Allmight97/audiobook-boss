@@ -141,6 +141,8 @@ pub fn add_chapters_to_output(
     octx: &mut ff::format::context::Output,
     chapters: &[ChapterSpec],
 ) -> Result<usize> {
+    use crate::errors::AppError;
+
     let mut copied = 0;
     if chapters.is_empty() {
         return Ok(0);
@@ -157,7 +159,12 @@ pub fn add_chapters_to_output(
             &title,
         ) {
             Ok(_) => copied += 1,
-            Err(e) => log::warn!("Failed to add chapter {} ({}): {}", idx, title, e),
+            Err(e) => {
+                return Err(AppError::General(format!(
+                    "Failed to add chapter {} ({}): {}",
+                    idx, title, e
+                )))
+            }
         }
     }
     Ok(copied)

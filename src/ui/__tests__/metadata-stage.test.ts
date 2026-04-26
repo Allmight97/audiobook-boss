@@ -9,6 +9,10 @@ import {
 } from '../metadataState';
 import type { FileListInfo } from '../../types/audio';
 
+const context = vi.hoisted(() => ({
+	validationErrorMock: vi.fn<() => string | null>(() => null),
+}));
+
 vi.mock('../fileList/metadataPanel', () => ({
 	ensureMetadataForFiles: vi.fn(async () => undefined),
 	getSelectedFiles: () => [
@@ -23,7 +27,7 @@ vi.mock('../outputPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: () => null,
+	getSeriesPartValidationError: context.validationErrorMock,
 	getSubseriesPartValidationError: () => null,
 }));
 
@@ -87,6 +91,16 @@ describe('stageMetadataToSelection', () => {
 		expect(didStage).toBe(true);
 		expect(getMetadataForFile('/a.mp3')).toMatchObject({ series: 'Series X' });
 		expect(getMetadataForFile('/b.mp3')).toMatchObject({ series: 'Series X' });
+		expect(getPendingMetadataEntries()).toEqual([]);
+	});
+
+	it('surfaces validation errors instead of staging invalid metadata', async () => {
+		context.validationErrorMock.mockReturnValue('Series part must be a number');
+
+		const didStage = await stageMetadataToSelection({ showStatus: false });
+
+		expect(didStage).toBe(false);
+		expect(getMetadataForFile('/a.mp3')).toBeUndefined();
 		expect(getPendingMetadataEntries()).toEqual([]);
 	});
 });

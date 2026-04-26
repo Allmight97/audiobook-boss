@@ -146,7 +146,11 @@ export async function startProcessing(
 
 		const selectionCount = getSelectedFileIndices().size;
 		if (selectionCount > 1) {
-			await stageMetadataToSelection({ showStatus: false });
+			const staged = await stageMetadataToSelection({ showStatus: false });
+			if (!staged) {
+				feedback.showError('Fix metadata validation errors before processing.');
+				return;
+			}
 		}
 		let currentMetadata: Partial<AudiobookMetadata> = {};
 		if (selectionCount <= 1) {

@@ -195,6 +195,21 @@ describe('startProcessing metadata staging', () => {
 		);
 	});
 
+	it('aborts processing when multi-selection staging fails', async () => {
+		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0, 1]));
+		context.stageMetadataToSelectionMock.mockResolvedValue(false);
+
+		await startProcessing(processingContext());
+
+		expect(context.stageMetadataToSelectionMock).toHaveBeenCalledWith({
+			showStatus: false,
+		});
+		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
+		expect(feedback.showError).toHaveBeenCalledWith(
+			'Fix metadata validation errors before processing.',
+		);
+	});
+
 	it('stages clear intent for dirty-but-empty metadata in merge payload', async () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: '   ' });

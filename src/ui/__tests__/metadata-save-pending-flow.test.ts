@@ -162,7 +162,7 @@ describe('metadata save pending flow', () => {
 	});
 
 	it('shows explicit status when there are no pending metadata changes', async () => {
-		context.persistPendingDraftsMock.mockResolvedValue(false);
+		context.persistPendingDraftsMock.mockResolvedValue(true);
 		context.getPendingIntentEntriesMock.mockReturnValue([]);
 
 		await saveMetadataFromUI();
@@ -175,6 +175,22 @@ describe('metadata save pending flow', () => {
 		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
 		await vi.waitFor(() => {
 			expect(getStatusText().textContent).toBe('No pending metadata changes');
+		});
+	});
+
+	it('aborts saving and surfaces an error when staging validation fails', async () => {
+		context.persistPendingDraftsMock.mockResolvedValue(false);
+		context.getPendingIntentEntriesMock.mockReturnValue([
+			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],
+		]);
+
+		await saveMetadataFromUI();
+
+		expect(context.saveMetadataIntentToFileMock).not.toHaveBeenCalled();
+		expect(context.clearPendingMock).not.toHaveBeenCalled();
+		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
+		await vi.waitFor(() => {
+			expect(getStatusText().textContent).toBe('Fix metadata validation errors before saving.');
 		});
 	});
 
