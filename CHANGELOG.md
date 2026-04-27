@@ -15,6 +15,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.17] - 2026-04-27
+
+Output-truth and boundary cleanup release. This tag makes required output
+metadata writes fail truthfully, keeps best-effort passthrough behavior
+explicit, and removes stale wrapper/export glue that was obscuring runtime
+ownership.
+
+### Changed
+
+- Required metadata, chapter, and explicit cover-art writes now fail the
+  affected processing job instead of logging and continuing with a misleading
+  success result.
+- Passthrough chapter and source-cover preservation remain best-effort, with
+  warning diagnostics instead of fatal job results.
+- Metadata staging failures now abort processing, selection transitions,
+  clear-selection, save, and file-import flows instead of allowing later
+  actions to proceed from invalid pending metadata.
+- Boundary cleanup removed unused public exports, identity adapters, test-only
+  passthroughs, one-line re-exports, and status-panel error helper wrappers.
+
+### Fixed
+
+- Explicit cover clear now suppresses source cover-art passthrough so cleared
+  outputs do not silently regain the original embedded cover.
+- Single-selection series-part validation now runs before processing starts.
+- `rustls-webpki` is patched to `0.103.13`.
+
 ## [1.0.16] - 2026-04-25
 
 Formal runtime architecture train closeout release. This tag includes the
