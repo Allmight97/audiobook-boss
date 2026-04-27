@@ -88,15 +88,21 @@ jobs:
           dmg_path="${{ steps.artifact.outputs.dmg_path }}"
 
           if gh release view "$tag" >/dev/null 2>&1; then
+            is_draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Release $tag already exists and is published; cannot upload assets to an immutable release." >&2
+              exit 1
+            fi
             gh release edit "$tag" \
               --title "$title" \
               --notes-file release-notes.md \
-              --latest
+              --draft
           else
             gh release create "$tag" \
               --title "$title" \
               --notes-file release-notes.md \
-              --latest
+              --draft
           fi
 
           gh release upload "$tag" "$dmg_path" --clobber
+          gh release edit "$tag" --draft=false --latest
