@@ -155,6 +155,10 @@ pub struct MetadataIntentPatch {
 }
 
 impl MetadataIntentPatch {
+    pub(crate) fn clears_cover_art(&self) -> bool {
+        matches!(self.cover_art, PatchOp::Clear)
+    }
+
     pub(crate) fn apply_to_metadata(
         &self,
         mut base: AudiobookMetadata,

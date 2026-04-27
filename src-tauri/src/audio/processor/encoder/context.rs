@@ -130,13 +130,9 @@ pub(crate) fn setup_encoder(
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
-        match crate::metadata::set_container_metadata(&mut octx, metadata) {
-            Ok(()) => log::debug!("Container metadata set successfully"),
-            Err(e) => log::warn!(
-                "Failed to set container metadata: {} - continuing with audio processing",
-                e
-            ),
-        }
+        crate::metadata::set_container_metadata(&mut octx, metadata)
+            .map_err(|e| AppError::General(format!("Failed to set container metadata: {e}")))?;
+        log::debug!("Container metadata set successfully");
     }
 
     let stream_codec_id = ff::codec::Id::AAC;
@@ -166,7 +162,6 @@ pub(crate) fn setup_encoder(
     let ost_time_base = ost.time_base();
 
     // Pre-header cover art stream attempt
-    let mut cover_art_stream_info: Option<(usize, crate::metadata::CoverFormat)> = None;
     // Prefer user-provided cover art; otherwise reuse passthrough cover art without reprocessing.
     let selected_cover = metadata
         .and_then(|m| m.cover_art.as_ref().map(|data| (data, "user")))
@@ -176,7 +171,9 @@ pub(crate) fn setup_encoder(
                 .map(|data| (data, "passthrough"))
         });
 
-    match selected_cover {
+    let selected_cover = selected_cover.filter(|(cover_data, _)| !cover_data.is_empty());
+
+    let cover_art_stream_info = match selected_cover {
         Some((cover_data, source)) => {
             let bytes = cover_data.len();
             log::info!(
@@ -184,23 +181,28 @@ pub(crate) fn setup_encoder(
                 source,
                 bytes
             );
-            cover_art_stream_info =
-                crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data);
+            let cover_art_stream_info =
+                match crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data) {
+                    Ok(stream_info) => stream_info,
+                    Err(error) if source == "passthrough" => {
+                        log::warn!(
+                            "Could not preserve passthrough cover art during native encoding: {}",
+                            error
+                        );
+                        None
+                    }
+                    Err(error) => return Err(error),
+                };
             if let Some((stream_idx, format)) = cover_art_stream_info {
                 log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
-            } else {
-                log::warn!(
-                    "cover_art_plan decision=failed reason=stream_creation_failed source={} bytes={}",
-                    source,
-                    bytes
-                );
-                log::warn!(
-                    "✗ Native cover art stream creation failed - cover art will not be embedded"
-                );
             }
+            cover_art_stream_info
         }
-        None => log::info!("cover_art_plan decision=none reason=no_cover_art_data"),
-    }
+        None => {
+            log::info!("cover_art_plan decision=none reason=no_cover_art_data");
+            None
+        }
+    };
 
     // Chapter passthrough: copy chapters from source inputs (#66)
     // Skip in preview mode since chapters won't align with shortened output
@@ -210,11 +212,15 @@ pub(crate) fn setup_encoder(
                 Ok(count) if count > 0 => {
                     log::info!("✓ Copied {} chapters from source files", count);
                 }
-                Ok(_) => log::debug!("No chapters found to copy from source files"),
-                Err(e) => log::warn!(
-                    "Could not copy chapters from sources: {} - continuing without chapters",
-                    e
-                ),
+                Ok(_) => {
+                    log::debug!("No chapters found to copy from source files");
+                }
+                Err(error) => {
+                    log::warn!(
+                        "Could not preserve passthrough chapters during native encoding: {}",
+                        error
+                    );
+                }
             }
         }
     } else {
@@ -235,16 +241,26 @@ pub(crate) fn setup_encoder(
                 cover_data.len(),
                 source
             );
-            crate::metadata::write_cover_art_packet_post_header(
+            if let Err(error) = crate::metadata::write_cover_art_packet_post_header(
                 &mut octx,
                 stream_index,
                 cover_data,
                 format,
-            );
-            log::info!(
-                "✓ Native cover art packet written successfully to stream {}",
-                stream_index
-            );
+            ) {
+                if source == "passthrough" {
+                    log::warn!(
+                        "Could not preserve passthrough cover art packet during native encoding: {}",
+                        error
+                    );
+                } else {
+                    return Err(error);
+                }
+            } else {
+                log::info!(
+                    "✓ Native cover art packet written successfully to stream {}",
+                    stream_index
+                );
+            }
         } else {
             log::warn!("Cover art stream exists but no cover bytes were available for writing");
         }

@@ -37,16 +37,40 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan(
     let mut octx = ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?;
     let metadata_value = metadata.map(|plan| &plan.metadata);
     let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata_value)?;
-    copy_chapters(&ictx, &mut octx, passthrough);
+    copy_chapters(&ictx, &mut octx, passthrough)?;
     copy_container_metadata(&ictx, &mut octx, metadata)?;
 
     let cover = select_cover_art(metadata_value, passthrough);
-    let cover_stream_info =
-        cover.and_then(|bytes| add_cover_art_stream_pre_header(&mut octx, bytes));
+    let cover_stream_info = if let Some(selection) = cover {
+        match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
+            Ok(stream_info) => stream_info,
+            Err(error) if selection.is_passthrough() => {
+                log::warn!(
+                    "Could not preserve passthrough cover art during metadata remux: {}",
+                    error
+                );
+                None
+            }
+            Err(error) => return Err(error),
+        }
+    } else {
+        None
+    };
     octx.write_header().map_err(AppError::Ffmpeg)?;
 
-    if let (Some(bytes), Some((stream_index, format))) = (cover, cover_stream_info) {
-        write_cover_art_packet_post_header(&mut octx, stream_index, bytes, format);
+    if let (Some(selection), Some((stream_index, format))) = (cover, cover_stream_info) {
+        if let Err(error) =
+            write_cover_art_packet_post_header(&mut octx, stream_index, selection.bytes(), format)
+        {
+            if selection.is_passthrough() {
+                log::warn!(
+                    "Could not preserve passthrough cover art packet during metadata remux: {}",
+                    error
+                );
+            } else {
+                return Err(error);
+            }
+        }
     }
 
     stream_copy_packets(&mut ictx, &mut octx, &stream_mapping, &output_time_bases)?;
@@ -130,14 +154,21 @@ fn copy_chapters(
     ictx: &ff::format::context::Input,
     octx: &mut ff::format::context::Output,
     passthrough: Option<&PassthroughMetadata>,
-) {
+) -> Result<()> {
     if let Some(passthrough) = passthrough {
-        let _ = crate::metadata::passthrough::add_chapters_to_output(octx, &passthrough.chapters);
-        return;
+        if let Err(error) =
+            crate::metadata::passthrough::add_chapters_to_output(octx, &passthrough.chapters)
+        {
+            log::warn!(
+                "Could not preserve passthrough chapters during metadata remux: {}",
+                error
+            );
+        }
+        return Ok(());
     }
 
     if ictx.nb_chapters() == 0 {
-        return;
+        return Ok(());
     }
 
     for chapter in ictx.chapters() {
@@ -155,6 +186,8 @@ fn copy_chapters(
             log::warn!("Failed to add chapter id {}: {}", chapter.id(), error);
         }
     }
+
+    Ok(())
 }
 
 fn copy_container_metadata(
@@ -173,13 +206,37 @@ fn copy_container_metadata(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CoverArtSelection<'a> {
+    Explicit(&'a Vec<u8>),
+    Passthrough(&'a Vec<u8>),
+}
+
+impl<'a> CoverArtSelection<'a> {
+    fn bytes(self) -> &'a Vec<u8> {
+        match self {
+            Self::Explicit(bytes) | Self::Passthrough(bytes) => bytes,
+        }
+    }
+
+    fn is_passthrough(self) -> bool {
+        matches!(self, Self::Passthrough(_))
+    }
+}
+
 fn select_cover_art<'a>(
     metadata: Option<&'a AudiobookMetadata>,
     passthrough: Option<&'a PassthroughMetadata>,
-) -> Option<&'a Vec<u8>> {
+) -> Option<CoverArtSelection<'a>> {
     metadata
         .and_then(|value| value.cover_art.as_ref())
-        .or_else(|| passthrough.and_then(|value| value.cover_art.as_ref()))
+        .map(CoverArtSelection::Explicit)
+        .or_else(|| {
+            passthrough
+                .and_then(|value| value.cover_art.as_ref())
+                .map(CoverArtSelection::Passthrough)
+        })
+        .filter(|selection| !selection.bytes().is_empty())
 }
 
 fn stream_copy_packets(

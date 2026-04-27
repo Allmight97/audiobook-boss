@@ -6,7 +6,9 @@ use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection, ProcessingContext, ProgressEmitter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg;
-use crate::metadata::passthrough::{extract_passthrough_metadata, PassthroughMetadata};
+use crate::metadata::passthrough::{
+    apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
+};
 use crate::metadata::AudiobookMetadata;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -19,6 +21,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
     files: Vec<AudioFile>,
     selected_decoders: Vec<Option<DecoderSelection>>,
     metadata: Option<AudiobookMetadata>,
+    allow_passthrough_cover_art: bool,
     toolchain: ValidatedExternalToolchain,
 ) -> Result<String> {
     if !matches!(
@@ -51,7 +54,10 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
     validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
 
-    let passthrough = collect_passthrough_metadata(&valid_files, context.preview.is_some());
+    let passthrough = apply_cover_art_policy(
+        collect_passthrough_metadata(&valid_files, context.preview.is_some()),
+        allow_passthrough_cover_art,
+    );
 
     let effective_metadata = merge_cover_art(metadata, passthrough.as_ref());
     let ui = context.new_emitter();
@@ -593,6 +599,7 @@ mod tests {
             }],
             vec![None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -649,6 +656,7 @@ mod tests {
             ],
             vec![None, None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg.clone(),
                 source: EncoderCapabilitySource::Override,
@@ -679,6 +687,7 @@ mod tests {
             vec![test_audio_file(first_input), test_audio_file(second_input)],
             vec![None, None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -731,6 +740,7 @@ mod tests {
             vec![test_audio_file(input_path.clone())],
             vec![None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -787,6 +797,7 @@ mod tests {
                 title: Some("Trigger rewrite".to_string()),
                 ..AudiobookMetadata::default()
             }),
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -847,6 +858,7 @@ mod tests {
             vec![test_audio_file(input_path.clone())],
             vec![None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -901,6 +913,7 @@ mod tests {
             vec![test_audio_file(input_path)],
             vec![None],
             None,
+            true,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -1109,6 +1122,23 @@ mod tests {
         .expect("cover-only passthrough");
         assert!(cover_only.chapters.is_empty());
         assert_eq!(cover_only.cover_art, Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn merge_cover_art_does_not_refill_when_passthrough_cover_is_filtered() {
+        let metadata = AudiobookMetadata {
+            cover_art: None,
+            ..AudiobookMetadata::default()
+        };
+        let passthrough = PassthroughMetadata {
+            chapters: Vec::new(),
+            cover_art: None,
+        };
+
+        let merged = merge_cover_art(Some(metadata), Some(&passthrough))
+            .expect("metadata should remain present");
+
+        assert_eq!(merged.cover_art, None);
     }
 
     fn fdk_test_settings() -> EncoderSettings {

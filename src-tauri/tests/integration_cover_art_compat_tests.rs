@@ -98,7 +98,7 @@ async fn covr_only_is_visible_to_ffprobe() {
 }
 
 #[test]
-fn skips_cover_art_stream_when_dimensions_are_undetectable() {
+fn fails_cover_art_stream_when_dimensions_are_undetectable() {
     ff::init().expect("ffmpeg init");
 
     let temp = TempDir::new().expect("temp dir");
@@ -109,7 +109,7 @@ fn skips_cover_art_stream_when_dimensions_are_undetectable() {
     let result = ffmpeg_add_cover_art_stream_pre_header(&mut octx, invalid_jpeg);
 
     assert!(
-        result.is_none(),
-        "cover art should be skipped when dimensions cannot be detected"
+        result.is_err(),
+        "explicit cover art writes should fail when dimensions cannot be detected"
     );
 }

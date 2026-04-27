@@ -99,7 +99,8 @@ fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
         ost.set_parameters(&enc);
         (ost.index(), ost.time_base())
     };
-    let cover_stream_info = ffmpeg_add_cover_art_stream_pre_header(&mut octx, cover_bytes);
+    let cover_stream_info =
+        ffmpeg_add_cover_art_stream_pre_header(&mut octx, cover_bytes).expect("add cover stream");
     octx.write_header().expect("write header");
 
     if let Some((cover_stream_index, format)) = cover_stream_info {
@@ -108,7 +109,8 @@ fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
             cover_stream_index,
             cover_bytes,
             format,
-        );
+        )
+        .expect("write cover packet");
     }
 
     let mut frame = ff::frame::Audio::empty();

@@ -71,7 +71,7 @@ async fn native_aac_regression_encodes_valid_output() {
         OutputConfig::new(&output_path),
     );
 
-    let result = audio::process_audiobook_with_context(context, file_info.files, None).await;
+    let result = audio::process_audiobook_with_context(context, file_info.files, None, true).await;
     assert!(
         result.is_ok(),
         "native AAC encode should complete without error: {:?}",
@@ -131,7 +131,7 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     );
     context.preview = Some(audio::context::PreviewConfig::new(preview_seconds));
 
-    let result = audio::process_audiobook_with_context(context, file_info.files, None).await;
+    let result = audio::process_audiobook_with_context(context, file_info.files, None, true).await;
     assert!(
         result.is_ok(),
         "native AAC preview encode should complete without error: {:?}",

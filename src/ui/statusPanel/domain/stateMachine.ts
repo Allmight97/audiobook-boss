@@ -12,7 +12,6 @@ import {
 	buildSingleCompletionFeedback,
 	cloneModel,
 	isTerminalJobStatus,
-	isTerminalProgressEvent,
 	isTerminalProgressStage,
 	recomputeStatus,
 	resolveProgressLabel,
@@ -110,7 +109,7 @@ export function applyProgress(
 	);
 	const existing = model.jobProgress.get(jobKey);
 	const prevStage = existing?.stage;
-	const isTerminal = isTerminalProgressEvent(event.stage);
+	const isTerminal = isTerminalProgressStage(event.stage);
 	const isStageTransition = prevStage !== undefined && prevStage !== event.stage;
 	const lastRender = model.lastProgressRenderByKey.get(jobKey) ?? 0;
 	const shouldThrottle =

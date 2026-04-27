@@ -22,6 +22,7 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) input_path: Option<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
+    pub(crate) allow_passthrough_cover_art: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -323,6 +324,9 @@ fn build_merge_processing_job(
         Some(&merge_source_path),
         merge_patch.as_ref(),
     )?;
+    let allow_passthrough_cover_art = !merge_patch
+        .as_ref()
+        .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
     let merge_naming_metadata = super::resolve_naming_metadata(
         merge_metadata.as_ref(),
         Some(&merge_source_path),
@@ -351,6 +355,7 @@ fn build_merge_processing_job(
         input_path: None,
         output,
         metadata: merge_metadata,
+        allow_passthrough_cover_art,
     })
 }
 
@@ -380,6 +385,9 @@ fn build_batch_processing_jobs(
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
         let effective_metadata =
             super::resolve_effective_processing_metadata(Some(&path), file_patch.as_ref())?;
+        let allow_passthrough_cover_art = !file_patch
+            .as_ref()
+            .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
         let naming_metadata = super::resolve_naming_metadata(
             effective_metadata.as_ref(),
             Some(&path),
@@ -402,6 +410,7 @@ fn build_batch_processing_jobs(
             input_path: Some(path),
             output,
             metadata: effective_metadata,
+            allow_passthrough_cover_art,
         });
     }
 
@@ -543,6 +552,7 @@ mod tests {
                     action: PlannedOutputAction::ReviewRequired,
                 },
                 metadata: None,
+                allow_passthrough_cover_art: true,
             }],
         };
 
@@ -598,6 +608,43 @@ mod tests {
         assert!(
             !planned_parent.exists(),
             "preflight planning should not create output parent directories"
+        );
+    }
+
+    #[test]
+    fn build_processing_plan_suppresses_passthrough_cover_after_explicit_clear() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let source_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .join("media")
+            .join("media_20sec.mp3");
+        let input_path = temp_dir.path().join("input.m4b");
+        std::fs::copy(&source_fixture, &input_path).expect("copy fixture");
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            input_path.to_string_lossy().to_string(),
+            MetadataIntentPatch {
+                cover_art: PatchOp::Clear,
+                ..Default::default()
+            },
+        );
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+        let inputs = ProcessingInputs {
+            output_naming: payload.output_naming.clone().unwrap_or_default(),
+            base_output_dir: temp_dir.path().to_path_buf(),
+            preview_seconds: None,
+        };
+
+        let plan = build_processing_plan(&payload, Some(&metadata), &inputs).expect("build plan");
+
+        assert_eq!(plan.jobs.len(), 1);
+        assert!(
+            !plan.jobs[0].allow_passthrough_cover_art,
+            "explicit cover clear must not be refilled from source passthrough"
         );
     }
 }

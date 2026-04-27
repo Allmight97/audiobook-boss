@@ -210,8 +210,8 @@ function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | nul
 }
 
 function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
-	if (!file?.isValid) return false;
-	if (!hasDirtyMetadataFields()) return false;
+	if (!file?.isValid) return true;
+	if (!hasDirtyMetadataFields()) return true;
 
 	const metadata = readMetadataForm({ mode: 'single' });
 	const validationError = validateSeriesFields(metadata);
@@ -223,11 +223,11 @@ function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
 	const existing = getMetadataForFile(file.path) ?? {};
 	const intentPatch = buildMetadataDraftIntent(metadata);
 	if (!hasActionableMetadataDraftIntent(intentPatch)) {
-		return false;
+		return true;
 	}
 	const merged = applyMetadataDraftIntent(existing, intentPatch);
 	if (metadataEqualsNullish(existing, merged)) {
-		return false;
+		return true;
 	}
 
 	setMetadataForFile(file.path, merged, {
@@ -255,19 +255,25 @@ export async function selectFile(
 	const previousFile =
 		previousSelectionCount === 1 ? (fileList.files[previousIndex] ?? null) : null;
 
-	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
-	if (!selectionResult.changed) return;
-
 	if (previousSelectionCount === 1 && previousIndex >= 0 && !options?.skipPersistPrevious) {
-		persistSingleSelectionMetadata(previousFile);
+		if (!persistSingleSelectionMetadata(previousFile)) {
+			return;
+		}
 	}
 
 	if (previousSelectionCount > 1) {
-		await stageMetadataToSelection({
+		const didStage = await stageMetadataToSelection({
 			showStatus: false,
 			selectedFilesOverride: previousSelectedFiles,
 		});
+		if (!didStage) {
+			setStatusMessage('Fix metadata validation errors before changing selection.');
+			return;
+		}
 	}
+
+	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
+	if (!selectionResult.changed) return;
 
 	updateSelection();
 
@@ -296,7 +302,9 @@ export function selectAll(): void {
 		getSelectedFiles().length === 1 && selectedIndex >= 0
 			? (fileList.files[selectedIndex] ?? null)
 			: null;
-	persistSingleSelectionMetadata(previousFile);
+	if (!persistSingleSelectionMetadata(previousFile)) {
+		return;
+	}
 
 	const changed = selectAllFiles();
 	if (!changed) return;
@@ -318,13 +326,19 @@ export async function clearSelectionAction(): Promise<void> {
 		fileList && previousSelectionCount === 1 && selectedIndex >= 0
 			? (fileList.files[selectedIndex] ?? null)
 			: null;
-	persistSingleSelectionMetadata(previousFile);
+	if (!persistSingleSelectionMetadata(previousFile)) {
+		return;
+	}
 
 	if (previousSelectionCount > 1) {
-		await stageMetadataToSelection({
+		const didStage = await stageMetadataToSelection({
 			showStatus: false,
 			selectedFilesOverride: getSelectedFiles(),
 		});
+		if (!didStage) {
+			setStatusMessage('Fix metadata validation errors before clearing the selection.');
+			return;
+		}
 	}
 
 	const changed = clearSelection();
@@ -338,19 +352,19 @@ export async function stageMetadataToSelection(options?: {
 	showStatus?: boolean;
 	selectedFilesOverride?: AudioFile[];
 }): Promise<boolean> {
-	if (!getCurrentFileList()) return false;
+	if (!getCurrentFileList()) return true;
 
 	const selectedFiles = (options?.selectedFilesOverride ?? getSelectedFiles()).filter(
 		(file) => file.isValid,
 	);
-	if (selectedFiles.length === 0) return false;
+	if (selectedFiles.length === 0) return true;
 
 	const changes = readMetadataForm({ mode: 'multi', onlyDirty: true });
 	if (Object.keys(changes).length === 0) {
 		if (options?.showStatus) {
 			setStatusMessage('No metadata changes to apply');
 		}
-		return false;
+		return true;
 	}
 
 	const validationError = validateSeriesFields(changes);
@@ -364,7 +378,7 @@ export async function stageMetadataToSelection(options?: {
 	await ensureMetadataForFiles(selectedFiles);
 	const intentPatch = buildMetadataDraftIntent(changes);
 	if (!hasActionableMetadataDraftIntent(intentPatch)) {
-		return false;
+		return true;
 	}
 
 	selectedFiles.forEach((file) => {
@@ -391,16 +405,17 @@ export async function stageMetadataToSelection(options?: {
 export async function persistPendingMetadataDraftsForCurrentSelection(options?: {
 	showStatus?: boolean;
 }): Promise<boolean> {
-	const selectedFiles = getSelectedFiles();
+	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
 	if (selectedFiles.length === 0) {
-		return false;
+		return true;
 	}
 	if (selectedFiles.length === 1) {
-		const changed = persistSingleSelectionMetadata(selectedFiles[0]);
-		if (changed && options?.showStatus) {
+		const hadDirtyMetadata = hasDirtyMetadataFields();
+		const persisted = persistSingleSelectionMetadata(selectedFiles[0]);
+		if (persisted && hadDirtyMetadata && options?.showStatus) {
 			setStatusMessage('Draft saved');
 		}
-		return changed;
+		return persisted;
 	}
 
 	return stageMetadataToSelection({ showStatus: options?.showStatus });

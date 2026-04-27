@@ -53,7 +53,7 @@ async fn encode_with_fastpath_mode(
         OutputConfig::new(output_path),
     );
 
-    audio::process_audiobook_with_context(context, input_info.files, None)
+    audio::process_audiobook_with_context(context, input_info.files, None, true)
         .await
         .expect("native AAC processing should complete")
 }

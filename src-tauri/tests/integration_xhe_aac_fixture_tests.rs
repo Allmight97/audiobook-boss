@@ -48,7 +48,13 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
     context.preview = Some(audio::context::PreviewConfig::new(20.0));
 
     let result = adapter
-        .execute(context, file_info.files, file_info.selected_decoders, None)
+        .execute(
+            context,
+            file_info.files,
+            file_info.selected_decoders,
+            None,
+            true,
+        )
         .await
         .expect("external FDK preview should encode the xHE-AAC fixture");
 

@@ -22,6 +22,8 @@ const context = vi.hoisted(() => ({
 	getMetadataIntentPatchForFileMock: vi.fn(),
 	setMetadataForFileMock: vi.fn(),
 	stageMetadataToSelectionMock: vi.fn(),
+	seriesPartValidationErrorMock: vi.fn(),
+	subseriesPartValidationErrorMock: vi.fn(),
 }));
 
 vi.mock('../../../lib/tauri/client', () => ({
@@ -69,6 +71,11 @@ vi.mock('../../fileList/actions', () => ({
 	stageMetadataToSelection: context.stageMetadataToSelectionMock,
 }));
 
+vi.mock('../../metadataValidation', () => ({
+	getSeriesPartValidationError: context.seriesPartValidationErrorMock,
+	getSubseriesPartValidationError: context.subseriesPartValidationErrorMock,
+}));
+
 vi.mock('../feedback', () => ({
 	showError: vi.fn(),
 }));
@@ -105,6 +112,8 @@ describe('startProcessing metadata staging', () => {
 		context.getMetadataIntentPatchForFileMock.mockReset();
 		context.setMetadataForFileMock.mockReset();
 		context.stageMetadataToSelectionMock.mockReset();
+		context.seriesPartValidationErrorMock.mockReset();
+		context.subseriesPartValidationErrorMock.mockReset();
 
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [
@@ -148,6 +157,8 @@ describe('startProcessing metadata staging', () => {
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
 		context.readAudioMetadataMock.mockResolvedValue({});
+		context.seriesPartValidationErrorMock.mockReturnValue(null);
+		context.subseriesPartValidationErrorMock.mockReturnValue(null);
 	});
 
 	it('does not snapshot empty metadata when no dirty form edits exist', async () => {
@@ -193,6 +204,34 @@ describe('startProcessing metadata staging', () => {
 				},
 			}),
 		);
+	});
+
+	it('aborts processing when multi-selection staging fails', async () => {
+		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0, 1]));
+		context.stageMetadataToSelectionMock.mockResolvedValue(false);
+
+		await startProcessing(processingContext());
+
+		expect(context.stageMetadataToSelectionMock).toHaveBeenCalledWith({
+			showStatus: false,
+		});
+		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
+		expect(feedback.showError).toHaveBeenCalledWith(
+			'Fix metadata validation errors before processing.',
+		);
+	});
+
+	it('aborts single-selection processing when dirty series-part metadata is invalid', async () => {
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ series_part: '1/2' });
+		context.seriesPartValidationErrorMock.mockReturnValue('Series part must be a number');
+
+		await startProcessing(processingContext());
+
+		expect(context.seriesPartValidationErrorMock).toHaveBeenCalledWith('1/2');
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
+		expect(feedback.showError).toHaveBeenCalledWith('Series part must be a number');
 	});
 
 	it('stages clear intent for dirty-but-empty metadata in merge payload', async () => {

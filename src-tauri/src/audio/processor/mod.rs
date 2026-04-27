@@ -14,6 +14,7 @@ use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::Result;
+use crate::metadata::passthrough::apply_cover_art_policy;
 use crate::metadata::AudiobookMetadata;
 use std::time::Duration;
 
@@ -78,6 +79,7 @@ pub async fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
+    allow_passthrough_cover_art: bool,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
     let mut metrics = ProcessingMetrics::new();
@@ -87,8 +89,10 @@ pub async fn process_audiobook_with_context(
     let workflow = prepare::validate_and_prepare(&context, &files)?;
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
-    let passthrough_metadata =
-        crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option();
+    let passthrough_metadata = apply_cover_art_policy(
+        crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option(),
+        allow_passthrough_cover_art,
+    );
 
     // Merge passthrough cover art when user metadata is absent or missing cover art.
     let mut effective_metadata = metadata;

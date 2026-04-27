@@ -35,7 +35,13 @@ export async function saveMetadataFromUI(): Promise<void> {
 
 	try {
 		metadataSaveInProgressStore.set(true);
-		await persistPendingMetadataDraftsForCurrentSelection({ showStatus: false });
+		const staged = await persistPendingMetadataDraftsForCurrentSelection({ showStatus: false });
+		if (!staged) {
+			pushStatusPanelTransientStatus('Fix metadata validation errors before saving.', {
+				ttlMs: 3_000,
+			});
+			return;
+		}
 
 		const validFilePaths = new Set(
 			fileList.files.filter((file) => file.isValid).map((file) => file.path),
