@@ -14,7 +14,7 @@ use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::Result;
-use crate::metadata::passthrough::PassthroughMetadata;
+use crate::metadata::passthrough::apply_cover_art_policy;
 use crate::metadata::AudiobookMetadata;
 use std::time::Duration;
 
@@ -89,27 +89,25 @@ pub async fn process_audiobook_with_context(
     let workflow = prepare::validate_and_prepare(&context, &files)?;
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
-    let passthrough_metadata = effective_passthrough_metadata(
+    let passthrough_metadata = apply_cover_art_policy(
         crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option(),
         allow_passthrough_cover_art,
     );
 
     // Merge passthrough cover art when user metadata is absent or missing cover art.
     let mut effective_metadata = metadata;
-    if allow_passthrough_cover_art {
-        if let Some(ref passthrough) = passthrough_metadata {
-            if let Some(ref cover) = passthrough.cover_art {
-                match effective_metadata.as_mut() {
-                    Some(md) => {
-                        if md.cover_art.is_none() {
-                            md.cover_art = Some(cover.clone());
-                        }
-                    }
-                    None => {
-                        let mut md = AudiobookMetadata::new();
+    if let Some(ref passthrough) = passthrough_metadata {
+        if let Some(ref cover) = passthrough.cover_art {
+            match effective_metadata.as_mut() {
+                Some(md) => {
+                    if md.cover_art.is_none() {
                         md.cover_art = Some(cover.clone());
-                        effective_metadata = Some(md);
                     }
+                }
+                None => {
+                    let mut md = AudiobookMetadata::new();
+                    md.cover_art = Some(cover.clone());
+                    effective_metadata = Some(md);
                 }
             }
         }
@@ -157,40 +155,4 @@ pub async fn process_audiobook_with_context(
         log::info!("{}", metrics.format_summary());
     }
     Ok(result)
-}
-
-fn effective_passthrough_metadata(
-    passthrough: Option<PassthroughMetadata>,
-    allow_passthrough_cover_art: bool,
-) -> Option<PassthroughMetadata> {
-    if allow_passthrough_cover_art {
-        return passthrough;
-    }
-
-    log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
-    passthrough.and_then(PassthroughMetadata::without_cover_art)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::effective_passthrough_metadata;
-    use crate::metadata::passthrough::{ChapterSpec, PassthroughMetadata};
-
-    #[test]
-    fn effective_passthrough_metadata_drops_only_cover_art_after_explicit_clear() {
-        let passthrough = PassthroughMetadata {
-            chapters: vec![ChapterSpec {
-                title: Some("Chapter 1".to_string()),
-                start_ms: 0,
-                end_ms: 1_000,
-            }],
-            cover_art: Some(vec![1, 2, 3]),
-        };
-
-        let effective = effective_passthrough_metadata(Some(passthrough), false)
-            .expect("chapter passthrough should remain");
-
-        assert_eq!(effective.chapters.len(), 1);
-        assert_eq!(effective.cover_art, None);
-    }
 }

@@ -43,6 +43,18 @@ impl PassthroughMetadata {
     }
 }
 
+pub fn apply_cover_art_policy(
+    passthrough: Option<PassthroughMetadata>,
+    allow_passthrough_cover_art: bool,
+) -> Option<PassthroughMetadata> {
+    if allow_passthrough_cover_art {
+        return passthrough;
+    }
+
+    log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
+    passthrough.and_then(PassthroughMetadata::without_cover_art)
+}
+
 fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpec> {
     let mut chapters = Vec::new();
     let mut offset_ms: i64 = 0;
@@ -202,7 +214,7 @@ fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChapterSpec, PassthroughMetadata};
+    use super::{apply_cover_art_policy, ChapterSpec, PassthroughMetadata};
 
     #[test]
     fn into_option_returns_none_for_empty_passthrough() {
@@ -269,5 +281,23 @@ mod tests {
         };
 
         assert!(passthrough.without_cover_art().is_none());
+    }
+
+    #[test]
+    fn apply_cover_art_policy_drops_only_cover_art_after_explicit_clear() {
+        let passthrough = PassthroughMetadata {
+            chapters: vec![ChapterSpec {
+                title: Some("Chapter 1".to_string()),
+                start_ms: 0,
+                end_ms: 1_000,
+            }],
+            cover_art: Some(vec![1, 2, 3]),
+        };
+
+        let effective =
+            apply_cover_art_policy(Some(passthrough), false).expect("chapter passthrough remains");
+
+        assert_eq!(effective.chapters.len(), 1);
+        assert_eq!(effective.cover_art, None);
     }
 }

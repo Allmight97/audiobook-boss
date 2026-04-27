@@ -6,7 +6,9 @@ use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection, ProcessingContext, ProgressEmitter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg;
-use crate::metadata::passthrough::{extract_passthrough_metadata, PassthroughMetadata};
+use crate::metadata::passthrough::{
+    apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
+};
 use crate::metadata::AudiobookMetadata;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -52,13 +54,12 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
     validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
 
-    let passthrough = effective_passthrough_metadata(
+    let passthrough = apply_cover_art_policy(
         collect_passthrough_metadata(&valid_files, context.preview.is_some()),
         allow_passthrough_cover_art,
     );
 
-    let effective_metadata =
-        merge_cover_art(metadata, passthrough.as_ref(), allow_passthrough_cover_art);
+    let effective_metadata = merge_cover_art(metadata, passthrough.as_ref());
     let ui = context.new_emitter();
     ui.emit_analyzing_start("Preparing external FDK job...");
     ui.emit_analyzing_end("External FDK toolchain validated.");
@@ -116,12 +117,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
 fn merge_cover_art(
     metadata: Option<AudiobookMetadata>,
     passthrough: Option<&PassthroughMetadata>,
-    allow_passthrough_cover_art: bool,
 ) -> Option<AudiobookMetadata> {
-    if !allow_passthrough_cover_art {
-        return metadata;
-    }
-
     let passthrough_cover = passthrough
         .and_then(|value| value.cover_art.as_ref())
         .cloned();
@@ -150,18 +146,6 @@ fn collect_passthrough_metadata(
     } else {
         passthrough.into_option()
     }
-}
-
-fn effective_passthrough_metadata(
-    passthrough: Option<PassthroughMetadata>,
-    allow_passthrough_cover_art: bool,
-) -> Option<PassthroughMetadata> {
-    if allow_passthrough_cover_art {
-        return passthrough;
-    }
-
-    log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
-    passthrough.and_then(PassthroughMetadata::without_cover_art)
 }
 
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {
@@ -1141,38 +1125,20 @@ mod tests {
     }
 
     #[test]
-    fn merge_cover_art_does_not_refill_after_explicit_clear() {
+    fn merge_cover_art_does_not_refill_when_passthrough_cover_is_filtered() {
         let metadata = AudiobookMetadata {
             cover_art: None,
             ..AudiobookMetadata::default()
         };
         let passthrough = PassthroughMetadata {
             chapters: Vec::new(),
-            cover_art: Some(vec![1, 2, 3]),
+            cover_art: None,
         };
 
-        let merged = merge_cover_art(Some(metadata), Some(&passthrough), false)
+        let merged = merge_cover_art(Some(metadata), Some(&passthrough))
             .expect("metadata should remain present");
 
         assert_eq!(merged.cover_art, None);
-    }
-
-    #[test]
-    fn effective_passthrough_metadata_drops_only_cover_art_after_explicit_clear() {
-        let passthrough = PassthroughMetadata {
-            chapters: vec![crate::metadata::passthrough::ChapterSpec {
-                title: Some("Chapter 1".to_string()),
-                start_ms: 0,
-                end_ms: 1_000,
-            }],
-            cover_art: Some(vec![1, 2, 3]),
-        };
-
-        let effective = effective_passthrough_metadata(Some(passthrough), false)
-            .expect("chapter passthrough should remain");
-
-        assert_eq!(effective.chapters.len(), 1);
-        assert_eq!(effective.cover_art, None);
     }
 
     fn fdk_test_settings() -> EncoderSettings {
