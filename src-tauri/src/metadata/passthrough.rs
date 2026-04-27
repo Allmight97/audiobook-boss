@@ -36,6 +36,11 @@ impl PassthroughMetadata {
         self.chapters.clear();
         self.into_option()
     }
+
+    pub fn without_cover_art(mut self) -> Option<Self> {
+        self.cover_art = None;
+        self.into_option()
+    }
 }
 
 fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpec> {
@@ -235,5 +240,34 @@ mod tests {
         };
 
         assert!(passthrough.cover_art_only().is_none());
+    }
+
+    #[test]
+    fn without_cover_art_preserves_chapters_and_drops_cover_art() {
+        let passthrough = PassthroughMetadata {
+            chapters: vec![ChapterSpec {
+                title: Some("Chapter 1".to_string()),
+                start_ms: 0,
+                end_ms: 1_000,
+            }],
+            cover_art: Some(vec![1, 2, 3]),
+        };
+
+        let without_cover = passthrough
+            .without_cover_art()
+            .expect("chapter passthrough should remain");
+
+        assert_eq!(without_cover.chapters.len(), 1);
+        assert_eq!(without_cover.cover_art, None);
+    }
+
+    #[test]
+    fn without_cover_art_returns_none_when_passthrough_only_has_cover_art() {
+        let passthrough = PassthroughMetadata {
+            chapters: Vec::new(),
+            cover_art: Some(vec![1, 2, 3]),
+        };
+
+        assert!(passthrough.without_cover_art().is_none());
     }
 }
