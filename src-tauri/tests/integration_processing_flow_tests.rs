@@ -176,7 +176,7 @@ async fn process_roundtrip_files(
         context.preview = Some(audio::context::PreviewConfig::new(seconds));
     }
 
-    audio::process_audiobook_with_context(context, input_info.files, Some(metadata))
+    audio::process_audiobook_with_context(context, input_info.files, Some(metadata), true)
         .await
         .expect("processing should complete")
 }

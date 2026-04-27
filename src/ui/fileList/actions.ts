@@ -405,7 +405,7 @@ export async function stageMetadataToSelection(options?: {
 export async function persistPendingMetadataDraftsForCurrentSelection(options?: {
 	showStatus?: boolean;
 }): Promise<boolean> {
-	const selectedFiles = getSelectedFiles();
+	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
 	if (selectedFiles.length === 0) {
 		return true;
 	}

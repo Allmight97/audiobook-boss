@@ -78,6 +78,7 @@ pub async fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
+    allow_passthrough_cover_art: bool,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
     let mut metrics = ProcessingMetrics::new();
@@ -92,21 +93,25 @@ pub async fn process_audiobook_with_context(
 
     // Merge passthrough cover art when user metadata is absent or missing cover art.
     let mut effective_metadata = metadata;
-    if let Some(ref passthrough) = passthrough_metadata {
-        if let Some(ref cover) = passthrough.cover_art {
-            match effective_metadata.as_mut() {
-                Some(md) => {
-                    if md.cover_art.is_none() {
-                        md.cover_art = Some(cover.clone());
+    if allow_passthrough_cover_art {
+        if let Some(ref passthrough) = passthrough_metadata {
+            if let Some(ref cover) = passthrough.cover_art {
+                match effective_metadata.as_mut() {
+                    Some(md) => {
+                        if md.cover_art.is_none() {
+                            md.cover_art = Some(cover.clone());
+                        }
                     }
-                }
-                None => {
-                    let mut md = AudiobookMetadata::new();
-                    md.cover_art = Some(cover.clone());
-                    effective_metadata = Some(md);
+                    None => {
+                        let mut md = AudiobookMetadata::new();
+                        md.cover_art = Some(cover.clone());
+                        effective_metadata = Some(md);
+                    }
                 }
             }
         }
+    } else {
+        log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
     }
 
     // Metrics accumulation (estimates)

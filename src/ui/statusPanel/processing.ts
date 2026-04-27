@@ -19,6 +19,10 @@ import {
 	buildMetadataDraftIntent,
 	hasActionableMetadataDraftIntent,
 } from '../metadataDraft';
+import {
+	getSeriesPartValidationError,
+	getSubseriesPartValidationError,
+} from '../metadataValidation';
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
@@ -100,6 +104,16 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
 }
 
+function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | null {
+	const seriesPartError = getSeriesPartValidationError(
+		typeof changes.series_part === 'string' ? changes.series_part : undefined,
+	);
+	const subseriesPartError = getSubseriesPartValidationError(
+		typeof changes.subseries_part === 'string' ? changes.subseries_part : undefined,
+	);
+	return seriesPartError ?? subseriesPartError;
+}
+
 export async function startProcessing(
 	context: StartProcessingContext,
 	options?: {
@@ -157,6 +171,11 @@ export async function startProcessing(
 			if (hasDirtyMetadataFields()) {
 				const selectedFileIndex = getSelectedFileIndex();
 				const formMetadata = readMetadataForm({ mode: 'single' });
+				const validationError = validateSeriesFields(formMetadata);
+				if (validationError) {
+					feedback.showError(validationError);
+					return;
+				}
 				const intentPatch = buildMetadataDraftIntent(formMetadata);
 				const activeFile =
 					selectedFileIndex >= 0

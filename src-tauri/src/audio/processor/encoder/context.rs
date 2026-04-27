@@ -182,7 +182,17 @@ pub(crate) fn setup_encoder(
                 bytes
             );
             let cover_art_stream_info =
-                crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data)?;
+                match crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data) {
+                    Ok(stream_info) => stream_info,
+                    Err(error) if source == "passthrough" => {
+                        log::warn!(
+                            "Could not preserve passthrough cover art during native encoding: {}",
+                            error
+                        );
+                        None
+                    }
+                    Err(error) => return Err(error),
+                };
             if let Some((stream_idx, format)) = cover_art_stream_info {
                 log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
             }
@@ -198,12 +208,19 @@ pub(crate) fn setup_encoder(
     // Skip in preview mode since chapters won't align with shortened output
     if !skip_chapter_passthrough {
         if let Some(p) = passthrough {
-            let count =
-                crate::metadata::passthrough::add_chapters_to_output(&mut octx, &p.chapters)?;
-            if count > 0 {
-                log::info!("✓ Copied {} chapters from source files", count);
-            } else {
-                log::debug!("No chapters found to copy from source files");
+            match crate::metadata::passthrough::add_chapters_to_output(&mut octx, &p.chapters) {
+                Ok(count) if count > 0 => {
+                    log::info!("✓ Copied {} chapters from source files", count);
+                }
+                Ok(_) => {
+                    log::debug!("No chapters found to copy from source files");
+                }
+                Err(error) => {
+                    log::warn!(
+                        "Could not preserve passthrough chapters during native encoding: {}",
+                        error
+                    );
+                }
             }
         }
     } else {
@@ -224,16 +241,26 @@ pub(crate) fn setup_encoder(
                 cover_data.len(),
                 source
             );
-            crate::metadata::write_cover_art_packet_post_header(
+            if let Err(error) = crate::metadata::write_cover_art_packet_post_header(
                 &mut octx,
                 stream_index,
                 cover_data,
                 format,
-            )?;
-            log::info!(
-                "✓ Native cover art packet written successfully to stream {}",
-                stream_index
-            );
+            ) {
+                if source == "passthrough" {
+                    log::warn!(
+                        "Could not preserve passthrough cover art packet during native encoding: {}",
+                        error
+                    );
+                } else {
+                    return Err(error);
+                }
+            } else {
+                log::info!(
+                    "✓ Native cover art packet written successfully to stream {}",
+                    stream_index
+                );
+            }
         } else {
             log::warn!("Cover art stream exists but no cover bytes were available for writing");
         }

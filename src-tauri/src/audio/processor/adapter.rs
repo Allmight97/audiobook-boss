@@ -49,10 +49,17 @@ impl ResolvedProcessorAdapter {
         files: Vec<AudioFile>,
         selected_decoders: Vec<Option<DecoderSelection>>,
         metadata: Option<AudiobookMetadata>,
+        allow_passthrough_cover_art: bool,
     ) -> Result<String> {
         match self {
             Self::NativeFfmpegNext => {
-                super::process_audiobook_with_context(context, files, metadata).await
+                super::process_audiobook_with_context(
+                    context,
+                    files,
+                    metadata,
+                    allow_passthrough_cover_art,
+                )
+                .await
             }
             Self::ExternalFdk { toolchain } => {
                 super::external_fdk::process_audiobook_with_external_fdk(
@@ -60,6 +67,7 @@ impl ResolvedProcessorAdapter {
                     files,
                     selected_decoders,
                     metadata,
+                    allow_passthrough_cover_art,
                     toolchain,
                 )
                 .await

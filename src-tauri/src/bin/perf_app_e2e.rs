@@ -196,7 +196,7 @@ async fn run() -> Result<()> {
         .unwrap_or(total_duration);
 
     let start = Instant::now();
-    let message = audio::process_audiobook_with_context(context, file_info.files, None)
+    let message = audio::process_audiobook_with_context(context, file_info.files, None, true)
         .await
         .map_err(|e| anyhow!("App e2e processing failed: {e}"))?;
     let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;

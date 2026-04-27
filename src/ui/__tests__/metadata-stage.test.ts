@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { stageMetadataToSelection } from '../fileList/actions';
+import {
+	persistPendingMetadataDraftsForCurrentSelection,
+	stageMetadataToSelection,
+} from '../fileList/actions';
 import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state';
 import {
 	clearMetadataState,
@@ -8,17 +11,21 @@ import {
 	setMetadataForFile,
 } from '../metadataState';
 import type { FileListInfo } from '../../types/audio';
+import type { AudiobookMetadata } from '../../types/metadata';
 
 const context = vi.hoisted(() => ({
 	validationErrorMock: vi.fn<() => string | null>(() => null),
+	selectedFilesMock: vi.fn(() => [
+		{ path: '/a.mp3', isValid: true },
+		{ path: '/b.mp3', isValid: true },
+	]),
+	readMetadataFormMock: vi.fn<() => Partial<AudiobookMetadata>>(() => ({ series: 'Series X' })),
+	hasDirtyMetadataFieldsMock: vi.fn(() => false),
 }));
 
 vi.mock('../fileList/metadataPanel', () => ({
 	ensureMetadataForFiles: vi.fn(async () => undefined),
-	getSelectedFiles: () => [
-		{ path: '/a.mp3', isValid: true },
-		{ path: '/b.mp3', isValid: true },
-	],
+	getSelectedFiles: context.selectedFilesMock,
 }));
 
 vi.mock('../outputPanel', () => ({
@@ -32,7 +39,8 @@ vi.mock('../metadataValidation', () => ({
 }));
 
 vi.mock('../metadataForm', () => ({
-	readMetadataForm: () => ({ series: 'Series X' }),
+	readMetadataForm: context.readMetadataFormMock,
+	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 	resetDirtyState: vi.fn(),
 }));
 
@@ -40,6 +48,17 @@ describe('stageMetadataToSelection', () => {
 	beforeEach(() => {
 		document.body.innerHTML = '';
 		clearMetadataState();
+		context.validationErrorMock.mockReset();
+		context.selectedFilesMock.mockReset();
+		context.readMetadataFormMock.mockReset();
+		context.hasDirtyMetadataFieldsMock.mockReset();
+		context.validationErrorMock.mockReturnValue(null);
+		context.selectedFilesMock.mockReturnValue([
+			{ path: '/a.mp3', isValid: true },
+			{ path: '/b.mp3', isValid: true },
+		]);
+		context.readMetadataFormMock.mockReturnValue({ series: 'Series X' });
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
 		const fileList: FileListInfo = {
 			files: [
 				{
@@ -102,5 +121,23 @@ describe('stageMetadataToSelection', () => {
 		expect(didStage).toBe(false);
 		expect(getMetadataForFile('/a.mp3')).toBeUndefined();
 		expect(getPendingMetadataEntries()).toEqual([]);
+	});
+
+	it('treats one valid selected file as single-selection pending metadata', async () => {
+		context.selectedFilesMock.mockReturnValue([
+			{ path: '/invalid.mp3', isValid: false },
+			{ path: '/a.mp3', isValid: true },
+		]);
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ title: 'Single Valid' });
+
+		const didPersist = await persistPendingMetadataDraftsForCurrentSelection({
+			showStatus: false,
+		});
+
+		expect(didPersist).toBe(true);
+		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
+		expect(getMetadataForFile('/a.mp3')).toMatchObject({ title: 'Single Valid' });
+		expect(getMetadataForFile('/invalid.mp3')).toBeUndefined();
 	});
 });
