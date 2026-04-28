@@ -28,6 +28,8 @@ import {
 	type HarnessScenarioCheckResult,
 } from './scenarioDriver';
 
+export const SCENARIO_TIMEOUT_MS = 120_000;
+
 type CliOptions =
 	| {
 			mode: 'scenario';
@@ -212,29 +214,39 @@ function finalizeCheckResults(
 	});
 }
 
+export function buildScenarioTimeoutMessage(
+	scenarioId: HarnessScenarioId,
+	timeoutMs: number = SCENARIO_TIMEOUT_MS,
+): string {
+	return `Harness scenario ${scenarioId} timed out after ${timeoutMs}ms.`;
+}
+
+async function runWithScenarioTimeout<T>(
+	scenarioId: HarnessScenarioId,
+	run: () => Promise<T>,
+	timeoutMs: number = SCENARIO_TIMEOUT_MS,
+): Promise<T> {
+	let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			run(),
+			new Promise<never>((_, reject) => {
+				timeoutHandle = setTimeout(() => {
+					reject(new Error(buildScenarioTimeoutMessage(scenarioId, timeoutMs)));
+				}, timeoutMs);
+			}),
+		]);
+	} finally {
+		if (timeoutHandle) {
+			clearTimeout(timeoutHandle);
+		}
+	}
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	const scenarios = resolveScenarios(options);
 	if (scenarios.length === 0) {
-		return;
-	}
-
-	if (options.mode === 'changed' && scenarios.length > 1) {
-		for (const scenario of scenarios) {
-			const result = spawnSync(
-				process.execPath,
-				[path.resolve('scripts/harness/verify.ts'), '--scenario', scenario.id],
-				{
-					cwd: process.cwd(),
-					encoding: 'utf8',
-				},
-			);
-			if (result.stdout) process.stdout.write(result.stdout);
-			if (result.stderr) process.stderr.write(result.stderr);
-			if (result.status !== 0) {
-				throw new Error(`Scenario ${scenario.id} failed during --changed verification.`);
-			}
-		}
 		return;
 	}
 
@@ -245,92 +257,99 @@ async function main(): Promise<void> {
 
 	const harnessServer = await startHarnessServer();
 	try {
-		for (const scenario of scenarios) {
-			const artifactDir = path.join(runArtifactDir, scenario.id);
-			const latestArtifactDir = path.join(ARTIFACT_ROOT, 'latest', scenario.id);
-			await mkdir(artifactDir, { recursive: true });
+		const browser = await chromium.launch({ headless: true });
+		try {
+			for (const scenario of scenarios) {
+				await runWithScenarioTimeout(scenario.id, async () => {
+					const artifactDir = path.join(runArtifactDir, scenario.id);
+					const latestArtifactDir = path.join(ARTIFACT_ROOT, 'latest', scenario.id);
+					await mkdir(artifactDir, { recursive: true });
 
-			const browser = await chromium.launch({ headless: true });
-			try {
-				const page = await browser.newPage();
-				const consoleMessages: ScenarioRuntimeSummary['consoleMessages'] = [];
-				const pageErrors: string[] = [];
+					const context = await browser.newContext();
+					try {
+						const page = await context.newPage();
+						const consoleMessages: ScenarioRuntimeSummary['consoleMessages'] = [];
+						const pageErrors: string[] = [];
 
-				page.on('console', (message) => {
-					consoleMessages.push(summarizeConsoleMessage(message));
-				});
-				page.on('pageerror', (error) => {
-					pageErrors.push(error.message);
-				});
+						page.on('console', (message) => {
+							consoleMessages.push(summarizeConsoleMessage(message));
+						});
+						page.on('pageerror', (error) => {
+							pageErrors.push(error.message);
+						});
 
-				let checkResults: HarnessScenarioCheckResult[] = finalizeCheckResults(scenario, []);
-				let scenarioSeedError: unknown = null;
+						let checkResults: HarnessScenarioCheckResult[] = finalizeCheckResults(scenario, []);
+						let scenarioSeedError: unknown = null;
 
-				try {
-					checkResults = finalizeCheckResults(
-						scenario,
-						await runScenario(page, scenario, harnessServer.origin),
-					);
-				} catch (error) {
-					scenarioSeedError = error;
-					if (error instanceof HarnessScenarioVerificationError) {
-						checkResults = finalizeCheckResults(scenario, error.checkResults);
+						try {
+							checkResults = finalizeCheckResults(
+								scenario,
+								await runScenario(page, scenario, harnessServer.origin),
+							);
+						} catch (error) {
+							scenarioSeedError = error;
+							if (error instanceof HarnessScenarioVerificationError) {
+								checkResults = finalizeCheckResults(scenario, error.checkResults);
+							}
+						} finally {
+							const screenshotPath = path.join(artifactDir, scenario.screenshotName);
+							await page.screenshot({ path: screenshotPath, fullPage: true });
+							const runtimeSummary: ScenarioRuntimeSummary = {
+								id: scenario.id,
+								title: scenario.title,
+								screenshotPath,
+								consoleMessages,
+								pageErrors,
+							};
+							const checkReport: ScenarioCheckReport = {
+								id: scenario.id,
+								title: scenario.title,
+								completed: scenarioSeedError === null,
+								checks: checkResults,
+							};
+							await writeJsonArtifact(path.join(artifactDir, 'summary.json'), runtimeSummary);
+							await writeJsonArtifact(path.join(artifactDir, 'checks.json'), checkReport);
+							await mirrorArtifactToLatest(
+								screenshotPath,
+								path.join(latestArtifactDir, scenario.screenshotName),
+							);
+							await mirrorArtifactToLatest(
+								path.join(artifactDir, 'summary.json'),
+								path.join(latestArtifactDir, 'summary.json'),
+							);
+							await mirrorArtifactToLatest(
+								path.join(artifactDir, 'checks.json'),
+								path.join(latestArtifactDir, 'checks.json'),
+							);
+							await page.close();
+						}
+
+						if (scenarioSeedError) {
+							throw scenarioSeedError;
+						}
+
+						const fatalConsoleMessages = consoleMessages.filter(
+							(message) => classifyConsoleMessage(message) === 'fatal',
+						);
+						if (pageErrors.length > 0 || fatalConsoleMessages.length > 0) {
+							throw new Error(
+								[
+									`Harness scenario ${scenario.id} emitted runtime errors.`,
+									...pageErrors.map((entry) => `pageerror: ${entry}`),
+									...fatalConsoleMessages.map((entry) => `${entry.type}: ${entry.text}`),
+									`Artifacts: ${artifactDir}`,
+								].join('\n'),
+							);
+						}
+
+						console.log(`[harness:verify] ${scenario.id} passed. Artifacts: ${artifactDir}`);
+					} finally {
+						await context.close();
 					}
-				} finally {
-					const screenshotPath = path.join(artifactDir, scenario.screenshotName);
-					await page.screenshot({ path: screenshotPath, fullPage: true });
-					const runtimeSummary: ScenarioRuntimeSummary = {
-						id: scenario.id,
-						title: scenario.title,
-						screenshotPath,
-						consoleMessages,
-						pageErrors,
-					};
-					const checkReport: ScenarioCheckReport = {
-						id: scenario.id,
-						title: scenario.title,
-						completed: scenarioSeedError === null,
-						checks: checkResults,
-					};
-					await writeJsonArtifact(path.join(artifactDir, 'summary.json'), runtimeSummary);
-					await writeJsonArtifact(path.join(artifactDir, 'checks.json'), checkReport);
-					await mirrorArtifactToLatest(
-						screenshotPath,
-						path.join(latestArtifactDir, scenario.screenshotName),
-					);
-					await mirrorArtifactToLatest(
-						path.join(artifactDir, 'summary.json'),
-						path.join(latestArtifactDir, 'summary.json'),
-					);
-					await mirrorArtifactToLatest(
-						path.join(artifactDir, 'checks.json'),
-						path.join(latestArtifactDir, 'checks.json'),
-					);
-					await page.close();
-				}
-
-				if (scenarioSeedError) {
-					throw scenarioSeedError;
-				}
-
-				const fatalConsoleMessages = consoleMessages.filter(
-					(message) => classifyConsoleMessage(message) === 'fatal',
-				);
-				if (pageErrors.length > 0 || fatalConsoleMessages.length > 0) {
-					throw new Error(
-						[
-							`Harness scenario ${scenario.id} emitted runtime errors.`,
-							...pageErrors.map((entry) => `pageerror: ${entry}`),
-							...fatalConsoleMessages.map((entry) => `${entry.type}: ${entry.text}`),
-							`Artifacts: ${artifactDir}`,
-						].join('\n'),
-					);
-				}
-
-				console.log(`[harness:verify] ${scenario.id} passed. Artifacts: ${artifactDir}`);
-			} finally {
-				await browser.close();
+				});
 			}
+		} finally {
+			await browser.close();
 		}
 	} finally {
 		await harnessServer.server.close();
