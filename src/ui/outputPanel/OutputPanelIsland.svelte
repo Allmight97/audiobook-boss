@@ -42,14 +42,6 @@
       </button>
     </div>
 
-    <input
-      type="text"
-      id="output-dir-text"
-      class="hidden"
-      readonly
-      value={outputPanelState.outputDirectory}
-    />
-
     <div class="output-options-panel">
       <div class="path-option-row flex items-center gap-2">
         <label for="output-naming-preset" class="text-xs mt-0">Naming preset</label>
@@ -64,7 +56,7 @@
         </select>
         <div class="relative group">
           <div class="info-icon">i</div>
-          <div class="info-popover group-hover:block">
+          <div class="info-popover">
             ABS Default keeps Audiobookshelf-compatible paths. Custom Template stores your draft template.
           </div>
         </div>

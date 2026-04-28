@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
-import { classifyConsoleMessage, parseArgs } from './verify';
+import {
+	SCENARIO_TIMEOUT_MS,
+	buildScenarioTimeoutMessage,
+	classifyConsoleMessage,
+	parseArgs,
+} from './verify';
 
 describe('parseArgs', () => {
 	it('defaults to changed mode when no args are provided', () => {
@@ -49,5 +54,13 @@ describe('classifyConsoleMessage', () => {
 				text: 'Unhandled exception',
 			}),
 		).toBe('fatal');
+	});
+});
+
+describe('buildScenarioTimeoutMessage', () => {
+	it('reports scenario timeout failures with scenario identity and timeout budget', () => {
+		expect(buildScenarioTimeoutMessage('status-processing')).toBe(
+			`Harness scenario status-processing timed out after ${SCENARIO_TIMEOUT_MS}ms.`,
+		);
 	});
 });

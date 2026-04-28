@@ -25,7 +25,7 @@
 	<div class="flex items-center gap-1.5">
 		<div class="relative group">
 			<div class="info-icon">i</div>
-			<div class="info-popover group-hover:block">
+			<div class="info-popover">
 				Combines all files in the list into a single audiobook in the order they appear. Each file
 				will be treated as a chapter.
 			</div>

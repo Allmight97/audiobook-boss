@@ -83,15 +83,16 @@ describe('output panel preview resilience', () => {
 		expect(outputPanelState.previewText).toBe('/Library/Audiobooks/Ghosts.preview.m4b');
 	});
 
-	it('clears hidden output directory mirror when directory state is emptied', async () => {
-		const hiddenDirInput = document.getElementById('output-dir-text') as HTMLInputElement;
+	it('clears the visible output preview when directory state is emptied', async () => {
+		const previewText = document.getElementById('output-preview-text');
 		updateOutputDirectory('');
 
 		updateOutputPath();
 
 		expect(outputPanelState.outputDirectory).toBe('');
 		await waitFor(() => {
-			expect(hiddenDirInput.value).toBe('');
+			expect(outputPanelState.previewText).toBe('Select output directory...');
+			expect(previewText?.textContent).toBe('Select output directory...');
 		});
 	});
 
