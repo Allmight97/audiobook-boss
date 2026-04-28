@@ -49,7 +49,7 @@ import {
 			<FileImportIsland />
 		{/if}
 
-		<div class="section-divider file-properties-pinned inspector-footer" aria-hidden="true">
+		<div class="section-divider file-properties-pinned inspector-footer">
 			<div
 				id="metadata-selection-count"
 				class="text-xs muted-text mb-2"

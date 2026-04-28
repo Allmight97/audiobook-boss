@@ -36,7 +36,7 @@
 
 <div class="panel status-panel">
   <div class="status-panel-content">
-    <div class="art-thumbnail" data-svelte-owned="true">
+    <div class="art-thumbnail">
       {#if statusPanelViewState.coverArtDataUrl}
         <img
           src={statusPanelViewState.coverArtDataUrl}
@@ -72,7 +72,7 @@
       <div id="concurrency-status" class="text-xs muted-text mt-1">
         {statusPanelViewState.concurrencyText}
       </div>
-      <div id="job-list" class="text-xs muted-text mt-1" data-svelte-owned="true">
+      <div id="job-list" class="text-xs muted-text mt-1">
         {#each statusPanelViewState.jobItems as item (item.key)}
           <div class="flex items-center justify-between gap-2 mb-1">
             <span class="flex-1">{getJobLabel(item)}</span>
@@ -89,9 +89,6 @@
             </button>
           </div>
         {/each}
-      </div>
-      <div class="text-xs muted-text mt-1 flex items-center gap-2" style="display: none">
-        <!-- Moved Max Concurrent to Header -->
       </div>
     </div>
     <div class="flex gap-2">
