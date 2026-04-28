@@ -5,6 +5,10 @@
 - This file defines repo-wide agent policy.
 - Directory-level invariants belong in the nearest nested `AGENTS.md`.
 
+## Harness / Control Plane Status
+
+The in-repo harness verifier and any remaining control-plane layer are **maintenance-only** and scheduled for retirement (issue #287). Keep existing checks stable; do not expand scenarios, screenshot machinery, or harness APIs. Prefer targeted tests and external browser-agent workflows for new UI validation.
+
 ## Long-Horizon Planning
 
 Use [PLANS.md](PLANS.md) as the source of truth for how long-horizon work is planned and closed.
