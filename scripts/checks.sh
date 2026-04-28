@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + harness verification + runtime guardrails + fallback policy enforcement + context-surface coherence
+# - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + runtime guardrails + fallback policy enforcement + context-surface coherence
 # - standard: quick + Rust tests + direct Bun script tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
@@ -122,9 +122,6 @@ run_quick() {
   log_step "scripts/check-context-surface.sh"
   bash scripts/check-context-surface.sh
 
-  log_step "bun run harness:verify --changed"
-  bun run harness:verify --changed
-
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh
 }
@@ -135,8 +132,8 @@ run_standard() {
   log_step "cargo test"
   cargo test
 
-  log_step "bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/harness/verify.test.ts scripts/release.test.ts"
-  bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/harness/verify.test.ts scripts/release.test.ts
+  log_step "bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/release.test.ts"
+  bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/release.test.ts
 
   log_step "bun run test"
   bun run test

@@ -308,8 +308,7 @@ in-process tail-loss gap in ABB's native pipeline.
 
 - Backend output preflight planning plus a batch collision-resolution dialog
   with explicit replace, rename, and skip policies before processing starts.
-- Skipped-result reporting and harness coverage for collision-dialog behavior
-  and preview-path parity.
+- Skipped-result reporting for collision-dialog behavior and preview-path parity.
 
 ### Changed
 
@@ -358,13 +357,12 @@ path behavior closer to the actual processing results ABB now emits.
 
 Focused import-workflow release that closes the single-file re-add trap in ABB.
 `Add audio files` and file-drop now behave coherently for iterative imports, and
-the UI verification surface now proves that behavior instead of masking it.
+tests now prove that behavior instead of masking it.
 
 ### Added
 
-- File-management harness coverage for add-while-populated behavior, plus mock
-  dialog/analyzer paths that can distinguish append from replace during UI
-  verification.
+- File-management coverage for add-while-populated behavior, plus mock
+  dialog/analyzer paths that can distinguish append from replace during tests.
 
 ### Changed
 
@@ -508,7 +506,6 @@ Stable architectural milestone: zero-legacy IPC boundary with Svelte app shell.
   - App shell with reactive state model (`src/App.svelte`, `src/main.ts`)
   - Svelte islands for status panel, file list, cover art, metadata form, job controls, file import, metadata lookup
   - Reactive view-state modules (`.svelte.ts`) for island data binding
-  - Component harness for isolated development (`src/HarnessApp.svelte`, `src/harness-main.ts`)
 
 - **Guardrails**
   - `scripts/check-no-bridge-imports.sh` — blocks bridge resurrection

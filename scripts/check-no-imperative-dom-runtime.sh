@@ -16,7 +16,6 @@ cd "$repo_root"
 runtime_scope=(
   -g 'src/App.svelte'
   -g 'src/main.ts'
-  -g 'src/harness-main.ts'
   -g 'src/lib/**'
   -g 'src/ui/jobControls.ts'
   -g 'src/ui/jobControls/**'

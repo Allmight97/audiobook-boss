@@ -12,7 +12,7 @@
 - Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
 - Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.
-- Route UI proof-of-done through the harness substrate (`bun run harness:verify --scenario <name>` or `--changed`) plus targeted tests for the touched surface.
+- Route UI proof-of-done through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
 - Treat function/file size as readability triggers: extract helpers when component scripts become hard to scan or test.
@@ -21,9 +21,8 @@
 
 - Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.
 - Do not hand-edit `src/lib/generated/tauri.ts`; regenerate/sync bindings through the standard scripts/hooks.
-- Preserve the migrated runtime posture: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, `src/harness-main.ts`, and `src/lib/**`.
-- UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage and harness verification evidence.
-- If a UI change touches a surface with no matching harness scenario, add or extend the scenario instead of silently skipping proof.
+- Preserve the migrated runtime posture: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, and `src/lib/**`.
+- UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage or explicit visual/UX review evidence for the user-facing outcome.
 - Follow fallback policy from root `AGENTS.md` for any compatibility fallback introduced in frontend flows.
 - Keep TypeScript boundaries type-safe; avoid introducing new `any` escape paths in runtime IPC/state flows.
 
@@ -45,5 +44,5 @@
 - Tauri runtime calls are centralized through `tauriClient`.
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
 - Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Svelte surface.
-- UI-facing changes have targeted tests plus harness verification coverage for the touched surface.
+- UI-facing changes have targeted tests and, when needed, explicit visual/UX review evidence for the touched surface.
 - Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).

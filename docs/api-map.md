@@ -86,7 +86,7 @@ Source files:
 ## Verification Pointers
 
 - Contract and boundary regressions: `src/lib/behavior-contract.test.ts`, `src/lib/tauri-client.test.ts`
-- UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`, `src/harness/mockTauri.ts`
+- UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`
 - Full gate: `scripts/checks.sh standard`
 
 ## Maintenance Rule

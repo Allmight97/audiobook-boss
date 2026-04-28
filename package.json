@@ -18,7 +18,6 @@
 		"check:deps": "cargo audit -D warnings",
 		"check:fallback": "scripts/check-fallback-policy.sh",
 		"check:no-bridge": "scripts/check-no-bridge-imports.sh",
-		"harness:verify": "bun scripts/harness/verify.ts",
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"app:build": "bun scripts/build-app.ts --bundles app",

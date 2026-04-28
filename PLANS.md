@@ -127,7 +127,7 @@ surfaces instead of leaving them implicit:
 
 - docs-only changes use `bash scripts/check-context-surface.sh`
 - non-doc code/config changes use `scripts/checks.sh standard`
-- UI-affecting changes should say whether `bun run harness:verify --changed` is required
+- UI-affecting changes should name the targeted tests and any browser-agent or human visual/UX review evidence required
 - contract work should say whether bindings, boundary adapters, and related tests must move together
 - fallback work should say whether `docs/fallbacks.md` and `scripts/check-fallback-policy.sh` are part of acceptance
 - planning should name any canonical docs that must be updated on completion, such as `AGENTS.md`, `README.md`, `docs/api-map.md`, or `docs/fallbacks.md`

@@ -5,10 +5,6 @@
 - This file defines repo-wide agent policy.
 - Directory-level invariants belong in the nearest nested `AGENTS.md`.
 
-## Harness / Control Plane Status
-
-The in-repo harness verifier and any remaining control-plane layer are **maintenance-only** and scheduled for retirement (issue #287). Keep existing checks stable; do not expand scenarios, screenshot machinery, or harness APIs. Prefer targeted tests and external browser-agent workflows for new UI validation.
-
 ## Long-Horizon Planning
 
 Use [PLANS.md](PLANS.md) as the source of truth for how long-horizon work is planned and closed.
@@ -63,7 +59,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Start with a brief repo scan for touched boundaries before editing.
 - Use focused tests/checks that match the change radius.
 - Keep verification tied to user outcomes (correct output files, truthful progress, stable metadata).
-- For UI-affecting work, treat targeted tests plus `harness:verify` artifacts as the default proof-of-done.
+- For UI-affecting work, use targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
@@ -130,7 +126,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Any new compatibility/fallback behavior includes explicit evidence, trigger, and sunset/removal condition.
 - Verification is explicit by change type:
   - docs-only edits: the active repo surface remains coherent and stale references are removed
-  - UI-affecting edits: targeted tests plus `bun run harness:verify --scenario <name>` or `bun run harness:verify --changed`
+  - UI-affecting edits: targeted tests plus explicit visual/UX review evidence when static assertions cannot prove the outcome
   - boundary/backend edits: `scripts/checks.sh standard` plus any targeted contract/regression coverage for the touched surface
 - Verification matches scope:
   - docs-only edits: `bash scripts/check-context-surface.sh`

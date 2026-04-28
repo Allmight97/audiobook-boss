@@ -38,7 +38,6 @@ bun run tauri dev
 scripts/checks.sh standard
 bun run test
 bash scripts/check-context-surface.sh
-bun run harness:verify --changed
 ```
 
 ## Script Guide
@@ -51,7 +50,6 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - Context and policy checks: `bun run check:context`, `bun run check:fallback`, `bun run check:no-bridge`
 - Dependency hygiene: `bun run check:deps`
   This is explicit on purpose and is not part of the normal standard gate.
-- UI proof loop: `bun run harness:verify --changed`
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
@@ -67,6 +65,6 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
 - For substantial multi-step work, use [PLANS.md](PLANS.md) and keep at most active implementation specs under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
 - For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.
-- UI work is not done from static inspection alone. Run `bun run harness:verify --changed` for UI-affecting changes.
+- UI work is not done from static inspection alone. Use targeted tests for deterministic behavior and browser-agent or human review for visual/UX outcomes.
 - Cheap deterministic repo guardrails live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`.
 - Durable truth lives in code, GitHub issues, this file, and [AGENTS.md](AGENTS.md). `.artifacts/` is temporary local state only.

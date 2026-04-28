@@ -142,7 +142,6 @@ surface_paths=(
   "scripts/checks.sh"
   "scripts/check-context-surface.sh"
   "src/AGENTS.md"
-  "src/harness/AGENTS.md"
   ".agents/skills"
   ".agents/hooks"
 )
@@ -157,12 +156,11 @@ legacy_surface_paths=(
   ".agents/hooks.json"
   "scripts/checks.sh"
   "src/AGENTS.md"
-  "src/harness/AGENTS.md"
   ".agents/skills"
   ".agents/hooks"
 )
 
-removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/|repomix:audit|repomix:full|scripts/repomix-handoff\.sh|\.repomix/'
+removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/|repomix:audit|repomix:full|scripts/repomix-handoff\.sh|\.repomix/|harness:verify|src/harness|scripts/harness|harness\.html|HarnessApp\.svelte|harness-main\.ts'
 
 existing_surface_paths=()
 append_unique_paths existing_surface_paths surface_paths spec_surface_paths
@@ -174,7 +172,6 @@ text_surface_paths=(
   "docs/fallbacks.md"
   "docs/api-map.md"
   "src/AGENTS.md"
-  "src/harness/AGENTS.md"
 )
 
 existing_text_surface_paths=()
