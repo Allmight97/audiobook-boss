@@ -34,7 +34,7 @@ pub struct ProcessPayload {
 
 /// Processes multiple audio files into a single M4B audiobook
 /// Merges files with specified settings and optional metadata
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ProcessResultStatus {
     Success,

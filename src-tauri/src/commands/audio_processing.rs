@@ -1,5 +1,6 @@
 mod plan;
 mod run;
+mod terminal_outcomes;
 
 pub use run::{preflight_payload, process_payload};
 

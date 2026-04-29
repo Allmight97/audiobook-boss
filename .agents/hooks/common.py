@@ -13,7 +13,6 @@ DOCS_ONLY_FILES = {
     "docs/fallbacks.md",
     "docs/api-map.md",
     "src/AGENTS.md",
-    "src/harness/AGENTS.md",
 }
 DOCS_ONLY_PREFIXES = (
     ".agents/skills/",
