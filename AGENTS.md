@@ -34,10 +34,10 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ## Preferred Path
 
-- Complete tasks end-to-end by default and report concrete outcomes.
-- Prefer the smallest coherent solution, not the smallest diff. Do not choose a narrower patch when a modestly broader change would materially improve durability, ownership clarity, or long-term design.
+- Complete tasks by proving the requested outcome, not by accumulating process or broadening scope by habit.
+- Prefer the smallest coherent solution, not the smallest diff. Use a broader change only when it materially improves durability, ownership clarity, or long-term design.
 - Minimal churn means minimizing reactive user-agent correction loops and break/fix back-and-forth. It does not mean minimizing code motion or refactor scope.
-- If a broader change is the better-engineered path, say so explicitly and align with the user before materially widening scope.
+- Align with the user before materially widening scope beyond the active outcome.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
@@ -56,9 +56,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ### Execution Defaults
 
-- Start with a brief repo scan for touched boundaries before editing.
-- Use focused tests/checks that match the change radius.
-- Keep verification tied to user outcomes (correct output files, truthful progress, stable metadata).
+- Before editing, inspect enough of the owning boundary to name the invariant being changed.
+- Use focused tests/checks that match the changed surface.
+- Keep verification tied to user outcomes and acceptance evidence: correct output files, truthful progress, stable metadata, contract parity, or coherent docs as applicable.
 - For UI-affecting work, use targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
 - Treat fallback additions as explicit design decisions, not convenience patches.
@@ -110,8 +110,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ## Decision Posture
 - Default: greenfield, risk-tolerant. No silent fallbacks or backward-compat shims and seams unless explicitly justified in cases where no other better engineered (as of current date) option is possible.
 - Canon informs but does not constrain nor prescribe — safe ≠ good, new ≠ risky. Use judgment; communicate tradeoffs proportional to stakes.
-- Risk is contextual, not disqualifying by itself. Do not prefer a smaller patch only because it feels safer.
-- Prefer durable, well-engineered solutions over incremental caution unless product, safety, data-integrity, or contract constraints make that inappropriate.
+- Risk is contextual, not disqualifying by itself.
+- Prefer durable, well-engineered solutions unless product, safety, data-integrity, or contract constraints make that inappropriate.
 - Avoid repo-wide infra or process noise with weak payoff, but do not confuse that constraint with avoiding local architectural cleanup.
 - Limit follow-up suggestions to accretive, high-ROI moves. Flag brittleness, over-engineering, and future-hostile patterns — but do not chase scope.
 

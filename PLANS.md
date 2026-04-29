@@ -46,9 +46,10 @@ When a fresh agent is asked to plan or continue substantial work:
 Each active task spec must be self-contained enough that another capable engineer
 or agent could continue the work with only the working tree and the spec file.
 
-Write the spec in prose-first form. Do not turn it into terse TODO fragments that
-lose context. Another agent should not need this chat thread to understand the
-intent, constraints, current status, and validation path.
+Write the spec in prose-first form, but keep it decision-complete rather than
+historical. Another agent should not need this chat thread to understand the
+outcome, constraints, active assumptions, acceptance evidence, validation path,
+and safe stop/resume points.
 
 Every active task spec must contain these sections:
 
