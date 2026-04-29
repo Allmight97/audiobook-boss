@@ -23,6 +23,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ### Skill Trigger Policy
 
 - Load `lib-research` when external library/API behavior affects implementation or review findings.
+- Load `dependency-maintenance` when auditing or updating Bun, JS packages, Rust/Cargo dependencies, Rust toolchains, Homebrew build tools, GitHub Actions pins, or supply-chain dependency guardrails.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.

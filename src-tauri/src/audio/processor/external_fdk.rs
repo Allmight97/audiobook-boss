@@ -41,7 +41,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
 
     let mut valid_files = Vec::new();
     let mut valid_selected_decoders = Vec::new();
-    for (file, selection) in files.into_iter().zip(selected_decoders.into_iter()) {
+    for (file, selection) in files.into_iter().zip(selected_decoders) {
         if file.is_valid {
             valid_files.push(file);
             valid_selected_decoders.push(selection);
