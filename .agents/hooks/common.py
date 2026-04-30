@@ -9,7 +9,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCS_ONLY_FILES = {
     "README.md",
     "AGENTS.md",
-    "PLANS.md",
     "docs/fallbacks.md",
     "docs/api-map.md",
     "src/AGENTS.md",

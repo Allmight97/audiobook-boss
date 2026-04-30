@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | **Standard Gate** | The main non-doc quality gate run via `scripts/checks.sh standard` to validate code, contracts, and repo health. | test pass, quick smoke check |
 | **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
-| **Task Spec** | The one active `docs/specs/<task>.md` working document for substantial multi-session or multi-lane execution. | scratchpad, session log |
+| **Task Spec** | The one active `docs/specs/<task>.md` working document produced through decision alignment for substantial multi-session or multi-lane execution. | scratchpad, session log |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
 | **Minimal Churn** | Fewer reactive correction loops and less avoidable rework, not automatically the smallest diff. | smallest patch, least code motion |
 
@@ -58,7 +58,7 @@
 - A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
-- A **Task Spec** is a **Durable Workflow Surface** for substantial work; it complements, but does not replace, canon repo docs.
+- A **Task Spec** is a **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
 
 ## Example Dialogue
 

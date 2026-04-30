@@ -7,16 +7,17 @@
 
 ## Long-Horizon Planning
 
-Use [PLANS.md](PLANS.md) as the source of truth for how long-horizon work is planned and closed.
+Use `.agents/skills/decision-alignment` for repo-specific alignment work that
+turns ideas and substantial plans into one active implementation spec under
+`docs/specs/<task>.md`.
 
-For planning mode or any substantial multi-step work, open `PLANS.md` before drafting or revising a task spec.
-
-For substantial multi-step, multi-session, or multi-agent work, keep one active implementation spec in `docs/specs/<task>.md`. This file is not a session log and not canon history:
+Task specs are working state, not canon history:
 
 - reuse the same file across sessions for the same effort
 - reuse an existing matching spec instead of creating a new one
 - do not create a new file per session
-- delete the file once implementation, review, validation, and documentation alignment are complete
+- delete the file once implementation, review, validation, documentation
+  alignment, and sync are complete
 
 Do not introduce a separate repo-local ticket ledger or scratch task database.
 

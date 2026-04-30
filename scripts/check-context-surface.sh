@@ -6,7 +6,6 @@ cd "$repo_root"
 
 active_files=(
   "README.md"
-  "PLANS.md"
   "docs/system-map.md"
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
@@ -16,6 +15,7 @@ active_files=(
 
 retained_skills=(
   "audiobook-metadata"
+  "decision-alignment"
   "contract-guardrails"
   "job-registry-and-progress"
   "lib-research"
@@ -135,7 +135,6 @@ fi
 surface_paths=(
   "README.md"
   "AGENTS.md"
-  "PLANS.md"
   "docs/system-map.md"
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
@@ -174,7 +173,6 @@ append_unique_paths existing_surface_paths surface_paths spec_surface_paths
 text_surface_paths=(
   "README.md"
   "AGENTS.md"
-  "PLANS.md"
   "docs/system-map.md"
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
