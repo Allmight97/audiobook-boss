@@ -23,16 +23,14 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ### Skill Trigger Policy
 
-- Load `lib-research` when external library/API behavior affects implementation or review findings.
 - Load `dependency-maintenance` when auditing or updating Bun, JS packages, Rust/Cargo dependencies, Rust toolchains, Homebrew build tools, GitHub Actions pins, or supply-chain dependency guardrails.
 - Load `contract-guardrails` for TS↔Rust command/event shape changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
-- Load `audit-boundary-glue` when reviewing wrapper-heavy boundary code,
-  deciding whether thin adapters/init functions should stay, or bundling
-  cleanup into an architecture/refactor PR.
+- Load global `lib-research` when external library/API behavior affects implementation or review findings.
+- Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
 
 ## Preferred Path
 
@@ -119,7 +117,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ## Tooling Preferences
 - Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Use legacy equivalents only when the modern tool is unavailable or inappropriate.
-- Documentation lookup: Use skill `.agents/skills/lib-research`
+- Documentation lookup: Use global `lib-research`.
 
 ## Done Criteria
 

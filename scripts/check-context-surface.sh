@@ -18,7 +18,6 @@ retained_skills=(
   "decision-alignment"
   "contract-guardrails"
   "job-registry-and-progress"
-  "lib-research"
   "path-security-validation"
   "tauri-command-conventions"
 )
@@ -35,7 +34,9 @@ retained_hook_files=(
 removed_skills=(
   "commit"
   "github-issue"
+  "audit-boundary-glue"
   "land"
+  "lib-research"
   "mp4ameta-patterns"
   "perf-quality-orchestrator"
   "pr-open"

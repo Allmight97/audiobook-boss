@@ -1,4 +1,0 @@
-interface:
-  display_name: "Audit Boundary Glue"
-  short_description: "Find false seams and wrapper debt"
-  default_prompt: "Use $audit-boundary-glue to classify wrapper-heavy boundary code and recommend keep/remove/defer actions."
