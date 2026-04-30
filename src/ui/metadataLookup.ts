@@ -37,7 +37,7 @@ type QueueItemState = {
 };
 
 function refreshOutputForMetadataChange(): void {
-	updateOutputPath();
+	updateOutputPath('final');
 	updateEstimatedSize();
 }
 

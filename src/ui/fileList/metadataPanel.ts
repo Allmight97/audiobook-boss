@@ -25,7 +25,7 @@ let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
 
 function refreshOutputForMetadataChange(): void {
-	updateOutputPath();
+	updateOutputPath('final');
 	updateEstimatedSize();
 }
 

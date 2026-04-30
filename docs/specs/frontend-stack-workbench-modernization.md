@@ -40,7 +40,7 @@ Frontend work should preserve `src/lib/tauri/client.ts` as the runtime IPC bound
 
 ### 1. Tailwind Vite Plugin
 
-Status: in progress in the first implementation PR.
+Status: complete in PR #290.
 
 Replace Tailwind's PostCSS adapter with the official Vite plugin:
 
@@ -64,7 +64,7 @@ Acceptance:
 
 ### 2. Declarative Islands and Panels
 
-Status: future PRs by owned flow.
+Status: active, by owned flow.
 
 Continue migrating old frontend shape toward declarative Svelte islands/panels and `.svelte.ts` state where that removes imperative DOM orchestration or hidden coupling.
 
@@ -75,6 +75,15 @@ Do not mix broad island/panel migration with build-pipeline dependency cleanup. 
 - output plan
 - processing/status
 - collision/review dialogs
+
+Current PR lane: output plan.
+
+The output plan panel owns output directory selection, naming preset/template state, ABS naming options, output preview refresh, and estimated-size display. This lane should remove false seams in that panel without changing user-facing flow:
+
+- replace event-shaped exported handlers with value/action functions that the Svelte island calls from local DOM events
+- rename misleading non-DOM output preview code so future agents do not treat it as imperative DOM orchestration
+- keep `src/ui/outputPanel/state.svelte.ts` as the state owner and keep runtime Tauri calls behind existing frontend boundary modules
+- preserve existing output preview, naming preset/template, include-year, and estimated-size behavior
 
 Acceptance for each future lane:
 

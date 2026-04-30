@@ -1,26 +1,20 @@
 /**
- * Output panel module - manages output directory, naming patterns, and encoder settings
- *
- * Re-exports public API from submodules.
+ * Output panel module - manages output directory, naming patterns, and encoder settings.
  */
 import { loadInitialState } from './state.svelte';
-import { resetOutputPanelHandlers } from './handlers';
-import { updateOutputPath, updateEstimatedSize, updateNamingOptionState } from './dom';
+import { resetOutputPanelActions } from './actions';
+import { updateOutputPath, updateEstimatedSize, updateNamingOptionState } from './preview';
 
-/**
- * Initializes the output panel with event handlers
- */
 export function initOutputPanel(): void {
-	resetOutputPanelHandlers();
+	resetOutputPanelActions();
 	loadInitialState();
 	updateNamingOptionState();
-	updateOutputPath();
+	updateOutputPath('final');
 	updateEstimatedSize();
 }
 
-// Re-export commonly needed items
 export { getState } from './state.svelte';
 export { readOutputConfigForProcessing } from './state.svelte';
-export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './dom';
+export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './preview';
 export { sanitizeFilename, calculateOutputPath } from './pathBuilder';
 export { default as OutputPanelIsland } from './OutputPanelIsland.svelte';

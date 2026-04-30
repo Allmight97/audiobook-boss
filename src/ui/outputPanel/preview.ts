@@ -100,7 +100,7 @@ export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
 	setSubseriesPartWarning(message, visible);
 }
 
-export function updateOutputPath(outputKind: OutputKind = 'final'): void {
+export function updateOutputPath(outputKind: OutputKind): void {
 	void updateOutputPathAsync(outputKind);
 }
 
