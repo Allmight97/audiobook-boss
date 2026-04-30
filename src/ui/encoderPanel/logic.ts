@@ -1,5 +1,5 @@
 import { ENABLE_FDK } from './featureFlags';
-import { updateEstimatedSize } from '../outputPanel/dom';
+import { updateEstimatedSize } from '../outputPanel/preview';
 import {
 	updateEncoderSettings,
 	updateSampleRate,

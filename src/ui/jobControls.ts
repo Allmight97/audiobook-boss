@@ -25,7 +25,7 @@ export function handleMaxConcurrentSelectionChange(value: string): void {
 function setJobType(jobType: JobType, emitChangeEvent: boolean): void {
 	jobControlsState.jobType = jobType;
 	if (emitChangeEvent) {
-		updateOutputPath();
+		updateOutputPath('final');
 	}
 }
 

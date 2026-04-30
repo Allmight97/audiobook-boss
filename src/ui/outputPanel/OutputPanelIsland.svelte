@@ -1,18 +1,33 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
-		handleAbsIncludeYearChange,
-		handleDirectoryBrowse,
-		handleNamingPresetChange,
-		handleNamingTemplateInput,
-	} from './handlers';
+		browseOutputDirectory,
+		editNamingTemplate,
+		selectNamingPreset,
+		setAbsIncludeYear,
+	} from './actions';
 	import { initOutputPanel } from './index';
 	import { outputPanelState } from './state.svelte';
 
 	const customTemplatePlaceholder = '{author}/{series}/Book {seriesPart} - {title}';
 
 	function handleBrowseClick(): void {
-		void handleDirectoryBrowse();
+		void browseOutputDirectory();
+	}
+
+	function handleNamingPresetChange(event: Event): void {
+		const select = event.currentTarget as HTMLSelectElement | null;
+		selectNamingPreset(select?.value ?? 'absDefault');
+	}
+
+	function handleNamingTemplateInput(event: Event): void {
+		const input = event.currentTarget as HTMLInputElement | null;
+		editNamingTemplate(input?.value ?? '');
+	}
+
+	function handleAbsIncludeYearChange(event: Event): void {
+		const input = event.currentTarget as HTMLInputElement | null;
+		setAbsIncludeYear(Boolean(input?.checked));
 	}
 
 	onMount(() => {

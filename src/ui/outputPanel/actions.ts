@@ -1,14 +1,12 @@
-/**
- * Event handlers for output panel controls
- */
 import { tauriClient } from '../../lib/tauri/client';
 import {
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateNamingTemplate,
 	updateAbsIncludeYear,
+	type OutputNamingPreset,
 } from './state.svelte';
-import { updateOutputPath, updateNamingOptionState, showOutputError } from './dom';
+import { updateOutputPath, updateNamingOptionState, showOutputError } from './preview';
 
 const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
 let templatePreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -19,7 +17,7 @@ function scheduleTemplatePreviewUpdate(): void {
 	}
 	templatePreviewDebounceTimer = setTimeout(() => {
 		templatePreviewDebounceTimer = null;
-		updateOutputPath();
+		updateOutputPath('final');
 	}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
 }
 
@@ -30,10 +28,7 @@ function resetTemplatePreviewDebounce(): void {
 	}
 }
 
-/**
- * Handles directory browse button click
- */
-export async function handleDirectoryBrowse(): Promise<void> {
+export async function browseOutputDirectory(): Promise<void> {
 	try {
 		const selectedPath = await tauriClient.open({
 			directory: true,
@@ -50,7 +45,7 @@ export async function handleDirectoryBrowse(): Promise<void> {
 
 		if (normalized) {
 			updateOutputDirectory(normalized);
-			updateOutputPath();
+			updateOutputPath('final');
 		}
 	} catch (error) {
 		console.error('Error selecting directory:', error);
@@ -58,36 +53,24 @@ export async function handleDirectoryBrowse(): Promise<void> {
 	}
 }
 
-/**
- * Handles naming preset selector changes
- */
-export function handleNamingPresetChange(event: Event): void {
-	const target = event.target as HTMLSelectElement;
-	const preset = target.value === 'customTemplate' ? 'customTemplate' : 'absDefault';
+export function selectNamingPreset(value: string): void {
+	const preset: OutputNamingPreset = value === 'customTemplate' ? 'customTemplate' : 'absDefault';
 	updateNamingPreset(preset);
 	updateNamingOptionState();
-	updateOutputPath();
+	updateOutputPath('final');
 }
 
-/**
- * Handles ABS include year checkbox change
- */
-export function handleAbsIncludeYearChange(event: Event): void {
-	const target = event.target as HTMLInputElement;
-	updateAbsIncludeYear(target.checked);
+export function setAbsIncludeYear(checked: boolean): void {
+	updateAbsIncludeYear(checked);
 	updateNamingOptionState();
-	updateOutputPath();
+	updateOutputPath('final');
 }
 
-/**
- * Handles custom template input changes
- */
-export function handleNamingTemplateInput(event: Event): void {
-	const target = event.target as HTMLInputElement;
-	updateNamingTemplate(target.value);
+export function editNamingTemplate(value: string): void {
+	updateNamingTemplate(value);
 	scheduleTemplatePreviewUpdate();
 }
 
-export function resetOutputPanelHandlers(): void {
+export function resetOutputPanelActions(): void {
 	resetTemplatePreviewDebounce();
 }

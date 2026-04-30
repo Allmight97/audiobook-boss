@@ -5,7 +5,7 @@ import OutputPanelIsland from '../outputPanel/OutputPanelIsland.svelte';
 import { setJobTypeSelection } from '../jobControls';
 import { populateMetadataFormMulti, populateMetadataFormSingle } from '../metadataForm';
 import { metadataFormState } from '../metadataForm/state.svelte';
-import { updateOutputPath } from '../outputPanel/dom';
+import { updateOutputPath } from '../outputPanel/preview';
 import {
 	outputPanelState,
 	updateOutputDirectory,
@@ -40,7 +40,7 @@ describe('output panel preview resilience', () => {
 	});
 
 	it('renders the backend preview path when output configuration is valid', async () => {
-		updateOutputPath();
+		updateOutputPath('final');
 
 		const previewText = document.getElementById('output-preview-text');
 		await waitFor(() => {
@@ -53,7 +53,7 @@ describe('output panel preview resilience', () => {
 	it('shows explicit preview error when Tauri preview RPC fails', async () => {
 		vi.mocked(tauriClient.previewOutputPath).mockRejectedValueOnce(new Error('rpc down'));
 
-		updateOutputPath();
+		updateOutputPath('final');
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const previewText = document.getElementById('output-preview-text');
@@ -87,7 +87,7 @@ describe('output panel preview resilience', () => {
 		const previewText = document.getElementById('output-preview-text');
 		updateOutputDirectory('');
 
-		updateOutputPath();
+		updateOutputPath('final');
 
 		expect(outputPanelState.outputDirectory).toBe('');
 		await waitFor(() => {
@@ -108,7 +108,7 @@ describe('output panel preview resilience', () => {
 			'/Library/Audiobooks/Frank Herbert/Dune.m4b',
 		);
 
-		updateOutputPath();
+		updateOutputPath('final');
 
 		await waitFor(() => {
 			expect(outputPanelState.previewText).toContain('/Library/Audiobooks/Frank Herbert');

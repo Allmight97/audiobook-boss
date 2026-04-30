@@ -62,7 +62,7 @@ function refreshOutputForFileListChange(): void {
 }
 
 function refreshOutputForMetadataChange(): void {
-	updateOutputPath();
+	updateOutputPath('final');
 	updateEstimatedSize();
 }
 

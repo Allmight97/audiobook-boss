@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../types/audio';
-import { updateEstimatedSize } from '../outputPanel/dom';
+import { updateEstimatedSize } from '../outputPanel/preview';
 import {
 	outputPanelState,
 	readOutputConfigForProcessing,
