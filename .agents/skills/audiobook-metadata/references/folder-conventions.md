@@ -121,7 +121,7 @@ sanitize(name):
 
 ## audiobook-boss Implementation
 
-The output path generation is in `src-tauri/src/audio/output_path.rs`:
+The output path generation is in `src-tauri/src/audio/output_path/naming.rs`:
 
 ```rust
 // build_output_path()
@@ -136,7 +136,7 @@ Current behavior:
 - Author folder preserves commas; other components replace commas with ` - `.
 - Year appears only when explicitly enabled and metadata date is present.
 
-To modify folder structure behavior, edit `build_output_path()` in `audio/output_path.rs`.
+To modify folder structure behavior, edit `build_output_path()` in `src-tauri/src/audio/output_path/naming.rs`.
 
 ---
 

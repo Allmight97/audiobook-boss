@@ -65,11 +65,11 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
-### Temporary Evergreen Refactor Bias
+### Active Refactor Bias
 
-- Temporarily evergreen: actively surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
+- Actively surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
 - Prioritize refactoring bad code and malformed solutions over preserving them for diff minimization, as long as the connection to the active work is real and the scope expansion is discussed when material.
-- Apply this bias until the backlog of credible seam/contract cleanup opportunities appears meaningfully exhausted or the connection becomes too speculative to justify.
+- Apply this bias while the connection to active work is concrete enough to improve durability, ownership clarity, or contract correctness.
 
 ## Hard Invariants
 
