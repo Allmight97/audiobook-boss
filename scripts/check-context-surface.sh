@@ -49,6 +49,7 @@ removed_skills=(
 stale_doc_pattern='docs/README\.md|docs/AGENTS\.md|docs/agent-execution\.md|docs/browser-harness\.md|docs/skills-audit\.md|docs/specs/technical-reference\.md|docs/verification\.md|docs/workloop\.md'
 stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
+stale_planning_pattern='PLANS\.md'
 
 append_unique_paths() {
   local dest_name="$1"
@@ -70,6 +71,15 @@ append_unique_paths() {
       eval "$dest_name+=(\"\$path\")"
     done
   done
+}
+
+reject_pattern() {
+  local pattern="$1"
+  shift
+
+  if rg -n "$pattern" "$@"; then
+    exit 1
+  fi
 }
 
 [[ ! -e ".pebbles" ]] || {
@@ -186,11 +196,12 @@ append_unique_paths existing_text_surface_paths text_surface_paths spec_surface_
 existing_legacy_surface_paths=()
 append_unique_paths existing_legacy_surface_paths legacy_surface_paths
 
-! rg -n 'docs/project\.md' "${existing_text_surface_paths[@]}" >/dev/null
-! rg -n "$stale_doc_pattern" "${existing_text_surface_paths[@]}" >/dev/null
-! rg -n "$stale_check_pattern" "${existing_text_surface_paths[@]}" >/dev/null
-! rg -n "$stale_tracking_pattern" "${existing_text_surface_paths[@]}" >/dev/null
-! rg -n 'docs/decisions' "${existing_text_surface_paths[@]}" >/dev/null
-! rg -n "$removed_surface_pattern" "${existing_legacy_surface_paths[@]}" >/dev/null
+reject_pattern 'docs/project\.md' "${existing_text_surface_paths[@]}"
+reject_pattern "$stale_doc_pattern" "${existing_text_surface_paths[@]}"
+reject_pattern "$stale_check_pattern" "${existing_text_surface_paths[@]}"
+reject_pattern "$stale_tracking_pattern" "${existing_text_surface_paths[@]}"
+reject_pattern "$stale_planning_pattern" "${existing_text_surface_paths[@]}"
+reject_pattern 'docs/decisions' "${existing_text_surface_paths[@]}"
+reject_pattern "$removed_surface_pattern" "${existing_legacy_surface_paths[@]}"
 
 echo "[context-surface] OK"
