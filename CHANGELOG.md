@@ -15,6 +15,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.18] - 2026-04-30
+
+Terminal-truth, frontend-stack, dependency-tooling, and agent-surface cleanup
+release. This tag makes processing results more truthful, completes the
+Tailwind Vite plugin cutover, removes stale frontend/documentation residue, and
+keeps repo guidance focused on current operating rules instead of past-state
+notes.
+
+### Added
+
+- Added a repo-local dependency maintenance skill and snapshot helper for Bun,
+  JS package, Rust toolchain, Cargo, workflow-pin, and supply-chain audits.
+- Added a decision-alignment skill for substantial planning work now that
+  long-lived implementation specs are no longer the default planning surface.
+
+### Changed
+
+- Processing terminal outcome normalization now preserves backend truth for
+  success, skipped, cancelled, failed, and mixed batch results.
+- Tailwind now runs through the official `@tailwindcss/vite` plugin instead of
+  ABB's former PostCSS adapter configuration.
+- Output plan panel code now uses value/action helpers owned by the Svelte
+  island rather than exported event-shaped handler seams.
+- Dependency tooling was refreshed, including Rust toolchain and Cargo lockfile
+  updates plus workflow-pin maintenance.
+- Repo guidance and glossary surfaces now describe current decision, boundary,
+  and agent-operating rules without using completed work as history lessons.
+
+### Fixed
+
+- Release automation now publishes release assets before the immutable release
+  step.
+- Changed-file harness verification is stable after the UI harness cleanup.
+- Processing run results no longer lose failed or cancelled terminal truth in
+  batch result normalization.
+
+### Removed
+
+- Removed the Tailwind PostCSS adapter config, dead Tailwind JS config, and
+  stale frontend-stack implementation spec.
+- Removed legacy UI harness residue and stale output-panel `handlers`/`dom`
+  naming that no longer matched the owning code.
+- Removed the old planning contract file in favor of the decision-alignment
+  skill and current repo guidance.
+- Removed a stale history/delta system-shape diagram from docs.
+
 ## [1.0.17] - 2026-04-27
 
 Output-truth and boundary cleanup release. This tag makes required output
