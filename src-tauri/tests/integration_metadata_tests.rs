@@ -24,7 +24,7 @@ fn sample_mp3_path() -> PathBuf {
         .join("media_20sec.mp3")
 }
 
-fn write_minimal_m4b(output: &Path) {
+fn write_minimal_aac_audio(output: &Path) {
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
     let mut octx = ff::format::output(output).expect("create output context");
     let time_base = ff::Rational(1, 44_100);
@@ -76,6 +76,10 @@ fn write_minimal_m4b(output: &Path) {
         pkt.write_interleaved(&mut octx).expect("write packet");
     }
     octx.write_trailer().expect("write trailer");
+}
+
+fn write_minimal_m4b(output: &Path) {
+    write_minimal_aac_audio(output);
 }
 
 fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
@@ -207,6 +211,26 @@ async fn save_metadata_non_mp4_uses_ffmpeg_path() {
         .expect("read metadata");
     assert_eq!(read_back.title.as_deref(), Some("Non-MP4 Title"));
     assert_eq!(read_back.artist.as_deref(), Some("Non-MP4 Author"));
+}
+
+#[tokio::test]
+async fn save_metadata_raw_aac_uses_writable_adts_muxer_without_remux_failure() {
+    let temp = TempDir::new().expect("temp dir");
+    let target = temp.path().join("metadata-test.aac");
+    write_minimal_aac_audio(&target);
+
+    let metadata = AudiobookMetadata {
+        title: Some("Raw AAC Title".into()),
+        artist: Some("Raw AAC Author".into()),
+        ..Default::default()
+    };
+
+    save_metadata_to_file(target.to_string_lossy().to_string(), metadata.into())
+        .await
+        .expect("save metadata to raw aac");
+
+    let ictx = ff::format::input(&target).expect("rewritten raw aac remains readable");
+    assert_eq!(ictx.format().name(), "aac");
 }
 
 #[tokio::test]

@@ -577,7 +577,7 @@ pub(crate) fn save_metadata_with_plan(
             path,
             Some(plan),
             None,
-            route.detected_output_format(),
+            route.remux_output_format(),
         ),
     }
 }

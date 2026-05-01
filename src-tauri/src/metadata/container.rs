@@ -9,14 +9,16 @@ use crate::errors::{AppError, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ContainerRoute {
     Mp4Family,
-    Other { format_name: String },
+    Other { remux_output_format: String },
 }
 
 impl ContainerRoute {
-    pub(crate) fn detected_output_format(&self) -> Option<&str> {
+    pub(crate) fn remux_output_format(&self) -> Option<&str> {
         match self {
             Self::Mp4Family => None,
-            Self::Other { format_name } => Some(format_name.as_str()),
+            Self::Other {
+                remux_output_format,
+            } => Some(remux_output_format.as_str()),
         }
     }
 }
@@ -32,12 +34,21 @@ pub(crate) fn classify(path: &Path) -> Result<ContainerRoute> {
     }
 
     Ok(ContainerRoute::Other {
-        format_name: primary_format_name(format_name).to_string(),
+        remux_output_format: remux_output_format_for(format_name).to_string(),
     })
 }
 
 fn primary_format_name(format_name: &str) -> &str {
     format_name.split(',').next().unwrap_or(format_name)
+}
+
+fn remux_output_format_for(format_name: &str) -> &str {
+    match primary_format_name(format_name) {
+        // FFmpeg detects raw ADTS AAC with demuxer name `aac`, but the writable
+        // muxer name is `adts`.
+        "aac" => "adts",
+        format => format,
+    }
 }
 
 fn is_mp4_family_format(format_name: &str) -> bool {
@@ -48,7 +59,7 @@ fn is_mp4_family_format(format_name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_mp4_family_format, primary_format_name};
+    use super::{is_mp4_family_format, primary_format_name, remux_output_format_for};
 
     #[test]
     fn classifies_ffmpeg_mp4_family_format_name() {
@@ -59,5 +70,13 @@ mod tests {
     fn keeps_non_mp4_format_name_for_forced_remux_output() {
         assert!(!is_mp4_family_format("mp3"));
         assert_eq!(primary_format_name("matroska,webm"), "matroska");
+    }
+
+    #[test]
+    fn maps_demuxer_names_to_writable_remux_output_formats() {
+        assert_eq!(remux_output_format_for("aac"), "adts");
+        assert_eq!(remux_output_format_for("mp3"), "mp3");
+        assert_eq!(remux_output_format_for("wav"), "wav");
+        assert_eq!(remux_output_format_for("flac"), "flac");
     }
 }
