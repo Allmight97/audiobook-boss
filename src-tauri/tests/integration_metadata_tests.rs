@@ -1,6 +1,6 @@
 //! Integration tests for metadata reading and writing with real M4B/MP3 files.
 //!
-//! Tests mp4ameta series tags, cover art, and FFmpeg fallback behavior.
+//! Tests MP4 atom metadata, cover art, and container-routed FFmpeg behavior.
 
 use audiobook_boss_lib::commands::metadata::{read_audio_metadata, save_metadata_to_file};
 use audiobook_boss_lib::{
@@ -24,7 +24,7 @@ fn sample_mp3_path() -> PathBuf {
         .join("media_20sec.mp3")
 }
 
-fn write_minimal_m4b(output: &Path) {
+fn write_minimal_aac_audio(output: &Path) {
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");
     let mut octx = ff::format::output(output).expect("create output context");
     let time_base = ff::Rational(1, 44_100);
@@ -76,6 +76,10 @@ fn write_minimal_m4b(output: &Path) {
         pkt.write_interleaved(&mut octx).expect("write packet");
     }
     octx.write_trailer().expect("write trailer");
+}
+
+fn write_minimal_m4b(output: &Path) {
+    write_minimal_aac_audio(output);
 }
 
 fn write_minimal_m4b_with_attached_pic(output: &Path, cover_bytes: &[u8]) {
@@ -181,7 +185,7 @@ async fn invalid_file_surfaces_ffmpeg_error() {
 }
 
 // ============================================================================
-// FFmpeg fallback for non-M4B files
+// FFmpeg metadata path for non-MP4 files
 // ============================================================================
 
 #[tokio::test]
@@ -210,16 +214,36 @@ async fn save_metadata_non_mp4_uses_ffmpeg_path() {
 }
 
 #[tokio::test]
-async fn mp4ameta_error_falls_back_to_ffmpeg() {
+async fn save_metadata_raw_aac_uses_writable_adts_muxer_without_remux_failure() {
+    let temp = TempDir::new().expect("temp dir");
+    let target = temp.path().join("metadata-test.aac");
+    write_minimal_aac_audio(&target);
+
+    let metadata = AudiobookMetadata {
+        title: Some("Raw AAC Title".into()),
+        artist: Some("Raw AAC Author".into()),
+        ..Default::default()
+    };
+
+    save_metadata_to_file(target.to_string_lossy().to_string(), metadata.into())
+        .await
+        .expect("save metadata to raw aac");
+
+    let ictx = ff::format::input(&target).expect("rewritten raw aac remains readable");
+    assert_eq!(ictx.format().name(), "aac");
+}
+
+#[tokio::test]
+async fn mislabeled_mp3_as_m4b_routes_by_container_truth() {
     let temp = TempDir::new().expect("temp dir");
     let source = sample_mp3_path();
     assert!(source.exists(), "sample mp3 should exist");
-    let mp3_path = temp.path().join("fallback.mp3");
+    let mp3_path = temp.path().join("actual-container.mp3");
     std::fs::copy(&source, &mp3_path).expect("copy mp3 fixture");
 
     let metadata = AudiobookMetadata {
-        title: Some("Fallback Title".into()),
-        artist: Some("Fallback Author".into()),
+        title: Some("Container Truth Title".into()),
+        artist: Some("Container Truth Author".into()),
         ..Default::default()
     };
 
@@ -227,15 +251,15 @@ async fn mp4ameta_error_falls_back_to_ffmpeg() {
         .await
         .expect("save metadata");
 
-    // Rename to .m4b to force mp4ameta path, then ensure ffmpeg fallback returns data.
-    let spoofed = temp.path().join("fallback.m4b");
+    // Rename to .m4b; actual container truth should still route through FFmpeg.
+    let spoofed = temp.path().join("actual-container.m4b");
     std::fs::rename(&mp3_path, &spoofed).expect("rename mp3 to m4b");
 
     let read_back = read_audio_metadata(spoofed.to_string_lossy().to_string())
         .await
         .expect("read metadata");
-    assert_eq!(read_back.title.as_deref(), Some("Fallback Title"));
-    assert_eq!(read_back.artist.as_deref(), Some("Fallback Author"));
+    assert_eq!(read_back.title.as_deref(), Some("Container Truth Title"));
+    assert_eq!(read_back.artist.as_deref(), Some("Container Truth Author"));
 }
 
 // ============================================================================
@@ -271,9 +295,9 @@ async fn writes_series_tags_with_mp4ameta() {
         tag.strings_of(&series_ident).next(),
         Some("Dungeon Crawler Carl")
     );
-    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
-    assert_eq!(tag.movement_index(), Some(7));
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
 
     // Canonical read keys should be visible through ffmpeg metadata lookup.
     assert_eq!(
@@ -330,8 +354,8 @@ async fn replaces_duplicate_series_atoms_on_save() {
 
     assert_eq!(series_values, vec!["Part 3 - Fringe Worlds"]);
     assert_eq!(part_values, vec!["14"]);
-    assert_eq!(tag.movement(), Some("Part 3 - Fringe Worlds"));
-    assert_eq!(tag.movement_index(), Some(14));
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
 }
 
 #[tokio::test]
@@ -373,9 +397,9 @@ async fn preserves_series_tags_on_cover_art_update() {
         tag.strings_of(&series_ident).next(),
         Some("Dungeon Crawler Carl")
     );
-    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
-    assert_eq!(tag.movement_index(), Some(7));
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
     assert!(
         tag.artwork().is_some(),
         "cover art update should add artwork without clearing series tags"
@@ -412,9 +436,9 @@ async fn preserves_series_tags_on_metadata_only_save() {
         tag.strings_of(&series_ident).next(),
         Some("Dungeon Crawler Carl")
     );
-    assert_eq!(tag.movement(), Some("Dungeon Crawler Carl"));
     assert_eq!(tag.strings_of(&part_ident).next(), Some("7"));
-    assert_eq!(tag.movement_index(), Some(7));
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
     assert_eq!(
         tag.album_sort_order(),
         Some("Dungeon Crawler Carl 07 - This Inevitable Spanking")

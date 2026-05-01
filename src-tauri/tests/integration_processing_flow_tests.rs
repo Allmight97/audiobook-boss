@@ -211,12 +211,12 @@ async fn assert_metadata_round_trip(
         tag.strings_of(&series_ident).next().map(str::to_string),
         Some(format!("{expected_series}; {expected_subseries}"))
     );
-    assert_eq!(tag.movement(), Some(expected_series));
     assert_eq!(
         tag.strings_of(&part_ident).next().map(str::to_string),
         Some("1; 1".to_string())
     );
-    assert_eq!(tag.movement_index(), Some(1));
+    assert!(tag.movement().is_none());
+    assert!(tag.movement_index().is_none());
     assert_eq!(
         tag.album_sort_order(),
         Some("Series Test 01 - Science, Being, & Becoming: The Spiritual Lives of Scientists")

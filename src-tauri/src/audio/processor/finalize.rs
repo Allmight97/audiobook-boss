@@ -299,7 +299,7 @@ pub(crate) fn write_metadata_stage(
         return Ok(());
     };
 
-    if !crate::metadata::mp4ameta_bridge::is_mp4_container(merged_output) {
+    if !crate::metadata::should_write_finalized_metadata(merged_output)? {
         log::debug!("Finalize metadata stage skipped; ffmpeg-next handled metadata during mux");
         return Ok(());
     }
@@ -307,7 +307,7 @@ pub(crate) fn write_metadata_stage(
     let ui = _context.new_emitter();
     reporter.set_stage(ProcessingStage::WritingMetadata);
     ui.emit_metadata_start("Writing metadata...");
-    crate::metadata::mp4ameta_bridge::write_metadata(merged_output, &metadata)?;
+    crate::metadata::write_finalized_metadata(merged_output, &metadata)?;
     ui.emit_finalizing("Finalizing...");
     Ok(())
 }

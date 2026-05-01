@@ -1,7 +1,7 @@
 //! Metadata handling for audiobook files
 //!
 //! This module provides functionality to read and write metadata
-//! from/to audio files using ffmpeg-next.
+//! from/to audio files through container-aware metadata strategies.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,10 +10,9 @@ use crate::errors::{AppError, Result};
 pub mod reader;
 pub(crate) mod tag_registry;
 
-// FFmpeg-next metadata integration for direct embedding during encoding.
+mod container;
 mod cover_art;
 mod ffi;
-pub mod ffmpeg_bridge;
 mod ffmpeg_dict;
 mod remux;
 // Mp4ameta integration for reliable MP4/M4B metadata handling
@@ -30,8 +29,8 @@ pub mod passthrough;
 /// Field mapping for Plex/Audiobookshelf compatibility:
 /// - `artist` = Author (also written to AlbumArtist)
 /// - `composer` = Narrator (also mirrored to freeform NARRATOR)
-/// - `series` = Series name (freeform SERIES, mirrored to MVNM)
-/// - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
+/// - `series` = Series name (freeform SERIES)
+/// - `series_part` = Series sequence / book # in series (freeform SERIES-PART)
 /// - `album_sort` = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
@@ -55,9 +54,9 @@ pub struct AudiobookMetadata {
     pub comment: Option<String>,
     /// Description or synopsis (desc)
     pub description: Option<String>,
-    /// Series name (freeform SERIES, mirrored to MVNM)
+    /// Series name (freeform SERIES)
     pub series: Option<String>,
-    /// Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
+    /// Series sequence / book # in series (freeform SERIES-PART)
     pub series_part: Option<String>,
     /// Sub-series name (secondary series)
     pub subseries: Option<String>,
@@ -557,14 +556,54 @@ pub(crate) fn compute_album_sort(
     ))
 }
 
-// Re-export main functions for convenience
 pub use reader::read_metadata;
 
-// Re-export ffmpeg-next bridge functions for native metadata and cover art embedding
-pub use ffmpeg_bridge::{
-    add_cover_art_stream_pre_header, set_container_metadata, validate_metadata_compatibility,
-    write_cover_art_packet_post_header, CoverFormat,
+pub use cover_art::{
+    add_cover_art_stream_pre_header, detect_cover_art_format, write_cover_art_packet_post_header,
+    CoverFormat,
 };
+pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
+pub use remux::rewrite_metadata_with_ffmpeg;
+
+pub(crate) fn save_metadata_with_plan(
+    path: &std::path::Path,
+    plan: &MetadataWritePlan,
+) -> Result<()> {
+    match container::classify(path)? {
+        container::ContainerRoute::Mp4Family => {
+            mp4ameta_bridge::write_metadata_with_plan(path, plan)
+        }
+        route => remux::rewrite_metadata_with_ffmpeg_plan_as(
+            path,
+            Some(plan),
+            None,
+            route.remux_output_format(),
+        ),
+    }
+}
+
+pub(crate) fn write_cover_art_to_file(path: &std::path::Path, cover_data: Vec<u8>) -> Result<()> {
+    let metadata = AudiobookMetadata {
+        cover_art: Some(cover_data),
+        ..Default::default()
+    };
+    let plan = MetadataWritePlan::from_metadata(metadata);
+    save_metadata_with_plan(path, &plan)
+}
+
+pub(crate) fn should_write_finalized_metadata(path: &std::path::Path) -> Result<bool> {
+    Ok(matches!(
+        container::classify(path)?,
+        container::ContainerRoute::Mp4Family
+    ))
+}
+
+pub(crate) fn write_finalized_metadata(
+    path: &std::path::Path,
+    metadata: &AudiobookMetadata,
+) -> Result<()> {
+    mp4ameta_bridge::write_metadata(path, metadata)
+}
 
 #[cfg(test)]
 mod tests {

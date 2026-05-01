@@ -6,8 +6,8 @@ use super::{
 };
 use crate::errors::Result;
 use crate::metadata::tag_registry::{
-    ITUNES_SERIES, ITUNES_SERIES_PART, MOVEMENT_INDEX, MOVEMENT_NAME, SERIES, SERIES_CLEAR_KEYS,
-    SERIES_PART, SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
+    ITUNES_SERIES, ITUNES_SERIES_PART, SERIES, SERIES_CLEAR_KEYS, SERIES_PART,
+    SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
 };
 use ffmpeg_next as ff;
 
@@ -74,17 +74,8 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         }
     }
 
-    // Series metadata: dual-write for ABS/Plex + Apple Books
-    let primary_series = metadata
-        .series
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let primary_series_part = metadata
-        .series_part
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
+    // Series metadata: canonical tag plus iTunes freeform mirror for scanners that
+    // depend on either ffprobe-visible names or Apple-style freeform atoms.
     let (series_value, series_part_value) = build_series_list(
         metadata.series.as_deref(),
         metadata.series_part.as_deref(),
@@ -96,17 +87,11 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set(SERIES, series);
         dict.set(ITUNES_SERIES, series);
     }
-    if let Some(primary_series) = primary_series {
-        dict.set(MOVEMENT_NAME, primary_series);
-    }
 
-    // Book # metadata: dual-write for ABS/Plex + Apple Books
+    // Book # metadata: canonical tag plus iTunes freeform mirror.
     if let Some(series_part) = series_part_value.as_deref() {
         dict.set(SERIES_PART, series_part);
         dict.set(ITUNES_SERIES_PART, series_part);
-    }
-    if let Some(primary_series_part) = primary_series_part {
-        dict.set(MOVEMENT_INDEX, primary_series_part);
     }
 
     // TSOA → sort_album for library sorting
@@ -437,6 +422,30 @@ mod tests {
         assert_eq!(
             merged.get("sort_album"),
             Some("Existing Series 02 - Existing Title")
+        );
+    }
+
+    #[test]
+    fn metadata_to_ffmpeg_dict_includes_core_audiobook_fields() {
+        let metadata = AudiobookMetadata {
+            title: Some("Test Audiobook".to_string()),
+            artist: Some("Test Author".to_string()),
+            album: Some("Test Series".to_string()),
+            composer: Some("Test Narrator".to_string()),
+            genre: Some("Audiobook".to_string()),
+            date: Some("2025".to_string()),
+            description: Some("A test audiobook for metadata integration".to_string()),
+            cover_art: Some(vec![0xFF, 0xD8, 0xFF, 0xE0]),
+            ..Default::default()
+        };
+
+        let dict = metadata_to_ffmpeg_dict(&metadata).expect("metadata conversion should succeed");
+
+        assert!(dict.get("title").is_some(), "Title should be present");
+        assert!(dict.get("artist").is_some(), "Artist should be present");
+        assert!(
+            dict.get("media_type").is_some(),
+            "Media type should be set for audiobooks"
         );
     }
 }

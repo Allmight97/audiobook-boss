@@ -8,7 +8,7 @@ mod errors;
 pub mod ipc_contract;
 mod metadata;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
-pub use metadata::ffmpeg_bridge::{
+pub use metadata::{
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
     detect_cover_art_format as ffmpeg_detect_cover_art_format,
     set_container_metadata as ffmpeg_set_container_metadata,

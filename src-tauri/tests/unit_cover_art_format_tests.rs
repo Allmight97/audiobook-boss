@@ -124,8 +124,8 @@ fn test_metadata_compatibility_validation_comprehensive() {
 }
 
 #[test]
-fn test_ffmpeg_bridge_functions_directly() {
-    println!("Testing FFmpeg bridge functions directly...");
+fn test_ffmpeg_metadata_helpers_directly() {
+    println!("Testing FFmpeg metadata helpers directly...");
 
     // Test metadata conversion
     let metadata = AudiobookMetadata {
@@ -138,7 +138,7 @@ fn test_ffmpeg_bridge_functions_directly() {
         ..Default::default()
     };
 
-    // Test that the bridge functions are accessible and working
+    // Test that the exported helper functions are accessible and working
     println!("Testing metadata validation...");
     let warnings = ffmpeg_validate_metadata_compatibility(&metadata);
     println!(
@@ -164,7 +164,7 @@ fn test_ffmpeg_bridge_functions_directly() {
     assert!(png_format.is_some(), "Should detect PNG format");
     println!("✓ PNG format detection working");
 
-    println!("FFmpeg bridge functions test passed!");
+    println!("FFmpeg metadata helper test passed!");
 }
 
 #[test]

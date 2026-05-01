@@ -7,10 +7,10 @@
 
 ## Preferred Path
 
-- Use mp4ameta bridge paths as the MP4/M4B atom reader and writer when the file can be read directly.
-- Use ffmpeg as the generic reader/prober and as the explicit hard fallback when mp4ameta cannot read an MP4/M4B file.
+- Use mp4ameta bridge paths as the probed MP4-family atom reader and writer when the file can be read directly.
+- Use ffmpeg as the generic reader/prober. Route metadata engines from actual container classification, not filename suffix.
 - Keep read/write behavior aligned through shared tag registry expectations.
-- Preserve dual-write behavior needed for downstream ecosystem compatibility.
+- Preserve canonical and mirrored tag writes only when they have proven downstream ecosystem value.
 - Introduce fallback paths only when fail-fast would break user outcomes on real files.
 
 ## Hard Invariants

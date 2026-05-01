@@ -5,11 +5,10 @@ use crate::audio::toolchain::ValidatedExternalToolchain;
 use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection, ProcessingContext, ProgressEmitter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg;
 use crate::metadata::passthrough::{
     apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
 };
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};

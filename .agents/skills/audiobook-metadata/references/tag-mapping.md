@@ -1,6 +1,6 @@
 # M4B Tag Mapping Reference
 
-Complete mapping of MP4 atoms to Audiobookshelf, Plex, and Apple Books fields.
+Current mapping of ABB-written MP4 metadata to Audiobookshelf, Plex, and Apple Books fields.
 
 ## Table of Contents
 
@@ -38,14 +38,9 @@ These are the tags that matter most for series detection.
 | `----:com.apple.iTunes:SERIES` | `series` | Series name |
 | `----:com.apple.iTunes:SERIES-PART` | `series-part` | Book number |
 
-### For Apple Books (movement tags)
-
-| Atom | ffmetadata key | Purpose |
-|------|----------------|---------|
-| `©mvn` | `MVNM` | Movement name (series) |
-| `©mvi` | `MVIN` | Movement number (book #) |
-
-**Both sets must be written for universal compatibility.**
+Apple movement tags (`MVNM`/`MVIN`) are not currently written or read as ABB's
+series mechanism. Reintroduce them only with manual player evidence and an
+explicit product decision.
 
 ## iTunes Custom Atoms
 
@@ -88,36 +83,30 @@ ffmpeg -i input.m4b \
   -c copy output.m4b
 ```
 
-### Movement tags (MVNM/MVIN)
-
-**Warning**: ffmpeg's handling of movement tags is inconsistent. The standard `-metadata` approach may not work. Options:
-
-1. Use AtomicParsley as a post-processing step
-2. Write via ffmpeg-next with custom atom handling
-
 ## Writing with ffmpeg-next (Rust)
 
-audiobook-boss uses ffmpeg-next bindings with a dual-write strategy so ABS/Plex and Apple Books both resolve series metadata.
+audiobook-boss writes canonical ffprobe-visible keys plus iTunes freeform mirrors
+for series metadata. These are the series keys ABB currently owns.
 
 ```rust
 // Primary + mirrored keys written together
 dict.set("series", series_name);
 dict.set("----:com.apple.iTunes:SERIES", series_name);
-dict.set("MVNM", series_name);
 
 dict.set("series-part", book_number);
 dict.set("----:com.apple.iTunes:SERIES-PART", book_number);
-dict.set("MVIN", book_number);
 ```
 
-`MVIN` should be a plain positive integer string. Slash-form values like `1/5` are rejected by validation and are not mirrored to movement index.
+Series-part values should stay scanner-friendly. Slash-form values like `1/5`
+are rejected by validation.
 
 Validation checklist:
 1. Creating an M4B with these tags
 2. Running `ffprobe -show_format output.m4b`
 3. Confirming `series` and `series-part` appear in the tags (plus the freeform atom names)
 
-Legacy read compatibility remains (`show` / `episode_sort`) for older files, but write paths should use the dual-write keys above.
+Legacy read compatibility remains (`show` / `episode_sort`) for older files,
+but write paths should use the canonical and freeform keys above.
 
 ---
 
