@@ -15,6 +15,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.19] - 2026-05-01
+
+Metadata boundary consolidation release. This tag makes metadata routing
+container-aware, removes stale fallback and movement-tag compatibility claims,
+and puts MP4-family and FFmpeg metadata writes behind a single metadata-owned
+boundary.
+
+### Changed
+
+- Metadata read/write routing now uses probed container truth instead of
+  filename suffixes, so renamed files are handled according to their actual
+  container.
+- Metadata save, cover-art write, and finalized metadata paths now delegate
+  through metadata-owned entry points instead of choosing mp4ameta or FFmpeg in
+  command/processor callers.
+- Non-MP4 metadata remuxing now maps FFmpeg demuxer names to writable muxers,
+  including raw AAC `aac` input to `adts` output.
+- Repo metadata guidance and tag-preview copy now describe the current
+  canonical/freeform series-tag strategy.
+
+### Fixed
+
+- Raw AAC metadata remux no longer fails by passing FFmpeg's `aac` demuxer name
+  as an output muxer.
+- Mislabeled MP3-as-M4B files now stay on the FFmpeg metadata path instead of
+  entering MP4 atom handling because of the `.m4b` suffix.
+
+### Removed
+
+- Removed the false `ffmpeg_bridge.rs` facade and moved exported helpers to the
+  modules that own the work.
+- Removed fallback register entries for the old extension-first metadata route
+  and Apple movement-tag support.
+- Removed Apple movement-tag series read/write support; possible reintroduction
+  is deferred pending manual player testing.
+
 ## [1.0.18] - 2026-04-30
 
 Terminal-truth, frontend-stack, dependency-tooling, and agent-surface cleanup
