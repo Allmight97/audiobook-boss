@@ -43,19 +43,7 @@ pub async fn save_metadata_to_file(
         let validated_path = validate_input_audio_path(&path)?;
         let write_plan = metadata_patch.to_write_plan()?;
 
-        if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
-            crate::metadata::mp4ameta_bridge::write_metadata_with_plan(
-                &validated_path,
-                &write_plan,
-            )?;
-        } else {
-            // Re-mux with ffmpeg-next: copy streams, set container metadata, copy chapters and attached_pic
-            crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg_plan(
-                &validated_path,
-                Some(&write_plan),
-                None,
-            )?;
-        }
+        crate::metadata::save_metadata_with_plan(&validated_path, &write_plan)?;
 
         log::info!("Metadata saved to: {}", validated_path.display());
         Ok(())
@@ -73,24 +61,7 @@ pub async fn save_metadata_to_file(
 pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> CommandResult<()> {
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_audio_path(&path)?;
-    if crate::metadata::mp4ameta_bridge::is_mp4_container(&validated_path) {
-        crate::metadata::mp4ameta_bridge::write_metadata(
-            &validated_path,
-            &AudiobookMetadata {
-                cover_art: Some(cover_data),
-                ..Default::default()
-            },
-        )?;
-    } else {
-        crate::metadata::ffmpeg_bridge::rewrite_metadata_with_ffmpeg(
-            &validated_path,
-            Some(&AudiobookMetadata {
-                cover_art: Some(cover_data),
-                ..Default::default()
-            }),
-            None,
-        )?;
-    }
+    crate::metadata::write_cover_art_to_file(&validated_path, cover_data)?;
     Ok(())
 }
 

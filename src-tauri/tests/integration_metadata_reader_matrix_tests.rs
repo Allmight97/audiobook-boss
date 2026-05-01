@@ -13,12 +13,11 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
-const SERIES_KEYS: [&str; 4] = ["series", "----:com.apple.iTunes:SERIES", "show", "MVNM"];
-const SERIES_PART_KEYS: [&str; 4] = [
+const SERIES_KEYS: [&str; 3] = ["series", "----:com.apple.iTunes:SERIES", "show"];
+const SERIES_PART_KEYS: [&str; 3] = [
     "series-part",
     "----:com.apple.iTunes:SERIES-PART",
     "episode_sort",
-    "MVIN",
 ];
 const TRACK_NUMBER_KEYS: [&str; 3] = ["track", "tracknumber", "trkn"];
 const TRACK_TOTAL_KEYS: [&str; 3] = ["tracktotal", "totaltracks", "totaltrack"];
@@ -376,14 +375,12 @@ fn read_with_mp4ameta_only(path: &Path) -> Result<AudiobookMetadata, String> {
         .strings_of(&series_ident)
         .next()
         .map(str::to_string)
-        .or_else(|| tag.tv_show_name().map(str::to_string))
-        .or_else(|| tag.movement().map(str::to_string));
+        .or_else(|| tag.tv_show_name().map(str::to_string));
     let series_part_raw = tag
         .strings_of(&series_part_ident)
         .next()
         .map(str::to_string)
-        .or_else(|| tag.tv_episode().map(|episode| episode.to_string()))
-        .or_else(|| tag.movement_index().map(|idx| idx.to_string()));
+        .or_else(|| tag.tv_episode().map(|episode| episode.to_string()));
     let (series, subseries) = split_series_list(series_raw.as_deref());
     let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
     metadata.series = series;
@@ -585,69 +582,6 @@ async fn legacy_show_episode_sort_gap_is_closed_for_mp4ameta_reads() {
 }
 
 #[tokio::test]
-async fn movement_only_series_is_shared_compatibility_case() {
-    ff::init().expect("ffmpeg init");
-
-    let temp = TempDir::new().expect("temp dir");
-    let output = temp.path().join("movement-only.m4b");
-
-    write_minimal_m4b(&output);
-    save_metadata_to_file(
-        output.to_string_lossy().to_string(),
-        AudiobookMetadata {
-            series: Some("Movement Series".into()),
-            series_part: Some("9".into()),
-            ..Default::default()
-        }
-        .into(),
-    )
-    .await
-    .expect("seed movement tags");
-
-    let mut tag = Tag::read_from_path(&output).expect("read tag");
-    let series_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
-    let part_ident = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
-    tag.remove_data_of(&series_ident);
-    tag.remove_data_of(&part_ident);
-    tag.remove_tv_show_name();
-    tag.remove_tv_episode();
-    tag.remove_tv_episode_name();
-    tag.set_movement("Movement Series");
-    tag.set_movement_index(9);
-    tag.set_show_movement();
-    let config = WriteConfig {
-        write_meta_items: true,
-        ..WriteConfig::NONE
-    };
-    tag.write_with_path(&output, &config)
-        .expect("write movement-only series tags");
-
-    let raw_tag = Tag::read_from_path(&output).expect("read movement-only tag");
-    assert_eq!(raw_tag.movement(), Some("Movement Series"));
-    assert_eq!(raw_tag.movement_index(), Some(9));
-
-    let comparison = compare_readers(&output).await;
-
-    assert_eq!(
-        comparison.current.series.as_deref(),
-        Some("Movement Series")
-    );
-    assert_eq!(comparison.current.series_part.as_deref(), Some("9"));
-    assert!(
-        comparison.ffmpeg_only.series.is_none(),
-        "ffmpeg-only currently misses movement-only series in this fixture"
-    );
-    assert!(
-        comparison.ffmpeg_only.series_part.is_none(),
-        "ffmpeg-only currently misses movement-only series_part in this fixture"
-    );
-
-    let mp4a = comparison.mp4ameta_only.expect("mp4ameta-only read");
-    assert_eq!(mp4a.series.as_deref(), Some("Movement Series"));
-    assert_eq!(mp4a.series_part.as_deref(), Some("9"));
-}
-
-#[tokio::test]
 async fn covr_only_cover_is_visible_to_ffmpeg_only() {
     ff::init().expect("ffmpeg init");
 
@@ -708,14 +642,14 @@ async fn attached_pic_only_cover_matches_mp4ameta_on_synthetic_fixture() {
 async fn mislabeled_mp3_as_m4b_is_a_routing_artifact() {
     let temp = TempDir::new().expect("temp dir");
     let source = sample_mp3_path();
-    let mp3_path = temp.path().join("fallback.mp3");
+    let mp3_path = temp.path().join("actual-container.mp3");
     std::fs::copy(&source, &mp3_path).expect("copy mp3 fixture");
 
     save_metadata_to_file(
         mp3_path.to_string_lossy().to_string(),
         AudiobookMetadata {
-            title: Some("Fallback Title".into()),
-            artist: Some("Fallback Author".into()),
+            title: Some("Container Truth Title".into()),
+            artist: Some("Container Truth Author".into()),
             ..Default::default()
         }
         .into(),
@@ -723,7 +657,7 @@ async fn mislabeled_mp3_as_m4b_is_a_routing_artifact() {
     .await
     .expect("save metadata");
 
-    let spoofed = temp.path().join("fallback.m4b");
+    let spoofed = temp.path().join("actual-container.m4b");
     std::fs::rename(&mp3_path, &spoofed).expect("rename to m4b");
 
     let current = read_audio_metadata(spoofed.to_string_lossy().to_string())
@@ -732,30 +666,33 @@ async fn mislabeled_mp3_as_m4b_is_a_routing_artifact() {
     let ffmpeg_only = read_with_ffmpeg_only(&spoofed).expect("ffmpeg-only read");
     let mp4ameta_only = read_with_mp4ameta_only(&spoofed);
 
-    assert_eq!(current.title.as_deref(), Some("Fallback Title"));
-    assert_eq!(current.artist.as_deref(), Some("Fallback Author"));
-    assert_eq!(ffmpeg_only.title.as_deref(), Some("Fallback Title"));
-    assert_eq!(ffmpeg_only.artist.as_deref(), Some("Fallback Author"));
+    assert_eq!(current.title.as_deref(), Some("Container Truth Title"));
+    assert_eq!(current.artist.as_deref(), Some("Container Truth Author"));
+    assert_eq!(ffmpeg_only.title.as_deref(), Some("Container Truth Title"));
+    assert_eq!(
+        ffmpeg_only.artist.as_deref(),
+        Some("Container Truth Author")
+    );
     assert!(mp4ameta_only.is_err(), "mp4ameta-only should fail");
 }
 
 #[tokio::test]
-async fn forced_ffmpeg_fallback_reads_track_and_disk_truthfully() {
+async fn container_routed_ffmpeg_reads_track_and_disk_truthfully() {
     let temp = TempDir::new().expect("temp dir");
     let staged_mp3 = temp.path().join("track-disk-source.mp3");
     remux_with_container_metadata(
         &sample_mp3_path(),
         &staged_mp3,
         &[
-            ("title", "Fallback Track Test"),
-            ("artist", "Fallback Artist"),
+            ("title", "Container Truth Track Test"),
+            ("artist", "Container Truth Artist"),
             ("track", "3/12"),
             ("disc", "1/2"),
         ],
     );
 
-    let spoofed = temp.path().join("fallback-track-disk.m4b");
-    std::fs::rename(&staged_mp3, &spoofed).expect("rename spoofed fallback source");
+    let spoofed = temp.path().join("actual-container-track-disk.m4b");
+    std::fs::rename(&staged_mp3, &spoofed).expect("rename spoofed actual-container source");
 
     let current = read_audio_metadata(spoofed.to_string_lossy().to_string())
         .await
@@ -763,8 +700,8 @@ async fn forced_ffmpeg_fallback_reads_track_and_disk_truthfully() {
     let ffmpeg_only = read_with_ffmpeg_only(&spoofed).expect("ffmpeg-only read");
     let mp4ameta_only = read_with_mp4ameta_only(&spoofed);
 
-    assert_eq!(current.title.as_deref(), Some("Fallback Track Test"));
-    assert_eq!(current.artist.as_deref(), Some("Fallback Artist"));
+    assert_eq!(current.title.as_deref(), Some("Container Truth Track Test"));
+    assert_eq!(current.artist.as_deref(), Some("Container Truth Artist"));
     assert_eq!(current.track, Some((3, Some(12))));
     assert_eq!(current.disk, Some((1, Some(2))));
     assert_eq!(ffmpeg_only.track, Some((3, Some(12))));

@@ -10,7 +10,7 @@ const TRACK_TOTAL_READ_KEYS: [&str; 3] = ["tracktotal", "totaltracks", "totaltra
 const DISK_NUMBER_READ_KEYS: [&str; 4] = ["disc", "disk", "discnumber", "disknumber"];
 const DISK_TOTAL_READ_KEYS: [&str; 4] = ["disctotal", "disktotal", "totaldiscs", "totaldisks"];
 
-/// Reads audiobook metadata, preferring mp4ameta for MP4/M4B and ffmpeg otherwise.
+/// Reads audiobook metadata, preferring mp4ameta for probed MP4-family containers.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
 
@@ -21,19 +21,13 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         )));
     }
 
-    if mp4ameta_bridge::is_mp4_container(path) {
-        match mp4ameta_bridge::read_metadata(path) {
-            Ok(mut metadata) => {
-                metadata.cover_art = normalize_cover_art(metadata.cover_art);
-                return Ok(metadata);
-            }
-            Err(e) => {
-                // FALLBACK[FB-001]: trigger=mp4ameta read fails and ffmpeg fallback path is required
-                // observe=warn log with primary read failure reason
-                // sunset=2026-05-31 issue=#196
-                log::warn!("mp4ameta read failed ({}); falling back to ffmpeg", e);
-            }
-        }
+    if matches!(
+        super::container::classify(path)?,
+        super::container::ContainerRoute::Mp4Family
+    ) {
+        let mut metadata = mp4ameta_bridge::read_metadata(path)?;
+        metadata.cover_art = normalize_cover_art(metadata.cover_art);
+        return Ok(metadata);
     }
 
     read_metadata_with_ffmpeg(path)
@@ -64,10 +58,7 @@ fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
         first_tag(&dict, &DISK_TOTAL_READ_KEYS).as_deref(),
     );
 
-    // FALLBACK[FB-007]: trigger=legacy files with movement-tag-only series metadata
-    // observe=covered via metadata fallback tests and migration fallback register
-    // sunset=2026-05-31 issue=#202
-    // Series metadata: prefer canonical tags, fall back to legacy/movement tags
+    // Series metadata: prefer canonical tags, then supported legacy aliases.
     let series_raw = first_tag(&dict, &SERIES_READ_KEYS);
     let series_part_raw = first_tag(&dict, &SERIES_PART_READ_KEYS);
     let (series, subseries) = split_series_list(series_raw.as_deref());
@@ -162,7 +153,6 @@ mod tests {
             ("series-part", "1".to_string()),
             ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
             ("episode_sort", "3".to_string()),
-            ("MVIN", "4".to_string()),
         ]);
         let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("1"));
@@ -173,24 +163,16 @@ mod tests {
         let tags = BTreeMap::from([
             ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
             ("episode_sort", "3".to_string()),
-            ("MVIN", "4".to_string()),
         ]);
         let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("2"));
     }
 
     #[test]
-    fn falls_back_to_episode_sort_before_mvin() {
-        let tags = BTreeMap::from([("episode_sort", "3".to_string()), ("MVIN", "4".to_string())]);
+    fn falls_back_to_episode_sort_for_series_part() {
+        let tags = BTreeMap::from([("episode_sort", "3".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("3"));
-    }
-
-    #[test]
-    fn falls_back_to_mvin_when_other_series_part_keys_are_missing() {
-        let tags = BTreeMap::from([("MVIN", "4".to_string())]);
-        let selected = first_tag_with_lookup(&SERIES_PART_READ_KEYS, |key| tags.get(key).cloned());
-        assert_eq!(selected.as_deref(), Some("4"));
     }
 
     #[test]
@@ -201,20 +183,10 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_show_before_movement_name_for_series() {
-        let tags = BTreeMap::from([
-            ("show", "Show Series".to_string()),
-            ("MVNM", "Movement".to_string()),
-        ]);
+    fn falls_back_to_show_for_series() {
+        let tags = BTreeMap::from([("show", "Show Series".to_string())]);
         let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
         assert_eq!(selected.as_deref(), Some("Show Series"));
-    }
-
-    #[test]
-    fn falls_back_to_movement_name_for_series_when_other_keys_are_missing() {
-        let tags = BTreeMap::from([("MVNM", "Movement".to_string())]);
-        let selected = first_tag_with_lookup(&SERIES_READ_KEYS, |key| tags.get(key).cloned());
-        assert_eq!(selected.as_deref(), Some("Movement"));
     }
 
     #[test]

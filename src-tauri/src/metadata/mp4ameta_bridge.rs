@@ -1,5 +1,5 @@
 use crate::errors::{AppError, Result};
-use crate::metadata::ffmpeg_bridge::detect_cover_art_format;
+use crate::metadata::cover_art::detect_cover_art_format;
 use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{
     build_series_list, normalize_publication_date, split_series_list, AlbumSortWriteAction,
@@ -7,11 +7,6 @@ use crate::metadata::{
 };
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
 use std::path::Path;
-
-pub fn is_mp4_container(path: &Path) -> bool {
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-    matches!(ext.to_ascii_lowercase().as_str(), "m4a" | "m4b" | "mp4")
-}
 
 pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     let tag = Tag::read_from_path(path)
@@ -144,40 +139,16 @@ fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
         metadata.subseries.as_deref(),
         metadata.subseries_part.as_deref(),
     );
-    let series_present = series_value
-        .as_deref()
-        .map(|value| !value.trim().is_empty())
-        .unwrap_or(false);
-    let series_part_present = series_part_value
-        .as_deref()
-        .map(|value| !value.trim().is_empty())
-        .unwrap_or(false);
-
-    let primary_series = metadata
-        .series
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let primary_series_part = metadata
-        .series_part
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
 
     if metadata.series.is_some() {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
-        tag.remove_movement();
         tag.remove_tv_show_name();
         tag.remove_tv_show_name_sort_order();
 
         if let Some(series_value) = series_value.as_deref() {
             tag.set_data(ident, Data::Utf8(series_value.to_string()));
-        }
-        if let Some(primary_series) = primary_series {
-            tag.set_movement(primary_series);
-            tag.set_show_movement();
         }
     }
 
@@ -185,18 +156,11 @@ fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
         let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
         // Always remove existing atoms first to prevent duplication
         tag.remove_data_of(&ident);
-        tag.remove_movement_index();
         tag.remove_tv_episode();
         tag.remove_tv_episode_name();
 
         if let Some(series_part_value) = series_part_value.as_deref() {
             tag.set_data(ident, Data::Utf8(series_part_value.to_string()));
-        }
-        if let Some(primary_series_part) = primary_series_part {
-            if let Some(index) = parse_series_part(primary_series_part) {
-                tag.set_movement_index(index);
-                tag.set_show_movement();
-            }
         }
     }
 
@@ -204,7 +168,9 @@ fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
         || metadata.series_part.is_some()
         || metadata.subseries.is_some()
         || metadata.subseries_part.is_some();
-    if should_clear_series && !(series_present || series_part_present) {
+    if should_clear_series {
+        tag.remove_movement();
+        tag.remove_movement_index();
         tag.remove_show_movement();
     }
 }
@@ -289,11 +255,7 @@ fn read_series_raw(tag: &Tag) -> Option<String> {
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };
-    let series = series.or_else(|| tag.tv_show_name().map(str::to_string));
-    // FALLBACK[FB-007]: trigger=legacy files store series in movement tag only
-    // observe=series metadata compatibility tests + fallback register tracking
-    // sunset=2026-05-31 issue=#202
-    series.or_else(|| tag.movement().map(str::to_string))
+    series.or_else(|| tag.tv_show_name().map(str::to_string))
 }
 
 fn read_series_part_raw(tag: &Tag) -> Option<String> {
@@ -302,24 +264,7 @@ fn read_series_part_raw(tag: &Tag) -> Option<String> {
         let value = tag.strings_of(&ident).next().map(str::to_string);
         value
     };
-    let series_part = series_part.or_else(|| tag.tv_episode().map(|episode| episode.to_string()));
-    // FALLBACK[FB-007]: trigger=legacy files store series-part in movement_index only
-    // observe=series metadata compatibility tests + fallback register tracking
-    // sunset=2026-05-31 issue=#202
-    series_part.or_else(|| tag.movement_index().map(|idx| idx.to_string()))
-}
-
-fn parse_series_part(value: &str) -> Option<u16> {
-    let raw = value.trim();
-    if raw.is_empty() || raw.contains('/') {
-        return None;
-    }
-    let parsed = raw.parse::<u16>().ok()?;
-    if parsed == 0 {
-        None
-    } else {
-        Some(parsed)
-    }
+    series_part.or_else(|| tag.tv_episode().map(|episode| episode.to_string()))
 }
 
 fn cover_art_to_img(bytes: &[u8]) -> Result<Option<Img<Vec<u8>>>> {

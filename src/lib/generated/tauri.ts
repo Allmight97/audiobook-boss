@@ -90,9 +90,9 @@ export const commands = {
 	comment: string | null,
 	// Description or synopsis (desc)
 	description: string | null,
-	// Series name (freeform SERIES, mirrored to MVNM)
+	// Series name (freeform SERIES)
 	series: string | null,
-	// Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
+	// Series sequence / book # in series (freeform SERIES-PART)
 	series_part: string | null,
 	// Sub-series name (secondary series)
 	subseries: string | null,
@@ -182,8 +182,8 @@ export type AudioFile = {
  *  Field mapping for Plex/Audiobookshelf compatibility:
  *  - `artist` = Author (also written to AlbumArtist)
  *  - `composer` = Narrator (also mirrored to freeform NARRATOR)
- *  - `series` = Series name (freeform SERIES, mirrored to MVNM)
- *  - `series_part` = Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
+ *  - `series` = Series name (freeform SERIES)
+ *  - `series_part` = Series sequence / book # in series (freeform SERIES-PART)
  *  - `album_sort` = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
  */
 export type AudiobookMetadata = {
@@ -207,9 +207,9 @@ export type AudiobookMetadata = {
 	comment: string | null,
 	// Description or synopsis (desc)
 	description: string | null,
-	// Series name (freeform SERIES, mirrored to MVNM)
+	// Series name (freeform SERIES)
 	series: string | null,
-	// Series sequence / book # in series (freeform SERIES-PART, mirrored to MVIN)
+	// Series sequence / book # in series (freeform SERIES-PART)
 	series_part: string | null,
 	// Sub-series name (secondary series)
 	subseries: string | null,

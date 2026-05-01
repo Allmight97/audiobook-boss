@@ -29,12 +29,24 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan(
     metadata: Option<&MetadataWritePlan>,
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
+    rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata, passthrough, None)
+}
+
+pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
+    input_path: &std::path::Path,
+    metadata: Option<&MetadataWritePlan>,
+    passthrough: Option<&PassthroughMetadata>,
+    output_format: Option<&str>,
+) -> Result<()> {
     use crate::errors::AppError;
 
     ff::init().map_err(AppError::Ffmpeg)?;
     let mut ictx = ff::format::input(input_path).map_err(AppError::Ffmpeg)?;
     let temp_path = build_temp_output_path(input_path)?;
-    let mut octx = ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?;
+    let mut octx = match output_format {
+        Some(format) => ff::format::output_as(&temp_path, format).map_err(AppError::Ffmpeg)?,
+        None => ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?,
+    };
     let metadata_value = metadata.map(|plan| &plan.metadata);
     let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata_value)?;
     copy_chapters(&ictx, &mut octx, passthrough)?;
