@@ -19,7 +19,7 @@ import {
 	setInspectorContext,
 	setInspectorValues,
 } from './inspectorState.svelte';
-import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state';
+import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state.svelte';
 
 let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;

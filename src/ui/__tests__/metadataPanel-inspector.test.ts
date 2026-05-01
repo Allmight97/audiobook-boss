@@ -6,7 +6,7 @@ import {
 	showSingleSelection,
 } from '../fileList/metadataPanel';
 import { inspectorState } from '../fileList/inspectorState.svelte';
-import { setCurrentFileList, setSelectedIndex } from '../fileList/state';
+import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),

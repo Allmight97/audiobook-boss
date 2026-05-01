@@ -35,11 +35,8 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList', () => ({
+vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: () => context.currentFileList,
-}));
-
-vi.mock('../fileList/state', () => ({
 	getSelectedFileIndices: () => context.selectedIndices,
 }));
 

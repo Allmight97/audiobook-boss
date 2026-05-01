@@ -1,6 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { getCurrentFileList, setFileOrderLocked } from '../fileList';
+import { setFileOrderLocked } from '../fileList/actions';
+import { getCurrentFileList } from '../fileList/state.svelte';
 import { setJobControlsEnabled } from '../jobControls';
 import * as feedback from './feedback';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';

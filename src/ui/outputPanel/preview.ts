@@ -1,8 +1,8 @@
 import { formatFileSize } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { tauriClient } from '../../lib/tauri/client';
-import { getCurrentFileList } from '../fileList';
-import { getSelectedFileIndices } from '../fileList/state';
+import { getCurrentFileList } from '../fileList/state.svelte';
+import { getSelectedFileIndices } from '../fileList/state.svelte';
 import { getCurrentCoverArt } from '../coverArt';
 import { readMetadataForm } from '../metadataForm';
 import {

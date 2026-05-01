@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
-import { setCurrentFileList, setSelectedIndex } from '../fileList/state';
+import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn(() => ({ title: 'Persisted Title' })),

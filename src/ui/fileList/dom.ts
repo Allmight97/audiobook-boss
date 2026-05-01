@@ -1,5 +1,5 @@
 import { formatFileSize } from '../../types/audio';
-import { getCurrentFileList, isOrderLocked, getSelectedFileIndices } from './state';
+import { getCurrentFileList, isOrderLocked, getSelectedFileIndices } from './state.svelte';
 import { setFileImportHasFiles } from '../fileImport/state.svelte';
 import {
 	resetFileListViewState,

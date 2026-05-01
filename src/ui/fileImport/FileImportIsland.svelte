@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { formatDuration, formatFileSize } from '../../types/audio';
-	import { clearAllFiles, toggleFileSort } from '../fileList';
+	import { clearAllFiles, toggleFileSort } from '../fileList/actions';
 	import {
 		onFileListClick,
 		onFileListDragEnd,

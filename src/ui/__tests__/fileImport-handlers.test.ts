@@ -15,12 +15,12 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList', () => ({
+vi.mock('../fileList/actions', () => ({
 	appendFileList: context.appendFileListMock,
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 
-vi.mock('../fileList/state', () => ({
+vi.mock('../fileList/state.svelte', () => ({
 	isOrderLocked: vi.fn(() => false),
 }));
 
