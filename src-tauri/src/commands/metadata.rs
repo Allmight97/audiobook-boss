@@ -66,12 +66,6 @@ pub async fn save_metadata_to_file(
     Ok(result?)
 }
 
-/// Computes album sort (TSOA) from series + part + title.
-/// Returns None if series_part is missing or cannot be parsed to a positive integer.
-pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
-    crate::metadata::compute_album_sort(series, series_part, title)
-}
-
 /// Writes cover art to an M4B file
 /// Accepts file path and base64-encoded image data
 #[tauri::command]

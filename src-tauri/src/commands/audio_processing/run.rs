@@ -27,7 +27,7 @@ use tokio::sync::OwnedSemaphorePermit;
 
 pub(crate) struct ProcessingRun;
 
-pub async fn process_payload(
+pub(crate) async fn process_payload(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     payload: ProcessPayload,
@@ -37,7 +37,7 @@ pub async fn process_payload(
     ProcessingRun::execute(window, registry, payload, metadata, preview_seconds).await
 }
 
-pub fn preflight_payload(
+pub(crate) fn preflight_payload(
     payload: ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,

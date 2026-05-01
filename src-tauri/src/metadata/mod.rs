@@ -817,6 +817,26 @@ mod tests {
     }
 
     #[test]
+    fn computes_album_sort_with_numeric_part() {
+        let result = compute_album_sort("Series", Some("3"), "Title");
+        assert_eq!(result.as_deref(), Some("Series 03 - Title"));
+    }
+
+    #[test]
+    fn skips_album_sort_with_fractional_part() {
+        let result = compute_album_sort("Series", Some("1/5"), "Title");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn skips_album_sort_when_part_missing_or_invalid() {
+        assert!(compute_album_sort("Series", None, "Title").is_none());
+        assert!(compute_album_sort("Series", Some(""), "Title").is_none());
+        assert!(compute_album_sort("Series", Some("abc"), "Title").is_none());
+        assert!(compute_album_sort("Series", Some("0"), "Title").is_none());
+    }
+
+    #[test]
     fn processing_patch_into_overlay_applies_without_source_metadata() {
         let patch = MetadataIntentPatch {
             title: PatchOp::Set("Overlay Title".to_string()),

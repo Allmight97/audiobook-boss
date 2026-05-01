@@ -1,9 +1,3 @@
-mod plan;
-mod run;
-mod terminal_outcomes;
-
-pub use run::{preflight_payload, process_payload};
-
-pub(crate) use run::{
-    resolve_effective_processing_metadata, resolve_naming_metadata, validate_batch_input_path,
-};
+pub(crate) mod plan;
+pub(crate) mod run;
+pub(crate) mod terminal_outcomes;
