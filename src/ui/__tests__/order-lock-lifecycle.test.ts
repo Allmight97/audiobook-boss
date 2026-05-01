@@ -5,7 +5,7 @@ import {
 	setOrderLocked,
 	setCurrentFileList,
 	getCurrentFileList,
-} from '../fileList/state';
+} from '../fileList/state.svelte';
 import { fileListViewState } from '../fileList/viewState.svelte';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior

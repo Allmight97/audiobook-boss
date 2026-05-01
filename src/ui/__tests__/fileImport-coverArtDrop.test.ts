@@ -5,7 +5,11 @@ import FileImportIsland from '../fileImport/FileImportIsland.svelte';
 import { SUPPORTED_AUDIO_SUPPORT_TEXT } from '../fileImport/supportedAudio';
 import { clearFileImportError } from '../fileImport/state.svelte';
 import { clearSelectionPanels } from '../fileList/metadataPanel';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state';
+import {
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../fileList/state.svelte';
 import { fileListViewState } from '../fileList/viewState.svelte';
 import { resetFileListViewState } from '../fileList/viewState.svelte';
 import { clearMetadataState } from '../metadataState';

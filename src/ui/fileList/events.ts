@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 
-import { getCurrentFileList, isOrderLocked } from './state';
+import { getCurrentFileList, isOrderLocked } from './state.svelte';
 import { metadataSaveInProgressStore } from '../metadataSaveState';
 import { setFileListDragState } from './viewState.svelte';
 import {

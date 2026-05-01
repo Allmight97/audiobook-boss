@@ -10,6 +10,10 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use super::run::{
+    resolve_effective_processing_metadata, resolve_naming_metadata, validate_batch_input_path,
+};
+
 pub(crate) struct ProcessingInputs {
     pub(crate) output_naming: OutputNamingConfig,
     pub(crate) base_output_dir: PathBuf,
@@ -320,14 +324,12 @@ fn build_merge_processing_job(
         .first()
         .and_then(|key| metadata.and_then(|map| map.get(key)))
         .cloned();
-    let merge_metadata = super::resolve_effective_processing_metadata(
-        Some(&merge_source_path),
-        merge_patch.as_ref(),
-    )?;
+    let merge_metadata =
+        resolve_effective_processing_metadata(Some(&merge_source_path), merge_patch.as_ref())?;
     let allow_passthrough_cover_art = !merge_patch
         .as_ref()
         .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
-    let merge_naming_metadata = super::resolve_naming_metadata(
+    let merge_naming_metadata = resolve_naming_metadata(
         merge_metadata.as_ref(),
         Some(&merge_source_path),
         merge_patch.as_ref(),
@@ -376,7 +378,7 @@ fn build_batch_processing_jobs(
     let validated_input_paths: Vec<PathBuf> = payload
         .input_files
         .iter()
-        .map(|input| super::validate_batch_input_path(&PathBuf::from(input)))
+        .map(|input| validate_batch_input_path(&PathBuf::from(input)))
         .collect::<Result<_>>()?;
 
     let mut jobs = Vec::new();
@@ -384,11 +386,11 @@ fn build_batch_processing_jobs(
         let input = &payload.input_files[index];
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
         let effective_metadata =
-            super::resolve_effective_processing_metadata(Some(&path), file_patch.as_ref())?;
+            resolve_effective_processing_metadata(Some(&path), file_patch.as_ref())?;
         let allow_passthrough_cover_art = !file_patch
             .as_ref()
             .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
-        let naming_metadata = super::resolve_naming_metadata(
+        let naming_metadata = resolve_naming_metadata(
             effective_metadata.as_ref(),
             Some(&path),
             file_patch.as_ref(),

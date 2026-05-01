@@ -9,11 +9,8 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList', () => ({
+vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: () => ({ files: [] }),
-}));
-
-vi.mock('../fileList/state', () => ({
 	getSelectedFileIndices: () => new Set<number>(),
 }));
 

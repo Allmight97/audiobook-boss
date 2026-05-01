@@ -2,8 +2,11 @@ import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
-import { appendFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
-import { isOrderLocked } from '../fileList/state';
+import {
+	appendFileList,
+	persistPendingMetadataDraftsForCurrentSelection,
+} from '../fileList/actions';
+import { isOrderLocked } from '../fileList/state.svelte';
 import { clearFileImportError, setFileImportDragOver, setFileImportError } from './state.svelte';
 import {
 	SUPPORTED_AUDIO_EXTENSIONS,

@@ -8,9 +8,9 @@ import { updateEstimatedSize, updateOutputPath } from './outputPanel';
 import { updateTagPreview } from './tagPreview';
 import { clearCoverArt, setCoverArt, setCustomCoverArt } from './coverArt';
 import { getMetadataForFile, setMetadataForFile } from './metadataState';
-import { getCurrentFileList } from './fileList';
+import { getCurrentFileList } from './fileList/state.svelte';
 import { selectFile } from './fileList/actions';
-import { getSelectedFileIndices } from './fileList/state';
+import { getSelectedFileIndices } from './fileList/state.svelte';
 import {
 	clearMetadataLookupQueue,
 	metadataLookupQueueState,

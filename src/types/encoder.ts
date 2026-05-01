@@ -7,10 +7,6 @@
 //   avoid contract drift with Rust (`src-tauri/src/audio/settings_encoder.rs`).
 // - Do not serialize this shape directly across the IPC boundary.
 //
-// VBR/FDK fields remain reserved/disabled in this phase.
-// FEATURE_TOGGLE:VBR  VBR_DISABLED_MARKER
-// FEATURE_TOGGLE:FDK  FDK_PLACEHOLDER
-
 import type {
 	EncoderSettings,
 	EncoderType,

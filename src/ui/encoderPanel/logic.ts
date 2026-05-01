@@ -1,4 +1,3 @@
-import { ENABLE_FDK } from './featureFlags';
 import { updateEstimatedSize } from '../outputPanel/preview';
 import {
 	updateEncoderSettings,
@@ -56,7 +55,7 @@ const normalizeDialogPath = (selected: null | string | string[]): string | null 
 
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (flavor !== 'auto') return flavor;
-	if (encoderPanelState.availability?.fdkAvailable && ENABLE_FDK) return 'fdk_he_aac';
+	if (encoderPanelState.availability?.fdkAvailable) return 'fdk_he_aac';
 	if (encoderPanelState.availability?.aacAtAvailable) return 'aac_at';
 	return 'native_aac';
 };
@@ -200,7 +199,7 @@ const updateEstimatedBitrate = (): void => {
 const getDisabledEncoderOptions = (
 	availability: EncoderAvailability | null,
 ): typeof encoderPanelState.disabledEncoderOptions => ({
-	fdk_he_aac: !ENABLE_FDK || !availability?.fdkAvailable,
+	fdk_he_aac: !availability?.fdkAvailable,
 	aac_at: availability ? !availability.aacAtAvailable : false,
 	native_aac: availability ? !availability.nativeAacAvailable : false,
 });

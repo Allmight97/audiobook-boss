@@ -30,7 +30,7 @@ import {
 	setSortAscending,
 	isOrderLocked,
 	setOrderLocked,
-} from './state';
+} from './state.svelte';
 import {
 	updateFileListDOM,
 	updateTotalStats,

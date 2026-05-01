@@ -6,7 +6,11 @@ import {
 	showMultiSelection,
 	showSingleSelection,
 } from '../fileList/metadataPanel';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state';
+import {
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../fileList/state.svelte';
 
 type Deferred<T> = {
 	promise: Promise<T>;

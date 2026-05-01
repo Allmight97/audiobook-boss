@@ -6,7 +6,7 @@ import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state';
+} from '../fileList/state.svelte';
 
 vi.mock('../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),
@@ -52,7 +52,9 @@ vi.mock('../statusPanel', () => ({
 }));
 
 vi.mock('../fileList/metadataPanel', async () => {
-	const state = await vi.importActual<typeof import('../fileList/state')>('../fileList/state');
+	const state = await vi.importActual<typeof import('../fileList/state.svelte')>(
+		'../fileList/state.svelte',
+	);
 	return {
 		autoUpdateCoverArtFromFirstValidFile: vi.fn(async () => undefined),
 		clearSelectionPanels: vi.fn(),

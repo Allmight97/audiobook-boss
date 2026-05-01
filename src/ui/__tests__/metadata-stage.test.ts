@@ -3,7 +3,7 @@ import {
 	persistPendingMetadataDraftsForCurrentSelection,
 	stageMetadataToSelection,
 } from '../fileList/actions';
-import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state';
+import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state.svelte';
 import {
 	clearMetadataState,
 	getMetadataForFile,

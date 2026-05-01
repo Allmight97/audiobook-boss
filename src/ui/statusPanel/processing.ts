@@ -1,8 +1,9 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { OutputConfig, OutputKind } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { getCurrentFileList, getSelectedFileIndex, setFileOrderLocked } from '../fileList';
-import { getSelectedFileIndices } from '../fileList/state';
+import { setFileOrderLocked } from '../fileList/actions';
+import { getCurrentFileList, getSelectedFileIndex } from '../fileList/state.svelte';
+import { getSelectedFileIndices } from '../fileList/state.svelte';
 import { readOutputConfigForProcessing, updateOutputPath } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';

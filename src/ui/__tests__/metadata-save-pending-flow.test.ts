@@ -64,7 +64,7 @@ vi.mock('../metadataForm', () => ({
 	onMetadataFormActionSelectChange: vi.fn(),
 }));
 
-vi.mock('../fileList', () => ({
+vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 }));
 

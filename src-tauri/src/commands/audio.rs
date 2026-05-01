@@ -11,7 +11,7 @@ use crate::audio::settings_encoder::{
 use crate::audio::toolchain::{
     detect_encoder_availability, EncoderAvailability, ExternalToolchainPreference,
 };
-use crate::commands::audio_processing;
+use crate::commands::audio_processing::run;
 pub use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
 };
@@ -129,11 +129,7 @@ pub fn preflight_processing_plan(
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> CommandResult<ProcessingPreflightPlan> {
-    Ok(audio_processing::preflight_payload(
-        payload,
-        metadata,
-        preview_seconds,
-    )?)
+    Ok(run::preflight_payload(payload, metadata, preview_seconds)?)
 }
 
 /// Returns the current maximum concurrent jobs setting
@@ -171,7 +167,7 @@ pub async fn process_audiobook_files(
         registry.reset_global_cancel();
     }
 
-    Ok(audio_processing::process_payload(
+    Ok(run::process_payload(
         window,
         registry.inner().clone(),
         payload,

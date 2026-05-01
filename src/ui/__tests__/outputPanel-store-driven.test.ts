@@ -17,7 +17,7 @@ const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 }));
 
-vi.mock('../fileList', () => ({
+vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 }));
 

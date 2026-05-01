@@ -90,8 +90,8 @@ export type ProcessCommandResult = Omit<
 	results: ProcessCommandJobResult[];
 };
 
-// Single source of truth for valid encoder bitrates (kbps)
-// Matches Rust VALID_ENCODER_BITRATES in settings_encoder.rs
+// Frontend mirror of Rust VALID_ENCODER_BITRATES in settings_encoder.rs.
+// Keep this aligned via audio-defaults.test.ts.
 export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128] as const;
 export type BitrateKbps = (typeof VALID_ENCODER_BITRATES)[number];
 

@@ -14,7 +14,7 @@ import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state';
+} from '../fileList/state.svelte';
 import { resetFileListViewState } from '../fileList/viewState.svelte';
 
 const context = vi.hoisted(() => ({
