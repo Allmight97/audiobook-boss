@@ -9,17 +9,21 @@ Use this skill when changing metadata field semantics, tag mapping policy, inter
 
 ## Interop Invariant
 
-External compatibility with ABS/Plex/Apple Books is required.
+External compatibility with ABS/Plex/Apple Books is required, but compatibility
+claims must be backed by current code and current product decisions.
 
-`ffprobe` does not expose movement tags (`MVNM`/`MVIN`). If series data is written only to movement tags, ABS/Plex scans miss it.
+`ffprobe` does not expose Apple movement tags (`MVNM`/`MVIN`). ABB does not
+currently write or read movement tags as the canonical series mechanism.
 
-## Dual-Write Strategy
+## Series Tag Strategy
 
 For series metadata, write both:
 - ffprobe-visible tags: `series`, `series-part`, plus mirrored freeform atoms `----:com.apple.iTunes:SERIES` and `----:com.apple.iTunes:SERIES-PART`
-- Apple movement tags: `MVNM`, `MVIN`
 
-This preserves ABS/Plex discoverability and Apple Books compatibility in one write path.
+This preserves ABS/Plex discoverability while keeping the code honest about the
+specific MP4 atoms ABB currently supports. Movement tags were removed as
+uncertain Apple-only compatibility support; reintroduce them only with manual
+player evidence and an explicit product decision.
 
 ## Metadata Intent Boundary
 
@@ -33,7 +37,7 @@ Honor explicit `set | clear | noop` intent semantics end-to-end.
 ```bash
 ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
 ```
-2. Verify movement/freeform atoms with mp4 tooling (for example `AtomicParsley`).
+2. Verify freeform atoms with mp4 tooling (for example `AtomicParsley`).
 3. Validate behavior in ABS/Plex/Apple import workflows when modifying mappings.
 
 ## References

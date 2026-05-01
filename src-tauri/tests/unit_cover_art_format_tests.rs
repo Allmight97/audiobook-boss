@@ -164,7 +164,7 @@ fn test_ffmpeg_metadata_helpers_directly() {
     assert!(png_format.is_some(), "Should detect PNG format");
     println!("✓ PNG format detection working");
 
-    println!("FFmpeg bridge functions test passed!");
+    println!("FFmpeg metadata helper test passed!");
 }
 
 #[test]

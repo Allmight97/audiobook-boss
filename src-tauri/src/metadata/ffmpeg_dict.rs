@@ -74,7 +74,8 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         }
     }
 
-    // Series metadata: dual-write for ABS/Plex + Apple Books
+    // Series metadata: canonical tag plus iTunes freeform mirror for scanners that
+    // depend on either ffprobe-visible names or Apple-style freeform atoms.
     let (series_value, series_part_value) = build_series_list(
         metadata.series.as_deref(),
         metadata.series_part.as_deref(),
@@ -87,7 +88,7 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
         dict.set(ITUNES_SERIES, series);
     }
 
-    // Book # metadata: dual-write for ABS/Plex + Apple Books
+    // Book # metadata: canonical tag plus iTunes freeform mirror.
     if let Some(series_part) = series_part_value.as_deref() {
         dict.set(SERIES_PART, series_part);
         dict.set(ITUNES_SERIES_PART, series_part);

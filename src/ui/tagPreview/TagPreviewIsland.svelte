@@ -46,13 +46,13 @@
       field: "series",
       label: "SERIES (Series)",
       title:
-        "Series name tag (series). Written to freeform SERIES (----:com.apple.iTunes:SERIES) for ABS/Plex and MVNM for Apple Books.",
+        "Series name tag (series). Written to freeform SERIES (----:com.apple.iTunes:SERIES) for ABS/Plex-compatible scanners.",
     },
     {
       field: "part",
       label: "SERIES-PART (Book #)",
       title:
-        "Series number tag (series-part). Written to freeform SERIES-PART (----:com.apple.iTunes:SERIES-PART) for ABS/Plex and MVIN for Apple Books.",
+        "Series number tag (series-part). Written to freeform SERIES-PART (----:com.apple.iTunes:SERIES-PART) for ABS/Plex-compatible scanners.",
     },
     {
       field: "subseries",
