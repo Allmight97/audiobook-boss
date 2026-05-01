@@ -35,13 +35,9 @@ vi.mock('../../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../fileList', () => ({
+vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndex: context.getSelectedFileIndexMock,
-	setFileOrderLocked: vi.fn(),
-}));
-
-vi.mock('../../fileList/state', () => ({
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,
 }));
 
@@ -68,6 +64,7 @@ vi.mock('../../metadataState', () => ({
 }));
 
 vi.mock('../../fileList/actions', () => ({
+	setFileOrderLocked: vi.fn(),
 	stageMetadataToSelection: context.stageMetadataToSelectionMock,
 }));
 

@@ -1,7 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { CollisionPolicy, ProcessPayload, ProcessingPreflightPlan } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { openCollisionDialog } from '../collisionDialog';
+import { openCollisionDialog } from '../collisionDialog/state.svelte';
 
 export interface OutputPlanReviewRequest {
 	payload: ProcessPayload;

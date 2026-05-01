@@ -1,7 +1,8 @@
+import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
-import { getCurrentFileList } from '../../fileList';
+import { getCurrentFileList } from '../../fileList/state.svelte';
 import * as feedback from '../feedback';
-import { readCoverArtDataUrl } from './artThumbnail';
+import { convertBytesToDataUrl } from '../formatting';
 
 export interface CoverArtTracker {
 	syncForCurrentList(): Promise<void>;
@@ -24,6 +25,16 @@ function findFirstValidFilePath(fileList: FileListInfo | null): string | null {
 	}
 
 	return fileList.files.find((file) => file.isValid)?.path ?? null;
+}
+
+async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
+	const metadata = await tauriClient.readAudioMetadata(filePath);
+
+	if (!metadata.cover_art || metadata.cover_art.length === 0) {
+		return null;
+	}
+
+	return convertBytesToDataUrl(metadata.cover_art);
 }
 
 export function createCoverArtTracker(deps: CoverArtTrackerDeps = {}): CoverArtTracker {
