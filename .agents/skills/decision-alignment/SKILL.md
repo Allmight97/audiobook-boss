@@ -17,7 +17,7 @@ unless the user explicitly asks to write the change.
 ## Core Loop
 
 1. Name the decision under discussion in one sentence.
-2. Locate the affected ABB layer using `docs/system-map.md`:
+2. Locate the affected ABB layer and design bias using `docs/system-map.md`:
    Product intent, UI state, IPC contract, Backend lifecycle, or Artifact truth.
 3. Inspect existing repo artifacts before asking the user to restate facts:
    start with `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`,

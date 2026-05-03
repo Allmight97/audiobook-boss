@@ -39,6 +39,28 @@ Use these layers to locate ownership before changing behavior:
 UI expresses intent and renders truth. Rust produces durable truth. The IPC
 boundary prevents the two from drifting.
 
+## Design Bias
+
+ABB favors owned boundaries that make truthful decisions close to the domain
+they govern.
+
+Prefer:
+
+- outcome requests over caller-selected strategy paths
+- artifact and container truth over labels, suffixes, or optimistic UI state
+- explicit compatibility policy over ambient fallback behavior
+- small public subsystem surfaces over scattered helper knowledge
+- verification that proves user-visible truth, not just internal path selection
+
+This is a bias, not a command to collapse subsystems into fewer files. Private
+strategy modules are healthy when each owns a coherent mechanism and the public
+boundary owns the rule callers depend on.
+
+Use this bias to reduce caller knowledge, stale compatibility lore, duplicated
+routing rules, and false facades. Do not use it to create generic managers,
+controllers, routers, or facades that merely rename complexity without improving
+ownership or proof.
+
 ## Core Truth Boundaries
 
 - UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
