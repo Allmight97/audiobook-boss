@@ -609,6 +609,16 @@ pub(crate) fn write_finalized_metadata(
 mod tests {
     use super::*;
     use crate::errors::AppError;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn sample_mp3_fixture() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("manifest parent")
+            .join("media")
+            .join("media_20sec.mp3")
+    }
 
     #[test]
     fn metadata_intent_patch_applies_set_and_clear_ops() {
@@ -852,6 +862,21 @@ mod tests {
         assert_eq!(
             resolved.album_sort.as_deref(),
             Some("Series 02 - New Title")
+        );
+    }
+
+    #[test]
+    fn finalized_metadata_decision_uses_container_truth_not_extension() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let spoofed_m4b = temp_dir.path().join("actual-mp3.m4b");
+        std::fs::copy(sample_mp3_fixture(), &spoofed_m4b).expect("copy mp3 fixture");
+
+        let should_write = should_write_finalized_metadata(&spoofed_m4b)
+            .expect("finalized metadata decision should probe container");
+
+        assert!(
+            !should_write,
+            "actual MP3 containers renamed as .m4b should stay on the FFmpeg metadata path"
         );
     }
 
