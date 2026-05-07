@@ -17,6 +17,12 @@ pub(crate) fn create_destination_staging_dir(
             sanitize_path_for_display(final_artifact_path)
         ))
     })?;
+    if parent.as_os_str().is_empty() {
+        return Err(AppError::FileValidation(format!(
+            "Output path '{}' must include a containing directory.",
+            sanitize_path_for_display(final_artifact_path)
+        )));
+    }
 
     std::fs::create_dir_all(parent).map_err(|error| {
         AppError::FileValidation(format!(
@@ -39,6 +45,7 @@ pub(crate) fn create_destination_staging_dir(
 }
 
 #[cfg(test)]
+// EXCEPTION: tiny private staging-path invariant tests; keeping them inline avoids exposing helper internals for external tests.
 mod tests {
     use super::*;
     use tempfile::TempDir;
@@ -85,6 +92,17 @@ mod tests {
         assert!(
             err.to_string().contains("staging directory"),
             "error should identify staging creation"
+        );
+    }
+
+    #[test]
+    fn rejects_final_artifact_without_containing_directory() {
+        let err = create_destination_staging_dir(Uuid::nil(), Path::new("book.m4b"))
+            .expect_err("bare filename should be rejected");
+
+        assert!(
+            err.to_string().contains("containing directory"),
+            "error should identify missing containing directory"
         );
     }
 }

@@ -34,6 +34,18 @@ fn preview_output_path(output: &Path) -> PathBuf {
     parent.join(format!("{}.preview.m4b", stem))
 }
 
+fn native_aac_settings() -> EncoderSettings {
+    EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: EncoderChannelConfig::Auto,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
+        twoloop: true,
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn native_aac_regression_encodes_valid_output() {
     let _guard = native_aac_test_lock().lock().await;
@@ -50,23 +62,13 @@ async fn native_aac_regression_encodes_valid_output() {
     assert_eq!(file_info.valid_count, 1, "fixture should be valid");
     let expected_duration = file_info.total_duration;
 
-    let settings = EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: EncoderChannelConfig::Auto,
-        afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
-    };
-
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("native-regression.m4b");
 
     let session = Arc::new(audio::session::ProcessingSession::new());
     let context = audio::ProcessingContext::new_headless(
         session,
-        settings,
+        native_aac_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&output_path),
     );
@@ -107,16 +109,6 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     assert_eq!(file_info.valid_count, 1, "fixture should be valid");
     let expected_duration = file_info.total_duration;
 
-    let settings = EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: EncoderChannelConfig::Auto,
-        afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
-    };
-
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("native-preview.m4b");
     let preview_path = preview_output_path(&output_path);
@@ -125,7 +117,7 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     let session = Arc::new(audio::session::ProcessingSession::new());
     let mut context = audio::ProcessingContext::new_headless(
         session,
-        settings,
+        native_aac_settings(),
         SampleRateConfig::Auto,
         OutputConfig::for_preview(&preview_path),
     );
@@ -155,5 +147,54 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     assert!(
         actual_duration < expected_duration,
         "preview output should not run to the end of the source (source duration {expected_duration}, preview duration {actual_duration})"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn native_aac_removes_destination_staging_when_execute_fails() {
+    let _guard = native_aac_test_lock().lock().await;
+    let temp_dir = TempDir::new().expect("create temp dir");
+    let input_path = temp_dir.path().join("broken.mp3");
+    std::fs::write(&input_path, b"not actually mp3 audio").expect("write invalid mp3 fixture");
+
+    let output_dir = temp_dir.path().join("out");
+    std::fs::create_dir(&output_dir).expect("create output dir");
+    let output_path = output_dir.join("broken-output.m4b");
+
+    let session = Arc::new(audio::session::ProcessingSession::new());
+    let expected_staging_dir = output_dir.join(format!(".abb-processing-{}", session.id()));
+    let context = audio::ProcessingContext::new_headless(
+        session,
+        native_aac_settings(),
+        SampleRateConfig::Auto,
+        OutputConfig::new(&output_path),
+    );
+    let file = audio::AudioFile {
+        path: input_path,
+        size: Some(22.0),
+        duration: Some(1.0),
+        format: Some("MP3".to_string()),
+        bitrate: Some(64),
+        sample_rate: Some(44_100),
+        channels: Some(2),
+        codec_label: Some("MP3".to_string()),
+        selected_decoder: None,
+        is_valid: true,
+        error: None,
+    };
+
+    let result = audio::process_audiobook_with_context(context, vec![file], None, true).await;
+
+    assert!(
+        result.is_err(),
+        "invalid input should fail during native execution"
+    );
+    assert!(
+        !expected_staging_dir.exists(),
+        "failed native execution should remove destination-adjacent staging"
+    );
+    assert!(
+        !output_path.exists(),
+        "failed native execution should not leave final output"
     );
 }

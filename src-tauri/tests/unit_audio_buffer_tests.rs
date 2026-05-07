@@ -237,3 +237,21 @@ fn rejects_zero_frame_size() {
         ),
     }
 }
+
+#[test]
+fn rejects_unsupported_sample_format() {
+    match SampleAccumulator::new(
+        1,
+        1024,
+        44_100,
+        ff::channel_layout::ChannelLayout::MONO,
+        ff::format::Sample::I32(ff::format::sample::Type::Packed),
+    ) {
+        Ok(_) => panic!("unsupported sample format should be rejected"),
+        Err(err) => assert!(
+            err.to_string()
+                .contains("Unsupported encoder sample format"),
+            "error should identify unsupported sample format"
+        ),
+    }
+}

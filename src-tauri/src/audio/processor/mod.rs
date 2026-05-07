@@ -11,6 +11,7 @@
 //! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
 
 // Imports for orchestrator function
+use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
@@ -89,6 +90,9 @@ pub async fn process_audiobook_with_context(
     // Stage 1: Validate + Prepare (from prepare module)
     reporter.set_stage(ProcessingStage::Analyzing);
     let workflow = prepare::validate_and_prepare(&context, &files)?;
+    let workflow_temp_dir = workflow.temp_dir.clone();
+    let mut workflow_cleanup = CleanupGuard::new(context.session.id());
+    workflow_cleanup.add_path(&workflow_temp_dir);
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_metadata = apply_cover_art_policy(
@@ -147,6 +151,7 @@ pub async fn process_audiobook_with_context(
         &mut reporter,
     )
     .await?;
+    let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead
     if context.preview.is_some() {

@@ -66,9 +66,10 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ### Sub-Agent Defaults
 
-- For substantial ABB refactors or long-running verification gates, the main agent owns design, code edits, final interpretation, and the final verification claim.
-- Use targeted GPT-5.4 Mini sub-agents for bounded discovery, audit, or test-shepherd lanes when they reduce context load without fragmenting ownership.
-- A test-shepherd lane is read-only by default: run or monitor the assigned checks, report commands, exit status, failures, and suspicious warnings, then wait for the main agent to decide the next code change.
+- The main agent owns design, code edits, final interpretation, and the final verification claim.
+- Use targeted GPT-5.4 Mini sub-agents for bounded discovery or audit lanes when they reduce context load without fragmenting ownership.
+- Do not delegate ordinary test monitoring by default. Prefer the main agent running long checks in its own terminal session and polling them directly.
+- Use a read-only test-shepherd lane only when the user explicitly asks for one or a separate check/audit lane has clear leverage; do not run the same heavy gate concurrently with the main agent.
 - If a sub-agent is assigned implementation or test-file edits, give explicit file ownership and remind it that other agents may be active in the same worktree.
 
 ### Active Refactor Bias

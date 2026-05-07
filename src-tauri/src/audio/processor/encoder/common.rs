@@ -157,6 +157,7 @@ pub(super) fn configure_threads(ctx: &mut ff::codec::context::Context, threads: 
 }
 
 #[cfg(test)]
+// EXCEPTION: tiny private frame-plan invariant tests; keeping them inline avoids widening the production API for test access.
 mod tests {
     use super::*;
 

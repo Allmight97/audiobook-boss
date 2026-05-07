@@ -81,14 +81,14 @@ impl SampleAccumulator {
                 (2, false, storage)
             }
             unsupported => {
-                // Fail fast: unsupported formats would cause silent data corruption
-                // if we tried to use F32Planar storage for I32 data, for example.
-                panic!(
-                    "SampleAccumulator: unsupported format {:?}. \
-                     Only F32(Planar) and I16(Packed) are supported. \
-                     Add explicit support if a new encoder requires a different format.",
+                log::error!(
+                    "SampleAccumulator received unsupported format {:?}; only F32(Planar) and I16(Packed) are supported",
                     unsupported
                 );
+                return Err(AppError::General(format!(
+                    "Unsupported encoder sample format {:?}; SampleAccumulator supports only F32(Planar) and I16(Packed)",
+                    unsupported
+                )));
             }
         };
 
@@ -108,7 +108,6 @@ impl SampleAccumulator {
             consumed_samples: 0,
         })
     }
-
     /// Push a frame; return any full frames now available.
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
