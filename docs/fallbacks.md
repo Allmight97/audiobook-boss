@@ -7,8 +7,6 @@ Repo checks validate register sunsets, source-adjacent marker sunsets, and any r
 
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FB-010 | `src-tauri/src/audio/buffer.rs` | encoder reports zero frame size | warning log when default `1024` frame size is applied | 2026-06-30 | #195 | RETAIN — encoder boundary still needs explicit `frame_size=0` handling |
-| FB-012 | `src-tauri/src/audio/processor/finalize.rs` | atomic rename fails during output move | warning log for failed rename and copy-replace success | 2026-06-30 | #195 | RETAIN — output integrity across cross-volume rename failures |
 | FB-017 | `scripts/perf/shared/io.mjs` | optional perf artifacts are missing on disk | report output shows an empty baseline or first-run bootstrap | 2026-06-30 | #195 | REVIEW — optional perf bootstrap behavior; should leave active register |
 | FB-018 | `scripts/checks.sh` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | RETAIN FOR NOW — main Svelte format gate still depends on Prettier |
 

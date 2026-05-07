@@ -64,6 +64,13 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
+### Sub-Agent Defaults
+
+- For substantial ABB refactors or long-running verification gates, the main agent owns design, code edits, final interpretation, and the final verification claim.
+- Use targeted GPT-5.4 Mini sub-agents for bounded discovery, audit, or test-shepherd lanes when they reduce context load without fragmenting ownership.
+- A test-shepherd lane is read-only by default: run or monitor the assigned checks, report commands, exit status, failures, and suspicious warnings, then wait for the main agent to decide the next code change.
+- If a sub-agent is assigned implementation or test-file edits, give explicit file ownership and remind it that other agents may be active in the same worktree.
+
 ### Active Refactor Bias
 
 - Actively surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.

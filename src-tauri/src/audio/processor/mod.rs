@@ -4,6 +4,7 @@
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
+//!   - staging.rs   : destination-adjacent temp output directories
 //!   - adapter.rs   : native vs external processor adapter resolution
 //!
 //! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
@@ -30,6 +31,7 @@ pub mod plan;
 pub mod prepare;
 pub mod preview_state;
 pub mod selection;
+pub mod staging;
 pub mod streams;
 
 // Re-exports

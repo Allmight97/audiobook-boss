@@ -6,7 +6,7 @@ use ffmpeg_next as ff;
 
 use super::common::{
     configure_threads, encoder_log, find_encoder_by_name, resolve_plan_encoder_settings,
-    try_configure_variable_frame_size,
+    try_configure_variable_frame_size, EncoderFramePlan,
 };
 use super::options::{build_apple_options, build_fdk_options, build_native_options};
 
@@ -100,7 +100,7 @@ pub(crate) fn create_audio_encoder(
 }
 
 /// Sets up the output encoder context and stream with metadata support.
-/// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate)
+/// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate, frame_plan)
 ///
 /// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
 /// to the output context before the header is written (#66).
@@ -116,6 +116,7 @@ pub(crate) fn setup_encoder(
     usize,
     ff::Rational,
     u32,
+    EncoderFramePlan,
 )> {
     use crate::errors::AppError;
 
@@ -276,6 +277,14 @@ pub(crate) fn setup_encoder(
         plan.encoder_settings.bitrate_kbps,
         plan.encoder_settings
     );
+    let frame_plan = EncoderFramePlan::from_opened_encoder(&enc_ctx, resolved_encoder_type)?;
 
-    Ok((octx, enc_ctx, ost_index, ost_time_base, target_sample_rate))
+    Ok((
+        octx,
+        enc_ctx,
+        ost_index,
+        ost_time_base,
+        target_sample_rate,
+        frame_plan,
+    ))
 }

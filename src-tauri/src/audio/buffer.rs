@@ -6,8 +6,10 @@
 //! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
 //! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
 //!
-//! Other formats will panic at construction time to prevent silent data corruption.
+//! Other formats and invalid frame sizes return an error at construction time to prevent
+//! silent data corruption.
 
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use log;
 
@@ -17,7 +19,8 @@ use log;
 /// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
 /// - `S16Packed`: Single interleaved buffer with i16 samples (AAC-AT)
 ///
-/// Attempting to use other formats will panic at `SampleAccumulator::new()`.
+/// Attempting to use other formats or a zero frame size will return an error from
+/// `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
     S16Packed(Vec<i16>), // Interleaved: [L0, R0, L1, R1, ...]
@@ -46,17 +49,16 @@ struct DrainConfig {
 impl SampleAccumulator {
     pub fn new(
         channels: usize,
-        mut frame_size: usize,
+        frame_size: usize,
         sample_rate: u32,
         channel_layout: ff::channel_layout::ChannelLayout,
         format: ff::format::Sample,
-    ) -> Self {
+    ) -> Result<Self> {
         if frame_size == 0 {
-            // FALLBACK[FB-010]: trigger=encoder reports unknown/zero frame_size
-            // observe=warn log with default frame size usage
-            // sunset=2026-06-30 issue=#195
-            log::warn!("Encoder reported frame_size=0; using fallback 1024 for accumulation");
-            frame_size = 1024; // AAC-LC typical frame size
+            return Err(AppError::General(
+                "Encoder reported frame_size=0; SampleAccumulator requires a fixed non-zero frame size"
+                    .to_string(),
+            ));
         }
 
         // Explicit format matching - only support formats actually used by our encoders.
@@ -95,7 +97,7 @@ impl SampleAccumulator {
             format, bytes_per_sample, is_planar, channels, frame_size
         );
 
-        Self {
+        Ok(Self {
             channels,
             frame_size,
             sample_rate,
@@ -104,7 +106,7 @@ impl SampleAccumulator {
             storage,
             bytes_per_sample,
             consumed_samples: 0,
-        }
+        })
     }
 
     /// Push a frame; return any full frames now available.
@@ -193,9 +195,6 @@ impl SampleAccumulator {
 
     /// Check if storage has enough samples for a full frame
     fn has_full_frame(&self) -> bool {
-        if self.frame_size == 0 {
-            return false;
-        }
         self.available_samples() >= self.frame_size
     }
 

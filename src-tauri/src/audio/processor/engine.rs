@@ -121,7 +121,7 @@ impl MediaProcessor for FfmpegNextProcessor {
             // Setup encoder and output context with metadata
             // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
             let skip_chapter_passthrough = context.preview.is_some();
-            let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate) =
+            let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate, frame_plan) =
                 crate::audio::processor::encoder::setup_encoder(
                     plan,
                     metadata,
@@ -188,11 +188,11 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             let mut accumulator = SampleAccumulator::new(
                 enc_ctx.channel_layout().channels() as usize,
-                enc_ctx.frame_size() as usize,
+                frame_plan.samples_per_frame(),
                 enc_ctx.rate(),
                 enc_ctx.channel_layout(),
                 enc_ctx.format(),
-            );
+            )?;
 
             // Process each input file
             log::info!(

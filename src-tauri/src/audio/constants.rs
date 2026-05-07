@@ -64,9 +64,6 @@ pub const DEFAULT_OUTPUT_EXTENSION: &str = "m4b";
 /// Temporary merged output filename
 pub const TEMP_MERGED_FILENAME: &str = "merged.m4b";
 
-/// Temporary directory name
-pub const TEMP_DIR_NAME: &str = "audiobook-boss";
-
 // Progress calculation weights
 /// Weight for metadata writing in progress calculations
 pub const PROGRESS_METADATA_WEIGHT: f32 = 5.0;

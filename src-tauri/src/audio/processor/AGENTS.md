@@ -14,7 +14,7 @@
 
 ## Hard Invariants
 
-- Finalization prefers filesystem move semantics and uses copy/replace fallback when move fails.
+- Finalization stages output adjacent to the destination and completes via filesystem move semantics without a copy/replace fallback.
 - Cancellation is checked at critical boundaries, including post-move and pre-success paths.
 - Terminal paths clean temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
@@ -29,4 +29,4 @@
 
 - Pipeline stages remain explicit and user-visible progress is truthful.
 - Cancellation and cleanup semantics remain deterministic.
-- Finalize behavior preserves output integrity across normal and fallback paths.
+- Finalize behavior preserves output integrity through deterministic staging, move, and cleanup paths.

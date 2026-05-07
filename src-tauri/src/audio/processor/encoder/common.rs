@@ -2,7 +2,7 @@
 
 use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType, ThreadSetting};
 use crate::audio::toolchain::EncoderAvailability;
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::borrow::Cow;
 use std::sync::{Once, OnceLock};
@@ -35,6 +35,43 @@ pub(super) fn resolve_plan_encoder_settings<'a>(
 ) -> (Cow<'a, EncoderSettings>, EncoderType) {
     let resolved = settings_encoder::resolve_encoder_type(&plan.encoder_settings, availability);
     (Cow::Borrowed(&plan.encoder_settings), resolved)
+}
+
+const AAC_FRAME_QUANTUM_SAMPLES: usize = 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct EncoderFramePlan {
+    samples_per_frame: usize,
+}
+
+impl EncoderFramePlan {
+    pub(crate) fn from_opened_encoder(
+        encoder: &ff::codec::encoder::audio::Encoder,
+        resolved_encoder: EncoderType,
+    ) -> Result<Self> {
+        Self::from_raw_frame_size(encoder.frame_size() as usize, resolved_encoder)
+    }
+
+    pub(crate) fn samples_per_frame(self) -> usize {
+        self.samples_per_frame
+    }
+
+    fn from_raw_frame_size(frame_size: usize, resolved_encoder: EncoderType) -> Result<Self> {
+        if frame_size > 0 {
+            return Ok(Self {
+                samples_per_frame: frame_size,
+            });
+        }
+
+        match resolved_encoder {
+            EncoderType::FdkHeAac | EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
+                samples_per_frame: AAC_FRAME_QUANTUM_SAMPLES,
+            }),
+            EncoderType::Auto => Err(AppError::General(
+                "Encoder frame plan requires a resolved encoder type.".to_string(),
+            )),
+        }
+    }
 }
 
 /// Finds encoder by name using FFmpeg's encoder registry
@@ -116,5 +153,40 @@ pub(super) fn configure_threads(ctx: &mut ff::codec::context::Context, threads: 
                 0,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_plan_uses_reported_encoder_frame_size() {
+        let plan = EncoderFramePlan::from_raw_frame_size(2048, EncoderType::NativeAac)
+            .expect("reported frame size should be accepted");
+
+        assert_eq!(plan.samples_per_frame(), 2048);
+    }
+
+    #[test]
+    fn frame_plan_uses_aac_quantum_for_variable_frame_encoders() {
+        for encoder in [
+            EncoderType::NativeAac,
+            EncoderType::AacAt,
+            EncoderType::FdkHeAac,
+        ] {
+            let plan = EncoderFramePlan::from_raw_frame_size(0, encoder)
+                .expect("resolved AAC encoder should have an explicit frame quantum");
+
+            assert_eq!(plan.samples_per_frame(), AAC_FRAME_QUANTUM_SAMPLES);
+        }
+    }
+
+    #[test]
+    fn frame_plan_rejects_unresolved_auto_encoder() {
+        let err = EncoderFramePlan::from_raw_frame_size(0, EncoderType::Auto)
+            .expect_err("auto must be resolved before frame planning");
+
+        assert!(err.to_string().contains("resolved encoder type"));
     }
 }

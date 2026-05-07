@@ -50,7 +50,8 @@ fn sanitize_clamps_and_fixes_non_finite() {
         44_100,
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
-    );
+    )
+    .unwrap();
 
     let mut frame = ff::frame::Audio::empty();
     frame.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
@@ -94,7 +95,8 @@ fn s16_packed_copies_without_sanitization() {
         44_100,
         ff::channel_layout::ChannelLayout::STEREO,
         ff::format::Sample::I16(ff::format::sample::Type::Packed),
-    );
+    )
+    .unwrap();
 
     let mut frame = ff::frame::Audio::empty();
     frame.set_format(ff::format::Sample::I16(ff::format::sample::Type::Packed));
@@ -133,7 +135,8 @@ fn f32_planar_preserves_order_across_multiple_consumption_cycles() {
         44_100,
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
-    );
+    )
+    .unwrap();
 
     let expected: Vec<f32> = (0..15).map(|i| i as f32 / 20.0).collect();
     let mut observed = Vec::new();
@@ -165,7 +168,8 @@ fn f32_planar_flush_tail_preserves_remaining_samples_once() {
         44_100,
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
-    );
+    )
+    .unwrap();
 
     let frame = mono_f32_frame(&[0.25, -0.25, 0.5]);
     assert!(acc.push_frame(&frame).is_empty());
@@ -191,7 +195,8 @@ fn s16_packed_preserves_interleaved_order_with_short_flush_tail() {
         44_100,
         ff::channel_layout::ChannelLayout::STEREO,
         ff::format::Sample::I16(ff::format::sample::Type::Packed),
-    );
+    )
+    .unwrap();
 
     let frame_a = stereo_s16_frame(2, &[1, -1, 2, -2]);
     let frame_b = stereo_s16_frame(2, &[3, -3, 4, -4]);
@@ -214,4 +219,21 @@ fn s16_packed_preserves_interleaved_order_with_short_flush_tail() {
     let tail_samples: &[i16] =
         unsafe { std::slice::from_raw_parts(tail_plane.as_ptr() as *const i16, 2) };
     assert_eq!(tail_samples, &[4, -4]);
+}
+
+#[test]
+fn rejects_zero_frame_size() {
+    match SampleAccumulator::new(
+        1,
+        0,
+        44_100,
+        ff::channel_layout::ChannelLayout::MONO,
+        ff::format::Sample::F32(ff::format::sample::Type::Planar),
+    ) {
+        Ok(_) => panic!("zero frame size should be rejected"),
+        Err(err) => assert!(
+            err.to_string().contains("frame_size=0"),
+            "error should identify the invalid frame size"
+        ),
+    }
 }
