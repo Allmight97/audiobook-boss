@@ -553,7 +553,7 @@
     }
 
     .hidden {
-      display: none !important;
+      display: none;
     }
 
     .mini-map {
@@ -1258,9 +1258,9 @@
           the work; the encoder target is about which AAC encoder that path opens.
         </div>
         <div class="tabs" role="tablist" aria-label="Processor tabs">
-          <button class="tab-button" role="tab" aria-selected="true" aria-controls="nativeTab" id="nativeButton">Native ffmpeg-next</button>
-          <button class="tab-button" role="tab" aria-selected="false" aria-controls="fdkTab" id="fdkButton">External FDK</button>
-          <button class="tab-button" role="tab" aria-selected="false" aria-controls="sharedTab" id="sharedButton">Shared lifecycle</button>
+          <button type="button" class="tab-button" role="tab" aria-selected="true" aria-controls="nativeTab" id="nativeButton">Native ffmpeg-next</button>
+          <button type="button" class="tab-button" role="tab" aria-selected="false" aria-controls="fdkTab" id="fdkButton">External FDK</button>
+          <button type="button" class="tab-button" role="tab" aria-selected="false" aria-controls="sharedTab" id="sharedButton">Shared lifecycle</button>
         </div>
 
         <div id="nativeTab" class="tab-panel active" role="tabpanel" aria-labelledby="nativeButton">
@@ -1770,7 +1770,7 @@ git diff --stat main...HEAD</code></pre>
           node.classList.remove("hidden");
           return;
         }
-        const haystack = (node.getAttribute("data-search") + " " + node.textContent).toLowerCase();
+        const haystack = `${node.getAttribute("data-search")} ${node.textContent}`.toLowerCase();
         const matches = terms.every((term) => haystack.includes(term));
         node.classList.toggle("hidden", !matches);
       });
@@ -1779,18 +1779,24 @@ git diff --stat main...HEAD</code></pre>
     document.getElementById("expandAll").addEventListener("click", (event) => {
       const details = Array.from(document.querySelectorAll("details"));
       const shouldOpen = details.some((detail) => !detail.open);
-      details.forEach((detail) => detail.open = shouldOpen);
+      details.forEach((detail) => {
+        detail.open = shouldOpen;
+      });
       event.currentTarget.textContent = shouldOpen ? "Collapse details" : "Expand details";
     });
 
     document.querySelectorAll(".tab-button").forEach((button) => {
       button.addEventListener("click", () => {
         const tablist = button.closest("[role='tablist']");
-        tablist.querySelectorAll(".tab-button").forEach((tab) => tab.setAttribute("aria-selected", "false"));
+        tablist.querySelectorAll(".tab-button").forEach((tab) => {
+          tab.setAttribute("aria-selected", "false");
+        });
         button.setAttribute("aria-selected", "true");
 
         const section = button.closest("section");
-        section.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
+        section.querySelectorAll(".tab-panel").forEach((panel) => {
+          panel.classList.remove("active");
+        });
         document.getElementById(button.getAttribute("aria-controls")).classList.add("active");
       });
     });
@@ -1810,7 +1816,9 @@ git diff --stat main...HEAD</code></pre>
         box.addEventListener("change", saveChecks);
       });
     } catch {
-      boxes.forEach((box) => box.addEventListener("change", saveChecks));
+      boxes.forEach((box) => {
+        box.addEventListener("change", saveChecks);
+      });
     }
 
     document.getElementById("copyChecklist").addEventListener("click", async () => {

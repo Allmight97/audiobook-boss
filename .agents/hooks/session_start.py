@@ -9,10 +9,11 @@ emit(
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
             "additionalContext": (
-                "ABB hooks active: docs-only edits use "
-                "`bash scripts/check-context-surface.sh`; non-doc code changes use "
-                "`scripts/checks.sh standard`; IPC boundary edits should keep "
-                "`src/lib/generated/tauri.ts` in sync."
+                "ABB hooks active: PreToolUse blocks destructive Bash worktree commands; "
+                "UserPromptSubmit adds advisory skill-routing hints; Stop consolidates "
+                "context-surface, IPC binding, fallback-policy, verification-lane, and "
+                "UI-review reminders. Docs-only edits use `bash scripts/check-context-surface.sh`; "
+                "non-doc code changes use `scripts/checks.sh standard`."
             ),
         },
     }

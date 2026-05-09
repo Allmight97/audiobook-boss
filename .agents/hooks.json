@@ -12,26 +12,39 @@
 				]
 			}
 		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/user_prompt_submit_skill_router.py\"",
+						"timeout": 5,
+						"statusMessage": "Checking ABB skill routing"
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_guard.py\"",
+						"timeout": 5,
+						"statusMessage": "Checking ABB command safety"
+					}
+				]
+			}
+		],
 		"Stop": [
 			{
 				"hooks": [
 					{
 						"type": "command",
-						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_context_surface.py\"",
-						"timeout": 20,
-						"statusMessage": "Checking ABB doc context surface"
-					},
-					{
-						"type": "command",
-						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_verification_lane.py\"",
-						"timeout": 10,
-						"statusMessage": "Classifying ABB verification lane"
-					},
-					{
-						"type": "command",
-						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_ipc_guard.py\"",
+						"command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_repo_guard.py\"",
 						"timeout": 30,
-						"statusMessage": "Checking ABB IPC binding drift"
+						"statusMessage": "Checking ABB repo guardrails"
 					}
 				]
 			}

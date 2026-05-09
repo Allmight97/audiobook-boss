@@ -25,10 +25,10 @@ retained_skills=(
 retained_hook_files=(
   ".codex/hooks.json"
   ".agents/hooks/common.py"
+  ".agents/hooks/pre_tool_use_guard.py"
   ".agents/hooks/session_start.py"
-  ".agents/hooks/stop_context_surface.py"
-  ".agents/hooks/stop_verification_lane.py"
-  ".agents/hooks/stop_ipc_guard.py"
+  ".agents/hooks/stop_repo_guard.py"
+  ".agents/hooks/user_prompt_submit_skill_router.py"
 )
 
 removed_skills=(
