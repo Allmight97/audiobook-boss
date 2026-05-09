@@ -1,0 +1,1830 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audiobook Boss Audio Processing System Map</title>
+  <style>
+    :root {
+      --bg: #f7f7f4;
+      --panel: #ffffff;
+      --panel-2: #f0f3f4;
+      --ink: #17191c;
+      --muted: #5e6670;
+      --line: #d8dedf;
+      --accent: #156d72;
+      --accent-2: #8b4b2f;
+      --accent-3: #4b5f9d;
+      --good: #217346;
+      --warn: #a15c00;
+      --bad: #b42318;
+      --shadow: 0 16px 45px rgba(20, 28, 32, 0.09);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.7), rgba(247,247,244,0.95) 260px),
+        var(--bg);
+      line-height: 1.48;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.92em;
+      background: #eef2f2;
+      border: 1px solid #d7dfdf;
+      border-radius: 5px;
+      padding: 0.08rem 0.3rem;
+    }
+
+    pre {
+      overflow: auto;
+      background: #12161a;
+      color: #edf3f3;
+      padding: 1rem;
+      border-radius: var(--radius);
+      border: 1px solid #2a3338;
+      line-height: 1.45;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: 0.88rem;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255,255,255,0.86);
+      backdrop-filter: blur(12px);
+      padding: 1rem;
+    }
+
+    .brand {
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.35rem 0.35rem 1rem;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 1rem;
+    }
+
+    .brand strong {
+      font-size: 1rem;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    nav {
+      display: grid;
+      gap: 0.2rem;
+    }
+
+    nav a {
+      display: block;
+      padding: 0.46rem 0.55rem;
+      border-radius: 6px;
+      color: #263238;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    nav a:hover,
+    nav a:focus {
+      background: #e9f2f2;
+      outline: none;
+    }
+
+    main {
+      min-width: 0;
+      padding: 2rem clamp(1rem, 3vw, 3rem) 5rem;
+    }
+
+    .hero {
+      display: grid;
+      gap: 1rem;
+      max-width: 1280px;
+      margin: 0 auto 1.5rem;
+      padding: 1.2rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 1.03;
+      max-width: 13ch;
+    }
+
+    .hero p {
+      max-width: 88ch;
+      margin: 0;
+      color: #364047;
+      font-size: 1.02rem;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 0.65rem;
+      align-items: center;
+      margin-top: 0.4rem;
+    }
+
+    input[type="search"] {
+      width: 100%;
+      border: 1px solid #cbd5d6;
+      border-radius: 6px;
+      padding: 0.72rem 0.85rem;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    button,
+    .chip {
+      border: 1px solid #bdc9cb;
+      border-radius: 6px;
+      padding: 0.66rem 0.85rem;
+      background: #fff;
+      color: #172026;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover,
+    button:focus {
+      border-color: var(--accent);
+      outline: 2px solid rgba(21, 109, 114, 0.16);
+      outline-offset: 1px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.2rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.55rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #263238;
+      background: #f8fbfb;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: var(--accent);
+    }
+
+    section {
+      max-width: 1280px;
+      margin: 1rem auto;
+      padding: 1.1rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    section > h2 {
+      margin: 0 0 0.45rem;
+      font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+    }
+
+    section > .section-lead {
+      max-width: 94ch;
+      color: #3b464d;
+      margin: 0 0 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 0.8rem;
+    }
+
+    .card {
+      grid-column: span 4;
+      background: #fbfcfc;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.95rem;
+    }
+
+    .card.wide {
+      grid-column: span 8;
+    }
+
+    .card.full {
+      grid-column: 1 / -1;
+    }
+
+    .card h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1rem;
+    }
+
+    .card p,
+    .card li {
+      color: #3e484f;
+    }
+
+    .card p {
+      margin: 0.4rem 0;
+    }
+
+    .module-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 0.8rem;
+    }
+
+    .module {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.85rem;
+      background: #fff;
+    }
+
+    .module h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1rem;
+    }
+
+    .module .tagline {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin: 0 0 0.5rem;
+    }
+
+    .module ul {
+      padding-left: 1.1rem;
+      margin: 0.45rem 0 0;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 0.55rem;
+      margin: 1rem 0;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 130px;
+      padding: 0.75rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #fff, #f8fbfb);
+    }
+
+    .flow-step::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -0.55rem;
+      width: 0.55rem;
+      border-top: 2px solid #98aaad;
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: #102b2f;
+    }
+
+    .flow-step span {
+      color: #46535a;
+      font-size: 0.88rem;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.9rem;
+    }
+
+    .lane {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .lane header {
+      padding: 0.85rem;
+      border-bottom: 1px solid var(--line);
+      background: #f4f8f8;
+    }
+
+    .lane header h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .lane .body {
+      padding: 0.85rem;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      margin: 0.65rem 0;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 0.75rem 0.85rem;
+      font-weight: 700;
+      color: #203037;
+    }
+
+    details > div {
+      padding: 0 0.85rem 0.85rem;
+      color: #3d474e;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 0.7rem;
+    }
+
+    th {
+      background: #eef4f4;
+      color: #1d2b31;
+      font-weight: 800;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0.6rem 0 1rem;
+    }
+
+    .tab-button[aria-selected="true"] {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .callout {
+      border-left: 5px solid var(--accent);
+      background: #eef8f8;
+      padding: 0.8rem 0.9rem;
+      border-radius: 0 8px 8px 0;
+      margin: 0.75rem 0;
+    }
+
+    .callout.warn {
+      border-color: var(--warn);
+      background: #fff7e8;
+    }
+
+    .callout.bad {
+      border-color: var(--bad);
+      background: #fff0ee;
+    }
+
+    .callout.good {
+      border-color: var(--good);
+      background: #ecf8f0;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 0.65rem;
+    }
+
+    .legend div {
+      padding: 0.75rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+
+    .status {
+      font-size: 0.82rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f7fafb;
+      white-space: nowrap;
+    }
+
+    .status.good {
+      color: var(--good);
+      border-color: #8dc59f;
+      background: #eff9f1;
+    }
+
+    .status.warn {
+      color: var(--warn);
+      border-color: #ddb36d;
+      background: #fff7e8;
+    }
+
+    .status.bad {
+      color: var(--bad);
+      border-color: #e0a19a;
+      background: #fff0ee;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .check {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.55rem;
+      padding: 0.72rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+
+    .check input {
+      margin-top: 0.2rem;
+    }
+
+    .check strong {
+      display: block;
+    }
+
+    .check span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .source-list {
+      columns: 2;
+      column-gap: 1.5rem;
+    }
+
+    .source-list li {
+      break-inside: avoid;
+      margin-bottom: 0.32rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .mini-map {
+      width: 100%;
+      min-height: 520px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfc;
+    }
+
+    .copy-state {
+      color: var(--muted);
+      font-size: 0.85rem;
+      min-height: 1.2rem;
+    }
+
+    @media (max-width: 1050px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      nav {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step::after {
+        top: auto;
+        right: auto;
+        left: 1.5rem;
+        bottom: -0.55rem;
+        height: 0.55rem;
+        width: 0;
+        border-top: 0;
+        border-left: 2px solid #98aaad;
+      }
+
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .card,
+      .card.wide {
+        grid-column: 1 / -1;
+      }
+
+      .source-list {
+        columns: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">
+        <strong>ABB Audio Map</strong>
+        <span>End-to-end study artifact</span>
+        <span>Branch: <code>codex/remove-audio-fallbacks</code></span>
+      </div>
+      <nav aria-label="Page sections">
+        <a href="#top">Start Here</a>
+        <a href="#spine">Product Spine</a>
+        <a href="#system-map">System Map</a>
+        <a href="#glue-boundaries">Glue and Boundaries</a>
+        <a href="#inputs">Inputs</a>
+        <a href="#frontend">Frontend Boundary</a>
+        <a href="#ipc">IPC Contract</a>
+        <a href="#preflight">Preflight</a>
+        <a href="#processors">Processors</a>
+        <a href="#metadata">Metadata</a>
+        <a href="#output">Output and Filesystem</a>
+        <a href="#toolchain">Encoders and FDK</a>
+        <a href="#feedback">Progress and Feedback</a>
+        <a href="#failures">Failure Semantics</a>
+        <a href="#verification">Pressure Test List</a>
+        <a href="#glossary">Glossary</a>
+        <a href="#sources">Source Index</a>
+      </nav>
+    </aside>
+
+    <main id="top">
+      <article class="hero">
+        <p class="eyebrow">Conclusion first</p>
+        <h1>Audiobook Boss turns intent into artifact truth.</h1>
+        <p>
+          The audio pipeline is a chain of boundaries:
+          user intent in Svelte, normalized IPC payloads, backend preflight plans, job lifecycle,
+          one of two processing engines, metadata shaping, destination-adjacent staging, final
+          filesystem commit, progress events, and terminal result truth. The useful mental model is:
+          <strong>Import -> Inspect -> Decide -> Preflight -> Process -> Verify</strong>.
+        </p>
+        <div class="toolbar" aria-label="Artifact controls">
+          <label>
+            <span class="hidden">Search pipeline map</span>
+            <input id="search" type="search" placeholder="Filter modules, files, risks, and concepts..." />
+          </label>
+          <button id="expandAll" type="button">Expand details</button>
+          <button id="copyChecklist" type="button">Copy checklist</button>
+        </div>
+        <div class="copy-state" id="copyState" role="status" aria-live="polite"></div>
+        <div class="pill-row" aria-label="Key facts">
+          <span class="pill"><strong>Engine paths</strong> native ffmpeg-next and external FDK</span>
+          <span class="pill"><strong>Encoder targets</strong> FDK, Apple AAC/AAC-AT, Native AAC</span>
+          <span class="pill"><strong>Commit model</strong> stage beside destination, then move/install</span>
+          <span class="pill"><strong>Fallbacks</strong> FB-010 and FB-012 removed on this branch</span>
+          <span class="pill"><strong>UI truth</strong> generated Tauri contract via <code>tauriClient</code></span>
+        </div>
+      </article>
+
+      <section id="spine" data-search="product spine import inspect decide preflight process verify">
+        <h2>The Shape in One Screen</h2>
+        <p class="section-lead">
+          Think of ABB as a system that gradually removes ambiguity. Early layers are allowed to be
+          tentative and user-shaped. Later layers must become concrete, validated, and observable.
+        </p>
+        <div class="flow" role="list" aria-label="Product spine">
+          <div class="flow-step" role="listitem">
+            <strong>1. Import</strong>
+            <span>User supplies audio paths by drag/drop or file picker. Cover art drops are routed separately.</span>
+          </div>
+          <div class="flow-step" role="listitem">
+            <strong>2. Inspect</strong>
+            <span>Rust validates paths, probes audio, duration, codec, sample rate, channels, and decoder choice.</span>
+          </div>
+          <div class="flow-step" role="listitem">
+            <strong>3. Decide</strong>
+            <span>UI state chooses encoder, toolchain, output directory, naming, metadata intent, and job type.</span>
+          </div>
+          <div class="flow-step" role="listitem">
+            <strong>4. Preflight</strong>
+            <span>Backend builds the exact output plan, collision result, and review signature before writing.</span>
+          </div>
+          <div class="flow-step" role="listitem">
+            <strong>5. Process</strong>
+            <span>Native ffmpeg-next or external FDK FFmpeg transcodes, tracks progress, handles cancellation.</span>
+          </div>
+          <div class="flow-step" role="listitem">
+            <strong>6. Verify</strong>
+            <span>Terminal result reports what actually happened: success, skipped, cancelled, failed, or mixed.</span>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>SWE lesson:</strong> a good processing pipeline separates <em>intent</em>,
+          <em>plan</em>, <em>execution</em>, and <em>truth</em>. When those collapse into one object,
+          bugs hide in the overlap.
+        </div>
+      </section>
+
+      <section id="system-map" data-search="diagram architecture data flow system map UI IPC backend ffmpeg metadata output">
+        <h2>End-to-End System Map</h2>
+        <p class="section-lead">
+          This diagram shows the main arteries plus the glue code, APIs, seams, and boundaries that
+          keep those arteries from becoming random cross-module calls. The sections below expand
+          each box into files, invariants, and failure behavior.
+        </p>
+        <svg class="mini-map" viewBox="0 0 1280 680" role="img" aria-labelledby="mapTitle mapDesc">
+          <title id="mapTitle">Audiobook Boss audio processing map</title>
+          <desc id="mapDesc">A left to right flow from user input through UI glue, the Tauri API boundary, Rust orchestration, processor seam, native and external processing engines, metadata, filesystem commit, progress events, and verification.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#65777c"></path>
+            </marker>
+            <style>
+              .box{fill:#fff;stroke:#cbd6d8;stroke-width:1.5;rx:8}
+              .glue{fill:#eef8f8;stroke:#95babc;stroke-width:1.5;rx:8}
+              .api{fill:#f1f3fb;stroke:#9da9d2;stroke-width:1.5;rx:8}
+              .engine{fill:#eef5ff;stroke:#8aa7cf;stroke-width:1.5;rx:8}
+              .artifact{fill:#fff7e8;stroke:#d8ad67;stroke-width:1.5;rx:8}
+              .truth{fill:#edf8f0;stroke:#83bd95;stroke-width:1.5;rx:8}
+              .label{font:700 14px system-ui,sans-serif;fill:#172026}
+              .small{font:11px system-ui,sans-serif;fill:#46535a}
+              .tiny{font:10px system-ui,sans-serif;fill:#5b666c}
+              .badge{font:700 10px system-ui,sans-serif;fill:#102b2f}
+              .line{stroke:#65777c;stroke-width:1.5;fill:none;marker-end:url(#arrow)}
+              .return{stroke:#8b4b2f;stroke-width:1.4;fill:none;stroke-dasharray:5 5;marker-end:url(#arrow)}
+              .boundary{stroke:#4b5f9d;stroke-width:1.2;stroke-dasharray:4 4;fill:none}
+            </style>
+          </defs>
+
+          <rect class="box" x="30" y="35" width="145" height="100"></rect>
+          <text class="label" x="46" y="62">User inputs</text>
+          <text class="small" x="46" y="85">files, metadata</text>
+          <text class="small" x="46" y="102">encoder, output</text>
+          <text class="small" x="46" y="119">preview/cancel</text>
+
+          <rect class="glue" x="210" y="20" width="190" height="130"></rect>
+          <text class="badge" x="226" y="43">GLUE / ORCHESTRATION</text>
+          <text class="label" x="226" y="67">Svelte UI modules</text>
+          <text class="small" x="226" y="90">startProcessing()</text>
+          <text class="small" x="226" y="107">fileImport, outputPanel</text>
+          <text class="small" x="226" y="124">encoderPanel, metadataState</text>
+
+          <rect class="api" x="435" y="20" width="175" height="130"></rect>
+          <text class="badge" x="451" y="43">BOUNDARY ADAPTER</text>
+          <text class="label" x="451" y="67">tauriClient</text>
+          <text class="small" x="451" y="90">compileMetadataIntentMap()</text>
+          <text class="small" x="451" y="107">denormalize payloads</text>
+          <text class="small" x="451" y="124">listen events</text>
+
+          <rect class="api" x="645" y="20" width="170" height="130"></rect>
+          <text class="badge" x="661" y="43">INTERNAL API</text>
+          <text class="label" x="661" y="67">Generated Tauri</text>
+          <text class="small" x="661" y="90">generated/tauri.ts</text>
+          <text class="small" x="661" y="107">ipc_contract.rs</text>
+          <text class="small" x="661" y="124">commands + events</text>
+
+          <rect class="box" x="850" y="20" width="180" height="130"></rect>
+          <text class="label" x="866" y="57">Rust command facade</text>
+          <text class="small" x="866" y="82">commands/audio.rs</text>
+          <text class="small" x="866" y="99">audio_types.rs</text>
+          <text class="small" x="866" y="116">validate/preflight/process</text>
+
+          <rect class="glue" x="1065" y="20" width="180" height="130"></rect>
+          <text class="badge" x="1081" y="43">BACKEND GLUE</text>
+          <text class="label" x="1081" y="67">Run orchestrator</text>
+          <text class="small" x="1081" y="90">run.rs</text>
+          <text class="small" x="1081" y="107">plan.rs</text>
+          <text class="small" x="1081" y="124">terminal_outcomes.rs</text>
+
+          <path class="boundary" d="M420 8 V170"></path>
+          <text class="tiny" x="427" y="168">UI -> IPC boundary</text>
+          <path class="boundary" d="M835 8 V170"></path>
+          <text class="tiny" x="842" y="168">IPC -> Rust boundary</text>
+
+          <rect class="box" x="90" y="245" width="190" height="118"></rect>
+          <text class="label" x="106" y="274">File inspection</text>
+          <text class="small" x="106" y="298">file_list.rs</text>
+          <text class="small" x="106" y="315">path_validation.rs</text>
+          <text class="small" x="106" y="332">streams::inspect_audio_decoder</text>
+
+          <rect class="artifact" x="315" y="245" width="190" height="118"></rect>
+          <text class="label" x="331" y="274">Output plan</text>
+          <text class="small" x="331" y="298">output_path/plan.rs</text>
+          <text class="small" x="331" y="315">collision.rs</text>
+          <text class="small" x="331" y="332">preflight signature</text>
+
+          <rect class="api" x="540" y="245" width="185" height="118"></rect>
+          <text class="badge" x="556" y="268">LIFECYCLE SEAM</text>
+          <text class="label" x="556" y="292">JobRegistry</text>
+          <text class="small" x="556" y="316">register_job()</text>
+          <text class="small" x="556" y="333">BatchScheduler</text>
+          <text class="small" x="556" y="350">CancellationChecker</text>
+
+          <rect class="glue" x="760" y="235" width="200" height="138"></rect>
+          <text class="badge" x="776" y="258">PROCESSOR SEAM</text>
+          <text class="label" x="776" y="282">ResolvedProcessorAdapter</text>
+          <text class="small" x="776" y="306">resolve_processor_adapter()</text>
+          <text class="small" x="776" y="323">FDK -> ExternalFdk</text>
+          <text class="small" x="776" y="340">Apple/Native -> Native</text>
+          <text class="small" x="776" y="357">validate_inputs()</text>
+
+          <rect class="box" x="995" y="235" width="220" height="138"></rect>
+          <text class="label" x="1011" y="264">Metadata side pipeline</text>
+          <text class="small" x="1011" y="288">resolve_effective_processing_metadata()</text>
+          <text class="small" x="1011" y="305">reader.rs + passthrough.rs</text>
+          <text class="small" x="1011" y="322">ffmpeg_dict.rs</text>
+          <text class="small" x="1011" y="339">cover, chapters, tag intent</text>
+
+          <rect class="engine" x="185" y="455" width="250" height="118"></rect>
+          <text class="label" x="201" y="484">Native engine path</text>
+          <text class="small" x="201" y="508">engine.rs + frame_pipeline.rs</text>
+          <text class="small" x="201" y="525">encoder/context.rs + write.rs</text>
+          <text class="small" x="201" y="542">Encoder targets: Apple AAC (aac_at)</text>
+          <text class="small" x="201" y="559">and Native AAC (aac)</text>
+
+          <rect class="engine" x="480" y="455" width="230" height="118"></rect>
+          <text class="label" x="496" y="484">External FDK path</text>
+          <text class="small" x="496" y="508">external_fdk.rs</text>
+          <text class="small" x="496" y="525">run_external_ffmpeg()</text>
+          <text class="small" x="496" y="542">libfdk_aac + -progress pipe:1</text>
+          <text class="small" x="496" y="559">external decoder validation</text>
+
+          <rect class="artifact" x="755" y="455" width="165" height="118"></rect>
+          <text class="label" x="771" y="484">Staging</text>
+          <text class="small" x="771" y="508">staging.rs</text>
+          <text class="small" x="771" y="525">.abb-processing-&lt;uuid&gt;</text>
+          <text class="small" x="771" y="542">beside destination</text>
+
+          <rect class="artifact" x="955" y="455" width="160" height="118"></rect>
+          <text class="label" x="971" y="484">Commit boundary</text>
+          <text class="small" x="971" y="508">finalize.rs</text>
+          <text class="small" x="971" y="525">rename/install</text>
+          <text class="small" x="971" y="542">no copy-replace fallback</text>
+
+          <rect class="truth" x="1150" y="455" width="100" height="118"></rect>
+          <text class="label" x="1163" y="484">Truth</text>
+          <text class="small" x="1163" y="508">final file</text>
+          <text class="small" x="1163" y="525">result status</text>
+          <text class="small" x="1163" y="542">events</text>
+
+          <path class="line" d="M175 85 H210"></path>
+          <path class="line" d="M400 85 H435"></path>
+          <path class="line" d="M610 85 H645"></path>
+          <path class="line" d="M815 85 H850"></path>
+          <path class="line" d="M1030 85 H1065"></path>
+
+          <path class="line" d="M1155 150 C1155 205 410 200 410 245"></path>
+          <path class="line" d="M1155 150 C1155 205 185 200 185 245"></path>
+          <path class="line" d="M1155 150 C1155 205 632 200 632 245"></path>
+          <path class="line" d="M1155 150 C1155 200 860 200 860 235"></path>
+          <path class="line" d="M960 304 H995"></path>
+
+          <path class="line" d="M860 373 C860 420 310 420 310 455"></path>
+          <path class="line" d="M860 373 C860 420 595 420 595 455"></path>
+          <path class="line" d="M435 514 H480"></path>
+          <path class="line" d="M710 514 H755"></path>
+          <path class="line" d="M920 514 H955"></path>
+          <path class="line" d="M1115 514 H1150"></path>
+          <path class="line" d="M1105 373 C1105 420 1035 420 1035 455"></path>
+
+          <path class="return" d="M1200 455 C1120 410 700 400 525 150"></path>
+          <text class="tiny" x="900" y="407">progress/queue/result events return to UI</text>
+          <path class="return" d="M725 304 C690 205 600 190 522 150"></path>
+          <text class="tiny" x="628" y="204">settings/status feedback</text>
+        </svg>
+        <div class="legend" aria-label="System map legend">
+          <div data-search="map legend boundary api">
+            <strong>Boundary/API</strong>
+            <p>Official crossing point between separate worlds. ABB examples: <code>tauriClient</code>, generated Tauri commands, <code>ipc_contract.rs</code>.</p>
+          </div>
+          <div data-search="map legend glue orchestration">
+            <strong>Glue/orchestration</strong>
+            <p>Sequencing code that gathers inputs and delegates to owners. Good glue is small and named, like <code>startProcessing()</code> or <code>run.rs</code>.</p>
+          </div>
+          <div data-search="map legend seam processor adapter">
+            <strong>Seam</strong>
+            <p>A useful swap/test point. <code>ResolvedProcessorAdapter</code> is the seam where ABB chooses native ffmpeg-next or external FDK.</p>
+          </div>
+          <div data-search="map legend shim fallback">
+            <strong>Shim/fallback</strong>
+            <p>A temporary or compatibility bridge. This branch removed FB-010 and FB-012; no active audio processor shim is drawn as a normal path.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="glue-boundaries" data-search="api boundary seam shim glue analogy contract module function neighborhood bridge road">
+        <h2>Glue, APIs, Seams, and Boundaries</h2>
+        <p class="section-lead">
+          Software systems stay navigable when each part has a clear job and a clear crossing point
+          into the next part. In ABB, the useful question is: "What is the official way these two
+          pieces are allowed to talk?"
+        </p>
+        <div class="grid">
+          <div class="card wide" data-search="api official bridge contract rules requests responses">
+            <h3>API: the official crossing</h3>
+            <p>
+              An API is the contract one component exposes to another. It says what can be asked
+              for, what shape the request must have, and what shape the answer will return. In ABB,
+              <code>tauriClient.processAudiobookFiles()</code> is an internal frontend API over the
+              generated Tauri command, while Rust functions like <code>resolve_processor_adapter()</code>
+              are internal backend APIs.
+            </p>
+            <p>
+              Analogy: if modules are neighborhoods, an API is the official road between them. It
+              makes movement possible without every caller walking through private kitchens, garages,
+              and utility closets.
+            </p>
+          </div>
+          <div class="card" data-search="boundary line separate worlds frontend backend module function">
+            <h3>Boundary: the separation line</h3>
+            <p>
+              A boundary is the line between separate responsibilities. It can be between processes
+              (Svelte and Rust), modules (<code>metadata</code> and <code>audio</code>), or even
+              functions inside one module when one function owns validation and another owns side
+              effects.
+            </p>
+          </div>
+          <div class="card" data-search="seam test swap change adapter">
+            <h3>Seam: a useful change point</h3>
+            <p>
+              A seam is a boundary shaped so you can test, change, or swap one side without rewriting
+              the other. <code>ResolvedProcessorAdapter</code> is a real seam: the run lifecycle can
+              call one interface while native and FDK execution differ behind it.
+            </p>
+          </div>
+          <div class="card" data-search="shim temporary compatibility fallback plywood bridge">
+            <h3>Shim: a temporary bridge</h3>
+            <p>
+              A shim translates across a mismatch that should ideally disappear. Shims are useful
+              when they unblock progress, but they need explicit ownership, trigger, and removal
+              condition. FB-010 and FB-012 were removed because their purposes now live in stronger
+              owned boundaries.
+            </p>
+          </div>
+          <div class="card" data-search="good glue bad glue explicit minimal named">
+            <h3>Glue: coordination code</h3>
+            <p>
+              Good glue is small, named, and boring: gather inputs, call the boundary, pass results
+              onward. Bad glue is random cross-module knowledge with no contract. ABB's high-value
+              glue surfaces are <code>startProcessing()</code>, <code>tauriClient</code>, backend
+              <code>run.rs</code>, and <code>ResolvedProcessorAdapter</code>.
+            </p>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>Study move:</strong> when a function feels confusing, ask which category it is:
+          product logic, boundary adapter, orchestration glue, seam, shim, or artifact truth. That
+          classification usually tells you what kind of tests and refactor pressure make sense.
+        </div>
+      </section>
+
+      <section id="inputs" data-search="inputs file import drag drop cover art metadata lookup encoder output naming sample rate">
+        <h2>Every Input That Feeds Audio Processing</h2>
+        <p class="section-lead">
+          "Audio processing input" is broader than audio files. The final artifact is shaped by
+          file paths, metadata intent, encoder/toolchain selection, naming rules, collision policy,
+          preview mode, concurrency, cancellation, and source inspection.
+        </p>
+        <div class="module-list">
+          <div class="module" data-search="audio file paths drag drop picker analyzeAudioFiles validate input decoder">
+            <h3>Audio paths</h3>
+            <p class="tagline"><code>src/ui/fileImport/handlers.ts</code> -> <code>analyze_audio_files</code></p>
+            <ul>
+              <li>Drag/drop and file picker collect candidate paths.</li>
+              <li>UI filters by supported audio extension before backend analysis.</li>
+              <li>Backend path validation canonicalizes and rejects unsupported or unsafe paths.</li>
+              <li>Inspection returns <code>AudioFile</code> plus stable <code>DecoderSelection</code> per file.</li>
+            </ul>
+          </div>
+          <div class="module" data-search="metadata intent patch save clear set title author cover art series">
+            <h3>Metadata intent</h3>
+            <p class="tagline"><code>src/ui/metadataState.ts</code> and <code>src/types/metadataIntent.ts</code></p>
+            <ul>
+              <li>UI stores intent as set, clear, noop, and album-sort recompute operations.</li>
+              <li>Intent patches prevent confusing "field absent" with "user cleared field."</li>
+              <li>Processing resolves source metadata plus patch before naming and muxing.</li>
+            </ul>
+          </div>
+          <div class="module" data-search="encoder settings flavor fdk aac-at native sample rate channels bitrate threads">
+            <h3>Encoder settings</h3>
+            <p class="tagline"><code>src/ui/encoderPanel/state.svelte.ts</code> -> <code>settings_encoder.rs</code></p>
+            <ul>
+              <li>UI settings normalize into the boundary <code>EncoderSettings</code>.</li>
+              <li>Valid modes are constrained: FDK/Auto VBR, AAC-AT CVBR, Native AAC CBR.</li>
+              <li>Sample rate and channels can be automatic or explicit.</li>
+              <li>Thread settings are auto, off, or fixed.</li>
+            </ul>
+          </div>
+          <div class="module" data-search="external toolchain fdk ffmpeg override path homebrew detection">
+            <h3>External toolchain</h3>
+            <p class="tagline"><code>src-tauri/src/audio/toolchain.rs</code></p>
+            <ul>
+              <li>FDK requires a validated external FFmpeg binary with <code>libfdk_aac</code>.</li>
+              <li>User override path is tried first; valid auto-detection can rescue invalid override state.</li>
+              <li>Toolchain inspection also records available input decoders used by xHE-AAC handling.</li>
+            </ul>
+          </div>
+          <div class="module" data-search="output directory output naming ABS custom template preview path collision">
+            <h3>Output directory and naming</h3>
+            <p class="tagline"><code>src/ui/outputPanel/state.svelte.ts</code> -> <code>audio/output_path/*</code></p>
+            <ul>
+              <li>Output directory is required before processing.</li>
+              <li>ABS default and custom template naming are rendered from effective metadata.</li>
+              <li>Preview output uses a <code>.preview.m4b</code> suffix.</li>
+              <li>Backend, not UI, owns final path truth and collision actions.</li>
+            </ul>
+          </div>
+          <div class="module" data-search="job type preview full merge batch collision policy preflight signature">
+            <h3>Job mode and review</h3>
+            <p class="tagline"><code>src/ui/statusPanel/processing.ts</code> -> <code>audio_processing/plan.rs</code></p>
+            <ul>
+              <li>Single/multi-file can merge into one output; batch produces one output per input.</li>
+              <li>Preview mode changes output kind and may clip input durations.</li>
+              <li>Collision review is captured by a preflight signature before execution.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="frontend" data-search="frontend Svelte App.svelte statusPanel controller processing tauriClient metadataState outputPanel encoderPanel">
+        <h2>Frontend: Where User Intent Becomes a Payload</h2>
+        <p class="section-lead">
+          The frontend does not own durable truth. Its job is to collect intent, normalize it into
+          generated IPC shapes, ask Rust for authoritative plans, and render backend truth.
+        </p>
+        <div class="grid">
+          <div class="card wide" data-search="startProcessing payload review collision status panel">
+            <h3>The main frontend route: <code>startProcessing</code></h3>
+            <p>
+              <code>src/ui/statusPanel/processing.ts</code> is the frontend orchestration point.
+              It reads output config, stages dirty metadata intent, computes full vs preview kind,
+              asks for a backend preflight plan, handles collision review, starts listeners, and
+              invokes <code>tauriClient.processAudiobookFiles</code>.
+            </p>
+            <details>
+              <summary>What this function gathers before process starts</summary>
+              <div>
+                <ul>
+                  <li>Valid audio file paths from current file-list state.</li>
+                  <li>Output config from output panel state: directory, encoder settings, toolchain settings, sample rate, naming.</li>
+                  <li>Metadata intent map for merge or batch jobs.</li>
+                  <li>Preview seconds when preview mode is requested.</li>
+                  <li>Preflight review result, including collision policy and signature.</li>
+                </ul>
+              </div>
+            </details>
+          </div>
+          <div class="card" data-search="controller progress queue terminal reconcile">
+            <h3>Status controller</h3>
+            <p>
+              <code>src/ui/statusPanel/controller.ts</code> owns the runtime listeners and state
+              reconciliation. It starts and stops progress subscriptions, applies queue snapshots,
+              requests cancellation, and reconciles the final process result into UI state.
+            </p>
+          </div>
+          <div class="card" data-search="tauri client boundary generated contract metadata patch compile">
+            <h3>Boundary adapter</h3>
+            <p>
+              <code>src/lib/tauri/client.ts</code> is the frontend contract seam. It converts UI
+              shapes into generated Rust contract shapes, compiles metadata patches, denormalizes
+              payloads, and wraps progress/queue event listeners.
+            </p>
+          </div>
+          <div class="card" data-search="file import analyze audio files selected decoders">
+            <h3>File import</h3>
+            <p>
+              <code>fileImport/handlers.ts</code> routes audio drops to <code>analyzeAudioFiles</code>,
+              appends validated file-list results, and keeps cover-art drops separate from audio import.
+            </p>
+          </div>
+          <div class="card" data-search="encoder UI settings to boundary">
+            <h3>Encoder UI state</h3>
+            <p>
+              <code>encoderPanel/state.svelte.ts</code> is UI-owned state; <code>toBoundaryEncoderSettings</code>
+              turns that state into the backend contract. This keeps display choices from leaking as
+              fuzzy backend instructions.
+            </p>
+          </div>
+          <div class="card" data-search="output panel output config sample rate naming">
+            <h3>Output UI state</h3>
+            <p>
+              <code>outputPanel/state.svelte.ts</code> owns selected output directory, naming config,
+              preview text, estimated size, sample-rate display, and the final <code>OutputConfig</code>
+              passed into processing.
+            </p>
+          </div>
+        </div>
+        <div class="callout good">
+          <strong>Correct term:</strong> in ABB docs this is usually a <em>boundary adapter</em> or
+          <em>orchestration surface</em>, depending on the layer. The UI status panel orchestrates
+          the frontend workflow. <code>tauriClient</code> is the IPC boundary adapter. Rust command
+          modules orchestrate backend lifecycle.
+        </div>
+      </section>
+
+      <section id="ipc" data-search="IPC Tauri commands generated specta command specs process payload events queue progress">
+        <h2>IPC Contract: The Narrow Waist</h2>
+        <p class="section-lead">
+          The IPC boundary is the narrow waist of the system. It lets the UI remain expressive while
+          forcing backend execution to receive explicit, typed, generated shapes.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Command or event</th>
+              <th>Purpose</th>
+              <th>Why it matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-search="analyze_audio_files file list inspect decoder">
+              <td><code>analyze_audio_files</code></td>
+              <td>Validate and inspect selected audio files.</td>
+              <td>Creates file-list truth, including duration and selected decoder identity.</td>
+            </tr>
+            <tr data-search="validate_encoder_settings list available encoders refresh external toolchain">
+              <td><code>validate_encoder_settings</code>, <code>list_available_encoders</code>, <code>refresh_external_toolchain</code></td>
+              <td>Validate encoder mode and discover available encoders/toolchains.</td>
+              <td>Keeps the UI honest about FDK, AAC-AT, and native AAC availability.</td>
+            </tr>
+            <tr data-search="preview_output_path output naming">
+              <td><code>preview_output_path</code></td>
+              <td>Ask backend how naming resolves.</td>
+              <td>Prevents the UI from pretending it knows final path rules.</td>
+            </tr>
+            <tr data-search="preflight_processing_plan collision signature">
+              <td><code>preflight_processing_plan</code></td>
+              <td>Build exact output plan without writing.</td>
+              <td>Produces collision actions and signature used to prove review did not go stale.</td>
+            </tr>
+            <tr data-search="process_audiobook_files process payload">
+              <td><code>process_audiobook_files</code></td>
+              <td>Run the selected processing jobs.</td>
+              <td>Execution starts only after validation, planning, and optional review.</td>
+            </tr>
+            <tr data-search="cancel_processing cancellation">
+              <td><code>cancel_processing</code></td>
+              <td>Request cancellation for active work.</td>
+              <td>Sets registry cancellation flags; processors check them at critical boundaries.</td>
+            </tr>
+            <tr data-search="processing-progress processing-queue events">
+              <td><code>processing-progress</code>, <code>processing-queue</code></td>
+              <td>Return progress, queue, terminal stages, job IDs, and input indices.</td>
+              <td>UI state follows backend truth instead of guessing from promises alone.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="preflight" data-search="preflight output plan collision policy signature review required skip replace rename">
+        <h2>Preflight: Planning Before Side Effects</h2>
+        <p class="section-lead">
+          Preflight is where the backend turns "I want an output" into "this exact path will be
+          written, skipped, renamed, blocked, or replaced." This is the data-loss safety layer.
+        </p>
+        <div class="split">
+          <div class="lane" data-search="build processing plan merge batch output ledger">
+            <header><h3>What the plan computes</h3></header>
+            <div class="body">
+              <ul>
+                <li>Merge vs batch job shape.</li>
+                <li>Final vs preview output kind.</li>
+                <li>Requested and resolved output paths.</li>
+                <li>Collision details and planned action.</li>
+                <li>Plan signature tied to reviewed outputs.</li>
+                <li>Effective naming metadata per input.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="lane" data-search="collision safety source overlap canonical path case insensitive existing file">
+            <header><h3>What it defends against</h3></header>
+            <div class="body">
+              <ul>
+                <li>Existing files at the destination.</li>
+                <li>Two batch outputs claiming the same path.</li>
+                <li>Case-insensitive filesystem conflicts.</li>
+                <li>Output path overlapping an input source path.</li>
+                <li>Review going stale between UI confirmation and execution.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <details>
+          <summary>Collision policy in plain English</summary>
+          <div>
+            <table>
+              <thead>
+                <tr><th>Policy/action</th><th>Meaning</th><th>Behavioral point</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>Fail</code></td><td>Do not proceed if occupied.</td><td>Good default for safety.</td></tr>
+                <tr><td><code>ReplaceExisting</code></td><td>Replace destination when allowed.</td><td>For batch-like collisions, ABB may choose rename instead of replace.</td></tr>
+                <tr><td><code>RenameNew</code></td><td>Create a non-conflicting candidate.</td><td>Used when keeping existing files matters.</td></tr>
+                <tr><td><code>SkipExisting</code></td><td>Do not run work for that occupied output.</td><td>Batch can return skipped entries without starting encode work.</td></tr>
+                <tr><td><code>ReviewRequired</code></td><td>Stop for user review.</td><td>Hard blocks and unreviewed collisions cannot silently write.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section id="processors" data-search="processor native ffmpeg-next external fdk apple aac-at adapter prepare execute finalize buffer sample accumulator encoder frame plan">
+        <h2>Processing Engines and Encoder Targets</h2>
+        <p class="section-lead">
+          ABB has one lifecycle, two execution engine paths, and three encoder targets. The shared
+          lifecycle is prepare -> execute -> finalize. FDK uses the external FFmpeg engine path;
+          Apple AAC/AAC-AT and Native AAC use the in-process ffmpeg-next engine path.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Encoder target</th><th>Backend enum/name</th><th>Execution engine path</th><th>Important setting mode</th></tr>
+          </thead>
+          <tbody>
+            <tr data-search="fdk he aac libfdk external ffmpeg vbr">
+              <td>FDK HE-AAC</td>
+              <td><code>EncoderType::FdkHeAac</code> / <code>libfdk_aac</code></td>
+              <td>External FFmpeg process via <code>external_fdk.rs</code></td>
+              <td>VBR quality plus afterburner</td>
+            </tr>
+            <tr data-search="apple aac aac-at audiotoolbox native ffmpeg-next cvbr">
+              <td>Apple AAC / AAC-AT</td>
+              <td><code>EncoderType::AacAt</code> / <code>aac_at</code></td>
+              <td>Native ffmpeg-next process path via <code>engine.rs</code></td>
+              <td>CVBR</td>
+            </tr>
+            <tr data-search="native aac ffmpeg aac cbr">
+              <td>Native FFmpeg AAC</td>
+              <td><code>EncoderType::NativeAac</code> / <code>aac</code></td>
+              <td>Native ffmpeg-next process path via <code>engine.rs</code></td>
+              <td>CBR bitrate</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          <strong>Why Apple AAC is not a third engine:</strong> Apple AAC is a resolved encoder
+          target inside the native ffmpeg-next execution path. The engine path is about how ABB runs
+          the work; the encoder target is about which AAC encoder that path opens.
+        </div>
+        <div class="tabs" role="tablist" aria-label="Processor tabs">
+          <button class="tab-button" role="tab" aria-selected="true" aria-controls="nativeTab" id="nativeButton">Native ffmpeg-next</button>
+          <button class="tab-button" role="tab" aria-selected="false" aria-controls="fdkTab" id="fdkButton">External FDK</button>
+          <button class="tab-button" role="tab" aria-selected="false" aria-controls="sharedTab" id="sharedButton">Shared lifecycle</button>
+        </div>
+
+        <div id="nativeTab" class="tab-panel active" role="tabpanel" aria-labelledby="nativeButton">
+          <div class="grid">
+            <div class="card wide" data-search="native ffmpeg-next engine packets frames resampler accumulator encode apple aac aac-at native aac">
+              <h3>Native path: in-process ffmpeg-next</h3>
+              <p>
+                <code>processor/engine.rs</code> initializes ffmpeg-next, opens decoders, creates
+                the output context, configures the encoder, loops packets and frames, resamples when
+                needed, accumulates exact encoder-sized frames, writes packets, drains, and writes
+                the trailer. This path covers both Apple AAC/AAC-AT and Native FFmpeg AAC.
+              </p>
+              <pre><code>process_audiobook_with_context
+  -> prepare::validate_and_prepare
+  -> execute::execute_processing
+  -> engine::FfmpegNextProcessor::execute
+     -> setup_encoder
+     -> setup_decoder_and_resampler for each file
+     -> process_input_packets
+     -> SampleAccumulator exact frame packing
+     -> encode_and_write_frame
+     -> finalize_encoding
+  -> finalize::finalize_processing</code></pre>
+            </div>
+            <div class="card" data-search="sample accumulator f32 planar i16 packed frame size apple aac aac-at fb-010 removed">
+              <h3>Frame-size truth</h3>
+              <p>
+                <code>SampleAccumulator</code> supports F32 planar for Native FFmpeg AAC and I16
+                packed for Apple AAC/AAC-AT. The current branch removed the old FB-010 "guess frame size" behavior:
+                <code>EncoderFramePlan</code> now owns frame-size fallback for known AAC encoders,
+                and unresolved <code>Auto</code> reaching this layer is an invariant violation.
+              </p>
+            </div>
+            <div class="card" data-search="preview adaptive single multi file chapters">
+              <h3>Preview behavior</h3>
+              <p>
+                Single-file preview stops once emitted PTS reaches requested seconds. Multi-file
+                preview can take excerpts from each input and record preview chapter markers so the
+                preview represents the run shape rather than only the first file.
+              </p>
+            </div>
+            <div class="card" data-search="progress converting percentage eta current file">
+              <h3>Progress behavior</h3>
+              <p>
+                The frame pipeline emits converting progress roughly every second, based on processed
+                media time relative to total planned duration, and includes current-file labels where
+                available.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div id="fdkTab" class="tab-panel" role="tabpanel" aria-labelledby="fdkButton">
+          <div class="grid">
+            <div class="card wide" data-search="external fdk ffmpeg command args progress pipe libfdk_aac">
+              <h3>FDK path: external FFmpeg process</h3>
+              <p>
+                <code>processor/external_fdk.rs</code> runs the validated external FFmpeg binary
+                when the resolved encoder is FDK. It builds a command, monitors
+                <code>-progress pipe:1</code>, kills the child on cancellation, validates success,
+                optionally rewrites metadata, then enters the same final commit boundary as native.
+              </p>
+              <pre><code>ffmpeg
+  -y -hide_banner -loglevel error -nostats -progress pipe:1
+  [-t previewSeconds] [-c:a selected_input_decoder] -i input1
+  ...repeat inputs...
+  -map_metadata -1 -map_chapters -1 -vn
+  [-filter_complex concat=...] OR [-map 0:a:0]
+  -c:a libfdk_aac -profile:a aac_he
+  -vbr &lt;level&gt;
+  -afterburner 1|0
+  [-ac channels] [-ar sample_rate] [-threads n]
+  staging/temp-output.m4b</code></pre>
+            </div>
+            <div class="card" data-search="input decoder selected xhe aac usac aac_at libfdk">
+              <h3>Input decoder contract</h3>
+              <p>
+                File analysis records stable decoder IDs. If a source needs a named decoder such as
+                <code>aac_at</code> or <code>libfdk_aac</code>, external FDK validates that the
+                chosen external FFmpeg exposes that decoder before execution.
+              </p>
+            </div>
+            <div class="card" data-search="external fdk metadata rewrite cover chapters">
+              <h3>Metadata on FDK path</h3>
+              <p>
+                External FFmpeg handles the audio encode. ABB then rewrites or merges metadata when
+                effective metadata or passthrough cover/chapters require it, while preview output
+                keeps cover art but not full chapter passthrough.
+              </p>
+            </div>
+            <div class="card" data-search="progress parse out_time_ms out_time_us out_time">
+              <h3>External progress</h3>
+              <p>
+                ABB parses <code>out_time_ms</code>, <code>out_time_us</code>, and
+                <code>out_time</code> lines from FFmpeg progress output and updates the same UI
+                progress channel used by native processing.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div id="sharedTab" class="tab-panel" role="tabpanel" aria-labelledby="sharedButton">
+          <div class="grid">
+            <div class="card" data-search="prepare validation temp directory staging">
+              <h3>Prepare</h3>
+              <p>
+                <code>prepare.rs</code> revalidates inputs, validates output paths and sample-rate
+                config, detects target sample rate when automatic, computes total duration, and
+                creates a destination-adjacent staging directory.
+              </p>
+            </div>
+            <div class="card" data-search="execute convert audio temp output">
+              <h3>Execute</h3>
+              <p>
+                Native and FDK both write into a temporary output inside the staging directory. This
+                keeps partial artifacts away from the final destination path.
+              </p>
+            </div>
+            <div class="card" data-search="finalize commit cleanup terminal output">
+              <h3>Finalize</h3>
+              <p>
+                <code>finalize.rs</code> commits the temp output to the final artifact path,
+                handles metadata finalization when needed, cleans staging artifacts, emits complete
+                progress, and reports final truth.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="metadata" data-search="metadata mp4 m4b ffmpeg mp4ameta intent patch cover art chapters album sort passthrough">
+        <h2>Metadata: Intent, Source Truth, and Muxing</h2>
+        <p class="section-lead">
+          Metadata is a parallel pipeline that feeds naming and final muxing. The important rule:
+          metadata patches are not complete metadata objects. They describe user intent over source
+          truth.
+        </p>
+        <div class="grid">
+          <div class="card wide" data-search="resolve effective processing metadata source patch overlay">
+            <h3>Effective metadata resolution</h3>
+            <p>
+              <code>resolve_effective_processing_metadata</code> reads source metadata when needed,
+              applies the metadata intent patch, and returns effective metadata for output naming
+              and processor execution. This prevents partial edits from dropping untouched title,
+              author, series, cover art, or publication date.
+            </p>
+          </div>
+          <div class="card" data-search="reader ffmpeg mp4ameta bridge mp4 container">
+            <h3>Reader routing</h3>
+            <p>
+              <code>metadata/reader.rs</code> prefers the mp4ameta bridge for MP4-family containers,
+              then normalizes cover art. Other containers use ffmpeg metadata reads.
+            </p>
+          </div>
+          <div class="card" data-search="passthrough chapters cover synthesize">
+            <h3>Passthrough</h3>
+            <p>
+              <code>metadata/passthrough.rs</code> extracts cover art and chapters. For multi-file
+              merges, ABB can synthesize chapters from file order and duration when no source
+              chapters exist.
+            </p>
+          </div>
+          <div class="card" data-search="ffmpeg dictionary tags series itunes album sort media type">
+            <h3>FFmpeg dictionary</h3>
+            <p>
+              <code>metadata/ffmpeg_dict.rs</code> maps ABB metadata to container keys, including
+              artist and album_artist, series plus iTunes mirrors, sort album, media type, date/year,
+              comment, and description.
+            </p>
+          </div>
+        </div>
+        <div class="callout warn">
+          <strong>Footgun to remember:</strong> a patch map is a delta, not the whole book record.
+          Treating it as complete metadata causes classic "Unknown Author" or "Untitled" output
+          naming bugs.
+        </div>
+      </section>
+
+      <section id="output" data-search="filesystem staging temp artifact cleanup guard finalization rename hard link copy create_new replace existing fb-012">
+        <h2>Output and Filesystem Mechanics</h2>
+        <p class="section-lead">
+          ABB uses host filesystem mechanics to keep partial work separate from the final artifact
+          and to avoid corrupting or deleting existing outputs when the destination refuses a write.
+        </p>
+        <div class="grid">
+          <div class="card" data-search="destination adjacent staging .abb-processing uuid">
+            <h3>Destination-adjacent staging</h3>
+            <p>
+              <code>processor/staging.rs</code> creates <code>.abb-processing-&lt;uuid&gt;</code>
+              beside the final artifact. This reduces cross-volume rename problems and makes cleanup
+              mechanically local to the destination.
+            </p>
+          </div>
+          <div class="card" data-search="cleanup guard RAII temp remove">
+            <h3>Cleanup guard</h3>
+            <p>
+              <code>cleanup/guard.rs</code> tracks temp dirs and outputs. On success, committed paths
+              are removed from cleanup tracking. On failure/cancel/drop, tracked temp artifacts are
+              removed where possible.
+            </p>
+          </div>
+          <div class="card" data-search="commit boundary move final location">
+            <h3>Commit boundary</h3>
+            <p>
+              <code>finalize.rs</code> owns the final move/install. This is the boundary where a
+              successful temp artifact becomes a user-visible output.
+            </p>
+          </div>
+          <div class="card" data-search="fb-012 removed no copy replace fallback">
+            <h3>FB-012 is gone</h3>
+            <p>
+              ABB no longer has a copy-replace fallback after failed replace rename. If replace
+              fails, the operation fails clearly instead of trying a second, riskier replacement
+              strategy.
+            </p>
+          </div>
+        </div>
+        <details>
+          <summary>What happens for write, rename, replace, and skip</summary>
+          <div>
+            <ul>
+              <li><strong>Write/RenameNew:</strong> ABB installs without replacing. It prefers hard-link-plus-remove, then create-new copy if needed, and refuses if the destination changed.</li>
+              <li><strong>ReplaceExisting:</strong> ABB uses filesystem rename to replace the final path. If that fails, it reports failure. No copy-replace fallback.</li>
+              <li><strong>SkipExisting:</strong> execution for that output is skipped and a terminal skipped result is returned.</li>
+              <li><strong>ReviewRequired:</strong> execution is blocked until the user reviews and submits a matching preflight signature.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <section id="toolchain" data-search="toolchain encoder detection fdk aac_at native auto homebrew ffmpeg settings honored UI">
+        <h2>Encoder and FDK Toolchain Selection</h2>
+        <p class="section-lead">
+          Encoder choice starts as UI preference but becomes backend truth only after availability
+          and settings validation.
+        </p>
+        <div class="split">
+          <div class="lane" data-search="auto priority fdk aac-at native">
+            <header><h3>Resolution priority</h3></header>
+            <div class="body">
+              <ol>
+                <li>FDK if a valid external FFmpeg with <code>libfdk_aac</code> is available.</li>
+                <li>Apple AAC/AAC-AT on macOS when ffmpeg exposes <code>aac_at</code>.</li>
+                <li>Native AAC when ffmpeg exposes <code>aac</code>.</li>
+              </ol>
+              <p>
+                <code>resolve_encoder_type()</code> owns this decision. Unresolved <code>Auto</code>
+                should not reach encoder open.
+              </p>
+            </div>
+          </div>
+          <div class="lane" data-search="settings honored bitrate modes sample rate channels threads afterburner twoloop">
+            <header><h3>How UI settings are honored</h3></header>
+            <div class="body">
+              <ul>
+                <li>FDK/Auto require VBR quality; external args use <code>-vbr</code> and <code>-afterburner</code>.</li>
+                <li>Apple AAC/AAC-AT requires constrained VBR and uses I16 packed samples.</li>
+                <li>Native AAC requires CBR bitrate and uses F32 planar samples.</li>
+                <li>Explicit sample rate maps to <code>-ar</code> externally or encoder rate internally.</li>
+                <li>Explicit channels map to <code>-ac</code> externally or encoder layout internally.</li>
+                <li>Thread settings map to external <code>-threads</code> or native encoder thread options where supported.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <details>
+          <summary>FDK path detection details</summary>
+          <div>
+            <p>
+              <code>toolchain.rs</code> checks a user override first, then auto-detected candidates:
+              Homebrew FFmpeg prefix, pkg-config linked FFmpeg, <code>which ffmpeg</code>,
+              <code>/opt/homebrew/opt/ffmpeg/bin/ffmpeg</code>, and
+              <code>/opt/homebrew/bin/ffmpeg</code>. Candidate validation checks the binary exists,
+              is acceptable for Apple Silicon expectations, can run <code>ffmpeg -version</code>,
+              exposes <code>libfdk_aac</code> in <code>-encoders</code>, and records available decoders.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <section id="feedback" data-search="feedback loops progress queue job registry status panel terminal truth cancellation">
+        <h2>Feedback Loops</h2>
+        <p class="section-lead">
+          A feedback loop is any path where backend truth changes frontend state. ABB has three main
+          loops: progress events, queue snapshots, and final command results.
+        </p>
+        <div class="legend">
+          <div data-search="progress event converting analyzing metadata cleanup completed">
+            <strong>Progress loop</strong>
+            <p>
+              <code>ProgressEmitter</code> emits analyzing, converting, writing metadata, cleanup,
+              completed, failed, cancelled, and skipped events through <code>processing-progress</code>.
+            </p>
+          </div>
+          <div data-search="queue snapshot batch job input index">
+            <strong>Queue loop</strong>
+            <p>
+              Batch jobs emit queue state with job IDs and input indices so the UI can show parallel
+              work without losing per-file terminal outcomes.
+            </p>
+          </div>
+          <div data-search="process command result summary status">
+            <strong>Result loop</strong>
+            <p>
+              <code>ProcessCommandResult</code> summarizes success, skipped, cancelled, failed, or
+              mixed outcomes. The UI reconciles this after the process command returns.
+            </p>
+          </div>
+          <div data-search="cancellation cancel all per job global flag">
+            <strong>Cancellation loop</strong>
+            <p>
+              UI calls <code>cancel_processing</code>. The registry sets global or per-job flags.
+              Native loops and external process monitors check flags and terminate cleanly.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="failures" data-search="failure semantics cancellation terminal outcomes cleanup network crash brittle fallback">
+        <h2>Failure Semantics and Footguns</h2>
+        <p class="section-lead">
+          The current shape is intentionally stricter after the FB-010 and FB-012 refactor. Failing
+          loudly at the owning boundary is preferred over hidden fallback behavior that can mutate
+          artifacts in surprising ways.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Current behavior</th>
+              <th>Why it is shaped that way</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-search="frame size zero native aac fb-010">
+              <td>Encoder reports frame size 0</td>
+              <td>Known AAC encoders use <code>EncoderFramePlan</code> AAC quantum handling; unresolved Auto is an error.</td>
+              <td>Frame-size policy belongs near encoder resolution, not inside sample-buffer fallback code.</td>
+            </tr>
+            <tr data-search="replace rename failed fb-012">
+              <td>Replace commit rename fails</td>
+              <td>ABB returns a clear failure; it does not copy-replace as a fallback.</td>
+              <td>Copy-replace after failed replace can be brittle on network/share filesystems and risks partial truth.</td>
+            </tr>
+            <tr data-search="network share destination refused">
+              <td>Network/share destination refuses final commit</td>
+              <td>The staged artifact may remain cleanup-eligible; the existing output should not be deleted or corrupted.</td>
+              <td>ABB cannot make the host filesystem reliable, but it can avoid making the failure worse.</td>
+            </tr>
+            <tr data-search="cancel after move">
+              <td>Cancellation after final move</td>
+              <td>Finalize checks cancellation after move, but output already committed can still be reported as success with warning semantics.</td>
+              <td>Once the artifact exists at the final path, lying that it did not succeed creates worse terminal truth.</td>
+            </tr>
+            <tr data-search="batch task fails">
+              <td>One batch item fails</td>
+              <td>Scheduler continues other tasks and returns deterministic per-index results.</td>
+              <td>Batch UX needs complete outcome truth, not first-error blindness.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="verification" data-search="manual test list ffprobe find staging metadata reimport playback checklist">
+        <h2>Pressure Test List</h2>
+        <p class="section-lead">
+          This list is ordered so a human can run it without holding the whole system in working
+          memory. The value over normal playback is that these checks prove objective artifact,
+          metadata, staging, and failure truth.
+        </p>
+        <div class="checklist" id="checklist">
+          <label class="check" data-search="fresh app launch encoder availability">
+            <input type="checkbox" />
+            <span><strong>1. Launch ABB and refresh encoder availability.</strong><span>Confirm Auto, FDK, AAC-AT, and Native availability displays make sense for the machine.</span></span>
+          </label>
+          <label class="check" data-search="import analyze selected decoder">
+            <input type="checkbox" />
+            <span><strong>2. Import known-good audio and one real-world source.</strong><span>Watch that duration, format, sample rate, and validity appear before processing.</span></span>
+          </label>
+          <label class="check" data-search="metadata dirty clear save process">
+            <input type="checkbox" />
+            <span><strong>3. Edit metadata, including one explicit clear.</strong><span>This exercises MetadataIntentPatch semantics instead of only happy-path full metadata.</span></span>
+          </label>
+          <label class="check" data-search="preview processing output">
+            <input type="checkbox" />
+            <span><strong>4. Run a preview.</strong><span>Check that the preview output path ends in <code>.preview.m4b</code>, progress moves, and playback is sane.</span></span>
+          </label>
+          <label class="check" data-search="full processing fdk native">
+            <input type="checkbox" />
+            <span><strong>5. Run a full process with your normal encoder path.</strong><span>For you, this usually means FDK first; native AAC quality work is separate unless you choose to test it here.</span></span>
+          </label>
+          <label class="check" data-search="ffprobe codec bitrate duration sample rate">
+            <input type="checkbox" />
+            <span><strong>6. Probe the final file.</strong><span>Use <code>ffprobe</code> to inspect codec, duration, bitrate, sample rate, streams, chapters, and attached art.</span></span>
+          </label>
+          <label class="check" data-search="find staging cleanup">
+            <input type="checkbox" />
+            <span><strong>7. Check for leftover staging.</strong><span>Run <code>find output-dir -name '.abb-processing-*'</code>. Success should normally leave no staging residue.</span></span>
+          </label>
+          <label class="check" data-search="metadata reimport">
+            <input type="checkbox" />
+            <span><strong>8. Re-import or inspect output metadata.</strong><span>Verify title, author, series, date, cover art, chapters, and explicit clears match intent.</span></span>
+          </label>
+          <label class="check" data-search="collision replace rename skip">
+            <input type="checkbox" />
+            <span><strong>9. Test one collision path deliberately.</strong><span>Use an existing output and confirm review, rename, replace, or skip behavior matches the selected policy.</span></span>
+          </label>
+          <label class="check" data-search="cancel cleanup terminal">
+            <input type="checkbox" />
+            <span><strong>10. Cancel one longer run.</strong><span>Confirm terminal UI state is cancelled/failed as appropriate and temp artifacts are cleaned.</span></span>
+          </label>
+        </div>
+        <details>
+          <summary>Helpful commands for artifact truth</summary>
+          <div>
+            <pre><code># Probe final audio/container shape
+ffprobe -hide_banner -show_format -show_streams -show_chapters "/path/to/output.m4b"
+
+# Look for leftover staging folders near outputs
+find "/path/to/output-dir" -name ".abb-processing-*" -print
+
+# Show current branch and changed files
+git status --short --branch
+git diff --stat main...HEAD</code></pre>
+          </div>
+        </details>
+      </section>
+
+      <section id="glossary" data-search="glossary SWE terminology boundary adapter orchestration artifact truth terminal truth fallback shim seam">
+        <h2>Glossary for Studying the System</h2>
+        <p class="section-lead">
+          These are the terms that make ABB easier to reason about without drowning in file names.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Term</th><th>Meaning in ABB</th><th>Why it helps</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>API</td><td>The official contract one component exposes to another: what can be called, what request shape is allowed, and what result shape returns.</td><td>It is the road across a boundary, not the whole neighborhood.</td></tr>
+            <tr><td>Boundary</td><td>The responsibility line between separate code worlds, such as UI/Rust, command/processor, metadata/audio, or plan/execute.</td><td>Finding the boundary tells you where translation and validation should happen.</td></tr>
+            <tr><td>Boundary adapter</td><td>A layer that translates between two worlds, such as UI state and generated Tauri types.</td><td>It should normalize, not invent business truth.</td></tr>
+            <tr><td>Glue</td><td>Coordination code that gathers data from several owners and calls the next boundary.</td><td>Good glue is explicit and boring; bad glue smuggles cross-layer rules everywhere.</td></tr>
+            <tr><td>Orchestration surface</td><td>A function/module that sequences work across several owners, like <code>startProcessing</code> or backend run dispatch.</td><td>It coordinates but should not hide every rule inline.</td></tr>
+            <tr><td>Artifact truth</td><td>The real final file and result after processing completes.</td><td>Playback feelings are useful, but artifact truth is objective.</td></tr>
+            <tr><td>Terminal truth</td><td>The final status for each job: success, skipped, cancelled, failed, or mixed.</td><td>Prevents UI from hanging or claiming success from partial evidence.</td></tr>
+            <tr><td>Intent patch</td><td>User metadata changes expressed as set/clear/noop operations.</td><td>Preserves the difference between untouched and intentionally cleared fields.</td></tr>
+            <tr><td>Fallback</td><td>A deliberate alternate behavior with trigger, marker, and removal condition.</td><td>ABB policy avoids silent convenience fallbacks because they rot into hidden product behavior.</td></tr>
+            <tr><td>Shim</td><td>A compatibility translation layer that hides a mismatch.</td><td>Useful only when the mismatch is real and explicitly owned.</td></tr>
+            <tr><td>Seam</td><td>A boundary where behavior can be tested or replaced independently.</td><td>Good seams reduce future refactor pain; false seams just add indirection.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sources" data-search="sources files modules current branch source index">
+        <h2>Source Index</h2>
+        <p class="section-lead">
+          Current as inspected on 2026-05-09 on <code>codex/remove-audio-fallbacks</code>.
+          The artifact is a study map, not the source of truth. The files below are the source of truth.
+        </p>
+        <ul class="source-list">
+          <li><code>docs/system-map.md</code></li>
+          <li><code>docs/api-map.md</code></li>
+          <li><code>docs/ubiquitous-language.md</code></li>
+          <li><code>docs/fallbacks.md</code></li>
+          <li><code>src/App.svelte</code></li>
+          <li><code>src/lib/tauri/client.ts</code></li>
+          <li><code>src/ui/fileImport/handlers.ts</code></li>
+          <li><code>src/ui/statusPanel/processing.ts</code></li>
+          <li><code>src/ui/statusPanel/controller.ts</code></li>
+          <li><code>src/ui/encoderPanel/state.svelte.ts</code></li>
+          <li><code>src/ui/outputPanel/state.svelte.ts</code></li>
+          <li><code>src/ui/metadataState.ts</code></li>
+          <li><code>src/types/audio.ts</code></li>
+          <li><code>src/types/encoder.ts</code></li>
+          <li><code>src/types/metadataIntent.ts</code></li>
+          <li><code>src-tauri/src/commands/audio.rs</code></li>
+          <li><code>src-tauri/src/commands/audio_types.rs</code></li>
+          <li><code>src-tauri/src/commands/audio_processing/run.rs</code></li>
+          <li><code>src-tauri/src/commands/audio_processing/plan.rs</code></li>
+          <li><code>src-tauri/src/commands/audio_processing/terminal_outcomes.rs</code></li>
+          <li><code>src-tauri/src/audio/file_list.rs</code></li>
+          <li><code>src-tauri/src/audio/path_validation.rs</code></li>
+          <li><code>src-tauri/src/audio/settings.rs</code></li>
+          <li><code>src-tauri/src/audio/settings_encoder.rs</code></li>
+          <li><code>src-tauri/src/audio/toolchain.rs</code></li>
+          <li><code>src-tauri/src/audio/output_path/*</code></li>
+          <li><code>src-tauri/src/audio/job_registry/*</code></li>
+          <li><code>src-tauri/src/audio/progress/emitter.rs</code></li>
+          <li><code>src-tauri/src/audio/processor/*</code></li>
+          <li><code>src-tauri/src/audio/buffer.rs</code></li>
+          <li><code>src-tauri/src/audio/cleanup/guard.rs</code></li>
+          <li><code>src-tauri/src/metadata/*</code></li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const search = document.getElementById("search");
+    const copyState = document.getElementById("copyState");
+    const modules = Array.from(document.querySelectorAll("[data-search]"));
+
+    search.addEventListener("input", () => {
+      const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      modules.forEach((node) => {
+        if (terms.length === 0) {
+          node.classList.remove("hidden");
+          return;
+        }
+        const haystack = (node.getAttribute("data-search") + " " + node.textContent).toLowerCase();
+        const matches = terms.every((term) => haystack.includes(term));
+        node.classList.toggle("hidden", !matches);
+      });
+    });
+
+    document.getElementById("expandAll").addEventListener("click", (event) => {
+      const details = Array.from(document.querySelectorAll("details"));
+      const shouldOpen = details.some((detail) => !detail.open);
+      details.forEach((detail) => detail.open = shouldOpen);
+      event.currentTarget.textContent = shouldOpen ? "Collapse details" : "Expand details";
+    });
+
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tablist = button.closest("[role='tablist']");
+        tablist.querySelectorAll(".tab-button").forEach((tab) => tab.setAttribute("aria-selected", "false"));
+        button.setAttribute("aria-selected", "true");
+
+        const section = button.closest("section");
+        section.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
+        document.getElementById(button.getAttribute("aria-controls")).classList.add("active");
+      });
+    });
+
+    const checklist = document.getElementById("checklist");
+    const storageKey = "abb-audio-map-checklist";
+    const boxes = Array.from(checklist.querySelectorAll("input[type='checkbox']"));
+
+    function saveChecks() {
+      localStorage.setItem(storageKey, JSON.stringify(boxes.map((box) => box.checked)));
+    }
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      boxes.forEach((box, index) => {
+        box.checked = Boolean(saved[index]);
+        box.addEventListener("change", saveChecks);
+      });
+    } catch {
+      boxes.forEach((box) => box.addEventListener("change", saveChecks));
+    }
+
+    document.getElementById("copyChecklist").addEventListener("click", async () => {
+      const lines = boxes.map((box) => {
+        const label = box.closest(".check").innerText.replace(/\s+/g, " ").trim();
+        return `- [${box.checked ? "x" : " "}] ${label}`;
+      });
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        copyState.textContent = "Checklist copied as Markdown.";
+      } catch {
+        copyState.textContent = "Copy failed. Select the checklist text manually.";
+      }
+    });
+  </script>
+</body>
+</html>
