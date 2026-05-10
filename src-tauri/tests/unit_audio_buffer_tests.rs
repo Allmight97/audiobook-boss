@@ -23,18 +23,12 @@ fn mono_f32_frame(samples: &[f32]) -> ff::frame::Audio {
 
 fn stereo_f32_frame(left: &[f32], right: &[f32]) -> ff::frame::Audio {
     assert_eq!(left.len(), right.len());
-    let mut frame = ff::frame::Audio::empty();
-    frame.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
-    frame.set_channel_layout(ff::channel_layout::ChannelLayout::STEREO);
+    let mut frame = ff::frame::Audio::new(
+        ff::format::Sample::F32(ff::format::sample::Type::Planar),
+        left.len(),
+        ff::channel_layout::ChannelLayout::STEREO,
+    );
     frame.set_rate(44_100);
-    frame.set_samples(left.len());
-    unsafe {
-        frame.alloc(
-            ff::format::Sample::F32(ff::format::sample::Type::Planar),
-            left.len(),
-            ff::channel_layout::ChannelLayout::STEREO,
-        );
-    }
     frame.plane_mut::<f32>(0).copy_from_slice(left);
     frame.plane_mut::<f32>(1).copy_from_slice(right);
     frame
