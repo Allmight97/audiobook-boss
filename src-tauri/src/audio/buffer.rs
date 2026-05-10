@@ -121,32 +121,29 @@ impl SampleAccumulator {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
                     // F32 planar: each channel in separate plane
-                    unsafe {
-                        for (ch, buffer) in buffers.iter_mut().enumerate() {
-                            let plane = frame.data(ch);
-                            if plane.is_empty() {
-                                log::warn!(
-                                    "Frame plane {} is empty while {} samples were reported – padding with silence",
-                                    ch,
-                                    in_samples
-                                );
-                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples));
-                                continue;
-                            }
-                            let available_samples = plane.len() / self.bytes_per_sample;
-                            let copy_len = available_samples.min(in_samples);
-                            if copy_len < in_samples {
-                                log::warn!(
-                                    "Frame plane {} has fewer samples than reported (have={}, expected={}) – truncating copy",
-                                    ch, copy_len, in_samples
-                                );
-                            }
-                            let slice =
-                                std::slice::from_raw_parts(plane.as_ptr() as *const f32, copy_len);
-                            buffer.extend_from_slice(slice);
-                            if copy_len < in_samples {
-                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples - copy_len));
-                            }
+                    let available_planes = frame.planes();
+                    for (ch, buffer) in buffers.iter_mut().enumerate() {
+                        if ch >= available_planes {
+                            log::warn!(
+                                "Frame plane {} is missing while {} samples were reported - padding with silence",
+                                ch,
+                                in_samples
+                            );
+                            buffer.extend(std::iter::repeat_n(0.0f32, in_samples));
+                            continue;
+                        }
+
+                        let plane = frame.plane::<f32>(ch);
+                        let copy_len = plane.len().min(in_samples);
+                        if copy_len < in_samples {
+                            log::warn!(
+                                "Frame plane {} has fewer samples than reported (have={}, expected={}) - padding remainder with silence",
+                                ch, copy_len, in_samples
+                            );
+                        }
+                        buffer.extend_from_slice(&plane[..copy_len]);
+                        if copy_len < in_samples {
+                            buffer.extend(std::iter::repeat_n(0.0f32, in_samples - copy_len));
                         }
                     }
                 }
@@ -292,12 +289,16 @@ impl SampleAccumulator {
 
         let mut total_repairs = 0usize;
         for (ch, buffer) in buffers.iter().enumerate() {
-            let plane = frame.data_mut(ch);
-            if plane.is_empty() {
+            if ch >= frame.planes() {
+                log::warn!(
+                    "Allocated F32 planar frame is missing plane {} while {} channels were requested",
+                    ch,
+                    config.channels
+                );
                 continue;
             }
-            let dst: &mut [f32] =
-                unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take) };
+
+            let dst = frame.plane_mut::<f32>(ch);
             let start = *consumed_samples;
             let src = &buffer[start..start + take];
 
@@ -404,5 +405,63 @@ impl SampleAccumulator {
             }
         }
         self.consumed_samples = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SampleAccumulator;
+    use ffmpeg_next as ff;
+
+    const RATE: u32 = 22_050;
+    const FORMAT: ff::format::Sample = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+    const LAYOUT: ff::channel_layout::ChannelLayout = ff::channel_layout::ChannelLayout::STEREO;
+
+    fn f32_planar_stereo_frame(left: &[f32], right: &[f32]) -> ff::frame::Audio {
+        assert_eq!(left.len(), right.len());
+        let _ = ff::init();
+
+        let mut frame = ff::frame::Audio::empty();
+        frame.set_format(FORMAT);
+        frame.set_channel_layout(LAYOUT);
+        frame.set_rate(RATE);
+        frame.set_samples(left.len());
+        unsafe {
+            frame.alloc(FORMAT, left.len(), LAYOUT);
+        }
+
+        frame.plane_mut::<f32>(0).copy_from_slice(left);
+        frame.plane_mut::<f32>(1).copy_from_slice(right);
+        frame
+    }
+
+    #[test]
+    fn f32_planar_stereo_push_preserves_both_channels() {
+        let left = [0.10, 0.20, 0.30, 0.40];
+        let right = [-0.10, -0.20, -0.30, -0.40];
+        let frame = f32_planar_stereo_frame(&left, &right);
+        let mut accumulator =
+            SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+        let ready = accumulator.push_frame(&frame);
+
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].plane::<f32>(0), left);
+        assert_eq!(ready[0].plane::<f32>(1), right);
+    }
+
+    #[test]
+    fn f32_planar_stereo_flush_pads_each_channel_independently() {
+        let left = [0.10, 0.20, 0.30];
+        let right = [-0.10, -0.20, -0.30];
+        let frame = f32_planar_stereo_frame(&left, &right);
+        let mut accumulator =
+            SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+        assert!(accumulator.push_frame(&frame).is_empty());
+        let tail = accumulator.flush_tail(true).expect("flush padded tail");
+
+        assert_eq!(tail.plane::<f32>(0), [0.10, 0.20, 0.30, 0.0]);
+        assert_eq!(tail.plane::<f32>(1), [-0.10, -0.20, -0.30, 0.0]);
     }
 }
