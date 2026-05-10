@@ -21,6 +21,25 @@ fn mono_f32_frame(samples: &[f32]) -> ff::frame::Audio {
     frame
 }
 
+fn stereo_f32_frame(left: &[f32], right: &[f32]) -> ff::frame::Audio {
+    assert_eq!(left.len(), right.len());
+    let mut frame = ff::frame::Audio::empty();
+    frame.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
+    frame.set_channel_layout(ff::channel_layout::ChannelLayout::STEREO);
+    frame.set_rate(44_100);
+    frame.set_samples(left.len());
+    unsafe {
+        frame.alloc(
+            ff::format::Sample::F32(ff::format::sample::Type::Planar),
+            left.len(),
+            ff::channel_layout::ChannelLayout::STEREO,
+        );
+    }
+    frame.plane_mut::<f32>(0).copy_from_slice(left);
+    frame.plane_mut::<f32>(1).copy_from_slice(right);
+    frame
+}
+
 fn stereo_s16_frame(samples_per_channel: usize, interleaved: &[i16]) -> ff::frame::Audio {
     let mut frame = ff::frame::Audio::empty();
     frame.set_format(ff::format::Sample::I16(ff::format::sample::Type::Packed));
@@ -185,6 +204,40 @@ fn f32_planar_flush_tail_preserves_remaining_samples_once() {
         acc.flush_tail(true).is_none(),
         "tail flush should only emit the residual samples once"
     );
+}
+
+#[test]
+fn f32_planar_stereo_preserves_channel_order_across_drain_cycles() {
+    let mut acc = SampleAccumulator::new(
+        2,
+        4,
+        44_100,
+        ff::channel_layout::ChannelLayout::STEREO,
+        ff::format::Sample::F32(ff::format::sample::Type::Planar),
+    )
+    .unwrap();
+
+    let expected_left: Vec<f32> = (0..11).map(|i| 0.05 * i as f32).collect();
+    let expected_right: Vec<f32> = (0..11).map(|i| -0.05 * i as f32).collect();
+    let mut observed_left = Vec::new();
+    let mut observed_right = Vec::new();
+
+    for (left, right) in expected_left.chunks(3).zip(expected_right.chunks(3)) {
+        let frame = stereo_f32_frame(left, right);
+        for full in acc.push_frame(&frame) {
+            observed_left.extend_from_slice(full.plane::<f32>(0));
+            observed_right.extend_from_slice(full.plane::<f32>(1));
+        }
+    }
+
+    let tail = acc
+        .flush_tail(false)
+        .expect("expected unpadded stereo tail");
+    observed_left.extend_from_slice(tail.plane::<f32>(0));
+    observed_right.extend_from_slice(tail.plane::<f32>(1));
+
+    assert_eq!(observed_left, expected_left);
+    assert_eq!(observed_right, expected_right);
 }
 
 #[test]
