@@ -51,7 +51,6 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - Dependency hygiene: `bun run check:deps`
   This is explicit on purpose and is not part of the normal standard gate.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- Performance: `bun run perf`, `bun run perf:quick`, `bun run perf:real`, `bun run perf:audio`, `bun run perf:list`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
 - Release: `bun run release:notes`, `bun run release:run`

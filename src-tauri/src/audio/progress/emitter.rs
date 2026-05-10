@@ -7,7 +7,7 @@ use tauri::{Emitter, Window};
 
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
-    /// Optional Tauri window for event emission (None in headless perf runs)
+    /// Optional Tauri window for event emission (None in headless/test runs)
     window: Option<Window>,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,

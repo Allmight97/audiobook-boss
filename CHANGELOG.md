@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.20] - 2026-05-10
 
-Audio pipeline fallback cleanup, staging hardening, and supporting documentation.
-Prepares `main` for merge by documenting encoder/staging/finalize ownership without
-restoring removed compatibility shims.
+Audio pipeline fallback cleanup, staging hardening, retired perf-infra removal,
+and supporting documentation. Prepares `main` for merge by documenting
+encoder/staging/finalize ownership without restoring removed compatibility
+shims.
 
 ### Added
 
@@ -48,6 +49,9 @@ restoring removed compatibility shims.
 
 - Audio encoding/container fallback shims and related constants; fallback registry and
   docs references aligned with root policy.
+- Removed the retired local performance benchmark infrastructure, including
+  package entrypoints, the manual GitHub Actions workflow, committed benchmark
+  scripts/results, and the app E2E perf harness.
 
 ## [1.0.19] - 2026-05-01
 

@@ -76,7 +76,7 @@ impl OutputConfig {
 /// reducing the need to pass multiple parameters through function calls.
 #[derive(Clone, Debug)]
 pub struct ProcessingContext {
-    /// Optional Tauri window for event emission (None in headless perf runs)
+    /// Optional Tauri window for event emission (None in headless/test runs)
     pub window: Option<Window>,
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,

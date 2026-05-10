@@ -75,7 +75,6 @@
 				"target/**",
 				"dist/**",
 				"coverage/**",
-				"scripts/perf/results/**",
 				"site/**"
 			],
 			"formatter": {
