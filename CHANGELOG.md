@@ -15,6 +15,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [1.0.20] - 2026-05-10
+
+Audio pipeline fallback cleanup, staging hardening, and supporting documentation.
+Prepares `main` for merge by documenting encoder/staging/finalize ownership without
+restoring removed compatibility shims.
+
+### Added
+
+- `docs/artifacts/audio-processing-system-map.html` interactive system-map artifact for
+  backend processing seams and boundaries.
+- `docs/artifacts/glue-elements-validation-report.md` boundary-orientation notes for
+  IPC and orchestration seams.
+- `src-tauri/src/audio/AGENTS.md` subsystem guidance aligned with processor staging
+  behavior.
+
+### Changed
+
+- Encoder common/context/engine/prepare paths and finalize behavior updated after
+  removing audio fallback shims; staging responsibilities expanded and integrated with
+  processor orchestration.
+- Audio buffer behavior and unit coverage updated to match the non-fallback pipeline.
+- Consolidated Codex hook guardrails and refreshed root agent guidance touched by this
+  release train.
+
+### Fixed
+
+- Follow-ups from audio staging review, including native AAC regression integration
+  coverage and staging edge cases.
+
+### Removed
+
+- Audio encoding/container fallback shims and related constants; fallback registry and
+  docs references aligned with root policy.
+
 ## [1.0.19] - 2026-05-01
 
 Metadata boundary consolidation release. This tag makes metadata routing
