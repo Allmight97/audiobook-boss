@@ -44,8 +44,6 @@ shims.
 
 - Follow-ups from audio staging review, including native AAC regression integration
   coverage and staging edge cases.
-- Restored transitional Stop hook entrypoints so Codex sessions that loaded the
-  pre-consolidation hook list still delegate to the consolidated repo guard.
 
 ### Removed
 
