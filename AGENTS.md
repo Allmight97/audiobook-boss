@@ -42,6 +42,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
 - Codex lifecycle hooks live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`. Use hooks only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification. Current hooks block destructive Bash worktree commands, provide skill-routing hints, and consolidate context-surface, IPC binding, fallback-policy, verification-lane, and UI-review reminders at Stop.
+- When renaming or deleting hook entrypoint files, keep tiny transitional wrappers
+  or prove no active Codex session still calls the old paths; hook configs can be
+  cached for a running thread.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
 - For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.
