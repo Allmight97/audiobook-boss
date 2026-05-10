@@ -41,7 +41,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
-- Codex lifecycle hooks live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`. Use hooks only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification.
+- Codex lifecycle hooks live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`. Use hooks only for cheap deterministic guardrails, not as a replacement for AGENTS judgment or heavy verification. Current hooks block destructive Bash worktree commands, provide skill-routing hints, and consolidate context-surface, IPC binding, fallback-policy, verification-lane, and UI-review reminders at Stop.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
 - For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.
@@ -63,6 +63,14 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
+
+### Sub-Agent Defaults
+
+- The main agent owns design, code edits, final interpretation, and the final verification claim.
+- Use targeted GPT-5.4 Mini sub-agents for bounded discovery or audit lanes when they reduce context load without fragmenting ownership.
+- Do not delegate ordinary test monitoring by default. Prefer the main agent running long checks in its own terminal session and polling them directly.
+- Use a read-only test-shepherd lane only when the user explicitly asks for one or a separate check/audit lane has clear leverage; do not run the same heavy gate concurrently with the main agent.
+- If a sub-agent is assigned implementation or test-file edits, give explicit file ownership and remind it that other agents may be active in the same worktree.
 
 ### Active Refactor Bias
 

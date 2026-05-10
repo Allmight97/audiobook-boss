@@ -4,12 +4,14 @@
 //!   - prepare.rs   : validation, workspace setup, sample rate detection
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
+//!   - staging.rs   : destination-adjacent temp output directories
 //!   - adapter.rs   : native vs external processor adapter resolution
 //!
 //! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
 //! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
 
 // Imports for orchestrator function
+use crate::audio::cleanup::CleanupGuard;
 use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
@@ -30,6 +32,7 @@ pub mod plan;
 pub mod prepare;
 pub mod preview_state;
 pub mod selection;
+pub mod staging;
 pub mod streams;
 
 // Re-exports
@@ -87,6 +90,9 @@ pub async fn process_audiobook_with_context(
     // Stage 1: Validate + Prepare (from prepare module)
     reporter.set_stage(ProcessingStage::Analyzing);
     let workflow = prepare::validate_and_prepare(&context, &files)?;
+    let workflow_temp_dir = workflow.temp_dir.clone();
+    let mut workflow_cleanup = CleanupGuard::new(context.session.id());
+    workflow_cleanup.add_path(&workflow_temp_dir);
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_metadata = apply_cover_art_policy(
@@ -145,6 +151,7 @@ pub async fn process_audiobook_with_context(
         &mut reporter,
     )
     .await?;
+    let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead
     if context.preview.is_some() {

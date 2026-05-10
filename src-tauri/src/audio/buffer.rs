@@ -6,8 +6,10 @@
 //! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
 //! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
 //!
-//! Other formats will panic at construction time to prevent silent data corruption.
+//! Other formats and invalid frame sizes return an error at construction time to prevent
+//! silent data corruption.
 
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use log;
 
@@ -17,7 +19,8 @@ use log;
 /// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
 /// - `S16Packed`: Single interleaved buffer with i16 samples (AAC-AT)
 ///
-/// Attempting to use other formats will panic at `SampleAccumulator::new()`.
+/// Attempting to use other formats or a zero frame size will return an error from
+/// `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
     S16Packed(Vec<i16>), // Interleaved: [L0, R0, L1, R1, ...]
@@ -46,17 +49,16 @@ struct DrainConfig {
 impl SampleAccumulator {
     pub fn new(
         channels: usize,
-        mut frame_size: usize,
+        frame_size: usize,
         sample_rate: u32,
         channel_layout: ff::channel_layout::ChannelLayout,
         format: ff::format::Sample,
-    ) -> Self {
+    ) -> Result<Self> {
         if frame_size == 0 {
-            // FALLBACK[FB-010]: trigger=encoder reports unknown/zero frame_size
-            // observe=warn log with default frame size usage
-            // sunset=2026-06-30 issue=#195
-            log::warn!("Encoder reported frame_size=0; using fallback 1024 for accumulation");
-            frame_size = 1024; // AAC-LC typical frame size
+            return Err(AppError::General(
+                "Encoder reported frame_size=0; SampleAccumulator requires a fixed non-zero frame size"
+                    .to_string(),
+            ));
         }
 
         // Explicit format matching - only support formats actually used by our encoders.
@@ -79,14 +81,14 @@ impl SampleAccumulator {
                 (2, false, storage)
             }
             unsupported => {
-                // Fail fast: unsupported formats would cause silent data corruption
-                // if we tried to use F32Planar storage for I32 data, for example.
-                panic!(
-                    "SampleAccumulator: unsupported format {:?}. \
-                     Only F32(Planar) and I16(Packed) are supported. \
-                     Add explicit support if a new encoder requires a different format.",
+                log::error!(
+                    "SampleAccumulator received unsupported format {:?}; only F32(Planar) and I16(Packed) are supported",
                     unsupported
                 );
+                return Err(AppError::General(format!(
+                    "Unsupported encoder sample format {:?}; SampleAccumulator supports only F32(Planar) and I16(Packed)",
+                    unsupported
+                )));
             }
         };
 
@@ -95,7 +97,7 @@ impl SampleAccumulator {
             format, bytes_per_sample, is_planar, channels, frame_size
         );
 
-        Self {
+        Ok(Self {
             channels,
             frame_size,
             sample_rate,
@@ -104,9 +106,8 @@ impl SampleAccumulator {
             storage,
             bytes_per_sample,
             consumed_samples: 0,
-        }
+        })
     }
-
     /// Push a frame; return any full frames now available.
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
@@ -120,32 +121,29 @@ impl SampleAccumulator {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
                     // F32 planar: each channel in separate plane
-                    unsafe {
-                        for (ch, buffer) in buffers.iter_mut().enumerate() {
-                            let plane = frame.data(ch);
-                            if plane.is_empty() {
-                                log::warn!(
-                                    "Frame plane {} is empty while {} samples were reported – padding with silence",
-                                    ch,
-                                    in_samples
-                                );
-                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples));
-                                continue;
-                            }
-                            let available_samples = plane.len() / self.bytes_per_sample;
-                            let copy_len = available_samples.min(in_samples);
-                            if copy_len < in_samples {
-                                log::warn!(
-                                    "Frame plane {} has fewer samples than reported (have={}, expected={}) – truncating copy",
-                                    ch, copy_len, in_samples
-                                );
-                            }
-                            let slice =
-                                std::slice::from_raw_parts(plane.as_ptr() as *const f32, copy_len);
-                            buffer.extend_from_slice(slice);
-                            if copy_len < in_samples {
-                                buffer.extend(std::iter::repeat_n(0.0f32, in_samples - copy_len));
-                            }
+                    let available_planes = frame.planes();
+                    for (ch, buffer) in buffers.iter_mut().enumerate() {
+                        if ch >= available_planes {
+                            log::warn!(
+                                "Frame plane {} is missing while {} samples were reported - padding with silence",
+                                ch,
+                                in_samples
+                            );
+                            buffer.extend(std::iter::repeat_n(0.0f32, in_samples));
+                            continue;
+                        }
+
+                        let plane = frame.plane::<f32>(ch);
+                        let copy_len = plane.len().min(in_samples);
+                        if copy_len < in_samples {
+                            log::warn!(
+                                "Frame plane {} has fewer samples than reported (have={}, expected={}) - padding remainder with silence",
+                                ch, copy_len, in_samples
+                            );
+                        }
+                        buffer.extend_from_slice(&plane[..copy_len]);
+                        if copy_len < in_samples {
+                            buffer.extend(std::iter::repeat_n(0.0f32, in_samples - copy_len));
                         }
                     }
                 }
@@ -193,9 +191,6 @@ impl SampleAccumulator {
 
     /// Check if storage has enough samples for a full frame
     fn has_full_frame(&self) -> bool {
-        if self.frame_size == 0 {
-            return false;
-        }
         self.available_samples() >= self.frame_size
     }
 
@@ -294,12 +289,16 @@ impl SampleAccumulator {
 
         let mut total_repairs = 0usize;
         for (ch, buffer) in buffers.iter().enumerate() {
-            let plane = frame.data_mut(ch);
-            if plane.is_empty() {
+            if ch >= frame.planes() {
+                log::warn!(
+                    "Allocated F32 planar frame is missing plane {} while {} channels were requested",
+                    ch,
+                    config.channels
+                );
                 continue;
             }
-            let dst: &mut [f32] =
-                unsafe { std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut f32, take) };
+
+            let dst = frame.plane_mut::<f32>(ch);
             let start = *consumed_samples;
             let src = &buffer[start..start + take];
 
@@ -406,5 +405,63 @@ impl SampleAccumulator {
             }
         }
         self.consumed_samples = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SampleAccumulator;
+    use ffmpeg_next as ff;
+
+    const RATE: u32 = 22_050;
+    const FORMAT: ff::format::Sample = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+    const LAYOUT: ff::channel_layout::ChannelLayout = ff::channel_layout::ChannelLayout::STEREO;
+
+    fn f32_planar_stereo_frame(left: &[f32], right: &[f32]) -> ff::frame::Audio {
+        assert_eq!(left.len(), right.len());
+        let _ = ff::init();
+
+        let mut frame = ff::frame::Audio::empty();
+        frame.set_format(FORMAT);
+        frame.set_channel_layout(LAYOUT);
+        frame.set_rate(RATE);
+        frame.set_samples(left.len());
+        unsafe {
+            frame.alloc(FORMAT, left.len(), LAYOUT);
+        }
+
+        frame.plane_mut::<f32>(0).copy_from_slice(left);
+        frame.plane_mut::<f32>(1).copy_from_slice(right);
+        frame
+    }
+
+    #[test]
+    fn f32_planar_stereo_push_preserves_both_channels() {
+        let left = [0.10, 0.20, 0.30, 0.40];
+        let right = [-0.10, -0.20, -0.30, -0.40];
+        let frame = f32_planar_stereo_frame(&left, &right);
+        let mut accumulator =
+            SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+        let ready = accumulator.push_frame(&frame);
+
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].plane::<f32>(0), left);
+        assert_eq!(ready[0].plane::<f32>(1), right);
+    }
+
+    #[test]
+    fn f32_planar_stereo_flush_pads_each_channel_independently() {
+        let left = [0.10, 0.20, 0.30];
+        let right = [-0.10, -0.20, -0.30];
+        let frame = f32_planar_stereo_frame(&left, &right);
+        let mut accumulator =
+            SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+        assert!(accumulator.push_frame(&frame).is_empty());
+        let tail = accumulator.flush_tail(true).expect("flush padded tail");
+
+        assert_eq!(tail.plane::<f32>(0), [0.10, 0.20, 0.30, 0.0]);
+        assert_eq!(tail.plane::<f32>(1), [-0.10, -0.20, -0.30, 0.0]);
     }
 }

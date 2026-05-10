@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -17,6 +19,9 @@ DOCS_ONLY_PREFIXES = (
     ".agents/skills/",
     "docs/specs/",
     ".github/ISSUE_TEMPLATE/",
+)
+DOCS_ARTIFACT_PREFIXES = (
+    ".artifacts/",
 )
 DOC_SURFACE_FILES = {
     *DOCS_ONLY_FILES,
@@ -38,6 +43,22 @@ IPC_GUARD_FILES = {
     "src/lib/generated/tauri.ts",
 }
 GENERATED_BINDINGS_PATH = "src/lib/generated/tauri.ts"
+FALLBACK_SURFACE_FILES = {
+    "docs/fallbacks.md",
+    "scripts/check-fallback-policy.sh",
+}
+FALLBACK_SURFACE_PREFIXES = (
+    "src-tauri/src/audio/",
+    "src-tauri/src/metadata/",
+    "src-tauri/src/commands/audio_processing/",
+    "src-tauri/src/commands/metadata/",
+    "src/lib/tauri/",
+)
+UI_SURFACE_PREFIXES = (
+    "src/App.svelte",
+    "src/ui/",
+    "src/lib/tauri/",
+)
 EPHEMERAL_PATH_EXACT = {
     ".DS_Store",
 }
@@ -47,6 +68,11 @@ EPHEMERAL_PATH_PREFIXES = (
     ".mypy_cache/",
     ".ruff_cache/",
     "__pycache__/",
+)
+FALLBACK_KEYWORD_RE = re.compile(
+    r"FALLBACK\[FB-\d{3}\]|falling back|fall back|back-compat|"
+    r"backward compatibility|legacy compatibility|retained for compatibility|shim",
+    re.IGNORECASE,
 )
 EPHEMERAL_PATH_SUFFIXES = (
     ".pyc",
@@ -116,6 +142,8 @@ def docs_only_paths(paths: list[str]) -> bool:
     if not paths:
         return False
     for entry in paths:
+        if any(entry.startswith(prefix) for prefix in DOCS_ARTIFACT_PREFIXES):
+            continue
         if entry.endswith("/AGENTS.md"):
             continue
         if entry in DOCS_ONLY_FILES:
@@ -133,6 +161,56 @@ def ipc_surface_touched(paths: list[str]) -> bool:
         if any(entry.startswith(prefix) for prefix in IPC_GUARD_PREFIXES):
             return True
     return False
+
+
+def fallback_surface_touched(paths: list[str]) -> bool:
+    for entry in paths:
+        if entry in FALLBACK_SURFACE_FILES:
+            return True
+        if any(entry.startswith(prefix) for prefix in FALLBACK_SURFACE_PREFIXES):
+            if file_contains(entry, FALLBACK_KEYWORD_RE):
+                return True
+    return False
+
+
+def ui_surface_touched(paths: list[str]) -> bool:
+    for entry in paths:
+        if any(entry == prefix or entry.startswith(prefix) for prefix in UI_SURFACE_PREFIXES):
+            return True
+    return False
+
+
+def file_contains(entry: str, pattern: re.Pattern[str]) -> bool:
+    path = REPO_ROOT / entry
+    if not path.is_file():
+        return False
+    try:
+        return pattern.search(path.read_text(encoding="utf-8", errors="ignore")) is not None
+    except OSError:
+        return False
+
+
+def read_hook_input() -> dict[str, object]:
+    raw = sys.stdin.read().strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def emit(payload: dict[str, object]) -> None:

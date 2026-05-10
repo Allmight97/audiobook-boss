@@ -162,7 +162,7 @@ pub(crate) fn move_to_final_location(
     match std::fs::rename(&temp_output, final_path) {
         Ok(()) => {
             log::info!(
-                "finalize_move method=rename status=ok dest={}",
+                "finalize_move method=rename-replace status=ok dest={}",
                 final_path.display()
             );
             Ok(final_path.to_path_buf())
@@ -173,32 +173,11 @@ pub(crate) fn move_to_final_location(
                 final_path.display(),
                 rename_err
             );
-            // FALLBACK[FB-012]: trigger=atomic rename fails (cross-volume/permissions edge)
-            // observe=warn rename failure + info copy-replace success logs
-            // sunset=2026-06-30 issue=#195
-            // Fallback: copy then remove temp (handles cross-volume or other rename failures)
-            if path_entry_exists(final_path)? {
-                if action != PlannedOutputAction::ReplaceExisting {
-                    return Err(collision_state_changed_error(final_path));
-                }
-                if let Err(e) = std::fs::remove_file(final_path) {
-                    log::warn!("finalize_move overwrite remove failed: {}", e);
-                }
-            }
-            std::fs::copy(&temp_output, final_path).map_err(|e| {
-                AppError::FileValidation(format!(
-                    "Cannot copy file to final location '{}': {e}",
-                    sanitize_path_for_display(final_path)
-                ))
-            })?;
-            if let Err(e) = std::fs::remove_file(&temp_output) {
-                log::warn!("finalize_move temp removal failed: {}", e);
-            }
-            log::info!(
-                "finalize_move method=copy-replace status=ok dest={}",
-                final_path.display()
-            );
-            Ok(final_path.to_path_buf())
+            Err(AppError::FileValidation(format!(
+                "Cannot replace final output '{}' with staged output: {}",
+                sanitize_path_for_display(final_path),
+                rename_err
+            )))
         }
     }
 }
@@ -331,6 +310,7 @@ pub(crate) fn complete_processing(
 
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(workflow.temp_dir);
+    cleanup_guard.add_path(&merged_output);
     let outcome = commit_output_boundary(
         context,
         merged_output,
@@ -487,6 +467,53 @@ mod tests {
         assert_eq!(
             std::fs::read(&temp_output).expect("read temp output"),
             b"new"
+        );
+    }
+
+    #[test]
+    fn move_to_final_location_replaces_existing_destination_for_replace_existing_action() {
+        let root = TempDir::new().expect("temp root");
+        let temp_output = root.path().join("temp-output.m4b");
+        let final_output = root.path().join("final-output.m4b");
+        std::fs::write(&temp_output, b"new").expect("write temp output");
+        std::fs::write(&final_output, b"existing").expect("write existing output");
+
+        let committed = move_to_final_location(
+            temp_output.clone(),
+            &final_output,
+            PlannedOutputAction::ReplaceExisting,
+        )
+        .expect("replace action should succeed");
+
+        assert_eq!(committed, final_output);
+        assert_eq!(
+            std::fs::read(&final_output).expect("read final output"),
+            b"new"
+        );
+        assert!(!temp_output.exists(), "temp output should be removed");
+    }
+
+    #[test]
+    fn move_to_final_location_preserves_outputs_when_replace_rename_fails() {
+        let root = TempDir::new().expect("temp root");
+        let temp_output = root.path().join("temp-output.m4b");
+        let final_output = root.path().join("final-output.m4b");
+        std::fs::write(&temp_output, b"new").expect("write temp output");
+        std::fs::create_dir(&final_output).expect("create occupied destination directory");
+
+        let err = move_to_final_location(
+            temp_output.clone(),
+            &final_output,
+            PlannedOutputAction::ReplaceExisting,
+        )
+        .expect_err("rename into occupied directory should fail");
+
+        assert!(err.to_string().contains("Cannot replace final output"));
+        assert!(final_output.is_dir(), "existing destination should remain");
+        assert_eq!(
+            std::fs::read(&temp_output).expect("read temp output"),
+            b"new",
+            "staged output should remain for cleanup after commit failure"
         );
     }
 

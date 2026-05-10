@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use crate::audio::context::{PreviewConfig, ProcessingContext};
 use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use uuid::Uuid;
 
 use super::ProcessingWorkflow;
 
@@ -94,16 +95,14 @@ pub(crate) fn validate_processing_inputs(
 }
 
 /// Creates a session-specific temporary directory.
-pub(crate) fn create_temp_directory_with_session(session_id: &str) -> Result<PathBuf> {
-    const TEMP_DIR_NAME: &str = crate::audio::constants::TEMP_DIR_NAME;
-    let temp_dir = std::env::temp_dir().join(TEMP_DIR_NAME).join(session_id);
-    std::fs::create_dir_all(&temp_dir).map_err(|e| {
-        AppError::FileValidation(format!(
-            "Cannot create session temp directory '{}': {e}",
-            sanitize_path_for_display(&temp_dir)
-        ))
-    })?;
-    Ok(temp_dir)
+pub(crate) fn create_temp_directory_with_session(
+    session_id: Uuid,
+    final_artifact_path: &Path,
+) -> Result<PathBuf> {
+    crate::audio::processor::staging::create_destination_staging_dir(
+        session_id,
+        final_artifact_path,
+    )
 }
 
 /// Emits initial progress + validates inputs with cancellation awareness.
@@ -130,7 +129,8 @@ pub(crate) fn prepare_workspace(
     let mut emitter = ProgressReporter::new(1);
     emitter.set_stage(ProcessingStage::Analyzing);
 
-    let temp_dir = create_temp_directory_with_session(&context.session.id())?;
+    let temp_dir =
+        create_temp_directory_with_session(context.session.uuid(), context.output.artifact_path())?;
 
     // Single engine: no concat file needed
 

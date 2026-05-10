@@ -148,9 +148,10 @@ fn collect_passthrough_metadata(
 }
 
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {
-    let path = std::env::temp_dir().join(format!("abb-fdk-worker-{}", context.session.id()));
-    std::fs::create_dir_all(&path)?;
-    Ok(path)
+    crate::audio::processor::staging::create_destination_staging_dir(
+        context.session.uuid(),
+        context.output.artifact_path(),
+    )
 }
 
 fn expected_duration_seconds(
@@ -551,12 +552,19 @@ mod tests {
     use ffmpeg_next as ff;
     use std::fs::{set_permissions, write};
     use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
     use tempfile::TempDir;
 
     const MINIMAL_JPEG: &[u8] = include_bytes!("../../../tests/support/minimal.jpg");
+
+    fn expected_worker_staging_dir(output_path: &Path, session_id: &str) -> PathBuf {
+        output_path
+            .parent()
+            .expect("output path should have parent")
+            .join(format!(".abb-processing-{session_id}"))
+    }
 
     #[tokio::test]
     async fn worker_processes_with_fake_external_ffmpeg() {
@@ -716,8 +724,7 @@ mod tests {
 
         let session = Arc::new(ProcessingSession::new());
         let session_id = session.id();
-        let expected_worker_temp =
-            std::env::temp_dir().join(format!("abb-fdk-worker-{session_id}"));
+        let expected_worker_temp = expected_worker_staging_dir(&output_path, &session_id);
 
         let context = ProcessingContext::new_headless(
             session,
@@ -770,8 +777,7 @@ mod tests {
 
         let session = Arc::new(ProcessingSession::new());
         let session_id = session.id();
-        let expected_worker_temp =
-            std::env::temp_dir().join(format!("abb-fdk-worker-{session_id}"));
+        let expected_worker_temp = expected_worker_staging_dir(&output_path, &session_id);
 
         let context = ProcessingContext::new_headless(
             session,
@@ -834,8 +840,7 @@ mod tests {
             checker,
         ));
         let session_id = session.id();
-        let expected_worker_temp =
-            std::env::temp_dir().join(format!("abb-fdk-worker-{session_id}"));
+        let expected_worker_temp = expected_worker_staging_dir(&output_path, &session_id);
 
         let context = ProcessingContext::new_headless(
             session,
@@ -897,8 +902,7 @@ mod tests {
 
         let session = Arc::new(ProcessingSession::new());
         let session_id = session.id();
-        let expected_worker_temp =
-            std::env::temp_dir().join(format!("abb-fdk-worker-{session_id}"));
+        let expected_worker_temp = expected_worker_staging_dir(&output_path, &session_id);
 
         let context = ProcessingContext::new_headless(
             session,

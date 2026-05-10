@@ -22,7 +22,7 @@ unless the user explicitly asks to write the change.
 3. Inspect existing repo artifacts before asking the user to restate facts:
    start with `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`,
    `docs/fallbacks.md`, and owning code/docs for the touched boundary.
-4. Ask one high-leverage question at a time.
+4. Ask 1-2 high-leverage questions at a time.
 5. Include the recommended answer with each question so the user can agree,
    reject, or refine the decision instead of starting from a blank page.
 6. Keep going until one is true:
