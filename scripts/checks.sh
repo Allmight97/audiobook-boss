@@ -110,6 +110,9 @@ run_quick() {
     bash scripts/check-generated-bindings.sh --mode local
   fi
 
+  log_step "scripts/check-public-api-strips.sh"
+  bash scripts/check-public-api-strips.sh
+
   log_step "scripts/check-no-bridge-imports.sh"
   bash scripts/check-no-bridge-imports.sh
 

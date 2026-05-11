@@ -3,7 +3,7 @@ import type { JobType } from '../types/audio';
 import { flushSync } from 'svelte';
 import { jobControlsState } from './jobControls/state.svelte';
 import { updateOutputPath } from './outputPanel';
-import { updateStatusPanelConcurrencyStatus } from './statusPanel/runtimeApi';
+import { updateStatusPanelConcurrencyStatus } from './statusPanel';
 
 export function initJobControls(): void {
 	initializeMaxConcurrentControl();

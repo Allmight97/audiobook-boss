@@ -11,6 +11,8 @@ pub mod reader;
 pub(crate) mod tag_registry;
 
 mod container;
+#[cfg(test)]
+mod contract_tests;
 mod cover_art;
 mod ffi;
 mod ffmpeg_dict;

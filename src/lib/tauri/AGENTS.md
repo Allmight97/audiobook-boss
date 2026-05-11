@@ -1,41 +1,18 @@
-# Tauri Boundary Directives
+## Public API Strip
+- Public module exports: `tauriClient`, `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, `TauriCommand`.
+- `tauriClient` methods are pinned by `src/lib/tauri-public-api.contract.test.ts`; add methods only as deliberate boundary changes.
+- Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
 
-## Scope
+## Private Cluster
+- Files: `client.ts`, `commands.ts`, `normalizers.ts`, `appError.ts`, `AGENTS.md`.
+- Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
-- Owns the TS↔Rust runtime boundary in `src/lib/tauri/`.
-- Source of truth for IPC adapter flow and metadata intent compilation.
+## Allowed Agent Edits Without Escalation
+- Change private adapters when `bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts` and `scripts/check-public-api-strips.sh` stay green.
+- Keep metadata intent operations explicit as `set | clear | noop`; compile patch intent here, not in scattered UI callsites.
+- Keep nullish and payload normalization centralized in the private cluster.
 
-## Preferred Path
-
-- Send runtime commands and events through `tauriClient` wrappers in `client.ts`.
-- Compile metadata patch intent in boundary adapters, not in scattered UI callsites.
-- Keep nullish/payload normalization centralized in `normalizers.ts`.
-- Update boundary tests (`src/lib/tauri-client.test.ts`) whenever adapter semantics change.
-
-## Hard Invariants
-
-- Metadata intent operations are `set | clear | noop`.
-- Boundary write payloads use explicit patch ops (`MetadataIntentPatch` / `PatchOp`) for clear intent (`{ op: 'clear' }`), not sentinel wire values.
-- Sentinel clear values (`''`, `0`, `[]`) are backend-internal translation details only.
-- Runtime UI modules use this adapter boundary instead of direct generated invokers.
-- Generated bindings file `src/lib/generated/tauri.ts` stays generated; update exporters/boundary code then regenerate.
-- When a generated binding overlaps with a handwritten TS runtime type, update both in the same change and cover the new shape in `src/lib/tauri-client.test.ts`.
-
-## Canary Trigger
-
-- Trigger Canary when IPC shape, normalization behavior, or metadata intent semantics are unclear across TS/Rust.
-- Report ambiguous fields, working assumption, and minimal boundary-rule update.
-- Continue unless contract parity risk requires blocking escalation.
-
-## Command Naming Policy
-
-- NO version suffixes (_v1, _v2, etc.) on commands or types
-- NO _cmd suffixes (use descriptive names)
-- Breaking changes = rename command with new semantic name
-- Single user controls both sides—breaking changes are acceptable
-
-## Done Criteria
-
-- IPC changes are implemented in `client.ts`/`normalizers.ts`.
-- Metadata intent semantics remain explicit and lossless.
-- Boundary tests cover the changed behavior.
+## Breaking-Change Triggers
+- Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.
+- Sending clear intent through sentinel frontend values instead of explicit patch ops.
+- Bypassing `tauriClient` with generated invokers or raw Tauri invoke/listen calls.

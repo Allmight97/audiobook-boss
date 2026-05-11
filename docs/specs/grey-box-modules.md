@@ -389,10 +389,41 @@ Phase 5: Status Panel Runtime
   import/select, metadata edit/save, output directory selection, preview
   processing, full processing, collision review modal, and cancellation status
   all worked through the desktop app using temporary `/tmp` inputs and outputs.
-- 2026-05-10: Manual proof posture refined. The branch is ready for JStar's
-  longer normal test suite, but it should not be called replacement-ready until
-  longer-book edits, bulk previews, file merges, and representative parity
-  checks have been exercised by a human.
+- 2026-05-11: JStar reported broader manual testing clear, including the
+  workflows that were previously called out as replacement-readiness blockers.
+  Promotion hardening remains focused on proof, guardrails, and repo layout;
+  the manual proof posture is no longer a blocker as of this report.
+- 2026-05-11: Promotion Phase P0 complete. Added public API strip source
+  allowlisting in `scripts/check-public-api-strips.sh`, wired it into
+  `scripts/checks.sh standard`, and added contract tests for the five public
+  APIs:
+  - `src-tauri/src/audio/output_path/contract_tests.rs`
+  - `src-tauri/src/commands/audio_processing/contract_tests.rs`
+  - `src-tauri/src/metadata/contract_tests.rs`
+  - `src/lib/tauri-public-api.contract.test.ts`
+  - `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`
+- 2026-05-11: Promotion Phase P1 complete. Added or updated five local
+  `AGENTS.md` files with the required four-section Public API Strip, Private
+  Cluster, allowed-edit, and breaking-change trigger shape:
+  - `src-tauri/src/audio/output_path/AGENTS.md`
+  - `src-tauri/src/commands/audio_processing/AGENTS.md`
+  - `src-tauri/src/metadata/AGENTS.md`
+  - `src/lib/tauri/AGENTS.md`
+  - `src/ui/statusPanel/AGENTS.md`
+- 2026-05-11: Promotion Phase P2 complete. Extended
+  `scripts/check-no-bridge-imports.sh` with boundary assertions for output
+  artifact reach-through, metadata intent projection reach-through,
+  status-panel private imports, and direct final-artifact filesystem commits
+  in processor finalization. The `client.ts` export allowlist is enforced by
+  `scripts/check-public-api-strips.sh`.
+- 2026-05-11: P2 failure probe passed. A temporary external import of
+  `src/ui/statusPanel/controller` failed `scripts/check-no-bridge-imports.sh`
+  as intended, then the probe file was deleted and the guard returned green.
+- 2026-05-11: Promotion hardening standard gate passed:
+  `scripts/checks.sh standard` completed successfully after P0-P2, including
+  formatting, lint, Clippy, generated binding drift checks, public-strip and
+  boundary assertions, Rust tests, Bun script tests, 57 Vitest files / 310
+  frontend tests, and `bun run build`.
 - 2026-05-10: Old-seam audit pass cleaned up a stale status-panel mock name in
   `src/ui/__tests__/jobControls-info.test.ts`. Follow-up `rg` found no
   remaining `jobControls`/external imports of `statusPanel/viewState.svelte`,
@@ -508,7 +539,7 @@ Research anchors:
 - Ousterhout/APOSD: prefer deeper modules with smaller interfaces and hidden
   complexity.
 
-## Open Questions
+## Resolved Questions
 
 ### Manual behavior proof scope
 
@@ -520,6 +551,7 @@ Decision:
     grey-box refactor,
   - broader manual walkthrough before treating the branch as ready to replace
     `main`.
+- As of 2026-05-11, JStar reports the broader manual walkthrough clear.
 
 Why:
 
@@ -656,9 +688,10 @@ Must stay aligned:
 
 ## Completion Audit
 
-Date: 2026-05-10
-Status: implementation complete; initial smoke passed; replacement-ready claim
-pending JStar's broader manual suite.
+Date: 2026-05-11
+Status: implementation complete; initial smoke passed; JStar's broader manual
+suite is clear as reported on 2026-05-11. Promotion hardening remains before
+merging to `main`.
 
 Objective as concrete deliverables:
 
@@ -747,18 +780,13 @@ Prompt-to-artifact checklist:
 
 Known incomplete or weakly verified requirements:
 
-- Initial UI smoke is complete, but broad human workflow parity is not.
-  Automated tests and live smoke cover the critical refactored boundaries, but
-  they do not fully prove longer real-book edits, bulk preview behavior,
-  multi-file merge behavior, or representative parity against current `main`.
-- Safe failure-status UI proof remains a manual row. A read-only output target
-  was prepared and confirmed empty, but local UI automation could focus the
-  Tauri webview Process button without activating its click handler.
-- Failure status was covered by automated status/processing tests, not by a
-  live app failure smoke in this pass. Exercise one safe failure path manually
-  before replacement-ready signoff if practical.
-- No replacement-ready claim should be made until the manual suite below passes
-  against the built lab app.
+- JStar reports the broader manual suite clear as of 2026-05-11, so the
+  previous manual-readiness blocker is resolved by owner verification.
+- The spec does not yet contain detailed per-scenario fixture evidence for
+  JStar's manual run. Treat the current manual status as owner-reported
+  acceptance evidence, not an agent-reproduced transcript.
+- Promotion still needs hardening evidence from P0-P3 before merging to `main`
+  so the new architecture can defend itself after the lab worktree is retired.
 
 Manual suite before replacing `main`:
 
@@ -769,6 +797,10 @@ Manual suite before replacing `main`:
   on temporary outputs.
 - One safe failure-status path if practical.
 - Representative output and metadata parity against current `main` behavior.
+
+Status:
+
+- Clear as reported by JStar on 2026-05-11.
 
 Recommended manual test recipe:
 
@@ -813,14 +845,14 @@ Manual validation log:
 
 | Scenario | Status | Evidence |
 | --- | --- | --- |
-| Longer real-book metadata edit and save/reload | Pending |  |
-| Bulk preview workflow with multiple files | Pending |  |
-| File merge workflow with ordering and final metadata | Pending |  |
-| Collision Overwrite on temporary output | Pending |  |
-| Collision Skip on temporary output | Pending |  |
-| Collision Keep Existing on temporary output | Pending |  |
-| Safe failure-status path | Pending | Prepared `/tmp/abb-grey-readonly-output-20260510` as read-only and confirmed no output files were written; manual activation still needed because UI automation focused the Process button without firing processing. |
-| Representative parity against current `main` | Pending |  |
+| Longer real-book metadata edit and save/reload | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| Bulk preview workflow with multiple files | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| File merge workflow with ordering and final metadata | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| Collision Overwrite on temporary output | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| Collision Skip on temporary output | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| Collision Keep Existing on temporary output | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
+| Safe failure-status path | Clear as reported by JStar | Owner manual suite report, 2026-05-11. Agent prep evidence remains: prepared `/tmp/abb-grey-readonly-output-20260510` as read-only and confirmed no output files were written. |
+| Representative parity against current `main` | Clear as reported by JStar | Owner manual suite report, 2026-05-11. |
 
 ## Promotion And Hardening Plan
 
@@ -886,6 +918,12 @@ Acceptance for P0:
 - Adding a new public export fails the matching contract test until the test's
   allowlist is updated.
 
+Status:
+
+- Complete as of 2026-05-11. The source allowlist is enforced by
+  `scripts/check-public-api-strips.sh`, and behavior contracts are covered by
+  the five contract test files listed in Progress.
+
 ### Phase P1: Per-module AGENTS.md for the Five Public APIs
 
 P1 because once the contracts are locked, agents need to know which symbols are
@@ -918,6 +956,11 @@ Acceptance for P1:
 - A fresh agent can read one AGENTS.md and act inside that module without
   reading the full implementation spec.
 
+Status:
+
+- Complete as of 2026-05-11. Each file is 17-18 lines and contains the four
+  required sections in order.
+
 ### Phase P2: Extend the Boundary Assertion family
 
 P2 because the current `scripts/check-no-bridge-imports.sh` proves the pattern
@@ -939,7 +982,8 @@ shapes in `check-no-bridge-imports.sh`):
   `std::fs::rename`, `std::fs::copy`, or `std::fs::hard_link` against a path
   derived from a final output artifact (commit lives in `output_path/`).
 - `src/lib/tauri/client.ts` re-exports only symbols on an allowlist; new
-  exports must update the allowlist.
+  exports must update the allowlist. This assertion is implemented in
+  `scripts/check-public-api-strips.sh` because it is a Public API Strip guard.
 
 Each new assertion lives in the same script and is wired into
 `scripts/checks.sh standard`.
@@ -949,6 +993,12 @@ Acceptance for P2:
 - All new assertions land green in `scripts/checks.sh standard`.
 - Manually reintroducing one Reach-Through (in a throwaway branch) fails the
   matching assertion locally.
+
+Status:
+
+- Complete as of 2026-05-11. The new assertions are green locally, and a
+  temporary external status-panel private import failed the guard as intended
+  before being removed.
 
 ### Phase P3: Spec migration to canon docs, then delete this spec
 

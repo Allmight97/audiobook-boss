@@ -27,7 +27,7 @@ vi.mock('../outputPanel', () => ({
 	updateOutputPath: mockedDependencies.updateOutputPathMock,
 }));
 
-vi.mock('../statusPanel/runtimeApi', () => ({
+vi.mock('../statusPanel', () => ({
 	updateStatusPanelConcurrencyStatus: mockedDependencies.updateStatusPanelConcurrencyStatusMock,
 }));
 

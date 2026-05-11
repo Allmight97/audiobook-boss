@@ -59,4 +59,51 @@ if rg -n "@tauri-apps/api/core|__TAURI_INVOKE|\\binvoke\\(" src \
 fi
 rm -f /tmp/no-direct-tauri-core.out
 
+if rg -n "\\b(commit_output_artifact|finalized_output_success|OutputPlanLedger)\\b" src-tauri/src \
+  -g '*.rs' \
+  -g '!src-tauri/src/audio/output_path/**' \
+  -g '!src-tauri/src/audio/processor/finalize.rs' \
+  -g '!src-tauri/src/audio/processor/external_fdk.rs' \
+  -g '!src-tauri/src/commands/audio_processing/plan.rs' \
+  >/tmp/no-output-path-reach-through.out 2>/dev/null; then
+  echo "[no-bridge] Output artifact truth may only be used by allowlisted boundary consumers." >&2
+  cat /tmp/no-output-path-reach-through.out >&2
+  rm -f /tmp/no-output-path-reach-through.out
+  exit 1
+fi
+rm -f /tmp/no-output-path-reach-through.out
+
+if rg -n "\\b(resolve_effective_processing_metadata|resolve_naming_metadata)\\b" src-tauri/src \
+  -g '*.rs' \
+  -g '!src-tauri/src/metadata/**' \
+  -g '!src-tauri/src/commands/audio_processing/plan.rs' \
+  >/tmp/no-metadata-intent-reach-through.out 2>/dev/null; then
+  echo "[no-bridge] Metadata intent projection may only be used by the processing planner boundary." >&2
+  cat /tmp/no-metadata-intent-reach-through.out >&2
+  rm -f /tmp/no-metadata-intent-reach-through.out
+  exit 1
+fi
+rm -f /tmp/no-metadata-intent-reach-through.out
+
+if rg -n "['\"][^'\"]*statusPanel/(viewState(?:\\.svelte)?|controller|runtimeApi|domain/stateMachine|domain/stateMachineHelpers|domain/stateMachineTypes|render|feedback|reducer[^'\"]*)" src \
+  -g '*.ts' \
+  -g '*.svelte' \
+  -g '!src/ui/statusPanel/**' \
+  >/tmp/no-status-panel-private-imports.out 2>/dev/null; then
+  echo "[no-bridge] Code outside src/ui/statusPanel must use the status panel public API." >&2
+  cat /tmp/no-status-panel-private-imports.out >&2
+  rm -f /tmp/no-status-panel-private-imports.out
+  exit 1
+fi
+rm -f /tmp/no-status-panel-private-imports.out
+
+if rg -n "std::fs::(rename|copy|hard_link)" src-tauri/src/audio/processor/finalize.rs \
+  >/tmp/no-finalize-artifact-commit.out 2>/dev/null; then
+  echo "[no-bridge] Processor finalization must not perform final artifact file commits directly." >&2
+  cat /tmp/no-finalize-artifact-commit.out >&2
+  rm -f /tmp/no-finalize-artifact-commit.out
+  exit 1
+fi
+rm -f /tmp/no-finalize-artifact-commit.out
+
 echo "[no-bridge] OK"

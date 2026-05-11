@@ -1,33 +1,18 @@
-# Metadata Boundary Directives
+## Public API Strip
+- Import metadata intent symbols from `crate::metadata`, not private child modules.
+- Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`, `resolve_effective_processing_metadata`, `resolve_naming_metadata`.
+- Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
 
-## Scope
+## Private Cluster
+- Files: `intent.rs`, `intent_plan.rs`, `contract_tests.rs`; `mod.rs` owns the public re-export strip.
+- The broader metadata boundary still owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, and remux helpers.
 
-- Owns audiobook metadata read/write behavior under `src-tauri/src/metadata/`.
-- Source of truth for external tag interoperability and fallback discipline.
+## Allowed Agent Edits Without Escalation
+- Change intent internals when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.
+- Preserve `set | clear | noop` semantics across save, processing projection, naming projection, write plans, and cover-art handling.
+- Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
 
-## Preferred Path
-
-- Use mp4ameta bridge paths as the probed MP4-family atom reader and writer when the file can be read directly.
-- Use ffmpeg as the generic reader/prober. Route metadata engines from actual container classification, not filename suffix.
-- Keep read/write behavior aligned through shared tag registry expectations.
-- Preserve canonical and mirrored tag writes only when they have proven downstream ecosystem value.
-- Introduce fallback paths only when fail-fast would break user outcomes on real files.
-
-## Hard Invariants
-
-- Maintain interoperability with external audiobook tag variants in the wild.
-- New fallback behavior must include explicit marker metadata, observability, and fallback-register entry per root policy.
-- Clear intent must fully remove related legacy/canonical atoms and cover-art artifacts, not partially clear fields.
-- Metadata behavior must stay consistent with boundary intent semantics from `src/lib/tauri/AGENTS.md`.
-
-## Canary Trigger
-
-- Trigger Canary when metadata correctness depends on undocumented precedence between canonical, mirrored, and legacy tags.
-- Report the ambiguous precedence, working assumption, and minimal rule update proposal.
-- Continue unless ambiguity risks incorrect user-visible metadata or data loss.
-
-## Done Criteria
-
-- Metadata edits preserve external interoperability and clear-intent correctness.
-- Any fallback addition is explicit, observable, and registered.
-- Read/probe and write ownership remain coherent across canonical and compatibility tags.
+## Breaking-Change Triggers
+- Adding, removing, or renaming any Public API Strip symbol.
+- Making clear intent partial, lossy, or dependent on sentinel frontend values.
+- Changing canonical/mirrored/legacy tag precedence, fallback behavior, or container routing without explicit evidence and doc updates.

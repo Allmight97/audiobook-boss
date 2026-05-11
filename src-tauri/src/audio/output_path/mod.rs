@@ -6,6 +6,9 @@ mod plan;
 mod review;
 mod types;
 
+#[cfg(test)]
+mod contract_tests;
+
 pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success};
 #[cfg_attr(not(test), allow(unused_imports))]
