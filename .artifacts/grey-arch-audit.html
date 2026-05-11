@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AudioBook Boss — Architecture Audit: Deep Modules & Flow</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161920;
+    --panel-2: #1b1f27;
+    --text: #e6e8ef;
+    --muted: #9aa3b2;
+    --accent: #4fc1ff;
+    --accent-2: #7ee787;
+    --accent-3: #ffa657;
+    --accent-4: #f87171;
+    --border: #2a2f3a;
+    --radius: 10px;
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.45; }
+  a { color: var(--accent); }
+  h1, h2, h3, h4 { margin: 0 0 .6rem; letter-spacing: .2px; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .5rem; margin-top: 1.4rem; }
+  h3 { font-size: 1.05rem; color: var(--accent); }
+  h4 { font-size: .95rem; color: var(--accent-2); }
+  p { margin: .4rem 0 .9rem; }
+  code, .mono { font-family: var(--mono); font-size: .9em; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #223044; color: var(--accent); font-size: .78rem; border: 1px solid #2b3d52; }
+  .tag.rust { background: #1f2a1f; color: var(--accent-2); border-color: #2a3d2a; }
+  .tag.ts { background: #2a201f; color: var(--accent-3); border-color: #3d2f2a; }
+  .tag.contract { background: #2a1f2a; color: #f0a0f0; border-color: #3d2a3d; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 12px; }
+  .tab { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); padding: 8px 14px; border-radius: var(--radius); cursor: pointer; font-size: .9rem; }
+  .tab.active { background: #223044; color: var(--accent); border-color: #2b3d52; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .metric { font-family: var(--mono); font-size: .95rem; color: var(--accent); }
+  .metric.warn { color: var(--accent-3); }
+  .metric.danger { color: var(--accent-4); }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 920px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .flow-node { background: var(--panel-2); border: 1px solid var(--border); padding: 6px 10px; border-radius: 8px; font-size: .85rem; }
+  .flow-arrow { color: var(--muted); font-size: .9rem; }
+  .cluster-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .cluster-chip { background: #1a2230; border: 1px solid #2a3a4a; color: #b0c4de; padding: 3px 8px; border-radius: 6px; font-size: .82rem; }
+  .contract-box { background: #141a22; border-left: 3px solid var(--accent); padding: 10px 12px; border-radius: 0 8px 8px 0; margin: 8px 0; font-size: .88rem; }
+  .contract-box.out { border-left-color: var(--accent-2); }
+  .contract-box.event { border-left-color: var(--accent-3); }
+  details { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); margin: 8px 0; }
+  summary { padding: 10px 12px; cursor: pointer; color: var(--accent); font-weight: 600; }
+  details > div { padding: 0 12px 12px; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.deep { background: var(--accent); }
+  .dot.shallow { background: var(--accent-2); }
+  .dot.boundary { background: var(--accent-3); }
+  .dot.external { background: var(--accent-4); }
+  .badge { font-size: .75rem; padding: 1px 6px; border-radius: 4px; background: #222; color: #ccc; border: 1px solid #333; }
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+  .toc a { text-decoration: none; font-size: .9rem; }
+  .svg-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>AudioBook Boss — Architecture Audit</h1>
+    <span class="tag">Deep-Module Map</span>
+    <span class="tag rust">Rust Backend</span>
+    <span class="tag ts">TypeScript Frontend</span>
+    <span class="tag contract">IPC Contracts</span>
+  </div>
+  <p style="color:var(--muted)">
+    This audit identifies the <strong>deep (grey) modules</strong> — modules with small interfaces hiding substantial implementation complexity —
+    the <strong>clusters</strong> of files beneath each, and the <strong>APIs / contracts</strong> that glue them together.
+    It also traces the high-level data and control <strong>flow</strong> across the stack.
+    <a href="grey-arch-audit.md" style="color:var(--accent-2)">Markdown companion &rarr;</a>
+  </p>
+
+  <div class="toc">
+    <a href="#sec-overview">Overview</a>
+    <a href="#sec-backend">Backend Deep Modules</a>
+    <a href="#sec-frontend">Frontend Deep Modules</a>
+    <a href="#sec-ipc">IPC Boundary</a>
+    <a href="#sec-flow">Control & Data Flow</a>
+    <a href="#sec-observations">Observations</a>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="dot deep"></span> Deep module (small API, big implementation)</div>
+    <div class="legend-item"><span class="dot shallow"></span> Shallow / cluster module (implementation detail)</div>
+    <div class="legend-item"><span class="dot boundary"></span> Boundary / adapter / glue</div>
+    <div class="legend-item"><span class="dot external"></span> External dependency</div>
+  </div>
+
+  <h2 id="sec-overview">1. Architecture Overview</h2>
+  <div class="card">
+    <div class="grid-3">
+      <div>
+        <h4>Stack</h4>
+        <p class="mono" style="font-size:.85rem">
+          Svelte 5 + Tailwind 4 (UI)<br/>
+          Vite 8 (bundler)<br/>
+          Tauri 2 (desktop shell)<br/>
+          Rust 2021 (backend)<br/>
+          FFmpeg-next 8.1 (audio engine)
+        </p>
+      </div>
+      <div>
+        <h4>Key Metrics</h4>
+        <p class="mono" style="font-size:.85rem">
+          Rust source: ~13,500 LOC (src-tauri/src)<br/>
+          Rust tests: ~10,800 LOC (~45% of backend total)<br/>
+          &nbsp; &middot; integration tests: ~6,500 LOC (29 files)<br/>
+          &nbsp; &middot; inline tests: ~4,300 LOC (23% of src)<br/>
+          TS/Svelte source: ~12,000 LOC (src/)<br/>
+          Frontend tests: ~5,200 LOC (~30% of frontend total)<br/>
+          Commands: 17 Tauri commands<br/>
+          Events: 2 specta-typed events
+        </p>
+      </div>
+      <div>
+        <h4>Boundaries</h4>
+        <p class="mono" style="font-size:.85rem">
+          TS ↔ Rust: specta-generated bindings<br/>
+          Audio engine: ffmpeg-next (in-process)<br/>
+          Metadata: mp4ameta + FFmpeg remux<br/>
+          HTTP: reqwest (cover-art fetch)<br/>
+          Image: image crate (cover optimization)
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="sec-backend">2. Backend Deep Modules (Rust)</h2>
+
+  <div class="tabs">
+    <div class="tab active" data-target="backend-processor">audio/processor</div>
+    <div class="tab" data-target="backend-metadata">metadata</div>
+    <div class="tab" data-target="backend-output">audio/output_path</div>
+    <div class="tab" data-target="backend-registry">audio/job_registry</div>
+    <div class="tab" data-target="backend-commands">commands</div>
+    <div class="tab" data-target="backend-audio">audio (umbrella)</div>
+  </div>
+
+  <!-- PROCESSOR -->
+  <div id="backend-processor" class="section active">
+    <div class="card">
+      <div class="card-header">
+        <h3>audio/processor <span class="badge">~3,864 LOC · 12 files</span></h3>
+        <span class="tag rust">Deepest module</span>
+      </div>
+      <p>
+        The audio processing pipeline. This is the most complex deep module in the codebase.
+        It hides the full lifecycle of audiobook creation: validation → execution → finalization.
+        The public API is intentionally tiny compared to the internal machinery.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>process_audiobook_with_context(ProcessingContext, Vec&lt;AudioFile&gt;, Option&lt;AudiobookMetadata&gt;, bool) -> Result&lt;String&gt;</code><br/>
+        <code>detect_input_sample_rate(&Path) -> Result&lt;u32&gt;</code><br/>
+        <code>resolve_processor_adapter(...) -> ResolvedProcessorAdapter</code><br/>
+        <code>FfmpegNextProcessor</code> (struct implementing <code>MediaProcessor</code>)
+      </div>
+      <h4>Cluster — Stage Orchestration</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">prepare.rs</span>
+        <span class="cluster-chip">execute.rs</span>
+        <span class="cluster-chip">finalize.rs</span>
+        <span class="cluster-chip">staging.rs</span>
+        <span class="cluster-chip">plan.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>prepare</strong> validates inputs, detects sample rates, sets up temp workspace.<br/>
+        <strong>execute</strong> runs the actual FFmpeg merge/encode (native or external FDK adapter).<br/>
+        <strong>finalize</strong> writes metadata, moves temp to destination, cleans up.<br/>
+        <strong>staging</strong> manages destination-adjacent temp directories.<br/>
+        <strong>plan</strong> defines the <code>MediaProcessingPlan</code> trait and processor selection.
+      </p>
+      <h4>Cluster — Engine & Adapter</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">engine.rs</span>
+        <span class="cluster-chip">adapter.rs</span>
+        <span class="cluster-chip">external_fdk.rs</span>
+        <span class="cluster-chip">frame_pipeline.rs</span>
+        <span class="cluster-chip">streams.rs</span>
+        <span class="cluster-chip">selection.rs</span>
+        <span class="cluster-chip">preview_state.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>engine.rs</strong> is the in-process ffmpeg-next orchestrator.<br/>
+        <strong>adapter.rs</strong> resolves whether to use native AAC, Apple AAC (AudioToolbox), or external FDK HE-AAC.<br/>
+        <strong>external_fdk.rs</strong> shells out to a user-provided FFmpeg binary with libfdk_aac.<br/>
+        <strong>frame_pipeline.rs</strong> handles preview/full-run frame accumulation and chapter slicing.<br/>
+        <strong>streams.rs</strong> manages stream setup and codec context.
+      </p>
+      <h4>Cluster — Encoder Subsystem</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">encoder/mod.rs</span>
+        <span class="cluster-chip">encoder/write.rs</span>
+        <span class="cluster-chip">encoder/context.rs</span>
+        <span class="cluster-chip">encoder/common.rs</span>
+        <span class="cluster-chip">encoder/options/mod.rs</span>
+        <span class="cluster-chip">encoder/options/native.rs</span>
+        <span class="cluster-chip">encoder/options/fdk.rs</span>
+        <span class="cluster-chip">encoder/options/apple.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        Encoder options are split by toolchain target. <strong>native.rs</strong> configures in-process AAC,
+        <strong>apple.rs</strong> configures AudioToolbox, <strong>fdk.rs</strong> configures libfdk_aac.
+        <strong>write.rs</strong> handles the actual packet/frame write loop.
+      </p>
+      <div class="contract-box out">
+        <strong>Downstream contracts:</strong><br/>
+        • Emits <code>ProgressEvent</code> / <code>QueueEvent</code> through Tauri window emitter.<br/>
+        • Reads <code>CancellationChecker</code> from <code>job_registry</code> at stage boundaries.<br/>
+        • Calls <code>metadata::save_metadata_with_plan</code> during finalize.<br/>
+        • Calls <code>output_path</code> planning to derive destination paths.
+      </div>
+    </div>
+  </div>
+
+  <!-- METADATA -->
+  <div id="backend-metadata" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>metadata <span class="badge">~2,269 LOC · 12 files</span></h3>
+        <span class="tag rust">Deep module</span>
+      </div>
+      <p>
+        The metadata boundary. Owns read/write behavior for audiobook tags across MP4-family (M4B/M4A)
+        and generic containers. Chooses between <code>mp4ameta</code> (direct atom editing) and FFmpeg remux
+        based on actual container classification, not filename suffix.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>read_metadata(path) -> Result&lt;AudiobookMetadata&gt;</code><br/>
+        <code>save_metadata_with_plan(path, &MetadataWritePlan) -> Result&lt;()&gt;</code><br/>
+        <code>set_container_metadata(...)</code>, <code>validate_metadata_compatibility(...)</code><br/>
+        <code>MetadataIntentPatch</code> → <code>MetadataWritePlan</code> conversion (intent compilation)<br/>
+        Re-exports: <code>CoverFormat</code>, cover-art stream helpers
+      </div>
+      <h4>Cluster — Read / Write Engine</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">reader.rs</span>
+        <span class="cluster-chip">container.rs</span>
+        <span class="cluster-chip">remux.rs</span>
+        <span class="cluster-chip">mp4ameta_bridge.rs</span>
+        <span class="cluster-chip">ffmpeg_dict.rs</span>
+        <span class="cluster-chip">tag_registry.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>reader.rs</strong> probes and reads tags. <strong>container.rs</strong> classifies MP4 vs other.<br/>
+        <strong>mp4ameta_bridge.rs</strong> writes atoms directly for MP4-family files.<br/>
+        <strong>remux.rs</strong> rewrites metadata via FFmpeg for non-MP4 containers.<br/>
+        <strong>ffmpeg_dict.rs</strong> builds FFmpeg metadata dictionaries.<br/>
+        <strong>tag_registry.rs</strong> maps canonical/mirrored tags (Plex/ABS interop).
+      </p>
+      <h4>Cluster — Intent & Cover Art</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">intent.rs</span>
+        <span class="cluster-chip">intent_plan.rs</span>
+        <span class="cluster-chip">passthrough.rs</span>
+        <span class="cluster-chip">cover_art/mod.rs</span>
+        <span class="cluster-chip">cover_art/format.rs</span>
+        <span class="cluster-chip">cover_art/embedding.rs</span>
+        <span class="cluster-chip">ffi.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>intent.rs</strong> defines patch ops (Set / Clear / Noop) and the <code>MetadataIntentPatch</code> struct.<br/>
+        <strong>intent_plan.rs</strong> compiles intent into a deterministic <code>MetadataWritePlan</code>.<br/>
+        <strong>passthrough.rs</strong> preserves chapters and cover art from source files.<br/>
+        <strong>cover_art/</strong> handles format detection and embedding as a secondary video stream.
+      </p>
+      <div class="contract-box out">
+        <strong>Downstream contracts:</strong><br/>
+        • Consumed by <code>commands::metadata</code> (Tauri commands for read/write).<br/>
+        • Consumed by <code>audio::processor::finalize</code> (post-encode metadata injection).<br/>
+        • Types (<code>AudiobookMetadata</code>, <code>MetadataIntentPatch</code>) are specta-typed and cross the TS↔Rust boundary.
+      </div>
+    </div>
+  </div>
+
+  <!-- OUTPUT PATH -->
+  <div id="backend-output" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>audio/output_path <span class="badge">~1,971 LOC · 7 files</span></h3>
+        <span class="tag rust">Deep module</span>
+      </div>
+      <p>
+        Output path planning, naming, collision detection, and filesystem commit.
+        Hides the complexity of template-based naming, collision suffixing, and safe temp→final moves.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>build_output_path_preview(...) -> Result&lt;PathBuf&gt;</code><br/>
+        <code>derive_output_artifact_path(&Path, OutputKind) -> Result&lt;PathBuf&gt;</code><br/>
+        <code>enforce_output_plan_review(...) -> Result&lt;()&gt;</code><br/>
+        <code>OutputPlanReview</code>, <code>ResolvedOutputPlan</code>, <code>CollisionPolicy</code>
+      </div>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">naming.rs</span>
+        <span class="cluster-chip">plan.rs</span>
+        <span class="cluster-chip">review.rs</span>
+        <span class="cluster-chip">collision.rs</span>
+        <span class="cluster-chip">artifact.rs</span>
+        <span class="cluster-chip">commit.rs</span>
+        <span class="cluster-chip">types.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>naming.rs</strong> builds filenames from metadata templates (title, artist, series, year).<br/>
+        <strong>plan.rs</strong> resolves the full output plan including directories and extension.<br/>
+        <strong>review.rs</strong> presents the plan for UI confirmation (collision dialog).<br/>
+        <strong>collision.rs</strong> detects existing files and applies suffix/renaming policies.<br/>
+        <strong>commit.rs</strong> performs the atomic temp-to-final move.
+      </p>
+      <div class="contract-box out">
+        <strong>Downstream contracts:</strong><br/>
+        • Called by <code>commands::audio::preview_output_path</code> (UI preview).<br/>
+        • Called by <code>commands::audio_processing::plan</code> (pre-flight).<br/>
+        • Used inside <code>processor::finalize</code> to land the output file.
+      </div>
+    </div>
+  </div>
+
+  <!-- JOB REGISTRY -->
+  <div id="backend-registry" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>audio/job_registry <span class="badge">~342 LOC · 3 files</span></h3>
+        <span class="tag rust">Deep module</span>
+      </div>
+      <p>
+        Concurrency lifecycle surface. Manages parallel batch processing using a semaphore-backed
+        registry with per-job cancellation and global cancel-all.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>JobRegistry::new(max) / ::auto()</code><br/>
+        <code>register_job() -> (JobId, OwnedSemaphorePermit)</code><br/>
+        <code>scheduler() -> BatchScheduler</code><br/>
+        <code>cancel_all()</code>, <code>cancel_job(JobId)</code><br/>
+        <code>update_max_concurrent(max) -> Result&lt;usize&gt;</code><br/>
+        <code>CancellationChecker</code> (sync flag checker for hot loops)
+      </div>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">mod.rs</span>
+        <span class="cluster-chip">types.rs</span>
+        <span class="cluster-chip">cancel.rs</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>types.rs</strong> defines <code>Job</code>, <code>JobId</code>, <code>JobState</code>, <code>AggregateJobStatus</code>.<br/>
+        <strong>cancel.rs</strong> holds the <code>CancellationChecker</code> struct that wraps atomic booleans.
+      </p>
+      <div class="contract-box out">
+        <strong>Downstream contracts:</strong><br/>
+        • Managed as Tauri state (<code>ManagedJobRegistry = Arc&lt;JobRegistry&gt;</code>).<br/>
+        • Injected into <code>process_audiobook_files</code> and <code>cancel_processing</code> commands.<br/>
+        <code>BatchScheduler::run_batch</code> is used by <code>commands::audio_processing::run</code> for batch dispatch.
+      </div>
+    </div>
+  </div>
+
+  <!-- COMMANDS -->
+  <div id="backend-commands" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>commands <span class="badge">~696 LOC · 5 files</span></h3>
+        <span class="tag boundary">Boundary layer</span>
+      </div>
+      <p>
+        Tauri command surface. Thin wrappers that translate TS payloads into Rust domain calls
+        and serialize results back through specta. No heavy logic lives here.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">audio.rs</span>
+        <span class="cluster-chip">metadata.rs</span>
+        <span class="cluster-chip">system.rs</span>
+        <span class="cluster-chip">audio_processing/run.rs</span>
+        <span class="cluster-chip">audio_processing/plan.rs</span>
+        <span class="cluster-chip">audio_processing/terminal_outcomes.rs</span>
+        <span class="cluster-chip">metadata_lookup/mod.rs</span>
+        <span class="cluster-chip">metadata_lookup/service.rs</span>
+        <span class="cluster-chip">metadata_lookup/parse.rs</span>
+        <span class="cluster-chip">metadata_lookup/mapping.rs</span>
+        <span class="cluster-chip">metadata_lookup/providers/*.rs</span>
+      </div>
+      <div class="contract-box event">
+        <strong>Command inventory (17 commands):</strong><br/>
+        ping · echo · validate_files · analyze_audio_files · read_audio_metadata · write_cover_art · load_cover_art_file · load_cover_art_from_url · save_metadata_to_file · search_online_metadata · validate_encoder_settings · list_available_encoders · refresh_external_toolchain · preview_output_path · preflight_processing_plan · get_max_concurrent_jobs · set_max_concurrent_jobs · process_audiobook_files · cancel_processing
+      </div>
+      <div class="contract-box out">
+        <strong>Key architectural note:</strong><br/>
+        <code>commands::audio_processing::run</code> (761 LOC) is an orchestrator, not a deep module.
+        It bridges command inputs → <code>processor</code> → <code>job_registry</code> → event emission.
+        Its size is justified by the explicit stage dispatch (merge vs batch) and terminal outcome classification.
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDIO UMBRELLA -->
+  <div id="backend-audio" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>audio (umbrella) <span class="badge">~2,311 LOC total</span></h3>
+        <span class="tag rust">Domain umbrella</span>
+      </div>
+      <p>
+        The <code>audio</code> module is a domain umbrella that re-exports subsystems and defines shared types
+        (<code>AudioFile</code>, <code>ProcessingProgress</code>, <code>ProcessingStage</code>, <code>SampleRateConfig</code>).
+      </p>
+      <h4>Sub-clusters beneath the umbrella</h4>
+      <table>
+        <tr><th>Submodule</th><th>LOC</th><th>Role</th></tr>
+        <tr><td>context</td><td>333</td><td>ProcessingContext builder & OutputConfig</td></tr>
+        <tr><td>progress</td><td>380</td><td>ProgressEvent/QueueEvent emission + formatting</td></tr>
+        <tr><td>settings</td><td>~120</td><td>Encoder settings validation</td></tr>
+        <tr><td>settings_encoder</td><td>~180</td><td>Encoder option resolution & validation</td></tr>
+        <tr><td>file_list</td><td>~160</td><td>Input file probing & FileListInfo</td></tr>
+        <tr><td>metrics</td><td>~80</td><td>ProcessingMetrics accumulation</td></tr>
+        <tr><td>path_validation</td><td>~120</td><td>Input audio/image path validation</td></tr>
+        <tr><td>toolchain</td><td>~200</td><td>Encoder availability detection (native/FDK/Apple)</td></tr>
+        <tr><td>cleanup</td><td>213</td><td>CleanupGuard + temp resource removal</td></tr>
+        <tr><td>buffer</td><td>~60</td><td>Sample buffer helpers</td></tr>
+        <tr><td>extensions</td><td>~40</td><td>File extension constants</td></tr>
+        <tr><td>preview_config</td><td>~60</td><td>Preview duration & chapter slicing</td></tr>
+        <tr><td>session</td><td>~40</td><td>Session ID generation</td></tr>
+        <tr><td>constants</td><td>~30</td><td>Event name constants</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2 id="sec-frontend">3. Frontend Deep Modules (TypeScript / Svelte)</h2>
+
+  <div class="tabs">
+    <div class="tab active" data-target="frontend-status">ui/statusPanel</div>
+    <div class="tab" data-target="frontend-tauri">lib/tauri</div>
+    <div class="tab" data-target="frontend-filelist">ui/fileList</div>
+    <div class="tab" data-target="frontend-encoder">ui/encoderPanel</div>
+    <div class="tab" data-target="frontend-output">ui/outputPanel</div>
+    <div class="tab" data-target="frontend-metadataform">ui/metadataForm</div>
+    <div class="tab" data-target="frontend-fileimport">ui/fileImport</div>
+    <div class="tab" data-target="frontend-coverart">ui/coverArt</div>
+    <div class="tab" data-target="frontend-metadatalookup">ui/metadataLookup</div>
+    <div class="tab" data-target="frontend-collisiondialog">ui/collisionDialog</div>
+  </div>
+
+  <!-- STATUS PANEL -->
+  <div id="frontend-status" class="section active">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/statusPanel <span class="badge">~1,699 LOC · 14 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        The most complex frontend module. Manages job lifecycle state, progress aggregation,
+        queue rendering, and the connection to Tauri events. Uses a local state machine to
+        model UI state transitions independently of Rust event shapes.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>StatusPanelIsland</code> (Svelte component)<br/>
+        Internal: <code>stateMachine.ts</code>, <code>queueState.ts</code>, <code>aggregate.ts</code>, <code>progressSubscription.ts</code>
+      </div>
+      <h4>Cluster — Domain</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">domain/stateMachine.ts</span>
+        <span class="cluster-chip">domain/stateMachineTypes.ts</span>
+        <span class="cluster-chip">domain/stateMachineHelpers.ts</span>
+        <span class="cluster-chip">domain/queueState.ts</span>
+        <span class="cluster-chip">domain/aggregate.ts</span>
+        <span class="cluster-chip">domain/jobKeys.ts</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>stateMachine.ts</strong> defines UI states (Idle, Running, Completed, Failed, Cancelled) and transitions.<br/>
+        <strong>aggregate.ts</strong> rolls up per-file progress into overall stage/progress/ETA.<br/>
+        <strong>queueState.ts</strong> tracks which files are queued, active, or terminal.
+      </p>
+      <h4>Cluster — Services & Rendering</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">services/progressSubscription.ts</span>
+        <span class="cluster-chip">services/coverArtTracker.ts</span>
+        <span class="cluster-chip">services/fileLookup.ts</span>
+        <span class="cluster-chip">render.ts</span>
+        <span class="cluster-chip">preview.ts</span>
+        <span class="cluster-chip">controller.ts</span>
+        <span class="cluster-chip">feedback.ts</span>
+        <span class="cluster-chip">events.ts</span>
+        <span class="cluster-chip">processing.ts</span>
+        <span class="cluster-chip">runtimeApi.ts</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Upstream contracts:</strong><br/>
+        • Subscribes to <code>processing-progress</code> and <code>processing-queue</code> events via <code>tauriClient.listen</code>.<br/>
+        • Calls <code>tauriClient.processAudiobookFiles</code>, <code>cancelProcessing</code>, etc.<br/>
+        • Reads <code>FileListInfo</code> and <code>ProcessingPreflightPlan</code> from backend.
+      </div>
+    </div>
+  </div>
+
+  <!-- TAURI LIB -->
+  <div id="frontend-tauri" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>lib/tauri <span class="badge">~783 LOC · 4 files</span></h3>
+        <span class="tag boundary">Boundary adapter</span>
+      </div>
+      <p>
+        The IPC boundary adapter. Every Tauri command and event crosses through here.
+        Wraps auto-generated specta bindings with normalization, type-safe command specs,
+        and event adapters.
+      </p>
+      <div class="contract-box">
+        <strong>Public API surface:</strong><br/>
+        <code>tauriClient</code> — single object exposing all commands and <code>listen</code>.<br/>
+        <code>commandSpecs</code> — typed command wrappers around generated bindings.<br/>
+        <code>normalizeProgressEvent</code> / <code>normalizeQueueEvent</code> — shape adapters.
+      </div>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">client.ts</span>
+        <span class="cluster-chip">commands.ts</span>
+        <span class="cluster-chip">normalizers.ts</span>
+        <span class="cluster-chip">appError.ts</span>
+      </div>
+      <p style="font-size:.9rem; color:var(--muted)">
+        <strong>client.ts</strong> is the canonical entrypoint; UI code must not call generated bindings directly.<br/>
+        <strong>commands.ts</strong> wraps <code>src/lib/generated/tauri.ts</code> (specta output) with explicit types.<br/>
+        <strong>normalizers.ts</strong> converts Rust event shapes into frontend-friendly shapes.
+      </p>
+      <div class="contract-box out">
+        <strong>Upstream contracts:</strong><br/>
+        • Generated from Rust via <code>tauri-specta</code> (<code>ipc_contract.rs</code>).<br/>
+        • Tests in <code>src/lib/tauri-client.test.ts</code> verify adapter behavior.<br/>
+        • Drift check: <code>scripts/check-generated-bindings.sh</code> blocks CI on mismatch.
+      </div>
+    </div>
+  </div>
+
+  <!-- FILE LIST -->
+  <div id="frontend-filelist" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/fileList <span class="badge">~1,482 LOC · 8 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Manages the drag-and-drop file list, reordering, selection, and the inspector panel
+        that shows per-file audio properties (bitrate, sample rate, codec, decoder).
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">viewState.svelte.ts</span>
+        <span class="cluster-chip">inspectorState.svelte.ts</span>
+        <span class="cluster-chip">FileListIsland.svelte</span>
+        <span class="cluster-chip">FileListItem.svelte</span>
+        <span class="cluster-chip">FileListReorder.svelte</span>
+        <span class="cluster-chip">FileListSelection.svelte</span>
+        <span class="cluster-chip">FileListEmpty.svelte</span>
+        <span class="cluster-chip">FileListToolbar.svelte</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Reads <code>FileListInfo</code> from backend via <code>tauriClient.analyzeAudioFiles</code>.<br/>
+        • Emits selection changes to <code>ui/metadataForm</code> and <code>ui/coverArt</code>.<br/>
+        • Reorder events update the <code>ProcessPayload</code> input order.
+      </div>
+    </div>
+  </div>
+
+  <!-- ENCODER PANEL -->
+  <div id="frontend-encoder" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/encoderPanel <span class="badge">~1,036 LOC · 4 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Encoder settings UI: bitrate, sample rate, channels, encoder selection (Native AAC / Apple AAC / FDK),
+        afterburner, threading. Syncs with backend toolchain detection.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">EncoderPanelIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">EncoderSettings.svelte</span>
+        <span class="cluster-chip">EncoderAvailability.svelte</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Calls <code>tauriClient.listAvailableEncoders</code> and <code>refreshExternalToolchain</code>.<br/>
+        • Validates via <code>tauriClient.validateEncoderSettings</code>.<br/>
+        • Produces <code>EncoderSettings</code> payload for <code>ProcessPayload</code>.
+      </div>
+    </div>
+  </div>
+
+  <!-- OUTPUT PANEL -->
+  <div id="frontend-output" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/outputPanel <span class="badge">~774 LOC · 6 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Output directory selection, naming template preview, and collision policy UI.
+        Bridges user output preferences to backend path planning.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">OutputPanelIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">pathBuilder.ts</span>
+        <span class="cluster-chip">actions.ts</span>
+        <span class="cluster-chip">preview.ts</span>
+        <span class="cluster-chip">index.ts</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Calls <code>tauriClient.previewOutputPath</code> for live path preview.<br/>
+        • Produces <code>OutputNamingConfig</code> for <code>ProcessPayload</code>.<br/>
+        • Receives <code>OutputPlanReview</code> data for collision dialog triggers.
+      </div>
+    </div>
+  </div>
+
+  <!-- METADATA FORM -->
+  <div id="frontend-metadataform" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/metadataForm <span class="badge">~701 LOC · 3 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Captures and validates metadata intent (title, author, narrator, year, etc.) before crossing to backend.
+        Maintains preview state and dirty/save status.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">MetadataFormFieldsIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">previewState.svelte.ts</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Emits <code>MetadataIntentPatch</code> to <code>tauriClient.saveMetadataIntentToFile</code>.<br/>
+        • Receives <code>read_audio_metadata</code> results for hydration.<br/>
+        • Syncs with <code>ui/coverArt</code> for cover-art embedding state.
+      </div>
+    </div>
+  </div>
+
+  <!-- FILE IMPORT -->
+  <div id="frontend-fileimport" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/fileImport <span class="badge">~599 LOC · 4 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Drag-and-drop file import, cover art drop handling, and supported audio type detection.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">FileImportIsland.svelte</span>
+        <span class="cluster-chip">handlers.ts</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">supportedAudio.ts</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Emits imported files to <code>ui/fileList</code>.<br/>
+        • Handles cover-art drop events for <code>ui/coverArt</code>.
+      </div>
+    </div>
+  </div>
+
+  <!-- COVER ART -->
+  <div id="frontend-coverart" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/coverArt <span class="badge">~487 LOC · 3 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Cover art display, load from file/URL, and embedding orchestration.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">CoverArtIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">tests</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Calls <code>tauriClient.loadCoverArtFile</code> / <code>loadCoverArtFromUrl</code>.<br/>
+        • Produces <code>CoverArtPayload</code> for <code>ProcessPayload</code> and metadata save.
+      </div>
+    </div>
+  </div>
+
+  <!-- METADATA LOOKUP -->
+  <div id="frontend-metadatalookup" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/metadataLookup <span class="badge">~392 LOC · 2 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Online metadata search UI and result mapping.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">MetadataLookupIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Calls <code>tauriClient.searchOnlineMetadata</code>.<br/>
+        • Maps lookup results into <code>MetadataIntentPatch</code> for <code>ui/metadataForm</code>.
+      </div>
+    </div>
+  </div>
+
+  <!-- COLLISION DIALOG -->
+  <div id="frontend-collisiondialog" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h3>ui/collisionDialog <span class="badge">~360 LOC · 3 files</span></h3>
+        <span class="tag ts">Deep module</span>
+      </div>
+      <p>
+        Output collision review dialog and state management.
+      </p>
+      <h4>Cluster</h4>
+      <div class="cluster-list">
+        <span class="cluster-chip">CollisionDialogIsland.svelte</span>
+        <span class="cluster-chip">state.svelte.ts</span>
+        <span class="cluster-chip">tests</span>
+      </div>
+      <div class="contract-box out">
+        <strong>Contracts:</strong><br/>
+        • Receives <code>OutputPlanReview</code> from <code>ui/outputPanel</code>.<br/>
+        • Emits user collision decisions back into processing plan.
+      </div>
+    </div>
+  </div>
+
+  <h2 id="sec-ipc">4. IPC Boundary — Commands & Events</h2>
+  <div class="card">
+    <h3>TS ↔ Rust Contract Surface</h3>
+    <p>
+      The boundary is generated by <strong>specta</strong> (Rust) and consumed by <strong>tauri-specta</strong> (TypeScript).
+      All commands and events are declared in <code>src-tauri/src/ipc_contract.rs</code>.
+      The generated file is <code>src/lib/generated/tauri.ts</code>.
+    </p>
+    <div class="grid-2">
+      <div>
+        <h4>Commands (17)</h4>
+        <table>
+          <tr><th>Command</th><th>Domain</th></tr>
+          <tr><td>ping / echo</td><td>system</td></tr>
+          <tr><td>validate_files</td><td>path</td></tr>
+          <tr><td>analyze_audio_files</td><td>audio</td></tr>
+          <tr><td>read_audio_metadata</td><td>metadata</td></tr>
+          <tr><td>write_cover_art</td><td>metadata</td></tr>
+          <tr><td>load_cover_art_file</td><td>image</td></tr>
+          <tr><td>load_cover_art_from_url</td><td>image</td></tr>
+          <tr><td>save_metadata_to_file</td><td>metadata</td></tr>
+          <tr><td>search_online_metadata</td><td>lookup</td></tr>
+          <tr><td>validate_encoder_settings</td><td>encoder</td></tr>
+          <tr><td>list_available_encoders</td><td>encoder</td></tr>
+          <tr><td>refresh_external_toolchain</td><td>encoder</td></tr>
+          <tr><td>preview_output_path</td><td>output</td></tr>
+          <tr><td>preflight_processing_plan</td><td>plan</td></tr>
+          <tr><td>get/set_max_concurrent_jobs</td><td>registry</td></tr>
+          <tr><td>process_audiobook_files</td><td>process</td></tr>
+          <tr><td>cancel_processing</td><td>registry</td></tr>
+        </table>
+      </div>
+      <div>
+        <h4>Events (2)</h4>
+        <table>
+          <tr><th>Event</th><th>Rust type</th><th>Frontend normalizer</th></tr>
+          <tr><td>processing-progress</td><td><code>ProgressEvent</code></td><td><code>normalizeProgressEvent</code></td></tr>
+          <tr><td>processing-queue</td><td><code>QueueEvent</code></td><td><code>normalizeQueueEvent</code></td></tr>
+        </table>
+        <h4>Error Contract</h4>
+        <p style="font-size:.85rem; color:var(--muted)">
+          All commands return <code>Result&lt;T, AppErrorEnvelope&gt;</code>.<br/>
+          <code>AppErrorEnvelope</code> carries <code>code</code>, <code>category</code>, <code>message</code>, <code>detail</code>.<br/>
+          Categories: Validation, Cancellation, Toolchain, Processing, Resource, Io, Internal.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="sec-flow">5. High-Level Flow</h2>
+
+  <div class="card">
+    <h3>A. User Initiates Processing (Merge or Batch)</h3>
+    <div class="svg-wrap">
+      <div class="flow">
+        <div class="flow-node">UI<br/><small>App.svelte</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">tauriClient<br/><small>lib/tauri</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">process_audiobook_files<br/><small>commands::audio</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">ProcessingRun::execute<br/><small>commands/audio_processing/run</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">prepare_execution_plan<br/><small>commands/audio_processing/plan</small></div>
+      </div>
+      <div class="flow">
+        <div class="flow-node">Plan resolved</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">dispatch_merge_job<br/><small>or dispatch_batch_jobs</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">JobRegistry<br/><small>register_job + scheduler</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">process_audiobook_with_context<br/><small>audio::processor</small></div>
+      </div>
+    </div>
+
+    <h3>B. Inside the Processor (3-Stage Pipeline)</h3>
+    <div class="svg-wrap">
+      <div class="flow">
+        <div class="flow-node" style="border-color:var(--accent)">prepare<br/><small>validate + detect sample rate + temp dir</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" style="border-color:var(--accent-2)">execute<br/><small>engine.rs / adapter.rs<br/>encode + mux</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" style="border-color:var(--accent-3)">finalize<br/><small>metadata write + move + cleanup</small></div>
+      </div>
+    </div>
+
+    <h3>C. Metadata-Only Save (Cmd+S)</h3>
+    <div class="svg-wrap">
+      <div class="flow">
+        <div class="flow-node">UI<br/><small>MetadataFormFieldsIsland</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">saveMetadataFromUI<br/><small>ui/core/actions</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">tauriClient<br/><small>saveMetadataIntentToFile</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">save_metadata_to_file<br/><small>commands::metadata</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">MetadataIntentPatch<br/><small>→ MetadataWritePlan</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">save_metadata_with_plan<br/><small>metadata::mod</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">mp4ameta_bridge<br/><small>or remux</small></div>
+      </div>
+    </div>
+
+    <h3>D. Progress & Cancellation Loop</h3>
+    <div class="svg-wrap">
+      <div class="flow">
+        <div class="flow-node">processor<br/><small>emit progress</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Tauri Window<br/><small>ProgressEvent</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">normalizers.ts<br/><small>shape adapt</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">statusPanel<br/><small>state machine update</small></div>
+      </div>
+      <div class="flow" style="margin-top:10px">
+        <div class="flow-node">UI Cancel button</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">cancelProcessing</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">JobRegistry<br/><small>global_cancel = true</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">CancellationChecker<br/><small>processor reads flag</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="sec-observations">6. Additional High-Level Observations</h2>
+
+  <div class="card">
+    <h3>6.1 Dependency Categories (per deep module)</h3>
+    <table>
+      <tr><th>Module</th><th>Dependency category</th><th>Notes</th></tr>
+      <tr>
+        <td>audio/processor</td>
+        <td>Local-substitutable + True external</td>
+        <td>
+          ffmpeg-next is a true external (system FFmpeg libs). The external_fdk adapter shells out to a user-provided binary,
+          making it a port-and-adapter boundary (port = <code>MediaProcessor</code>, adapters = native/FDK/Apple).
+        </td>
+      </tr>
+      <tr>
+        <td>metadata</td>
+        <td>Local-substitutable + True external</td>
+        <td>
+          mp4ameta is an external crate (direct atom editing). FFmpeg remux is external tool invocation.
+          The module hides the choice behind <code>save_metadata_with_plan</code>.
+        </td>
+      </tr>
+      <tr>
+        <td>audio/job_registry</td>
+        <td>In-process</td>
+        <td>Pure tokio concurrency; no I/O. Deepenable and already deep.</td>
+      </tr>
+      <tr>
+        <td>audio/output_path</td>
+        <td>Local-substitutable</td>
+        <td>Filesystem I/O only; could be tested with a temp dir stand-in.</td>
+      </tr>
+      <tr>
+        <td>commands</td>
+        <td>Boundary glue</td>
+        <td>Thin layer; not a candidate for deepening. Keeps Tauri wiring separate from domain logic.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>6.2 False Seams & Boundary Glue Assessment</h3>
+    <p style="font-size:.9rem; color:var(--muted)">
+      Based on the reference criteria (trivial wrappers, identity adapters, dead exports, mirror APIs):
+    </p>
+    <table>
+      <tr><th>Observation</th><th>Classification</th><th>Rationale</th></tr>
+      <tr>
+        <td><code>commands::audio_processing::run</code> (761 LOC)</td>
+        <td><strong>Keep</strong></td>
+        <td>
+          Large but owns explicit dispatch logic (merge vs batch), terminal outcome classification,
+          and event emission. Removing it would push orchestration into <code>processor</code>, blurring command/domain boundaries.
+        </td>
+      </tr>
+      <tr>
+        <td><code>commands::audio_processing::plan</code> (707 LOC)</td>
+        <td><strong>Keep</strong></td>
+        <td>
+          Owns collision review, output directory validation, and per-job metadata resolution.
+          This is policy wiring, not pure forwarding.
+        </td>
+      </tr>
+      <tr>
+        <td><code>audio/mod.rs</code> re-exports (~30 re-exports)</td>
+        <td><strong>Keep</strong></td>
+        <td>
+          Semantic umbrella module. The re-exports give callers a single import surface.
+          Removing them would scatter imports across 10+ submodules.
+        </td>
+      </tr>
+      <tr>
+        <td><code>lib.rs</code> metadata re-exports (ffmpeg_add_cover_art_stream_pre_header, etc.)</td>
+        <td><strong>Bundle later</strong></td>
+        <td>
+          Test-facing passthrough helpers. They are legitimate but create a second public surface.
+          Could be consolidated into a test-only facade when the test boundary is next refactored.
+        </td>
+      </tr>
+      <tr>
+        <td>frontend <code>ui/core/actions.ts</code></td>
+        <td><strong>Keep</strong></td>
+        <td>
+          Centralizes metadata-save action orchestration. Thin but expresses domain intent (Cmd+S workflow).
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>6.3 Notable Architectural Strengths</h3>
+    <ul style="font-size:.9rem; color:var(--muted)">
+      <li><strong>Explicit stage boundaries</strong> in processor (prepare → execute → finalize) make the pipeline traceable.</li>
+      <li><strong>Container-aware metadata routing</strong> (MP4-family vs remux) is hidden behind a single function.</li>
+      <li><strong>Intent-based metadata edits</strong> (Set/Clear/Noop + Recompute) make UI→backend semantics lossless.</li>
+      <li><strong>Generated IPC bindings</strong> with drift checks prevent TS↔Rust contract skew.</li>
+      <li><strong>JobRegistry</strong> centralizes concurrency, making cancellation and backpressure observable.</li>
+      <li><strong>AGENTS.md files</strong> at module boundaries document invariants locally — a strong ownership signal.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>6.4 Friction Points (Canary Triggers)</h3>
+    <ul style="font-size:.9rem; color:var(--muted)">
+      <li>
+        <strong>Processor size:</strong> <code>audio/processor</code> and its encoder subtree exceed the 400 LOC module target.
+        The encoder options split (native/fdk/apple) is good, but the parent module is still a large gravity well.
+      </li>
+      <li>
+        <strong>Run orchestrator size:</strong> <code>commands/audio_processing/run.rs</code> at 761 LOC is an orchestrator
+        that may accumulate more dispatch logic over time. Worth monitoring for helper extraction.
+      </li>
+      <li>
+        <strong>Frontend statusPanel depth:</strong> At ~1,699 LOC (plus extensive tests), this is the deepest frontend module.
+        The state machine abstraction is strong, but the render/processing paths could split further.
+      </li>
+      <li>
+        <strong>Test-only exports in lib.rs:</strong> The ffmpeg cover-art re-exports are public for integration tests.
+        This is a real seam but leaks internal metadata symbols into the crate root.
+      </li>
+    </ul>
+  </div>
+
+  <div style="margin-top: 24px; color:var(--muted); font-size:.85rem; border-top:1px solid var(--border); padding-top:12px;">
+    Generated from codebase audit on 2026-05-11. No code changes were made.
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tabs').forEach(tabGroup => {
+    const tabs = tabGroup.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const targetId = tab.dataset.target;
+        const parent = tabGroup.parentElement;
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        parent.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+        const target = parent.querySelector('#' + targetId);
+        if (target) target.classList.add('active');
+      });
+    });
+  });
+</script>
+</body>
+</html>

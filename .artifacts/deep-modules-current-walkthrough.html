@@ -6,24 +6,24 @@
     <title>Audiobook Boss Grey-Box Current State Walkthrough</title>
     <style>
       :root {
-        --ink: #172033;
-        --muted: #5e6b82;
-        --faint: #edf1f7;
-        --panel: #ffffff;
-        --line: #cfdae8;
-        --blue: #2f6df6;
-        --blue-soft: #edf4ff;
-        --teal: #0f9489;
-        --teal-soft: #e8fbf8;
-        --purple: #9b48e8;
-        --purple-soft: #f5edff;
-        --green: #159947;
-        --green-soft: #ebfaef;
-        --orange: #f16622;
-        --orange-soft: #fff2e9;
-        --gray: #69778c;
-        --gray-soft: #f5f7fb;
-        --shadow: 0 14px 34px rgba(30, 45, 70, 0.1);
+        --ink: #e6e8ef;
+        --muted: #9aa3b2;
+        --faint: #1b1f27;
+        --panel: #161920;
+        --line: #2a2f3a;
+        --blue: #4fc1ff;
+        --blue-soft: #0f1f33;
+        --teal: #0d9488;
+        --teal-soft: #142a2a;
+        --purple: #c084fc;
+        --purple-soft: #1f1a2e;
+        --green: #15803d;
+        --green-soft: #142a1f;
+        --orange: #ffa657;
+        --orange-soft: #2a1f14;
+        --gray: #9aa3b2;
+        --gray-soft: #1b1f27;
+        --shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
       }
 
       * {
@@ -35,8 +35,7 @@
         font-family:
           Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--ink);
-        background:
-          linear-gradient(180deg, #f8fbff 0%, #eef3fa 44%, #f8fafc 100%);
+        background: #0f1115;
         line-height: 1.45;
       }
 
@@ -96,11 +95,11 @@
       }
 
       code {
-        border: 1px solid #d8e0eb;
+        border: 1px solid #2a2f3a;
         border-radius: 6px;
         padding: 0.1rem 0.28rem;
-        background: #f8fafc;
-        color: #22314d;
+        background: #0f1115;
+        color: #e6e8ef;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-size: 0.9em;
       }
@@ -112,10 +111,10 @@
         align-items: start;
         margin: 16px 0 20px;
         padding: 14px 16px;
-        border: 1px solid #f3c78c;
+        border: 1px solid #8a6d3b;
         border-radius: 10px;
-        background: #fff9ef;
-        color: #5b3b11;
+        background: #2a1f14;
+        color: #e6c288;
       }
 
       .notice strong {
@@ -131,16 +130,16 @@
         gap: 8px;
         flex-wrap: wrap;
         padding: 10px 0;
-        background: rgba(248, 251, 255, 0.92);
+        background: rgba(15, 17, 21, 0.92);
         backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(207, 218, 232, 0.8);
+        border-bottom: 1px solid rgba(42, 47, 58, 0.8);
       }
 
       .tab {
         appearance: none;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: #ffffff;
+        background: var(--panel);
         color: var(--ink);
         padding: 8px 12px;
         font: inherit;
@@ -156,7 +155,7 @@
 
       .tab:focus-visible,
       .copy-button:focus-visible {
-        outline: 3px solid rgba(47, 109, 246, 0.28);
+        outline: 3px solid rgba(79, 193, 255, 0.28);
         outline-offset: 2px;
       }
 
@@ -216,25 +215,25 @@
         font-weight: 800;
         border: 1px solid var(--line);
         color: var(--muted);
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .chip.done {
-        color: #0f6730;
+        color: #7ee787;
         background: var(--green-soft);
-        border-color: #b9e9c7;
+        border-color: #1f3a2a;
       }
 
       .chip.pending {
-        color: #8a4a09;
+        color: #ffa657;
         background: var(--orange-soft);
-        border-color: #facda8;
+        border-color: #3a2a1f;
       }
 
       .chip.guard {
-        color: #244b9c;
+        color: #93c5fd;
         background: var(--blue-soft);
-        border-color: #bbcffb;
+        border-color: #1a2f5a;
       }
 
       .module-card {
@@ -286,7 +285,7 @@
         border: 1px solid var(--line);
         border-radius: 8px;
         padding: 9px 10px;
-        background: #fbfdff;
+        background: #161920;
       }
 
       .api strong {
@@ -299,7 +298,7 @@
         overflow: hidden;
         border-radius: 14px;
         border: 1px solid var(--line);
-        background: #ffffff;
+        background: var(--panel);
         box-shadow: var(--shadow);
         padding: 18px;
       }
@@ -376,9 +375,9 @@
         border-radius: 14px;
         overflow: hidden;
         background:
-          linear-gradient(180deg, rgba(248, 251, 255, 0.84), rgba(255, 255, 255, 0.96)),
-          repeating-linear-gradient(0deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px),
-          repeating-linear-gradient(90deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px);
+          linear-gradient(180deg, rgba(15, 17, 21, 0.84), rgba(22, 25, 32, 0.96)),
+          repeating-linear-gradient(0deg, transparent 0 37px, rgba(42, 47, 58, 0.28) 38px),
+          repeating-linear-gradient(90deg, transparent 0 37px, rgba(42, 47, 58, 0.28) 38px);
       }
 
       .map-svg {
@@ -392,14 +391,14 @@
 
       .map-arrow {
         fill: none;
-        stroke: #6f7f94;
+        stroke: #9aa3b2;
         stroke-width: 3.2;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
       .map-arrow.secondary {
-        stroke: #98a5b8;
+        stroke: #5a6270;
         stroke-dasharray: 9 8;
         stroke-width: 2.6;
       }
@@ -412,7 +411,7 @@
         border-radius: 12px;
         padding: 15px 16px;
         background: var(--gray-soft);
-        box-shadow: 0 10px 22px rgba(30, 45, 70, 0.08);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
       }
 
       .visual-node h3 {
@@ -431,11 +430,11 @@
         border-radius: 999px;
         margin-bottom: 9px;
         padding: 3px 9px;
-        background: rgba(255, 255, 255, 0.74);
-        color: #24324d;
+        background: rgba(22, 25, 32, 0.74);
+        color: #93c5fd;
         font-size: 0.76rem;
         font-weight: 900;
-        border: 1px solid rgba(207, 218, 232, 0.9);
+        border: 1px solid rgba(42, 47, 58, 0.9);
       }
 
       .visual-node.runtime {
@@ -578,7 +577,7 @@
         border: 2px solid var(--line);
         border-radius: 11px;
         padding: 13px;
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .call-card.caller {
@@ -638,11 +637,11 @@
 
       .mini-code {
         margin-top: 10px;
-        border: 1px solid #d8e0eb;
+        border: 1px solid #2a2f3a;
         border-radius: 8px;
         padding: 10px;
-        background: #fbfdff;
-        color: #22314d;
+        background: #161920;
+        color: #e6e8ef;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-size: 0.82rem;
         line-height: 1.5;
@@ -655,7 +654,7 @@
       }
 
       .learning-note {
-        border: 1px solid #c8d7fb;
+        border: 1px solid #1a2f5a;
         border-radius: 10px;
         padding: 14px 16px;
         background: var(--blue-soft);
@@ -675,7 +674,7 @@
         padding: 12px;
         border: 1px solid var(--line);
         border-radius: 10px;
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .step::before {
@@ -704,7 +703,7 @@
       }
 
       .old-new .old {
-        border-top: 5px solid #8b99ab;
+        border-top: 5px solid #5a6270;
       }
 
       .old-new .new {
@@ -727,7 +726,7 @@
       .copy-button {
         border: 1px solid var(--line);
         border-radius: 7px;
-        background: #ffffff;
+        background: var(--panel);
         padding: 4px 7px;
         font: inherit;
         font-size: 0.78rem;
@@ -740,7 +739,7 @@
         border-collapse: collapse;
         overflow: hidden;
         border-radius: 10px;
-        background: #ffffff;
+        background: var(--panel);
         border: 1px solid var(--line);
       }
 
@@ -753,8 +752,8 @@
       }
 
       .qa-table th {
-        background: #f3f6fb;
-        color: #34435b;
+        background: #0f1115;
+        color: #9aa3b2;
         font-size: 0.82rem;
       }
 
@@ -765,7 +764,7 @@
       details {
         border: 1px solid var(--line);
         border-radius: 9px;
-        background: #ffffff;
+        background: var(--panel);
         padding: 10px 12px;
       }
 
@@ -795,18 +794,18 @@
       .trace-col {
         border: 2px solid var(--line);
         border-radius: 12px;
-        background: #ffffff;
+        background: var(--panel);
         padding: 14px 16px;
       }
 
       .trace-col.old {
-        border-color: #b6c2d3;
-        background: #fafbfd;
+        border-color: #475569;
+        background: #161920;
       }
 
       .trace-col.new {
         border-color: var(--green);
-        background: #f3fbf6;
+        background: #142a1f;
       }
 
       .trace-col h2 {
@@ -825,13 +824,13 @@
         border: 1px solid var(--line);
         border-radius: 999px;
         padding: 3px 9px;
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .trace-col.new .badge {
-        color: #0f6730;
+        color: #7ee787;
         background: var(--green-soft);
-        border-color: #b9e9c7;
+        border-color: #1f3a2a;
       }
 
       .trace-steps {
@@ -850,7 +849,7 @@
         padding: 10px 11px;
         border: 1px solid var(--line);
         border-radius: 9px;
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .trace-step::before {
@@ -872,7 +871,7 @@
       }
 
       .trace-col.old .trace-step::before {
-        background: #6f7f94;
+        background: #9aa3b2;
       }
 
       .trace-step .who {
@@ -910,7 +909,7 @@
       }
 
       .diff-card {
-        background: #ffffff;
+        background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 16px;
@@ -937,17 +936,17 @@
         border: 2px solid var(--line);
         border-radius: 9px;
         padding: 10px 12px;
-        background: #fbfdff;
+        background: #161920;
       }
 
       .diff-side.old {
-        border-color: #b6c2d3;
-        background: #fafbfd;
+        border-color: #475569;
+        background: #161920;
       }
 
       .diff-side.new {
         border-color: var(--green);
-        background: #f3fbf6;
+        background: #142a1f;
       }
 
       .diff-side h4 {
@@ -959,11 +958,11 @@
       }
 
       .diff-side.old h4 {
-        color: #525e74;
+        color: #9aa3b2;
       }
 
       .diff-side.new h4 {
-        color: #0f6730;
+        color: #7ee787;
       }
 
       .diff-side p {
@@ -987,17 +986,17 @@
         border: 1px solid var(--line);
         border-radius: 9px;
         padding: 11px 12px;
-        background: #ffffff;
+        background: var(--panel);
       }
 
       .smell-cell.old {
-        border-color: #b6c2d3;
-        background: #fafbfd;
+        border-color: #475569;
+        background: #161920;
       }
 
       .smell-cell.new {
         border-color: var(--green);
-        background: #f3fbf6;
+        background: #142a1f;
       }
 
       .smell-cell strong {
@@ -1014,9 +1013,9 @@
 
       .read-code {
         margin-top: 14px;
-        border: 1px solid #d8e0eb;
+        border: 1px solid #2a2f3a;
         border-radius: 10px;
-        background: #fbfdff;
+        background: #161920;
         padding: 12px 14px;
       }
 
@@ -1026,14 +1025,14 @@
         font-size: 0.86rem;
         line-height: 1.55;
         white-space: pre-wrap;
-        color: #22314d;
+        color: #e6e8ef;
       }
 
       .read-code .annot {
         display: inline-block;
-        background: #fff7e6;
-        color: #8a4a09;
-        border: 1px dashed #f0c896;
+        background: #2a2a14;
+        color: #ffa657;
+        border: 1px dashed #3a2a1f;
         padding: 0 5px;
         border-radius: 5px;
         font-size: 0.78rem;
@@ -1056,15 +1055,15 @@
       /* Old mental model contrast map */
       .visual-map.legacy {
         background:
-          linear-gradient(180deg, rgba(255, 248, 244, 0.84), rgba(255, 255, 255, 0.96)),
-          repeating-linear-gradient(0deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px),
-          repeating-linear-gradient(90deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px);
+          linear-gradient(180deg, rgba(42, 31, 20, 0.84), rgba(22, 25, 32, 0.96)),
+          repeating-linear-gradient(0deg, transparent 0 37px, rgba(42, 47, 58, 0.28) 38px),
+          repeating-linear-gradient(90deg, transparent 0 37px, rgba(42, 47, 58, 0.28) 38px);
       }
 
       .visual-node.legacy {
         border-style: dashed;
-        border-color: #b6c2d3;
-        background: #fafbfd;
+        border-color: #475569;
+        background: #161920;
       }
 
       .visual-node.legacy h3 {
@@ -1072,8 +1071,8 @@
       }
 
       .visual-node.legacy .api-strip {
-        background: rgba(255, 255, 255, 0.88);
-        color: #525e74;
+        background: rgba(22, 25, 32, 0.88);
+        color: #9aa3b2;
       }
 
       .map-arrow.spaghetti {
@@ -1087,9 +1086,9 @@
         margin-top: 8px;
         padding: 3px 7px;
         border-radius: 6px;
-        background: #fff4ec;
-        color: #8a4a09;
-        border: 1px dashed #f0c896;
+        background: #2a1f14;
+        color: #ffa657;
+        border: 1px dashed #3a2a1f;
         font-size: 0.76rem;
         font-weight: 700;
       }
@@ -1099,9 +1098,9 @@
         z-index: 3;
         padding: 4px 8px;
         border-radius: 6px;
-        background: rgba(255, 255, 255, 0.92);
+        background: rgba(22, 25, 32, 0.92);
         border: 1px dashed var(--orange);
-        color: #8a4a09;
+        color: #ffa657;
         font-size: 0.76rem;
         font-weight: 800;
         max-width: 200px;
@@ -1214,10 +1213,10 @@
             <svg class="map-svg" viewBox="0 0 1000 660" aria-hidden="true">
               <defs>
                 <marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7f94"></path>
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa3b2"></path>
                 </marker>
                 <marker id="arrowhead-soft" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#98a5b8"></path>
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6270"></path>
                 </marker>
               </defs>
               <path class="map-arrow" marker-end="url(#arrowhead)" d="M 485 140 L 260 205"></path>
@@ -1304,10 +1303,10 @@
             <svg class="map-svg" viewBox="0 0 1000 660" aria-hidden="true">
               <defs>
                 <marker id="arrowhead-old" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7f94"></path>
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa3b2"></path>
                 </marker>
                 <marker id="arrowhead-leak" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#f16622"></path>
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffa657"></path>
                 </marker>
               </defs>
               <path class="map-arrow" marker-end="url(#arrowhead-old)" d="M 485 140 L 260 205"></path>
