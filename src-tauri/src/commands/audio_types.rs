@@ -1,7 +1,7 @@
 use crate::audio;
 pub use crate::audio::output_path::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
-    OutputNamingConfig, PlannedOutput, PlannedOutputAction,
+    OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::toolchain::ExternalToolchainPreference;

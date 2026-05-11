@@ -80,6 +80,10 @@ describe('reviewOutputPlanForProcessing', () => {
 						conflictingPath: '/books/a.m4b',
 						detail: 'Output path resolves to an input source file.',
 					},
+					review: {
+						canProceed: false,
+						message: 'Output path resolves to an input source file.',
+					},
 					action: 'review_required',
 				},
 			],
@@ -115,6 +119,11 @@ describe('reviewOutputPlanForProcessing', () => {
 						kind: 'existing_file',
 						conflictingPath: '/tmp/out/a.m4b',
 						detail: 'An existing file already occupies the destination path.',
+					},
+					review: {
+						canProceed: true,
+						message:
+							"Output collision review is required for 'a.m4b'. Re-run preflight and choose how to handle the collision.",
 					},
 					action: 'review_required',
 				},
@@ -170,6 +179,11 @@ describe('reviewOutputPlanForProcessing', () => {
 						kind: 'existing_file',
 						conflictingPath: '/tmp/out/a.m4b',
 						detail: 'An existing file already occupies the destination path.',
+					},
+					review: {
+						canProceed: true,
+						message:
+							"Output collision review is required for 'a.m4b'. Re-run preflight and choose how to handle the collision.",
 					},
 					action: 'review_required',
 				},

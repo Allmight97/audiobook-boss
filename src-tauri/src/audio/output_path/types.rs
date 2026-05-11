@@ -61,6 +61,13 @@ pub struct OutputCollisionInfo {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct OutputReviewRequirement {
+    pub can_proceed: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct PlannedOutput {
     pub input_index: Option<usize>,
     pub input_path: Option<String>,
@@ -69,6 +76,7 @@ pub struct PlannedOutput {
     pub resolved_path: String,
     pub rename_candidate: Option<String>,
     pub collision: Option<OutputCollisionInfo>,
+    pub review: Option<OutputReviewRequirement>,
     pub action: PlannedOutputAction,
 }
 

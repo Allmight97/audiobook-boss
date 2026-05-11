@@ -1,0 +1,3450 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Audiobook Boss Grey-Box Current State Walkthrough</title>
+    <style>
+      :root {
+        --ink: #172033;
+        --muted: #5e6b82;
+        --faint: #edf1f7;
+        --panel: #ffffff;
+        --line: #cfdae8;
+        --blue: #2f6df6;
+        --blue-soft: #edf4ff;
+        --teal: #0f9489;
+        --teal-soft: #e8fbf8;
+        --purple: #9b48e8;
+        --purple-soft: #f5edff;
+        --green: #159947;
+        --green-soft: #ebfaef;
+        --orange: #f16622;
+        --orange-soft: #fff2e9;
+        --gray: #69778c;
+        --gray-soft: #f5f7fb;
+        --shadow: 0 14px 34px rgba(30, 45, 70, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          linear-gradient(180deg, #f8fbff 0%, #eef3fa 44%, #f8fafc 100%);
+        line-height: 1.45;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 44px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+        padding: 8px 0 18px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 4.2rem);
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 1.35rem;
+        margin-bottom: 12px;
+      }
+
+      h3 {
+        font-size: 1rem;
+        margin-bottom: 6px;
+      }
+
+      .lede {
+        max-width: 840px;
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 1.06rem;
+      }
+
+      .meta {
+        text-align: right;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .meta code,
+      .path code {
+        white-space: nowrap;
+      }
+
+      code {
+        border: 1px solid #d8e0eb;
+        border-radius: 6px;
+        padding: 0.1rem 0.28rem;
+        background: #f8fafc;
+        color: #22314d;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.9em;
+      }
+
+      .notice {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        margin: 16px 0 20px;
+        padding: 14px 16px;
+        border: 1px solid #f3c78c;
+        border-radius: 10px;
+        background: #fff9ef;
+        color: #5b3b11;
+      }
+
+      .notice strong {
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      .tabs {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 10px 0;
+        background: rgba(248, 251, 255, 0.92);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(207, 218, 232, 0.8);
+      }
+
+      .tab {
+        appearance: none;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #ffffff;
+        color: var(--ink);
+        padding: 8px 12px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .tab[aria-selected="true"] {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #ffffff;
+      }
+
+      .tab:focus-visible,
+      .copy-button:focus-visible {
+        outline: 3px solid rgba(47, 109, 246, 0.28);
+        outline-offset: 2px;
+      }
+
+      .panel {
+        display: none;
+        margin-top: 20px;
+      }
+
+      .panel.active {
+        display: block;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid.three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid.four {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .card.compact {
+        box-shadow: none;
+        padding: 13px;
+      }
+
+      .chip-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        background: #ffffff;
+      }
+
+      .chip.done {
+        color: #0f6730;
+        background: var(--green-soft);
+        border-color: #b9e9c7;
+      }
+
+      .chip.pending {
+        color: #8a4a09;
+        background: var(--orange-soft);
+        border-color: #facda8;
+      }
+
+      .chip.guard {
+        color: #244b9c;
+        background: var(--blue-soft);
+        border-color: #bbcffb;
+      }
+
+      .module-card {
+        border-top: 5px solid var(--gray);
+      }
+
+      .module-card.blue {
+        border-top-color: var(--blue);
+      }
+
+      .module-card.teal {
+        border-top-color: var(--teal);
+      }
+
+      .module-card.purple {
+        border-top-color: var(--purple);
+      }
+
+      .module-card.orange {
+        border-top-color: var(--orange);
+      }
+
+      .module-card.green {
+        border-top-color: var(--green);
+      }
+
+      .module-card p,
+      .card p,
+      li {
+        color: var(--muted);
+      }
+
+      ul {
+        margin: 10px 0 0;
+        padding-left: 18px;
+      }
+
+      li + li {
+        margin-top: 5px;
+      }
+
+      .api-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .api {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        background: #fbfdff;
+      }
+
+      .api strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .map {
+        position: relative;
+        overflow: hidden;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .lane-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: baseline;
+        margin-bottom: 14px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: 1.05fr 1.05fr 1.05fr;
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .flow-col {
+        display: grid;
+        gap: 12px;
+      }
+
+      .box {
+        min-height: 96px;
+        border: 2px solid var(--line);
+        border-radius: 11px;
+        padding: 13px;
+        background: var(--gray-soft);
+      }
+
+      .box .label {
+        font-weight: 900;
+        margin-bottom: 5px;
+      }
+
+      .box.blue {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .box.teal {
+        border-color: var(--teal);
+        background: var(--teal-soft);
+      }
+
+      .box.purple {
+        border-color: var(--purple);
+        background: var(--purple-soft);
+      }
+
+      .box.orange {
+        border-color: var(--orange);
+        background: var(--orange-soft);
+      }
+
+      .box.green {
+        border-color: var(--green);
+        background: var(--green-soft);
+      }
+
+      .connector {
+        text-align: center;
+        color: var(--muted);
+        font-weight: 800;
+        padding: 4px 0;
+      }
+
+      .visual-map {
+        position: relative;
+        min-height: 720px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(248, 251, 255, 0.84), rgba(255, 255, 255, 0.96)),
+          repeating-linear-gradient(0deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px),
+          repeating-linear-gradient(90deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px);
+      }
+
+      .map-svg {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .map-arrow {
+        fill: none;
+        stroke: #6f7f94;
+        stroke-width: 3.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .map-arrow.secondary {
+        stroke: #98a5b8;
+        stroke-dasharray: 9 8;
+        stroke-width: 2.6;
+      }
+
+      .visual-node {
+        position: absolute;
+        z-index: 2;
+        min-height: 112px;
+        border: 3px solid var(--gray);
+        border-radius: 12px;
+        padding: 15px 16px;
+        background: var(--gray-soft);
+        box-shadow: 0 10px 22px rgba(30, 45, 70, 0.08);
+      }
+
+      .visual-node h3 {
+        margin-bottom: 7px;
+        font-size: 1.02rem;
+      }
+
+      .visual-node p {
+        color: var(--muted);
+      }
+
+      .visual-node .api-strip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        border-radius: 999px;
+        margin-bottom: 9px;
+        padding: 3px 9px;
+        background: rgba(255, 255, 255, 0.74);
+        color: #24324d;
+        font-size: 0.76rem;
+        font-weight: 900;
+        border: 1px solid rgba(207, 218, 232, 0.9);
+      }
+
+      .visual-node.runtime {
+        top: 34px;
+        left: 4%;
+        width: 92%;
+        min-height: 106px;
+        border-color: var(--orange);
+        background: var(--orange-soft);
+      }
+
+      .visual-node.plan {
+        top: 206px;
+        left: 6%;
+        width: 34%;
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .visual-node.output {
+        top: 206px;
+        right: 6%;
+        width: 36%;
+        border-color: var(--teal);
+        background: var(--teal-soft);
+      }
+
+      .visual-node.metadata {
+        top: 410px;
+        left: 6%;
+        width: 34%;
+        border-color: var(--purple);
+        background: var(--purple-soft);
+      }
+
+      .visual-node.status {
+        top: 410px;
+        right: 6%;
+        width: 36%;
+        border-color: var(--green);
+        background: var(--green-soft);
+      }
+
+      .visual-node.execution {
+        top: 540px;
+        left: 38%;
+        width: 24%;
+        min-height: 84px;
+        padding: 12px 14px;
+      }
+
+      .map-caption {
+        position: absolute;
+        z-index: 3;
+        left: 18px;
+        right: 18px;
+        bottom: 14px;
+        max-width: none;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .legend {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .design-choice {
+        border-left: 5px solid var(--blue);
+      }
+
+      .design-choice.teal {
+        border-left-color: var(--teal);
+      }
+
+      .design-choice.purple {
+        border-left-color: var(--purple);
+      }
+
+      .design-choice.orange {
+        border-left-color: var(--orange);
+      }
+
+      .design-choice.green {
+        border-left-color: var(--green);
+      }
+
+      .suggestion-number {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        margin-bottom: 9px;
+        color: #ffffff;
+        background: var(--ink);
+        font-weight: 900;
+      }
+
+      .term-card {
+        border-top: 5px solid var(--gray);
+      }
+
+      .term-card strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .term-card.architecture {
+        border-top-color: var(--orange);
+      }
+
+      .term-card.api-design {
+        border-top-color: var(--blue);
+      }
+
+      .term-card.module-design {
+        border-top-color: var(--teal);
+      }
+
+      .term-card.function-design {
+        border-top-color: var(--purple);
+      }
+
+      .term-card.type-design {
+        border-top-color: var(--green);
+      }
+
+      .call-path {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+        margin-top: 14px;
+      }
+
+      .call-card {
+        border: 2px solid var(--line);
+        border-radius: 11px;
+        padding: 13px;
+        background: #ffffff;
+      }
+
+      .call-card.caller {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .call-card.api-boundary {
+        border-color: var(--green);
+        background: var(--green-soft);
+      }
+
+      .call-card.owner {
+        border-color: var(--teal);
+        background: var(--teal-soft);
+      }
+
+      .call-arrow {
+        display: grid;
+        place-items: center;
+        min-width: 74px;
+        color: var(--muted);
+        font-weight: 900;
+      }
+
+      .review-card {
+        border-left: 5px solid var(--orange);
+      }
+
+      .implementation-card {
+        border-top: 5px solid var(--gray);
+      }
+
+      .implementation-card.function {
+        border-top-color: var(--blue);
+      }
+
+      .implementation-card.method {
+        border-top-color: var(--purple);
+      }
+
+      .implementation-card.type {
+        border-top-color: var(--teal);
+      }
+
+      .implementation-card.class {
+        border-top-color: var(--green);
+      }
+
+      .implementation-card.module {
+        border-top-color: var(--blue);
+      }
+
+      .implementation-card.subsystem {
+        border-top-color: var(--orange);
+      }
+
+      .mini-code {
+        margin-top: 10px;
+        border: 1px solid #d8e0eb;
+        border-radius: 8px;
+        padding: 10px;
+        background: #fbfdff;
+        color: #22314d;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+
+      .judgment-card {
+        border-left: 5px solid var(--teal);
+      }
+
+      .learning-note {
+        border: 1px solid #c8d7fb;
+        border-radius: 10px;
+        padding: 14px 16px;
+        background: var(--blue-soft);
+      }
+
+      .sequence {
+        display: grid;
+        gap: 12px;
+        counter-reset: step;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #ffffff;
+      }
+
+      .step::before {
+        counter-increment: step;
+        content: counter(step);
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: var(--blue);
+        color: #ffffff;
+        font-weight: 900;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 16px;
+      }
+
+      .old-new {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .old-new .old {
+        border-top: 5px solid #8b99ab;
+      }
+
+      .old-new .new {
+        border-top: 5px solid var(--green);
+      }
+
+      .path {
+        margin-top: 9px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .path-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .copy-button {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #ffffff;
+        padding: 4px 7px;
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .qa-table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 10px;
+        background: #ffffff;
+        border: 1px solid var(--line);
+      }
+
+      .qa-table th,
+      .qa-table td {
+        text-align: left;
+        padding: 11px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+
+      .qa-table th {
+        background: #f3f6fb;
+        color: #34435b;
+        font-size: 0.82rem;
+      }
+
+      .qa-table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      details {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #ffffff;
+        padding: 10px 12px;
+      }
+
+      details + details {
+        margin-top: 10px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 900;
+      }
+
+      .footer {
+        margin-top: 26px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      /* MP4 Trace - side-by-side flow comparison */
+      .trace-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-top: 16px;
+      }
+
+      .trace-col {
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 14px 16px;
+      }
+
+      .trace-col.old {
+        border-color: #b6c2d3;
+        background: #fafbfd;
+      }
+
+      .trace-col.new {
+        border-color: var(--green);
+        background: #f3fbf6;
+      }
+
+      .trace-col h2 {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .trace-col .badge {
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 9px;
+        background: #ffffff;
+      }
+
+      .trace-col.new .badge {
+        color: #0f6730;
+        background: var(--green-soft);
+        border-color: #b9e9c7;
+      }
+
+      .trace-steps {
+        counter-reset: trace-step;
+        list-style: none;
+        padding: 0;
+        margin: 12px 0 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .trace-step {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #ffffff;
+      }
+
+      .trace-step::before {
+        counter-increment: trace-step;
+        content: counter(trace-step);
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: var(--gray);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 0.82rem;
+      }
+
+      .trace-col.new .trace-step::before {
+        background: var(--green);
+      }
+
+      .trace-col.old .trace-step::before {
+        background: #6f7f94;
+      }
+
+      .trace-step .who {
+        font-weight: 800;
+        font-size: 0.9rem;
+        margin-bottom: 3px;
+      }
+
+      .trace-step .what {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .trace-step.pivot {
+        border-color: var(--orange);
+        background: var(--orange-soft);
+      }
+
+      .trace-step.pivot::before {
+        background: var(--orange);
+      }
+
+      .trace-legend {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        align-items: center;
+      }
+
+      .diff-grid {
+        display: grid;
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .diff-card {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+      }
+
+      .diff-card h3 {
+        font-size: 1.05rem;
+        margin-bottom: 8px;
+      }
+
+      .diff-card > p {
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+
+      .diff-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .diff-side {
+        border: 2px solid var(--line);
+        border-radius: 9px;
+        padding: 10px 12px;
+        background: #fbfdff;
+      }
+
+      .diff-side.old {
+        border-color: #b6c2d3;
+        background: #fafbfd;
+      }
+
+      .diff-side.new {
+        border-color: var(--green);
+        background: #f3fbf6;
+      }
+
+      .diff-side h4 {
+        font-size: 0.85rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 0 0 6px;
+      }
+
+      .diff-side.old h4 {
+        color: #525e74;
+      }
+
+      .diff-side.new h4 {
+        color: #0f6730;
+      }
+
+      .diff-side p {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin: 0 0 6px;
+      }
+
+      .smell-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .smell-row {
+        display: contents;
+      }
+
+      .smell-cell {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 11px 12px;
+        background: #ffffff;
+      }
+
+      .smell-cell.old {
+        border-color: #b6c2d3;
+        background: #fafbfd;
+      }
+
+      .smell-cell.new {
+        border-color: var(--green);
+        background: #f3fbf6;
+      }
+
+      .smell-cell strong {
+        display: block;
+        font-size: 0.86rem;
+        margin-bottom: 4px;
+      }
+
+      .smell-cell p {
+        margin: 0;
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+
+      .read-code {
+        margin-top: 14px;
+        border: 1px solid #d8e0eb;
+        border-radius: 10px;
+        background: #fbfdff;
+        padding: 12px 14px;
+      }
+
+      .read-code pre {
+        margin: 0;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.86rem;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        color: #22314d;
+      }
+
+      .read-code .annot {
+        display: inline-block;
+        background: #fff7e6;
+        color: #8a4a09;
+        border: 1px dashed #f0c896;
+        padding: 0 5px;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        margin-left: 8px;
+      }
+
+      .read-code .anchor {
+        color: var(--blue);
+        font-weight: 700;
+      }
+
+      @media (max-width: 880px) {
+        .trace-grid,
+        .diff-pair,
+        .smell-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Old mental model contrast map */
+      .visual-map.legacy {
+        background:
+          linear-gradient(180deg, rgba(255, 248, 244, 0.84), rgba(255, 255, 255, 0.96)),
+          repeating-linear-gradient(0deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px),
+          repeating-linear-gradient(90deg, transparent 0 37px, rgba(207, 218, 232, 0.28) 38px);
+      }
+
+      .visual-node.legacy {
+        border-style: dashed;
+        border-color: #b6c2d3;
+        background: #fafbfd;
+      }
+
+      .visual-node.legacy h3 {
+        color: var(--ink);
+      }
+
+      .visual-node.legacy .api-strip {
+        background: rgba(255, 255, 255, 0.88);
+        color: #525e74;
+      }
+
+      .map-arrow.spaghetti {
+        stroke: var(--orange);
+        stroke-dasharray: 7 6;
+        stroke-width: 2.6;
+      }
+
+      .leak-label {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 3px 7px;
+        border-radius: 6px;
+        background: #fff4ec;
+        color: #8a4a09;
+        border: 1px dashed #f0c896;
+        font-size: 0.76rem;
+        font-weight: 700;
+      }
+
+      .map-floating-label {
+        position: absolute;
+        z-index: 3;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px dashed var(--orange);
+        color: #8a4a09;
+        font-size: 0.76rem;
+        font-weight: 800;
+        max-width: 200px;
+        line-height: 1.25;
+      }
+
+      @media (max-width: 880px) {
+        header,
+        .grid.two,
+        .grid.three,
+        .grid.four,
+        .flow,
+        .split,
+        .old-new,
+        .call-path {
+          grid-template-columns: 1fr;
+        }
+
+        .meta {
+          text-align: left;
+        }
+
+        .tabs {
+          position: static;
+        }
+
+        .visual-map {
+          display: grid;
+          gap: 12px;
+          min-height: 0;
+          padding: 14px;
+        }
+
+        .map-svg,
+        .map-caption {
+          display: none;
+        }
+
+        .visual-node,
+        .visual-node.runtime,
+        .visual-node.plan,
+        .visual-node.output,
+        .visual-node.metadata,
+        .visual-node.status,
+        .visual-node.execution {
+          position: static;
+          width: auto;
+          min-height: 0;
+        }
+
+        .call-arrow {
+          min-width: 0;
+          min-height: 38px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>Grey-Box ABB Study Guide</h1>
+          <p class="lede">
+            Interactive map and onboarding guide for <code>audiobook-boss</code> on the
+            <code>arch/grey-box-modules</code> lab branch. Start with
+            <strong>Single MP4 Trace</strong> if you want to see what changed by following one
+            file through both architectures; start with <strong>Global Map</strong> if you want
+            to see the new ownership shape first. The Education and Implementation Terms tabs
+            translate the vocabulary you'll hit along the way.
+          </p>
+        </div>
+        <div class="meta">
+          <div>Generated: 2026-05-11</div>
+          <div>Scope: audit + study guide</div>
+          <div>Audience: system-design learner</div>
+          <div>Status: WIP branch, manual parity pending</div>
+        </div>
+      </header>
+
+      <section class="notice" aria-label="status notice">
+        <div class="chip pending">manual proof pending</div>
+        <div>
+          <strong>Use this as a learning and review map, not as replacement-ready proof.</strong>
+          Automated gates and initial smoke passed, but longer real-book edits, bulk previews, merge,
+          collision choices, safe failure, and representative parity against <code>main</code> still
+          need manual confirmation.
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Walkthrough sections">
+        <button class="tab" type="button" aria-selected="true" data-tab="map">Global Map</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="mp4-trace">Single MP4 Trace</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="modules">Module APIs</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="old-vs-new">Old vs New</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="api-design">API Choices</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="education">Education Lens</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="implementation">Implementation Terms</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="flow">Runtime Flow</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="cleanup">Old Glue Removed</button>
+        <button class="tab" type="button" aria-selected="false" data-tab="proof">Proof And Gaps</button>
+      </nav>
+
+      <section id="map" class="panel active" aria-labelledby="map-tab">
+        <div class="map">
+          <div class="lane-title">
+            <h2>New Mental Model (grey-box branch, current code)</h2>
+            <span class="chip guard">physical frontend/backend split remains</span>
+          </div>
+          <div class="visual-map" aria-label="Current grey-box module visual map">
+            <svg class="map-svg" viewBox="0 0 1000 660" aria-hidden="true">
+              <defs>
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7f94"></path>
+                </marker>
+                <marker id="arrowhead-soft" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#98a5b8"></path>
+                </marker>
+              </defs>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 485 140 L 260 205"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 610 140 C 735 145 805 160 820 205"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 405 268 L 586 268"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 250 318 L 250 408"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 740 318 L 740 408"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead)" d="M 408 470 L 586 470"></path>
+              <path class="map-arrow secondary" marker-end="url(#arrowhead-soft)" d="M 285 320 C 365 425 430 482 486 536"></path>
+              <path class="map-arrow secondary" marker-end="url(#arrowhead-soft)" d="M 650 410 C 610 475 570 510 525 538"></path>
+              <path class="map-arrow secondary" marker-end="url(#arrowhead-soft)" d="M 520 624 C 590 610 650 585 700 524"></path>
+            </svg>
+
+            <article class="visual-node runtime">
+              <span class="api-strip">public frontend IPC surface</span>
+              <h3>Tauri Runtime Boundary API</h3>
+              <p>
+                <code>tauriClient</code> is what the UI is allowed to know. Generated command
+                invokers, payload cleanup, error mapping, and result normalization stay private.
+              </p>
+            </article>
+
+            <article class="visual-node plan">
+              <span class="api-strip">work safety decision</span>
+              <h3>Processing Plan API</h3>
+              <p>
+                Converts files, settings, preview requests, and metadata intent into either a
+                preflight plan or a verified execution plan.
+              </p>
+            </article>
+
+            <article class="visual-node output">
+              <span class="api-strip">artifact truth owner</span>
+              <h3>Output Artifact Plan / Commit API</h3>
+              <p>
+                Owns requested path, resolved path, collision review, parent directory creation,
+                stale signatures, and final filesystem commit.
+              </p>
+            </article>
+
+            <article class="visual-node metadata">
+              <span class="api-strip">metadata semantics owner</span>
+              <h3>Metadata Intent Plan API</h3>
+              <p>
+                Keeps <code>set | clear | noop</code> intent explicit while deriving the processing
+                metadata and naming metadata other modules need.
+              </p>
+            </article>
+
+            <article class="visual-node status">
+              <span class="api-strip">user-visible runtime truth</span>
+              <h3>Status Panel Runtime API</h3>
+              <p>
+                External UI code asks for status behavior through the runtime API. Controller,
+                reducer, feedback, subscriptions, and view-state derivation stay private.
+              </p>
+            </article>
+
+            <article class="visual-node execution">
+              <span class="api-strip">orchestrator</span>
+              <h3>Execution Boundary</h3>
+              <p><code>run.rs</code> coordinates jobs and processors after the API owners decide.</p>
+            </article>
+
+            <p class="map-caption">
+              Solid arrows are primary product-decision flow. Dashed arrows are execution-time
+              coordination. The useful shift is that agents and humans can start at five public APIs
+              instead of chasing scattered helpers.
+            </p>
+          </div>
+          <div class="legend" aria-label="map legend">
+            <span class="chip guard">API strip = owned public surface</span>
+            <span class="chip done">private cluster = AI-editable implementation zone</span>
+            <span class="chip pending">manual parity still decides replacement readiness</span>
+          </div>
+        </div>
+
+        <div class="map" style="margin-top: 18px">
+          <div class="lane-title">
+            <h2>Old Mental Model (main branch, for contrast)</h2>
+            <span class="chip pending">same files, smeared ownership</span>
+          </div>
+          <div class="visual-map legacy" aria-label="Old main branch module visual map">
+            <svg class="map-svg" viewBox="0 0 1000 660" aria-hidden="true">
+              <defs>
+                <marker id="arrowhead-old" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7f94"></path>
+                </marker>
+                <marker id="arrowhead-leak" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#f16622"></path>
+                </marker>
+              </defs>
+              <path class="map-arrow" marker-end="url(#arrowhead-old)" d="M 485 140 L 260 205"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead-old)" d="M 610 140 C 735 145 805 160 820 205"></path>
+              <path class="map-arrow" marker-end="url(#arrowhead-old)" d="M 405 268 L 586 268"></path>
+              <path class="map-arrow spaghetti" marker-end="url(#arrowhead-leak)" d="M 250 318 C 305 410 360 470 486 540"></path>
+              <path class="map-arrow spaghetti" marker-end="url(#arrowhead-leak)" d="M 740 268 C 805 360 700 470 540 545"></path>
+              <path class="map-arrow spaghetti" marker-end="url(#arrowhead-leak)" d="M 250 470 L 405 320"></path>
+              <path class="map-arrow spaghetti" marker-end="url(#arrowhead-leak)" d="M 740 470 C 690 380 660 320 605 270"></path>
+              <path class="map-arrow spaghetti" marker-end="url(#arrowhead-leak)" d="M 820 410 L 820 165"></path>
+            </svg>
+
+            <article class="visual-node runtime legacy">
+              <span class="api-strip">public IPC + private adapter in one file</span>
+              <h3>Tauri Runtime (client.ts, 350 LOC)</h3>
+              <p>
+                <code>tauriClient</code>, <code>commandSpecs</code>, generated-binding
+                invocation, payload translation, error mapping, and result normalization all
+                live in the same file.
+              </p>
+              <span class="leak-label">leak: no public/private boundary in the source tree</span>
+            </article>
+
+            <article class="visual-node plan legacy">
+              <span class="api-strip">work safety decision</span>
+              <h3>Processing Plan (plan.rs)</h3>
+              <p>
+                <code>build_processing_plan</code> assembles the plan, but reaches sideways
+                into <code>commands/audio_processing/run.rs</code> for
+                <code>resolve_effective_processing_metadata</code> and
+                <code>resolve_naming_metadata</code>.
+              </p>
+              <span class="leak-label">leak: imports metadata helpers from run.rs (super::run)</span>
+            </article>
+
+            <article class="visual-node output legacy">
+              <span class="api-strip">paths only</span>
+              <h3>Output Artifact (output_path/)</h3>
+              <p>
+                Owns requested path, resolved path, collision detection, and rename
+                candidates. Does <em>not</em> own commit policy or review/signature
+                enforcement.
+              </p>
+              <span class="leak-label">leak: filesystem commit lives in processor/finalize.rs (548 LOC)</span>
+            </article>
+
+            <article class="visual-node metadata legacy">
+              <span class="api-strip">intent types only</span>
+              <h3>Metadata (metadata/)</h3>
+              <p>
+                Owns <code>AudiobookMetadata</code>, <code>MetadataIntentPatch</code>,
+                <code>PatchOp</code>, and read/write strategies. <em>Does not</em> own how
+                source tags plus user intent become effective metadata for processing or
+                naming.
+              </p>
+              <span class="leak-label">leak: projection helpers live in audio_processing/run.rs</span>
+            </article>
+
+            <article class="visual-node status legacy">
+              <span class="api-strip">view state externally reachable</span>
+              <h3>Status Panel (statusPanel/)</h3>
+              <p>
+                Controller, reducer, feedback, and view-state derivation are all here, but
+                <code>viewState.svelte.ts</code> is importable from outside the module so
+                callers like <code>jobControls.ts</code> mutate it directly.
+              </p>
+              <span class="leak-label">leak: jobControls imports setStatusPanelConcurrencyText directly</span>
+            </article>
+
+            <article class="visual-node execution legacy">
+              <span class="api-strip">absorbs nearby decisions</span>
+              <h3>run.rs (1026 LOC)</h3>
+              <p>Orchestrator + metadata helpers + dispatch.</p>
+            </article>
+
+            <p class="map-caption">
+              Solid arrows are intended flow. Orange dashed arrows are duplicate-policy
+              reach-through &mdash; one product rule with more than one owner.
+            </p>
+          </div>
+          <div class="legend" aria-label="legacy map legend">
+            <span class="chip pending">orange dashed = leaked ownership / duplicate policy</span>
+            <span class="chip guard">same physical layout, blurred semantic ownership</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>What the contrast actually says</h2>
+          <p>
+            The boxes did not move. The questions they answer did. On <code>main</code>, four
+            "leaks" were the day-to-day cost:
+          </p>
+          <div class="grid two" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>1. Two files, one rule</h3>
+              <p>
+                Hard-block collision logic lived in backend collision-kind names <em>and</em>
+                in the frontend review file. Either side could change and silently drift.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>2. Sideways imports</h3>
+              <p>
+                The planner reached into the processing-command file for metadata projection;
+                the processor reached into filesystem commit; the UI reached into status view
+                state. Each one is fine alone, together they make the dependency graph dense.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>3. Public/private mixed in one file</h3>
+              <p>
+                <code>client.ts</code> on <code>main</code> is 350 LOC of public surface
+                plus private generated-binding glue. There is no file you can point at and
+                say "this is the public API".
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>4. One module absorbs everything nearby</h3>
+              <p>
+                <code>run.rs</code> on <code>main</code> was 1026 LOC because it accreted
+                metadata helpers, input shape, plan assembly, review, parent-dir creation,
+                and dispatch all in one place.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="grid three" style="margin-top: 16px">
+          <div class="card compact">
+            <h3>What changed most?</h3>
+            <p>
+              The architecture is now product-decision-first. Files still live in Rust and Svelte
+              lanes, but ownership is expressed through grey-box APIs.
+            </p>
+          </div>
+          <div class="card compact">
+            <h3>What stayed stable?</h3>
+            <p>
+              Command names, event names, user workflows, metadata intent semantics, and output
+              behavior are intended to remain equivalent to <code>main</code>.
+            </p>
+          </div>
+          <div class="card compact">
+            <h3>What is still provisional?</h3>
+            <p>
+              Full replacement readiness waits on manual parity. This branch is ready for testing,
+              not declared done.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="mp4-trace" class="panel" aria-labelledby="mp4-trace-tab">
+        <div class="card">
+          <h2>Single MP4 file: what happens to it, old vs new</h2>
+          <p>
+            Imagine one file: <code>~/Books/big-book.mp4</code>. The user drops it in, edits a
+            couple of tags, picks an output folder, hits <strong>Process</strong>. Both
+            architectures end up with the same audiobook file in the same place. The difference is
+            <em>who answers which question along the way</em>. Numbered steps line up so you can
+            read them side by side. <span class="chip pending">orange = the same product moment</span>
+          </p>
+        </div>
+
+        <div class="trace-grid">
+          <div class="trace-col old" aria-label="Old main flow">
+            <h2>Main (today's release branch) <span class="badge">old shape</span></h2>
+            <ol class="trace-steps" aria-label="Old flow steps">
+              <li class="trace-step">
+                <div>
+                  <div class="who">UI picks the file</div>
+                  <div class="what">
+                    The user drops <code>big-book.mp4</code> into the file list. The frontend
+                    holds an array of paths and a draft <code>MetadataIntentPatch</code>.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who"><code>tauriClient.analyzeAudioFiles([path])</code></div>
+                  <div class="what">
+                    <code>src/lib/tauri/client.ts</code> is one 350-line file that mixes the
+                    public <code>tauriClient</code>, the private <code>commandSpecs</code>,
+                    the generated-binding adapter, and result normalization in one place.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Backend reads MP4 facts</div>
+                  <div class="what">
+                    Rust uses FFmpeg + the mp4ameta bridge to return duration, codec, sample
+                    rate, channels, and a tag snapshot. The UI fills the metadata form.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">User edits metadata, picks output folder</div>
+                  <div class="what">
+                    Title, author, year. Output folder is <code>~/Audiobooks/</code>. Encoder is
+                    Native AAC. Naming preset is the default.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Preflight builds the plan (preview)</div>
+                  <div class="what">
+                    <code>run.rs::preflight</code> assembles <code>ProcessingInputs</code>,
+                    calls <code>plan.rs::build_processing_plan</code>, which reaches
+                    <em>back into</em> <code>run.rs::resolve_effective_processing_metadata</code>
+                    and <code>run.rs::resolve_naming_metadata</code> (metadata projection lives
+                    inside the processing-command file). The plan is returned to the UI.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Frontend decides hard-block on its own</div>
+                  <div class="what">
+                    <code>outputPlanReview.ts</code> looks at <code>collision.kind</code> and
+                    re-derives whether <em>source/destination overlap</em> or
+                    <em>canonical path overlap</em> means "you can't proceed". The collision
+                    semantics live in <strong>two places</strong>: backend collision detector
+                    and the frontend re-derivation.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Collision dialog (if needed)</div>
+                  <div class="what">
+                    User picks Overwrite / Skip / Keep / Rename / Cancel. Frontend re-calls
+                    preflight with the chosen <code>collisionPolicy</code> and stores the
+                    returned <code>planSignature</code>.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Process command starts</div>
+                  <div class="what">
+                    <code>run.rs::execute</code> assembles <code>ProcessingInputs</code>
+                    <strong>again</strong>, calls <code>build_processing_plan</code>
+                    <strong>again</strong>, then <code>log_output_plan</code>,
+                    <code>enforce_plan_review</code>, and <code>ensure_output_parent_dirs</code>
+                    inline. Each one is a separate concept <em>run.rs</em> has to know about.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Job registers, processor runs</div>
+                  <div class="what">
+                    <code>JobRegistry</code> gives an id and a permit. The processor adapter
+                    decodes, resamples, encodes, and muxes into a temp file.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Processor owns the final move</div>
+                  <div class="what">
+                    <code>processor/finalize.rs</code> (548 LOC) owns commit policy:
+                    <code>commit_output_boundary</code> &rarr; <code>move_to_final_location</code>
+                    (hard-link, copy, or rename). The processor module decides filesystem
+                    truth, not the output module.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Status panel: external view-state poke</div>
+                  <div class="what">
+                    <code>jobControls.ts</code> imports
+                    <code>setStatusPanelConcurrencyText</code> directly from
+                    <code>statusPanel/viewState.svelte.ts</code>. The panel's view state is
+                    reachable from outside the cluster.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Done. UI shows success.</div>
+                  <div class="what">
+                    Terminal event fires. Final <code>big-book.m4b</code> exists in
+                    <code>~/Audiobooks/&lt;author&gt;/&lt;title&gt;/</code>.
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div class="trace-col new" aria-label="New grey-box flow">
+            <h2>Grey-box branch (this lab) <span class="badge">new shape</span></h2>
+            <ol class="trace-steps" aria-label="New flow steps">
+              <li class="trace-step">
+                <div>
+                  <div class="who">UI picks the file</div>
+                  <div class="what">
+                    Same UI, same file, same draft patch. No frontend behavior change here.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who"><code>tauriClient.analyzeAudioFiles([path])</code></div>
+                  <div class="what">
+                    <code>client.ts</code> is now 161 lines of just <em>public</em> surface.
+                    Generated invocation, payload translation, error mapping, and result
+                    normalization live in <code>src/lib/tauri/commands.ts</code> (200 LOC)
+                    and stay private behind the boundary.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Backend reads MP4 facts</div>
+                  <div class="what">
+                    Same FFmpeg + mp4ameta read path. Unchanged behavior; this lives in the
+                    metadata boundary already.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">User edits metadata, picks output folder</div>
+                  <div class="what">
+                    Same fields, same intent. <code>set | clear | noop</code> intent is
+                    compiled at the Tauri boundary, not scattered across UI callsites.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Preflight asks the planner one question</div>
+                  <div class="what">
+                    <code>run.rs::preflight</code> calls
+                    <code>plan.rs::resolve_preflight_plan</code>. The planner itself asks
+                    <code>metadata::resolve_effective_processing_metadata</code> and
+                    <code>metadata::resolve_naming_metadata</code> (now in
+                    <code>metadata/intent_plan.rs</code>). Metadata projection lives in the
+                    metadata boundary, not in the processing command file.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Frontend reads backend-authored review</div>
+                  <div class="what">
+                    <code>outputPlanReview.ts</code> checks
+                    <code>output.review?.canProceed === false</code> and shows
+                    <code>output.review?.message</code>. Hard-block policy is owned by
+                    <code>audio/output_path/review.rs</code>. The UI renders truth instead of
+                    re-deriving it.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Collision dialog (if needed)</div>
+                  <div class="what">
+                    Same UX. User picks a policy; the frontend re-asks preflight and stores the
+                    new <code>planSignature</code>.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Process command starts</div>
+                  <div class="what">
+                    <code>run.rs::execute</code> calls
+                    <code>plan.rs::prepare_execution_plan</code> &mdash; <strong>one</strong>
+                    function. Inside, the planner rebuilds, asks
+                    <code>output_path/review.rs::enforce_output_plan_review</code>, and
+                    <code>ensure_output_parent_dirs</code> from the same module. The orchestrator
+                    no longer knows which sub-step lives where.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Job registers, processor runs</div>
+                  <div class="what">
+                    Same <code>JobRegistry</code>, same processor adapter, same temp output.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step pivot">
+                <div>
+                  <div class="who">Output module owns the final move</div>
+                  <div class="what">
+                    <code>processor/finalize.rs</code> shrank to 101 LOC and delegates to
+                    <code>output_path/commit.rs::commit_output_artifact</code>. Filesystem
+                    truth now belongs to the output module &mdash; not the processor.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Status panel: tiny boundary API</div>
+                  <div class="what">
+                    <code>jobControls.ts</code> calls
+                    <code>updateStatusPanelConcurrencyStatus(message)</code> from
+                    <code>statusPanel/runtimeApi.ts</code>. The view-state file is no longer
+                    reachable from outside.
+                  </div>
+                </div>
+              </li>
+              <li class="trace-step">
+                <div>
+                  <div class="who">Done. UI shows success.</div>
+                  <div class="what">
+                    Same terminal event. Same final <code>big-book.m4b</code> in the same
+                    place. User cannot tell the architecture changed &mdash; on purpose.
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px">
+          <h2>What the trace teaches</h2>
+          <div class="grid three" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>Step 5: who owns metadata projection</h3>
+              <p>
+                On main, the planner reaches back into the processing-command file to do
+                metadata math. In grey-box, the planner asks the metadata module. The metadata
+                module owns the answer to "what becomes the title for naming and tag-writing".
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Step 6: who owns "can proceed"</h3>
+              <p>
+                On main, the frontend re-derives hard-block kinds. In grey-box, the frontend
+                reads <code>output.review.canProceed</code>. One owner (backend) authors the
+                rule; the UI renders it. This is the single biggest "duplicate policy" reduction.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Step 10: who owns the file move</h3>
+              <p>
+                On main, the processor owns commit (hard-link, copy, rename). In grey-box, the
+                output module does. The processor finalize file dropped from 548 to 101 lines
+                because it no longer carries policy that does not belong to it.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 14px">
+          <h2>"Same outcome, different ownership" is the whole point</h2>
+          <p>
+            User-visible behavior is unchanged on purpose: same commands, same events, same
+            final file, same metadata. The architecture refactor is invisible to the user and
+            extremely visible to anyone (human or agent) trying to change one rule without
+            stepping on three others. That is the grey-box promise: a small, owned public API
+            wraps a private implementation that any contributor can replace as long as the
+            promise holds.
+          </p>
+        </div>
+      </section>
+
+      <section id="modules" class="panel" aria-labelledby="modules-tab">
+        <div class="grid two">
+          <article class="card module-card blue">
+            <h2>Processing Plan API</h2>
+            <p>Given selected files and user intent, decide what work is safe to perform.</p>
+            <div class="api-list">
+              <div class="api">
+                <strong><code>resolve_preflight_plan(...)</code></strong>
+                Builds the user-reviewable plan without creating output parent directories.
+              </div>
+              <div class="api">
+                <strong><code>prepare_execution_plan(...)</code></strong>
+                Rebuilds and verifies the plan for execution, including review signatures and output
+                parent directories.
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip done">implemented</span>
+              <span class="chip guard">behavior tests</span>
+            </div>
+            <div class="path">
+              <div class="path-row"><code>src-tauri/src/commands/audio_processing/plan.rs</code></div>
+              <div class="path-row"><code>src-tauri/src/commands/audio_processing/run.rs</code></div>
+            </div>
+          </article>
+
+          <article class="card module-card teal">
+            <h2>Output Artifact Plan / Commit API</h2>
+            <p>Own the artifact truth from preview plan through final filesystem commit.</p>
+            <div class="api-list">
+              <div class="api">
+                <strong><code>OutputPlanLedger::resolve(...)</code></strong>
+                Plans requested and resolved output paths, collision state, rename candidates, and
+                write actions.
+              </div>
+              <div class="api">
+                <strong><code>enforce_output_plan_review(...)</code></strong>
+                Validates collision review, stale signatures, and hard blocks.
+              </div>
+              <div class="api">
+                <strong><code>commit_output_artifact(...)</code></strong>
+                Commits temporary outputs to final artifact paths without letting processors own
+                collision policy.
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip done">implemented</span>
+              <span class="chip guard">backend-owned review</span>
+            </div>
+            <div class="path">
+              <div class="path-row"><code>src-tauri/src/audio/output_path/plan.rs</code></div>
+              <div class="path-row"><code>src-tauri/src/audio/output_path/review.rs</code></div>
+              <div class="path-row"><code>src-tauri/src/audio/output_path/commit.rs</code></div>
+            </div>
+          </article>
+
+          <article class="card module-card purple">
+            <h2>Metadata Intent Plan API</h2>
+            <p>Make user metadata intent concrete without losing clear/noop semantics.</p>
+            <div class="api-list">
+              <div class="api">
+                <strong><code>MetadataIntentPatch</code> and <code>PatchOp</code></strong>
+                Rust-side metadata intent/write-plan contract.
+              </div>
+              <div class="api">
+                <strong><code>resolve_effective_processing_metadata(...)</code></strong>
+                Applies source metadata plus user patch for processing output.
+              </div>
+              <div class="api">
+                <strong><code>resolve_naming_metadata(...)</code></strong>
+                Produces the metadata used for output naming and path preview.
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip done">implemented</span>
+              <span class="chip guard">set/clear/noop tests</span>
+            </div>
+            <div class="path">
+              <div class="path-row"><code>src-tauri/src/metadata/intent.rs</code></div>
+              <div class="path-row"><code>src-tauri/src/metadata/intent_plan.rs</code></div>
+            </div>
+          </article>
+
+          <article class="card module-card orange">
+            <h2>Tauri Runtime Boundary</h2>
+            <p>Keep the frontend runtime API small and hide generated binding volatility.</p>
+            <div class="api-list">
+              <div class="api">
+                <strong><code>tauriClient</code></strong>
+                Public UI-facing IPC API.
+              </div>
+              <div class="api">
+                <strong><code>commandSpecs</code></strong>
+                Private command adapter for generated invocation, payload translation, error
+                normalization, and result normalization.
+              </div>
+              <div class="api">
+                <strong><code>scripts/check-no-bridge-imports.sh</code></strong>
+                Guard now blocks raw core invoke use and generated invoker leaks.
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip done">implemented</span>
+              <span class="chip guard">guarded</span>
+            </div>
+            <div class="path">
+              <div class="path-row"><code>src/lib/tauri/client.ts</code></div>
+              <div class="path-row"><code>src/lib/tauri/commands.ts</code></div>
+            </div>
+          </article>
+
+          <article class="card module-card green">
+            <h2>Status Panel Runtime</h2>
+            <p>Expose status behavior instead of letting other UI modules mutate internal view state.</p>
+            <div class="api-list">
+              <div class="api">
+                <strong><code>updateStatusPanelConcurrencyStatus(...)</code></strong>
+                Tiny runtime API used by job controls instead of importing status panel view state.
+              </div>
+              <div class="api">
+                <strong>Status internals</strong>
+                Controller, reducer, feedback, progress subscriptions, and view-state derivation
+                remain private to the status panel cluster.
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip done">implemented</span>
+              <span class="chip guard">export narrowed</span>
+            </div>
+            <div class="path">
+              <div class="path-row"><code>src/ui/statusPanel/runtimeApi.ts</code></div>
+              <div class="path-row"><code>src/ui/jobControls.ts</code></div>
+            </div>
+          </article>
+
+          <article class="card module-card">
+            <h2>Shape Exceptions</h2>
+            <p>
+              Some files are intentionally above the preferred LOC trigger because they are still the
+              current grey-box API plus its behavior tests.
+            </p>
+            <ul>
+              <li><code>audio_processing/plan.rs</code>: 707 LOC.</li>
+              <li><code>audio_processing/run.rs</code>: 761 LOC.</li>
+              <li><code>audio/output_path/commit.rs</code>: 448 LOC.</li>
+              <li><code>metadata/mod.rs</code>: still larger due to root types and compatibility tests.</li>
+            </ul>
+            <div class="chip-row">
+              <span class="chip pending">review trigger</span>
+              <span class="chip guard">documented in spec</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="old-vs-new" class="panel" aria-labelledby="old-vs-new-tab">
+        <div class="card">
+          <h2>Concrete ownership diffs (the real spaghetti receipts)</h2>
+          <p>
+            These are not invented examples. Each card cites real files on both branches. The
+            "old" side is from <code>/Users/jstar/Projects/audiobook-boss</code> on
+            <code>main</code>; the "new" side is this lab worktree on
+            <code>arch/grey-box-modules</code>. Sizes and quoted code are from the actual files.
+          </p>
+        </div>
+
+        <div class="diff-grid">
+          <div class="diff-card">
+            <h3>1. Who decides "this output collision is a hard block"?</h3>
+            <p>
+              The clearest case of duplicate policy across the IPC boundary. Same product
+              decision, two implementations.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main &mdash; UI re-derives the rule</h4>
+                <p><code>src/ui/statusPanel/outputPlanReview.ts</code></p>
+                <div class="mini-code">function getHardBlockingCollisionMessage(plan) {
+  const blocked = plan.outputs.find(
+    (output) =&gt;
+      output.collision?.kind === 'source_destination_overlap' ||
+      output.collision?.kind === 'canonical_path_overlap',
+  );
+  // ...
+}</div>
+                <p style="margin-top: 8px">
+                  The frontend has to <em>know</em> which collision kinds are hard blocks. If
+                  the backend ever adds a new hard-block kind, this list drifts silently.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box &mdash; UI reads backend truth</h4>
+                <p><code>src/ui/statusPanel/outputPlanReview.ts</code></p>
+                <div class="mini-code">function getBlockingReviewMessage(plan) {
+  const blocked = plan.outputs.find(
+    (output) =&gt; output.review?.canProceed === false,
+  );
+  return blocked?.review?.message ?? null;
+}</div>
+                <p style="margin-top: 8px">
+                  The backend authors <code>review.canProceed</code> and
+                  <code>review.message</code> in
+                  <code>audio/output_path/review.rs</code>. The UI renders that fact. Adding a
+                  new hard-block kind in Rust now reaches the UI for free.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="diff-card">
+            <h3>2. Who commits the final audiobook file?</h3>
+            <p>
+              The processor module used to own filesystem commit behavior, sandwiched between
+              encoding and cleanup. That put filesystem policy <em>inside</em> the audio engine.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main &mdash; processor owns commit</h4>
+                <p>
+                  <code>src-tauri/src/audio/processor/finalize.rs</code> &mdash;
+                  <strong>548 LOC</strong>
+                </p>
+                <div class="mini-code">pub(crate) fn move_to_final_location(
+    temp_output: PathBuf,
+    final_path: &amp;Path,
+    action: PlannedOutputAction,
+) -&gt; Result&lt;PathBuf&gt; { /* hard-link / copy / rename */ }
+
+pub(crate) fn commit_output_boundary(
+    context, temp_output, destination, cleanup_guard,
+) -&gt; Result&lt;FinalizeCommitOutcome&gt; { ... }</div>
+                <p style="margin-top: 8px">
+                  The processor mixes encoder policy with filesystem policy. Anyone changing
+                  commit behavior has to touch the audio engine module.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box &mdash; output module owns commit</h4>
+                <p>
+                  <code>src-tauri/src/audio/processor/finalize.rs</code> &mdash;
+                  <strong>101 LOC</strong> (just delegates)<br />
+                  <code>src-tauri/src/audio/output_path/commit.rs</code> &mdash;
+                  <strong>448 LOC</strong> (owns commit)
+                </p>
+                <div class="mini-code">// finalize.rs now just asks the output boundary:
+let outcome = commit_output_artifact(
+    context, merged_output, destination, cleanup_guard,
+)?;</div>
+                <p style="margin-top: 8px">
+                  Filesystem commit, hard-link/copy/rename strategy, and reviewed-signature
+                  enforcement all live in the output module. The audio engine is back to being
+                  about audio.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="diff-card">
+            <h3>3. Where does metadata projection live?</h3>
+            <p>
+              "Effective processing metadata" (source tags merged with the user's patch) and
+              "naming metadata" (what the output path uses) are <em>metadata</em> concerns.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main &mdash; in the processing command file</h4>
+                <p><code>src-tauri/src/commands/audio_processing/run.rs:117</code></p>
+                <div class="mini-code">pub(crate) fn resolve_effective_processing_metadata(...) { ... }
+pub(crate) fn resolve_naming_metadata(...) { ... }
+// plan.rs imports these from super::run</div>
+                <p style="margin-top: 8px">
+                  The planner reaches sideways into <code>run.rs</code> to call functions that
+                  semantically belong to the metadata module. Ownership is smeared.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box &mdash; in the metadata module</h4>
+                <p><code>src-tauri/src/metadata/intent_plan.rs</code></p>
+                <div class="mini-code">pub(crate) fn resolve_effective_processing_metadata(...) { ... }
+pub(crate) fn resolve_naming_metadata(...) { ... }
+// plan.rs imports from crate::metadata</div>
+                <p style="margin-top: 8px">
+                  Same functions, same behavior, owned by the right module. The planner asks
+                  metadata for metadata answers.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="diff-card">
+            <h3>4. The Tauri runtime boundary: public + private split</h3>
+            <p>
+              On main, <code>client.ts</code> is one file that does everything: public surface,
+              command adapters, payload translation, error mapping, normalization. Generated
+              bindings, normalizers, and the user-facing API live shoulder-to-shoulder.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main &mdash; one mixed file</h4>
+                <p>
+                  <code>src/lib/tauri/client.ts</code> &mdash; <strong>350 LOC</strong> mixing
+                  <code>commandSpecs</code>, <code>runGeneratedCommand</code>,
+                  <code>toGeneratedOutputNamingConfig</code>,
+                  <code>compileMetadataIntentMap</code>, and <code>tauriClient</code>.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box &mdash; public strip + private adapter</h4>
+                <p>
+                  <code>src/lib/tauri/client.ts</code> &mdash; <strong>161 LOC</strong> of just
+                  the public <code>tauriClient</code> surface and the event listener.<br />
+                  <code>src/lib/tauri/commands.ts</code> &mdash; <strong>200 LOC</strong> of
+                  private command adapters and normalization.<br />
+                  A repo-guard script blocks UI code from importing the generated bindings
+                  directly.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="diff-card">
+            <h3>5. Status panel: who can poke its state?</h3>
+            <p>
+              The status panel is a subsystem with its own view-state file. The question is
+              whether outside code is allowed to reach in and set its fields.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main &mdash; outside callers grab view state</h4>
+                <p><code>src/ui/jobControls.ts</code></p>
+                <div class="mini-code">import { setStatusPanelConcurrencyText }
+  from './statusPanel/viewState.svelte';</div>
+                <p style="margin-top: 8px">
+                  Job controls can flip any view-state field the file exports. The status panel
+                  cannot trust its own internals.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box &mdash; one tiny runtime API</h4>
+                <p>
+                  <code>src/ui/statusPanel/runtimeApi.ts</code> &mdash; 5 lines:
+                </p>
+                <div class="mini-code">import * as feedback from './feedback';
+export function updateStatusPanelConcurrencyStatus(message) {
+  feedback.updateConcurrencyStatus(message);
+}</div>
+                <p style="margin-top: 8px">
+                  Job controls call <code>updateStatusPanelConcurrencyStatus(...)</code>. The
+                  status panel keeps its private view-state file private and can refactor freely.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="diff-card">
+            <h3>6. What <code>run.rs::execute</code> has to know</h3>
+            <p>
+              The most visible "the orchestrator no longer juggles 5 helpers" moment. Both
+              snippets are the heart of the process command.
+            </p>
+            <div class="diff-pair">
+              <div class="diff-side old">
+                <h4>Main</h4>
+                <div class="mini-code">let inputs = ProcessingInputs {
+    output_naming: payload.output_naming.clone().unwrap_or_default(),
+    base_output_dir: resolve_output_dir(&amp;payload.output_dir, true)?,
+    preview_seconds: resolve_preview_seconds(preview_seconds),
+};
+let plan = build_processing_plan(&amp;payload, metadata.as_ref(), &amp;inputs)?;
+log_output_plan("process", &amp;payload, &amp;plan);
+enforce_plan_review(&amp;payload, &amp;plan)?;
+ensure_output_parent_dirs(&amp;plan)?;
+match plan.job_type { /* dispatch */ }</div>
+                <p style="margin-top: 8px">
+                  Five separate concepts <code>run.rs</code> has to know about before it can
+                  dispatch.
+                </p>
+              </div>
+              <div class="diff-side new">
+                <h4>Grey-box</h4>
+                <div class="mini-code">let plan = prepare_execution_plan(
+    &amp;payload, metadata.as_ref(), preview_seconds,
+)?;
+match plan.job_type { /* dispatch */ }</div>
+                <p style="margin-top: 8px">
+                  One question to the planner, then dispatch. The planner internally owns input
+                  shape, review, and parent-dir creation. The orchestrator owns orchestration.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px">
+          <h2>What this map of diffs adds up to</h2>
+          <p>
+            None of these changes shift user-visible behavior. They move the answer to a
+            product question into the module whose name matches that question. The two side
+            effects matter most:
+          </p>
+          <ul>
+            <li>
+              <strong>One owner per rule.</strong> Reviewing or changing a rule now means
+              opening one file by name, not chasing it across modules.
+            </li>
+            <li>
+              <strong>Public APIs document intent.</strong> Names like
+              <code>resolve_preflight_plan</code>, <code>commit_output_artifact</code>,
+              <code>resolve_effective_processing_metadata</code>, and
+              <code>updateStatusPanelConcurrencyStatus</code> describe what the caller wants,
+              not how the callee does it.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="api-design" class="panel" aria-labelledby="api-design-tab">
+        <div class="grid two">
+          <article class="card design-choice blue">
+            <h2>1. APIs name product decisions, not helper categories</h2>
+            <p>
+              The public surfaces are shaped around questions ABB actually asks: what work is safe,
+              what metadata intent means, where the artifact goes, what IPC the UI may call, and what
+              runtime status the user should see.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">semantic boundary</span>
+              <span class="chip done">agent-navigable</span>
+            </div>
+          </article>
+
+          <article class="card design-choice teal">
+            <h2>2. Artifact truth is backend-authored end to end</h2>
+            <p>
+              The output boundary produces review truth and commit policy. The UI renders that truth
+              and collects the user's choice; it no longer reverse-engineers collision semantics from
+              lower-level path facts.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">less duplicate policy</span>
+              <span class="chip done">safer preview-to-run path</span>
+            </div>
+          </article>
+
+          <article class="card design-choice purple">
+            <h2>3. Metadata intent stays explicit until a boundary projects it</h2>
+            <p>
+              <code>set</code>, <code>clear</code>, and <code>noop</code> are preserved as intent.
+              Processing metadata and naming metadata are derived views, which reduces drift between
+              save behavior, preview naming, and final output.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">intent before projection</span>
+              <span class="chip done">clear/noop tests</span>
+            </div>
+          </article>
+
+          <article class="card design-choice orange">
+            <h2>4. Generated contracts are used behind one runtime adapter</h2>
+            <p>
+              Specta-generated bindings still protect TS/Rust parity, but regular UI code calls
+              <code>tauriClient</code>. That makes generated shape changes cheaper because the blast
+              radius is the Tauri boundary, not the whole frontend.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">contract parity remains</span>
+              <span class="chip done">guard blocks leaks</span>
+            </div>
+          </article>
+
+          <article class="card design-choice green">
+            <h2>5. Status exports behavior, not internal state ownership</h2>
+            <p>
+              Other UI code can ask the status panel runtime to update user-visible status, but it
+              does not own the reducer, controller, feedback model, or view-state derivation.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">narrow UI API</span>
+              <span class="chip done">private runtime cluster</span>
+            </div>
+          </article>
+
+          <article class="card design-choice">
+            <h2>6. Tests should lock behavior at the API strip</h2>
+            <p>
+              The useful test target is the public promise: resolved plans, review requirements,
+              metadata projections, IPC normalization, and status behavior. Private helpers can move
+              as long as those promises hold.
+            </p>
+            <div class="chip-row">
+              <span class="chip guard">grey-box module contract</span>
+              <span class="chip pending">manual parity still required</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Two Repo-Organization Suggestions</h2>
+          <div class="grid two">
+            <article class="card compact">
+              <span class="suggestion-number">1</span>
+              <h3>Make each grey-box API strip visually obvious in the tree</h3>
+              <p>
+                Keep public entry files small and boring: Rust <code>mod.rs</code> or named API
+                files, TS <code>index.ts</code> or <code>runtimeApi.ts</code>. Put private
+                implementation files beside or below them, and have callers import only the strip.
+              </p>
+            </article>
+            <article class="card compact">
+              <span class="suggestion-number">2</span>
+              <h3>Add scoped boundary guidance only where rules differ</h3>
+              <p>
+                Keep root guidance broad. Add nested <code>AGENTS.md</code> files only for boundaries
+                with special invariants, such as Tauri IPC, metadata intent, output artifact planning,
+                or processing orchestration.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="education" class="panel" aria-labelledby="education-tab">
+        <div class="card">
+          <h2>Caller, In Plain ABB Terms</h2>
+          <p>
+            A caller is code that uses another module's public API. It is not the human user. It can
+            be UI code, a Rust command handler, a test, or another grey-box module.
+          </p>
+          <div class="call-path">
+            <article class="call-card caller">
+              <h3>Caller</h3>
+              <p>
+                <code>src/ui/jobControls.ts</code> has a job-control event and needs the status panel
+                to reflect concurrency state.
+              </p>
+            </article>
+            <div class="call-arrow">calls</div>
+            <article class="call-card api-boundary">
+              <h3>Public API</h3>
+              <p>
+                <code>updateStatusPanelConcurrencyStatus(...)</code> is the allowed status panel
+                runtime surface.
+              </p>
+            </article>
+          </div>
+          <div class="call-path">
+            <article class="call-card caller">
+              <h3>Caller</h3>
+              <p>
+                <code>audio_processing/plan.rs</code> needs output paths, collision review, and write
+                intent for a processing preview.
+              </p>
+            </article>
+            <div class="call-arrow">asks</div>
+            <article class="call-card owner">
+              <h3>Owner API</h3>
+              <p>
+                <code>OutputPlanLedger::resolve(...)</code> answers from the output artifact module
+                instead of making the planner duplicate collision policy.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="grid four" style="margin-top: 16px">
+          <article class="card compact term-card architecture">
+            <strong>Architecture</strong>
+            <p>
+              The ownership map: which module owns which truth, and which direction dependencies
+              are allowed to flow. The grey-box module shape lives here.
+            </p>
+          </article>
+          <article class="card compact term-card api-design">
+            <strong>API design</strong>
+            <p>
+              The public functions, types, names, inputs, outputs, and errors that callers use to
+              ask a module for an answer.
+            </p>
+          </article>
+          <article class="card compact term-card module-design">
+            <strong>Module design</strong>
+            <p>
+              How the public API strip and private implementation cluster are organized into files,
+              tests, helpers, and exports.
+            </p>
+          </article>
+          <article class="card compact term-card function-design">
+            <strong>Function design</strong>
+            <p>
+              How one behavior is split into readable steps. Function shape matters most when it
+              makes a boundary easier or harder to trust.
+            </p>
+          </article>
+          <article class="card compact term-card type-design">
+            <strong>Type design</strong>
+            <p>
+              How code names allowed shapes and choices. Good types make wrong states harder to
+              express and easier to spot during review.
+            </p>
+          </article>
+        </div>
+
+        <div class="grid two" style="margin-top: 16px">
+          <article class="card review-card">
+            <h2>What To Notice During Manual Testing</h2>
+            <ul>
+              <li>If preview and final processing disagree, suspect an API contract between planning and commit.</li>
+              <li>If metadata save, naming, and output tags disagree, suspect metadata intent projection.</li>
+              <li>If the UI seems to know a backend rule, ask whether the backend should return a more user-ready fact.</li>
+              <li>If a status message feels wrong, ask whether status runtime is displaying terminal truth or a local guess.</li>
+            </ul>
+          </article>
+          <article class="card review-card">
+            <h2>Caller Smell Test</h2>
+            <ul>
+              <li>Healthy caller: passes user intent, receives a domain answer, and does not duplicate policy.</li>
+              <li>Suspicious caller: imports private files, interprets raw enums, or recomputes another module's rule.</li>
+              <li>Healthy API: caller can ask one clear question without knowing the module's internal workflow.</li>
+              <li>Suspicious API: caller must pass many unrelated parameters or assemble hidden preconditions by hand.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Spaghetti smells vs grey-box shapes</h2>
+          <p>
+            These are pattern recognition cues. They will not catch every problem, but they
+            give you something to point at when a piece of code feels wrong. Each row is one
+            "if you see this, suspect that" pair.
+          </p>
+          <div class="smell-grid" role="list">
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: two files compute the same rule</strong>
+                <p>
+                  Frontend and backend both decide what "hard block" means; TS file and Rust
+                  file both list collision kinds. The rule drifts whenever one changes.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: one owner authors the answer</strong>
+                <p>
+                  Backend authors <code>review.canProceed</code>. Frontend renders it. There is
+                  one place to change the rule, and the contract carries the change.
+                </p>
+              </div>
+            </div>
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: file A imports from file B's "super"</strong>
+                <p>
+                  <code>plan.rs</code> reaches sideways into <code>run.rs</code> to borrow
+                  metadata projection. The function lives where the module tree says it does,
+                  not where the concept belongs.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: imports flow toward owners</strong>
+                <p>
+                  <code>plan.rs</code> imports metadata projection from
+                  <code>crate::metadata</code>. The metadata module owns metadata answers.
+                </p>
+              </div>
+            </div>
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: one file mixes public and private</strong>
+                <p>
+                  <code>client.ts</code> exports the public <code>tauriClient</code> right next
+                  to private command adapters, generated-binding glue, and normalizers. There
+                  is no visible API strip.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: public file is small and boring</strong>
+                <p>
+                  <code>client.ts</code> is the strip; <code>commands.ts</code> is the cluster.
+                  Reading the file name tells you whether you are at the boundary or inside it.
+                </p>
+              </div>
+            </div>
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: an orchestrator knows five sub-steps by name</strong>
+                <p>
+                  <code>run.rs::execute</code> calls <code>ProcessingInputs::new</code>,
+                  <code>build_processing_plan</code>, <code>log_output_plan</code>,
+                  <code>enforce_plan_review</code>, <code>ensure_output_parent_dirs</code> in
+                  order. Changing any one means understanding the others.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: orchestrator asks one product question</strong>
+                <p>
+                  <code>run.rs::execute</code> calls <code>prepare_execution_plan(...)</code>.
+                  The planner owns the steps internally. Renaming or splitting a step is a
+                  module-internal change.
+                </p>
+              </div>
+            </div>
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: a far-away module mutates this module's fields</strong>
+                <p>
+                  <code>jobControls.ts</code> imports
+                  <code>setStatusPanelConcurrencyText</code> from
+                  <code>viewState.svelte.ts</code>. The view-state file is part of the public
+                  surface even though it is not meant to be.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: tiny intent-named runtime API</strong>
+                <p>
+                  <code>updateStatusPanelConcurrencyStatus(message)</code> says <em>what the
+                  caller wants</em>. The status panel decides how to honor it.
+                </p>
+              </div>
+            </div>
+            <div class="smell-row" role="listitem">
+              <div class="smell-cell old">
+                <strong>Smell: behavior tests test helper shape</strong>
+                <p>
+                  Tests assert that <code>build_processing_plan</code> calls
+                  <code>resolve_output_dir</code>. Now you cannot rename the helper without
+                  breaking tests, even when behavior is unchanged.
+                </p>
+              </div>
+              <div class="smell-cell new">
+                <strong>Shape: tests assert public outcomes</strong>
+                <p>
+                  Tests assert that <code>resolve_preflight_plan</code> returns the right
+                  collision review for a given input. The helper inside can change as long as
+                  the promise holds.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Reading code without writing code</h2>
+          <p>
+            You can navigate ABB confidently as a non-coder by reading four things in order:
+            the file name, the import block, the public function signature, and the first
+            paragraph of the body. The rest is implementation detail you can ignore until you
+            need it.
+          </p>
+          <div class="read-code">
+            <pre><span class="annot">1. File path tells you the owner</span>
+src-tauri/src/audio/output_path/review.rs
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+                module: output artifact review
+
+<span class="annot">2. Imports tell you the neighborhood</span>
+<span class="anchor">use</span> super::plan::ResolvedOutputPlan;
+<span class="anchor">use</span> super::types::{OutputCollisionKind, PlannedOutputAction};
+<span class="anchor">use</span> crate::errors::Result;
+  // &rarr; this file works with output plans, collision kinds,
+  //   and the project-wide error type.
+
+<span class="annot">3. The public function signature is the contract</span>
+<span class="anchor">pub(crate) fn</span> enforce_output_plan_review(
+    plan: &amp;ResolvedOutputPlan,
+    review: OutputPlanReview,
+) -&gt; Result&lt;()&gt;;
+  // &rarr; "given a plan and a review intent, succeed if the move is allowed,
+  //    fail with a typed error if it is not." That is the whole promise.
+
+<span class="annot">4. The body is the implementation, optional reading</span>
+{
+    // signature check, collision rules, parent-dir validation...
+}
+</pre>
+          </div>
+          <p style="margin-top: 12px">
+            If you can describe a function in one sentence after reading items 1&ndash;3, the
+            module is doing its job. If you cannot, that is a real signal &mdash; either the
+            name lies, or the function is doing too many things.
+          </p>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Auditing a Private Cluster's code shape</h2>
+          <p>
+            Once the public API of a grey-box module is locked, the next useful pass is a
+            <em>cluster audit</em>: a non-mutating gut check of what is inside the cluster.
+            You are not refactoring yet &mdash; you are deciding whether internal refactoring
+            would buy enough clarity to be worth the diff. Use one module at a time. Read,
+            mark candidates, move on.
+          </p>
+          <div class="grid two" style="margin-top: 14px">
+            <article class="card compact">
+              <h3>File size</h3>
+              <p>
+                Target <code>&lt; 475</code> LOC per non-test file; cohesion review at
+                <code>~350</code>. Big file = candidate to split around internal steps,
+                <em>without changing the Public API Strip</em>.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Function size</h3>
+              <p>
+                Prefer <code>&lt;= 70</code> LOC per function. Larger orchestrators are fine
+                when they preserve boundary clarity. Document the exception inline; do not
+                hide it.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Parameter count</h3>
+              <p>
+                More than <code>7</code> parameters on a public function &rarr; propose a
+                typed config object. On a private helper &rarr; gut check; usually means the
+                helper is doing two things.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>One decision per function</h3>
+              <p>
+                If a function does plan + review + commit, that is three decisions. Split
+                inside the cluster; do not change the public function that callers use.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>No reach-throughs</h3>
+              <p>
+                The cluster should only import from itself, the project's shared error
+                types, and other modules' Public API Strips. An import that reaches into
+                another module's internals is a smell, not a shortcut.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Tests near the behavior</h3>
+              <p>
+                Tests that prove the Public API behavior belong in the contract test file.
+                Tests that prove internal helper shape belong in the cluster itself.
+                Internal tests can be deleted freely when a helper goes away.
+              </p>
+            </article>
+          </div>
+          <p style="margin-top: 12px">
+            Cluster audit is <strong>non-mutating</strong> by design: capture findings in a
+            short note per module and let later, deliberate refactor passes act on them.
+            The Public API Strip is the contract; internal moves are the safe edit zone.
+          </p>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Design Questions That Can Wait Until Architecture Proves Out</h2>
+          <p>
+            These are good follow-up refinements, not required blockers for deciding whether the
+            grey-box architecture should replace the old main shape.
+          </p>
+          <div class="grid three" style="margin-top: 14px">
+            <article class="card compact">
+              <h3>API names and return shapes</h3>
+              <p>
+                Real testing may reveal better names for plan, review, commit, or metadata answers.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Module file split</h3>
+              <p>
+                Once ownership is trusted, large files can be split around internal steps without
+                changing the public API.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Behavior-test placement</h3>
+              <p>
+                Tests can move closer to the public API strips and away from private helper shape as
+                the module contracts settle.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Type names and variants</h3>
+              <p>
+                Result and state types can be refined after manual testing reveals which product
+                concepts need clearer names.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="implementation" class="panel" aria-labelledby="implementation-tab">
+        <div class="learning-note">
+          <h2>Implementation Vocabulary For This Repo</h2>
+          <p>
+            Architecture says where truth belongs. Implementation is the code-level machinery that
+            makes that map real: functions, methods, types, classes, modules, tests, state, events,
+            and subsystems. You do not need to write this code to reason about whether the machinery
+            is serving the system.
+          </p>
+        </div>
+
+        <div class="grid two" style="margin-top: 16px">
+          <article class="card implementation-card function">
+            <h2>Function</h2>
+            <p>
+              A function is a named chunk of behavior. Callers pass inputs, the function does work,
+              and it may return an answer. In ABB, functions are often the public API strip or a
+              private step inside a grey-box module.
+            </p>
+            <div class="mini-code">resolve_preflight_plan(payload, metadata, preview_seconds)
+-> returns a user-reviewable ProcessingPreflightPlan</div>
+            <p style="margin-top: 10px">
+              Useful testing question: does this function answer one clear product question, or is
+              the caller forced to know hidden steps?
+            </p>
+          </article>
+
+          <article class="card implementation-card method">
+            <h2>Method</h2>
+            <p>
+              A method is a function attached to a type. In Rust, methods live inside an
+              <code>impl</code> block. They are useful when behavior needs the type's stored state.
+            </p>
+            <div class="mini-code">let mut ledger = OutputPlanLedger::new();
+let output = ledger.resolve(path, kind, policy, source_paths);</div>
+            <p style="margin-top: 10px">
+              In ABB, <code>ledger.resolve(...)</code> is a method because the ledger remembers
+              claimed output paths while planning a batch.
+            </p>
+          </article>
+
+          <article class="card implementation-card type">
+            <h2>Type</h2>
+            <p>
+              A type names the shape of data or the allowed choices. Types are how ABB tells code
+              what a valid processing result, output plan, status, or review answer looks like.
+            </p>
+            <div class="mini-code">type OutputPlanReviewResult =
+  | { status: 'approved'; payload; plan }
+  | { status: 'blocked'; message; plan }
+  | { status: 'cancelled' };</div>
+            <p style="margin-top: 10px">
+              In ABB, types help make impossible states harder to represent, like treating a
+              cancelled review as though it were approved.
+            </p>
+          </article>
+
+          <article class="card implementation-card class">
+            <h2>Class</h2>
+            <p>
+              A class is a template for an object that carries data and methods together. ABB uses
+              this style in TypeScript where a runtime controller needs long-lived state and behavior.
+              Rust usually expresses this idea with a <code>struct</code> plus methods in an
+              <code>impl</code> block.
+            </p>
+            <div class="mini-code">export class StatusPanelRuntime {
+  public async startProcessing(...) { ... }
+  public reconcileProcessResult(result) { ... }
+}</div>
+            <p style="margin-top: 10px">
+              In ABB, <code>StatusPanelRuntime</code> holds status model state, progress listeners,
+              cover art tracking, render timing, and methods that change the panel over time.
+            </p>
+          </article>
+
+          <article class="card implementation-card module">
+            <h2>Module</h2>
+            <p>
+              A module is a code boundary: a file, folder, or Rust module that groups related
+              behavior and decides what other code may import.
+            </p>
+            <div class="mini-code">audio/output_path/
+mod.rs exposes the public strip
+plan.rs, review.rs, commit.rs stay inside the cluster</div>
+            <p style="margin-top: 10px">
+              In ABB, modules are how the grey-box architecture becomes visible in the repo tree.
+            </p>
+          </article>
+
+          <article class="card implementation-card subsystem">
+            <h2>Subsystem</h2>
+            <p>
+              A subsystem is a larger working area made of modules, files, functions, tests, and
+              runtime behavior. It usually owns an end-to-end slice of the product.
+            </p>
+            <div class="mini-code">Status Panel Runtime
+controller + reducer/model + events + rendering + services + tests</div>
+            <p style="margin-top: 10px">
+              In ABB, the status panel is a subsystem. The grey-box API lets other code interact with
+              it without owning its internals.
+            </p>
+          </article>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>How These Pieces Fit Together</h2>
+          <div class="grid four" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>Functions and methods are moves</h3>
+              <p>
+                They perform a step: resolve a plan, commit an artifact, update status, normalize an
+                error, or render output.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Types describe shape</h3>
+              <p>
+                They name allowed data and choices: <code>PlannedOutput</code>,
+                <code>CollisionPolicy</code>, <code>ProcessingStatus</code>, or
+                <code>OutputPlanReviewResult</code>.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Classes and structs hold state</h3>
+              <p>
+                They package state and behavior: <code>OutputPlanLedger</code> remembers claimed
+                paths; <code>StatusPanelRuntime</code> remembers UI runtime state.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Modules and subsystems own truth</h3>
+              <p>
+                They decide where rules belong: output artifact truth, metadata intent, runtime IPC,
+                processing plans, or status-panel truth.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>The vocabulary you said felt overwhelming</h2>
+          <p>
+            These are the words that show up in every architecture conversation. Each card uses
+            an ABB example, not a textbook one.
+          </p>
+          <div class="grid four" style="margin-top: 12px">
+            <article class="card compact term-card api-design">
+              <strong>Caller</strong>
+              <p>
+                The code that uses something. <code>jobControls.ts</code> is the caller when it
+                calls <code>updateStatusPanelConcurrencyStatus(...)</code>.
+              </p>
+            </article>
+            <article class="card compact term-card api-design">
+              <strong>Callee / owner</strong>
+              <p>
+                The code being asked. The status panel runtime is the callee here. It is also
+                the owner of "what concurrency status feels like to the user".
+              </p>
+            </article>
+            <article class="card compact term-card api-design">
+              <strong>Callsite</strong>
+              <p>
+                The exact line where the call happens. When someone says "fix the callsites",
+                they mean every line that calls a thing whose contract just changed.
+              </p>
+            </article>
+            <article class="card compact term-card api-design">
+              <strong>Public API</strong>
+              <p>
+                The set of functions, types, and events a module promises to keep stable.
+                <code>tauriClient</code>, <code>resolve_preflight_plan</code>, and
+                <code>commit_output_artifact</code> are all public APIs.
+              </p>
+            </article>
+            <article class="card compact term-card module-design">
+              <strong>Interface</strong>
+              <p>
+                Same idea as public API. In TypeScript an <code>interface</code> is a named
+                shape; more generally, an interface is "the contract you can rely on without
+                opening the implementation".
+              </p>
+            </article>
+            <article class="card compact term-card module-design">
+              <strong>Boundary</strong>
+              <p>
+                A line in the code where one ownership zone ends and another begins. ABB has a
+                TS&harr;Rust boundary, a frontend&harr;backend boundary, and a public/private
+                boundary inside each grey-box module.
+              </p>
+            </article>
+            <article class="card compact term-card module-design">
+              <strong>Contract</strong>
+              <p>
+                The promise the owner makes to callers about behavior. "Given these inputs, you
+                get this kind of answer, with these typed failures." Tests lock the contract.
+              </p>
+            </article>
+            <article class="card compact term-card module-design">
+              <strong>Adapter</strong>
+              <p>
+                A translation layer. <code>src/lib/tauri/commands.ts</code> adapts the
+                user-facing <code>tauriClient</code> calls to the generated Rust bindings,
+                normalizing shapes in both directions.
+              </p>
+            </article>
+            <article class="card compact term-card architecture">
+              <strong>Public / private</strong>
+              <p>
+                Public = other modules may call it. Private = internal helper. In Rust,
+                <code>pub</code> vs no <code>pub</code>; in TS, exported vs not. Grey-box
+                modules keep the private set <em>large</em> and the public set <em>small</em>.
+              </p>
+            </article>
+            <article class="card compact term-card architecture">
+              <strong>Coupling</strong>
+              <p>
+                How much one module has to know about another. Tight coupling = changing one
+                forces changes in many. Loose coupling = a change stays inside its owner.
+              </p>
+            </article>
+            <article class="card compact term-card architecture">
+              <strong>Cohesion</strong>
+              <p>
+                How closely the pieces in a module belong together. A module with high cohesion
+                answers one product question. Low cohesion = a grab bag.
+              </p>
+            </article>
+            <article class="card compact term-card architecture">
+              <strong>Encapsulation</strong>
+              <p>
+                Hiding implementation behind an interface so callers cannot depend on it.
+                Encapsulation is what makes the inside of a grey-box module safe to change.
+              </p>
+            </article>
+            <article class="card compact term-card function-design">
+              <strong>Signature</strong>
+              <p>
+                The name + inputs + output type of a function. Reading the signature alone
+                should tell you what the function promises.
+              </p>
+            </article>
+            <article class="card compact term-card function-design">
+              <strong>Side effect</strong>
+              <p>
+                Something a function does besides returning a value: writes a file, emits an
+                event, mutates state. Commit functions have side effects; planning functions
+                aim not to.
+              </p>
+            </article>
+            <article class="card compact term-card function-design">
+              <strong>Idempotent</strong>
+              <p>
+                Calling it twice has the same result as calling it once. Useful for retry-safe
+                operations. Most planning code in ABB is idempotent on purpose.
+              </p>
+            </article>
+            <article class="card compact term-card type-design">
+              <strong>Variant</strong>
+              <p>
+                One choice inside an enum or union. <code>PlannedOutputAction</code> has
+                variants like <code>Write</code>, <code>ReplaceExisting</code>,
+                <code>ReviewRequired</code>.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Anatomy of a single grey-box call</h2>
+          <p>
+            One concrete call from the trace, labelled with the words above so you can see how
+            they line up:
+          </p>
+          <div class="read-code" style="margin-top: 10px">
+            <pre><span class="annot">caller (jobControls.ts):</span>
+import { updateStatusPanelConcurrencyStatus } <span class="anchor">// public API import</span>
+  from '../ui/statusPanel/runtimeApi';
+
+<span class="annot">callsite:</span>
+updateStatusPanelConcurrencyStatus(<span class="anchor">'2 of 4 jobs running'</span>);
+//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   <span class="annot">callee / public API name</span>
+//                                  ^^^^^^^^^^^^^^^^^  <span class="annot">argument crossing the boundary</span>
+
+<span class="annot">boundary:</span>
+// the runtimeApi.ts file is the public strip;
+// everything below this line is private implementation owned
+// by the status panel module (the callee / owner).
+
+<span class="annot">callee (runtimeApi.ts):</span>
+export function updateStatusPanelConcurrencyStatus(message: string): void {
+  feedback.updateConcurrencyStatus(message); <span class="anchor">// private helper</span>
+}</pre>
+          </div>
+          <p style="margin-top: 12px">
+            If you ever feel lost reading code, ask: <em>which side of the boundary am I on,
+            and which one of these words am I looking at?</em> That alone resolves most "what
+            is this even doing" moments.
+          </p>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Other Implementation Words You Will See</h2>
+          <div class="grid four" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>Struct</h3>
+              <p>
+                Rust data shape with named fields. Example: <code>PlannedOutput</code> describes
+                requested path, resolved path, collision, review, and action.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Enum / union</h3>
+              <p>
+                A closed list of variants. Example: Rust <code>PlannedOutputAction</code> and TS
+                <code>OutputPlanReviewResult</code> both model allowed outcomes.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Interface</h3>
+              <p>
+                TS object contract. Example: <code>OutputPlanReviewRequest</code> names the payload,
+                metadata intent, and optional preview seconds a caller must provide.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>State</h3>
+              <p>
+                Data remembered over time. Example: <code>StatusPanelRuntime</code> holds the current
+                status model and render timers.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Import / export</h3>
+              <p>
+                The doorway between modules. Exported items are callable from outside; private
+                helpers stay inside the grey-box implementation cluster.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Async / promise</h3>
+              <p>
+                Work that finishes later. Example: frontend calls through <code>tauriClient</code>
+                return promises while Rust processing continues in the backend.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Event</h3>
+              <p>
+                Runtime message emitted over time. Example: processing progress and queue events let
+                the status panel update while jobs run.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Test</h3>
+              <p>
+                Executable expectation. In grey-box modules, tests should lock public behavior more
+                than private helper shape.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top: 16px">
+          <article class="card judgment-card">
+            <h2>Ousterhout-Style Flexibility</h2>
+            <p>
+              Small code units are useful only when they make the system simpler to understand. A
+              deeper module may have more internal code if its public API is simple, stable, and hard
+              to misuse.
+            </p>
+            <ul>
+              <li>Good large module: one clear public surface, private complexity, behavior tests.</li>
+              <li>Bad large module: unrelated responsibilities and callers that must know internals.</li>
+              <li>Good small function: names a real step and reduces caller burden.</li>
+              <li>Bad small function: hides simple logic behind extra jumping and fake seams.</li>
+            </ul>
+          </article>
+          <article class="card judgment-card">
+            <h2>ABB Design Judgment</h2>
+            <p>
+              The code-shape triggers are review prompts, not automatic laws. The better question is
+              whether splitting preserves the grey-box contract or weakens it.
+            </p>
+            <ul>
+              <li>Split when a private step has its own invariant, tests, or vocabulary.</li>
+              <li>Keep together when splitting would expose private workflow as public API.</li>
+              <li>Accept a longer orchestrator when it reads like a clear sequence of product steps.</li>
+              <li>Document exceptions when size is serving boundary clarity.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Manual Testing Lens</h2>
+          <p>
+            You can guide this work without writing code. When something feels off, translate the
+            feeling into one of these implementation questions.
+          </p>
+          <div class="grid three" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>Wrong behavior</h3>
+              <p>
+                Which public function or method promised this behavior, and what caller trusted it?
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Confusing result</h3>
+              <p>
+                Is the API returning the right product concept, or leaking a raw implementation fact?
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>Hard to explain</h3>
+              <p>
+                Is this a module-boundary problem, a function-shape problem, or simply a missing term?
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="flow" class="panel" aria-labelledby="flow-tab">
+        <div class="split">
+          <div class="card">
+            <h2>What Happens When The User Processes A Book</h2>
+            <div class="sequence">
+              <div class="step">
+                <div>
+                  <h3>UI gathers intent</h3>
+                  <p>
+                    File list, job type, metadata patch, encoder settings, output naming, collision
+                    policy, preview request.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div>
+                  <h3><code>tauriClient</code> submits through boundary</h3>
+                  <p>
+                    <code>client.ts</code> exposes the public API. <code>commands.ts</code> handles
+                    generated calls and normalization.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div>
+                  <h3>Processing plan resolves safe work</h3>
+                  <p>
+                    Preflight produces user-reviewable artifact plans. Execution revalidates review
+                    signatures and prepares parent dirs.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div>
+                  <h3>Metadata and output boundaries answer domain questions</h3>
+                  <p>
+                    Metadata boundary resolves naming/processing metadata. Output boundary resolves
+                    collisions, review requirements, and commit policy.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div>
+                  <h3>Runner executes</h3>
+                  <p>
+                    <code>run.rs</code> validates encoder/toolchain, registers jobs, emits queue
+                    events, dispatches scheduler work, and normalizes terminal results.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div>
+                  <h3>Status runtime renders truth</h3>
+                  <p>
+                    Status panel owns user-visible success, failure, cancellation, queue, and
+                    concurrency status.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Frontend / Backend Mental Model</h2>
+            <p>
+              The frontend/backend split is still real at runtime, but it is not the main
+              architecture story anymore. The main question is: which product decision owns this rule?
+            </p>
+            <div class="old-new" style="margin-top: 14px">
+              <div class="card compact old">
+                <h3>Old mental model</h3>
+                <ul>
+                  <li>Find the frontend file.</li>
+                  <li>Find the backend file.</li>
+                  <li>Compare duplicate policy in each.</li>
+                  <li>Hope glue and tests agree.</li>
+                </ul>
+              </div>
+              <div class="card compact new">
+                <h3>New mental model</h3>
+                <ul>
+                  <li>Start at the public API strip.</li>
+                  <li>Identify the product decision owner.</li>
+                  <li>Trust behavior tests and guards first.</li>
+                  <li>Open private internals only when needed.</li>
+                </ul>
+              </div>
+            </div>
+
+            <details style="margin-top: 14px">
+              <summary>Concrete example: collision review</summary>
+              <p>
+                The frontend no longer re-derives hard-block collision policy from collision kinds.
+                It reads backend-authored <code>output.review</code>. That makes the output artifact
+                boundary the owner of review truth, while the UI owns the dialog and user decision.
+              </p>
+            </details>
+
+            <details>
+              <summary>Concrete example: generated bindings</summary>
+              <p>
+                Generated bindings are still used, but runtime code now reaches them through the
+                Tauri boundary. The guard blocks generated command/event invoker leaks outside the
+                intended adapter files.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="cleanup" class="panel" aria-labelledby="cleanup-tab">
+        <div class="old-new">
+          <div class="card old">
+            <h2>Old State Pressure</h2>
+            <ul>
+              <li>Planner and runner both knew too much about output path details.</li>
+              <li>Processor finalization owned final artifact filesystem policy.</li>
+              <li>Frontend output review duplicated backend collision semantics.</li>
+              <li>Metadata intent projection lived near command planning instead of metadata.</li>
+              <li>Runtime boundary mixed public <code>tauriClient</code> with generated command glue.</li>
+              <li>Job controls reached into status panel view state directly.</li>
+            </ul>
+          </div>
+          <div class="card new">
+            <h2>New State Ownership</h2>
+            <ul>
+              <li>Planning asks <code>resolve_preflight_plan</code> or <code>prepare_execution_plan</code>.</li>
+              <li>Output artifact boundary owns commit, collision review, and parent-dir policy.</li>
+              <li>Frontend renders backend-authored review truth.</li>
+              <li>Metadata boundary owns intent/write-plan and naming/processing projection.</li>
+              <li><code>tauriClient</code> is public; <code>commandSpecs</code> and generated calls are private.</li>
+              <li>Status runtime API closes the external view-state leak.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="grid three" style="margin-top: 16px">
+          <div class="card compact">
+            <h3>Obsolete seam absorbed</h3>
+            <p><code>commit_output_boundary</code> and final move policy moved out of processor finalize.</p>
+          </div>
+          <div class="card compact">
+            <h3>Duplicate policy shrunk</h3>
+            <p>UI hard-block review now reads <code>output.review</code> instead of duplicating collision kind logic.</p>
+          </div>
+          <div class="card compact">
+            <h3>Boundary guard added</h3>
+            <p>Raw generated invoker access is guarded by <code>scripts/check-no-bridge-imports.sh</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="proof" class="panel" aria-labelledby="proof-tab">
+        <div class="grid two">
+          <div class="card">
+            <h2>Evidence Already In Hand</h2>
+            <ul>
+              <li><code>scripts/checks.sh standard</code> passed after Phase 5.</li>
+              <li><code>scripts/checks.sh standard</code> passed again after old-seam cleanup.</li>
+              <li>Generated command invoke names match <code>main</code>: 19 vs 19, no additions/removals.</li>
+              <li><code>bun run app:build</code> produced the lab app bundle.</li>
+              <li><code>/Applications/AudioBook Boss.app</code> points at the lab bundle.</li>
+              <li>Initial agent-led smoke covered import, metadata save, preview, full process, collision modal Cancel, and cancellation.</li>
+              <li>
+                <strong>JStar single-M4B run (2026-05-11):</strong> end-to-end on a real
+                <code>.m4b</code>, zero issues observed. Progress status looked truthful while
+                running.
+              </li>
+              <li>Main checkout remains clean on <code>main...origin/main</code>.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h2>Manual Proof Still Required (JStar's list)</h2>
+            <table class="qa-table">
+              <thead>
+                <tr>
+                  <th>Scenario</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Single M4B end-to-end on the lab app</td>
+                  <td><span class="chip done">passed</span></td>
+                </tr>
+                <tr>
+                  <td>Merge multiple files into a single <code>.m4b</code> (ordering preserved, final metadata correct)</td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Process + preview multiple <code>.m4b</code> files on <strong>Native AAC</strong></td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Process + preview multiple <code>.m4b</code> files on <strong>Apple AAC (AAC-AT)</strong></td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Process + preview multiple <code>.m4b</code> files on <strong>FDK (external toolchain)</strong></td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Metadata-only stress (edit/save/reload without encoding)</td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Progress / status truthfulness during batch and merge</td>
+                  <td><span class="chip pending">pending (looked fine on single file)</span></td>
+                </tr>
+                <tr>
+                  <td>Collision Overwrite on a temporary output</td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Collision Skip on a temporary output</td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Collision Keep Existing on a temporary output</td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+                <tr>
+                  <td>Representative parity against current <code>main</code></td>
+                  <td><span class="chip pending">pending</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>What to watch for during your remaining tests</h2>
+          <p>
+            These are the categories of bugs the grey-box refactor is <em>most</em> likely to
+            have introduced, ranked by how likely each is and what it would look like.
+          </p>
+          <div class="grid two" style="margin-top: 12px">
+            <article class="card compact">
+              <h3>1. Collision review behavior drift</h3>
+              <p>
+                The biggest semantic move: the UI now reads
+                <code>output.review.canProceed</code> instead of re-deriving hard-block
+                collision kinds. If a collision case fails to open the dialog (or opens it for
+                the wrong reason), suspect <code>audio/output_path/review.rs</code>. Test
+                Overwrite, Skip, and Keep Existing on a real temporary output to confirm each
+                path commits the correct file.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>2. Metadata projection edge cases</h3>
+              <p>
+                <code>resolve_effective_processing_metadata</code> and
+                <code>resolve_naming_metadata</code> moved from
+                <code>audio_processing/run.rs</code> to <code>metadata/intent_plan.rs</code>.
+                If output filename, ID3/MP4 tags, or naming preset behavior disagrees with
+                <code>main</code>, that's where to look. Most exposed: cleared dates, cleared
+                covers, legacy series-part numbers.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>3. Final commit policy on cross-volume output</h3>
+              <p>
+                <code>commit_output_artifact</code> moved out of
+                <code>processor/finalize.rs</code> into
+                <code>audio/output_path/commit.rs</code>. The hard-link &rarr; copy fallback
+                logic was supposed to come along intact. Test by pointing the output to a
+                folder on a <em>different</em> volume than your temp/scratch dir and verify a
+                full encode still produces the correct file with no leftover temp.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>4. External FDK toolchain validation</h3>
+              <p>
+                Encoder/toolchain validation still lives in <code>run.rs</code> but the plan
+                builder runs first. If the user selects FDK with a missing or wrong external
+                <code>ffmpeg</code> binary, preflight should fail with a clear error, not a
+                cryptic late-stage crash. This is the most fragile cross-runtime contract.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>5. Concurrency status text in the panel</h3>
+              <p>
+                <code>jobControls</code> now goes through <code>runtimeApi</code> for the "N of
+                M jobs running" message instead of poking view state. If that text gets stuck
+                stale, never updates, or never clears at end of batch, the new boundary is the
+                first place to look.
+              </p>
+            </article>
+            <article class="card compact">
+              <h3>6. Preflight signature drift between preview and run</h3>
+              <p>
+                On reviewed-collision flows the UI carries a <code>planSignature</code> back
+                into the process call. If the backend says "stale signature" when the user
+                clicks Process right after the dialog, suspect
+                <code>plan.rs::build_plan_signature</code> producing a different string than
+                the one the preview returned for the same inputs.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px">
+          <h2>Useful Paths</h2>
+          <div class="path">
+            <div class="path-row">
+              <code>/Users/jstar/Projects/audiobook-boss-deep-modules-lab</code>
+              <button class="copy-button" type="button" data-copy="/Users/jstar/Projects/audiobook-boss-deep-modules-lab">copy</button>
+            </div>
+            <div class="path-row">
+              <code>/Users/jstar/Projects/audiobook-boss-deep-modules-lab/docs/specs/grey-box-modules.md</code>
+              <button class="copy-button" type="button" data-copy="/Users/jstar/Projects/audiobook-boss-deep-modules-lab/docs/specs/grey-box-modules.md">copy</button>
+            </div>
+            <div class="path-row">
+              <code>/Applications/AudioBook Boss.app</code>
+              <button class="copy-button" type="button" data-copy="/Applications/AudioBook Boss.app">copy</button>
+            </div>
+            <div class="path-row">
+              <code>/tmp/abb-manual-output</code>
+              <button class="copy-button" type="button" data-copy="/tmp/abb-manual-output">copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="footer">
+        Source notes: built from the current lab worktree, <code>docs/specs/grey-box-modules.md</code>,
+        and current module file layout. This artifact is temporary and lives under the untracked
+        <code>.artifacts</code> folder.
+      </p>
+    </main>
+
+    <script>
+      const tabs = Array.from(document.querySelectorAll(".tab"));
+      const panels = Array.from(document.querySelectorAll(".panel"));
+
+      function activateTab(id) {
+        for (const tab of tabs) {
+          const selected = tab.dataset.tab === id;
+          tab.setAttribute("aria-selected", String(selected));
+        }
+        for (const panel of panels) {
+          panel.classList.toggle("active", panel.id === id);
+        }
+      }
+
+      for (const tab of tabs) {
+        tab.addEventListener("click", () => activateTab(tab.dataset.tab));
+      }
+
+      for (const button of document.querySelectorAll("[data-copy]")) {
+        button.addEventListener("click", async () => {
+          const text = button.getAttribute("data-copy") || "";
+          try {
+            await navigator.clipboard.writeText(text);
+            const old = button.textContent;
+            button.textContent = "copied";
+            window.setTimeout(() => {
+              button.textContent = old;
+            }, 1000);
+          } catch {
+            button.textContent = "copy failed";
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

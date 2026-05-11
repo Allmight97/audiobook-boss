@@ -372,6 +372,11 @@ export type OutputNamingConfig = {
 	customTemplate: string | null,
 };
 
+export type OutputReviewRequirement = {
+	canProceed: boolean,
+	message: string,
+};
+
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" };
 
 export type PlannedOutput = {
@@ -382,6 +387,7 @@ export type PlannedOutput = {
 	resolvedPath: string,
 	renameCandidate: string | null,
 	collision: OutputCollisionInfo | null,
+	review: OutputReviewRequirement | null,
 	action: PlannedOutputAction,
 };
 

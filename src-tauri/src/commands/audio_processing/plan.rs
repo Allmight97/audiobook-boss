@@ -1,23 +1,21 @@
 use crate::audio;
 use crate::audio::output_path::{
-    action_requires_output_write, build_output_path_preview, plan_is_hard_block, CollisionPolicy,
-    OutputKind, OutputPlanLedger, PlannedOutputAction, ResolvedOutputPlan,
+    build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
+    CollisionPolicy, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
+    ResolvedOutputPlan,
 };
 use crate::commands::audio_types::{
     JobType, OutputNamingConfig, ProcessPayload, ProcessingPreflightPlan,
 };
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::metadata::{resolve_effective_processing_metadata, resolve_naming_metadata};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::run::{
-    resolve_effective_processing_metadata, resolve_naming_metadata, validate_batch_input_path,
-};
-
-pub(crate) struct ProcessingInputs {
-    pub(crate) output_naming: OutputNamingConfig,
-    pub(crate) base_output_dir: PathBuf,
-    pub(crate) preview_seconds: Option<f64>,
+struct ProcessingInputs {
+    output_naming: OutputNamingConfig,
+    base_output_dir: PathBuf,
+    preview_seconds: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -38,7 +36,7 @@ pub(crate) struct ResolvedProcessingPlan {
     pub(crate) jobs: Vec<PlannedProcessingJob>,
 }
 
-pub(crate) fn resolve_output_dir(output_dir: &str, create_if_missing: bool) -> Result<PathBuf> {
+fn resolve_output_dir(output_dir: &str, create_if_missing: bool) -> Result<PathBuf> {
     let base_output_dir = PathBuf::from(output_dir);
     if create_if_missing && !base_output_dir.exists() {
         std::fs::create_dir_all(&base_output_dir).map_err(|e| {
@@ -74,29 +72,6 @@ fn resolve_output_kind(preview_seconds: Option<f64>) -> OutputKind {
     } else {
         OutputKind::Final
     }
-}
-
-fn action_is_hard_block(job: &PlannedProcessingJob) -> bool {
-    plan_is_hard_block(&job.output)
-}
-
-pub(crate) fn ensure_output_parent_dirs(plan: &ResolvedProcessingPlan) -> Result<()> {
-    for job in &plan.jobs {
-        if !action_requires_output_write(job.output.action) {
-            continue;
-        }
-        if let Some(parent) = job.output.resolved_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| {
-                AppError::FileValidation(format!(
-                    "Cannot create output directory '{}': {}",
-                    sanitize_path_for_display(parent),
-                    error
-                ))
-            })?;
-        }
-    }
-
-    Ok(())
 }
 
 fn build_plan_signature(
@@ -154,65 +129,6 @@ fn build_plan_signature(
     lines.join("\n")
 }
 
-fn output_plan_review_message(job: &PlannedProcessingJob) -> String {
-    let destination = sanitize_path_for_display(&job.output.requested_path);
-    match job.output.collision.as_ref().map(|value| value.kind) {
-        Some(crate::audio::output_path::OutputCollisionKind::SourceDestinationOverlap)
-        | Some(crate::audio::output_path::OutputCollisionKind::CanonicalPathOverlap) => format!(
-            "Output path '{}' targets an input source file. Choose a different destination.",
-            destination
-        ),
-        _ => format!(
-            "Output collision review is required for '{}'. Re-run preflight and choose how to handle the collision.",
-            destination
-        ),
-    }
-}
-
-pub(crate) fn enforce_plan_review(
-    payload: &ProcessPayload,
-    plan: &ResolvedProcessingPlan,
-) -> Result<()> {
-    let expected_signature = payload.preflight_signature.as_deref();
-    let current_signature = plan.plan_signature.as_str();
-
-    if let Some(signature) = expected_signature {
-        if signature != current_signature {
-            return Err(AppError::FileValidation(
-                "Output collision state changed after review. Review the collision dialog and try again."
-                    .to_string(),
-            ));
-        }
-    }
-
-    if resolve_collision_policy(payload) != CollisionPolicy::Fail && expected_signature.is_none() {
-        return Err(AppError::InvalidInput(
-            "Collision policy selections require a reviewed preflight plan.".to_string(),
-        ));
-    }
-
-    if let Some(job) = plan.jobs.iter().find(|job| action_is_hard_block(job)) {
-        return Err(AppError::FileValidation(output_plan_review_message(job)));
-    }
-
-    if let Some(job) = plan
-        .jobs
-        .iter()
-        .find(|job| job.output.action == PlannedOutputAction::ReviewRequired)
-    {
-        return Err(AppError::FileValidation(output_plan_review_message(job)));
-    }
-
-    if expected_signature.is_none() && plan.jobs.iter().any(|job| job.output.collision.is_some()) {
-        return Err(AppError::FileValidation(
-            "Output collisions require review before processing. Open the collision dialog and choose how to continue."
-                .to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
 fn build_requested_output_path(
     base_output_dir: &Path,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
@@ -222,7 +138,25 @@ fn build_requested_output_path(
     build_output_path_preview(base_output_dir, metadata, output_naming, source_path)
 }
 
-pub(crate) fn build_processing_plan(
+fn build_processing_inputs(
+    payload: &ProcessPayload,
+    create_output_dir: bool,
+    preview_seconds: Option<f64>,
+) -> Result<ProcessingInputs> {
+    Ok(ProcessingInputs {
+        output_naming: payload.output_naming.clone().unwrap_or_default(),
+        base_output_dir: resolve_output_dir(&payload.output_dir, create_output_dir)?,
+        preview_seconds: resolve_preview_seconds(preview_seconds),
+    })
+}
+
+fn resolve_preview_seconds(preview_seconds: Option<f64>) -> Option<f64> {
+    let resolved = preview_seconds?;
+
+    (resolved.is_finite() && resolved > 0.0).then_some(resolved)
+}
+
+fn build_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     inputs: &ProcessingInputs,
@@ -264,11 +198,7 @@ pub(crate) fn build_processing_plan(
     })
 }
 
-pub(crate) fn log_output_plan(
-    phase: &str,
-    payload: &ProcessPayload,
-    plan: &ResolvedProcessingPlan,
-) {
+fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcessingPlan) {
     for job in &plan.jobs {
         if job.output.action == PlannedOutputAction::Write
             && job.output.collision.is_none()
@@ -300,6 +230,37 @@ pub(crate) fn log_output_plan(
                 .unwrap_or_default(),
         );
     }
+}
+
+pub(crate) fn resolve_preflight_plan(
+    payload: &ProcessPayload,
+    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> Result<ProcessingPreflightPlan> {
+    let inputs = build_processing_inputs(payload, false, preview_seconds)?;
+    let plan = build_processing_plan(payload, metadata, &inputs)?;
+    log_output_plan("preflight", payload, &plan);
+    Ok(plan.to_public())
+}
+
+pub(crate) fn prepare_execution_plan(
+    payload: &ProcessPayload,
+    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> Result<ResolvedProcessingPlan> {
+    let inputs = build_processing_inputs(payload, true, preview_seconds)?;
+    let plan = build_processing_plan(payload, metadata, &inputs)?;
+    log_output_plan("process", payload, &plan);
+    enforce_output_plan_review(
+        OutputPlanReview {
+            expected_signature: payload.preflight_signature.as_deref(),
+            current_signature: &plan.plan_signature,
+            collision_policy: plan.collision_policy,
+        },
+        plan.jobs.iter().map(|job| &job.output),
+    )?;
+    ensure_output_parent_dirs(plan.jobs.iter().map(|job| &job.output))?;
+    Ok(plan)
 }
 
 fn build_merge_processing_job(
@@ -378,7 +339,7 @@ fn build_batch_processing_jobs(
     let validated_input_paths: Vec<PathBuf> = payload
         .input_files
         .iter()
-        .map(|input| validate_batch_input_path(&PathBuf::from(input)))
+        .map(|input| audio::path_validation::validate_input_audio_path(&PathBuf::from(input)))
         .collect::<Result<_>>()?;
 
     let mut jobs = Vec::new();
@@ -441,13 +402,8 @@ impl ResolvedProcessingPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_processing_plan, enforce_plan_review, ProcessingInputs, ResolvedProcessingPlan,
-    };
-    use crate::audio::output_path::{
-        CollisionPolicy, OutputCollision, OutputCollisionKind, OutputKind, PlannedOutputAction,
-        ResolvedOutputPlan,
-    };
+    use super::{prepare_execution_plan, resolve_preflight_plan};
+    use crate::audio::output_path::{CollisionPolicy, OutputKind};
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
@@ -485,24 +441,89 @@ mod tests {
         payload
     }
 
-    fn resolved_plan(plan_signature: &str) -> ResolvedProcessingPlan {
-        ResolvedProcessingPlan {
-            job_type: JobType::Batch,
-            preview_seconds: None,
-            collision_policy: CollisionPolicy::Fail,
-            plan_signature: plan_signature.to_string(),
-            jobs: Vec::new(),
-        }
+    fn copy_audio_fixture(temp_dir: &TempDir, name: &str) -> PathBuf {
+        let source_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .join("media")
+            .join("media_20sec.mp3");
+        let input_path = temp_dir.path().join(name);
+        std::fs::copy(&source_fixture, &input_path).expect("copy fixture");
+        input_path
     }
 
     #[test]
-    fn enforce_plan_review_rejects_stale_signature() {
+    fn preflight_plan_only_uses_explicit_positive_preview_request() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
         let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+
+        let default_plan = resolve_preflight_plan(&payload, None, None).expect("default preflight");
+        let preview_plan =
+            resolve_preflight_plan(&payload, None, Some(30.0)).expect("preview preflight");
+        let negative_plan =
+            resolve_preflight_plan(&payload, None, Some(-1.0)).expect("negative preflight");
+
+        assert_eq!(default_plan.preview_seconds, None);
+        assert_eq!(preview_plan.preview_seconds, Some(30.0));
+        assert_eq!(negative_plan.preview_seconds, None);
+        assert_eq!(default_plan.outputs[0].kind, OutputKind::Final);
+        assert_eq!(preview_plan.outputs[0].kind, OutputKind::Preview);
+        assert_eq!(negative_plan.outputs[0].kind, OutputKind::Final);
+    }
+
+    #[test]
+    fn batch_preflight_rejects_symlink_before_metadata_projection() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let source = temp_dir.path().join("source.m4b");
+        std::fs::write(&source, b"not audio, but enough for path validation")
+            .expect("write source");
+        let symlink = temp_dir.path().join("source-link.m4b");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&source, &symlink).expect("create symlink");
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(&source, &symlink).expect("create symlink");
+
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![symlink.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+
+        let err = resolve_preflight_plan(&payload, None, None)
+            .expect_err("symlink should be rejected before metadata projection");
+
+        assert!(
+            err.to_string().contains("Symlinks are not supported"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn execution_plan_rejects_stale_review_signature() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+        let preflight = resolve_preflight_plan(&payload, None, None).expect("preflight plan");
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
             payload.preflight_signature = Some("old-signature".to_string());
         });
-        let plan = resolved_plan("new-signature");
 
-        let err = enforce_plan_review(&payload, &plan).expect_err("stale signature should fail");
+        assert_ne!(
+            payload.preflight_signature.as_deref(),
+            Some(preflight.plan_signature.as_str())
+        );
+
+        let err =
+            prepare_execution_plan(&payload, None, None).expect_err("stale signature should fail");
 
         assert!(
             err.to_string().contains("collision state changed"),
@@ -511,14 +532,17 @@ mod tests {
     }
 
     #[test]
-    fn enforce_plan_review_rejects_policy_without_signature() {
+    fn execution_plan_rejects_policy_without_signature() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
         let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
             payload.collision_policy = Some(CollisionPolicy::RenameNew);
         });
-        let plan = resolved_plan("review-signature");
 
-        let err =
-            enforce_plan_review(&payload, &plan).expect_err("unreviewed collision policy fails");
+        let err = prepare_execution_plan(&payload, None, None)
+            .expect_err("unreviewed collision policy fails");
 
         assert!(
             err.to_string()
@@ -528,37 +552,57 @@ mod tests {
     }
 
     #[test]
-    fn enforce_plan_review_rejects_source_overlap_hard_block_even_with_signature() {
+    fn execution_plan_rejects_source_overlap_hard_block_even_with_signature() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let alpha_path = copy_audio_fixture(&temp_dir, "alpha.m4b");
+        let beta_path = copy_audio_fixture(&temp_dir, "beta.m4b");
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            alpha_path.to_string_lossy().to_string(),
+            MetadataIntentPatch {
+                title: PatchOp::Set("beta".to_string()),
+                ..Default::default()
+            },
+        );
+        metadata.insert(
+            beta_path.to_string_lossy().to_string(),
+            MetadataIntentPatch {
+                title: PatchOp::Set("gamma".to_string()),
+                ..Default::default()
+            },
+        );
         let payload = process_payload(|payload| {
-            payload.preflight_signature = Some("review-signature".to_string());
+            payload.input_files = vec![
+                alpha_path.to_string_lossy().to_string(),
+                beta_path.to_string_lossy().to_string(),
+            ];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+            payload.output_naming = Some(OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{title}".to_string()),
+            });
+            payload.collision_policy = Some(CollisionPolicy::ReplaceExisting);
         });
-        let source_path = PathBuf::from("/books/input.m4b");
-        let plan = ResolvedProcessingPlan {
-            job_type: JobType::Batch,
-            preview_seconds: None,
-            collision_policy: CollisionPolicy::Fail,
-            plan_signature: "review-signature".to_string(),
-            jobs: vec![super::PlannedProcessingJob {
-                input_index: Some(0),
-                input_path: Some(source_path.clone()),
-                output: ResolvedOutputPlan {
-                    kind: OutputKind::Final,
-                    requested_path: source_path.clone(),
-                    resolved_path: source_path.clone(),
-                    rename_candidate: None,
-                    collision: Some(OutputCollision {
-                        kind: OutputCollisionKind::SourceDestinationOverlap,
-                        conflicting_path: Some(source_path),
-                        detail: Some("Output path resolves to an input source file.".to_string()),
-                    }),
-                    action: PlannedOutputAction::ReviewRequired,
-                },
-                metadata: None,
-                allow_passthrough_cover_art: true,
-            }],
-        };
+        let preflight =
+            resolve_preflight_plan(&payload, Some(&metadata), None).expect("preflight plan");
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![
+                alpha_path.to_string_lossy().to_string(),
+                beta_path.to_string_lossy().to_string(),
+            ];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+            payload.output_naming = Some(OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{title}".to_string()),
+            });
+            payload.collision_policy = Some(CollisionPolicy::ReplaceExisting);
+            payload.preflight_signature = Some(preflight.plan_signature);
+        });
 
-        let err = enforce_plan_review(&payload, &plan).expect_err("hard block should fail");
+        let err = prepare_execution_plan(&payload, Some(&metadata), None)
+            .expect_err("hard block should fail");
 
         assert!(
             err.to_string().contains("targets an input source file"),
@@ -567,15 +611,9 @@ mod tests {
     }
 
     #[test]
-    fn build_processing_plan_does_not_create_output_parent_dirs() {
+    fn preflight_plan_does_not_create_output_parent_dirs() {
         let temp_dir = TempDir::new().expect("temp dir");
-        let source_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("workspace root")
-            .join("media")
-            .join("media_20sec.mp3");
-        let input_path = temp_dir.path().join("input.m4b");
-        std::fs::copy(&source_fixture, &input_path).expect("copy fixture");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
         let mut metadata = HashMap::new();
         metadata.insert(
             input_path.to_string_lossy().to_string(),
@@ -594,19 +632,11 @@ mod tests {
                 custom_template: Some("Nested/{title}".to_string()),
             });
         });
-        let inputs = ProcessingInputs {
-            output_naming: payload.output_naming.clone().unwrap_or_default(),
-            base_output_dir: temp_dir.path().to_path_buf(),
-            preview_seconds: None,
-        };
 
-        let plan = build_processing_plan(&payload, Some(&metadata), &inputs).expect("build plan");
+        let plan = resolve_preflight_plan(&payload, Some(&metadata), None).expect("build plan");
 
-        assert_eq!(plan.jobs.len(), 1);
-        assert!(plan.jobs[0]
-            .output
-            .requested_path
-            .ends_with("Nested/Book.m4b"));
+        assert_eq!(plan.outputs.len(), 1);
+        assert!(PathBuf::from(&plan.outputs[0].requested_path).ends_with("Nested/Book.m4b"));
         assert!(
             !planned_parent.exists(),
             "preflight planning should not create output parent directories"
@@ -614,15 +644,45 @@ mod tests {
     }
 
     #[test]
-    fn build_processing_plan_suppresses_passthrough_cover_after_explicit_clear() {
+    fn execution_plan_creates_output_parent_dirs() {
         let temp_dir = TempDir::new().expect("temp dir");
-        let source_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("workspace root")
-            .join("media")
-            .join("media_20sec.mp3");
-        let input_path = temp_dir.path().join("input.m4b");
-        std::fs::copy(&source_fixture, &input_path).expect("copy fixture");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            input_path.to_string_lossy().to_string(),
+            MetadataIntentPatch {
+                title: PatchOp::Set("Book".to_string()),
+                ..Default::default()
+            },
+        );
+        let planned_parent = temp_dir.path().join("Nested");
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![input_path.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+            payload.output_naming = Some(OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("Nested/{title}".to_string()),
+            });
+        });
+
+        let plan = prepare_execution_plan(&payload, Some(&metadata), None).expect("execution plan");
+
+        assert_eq!(plan.jobs.len(), 1);
+        assert!(plan.jobs[0]
+            .output
+            .requested_path
+            .ends_with("Nested/Book.m4b"));
+        assert!(
+            planned_parent.exists(),
+            "execution planning should create output parent directories"
+        );
+    }
+
+    #[test]
+    fn execution_plan_suppresses_passthrough_cover_after_explicit_clear() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let input_path = copy_audio_fixture(&temp_dir, "input.m4b");
         let mut metadata = HashMap::new();
         metadata.insert(
             input_path.to_string_lossy().to_string(),
@@ -635,13 +695,8 @@ mod tests {
             payload.input_files = vec![input_path.to_string_lossy().to_string()];
             payload.output_dir = temp_dir.path().to_string_lossy().to_string();
         });
-        let inputs = ProcessingInputs {
-            output_naming: payload.output_naming.clone().unwrap_or_default(),
-            base_output_dir: temp_dir.path().to_path_buf(),
-            preview_seconds: None,
-        };
 
-        let plan = build_processing_plan(&payload, Some(&metadata), &inputs).expect("build plan");
+        let plan = prepare_execution_plan(&payload, Some(&metadata), None).expect("execution plan");
 
         assert_eq!(plan.jobs.len(), 1);
         assert!(

@@ -19,19 +19,9 @@ export type OutputPlanReviewResult =
 	| { status: 'blocked'; message: string; plan: ProcessingPreflightPlan }
 	| { status: 'cancelled' };
 
-function getHardBlockingCollisionMessage(plan: ProcessingPreflightPlan): string | null {
-	const blocked = plan.outputs.find(
-		(output) =>
-			output.collision?.kind === 'source_destination_overlap' ||
-			output.collision?.kind === 'canonical_path_overlap',
-	);
-	if (!blocked) {
-		return null;
-	}
-	return (
-		blocked.collision?.detail ??
-		`Output path '${blocked.requestedPath}' targets an input source file. Choose a different destination.`
-	);
+function getBlockingReviewMessage(plan: ProcessingPreflightPlan): string | null {
+	const blocked = plan.outputs.find((output) => output.review?.canProceed === false);
+	return blocked?.review?.message ?? null;
 }
 
 function approvePayload(payload: ProcessPayload, plan: ProcessingPreflightPlan): ProcessPayload {
@@ -56,7 +46,7 @@ export async function reviewOutputPlanForProcessing(
 		metadataIntent,
 		previewSeconds,
 	});
-	const hardBlockMessage = getHardBlockingCollisionMessage(initialPlan);
+	const hardBlockMessage = getBlockingReviewMessage(initialPlan);
 	if (hardBlockMessage) {
 		return { status: 'blocked', message: hardBlockMessage, plan: initialPlan };
 	}
@@ -80,7 +70,7 @@ export async function reviewOutputPlanForProcessing(
 		metadataIntent,
 		previewSeconds,
 	});
-	const reviewedHardBlock = getHardBlockingCollisionMessage(reviewedPlan);
+	const reviewedHardBlock = getBlockingReviewMessage(reviewedPlan);
 	if (reviewedHardBlock) {
 		return { status: 'blocked', message: reviewedHardBlock, plan: reviewedPlan };
 	}

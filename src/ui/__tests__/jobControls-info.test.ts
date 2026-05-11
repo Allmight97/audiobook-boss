@@ -20,15 +20,15 @@ vi.mock('../../lib/tauri/client', () => ({
 
 const mockedDependencies = vi.hoisted(() => ({
 	updateOutputPathMock: vi.fn(),
-	setStatusPanelConcurrencyTextMock: vi.fn(),
+	updateStatusPanelConcurrencyStatusMock: vi.fn(),
 }));
 
 vi.mock('../outputPanel', () => ({
 	updateOutputPath: mockedDependencies.updateOutputPathMock,
 }));
 
-vi.mock('../statusPanel/viewState.svelte', () => ({
-	setStatusPanelConcurrencyText: mockedDependencies.setStatusPanelConcurrencyTextMock,
+vi.mock('../statusPanel/runtimeApi', () => ({
+	updateStatusPanelConcurrencyStatus: mockedDependencies.updateStatusPanelConcurrencyStatusMock,
 }));
 
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
@@ -75,7 +75,7 @@ describe('Job controls merge toggle', () => {
 		setupDomRoot();
 		setMaxConcurrentJobsMock.mockReset();
 		mockedDependencies.updateOutputPathMock.mockReset();
-		mockedDependencies.setStatusPanelConcurrencyTextMock.mockReset();
+		mockedDependencies.updateStatusPanelConcurrencyStatusMock.mockReset();
 		setJobTypeSelection('batch');
 		setJobControlsEnabled(true);
 		jobControlsState.maxConcurrentSelection = 'auto';
@@ -128,7 +128,7 @@ describe('Job controls merge toggle', () => {
 		expect(getMaxConcurrentSelect().value).toBe('3');
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
-		expect(mockedDependencies.setStatusPanelConcurrencyTextMock).toHaveBeenLastCalledWith(
+		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
 			'Max jobs: 3',
 		);
 	});
@@ -148,7 +148,7 @@ describe('Job controls merge toggle', () => {
 
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(null);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 6');
-		expect(mockedDependencies.setStatusPanelConcurrencyTextMock).toHaveBeenLastCalledWith(
+		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
 			'Max jobs: 6 (Auto)',
 		);
 	});

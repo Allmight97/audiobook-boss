@@ -3,7 +3,7 @@ import type { JobType } from '../types/audio';
 import { flushSync } from 'svelte';
 import { jobControlsState } from './jobControls/state.svelte';
 import { updateOutputPath } from './outputPanel';
-import { setStatusPanelConcurrencyText } from './statusPanel/viewState.svelte';
+import { updateStatusPanelConcurrencyStatus } from './statusPanel/runtimeApi';
 
 export function initJobControls(): void {
 	initializeMaxConcurrentControl();
@@ -57,7 +57,7 @@ export function setJobControlsEnabled(enabled: boolean): void {
 function updateMaxConcurrentIndicator(): void {
 	if (jobControlsState.effectiveMaxConcurrent === null) {
 		jobControlsState.effectiveLabel = '';
-		setStatusPanelConcurrencyText('Max jobs: —');
+		updateStatusPanelConcurrencyStatus('Max jobs: —');
 		return;
 	}
 
@@ -68,7 +68,9 @@ function updateMaxConcurrentIndicator(): void {
 	}
 
 	const suffix = jobControlsState.maxConcurrentSelection === 'auto' ? ' (Auto)' : '';
-	setStatusPanelConcurrencyText(`Max jobs: ${jobControlsState.effectiveMaxConcurrent}${suffix}`);
+	updateStatusPanelConcurrencyStatus(
+		`Max jobs: ${jobControlsState.effectiveMaxConcurrent}${suffix}`,
+	);
 }
 
 async function pushMaxConcurrentToBackend(value: string): Promise<void> {

@@ -1,4 +1,4 @@
-use crate::audio::processor::finalize::{commit_output_boundary, finalized_output_success};
+use crate::audio::output_path::{commit_output_artifact, finalized_output_success};
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
 use crate::audio::toolchain::validate_external_input_decoders;
 use crate::audio::toolchain::ValidatedExternalToolchain;
@@ -98,7 +98,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
 
     ui.emit_cleanup("Cleaning up...");
-    let outcome = commit_output_boundary(
+    let outcome = commit_output_artifact(
         &context,
         temp_output,
         context.output.artifact_path(),

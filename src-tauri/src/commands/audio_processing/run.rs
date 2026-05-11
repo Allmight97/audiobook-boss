@@ -1,7 +1,4 @@
-use super::plan::{
-    build_processing_plan, enforce_plan_review, ensure_output_parent_dirs, log_output_plan,
-    resolve_output_dir, ProcessingInputs, ResolvedProcessingPlan,
-};
+use super::plan::{prepare_execution_plan, resolve_preflight_plan, ResolvedProcessingPlan};
 use super::terminal_outcomes::{
     build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
     skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
@@ -57,15 +54,7 @@ impl ProcessingRun {
         validate_external_processing_contract(&payload)?;
         log_encoder_summary(&payload);
 
-        let inputs = ProcessingInputs {
-            output_naming: payload.output_naming.clone().unwrap_or_default(),
-            base_output_dir: resolve_output_dir(&payload.output_dir, true)?,
-            preview_seconds: resolve_preview_seconds(preview_seconds),
-        };
-        let plan = build_processing_plan(&payload, metadata.as_ref(), &inputs)?;
-        log_output_plan("process", &payload, &plan);
-        enforce_plan_review(&payload, &plan)?;
-        ensure_output_parent_dirs(&plan)?;
+        let plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
 
         match plan.job_type {
             JobType::Merge => dispatch_merge_job(window, registry, &payload, plan).await,
@@ -81,14 +70,7 @@ impl ProcessingRun {
         validate_encoder_settings(&payload.settings)?;
         validate_external_processing_contract(&payload)?;
 
-        let inputs = ProcessingInputs {
-            output_naming: payload.output_naming.clone().unwrap_or_default(),
-            base_output_dir: resolve_output_dir(&payload.output_dir, false)?,
-            preview_seconds: resolve_preview_seconds(preview_seconds),
-        };
-        let plan = build_processing_plan(&payload, metadata.as_ref(), &inputs)?;
-        log_output_plan("preflight", &payload, &plan);
-        Ok(plan.to_public())
+        resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds)
     }
 }
 
@@ -112,56 +94,6 @@ fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::SampleRateConf
         .unwrap_or(audio::SampleRateConfig::Auto);
     audio::settings::validate_sample_rate_config(&sample_rate)?;
     Ok(sample_rate)
-}
-
-pub(crate) fn resolve_effective_processing_metadata(
-    input_path: Option<&std::path::Path>,
-    patch: Option<&crate::metadata::MetadataIntentPatch>,
-) -> Result<Option<crate::metadata::AudiobookMetadata>> {
-    match (input_path, patch) {
-        (Some(path), Some(patch)) => {
-            let source_metadata = crate::metadata::read_metadata(path)?;
-            Ok(Some(patch.apply_to_metadata(source_metadata)?))
-        }
-        (Some(path), None) => Ok(Some(crate::metadata::read_metadata(path)?)),
-        (None, Some(patch)) => Ok(Some(patch.to_processing_overlay()?)),
-        (None, None) => Ok(None),
-    }
-}
-
-pub(crate) fn resolve_naming_metadata(
-    resolved_metadata: Option<&crate::metadata::AudiobookMetadata>,
-    input_path: Option<&std::path::Path>,
-    patch: Option<&crate::metadata::MetadataIntentPatch>,
-) -> Option<crate::metadata::AudiobookMetadata> {
-    let mut naming_metadata = resolved_metadata.cloned()?;
-
-    if input_path.is_some() && patch.is_none() {
-        scrub_legacy_source_series_parts_for_naming(&mut naming_metadata);
-    }
-
-    Some(naming_metadata)
-}
-
-fn scrub_legacy_source_series_parts_for_naming(metadata: &mut crate::metadata::AudiobookMetadata) {
-    scrub_invalid_series_part_for_naming(&mut metadata.series_part);
-    scrub_invalid_series_part_for_naming(&mut metadata.subseries_part);
-}
-
-fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
-    let should_clear = value
-        .as_deref()
-        .map(str::trim)
-        .filter(|trimmed| !trimmed.is_empty())
-        .is_some_and(|trimmed| crate::metadata::validate_series_part(trimmed).is_err());
-
-    if should_clear {
-        *value = None;
-    }
-}
-
-pub(crate) fn validate_batch_input_path(path: &std::path::Path) -> Result<PathBuf> {
-    crate::audio::path_validation::validate_input_audio_path(path)
 }
 
 fn validate_external_processing_contract(payload: &ProcessPayload) -> Result<()> {
@@ -472,19 +404,13 @@ fn build_processing_context(
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;
 
-    let preview_seconds_resolved = resolve_preview_seconds(request.preview_seconds);
+    let preview_seconds_resolved = request.preview_seconds;
     if let Some(seconds) = preview_seconds_resolved {
         context.preview = Some(crate::audio::context::PreviewConfig::new(seconds));
         log::info!("Preview requested: total_seconds={:.3}", seconds);
     }
 
     (context, preview_seconds_resolved)
-}
-
-fn resolve_preview_seconds(preview_seconds: Option<f64>) -> Option<f64> {
-    let resolved = preview_seconds?;
-
-    (resolved.is_finite() && resolved > 0.0).then_some(resolved)
 }
 
 async fn execute_processing_job(
@@ -545,12 +471,9 @@ fn emit_terminal_skipped_event(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        preflight_payload, resolve_effective_processing_metadata, resolve_naming_metadata,
-        validate_batch_input_path, validate_external_processing_contract_with_file_info,
-    };
+    use super::{preflight_payload, validate_external_processing_contract_with_file_info};
     use crate::audio::file_list::FileListInfo;
-    use crate::audio::output_path::{build_output_path, CollisionPolicy, OutputCollisionKind};
+    use crate::audio::output_path::{CollisionPolicy, OutputCollisionKind};
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
@@ -562,106 +485,6 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use tempfile::TempDir;
-
-    fn sample_source_metadata() -> crate::metadata::AudiobookMetadata {
-        crate::metadata::AudiobookMetadata {
-            title: Some("A Change of Plans".to_string()),
-            artist: Some("Dennis E. Taylor".to_string()),
-            album: Some("A Change of Plans".to_string()),
-            series: Some("Checking".to_string()),
-            ..crate::metadata::AudiobookMetadata::new()
-        }
-    }
-
-    #[test]
-    fn resolve_effective_processing_metadata_no_patch_reads_source_or_errors() {
-        let missing_source = Path::new("/path/that/does/not/exist/input.m4b");
-        let outcome = resolve_effective_processing_metadata(Some(missing_source), None);
-        assert!(
-            outcome.is_err(),
-            "missing input should fail read, not return empty metadata"
-        );
-    }
-
-    #[test]
-    fn resolve_effective_processing_metadata_partial_set_and_clear_patch() {
-        let patch = MetadataIntentPatch {
-            series: PatchOp::Set("once again".to_string()),
-            artist: PatchOp::Clear,
-            ..Default::default()
-        };
-
-        let merged = patch
-            .apply_to_metadata(sample_source_metadata())
-            .expect("patch applies");
-
-        assert_eq!(merged.artist, None);
-        assert_eq!(merged.title.as_deref(), Some("A Change of Plans"));
-        assert_eq!(merged.series.as_deref(), Some("once again"));
-    }
-
-    #[test]
-    fn resolve_effective_processing_metadata_uses_overlay_without_source_file() {
-        let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Overlay Only".to_string()),
-            ..Default::default()
-        };
-
-        let resolved =
-            resolve_effective_processing_metadata(None, Some(&patch)).expect("metadata resolves");
-
-        assert_eq!(
-            resolved.and_then(|value| value.title),
-            Some("Overlay Only".to_string())
-        );
-    }
-
-    #[test]
-    fn resolve_effective_processing_metadata_rejects_invalid_patch_values() {
-        let patch = MetadataIntentPatch {
-            date: PatchOp::Set("2024-99".to_string()),
-            ..Default::default()
-        };
-
-        let err = resolve_effective_processing_metadata(None, Some(&patch))
-            .expect_err("invalid patch should fail");
-        assert!(
-            err.to_string().contains("Publication date"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn resolved_metadata_drives_naming_and_encoding_metadata_coherently() {
-        let base = sample_source_metadata();
-        let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Renamed Title".to_string()),
-            ..Default::default()
-        };
-        let effective = patch
-            .apply_to_metadata(base)
-            .expect("metadata should resolve");
-        let output_path = build_output_path(
-            Path::new("/tmp"),
-            Some(&effective),
-            OutputNamingConfig::default(),
-            None,
-        )
-        .expect("output path should build");
-
-        assert!(
-            output_path.to_string_lossy().contains("Renamed Title"),
-            "output naming should use resolved metadata"
-        );
-        assert_eq!(effective.title.as_deref(), Some("Renamed Title"));
-    }
-
-    #[test]
-    fn resolve_preview_seconds_only_uses_explicit_request() {
-        assert_eq!(super::resolve_preview_seconds(None), None);
-        assert_eq!(super::resolve_preview_seconds(Some(30.0)), Some(30.0));
-        assert_eq!(super::resolve_preview_seconds(Some(-1.0)), None);
-    }
 
     #[tokio::test]
     async fn register_job_and_validate_output_cleans_up_failed_validation() {
@@ -695,94 +518,6 @@ mod tests {
                 .await
                 .expect("idle registry should allow concurrency updates"),
             1
-        );
-    }
-
-    #[test]
-    fn resolve_naming_metadata_scrubs_legacy_series_parts_for_untouched_source() {
-        let metadata = crate::metadata::AudiobookMetadata {
-            title: Some("Legacy Source".to_string()),
-            series: Some("Series".to_string()),
-            series_part: Some("7/8".to_string()),
-            subseries: Some("Subseries".to_string()),
-            subseries_part: Some("2/3".to_string()),
-            ..Default::default()
-        };
-
-        let naming =
-            resolve_naming_metadata(Some(&metadata), Some(Path::new("/tmp/source.m4b")), None)
-                .expect("naming metadata should exist");
-
-        assert_eq!(naming.title.as_deref(), Some("Legacy Source"));
-        assert_eq!(naming.series.as_deref(), Some("Series"));
-        assert_eq!(naming.series_part, None);
-        assert_eq!(naming.subseries.as_deref(), Some("Subseries"));
-        assert_eq!(naming.subseries_part, None);
-
-        let output_path = build_output_path(
-            Path::new("/tmp"),
-            Some(&naming),
-            OutputNamingConfig::default(),
-            Some(Path::new("/tmp/source.m4b")),
-        )
-        .expect("legacy source naming should no longer fail");
-
-        assert!(
-            output_path.to_string_lossy().contains("Legacy Source"),
-            "output naming should still use source metadata title"
-        );
-    }
-
-    #[test]
-    fn resolve_naming_metadata_keeps_patch_validation_strict() {
-        let metadata = crate::metadata::AudiobookMetadata {
-            title: Some("Patched Source".to_string()),
-            series: Some("Series".to_string()),
-            series_part: Some("7/8".to_string()),
-            ..Default::default()
-        };
-        let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Renamed".to_string()),
-            ..Default::default()
-        };
-
-        let naming = resolve_naming_metadata(
-            Some(&metadata),
-            Some(Path::new("/tmp/source.m4b")),
-            Some(&patch),
-        )
-        .expect("naming metadata should exist");
-
-        let err = build_output_path(
-            Path::new("/tmp"),
-            Some(&naming),
-            OutputNamingConfig::default(),
-            Some(Path::new("/tmp/source.m4b")),
-        )
-        .expect_err("patched legacy series part should remain a hard failure");
-
-        assert!(
-            err.to_string().contains("Series sequence"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn validate_batch_input_path_rejects_symlink_before_metadata_read() {
-        let temp_dir = TempDir::new().expect("create temp dir");
-        let source = temp_dir.path().join("source.m4b");
-        fs::write(&source, b"not audio, but enough for path validation").expect("write source");
-        let symlink = temp_dir.path().join("source-link.m4b");
-
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(&source, &symlink).expect("create symlink");
-        #[cfg(not(unix))]
-        std::os::windows::fs::symlink_file(&source, &symlink).expect("create symlink");
-
-        let err = validate_batch_input_path(&symlink).expect_err("symlink should be rejected");
-        assert!(
-            err.to_string().contains("Symlinks are not supported"),
-            "unexpected error: {err}"
         );
     }
 

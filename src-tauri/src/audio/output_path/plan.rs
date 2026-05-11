@@ -195,6 +195,7 @@ impl ResolvedOutputPlan {
                 .as_ref()
                 .map(|value| value.display().to_string()),
             collision: self.collision.as_ref().map(OutputCollision::to_public),
+            review: super::review::output_review_requirement(self),
             action: self.action,
         }
     }

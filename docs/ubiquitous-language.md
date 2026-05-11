@@ -48,6 +48,22 @@
 | **Operational Truthfulness** | The requirement that progress, queue state, failures, and user-visible status reflect what the system is actually doing. | optimistic UI, silent failure |
 | **Durable Workflow Surface** | A repo artifact that lets a future agent or engineer resume work without depending on chat memory or guesswork. | transcript archaeology, informal notes |
 
+## Grey-Box Module Vocabulary
+| Term | Definition | Aliases to avoid |
+| --- | --- | --- |
+| **Grey-Box Module** | An ABB ownership unit that pairs a small, deliberately published **Public API Strip** with a **Private Cluster** of implementation files. Formally: a deep module (Ousterhout) with strict information hiding (Parnas). The private cluster is AI-editable; the public API is the contract that locks behavior. | shallow module, façade-only wrapper, generic "module" |
+| **Public API Strip** | The deliberately small set of public symbols (functions, types, events, commands) a grey-box module allows callers to import. Symbols outside the strip are not public even when the language would allow them to be. | exports list, "everything pub", surface area |
+| **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
+| **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
+| **Five Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, Status Panel Runtime. | "the modules" (ambiguous) |
+| **Reach-Through** | An import that crosses a module boundary into another module's Private Cluster. Always a smell; always names a bug, an unowned rule, or an unintentional contract. | shortcut, "just this once" |
+| **Ownership Smear** | A product rule whose implementation is split across two or more modules where each holds a partial answer and no single source of truth exists. | shared concern, "it depends" |
+| **Contract Test** | A test that pins the externally visible behavior of a grey-box module's Public API Strip. Internal cluster changes must keep contract tests green. | unit test, helper existence test |
+| **Boundary Assertion** | A repo-level script check (the `scripts/check-no-bridge-imports.sh` family) that fails CI if a Reach-Through is reintroduced. | lint suggestion, code-review note |
+| **Cluster Audit** | A non-mutating gut check of a Private Cluster's code shape: file size, function size, decision-per-function clarity, internal naming, and tests-close-to-behavior. Used to plan future internal refactors without changing the Public API Strip. | refactor sweep, "clean code pass" |
+| **Deep Module** | The published Ousterhout term (A Philosophy of Software Design) for a module with a small interface and substantial hidden implementation. ABB calls these grey-box modules locally. | shallow façade, micro-module |
+| **Information Hiding** | The published Parnas 1972 rule that callers must not depend on a module's implementation details. The reason the Private Cluster exists at all. | encapsulation (vague), abstraction (vague) |
+
 ## Relationships
 
 - The **IPC Contract** is exported from Rust, materialized as **Generated Bindings**, and consumed through the **tauriClient** **Runtime Boundary**.
@@ -59,6 +75,10 @@
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
 - A **Task Spec** is a **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
+- A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
+- A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
+- Each **Public API Strip** in the **Five Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green.
+- A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue
 
@@ -73,3 +93,7 @@
 - "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.
+- "module" alone is ambiguous in ABB. Prefer **Grey-Box Module** for the owned Public-API + Private-Cluster unit, and **Private Cluster File** for any implementation file inside one.
+- "API" can mean three different things in ABB. Prefer **IPC Contract** for the Rust-declared command/event set, **Runtime Boundary** for the TS adapter (`tauriClient`), and **Public API Strip** for the externally allowed import set of any **Grey-Box Module**.
+- "contract" can be ambiguous. Prefer **IPC Contract** for the cross-language command/event set and **Contract Test** for the behavior-locked test of any **Grey-Box Module's** Public API Strip.
+- "refactor" can mean either internal cluster reshape or boundary change. Prefer "**Cluster Audit** + internal refactor" for changes inside a Private Cluster (no Public API Strip impact) and "**Public API Strip** change" for anything callers will notice.
