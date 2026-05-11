@@ -1,9 +1,9 @@
 # Grey-Box Modules Implementation Spec
 
 Date: 2026-05-10
-Branch: `arch/grey-box-modules`
-Worktree: `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`
-Status: active implementation spec; P0-P2 complete; docs alignment in progress
+Original branch: `arch/grey-box-modules`
+Original worktree: `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`
+Status: promoted to `main` in version `1.0.21`; retained for owner review
 
 ## Purpose / Big Picture
 
@@ -659,10 +659,10 @@ as context and complexity grow:
   review, source overlap, and final commit behavior before deleting old glue.
 - Use sub-agents only for bounded research/audit lanes or explicitly owned file
   areas; do not let parallel workers mutate overlapping module internals.
-- Before declaring the branch replacement-ready, perform a completion audit that
-  maps every requirement in this spec to concrete evidence.
+- Before declaring a future architecture branch replacement-ready, perform a
+  completion audit that maps every requirement in its spec to concrete evidence.
 
-Before claiming the branch can replace `main`:
+Historical pre-promotion gate used before this branch replaced `main`:
 
 - Run targeted Rust tests for each changed backend module.
 - Run targeted frontend tests for each changed UI/runtime module.
@@ -693,15 +693,17 @@ Must stay aligned:
 ## Completion Audit
 
 Date: 2026-05-11
-Status: implementation complete; initial smoke passed; JStar's broader manual
-suite is clear as reported on 2026-05-11. Promotion hardening remains before
-merging to `main`.
+Status: implementation complete, promotion hardening complete, merged to
+`main`, and synced to `origin/main` as version `1.0.21`. Initial smoke passed;
+JStar's broader manual suite is clear as reported on 2026-05-11.
 
 Objective as concrete deliverables:
 
 - Align on the grey-box target shape.
 - Save the implementation contract where agents can reference it.
-- Work on branch `arch/grey-box-modules` in the lab worktree.
+- Work on branch `arch/grey-box-modules` in the lab worktree before promotion.
+- Promote the same tested content to `/Users/jstar/Projects/audiobook-boss`
+  `main`.
 - Produce a working ABB copy from that branch.
 - Preserve user-facing behavior equivalent to current `main`.
 
@@ -710,8 +712,9 @@ Prompt-to-artifact checklist:
 - Separate branch/worktree: `git status --short --branch` reports
   `arch/grey-box-modules` in
   `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`.
-- Main checkout safety: `/Users/jstar/Projects/audiobook-boss` remains on
-  `main...origin/main` with no working-tree changes from this lab pass.
+- Main checkout promotion: `/Users/jstar/Projects/audiobook-boss` now has
+  `main`, `origin/main`, and `origin/arch/grey-box-modules` at the same
+  promoted SHA.
 - Visual explainer artifact:
   `.artifacts/deep-modules-global-state.html` exists and remains the display
   piece.
@@ -789,8 +792,9 @@ Known incomplete or weakly verified requirements:
 - The spec does not yet contain detailed per-scenario fixture evidence for
   JStar's manual run. Treat the current manual status as owner-reported
   acceptance evidence, not an agent-reproduced transcript.
-- Promotion still needs P3 docs alignment to finish before merging to `main`,
-  so the new architecture can defend itself after the lab worktree is retired.
+- P3 deletion/migration cleanup is intentionally deferred by owner direction;
+  keep this spec and related artifacts until JStar reviews which surfaces to
+  retain, update, or delete.
 
 Manual testing status:
 
@@ -979,11 +983,12 @@ Status:
   temporary external status-panel private import failed the guard as intended
   before being removed.
 
-### Phase P3: Spec migration to canon docs, then delete this spec
+### Phase P3: Spec migration to canon docs, then owner review
 
-P3 because once P0–P2 are green and manual parity is complete, this spec is no
-longer the source of truth. Per the repo `AGENTS.md` rule, task specs are
-working state and must be deleted once routed.
+P3 originally called for deleting this spec once P0–P2 were green and manual
+parity was complete. Owner direction after promotion changed the immediate
+posture: keep this spec and related artifacts for review, then decide which
+surfaces become durable canon and which are deleted.
 
 Migration targets:
 
@@ -995,9 +1000,10 @@ Migration targets:
 - **Visual study guide** → `.artifacts/deep-modules-current-walkthrough.html`
   is artifact-only and not canon; it stays under `.artifacts/`.
 
-Acceptance for P3:
+Acceptance for final P3 cleanup after owner review:
 
-- `docs/specs/grey-box-modules.md` is deleted.
+- `docs/specs/grey-box-modules.md` is either updated into an accepted durable
+  surface or deleted after its useful content is routed.
 - A fresh agent that has never read this spec can still locate the same
   decisions in canon docs.
 - `bash scripts/check-context-surface.sh` passes against the post-migration
@@ -1005,10 +1011,9 @@ Acceptance for P3:
 
 Status:
 
-- In progress as of 2026-05-11. Stable canon docs and nested `AGENTS.md`
-  files now carry the grey-box ownership map. Keep this spec until promotion
-  approval or final branch retirement so the branch-specific audit trail does
-  not disappear early.
+- Deferred for owner review as of 2026-05-11. Stable canon docs and nested
+  `AGENTS.md` files carry the grey-box ownership map, but this spec remains as
+  the branch-specific audit trail.
 
 ### Phase P4: Public-API name and signature audit
 
@@ -1287,10 +1292,11 @@ test should be moved closer to the cluster as an internal test.
 
 ## Idempotence And Recovery
 
-- Work happens in `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`.
-- Branch is `arch/grey-box-modules`.
-- Main checkout at `/Users/jstar/Projects/audiobook-boss` should remain clean
-  unless explicitly asked otherwise.
+- Implementation work happened in
+  `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`.
+- Promoted branch was `arch/grey-box-modules`.
+- Main checkout at `/Users/jstar/Projects/audiobook-boss` is now the promoted
+  working tree.
 - Restart from the last completed phase and rerun the phase's targeted tests
   before continuing.
 - The Promotion And Hardening Plan is phased; restart from the next pending
@@ -1298,7 +1304,8 @@ test should be moved closer to the cluster as an internal test.
 
 ## Completion And Cleanup
 
-This spec can be deleted only after:
+This spec is retained after promotion for owner review. It can be deleted only
+after:
 
 - implementation is complete,
 - validation proves behavior equivalence,
@@ -1307,4 +1314,6 @@ This spec can be deleted only after:
 - any accepted stable system-language changes are routed to canon docs
   (vocabulary already routed to `docs/ubiquitous-language.md`),
 - the branch is merged/synced or otherwise retired,
+- JStar has reviewed the retained grey-box docs/artifacts and decided what to
+  keep, update, or remove,
 - and no future agent needs this file to resume the work.
