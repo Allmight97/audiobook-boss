@@ -62,6 +62,7 @@ Use this section as the human-facing index. `package.json` is the source of trut
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
+- Grey-box module work is governed by the five Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, and Status Panel Runtime.
 - For substantial multi-step work, use `.agents/skills/decision-alignment` to align outcomes with the repo owner and keep at most active implementation specs under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).
 - For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.

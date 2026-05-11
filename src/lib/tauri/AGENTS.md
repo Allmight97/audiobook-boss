@@ -9,6 +9,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change private adapters when `bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts` and `scripts/check-public-api-strips.sh` stay green.
+- Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
 - Keep metadata intent operations explicit as `set | clear | noop`; compile patch intent here, not in scattered UI callsites.
 - Keep nullish and payload normalization centralized in the private cluster.
 

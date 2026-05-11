@@ -11,9 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refreshed repo guidance docs for the grey-box Public API ownership map and
+  retired stale promotion-planning language after owner manual validation passed.
+
 ### Fixed
 
 ### Removed
+
+- Retired `docs/artifacts/glue-elements-validation-report.md`; current grey-box
+  ownership now lives in `docs/system-map.md`, `docs/ubiquitous-language.md`,
+  nested `AGENTS.md`, and contract/boundary checks.
 
 ## [1.0.20] - 2026-05-10
 

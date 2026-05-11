@@ -3,7 +3,8 @@
 ## Scope
 
 - Owns execution pipeline behavior in `src-tauri/src/audio/processor/`.
-- Source of truth for finalize semantics, cancellation checkpoints, and cleanup guarantees.
+- Source of truth for processor stage orchestration, cancellation checkpoints, and cleanup guarantees.
+- Output artifact commit policy lives in `src-tauri/src/audio/output_path/`; processor finalization delegates final artifact decisions to that boundary.
 
 ## Preferred Path
 
@@ -14,7 +15,8 @@
 
 ## Hard Invariants
 
-- Finalization stages output adjacent to the destination and completes via filesystem move semantics without a copy/replace fallback.
+- Finalization reports success only after the output artifact boundary returns final artifact truth.
+- Processor code must not directly perform final artifact `rename`, `copy`, or `hard_link`; `scripts/check-no-bridge-imports.sh` enforces this.
 - Cancellation is checked at critical boundaries, including post-move and pre-success paths.
 - Terminal paths clean temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
@@ -29,4 +31,4 @@
 
 - Pipeline stages remain explicit and user-visible progress is truthful.
 - Cancellation and cleanup semantics remain deterministic.
-- Finalize behavior preserves output integrity through deterministic staging, move, and cleanup paths.
+- Finalize behavior preserves output integrity through deterministic staging, delegated commit, and cleanup paths.

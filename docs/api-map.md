@@ -81,7 +81,7 @@ Source files:
 
 - Dialog open: `@tauri-apps/plugin-dialog` via `tauriClient.open`
 - External opener: `@tauri-apps/plugin-opener` via `tauriClient.openExternal`
-- Raw event listen fallback: `@tauri-apps/api/event` via `tauriClient.listen`
+- Generic event listen channel: `@tauri-apps/api/event` via `tauriClient.listen` for events outside the typed processing event pair.
 
 ## Verification Pointers
 

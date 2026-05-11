@@ -18,11 +18,9 @@ mod ffi;
 mod ffmpeg_dict;
 mod intent;
 mod intent_plan;
-mod remux;
-// Mp4ameta integration for reliable MP4/M4B metadata handling
 pub mod mp4ameta_bridge;
-// Passthrough helpers for chapter/cover preservation
 pub mod passthrough;
+mod remux;
 
 pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};

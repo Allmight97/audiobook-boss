@@ -32,6 +32,14 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load global `lib-research` when external library/API behavior affects implementation or review findings.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
 
+## Architecture Orientation
+
+- Use `docs/system-map.md` for product spine, layer ownership, and core truth boundaries before changing architecture.
+- Use `docs/ubiquitous-language.md` for canonical terms such as Grey-Box Module, Public API Strip, Private Cluster, Reach-Through, and Boundary Assertion.
+- The current grey-box Public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, and Status Panel Runtime.
+- Nearest nested `AGENTS.md` files own their local Public API Strip, Private Cluster, allowed-edit, and breaking-change rules.
+- Use `docs/api-map.md` only as the runtime command/event index; do not treat it as an architecture spec.
+
 ## Preferred Path
 
 - Complete tasks by proving the requested outcome, not by accumulating process or broadening scope by habit.

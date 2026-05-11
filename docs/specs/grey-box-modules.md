@@ -1,9 +1,9 @@
- and # Grey-Box Modules Implementation Spec
+# Grey-Box Modules Implementation Spec
 
 Date: 2026-05-10
 Branch: `arch/grey-box-modules`
 Worktree: `/Users/jstar/Projects/audiobook-boss-deep-modules-lab`
-Status: active implementation spec
+Status: active implementation spec; P0-P2 complete; docs alignment in progress
 
 ## Purpose / Big Picture
 
@@ -432,6 +432,10 @@ Phase 5: Status Panel Runtime
 - 2026-05-10: Strengthened `scripts/check-no-bridge-imports.sh` so the standard
   gate now also blocks raw Tauri core invoke calls in runtime code and generated
   command/event invoker imports outside the intended `src/lib/tauri` boundary.
+- 2026-05-11: Docs alignment started. Root and nested `AGENTS.md` files now
+  orient future agents to the five grey-box Public APIs; stable canon docs now
+  carry the ownership map so this spec can shrink toward retirement after
+  promotion approval.
 
 ## Accepted Decisions
 
@@ -785,44 +789,18 @@ Known incomplete or weakly verified requirements:
 - The spec does not yet contain detailed per-scenario fixture evidence for
   JStar's manual run. Treat the current manual status as owner-reported
   acceptance evidence, not an agent-reproduced transcript.
-- Promotion still needs hardening evidence from P0-P3 before merging to `main`
+- Promotion still needs P3 docs alignment to finish before merging to `main`,
   so the new architecture can defend itself after the lab worktree is retired.
 
-Manual suite before replacing `main`:
-
-- Longer real-book metadata edits and save/reload verification.
-- Bulk preview workflow with multiple files.
-- File merge workflow, including ordering and final metadata.
-- Collision review decisions beyond Cancel: Overwrite, Skip, and Keep Existing
-  on temporary outputs.
-- One safe failure-status path if practical.
-- Representative output and metadata parity against current `main` behavior.
-
-Status:
+Manual testing status:
 
 - Clear as reported by JStar on 2026-05-11.
+- No additional manual testing is required for promotion confidence unless a
+  later code change affects user-visible behavior.
+- Treat the manual status as owner acceptance evidence, not an agent-reproduced
+  transcript.
 
-Recommended manual test recipe:
-
-1. Confirm the app under test is the lab build:
-   `/Applications/AudioBook Boss.app` should resolve to the
-   `audiobook-boss-deep-modules-lab` bundle.
-2. Use only temporary output directories for destructive collision choices,
-   especially Overwrite.
-3. Run a longer real-book metadata edit, then close/reopen or reload the file
-   and verify the saved tags still match the UI intent.
-4. Run bulk previews for multiple files and verify output names, parent
-   folders, preview suffixes, and metadata tags.
-5. Run a merge workflow with ordered files and verify final duration, output
-   path, metadata tags, and visible status.
-6. Re-run into an existing temporary output path and exercise Overwrite, Skip,
-   and Keep Existing as separate passes.
-7. Trigger one safe failure path if practical, then verify the terminal status
-   is visibly failed and does not leave a misleading successful artifact.
-8. Compare representative outputs against current `main` for the same inputs
-   and settings before declaring this branch replacement-ready.
-
-Manual pass/fail evidence to capture:
+Evidence details worth preserving:
 
 - input files and settings used,
 - output path(s),
@@ -857,10 +835,11 @@ Manual validation log:
 ## Promotion And Hardening Plan
 
 This section captures the next-phase plan that promotes the grey-box arch from
-"manual proof in progress" to "merged into `main` with the lines defending
+owner-validated lab behavior to "merged into `main` with the lines defending
 themselves". The plan was produced after the implementation cadence (Phases 1-5)
-proved out against a single-MP4 manual smoke and lab-built `.app`. It is
-ordered by ROI, not by chronology of discovery.
+proved out against a single-MP4 manual smoke and lab-built `.app`, then owner
+manual validation cleared the broader critical flows. It is ordered by ROI, not
+by chronology of discovery.
 
 Audience: this section is for agents picking up the work after this session,
 and for the repo owner reviewing the trajectory.
@@ -1023,6 +1002,13 @@ Acceptance for P3:
   decisions in canon docs.
 - `bash scripts/check-context-surface.sh` passes against the post-migration
   doc set.
+
+Status:
+
+- In progress as of 2026-05-11. Stable canon docs and nested `AGENTS.md`
+  files now carry the grey-box ownership map. Keep this spec until promotion
+  approval or final branch retirement so the branch-specific audit trail does
+  not disappear early.
 
 ### Phase P4: Public-API name and signature audit
 

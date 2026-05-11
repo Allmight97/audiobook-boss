@@ -71,6 +71,21 @@ ownership or proof.
 - Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
 - Processing adapters produce media artifacts; final results report what actually happened.
 
+## Grey-Box Public APIs
+
+Use these as the current durable ownership map for architecture work:
+
+| Public API | Owns |
+| --- | --- |
+| Tauri Runtime Boundary | Frontend runtime calls, payload normalization, generated-binding adaptation, and event listener setup. |
+| Processing Plan | Preflight and execution planning before jobs run. |
+| Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
+| Metadata Intent Plan | Explicit `set`, `clear`, and `noop` metadata intent projection for processing, naming, and writes. |
+| Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
+
+Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
+strip, private cluster, edit rules, and breaking-change triggers.
+
 ## Core Invariants
 
 - Every processing job has exactly one terminal outcome: `success`, `skipped`, `cancelled`, or `failed`.
