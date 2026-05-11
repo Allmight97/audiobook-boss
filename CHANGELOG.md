@@ -11,16 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Refreshed repo guidance docs for the grey-box Public API ownership map and
-  retired stale promotion-planning language after owner manual validation passed.
-
 ### Fixed
 
 ### Removed
 
-- Retired `docs/artifacts/glue-elements-validation-report.md`; current grey-box
-  ownership now lives in `docs/system-map.md`, `docs/ubiquitous-language.md`,
-  nested `AGENTS.md`, and contract/boundary checks.
+## [1.0.21] - 2026-05-11
+
+Grey-box architecture promotion. This release preserves user-facing behavior
+while moving the branch's validated module ownership model into mainline, with
+owner manual testing reported clear before promotion.
+
+### Added
+
+- Grey-box implementation spec and presentation/audit artifacts retained for
+  review under `docs/specs/`, `docs/artifacts/`, and `.artifacts/`.
+- Public API strip contract tests and source allowlisting for the Tauri Runtime
+  Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent
+  Plan, and Status Panel Runtime.
+- Nested `AGENTS.md` guidance for the grey-box Public API strips, private
+  clusters, allowed edits, and breaking-change triggers.
+
+### Changed
+
+- Reshaped processing planning, output artifact commit, metadata intent
+  projection, Tauri runtime adapters, and status-panel runtime behavior behind
+  smaller Public API strips.
+- Refreshed repo guidance docs for the grey-box ownership map while keeping the
+  active grey-box spec and related artifacts for owner review.
+
+### Fixed
+
+- Strengthened boundary assertions so generated invokers, metadata intent
+  projection, status-panel internals, output artifact commit behavior, and raw
+  Tauri invoke usage stay behind their owning boundaries.
 
 ## [1.0.20] - 2026-05-10
 
