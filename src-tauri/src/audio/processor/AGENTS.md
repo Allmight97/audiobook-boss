@@ -4,7 +4,7 @@
 
 - Owns execution pipeline behavior in `src-tauri/src/audio/processor/`.
 - Source of truth for processor stage orchestration, cancellation checkpoints, and cleanup guarantees.
-- Output artifact commit policy lives in `src-tauri/src/audio/output_path/`; processor finalization delegates final artifact decisions to that boundary.
+- Output artifact commit policy lives in `src-tauri/src/output_artifact/`; processor finalization delegates final artifact decisions to that boundary.
 
 ## Preferred Path
 

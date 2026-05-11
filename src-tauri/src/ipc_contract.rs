@@ -27,8 +27,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::cancel_processing,
         ])
         .events(tauri_specta::collect_events![
-            crate::audio::ProgressEvent,
-            crate::audio::QueueEvent
+            crate::processing::ProgressEvent,
+            crate::processing::QueueEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
 }

@@ -2,5 +2,5 @@
 
 pub mod processing;
 
-pub use crate::audio::preview_config::PreviewConfig;
+pub use crate::processing::preview_config::PreviewConfig;
 pub use processing::{OutputConfig, ProcessingContext, ProcessingContextBuilder};

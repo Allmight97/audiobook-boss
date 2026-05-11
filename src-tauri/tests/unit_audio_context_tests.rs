@@ -1,4 +1,4 @@
-use audiobook_boss_lib::audio::context::PreviewConfig;
+use audiobook_boss_lib::processing::context::PreviewConfig;
 
 #[test]
 fn preview_config_per_file_seconds_basic_division() {

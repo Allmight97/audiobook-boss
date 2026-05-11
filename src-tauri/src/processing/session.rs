@@ -3,7 +3,7 @@
 //! Provides a wrapper around cancellation sources with unique session identification
 //! and convenience methods for state management.
 
-use crate::audio::job_registry::CancellationChecker;
+use crate::processing::job_registry::CancellationChecker;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -80,4 +80,4 @@ impl Default for ProcessingSession {
     }
 }
 
-// tests moved to `tests/unit/audio/session_tests.rs`
+// Session behavior is covered through processing context and job-registry tests.

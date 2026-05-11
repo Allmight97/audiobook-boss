@@ -1,9 +1,5 @@
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
-use crate::audio::job_registry::JobId;
-use crate::audio::output_path::{
-    build_output_path_preview, derive_output_artifact_path, OutputKind,
-};
 use crate::audio::settings_encoder::{
     validate_encoder_settings as validate_encoder_settings_impl,
     validate_requested_encoder_available, EncoderSettings,
@@ -11,13 +7,16 @@ use crate::audio::settings_encoder::{
 use crate::audio::toolchain::{
     detect_encoder_availability, EncoderAvailability, ExternalToolchainPreference,
 };
-use crate::commands::audio_processing::run;
-pub use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
-};
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::metadata::MetadataIntentPatch;
+use crate::output_artifact::{build_output_path_preview, derive_output_artifact_path, OutputKind};
+use crate::processing::job_registry::JobId;
+use crate::processing::run;
+pub use crate::processing::{
+    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
+    ProcessResultStatus, ProcessResultSummary, ProcessingPreflightPlan,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -146,7 +145,7 @@ pub async fn set_max_concurrent_jobs(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     max_concurrent: Option<usize>,
 ) -> CommandResult<usize> {
-    let desired = max_concurrent.unwrap_or(crate::audio::JobRegistry::default_max());
+    let desired = max_concurrent.unwrap_or(crate::processing::JobRegistry::default_max());
     Ok(registry.update_max_concurrent(desired).await?)
 }
 

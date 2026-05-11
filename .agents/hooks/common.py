@@ -50,7 +50,8 @@ FALLBACK_SURFACE_FILES = {
 FALLBACK_SURFACE_PREFIXES = (
     "src-tauri/src/audio/",
     "src-tauri/src/metadata/",
-    "src-tauri/src/commands/audio_processing/",
+    "src-tauri/src/output_artifact/",
+    "src-tauri/src/processing/",
     "src-tauri/src/commands/metadata/",
     "src/lib/tauri/",
 )

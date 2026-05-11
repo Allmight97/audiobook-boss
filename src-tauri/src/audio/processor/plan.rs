@@ -3,9 +3,10 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use crate::audio::settings_encoder::EncoderSettings;
+use crate::audio::AudioFile;
 use crate::audio::SampleRateConfig;
-use crate::audio::{AudioFile, ProcessingContext};
 use crate::errors::Result;
+use crate::processing::ProcessingContext;
 
 /// Media processing plan that encapsulates inputs, outputs, and metadata for processing.
 #[derive(Debug, Clone)]

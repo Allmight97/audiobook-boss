@@ -204,7 +204,7 @@ impl ResolvedOutputPlan {
 #[cfg(test)]
 mod tests {
     use super::{resolve_output_plan, OutputPlanLedger};
-    use crate::audio::output_path::{
+    use crate::output_artifact::{
         CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction,
     };
     use std::collections::HashSet;

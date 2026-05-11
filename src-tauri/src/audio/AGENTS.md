@@ -3,7 +3,8 @@
 ## Scope
 
 - Applies to audio-domain code under `src-tauri/src/audio/`.
-- Nested `AGENTS.md` files own narrower rules for `processor/` and `job_registry/`.
+- Nested `AGENTS.md` files own narrower rules for `processor/`; processing
+  lifecycle rules live under `src-tauri/src/processing/`.
 - This file owns audio integrity rules that cross stream probing, decoder setup, resampling, sample buffering, encoder setup, muxing, and output validation.
 
 ## Preferred Path

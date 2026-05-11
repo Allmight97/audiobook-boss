@@ -1,7 +1,7 @@
-use audiobook_boss_lib::audio::progress::{
+use audiobook_boss_lib::processing::progress::{
     calculate_stage_progress, converting_percentage_from_seconds, format_eta, ProgressReporter,
 };
-use audiobook_boss_lib::audio::ProcessingStage;
+use audiobook_boss_lib::processing::ProcessingStage;
 
 #[test]
 fn test_calculate_stage_progress() {

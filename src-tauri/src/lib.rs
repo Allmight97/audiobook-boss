@@ -7,6 +7,8 @@ pub mod commands;
 mod errors;
 pub mod ipc_contract;
 mod metadata;
+pub mod output_artifact;
+pub mod processing;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::{
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
@@ -33,7 +35,7 @@ use std::sync::Arc;
 use tauri::{Manager, PhysicalSize, Size, WebviewWindow};
 
 /// Type alias for managed JobRegistry state
-pub type ManagedJobRegistry = Arc<audio::JobRegistry>;
+pub type ManagedJobRegistry = Arc<processing::JobRegistry>;
 
 const STARTUP_MAX_MONITOR_RATIO: f64 = 0.88;
 const STARTUP_TARGET_ASPECT_RATIO: f64 = 16.0 / 10.0;
@@ -103,7 +105,7 @@ pub fn run() {
     log::info!("Starting AudioBook Boss application");
 
     // Initialize job registry with auto-detected concurrency (num_cpus / 2)
-    let job_registry: ManagedJobRegistry = Arc::new(audio::JobRegistry::auto());
+    let job_registry: ManagedJobRegistry = Arc::new(processing::JobRegistry::auto());
     log::info!(
         "Job registry initialized: max_concurrent = {}",
         job_registry.max_concurrent()

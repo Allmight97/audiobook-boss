@@ -1,10 +1,10 @@
-use crate::audio::output_path::{CollisionPolicy, OutputKind};
 use crate::audio::settings_encoder::{
     BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
-use crate::commands::audio_processing::plan::{prepare_execution_plan, resolve_preflight_plan};
-use crate::commands::audio_types::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};
 use crate::metadata::{MetadataIntentPatch, PatchOp};
+use crate::output_artifact::{CollisionPolicy, OutputKind};
+use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
+use crate::processing::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tempfile::TempDir;

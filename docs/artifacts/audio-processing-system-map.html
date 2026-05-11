@@ -778,7 +778,7 @@
           <rect class="box" x="850" y="20" width="180" height="130"></rect>
           <text class="label" x="866" y="57">Rust command facade</text>
           <text class="small" x="866" y="82">commands/audio.rs</text>
-          <text class="small" x="866" y="99">audio_types.rs</text>
+          <text class="small" x="866" y="99">processing/types.rs</text>
           <text class="small" x="866" y="116">validate/preflight/process</text>
 
           <rect class="glue" x="1065" y="20" width="180" height="130"></rect>
@@ -1018,7 +1018,7 @@
           </div>
           <div class="module" data-search="output directory output naming ABS custom template preview path collision">
             <h3>Output directory and naming</h3>
-            <p class="tagline"><code>src/ui/outputPanel/state.svelte.ts</code> -> <code>audio/output_path/*</code></p>
+            <p class="tagline"><code>src/ui/outputPanel/state.svelte.ts</code> -> <code>output_artifact/*</code></p>
             <ul>
               <li>Output directory is required before processing.</li>
               <li>ABS default and custom template naming are rendered from effective metadata.</li>
@@ -1028,7 +1028,7 @@
           </div>
           <div class="module" data-search="job type preview full merge batch collision policy preflight signature">
             <h3>Job mode and review</h3>
-            <p class="tagline"><code>src/ui/statusPanel/processing.ts</code> -> <code>audio_processing/plan.rs</code></p>
+            <p class="tagline"><code>src/ui/statusPanel/processing.ts</code> -> <code>processing/plan.rs</code></p>
             <ul>
               <li>Single/multi-file can merge into one output; batch produces one output per input.</li>
               <li>Preview mode changes output kind and may clip input durations.</li>
@@ -1737,18 +1737,18 @@ git diff --stat main...HEAD</code></pre>
           <li><code>src/types/encoder.ts</code></li>
           <li><code>src/types/metadataIntent.ts</code></li>
           <li><code>src-tauri/src/commands/audio.rs</code></li>
-          <li><code>src-tauri/src/commands/audio_types.rs</code></li>
-          <li><code>src-tauri/src/commands/audio_processing/run.rs</code></li>
-          <li><code>src-tauri/src/commands/audio_processing/plan.rs</code></li>
-          <li><code>src-tauri/src/commands/audio_processing/terminal_outcomes.rs</code></li>
+          <li><code>src-tauri/src/processing/types.rs</code></li>
+          <li><code>src-tauri/src/processing/run.rs</code></li>
+          <li><code>src-tauri/src/processing/plan.rs</code></li>
+          <li><code>src-tauri/src/processing/terminal_outcomes.rs</code></li>
           <li><code>src-tauri/src/audio/file_list.rs</code></li>
           <li><code>src-tauri/src/audio/path_validation.rs</code></li>
           <li><code>src-tauri/src/audio/settings.rs</code></li>
           <li><code>src-tauri/src/audio/settings_encoder.rs</code></li>
           <li><code>src-tauri/src/audio/toolchain.rs</code></li>
-          <li><code>src-tauri/src/audio/output_path/*</code></li>
-          <li><code>src-tauri/src/audio/job_registry/*</code></li>
-          <li><code>src-tauri/src/audio/progress/emitter.rs</code></li>
+          <li><code>src-tauri/src/output_artifact/*</code></li>
+          <li><code>src-tauri/src/processing/job_registry/*</code></li>
+          <li><code>src-tauri/src/processing/progress/emitter.rs</code></li>
           <li><code>src-tauri/src/audio/processor/*</code></li>
           <li><code>src-tauri/src/audio/buffer.rs</code></li>
           <li><code>src-tauri/src/audio/cleanup/guard.rs</code></li>

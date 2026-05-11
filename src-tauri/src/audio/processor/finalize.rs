@@ -1,6 +1,6 @@
 //! Finalization stage — metadata writing and processor lifecycle completion.
 //!
-//! Output artifact commit policy lives in `audio::output_path`; this module
+//! Output artifact commit policy lives in `output_artifact`; this module
 //! sequences processor progress, cleanup registration, and success emission.
 //! Metadata is written during mux, so `write_metadata_stage` is a no-op.
 //! Cancellation checks run after each sub-step to avoid unnecessary work.
@@ -8,11 +8,10 @@
 use std::path::{Path, PathBuf};
 
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::context::ProcessingContext;
-use crate::audio::output_path::{commit_output_artifact, finalized_output_success};
-use crate::audio::{ProcessingStage, ProgressReporter};
 use crate::errors::Result;
 use crate::metadata::AudiobookMetadata;
+use crate::output_artifact::{commit_output_artifact, finalized_output_success};
+use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 
 use super::ProcessingWorkflow;
 

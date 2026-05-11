@@ -12,12 +12,12 @@
 
 // Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::context::ProcessingContext;
 use crate::audio::metrics::ProcessingMetrics;
-use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
+use crate::audio::AudioFile;
 use crate::errors::Result;
 use crate::metadata::passthrough::apply_cover_art_policy;
 use crate::metadata::AudiobookMetadata;
+use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 use std::time::Duration;
 
 // Submodules

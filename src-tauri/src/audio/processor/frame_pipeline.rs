@@ -19,8 +19,8 @@ pub enum PreviewAction {
 }
 
 pub(crate) struct FramePipelineCtx<'a> {
-    pub(crate) context: &'a crate::audio::context::ProcessingContext,
-    pub(crate) emitter: &'a crate::audio::progress::ProgressEmitter,
+    pub(crate) context: &'a crate::processing::context::ProcessingContext,
+    pub(crate) emitter: &'a crate::processing::progress::ProgressEmitter,
     pub(crate) total_duration: f64,
     pub(crate) total_files: usize,
     pub(crate) target_sample_rate: u32,
@@ -42,7 +42,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
     if ctx.last_emit.elapsed() > std::time::Duration::from_millis(PROGRESS_EMIT_INTERVAL_MS) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
-        let percentage = crate::audio::progress::converting_percentage_from_seconds(
+        let percentage = crate::processing::progress::converting_percentage_from_seconds(
             current_seconds,
             ctx.total_duration,
         ) as f64;

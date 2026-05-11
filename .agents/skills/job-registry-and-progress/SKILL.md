@@ -16,11 +16,11 @@ Use this skill for backend job lifecycle and UX-truthful processing state.
 
 ## Canonical Progress Source
 
-- Wire-stage authority: Rust `EventStage` enum in `src-tauri/src/audio/progress/mod.rs`
+- Wire-stage authority: Rust `EventStage` enum in `src-tauri/src/processing/progress/mod.rs`
   (specta-generated into `src/lib/generated/tauri.ts` as a string-literal union).
-- Event payload type (Rust): `ProgressEvent` in `src-tauri/src/audio/progress/mod.rs`.
-- Event emission implementations: `src-tauri/src/audio/progress/emitter.rs`
-  (`emit_event`, `emit_cancelled`) and `src-tauri/src/commands/audio_processing.rs`
+- Event payload type (Rust): `ProgressEvent` in `src-tauri/src/processing/progress/mod.rs`.
+- Event emission implementations: `src-tauri/src/processing/progress/emitter.rs`
+  (`emit_event`, `emit_cancelled`) and `src-tauri/src/processing/run.rs`
   (`emit_terminal_failed_event`).
 - Frontend re-export and runtime helpers: `src/types/events.ts` re-exports
   `EventStage` and exposes the readable `STAGES` value-level helper, typed
@@ -42,9 +42,9 @@ flat wire-shaped discriminator the UI consumes.
 
 ## Pointers
 
-- `src-tauri/src/audio/job_registry/`
+- `src-tauri/src/processing/job_registry/`
 - `src-tauri/src/audio/processor/`
-- `src-tauri/src/audio/progress/emitter.rs`
+- `src-tauri/src/processing/progress/emitter.rs`
 - `src-tauri/src/commands/audio.rs`
 
 ## Done Criteria

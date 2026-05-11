@@ -1,12 +1,12 @@
 //! Processing context structures and builders.
 
-use crate::audio::output_path::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
-use crate::audio::preview_config::PreviewConfig;
-use crate::audio::session::ProcessingSession;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::SampleRateConfig;
 use crate::errors::sanitize_path_str_for_display;
 use crate::errors::Result;
+use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::processing::preview_config::PreviewConfig;
+use crate::processing::session::ProcessingSession;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Window;
@@ -190,14 +190,14 @@ impl ProcessingContext {
     }
 
     /// Creates a progress emitter scoped to this processing context
-    pub fn new_emitter(&self) -> crate::audio::progress::ProgressEmitter {
+    pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
         match &self.window {
-            Some(window) => crate::audio::progress::ProgressEmitter::with_context(
+            Some(window) => crate::processing::progress::ProgressEmitter::with_context(
                 window.clone(),
                 self.job_id.clone(),
                 self.input_index,
             ),
-            None => crate::audio::progress::ProgressEmitter::headless(),
+            None => crate::processing::progress::ProgressEmitter::headless(),
         }
     }
 

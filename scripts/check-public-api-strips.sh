@@ -38,7 +38,7 @@ extract_export_blocks() {
   ' "$1"
 }
 
-output_path_exports="$(extract_export_blocks src-tauri/src/audio/output_path/mod.rs)"
+output_path_exports="$(extract_export_blocks src-tauri/src/output_artifact/mod.rs)"
 compare_block "Output Artifact Plan / Commit Public API Strip" "$output_path_exports" 'pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success};
 pub(crate) use naming::build_output_path;
@@ -51,7 +51,7 @@ OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
 pub(crate) use types::{OutputCollision, ResolvedOutputPlan};'
 
-processing_plan_exports="$(rg "^(pub\\(crate\\) (struct|fn)|pub (struct|fn)) " src-tauri/src/commands/audio_processing/plan.rs || true)"
+processing_plan_exports="$(rg "^(pub\\(crate\\) (struct|fn)|pub (struct|fn)) " src-tauri/src/processing/plan.rs || true)"
 compare_block "Processing Plan Public API Strip" "$processing_plan_exports" 'pub(crate) struct PlannedProcessingJob {
 pub(crate) struct ResolvedProcessingPlan {
 pub(crate) fn resolve_preflight_plan(

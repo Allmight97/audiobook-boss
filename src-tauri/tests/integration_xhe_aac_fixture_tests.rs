@@ -2,7 +2,10 @@ use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
 use audiobook_boss_lib::audio::toolchain::ExternalToolchainPreference;
-use audiobook_boss_lib::audio::{self, OutputConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::{self, SampleRateConfig};
+use audiobook_boss_lib::processing::{
+    OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -39,13 +42,13 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
 
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("xhe-aac-preview.m4b");
-    let mut context = audio::ProcessingContext::new_headless(
-        Arc::new(audio::session::ProcessingSession::new()),
+    let mut context = ProcessingContext::new_headless(
+        Arc::new(ProcessingSession::new()),
         settings,
         SampleRateConfig::Auto,
         OutputConfig::for_preview(&output_path),
     );
-    context.preview = Some(audio::context::PreviewConfig::new(20.0));
+    context.preview = Some(PreviewConfig::new(20.0));
 
     let result = adapter
         .execute(

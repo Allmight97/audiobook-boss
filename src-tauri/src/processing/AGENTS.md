@@ -1,11 +1,11 @@
 ## Public API Strip
-- Import from `crate::commands::audio_processing::plan`, not private helpers.
+- Import from `crate::processing::plan`, not private helpers.
 - Functions: `resolve_preflight_plan`, `prepare_execution_plan`.
 - Types: `ResolvedProcessingPlan`, `PlannedProcessingJob`.
 
 ## Private Cluster
-- Files: `../audio_processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes.rs`, `contract_tests.rs`.
-- The cluster owns preflight planning, execution-plan preparation, runner orchestration, terminal result normalization, and their behavior tests.
+- Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes.rs`, `context/`, `job_registry/`, `progress/`, `preview_config.rs`, `session.rs`, `contract_tests.rs`.
+- The cluster owns preflight planning, execution-plan preparation, runner orchestration, processing context/session state, job lifecycle, progress event types, terminal result normalization, and their behavior tests.
 
 ## Allowed Agent Edits Without Escalation
 - Change planner or runner internals when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.

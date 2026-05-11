@@ -24,7 +24,7 @@ pub(crate) fn derive_output_artifact_path(
 #[cfg(test)]
 mod tests {
     use super::derive_output_artifact_path;
-    use crate::audio::output_path::OutputKind;
+    use crate::output_artifact::OutputKind;
     use std::path::Path;
 
     #[test]

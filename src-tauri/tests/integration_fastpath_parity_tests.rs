@@ -1,7 +1,8 @@
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{self, OutputConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::{self, SampleRateConfig};
+use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -46,8 +47,8 @@ async fn encode_with_fastpath_mode(
         audio::get_file_list_info(&[input_path.to_path_buf()]).expect("input should be analyzable");
     assert_eq!(input_info.valid_count, 1, "input fixture should be valid");
 
-    let context = audio::ProcessingContext::new_headless(
-        Arc::new(audio::session::ProcessingSession::new()),
+    let context = ProcessingContext::new_headless(
+        Arc::new(ProcessingSession::new()),
         native_encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(output_path),

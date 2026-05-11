@@ -1,6 +1,6 @@
 //! Progress state machine for tracking audio processing operations
 
-use crate::audio::{ProcessingProgress, ProcessingStage};
+use crate::processing::{ProcessingProgress, ProcessingStage};
 use std::time::Instant;
 
 /// Progress reporter for tracking audio processing operations

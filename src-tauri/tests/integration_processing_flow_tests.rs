@@ -5,11 +5,13 @@
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{
-    self, detect_input_sample_rate, ProcessingStage, ProgressReporter,
-};
+use audiobook_boss_lib::audio::{self, detect_input_sample_rate};
 use audiobook_boss_lib::commands::{
     analyze_audio_files, read_audio_metadata, save_metadata_to_file, validate_files,
+};
+use audiobook_boss_lib::processing::{
+    OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession, ProcessingStage,
+    ProgressReporter,
 };
 use audiobook_boss_lib::AudiobookMetadata;
 use ffmpeg_next as ff;
@@ -156,24 +158,24 @@ async fn process_roundtrip_files(
         "all input fixtures should be valid"
     );
 
-    let session = Arc::new(audio::session::ProcessingSession::new());
+    let session = Arc::new(ProcessingSession::new());
     let resolved_output = if preview_seconds.is_some() {
         preview_output_path(output_path)
     } else {
         output_path.to_path_buf()
     };
-    let mut context = audio::ProcessingContext::new_headless(
+    let mut context = ProcessingContext::new_headless(
         session,
         native_encoder_settings(),
         audio::SampleRateConfig::Auto,
         if preview_seconds.is_some() {
-            audio::OutputConfig::for_preview(&resolved_output)
+            OutputConfig::for_preview(&resolved_output)
         } else {
-            audio::OutputConfig::new(&resolved_output)
+            OutputConfig::new(&resolved_output)
         },
     );
     if let Some(seconds) = preview_seconds {
-        context.preview = Some(audio::context::PreviewConfig::new(seconds));
+        context.preview = Some(PreviewConfig::new(seconds));
     }
 
     audio::process_audiobook_with_context(context, input_info.files, Some(metadata), true)
@@ -248,7 +250,7 @@ async fn assert_metadata_round_trip(
 /// Test that captures the current end-to-end audio processing flow
 /// This test documents the exact current behavior for refactoring safety
 #[tokio::test]
-async fn test_current_audio_processing_flow() {
+async fn test_current_processing_flow() {
     let media_path = match verify_test_media_exists() {
         Some(path) => path,
         None => {

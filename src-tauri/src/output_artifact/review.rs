@@ -108,7 +108,7 @@ pub(crate) fn enforce_output_plan_review<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::output_path::{OutputCollision, OutputKind};
+    use crate::output_artifact::{OutputCollision, OutputKind};
     use std::path::PathBuf;
     use tempfile::TempDir;
 

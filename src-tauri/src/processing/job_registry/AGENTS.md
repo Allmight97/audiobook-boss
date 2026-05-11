@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Owns concurrency lifecycle and active-job state under `audio/job_registry/`.
+- Owns concurrency lifecycle and active-job state under `processing/job_registry/`.
 - Source of truth for permit discipline, scheduling behavior, and reconfiguration safety.
 
 ## Preferred Path

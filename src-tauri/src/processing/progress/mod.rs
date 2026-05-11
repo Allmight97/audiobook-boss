@@ -4,7 +4,7 @@ mod emitter;
 mod state;
 
 use crate::audio::constants::*;
-use crate::audio::ProcessingStage;
+use crate::processing::ProcessingStage;
 use serde::Serialize;
 
 // ============================================================================

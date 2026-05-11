@@ -2,7 +2,7 @@
 
 use super::{EventStage, ProgressEvent};
 use crate::audio::constants::*;
-use crate::audio::ProcessingStage;
+use crate::processing::ProcessingStage;
 use tauri::{Emitter, Window};
 
 /// Centralized progress event emitter

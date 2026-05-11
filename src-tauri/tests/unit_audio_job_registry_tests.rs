@@ -1,4 +1,6 @@
-use audiobook_boss_lib::audio::job_registry::{AggregateJobStatus, JobId, JobRegistry, JobState};
+use audiobook_boss_lib::processing::job_registry::{
+    AggregateJobStatus, JobId, JobRegistry, JobState,
+};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 

@@ -1,14 +1,12 @@
 use crate::audio;
-use crate::audio::output_path::{
+use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::metadata::{resolve_effective_processing_metadata, resolve_naming_metadata};
+use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
     CollisionPolicy, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
     ResolvedOutputPlan,
 };
-use crate::commands::audio_types::{
-    JobType, OutputNamingConfig, ProcessPayload, ProcessingPreflightPlan,
-};
-use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::{resolve_effective_processing_metadata, resolve_naming_metadata};
+use crate::processing::{JobType, OutputNamingConfig, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -403,12 +401,12 @@ impl ResolvedProcessingPlan {
 #[cfg(test)]
 mod tests {
     use super::{prepare_execution_plan, resolve_preflight_plan};
-    use crate::audio::output_path::{CollisionPolicy, OutputKind};
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
-    use crate::commands::audio_types::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
+    use crate::output_artifact::{CollisionPolicy, OutputKind};
+    use crate::processing::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};
     use std::collections::HashMap;
     use std::path::PathBuf;
     use tempfile::TempDir;

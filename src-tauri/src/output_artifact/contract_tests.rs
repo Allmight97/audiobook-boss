@@ -1,16 +1,16 @@
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::context::{OutputConfig, ProcessingContext};
-use crate::audio::job_registry::CancellationChecker;
-use crate::audio::output_path::{
-    commit_output_artifact, enforce_output_plan_review, ensure_output_parent_dirs,
-    finalized_output_success, CollisionPolicy, OutputCollisionKind, OutputKind, OutputPlanLedger,
-    OutputPlanReview, PlannedOutputAction,
-};
-use crate::audio::session::ProcessingSession;
 use crate::audio::settings_encoder::{
     BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
 use crate::audio::SampleRateConfig;
+use crate::output_artifact::{
+    commit_output_artifact, enforce_output_plan_review, ensure_output_parent_dirs,
+    finalized_output_success, CollisionPolicy, OutputCollisionKind, OutputKind, OutputPlanLedger,
+    OutputPlanReview, PlannedOutputAction,
+};
+use crate::processing::context::{OutputConfig, ProcessingContext};
+use crate::processing::job_registry::CancellationChecker;
+use crate::processing::session::ProcessingSession;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempfile::TempDir;

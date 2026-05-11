@@ -6,9 +6,10 @@ use crate::audio::toolchain::{
     detect_encoder_availability_with_resolution, validate_external_input_decoders,
     EncoderAvailability, ExternalToolchainPreference, ValidatedExternalToolchain,
 };
-use crate::audio::{AudioFile, DecoderSelection, ProcessingContext};
+use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
+use crate::processing::ProcessingContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessorAdapterKind {

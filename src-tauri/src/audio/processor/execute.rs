@@ -10,10 +10,10 @@
 use std::path::{Path, PathBuf};
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
-use crate::audio::context::ProcessingContext;
 use crate::audio::processor::{MediaProcessingPlan, MediaProcessor};
-use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
+use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
+use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 
 use super::selection::{create_default_processor, get_engine_description};
 use super::ProcessingWorkflow;

@@ -42,12 +42,12 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 
 - `preview_output_path`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helper: `src-tauri/src/audio/output_path/`
+  - Core helper: `src-tauri/src/output_artifact/`
   - Use: backend-owned naming preview without collision suffixing
 
 - `get_max_concurrent_jobs`, `set_max_concurrent_jobs`, `process_audiobook_files`, `cancel_processing`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helpers: `src-tauri/src/commands/audio_processing/run.rs`, `src-tauri/src/commands/audio_processing/plan.rs`, `src-tauri/src/audio/job_registry/`
+  - Core helpers: `src-tauri/src/processing/run.rs`, `src-tauri/src/processing/plan.rs`, `src-tauri/src/processing/job_registry/`
   - Processor routing: native `ffmpeg-next` and external FFmpeg/FDK adapter selection live under `src-tauri/src/audio/processor/`
   - Use: queueing, processing, cancellation, batch orchestration
 
@@ -71,7 +71,7 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 Source files:
 
 - Rust event export: `src-tauri/src/ipc_contract.rs`
-- Rust event types: `src-tauri/src/audio/progress/mod.rs`
+- Rust event types: `src-tauri/src/processing/progress/mod.rs`
 - Rust event names: `src-tauri/src/audio/constants.rs`
 - Frontend event contract: `src/types/events.ts`
 - Frontend listener boundary: `src/lib/tauri/client.ts`

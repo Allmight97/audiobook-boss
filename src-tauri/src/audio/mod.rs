@@ -1,7 +1,7 @@
-//! Audio processing module for audiobook creation
+//! Audio media module for audiobook creation
 //!
-//! This module handles file list management, audio settings,
-//! progress reporting, and the full merge pipeline.
+//! This module handles file list management, audio settings, media probing,
+//! encoder/toolchain selection, and the media processor engine.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -10,17 +10,11 @@ use std::path::PathBuf;
 pub mod buffer;
 pub mod cleanup;
 pub mod constants;
-pub mod context;
 pub mod extensions;
 pub mod file_list;
-pub mod job_registry;
 pub mod metrics;
-pub mod output_path;
 pub mod path_validation;
-pub mod preview_config;
 pub mod processor;
-pub mod progress;
-pub mod session;
 pub mod settings;
 pub mod settings_encoder;
 pub mod toolchain;
@@ -98,48 +92,9 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
-/// Progress information for audio processing
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct ProcessingProgress {
-    /// Current stage of processing
-    pub stage: ProcessingStage,
-    /// Overall progress percentage (0-100)
-    pub progress: f32,
-    /// Current file being processed
-    pub current_file: Option<String>,
-    /// Files completed
-    pub files_completed: usize,
-    /// Total files to process
-    pub total_files: usize,
-    /// Estimated time remaining in seconds
-    pub eta_seconds: Option<f64>,
-}
-
-/// Processing stage enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
-pub enum ProcessingStage {
-    /// Analyzing input files
-    Analyzing,
-    /// Converting audio files
-    Converting,
-    /// Writing metadata
-    WritingMetadata,
-    /// Process completed
-    Completed,
-    /// Process failed
-    Failed(String),
-}
-
 // Re-export main functions for convenience
 pub use file_list::get_file_list_info;
 pub use path_validation::validate_input_audio_path;
-pub use progress::{
-    calculate_stage_progress, converting_percentage_from_seconds, format_eta, EventStage,
-    ProgressEmitter, ProgressEvent, ProgressReporter, QueueEvent, QueueItem,
-};
-
-// Job registry for parallel batch processing
-pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
 pub use settings::{validate_output_path, validate_sample_rate_config};
 pub use toolchain::{
     detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
@@ -148,12 +103,6 @@ pub use toolchain::{
 
 // Core processor API (post-split staged)
 pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
-
-// Core context
-pub use context::ProcessingContext;
-
-// Builders and processing context always available after cleanup
-pub use context::{OutputConfig, ProcessingContextBuilder};
 
 // Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
 pub use cleanup::CleanupGuard;

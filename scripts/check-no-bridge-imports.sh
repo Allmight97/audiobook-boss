@@ -61,10 +61,10 @@ rm -f /tmp/no-direct-tauri-core.out
 
 if rg -n "\\b(commit_output_artifact|finalized_output_success|OutputPlanLedger)\\b" src-tauri/src \
   -g '*.rs' \
-  -g '!src-tauri/src/audio/output_path/**' \
+  -g '!src-tauri/src/output_artifact/**' \
   -g '!src-tauri/src/audio/processor/finalize.rs' \
   -g '!src-tauri/src/audio/processor/external_fdk.rs' \
-  -g '!src-tauri/src/commands/audio_processing/plan.rs' \
+  -g '!src-tauri/src/processing/plan.rs' \
   >/tmp/no-output-path-reach-through.out 2>/dev/null; then
   echo "[no-bridge] Output artifact truth may only be used by allowlisted boundary consumers." >&2
   cat /tmp/no-output-path-reach-through.out >&2
@@ -76,7 +76,7 @@ rm -f /tmp/no-output-path-reach-through.out
 if rg -n "\\b(resolve_effective_processing_metadata|resolve_naming_metadata)\\b" src-tauri/src \
   -g '*.rs' \
   -g '!src-tauri/src/metadata/**' \
-  -g '!src-tauri/src/commands/audio_processing/plan.rs' \
+  -g '!src-tauri/src/processing/plan.rs' \
   >/tmp/no-metadata-intent-reach-through.out 2>/dev/null; then
   echo "[no-bridge] Metadata intent projection may only be used by the processing planner boundary." >&2
   cat /tmp/no-metadata-intent-reach-through.out >&2

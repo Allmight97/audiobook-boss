@@ -51,8 +51,8 @@ fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::{resolve_effective_processing_metadata, resolve_naming_metadata};
-    use crate::audio::output_path::{build_output_path, OutputNamingConfig};
     use crate::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
+    use crate::output_artifact::{build_output_path, OutputNamingConfig};
     use std::path::Path;
 
     fn sample_source_metadata() -> AudiobookMetadata {

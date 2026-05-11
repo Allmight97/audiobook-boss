@@ -5,9 +5,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::audio::context::{PreviewConfig, ProcessingContext};
-use crate::audio::{AudioFile, ProcessingStage, ProgressReporter};
+use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::processing::{PreviewConfig, ProcessingContext, ProcessingStage, ProgressReporter};
 use uuid::Uuid;
 
 use super::ProcessingWorkflow;

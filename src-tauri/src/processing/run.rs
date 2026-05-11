@@ -5,16 +5,19 @@ use super::terminal_outcomes::{
 };
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
-use crate::audio::job_registry::{CancellationChecker, JobId};
-use crate::audio::output_path::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::audio::toolchain::ExternalToolchainPreference;
-use crate::audio::{QueueEvent, QueueItem};
-use crate::commands::audio_types::{
+use crate::errors::{AppError, Result};
+use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessingPreflightPlan,
 };
-use crate::errors::{AppError, Result};
+use crate::processing::{
+    OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession, ProgressEmitter, QueueEvent,
+    QueueItem,
+};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -378,8 +381,8 @@ async fn register_job_and_validate_output(
 
 struct ProcessingContextRequest {
     window: tauri::Window,
-    cancellation_checker: crate::audio::job_registry::CancellationChecker,
-    job_id: crate::audio::job_registry::JobId,
+    cancellation_checker: crate::processing::job_registry::CancellationChecker,
+    job_id: crate::processing::job_registry::JobId,
     encoder_settings: audio::settings_encoder::EncoderSettings,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
@@ -387,26 +390,22 @@ struct ProcessingContextRequest {
     preview_seconds: Option<f64>,
 }
 
-fn build_processing_context(
-    request: ProcessingContextRequest,
-) -> (audio::ProcessingContext, Option<f64>) {
-    let session = audio::session::ProcessingSession::from_job_registry(
-        request.job_id.0,
-        request.cancellation_checker,
-    );
-    let mut context = audio::ProcessingContext::new(
+fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
+    let session =
+        ProcessingSession::from_job_registry(request.job_id.0, request.cancellation_checker);
+    let mut context = ProcessingContext::new(
         request.window,
         std::sync::Arc::new(session),
         request.encoder_settings,
         request.sample_rate,
-        audio::OutputConfig::from_plan(request.output_plan),
+        OutputConfig::from_plan(request.output_plan),
     );
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;
 
     let preview_seconds_resolved = request.preview_seconds;
     if let Some(seconds) = preview_seconds_resolved {
-        context.preview = Some(crate::audio::context::PreviewConfig::new(seconds));
+        context.preview = Some(PreviewConfig::new(seconds));
         log::info!("Preview requested: total_seconds={:.3}", seconds);
     }
 
@@ -414,7 +413,7 @@ fn build_processing_context(
 }
 
 async fn execute_processing_job(
-    context: audio::ProcessingContext,
+    context: ProcessingContext,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
     allow_passthrough_cover_art: bool,
@@ -447,7 +446,7 @@ fn emit_terminal_failed_event(
     job_id: Option<&str>,
     message: &str,
 ) {
-    let emitter = audio::ProgressEmitter::with_context(
+    let emitter = ProgressEmitter::with_context(
         window.clone(),
         job_id.map(|value| value.to_string()),
         input_index,
@@ -461,7 +460,7 @@ fn emit_terminal_skipped_event(
     job_id: Option<&str>,
     message: &str,
 ) {
-    let emitter = audio::ProgressEmitter::with_context(
+    let emitter = ProgressEmitter::with_context(
         window.clone(),
         job_id.map(|value| value.to_string()),
         input_index,
@@ -473,13 +472,13 @@ fn emit_terminal_skipped_event(
 mod tests {
     use super::{preflight_payload, validate_external_processing_contract_with_file_info};
     use crate::audio::file_list::FileListInfo;
-    use crate::audio::output_path::{CollisionPolicy, OutputCollisionKind};
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
     use crate::audio::{AudioFile, DecoderSelection, ExternalToolchainPreference};
-    use crate::commands::audio_types::{JobType, OutputNamingConfig, ProcessPayload};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
+    use crate::output_artifact::{CollisionPolicy, OutputCollisionKind};
+    use crate::processing::{JobType, OutputNamingConfig, ProcessPayload};
     use std::collections::HashMap;
     use std::fs::{self, set_permissions, write};
     use std::os::unix::fs::PermissionsExt;
@@ -488,7 +487,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_job_and_validate_output_cleans_up_failed_validation() {
-        let registry = std::sync::Arc::new(crate::audio::JobRegistry::new(2));
+        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
         let temp_dir = TempDir::new().expect("create temp dir");
         let invalid_output = temp_dir.path().join("output.mp3");
 
@@ -625,7 +624,7 @@ mod tests {
                 sample_rate: None,
                 job_type: Some(JobType::Batch),
                 output_naming: Some(OutputNamingConfig {
-                    preset: crate::commands::audio_types::NamingPreset::CustomTemplate,
+                    preset: crate::processing::NamingPreset::CustomTemplate,
                     include_year: false,
                     custom_template: Some("{title}".to_string()),
                 }),
@@ -649,7 +648,7 @@ mod tests {
         );
         assert_eq!(
             first_output.action,
-            crate::audio::output_path::PlannedOutputAction::ReviewRequired
+            crate::output_artifact::PlannedOutputAction::ReviewRequired
         );
         assert_eq!(first_output.resolved_path, beta_path.to_string_lossy());
     }
@@ -726,7 +725,7 @@ mod tests {
         );
         assert_eq!(
             first_output.action,
-            crate::audio::output_path::PlannedOutputAction::ReviewRequired
+            crate::output_artifact::PlannedOutputAction::ReviewRequired
         );
     }
 

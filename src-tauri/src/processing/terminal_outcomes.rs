@@ -1,10 +1,8 @@
 use super::plan::ResolvedProcessingPlan;
-use crate::audio::output_path::{PlannedOutputAction, ResolvedOutputPlan};
-use crate::commands::audio_types::{
-    JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-};
 use crate::errors::sanitize_path_for_display;
 use crate::errors::{AppError, AppErrorEnvelope, Result};
+use crate::output_artifact::{PlannedOutputAction, ResolvedOutputPlan};
+use crate::processing::{JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
 
 #[derive(Debug)]
 pub(super) enum ProcessingJobTerminalOutcome {
@@ -335,11 +333,11 @@ mod tests {
         is_cancellation_error, terminal_cancelled_result, terminal_failure_result,
         ProcessingJobTerminalOutcome, RunTerminalClass, TerminalFailureEvent,
     };
-    use crate::audio::output_path::{
+    use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
+    use crate::output_artifact::{
         CollisionPolicy, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
     };
-    use crate::commands::audio_types::{JobType, ProcessResultEntry, ProcessResultStatus};
-    use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
+    use crate::processing::{JobType, ProcessResultEntry, ProcessResultStatus};
     use std::path::PathBuf;
 
     fn output_plan(action: PlannedOutputAction, path: impl Into<PathBuf>) -> ResolvedOutputPlan {

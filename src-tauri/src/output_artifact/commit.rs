@@ -1,8 +1,8 @@
 use super::collision::path_entry_exists;
 use super::types::{OutputKind, PlannedOutputAction};
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::context::ProcessingContext;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::processing::context::ProcessingContext;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -251,13 +251,13 @@ pub(crate) fn finalized_output_success(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::context::OutputConfig;
-    use crate::audio::job_registry::CancellationChecker;
-    use crate::audio::session::ProcessingSession;
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
     use crate::audio::SampleRateConfig;
+    use crate::processing::context::OutputConfig;
+    use crate::processing::job_registry::CancellationChecker;
+    use crate::processing::session::ProcessingSession;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use tempfile::TempDir;

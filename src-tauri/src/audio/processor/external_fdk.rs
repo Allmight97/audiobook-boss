@@ -1,14 +1,15 @@
-use crate::audio::output_path::{commit_output_artifact, finalized_output_success};
 use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, EncoderType, ThreadSetting};
 use crate::audio::toolchain::validate_external_input_decoders;
 use crate::audio::toolchain::ValidatedExternalToolchain;
 use crate::audio::CleanupGuard;
-use crate::audio::{AudioFile, DecoderSelection, ProcessingContext, ProgressEmitter};
+use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::passthrough::{
     apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
 };
 use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata};
+use crate::output_artifact::{commit_output_artifact, finalized_output_success};
+use crate::processing::{ProcessingContext, ProgressEmitter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
@@ -156,7 +157,7 @@ fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {
 
 fn expected_duration_seconds(
     files: &[AudioFile],
-    preview: Option<&crate::audio::preview_config::PreviewConfig>,
+    preview: Option<&crate::processing::preview_config::PreviewConfig>,
 ) -> f64 {
     if let Some(preview) = preview {
         return preview.per_file_seconds(files.len()) * files.len() as f64;
@@ -413,7 +414,7 @@ async fn terminate_external_child(child: &mut tokio::process::Child) -> Result<(
 fn build_ffmpeg_args(
     settings: &EncoderSettings,
     sample_rate: &crate::audio::SampleRateConfig,
-    preview: Option<&crate::audio::preview_config::PreviewConfig>,
+    preview: Option<&crate::processing::preview_config::PreviewConfig>,
     files: &[AudioFile],
     selected_decoders: &[Option<DecoderSelection>],
     temp_output: &Path,
@@ -543,12 +544,12 @@ fn parse_progress_ms(line: &str) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::context::OutputConfig;
-    use crate::audio::job_registry::CancellationChecker;
-    use crate::audio::session::ProcessingSession;
     use crate::audio::toolchain::EncoderCapabilitySource;
     use crate::audio::AudioFile;
     use crate::commands::metadata::{read_audio_metadata, save_metadata_to_file};
+    use crate::processing::context::OutputConfig;
+    use crate::processing::job_registry::CancellationChecker;
+    use crate::processing::session::ProcessingSession;
     use ffmpeg_next as ff;
     use std::fs::{set_permissions, write};
     use std::os::unix::fs::PermissionsExt;
@@ -653,7 +654,7 @@ mod tests {
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::for_preview(&preview_output),
         );
-        preview_context.preview = Some(crate::audio::context::PreviewConfig::new(30.0));
+        preview_context.preview = Some(crate::processing::context::PreviewConfig::new(30.0));
 
         let preview_result = process_audiobook_with_external_fdk(
             preview_context,

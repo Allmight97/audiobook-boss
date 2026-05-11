@@ -1,4 +1,4 @@
-use audiobook_boss_lib::audio::output_path::{
+use audiobook_boss_lib::output_artifact::{
     build_output_path_preview, NamingPreset, OutputNamingConfig,
 };
 use audiobook_boss_lib::AudiobookMetadata;

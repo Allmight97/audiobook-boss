@@ -108,16 +108,15 @@ User concept:
 
 Current cluster:
 
-- `src-tauri/src/commands/audio_processing/plan.rs`
-- `src-tauri/src/commands/audio_processing/planning_metadata.rs`
-- `src-tauri/src/audio/output_path/`
+- `src-tauri/src/processing/plan.rs`
+- `src-tauri/src/output_artifact/`
 - `src-tauri/src/metadata/mod.rs`
 - `src-tauri/src/audio/path_validation.rs`
 
 Already applied:
 
-- Planning-only metadata/path helpers moved from `run.rs` to
-  `planning_metadata.rs`.
+- Planning-only path helpers live behind `plan.rs`; metadata projection lives
+  behind `metadata/intent_plan.rs`.
 - Planning tests moved with planning behavior.
 - Public command surface stayed unchanged.
 
@@ -148,8 +147,8 @@ User concept:
 
 Current cluster:
 
-- `src-tauri/src/audio/output_path/`
-- `src-tauri/src/commands/audio_processing/plan.rs`
+- `src-tauri/src/output_artifact/`
+- `src-tauri/src/processing/plan.rs`
 - `src-tauri/src/audio/processor/finalize.rs`
 - `src/ui/statusPanel/outputPlanReview.ts`
 
@@ -176,7 +175,7 @@ Current cluster:
 - `src/types/metadataIntent.ts`
 - `src/lib/tauri/client.ts`
 - `src-tauri/src/metadata/mod.rs`
-- `src-tauri/src/commands/audio_processing/planning_metadata.rs`
+- `src-tauri/src/metadata/intent_plan.rs`
 - `src-tauri/src/commands/metadata.rs`
 
 Target:
@@ -307,8 +306,8 @@ Phase 5: Status Panel Runtime
 - 2026-05-10: Renamed branch to `arch/grey-box-modules`.
 - 2026-05-10: Created visual artifact
   `.artifacts/deep-modules-global-state.html`.
-- 2026-05-10: Moved planning-only metadata/path helpers from `run.rs` into
-  private planner-side `planning_metadata.rs`.
+- 2026-05-10: Moved planning-only metadata/path logic behind owned planner and
+  metadata-intent boundaries.
 - 2026-05-10: Accepted behavior contract: preserve user-facing behavior
   equivalent to `main`; internal APIs may change aggressively.
 - 2026-05-10: Accepted implementation cadence: one staged branch with
@@ -344,10 +343,10 @@ Phase 5: Status Panel Runtime
 - 2026-05-10: Phase 1 checkpoint passed `scripts/checks.sh standard`.
 - 2026-05-10: Phase 2 implementation started. Output artifact commit policy
   moved from `audio/processor/finalize.rs` into
-  `audio/output_path/commit.rs`; processor finalization now delegates final
+  `output_artifact/commit.rs`; processor finalization now delegates final
   artifact commit behavior to the output boundary.
 - 2026-05-10: Phase 2 review/signature policy moved from the temporary
-  planner helper into `audio/output_path/review.rs`. `plan.rs` now supplies
+  planner helper into `output_artifact/review.rs`. `plan.rs` now supplies
   planned outputs to the output boundary instead of owning collision-review
   policy.
 - 2026-05-10: Phase 2 frontend contract tightened. `PlannedOutput` now carries
@@ -355,7 +354,7 @@ Phase 5: Status Panel Runtime
   output artifact truth instead of re-deriving hard-block collision kinds.
 - 2026-05-10: Phase 2 checkpoint passed `scripts/checks.sh standard`.
 - 2026-05-10: Phase 3 implementation started. Metadata intent projection
-  moved from `commands/audio_processing` into `metadata/intent_plan.rs`, and
+  moved from `processing` into `metadata/intent_plan.rs`, and
   the core Rust metadata intent/write-plan contract moved into
   `metadata/intent.rs`. Processing planning now asks the metadata boundary for
   effective processing metadata and naming metadata.
@@ -397,16 +396,16 @@ Phase 5: Status Panel Runtime
   allowlisting in `scripts/check-public-api-strips.sh`, wired it into
   `scripts/checks.sh standard`, and added contract tests for the five public
   APIs:
-  - `src-tauri/src/audio/output_path/contract_tests.rs`
-  - `src-tauri/src/commands/audio_processing/contract_tests.rs`
+  - `src-tauri/src/output_artifact/contract_tests.rs`
+  - `src-tauri/src/processing/contract_tests.rs`
   - `src-tauri/src/metadata/contract_tests.rs`
   - `src/lib/tauri-public-api.contract.test.ts`
   - `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`
 - 2026-05-11: Promotion Phase P1 complete. Added or updated five local
   `AGENTS.md` files with the required four-section Public API Strip, Private
   Cluster, allowed-edit, and breaking-change trigger shape:
-  - `src-tauri/src/audio/output_path/AGENTS.md`
-  - `src-tauri/src/commands/audio_processing/AGENTS.md`
+  - `src-tauri/src/output_artifact/AGENTS.md`
+  - `src-tauri/src/processing/AGENTS.md`
   - `src-tauri/src/metadata/AGENTS.md`
   - `src/lib/tauri/AGENTS.md`
   - `src/ui/statusPanel/AGENTS.md`
@@ -602,11 +601,11 @@ Why:
 
 Current exceptions:
 
-- `src-tauri/src/commands/audio_processing/plan.rs`: larger than the preferred
+- `src-tauri/src/processing/plan.rs`: larger than the preferred
   file target because it is the Processing Plan API and still contains the
   plan-builder private cluster plus behavior tests. Split only around product
   sub-decisions, not around line count.
-- `src-tauri/src/commands/audio_processing/run.rs`: larger than the preferred
+- `src-tauri/src/processing/run.rs`: larger than the preferred
   file target because it remains the execution orchestration boundary: queue
   events, job registration, scheduler dispatch, processor adapter execution,
   and terminal normalization. The planner code has already been extracted.
@@ -614,7 +613,7 @@ Current exceptions:
   because it retains metadata root types, exports, compatibility comments, and
   tests. Core metadata intent/write-plan behavior has been moved to
   `metadata/intent.rs` and projection behavior to `metadata/intent_plan.rs`.
-- `src-tauri/src/audio/output_path/commit.rs`: above the preferred target
+- `src-tauri/src/output_artifact/commit.rs`: above the preferred target
   because it owns final artifact commit behavior and its regression tests in
   one module. Consider a private test module/file split only after manual
   smoke confirms artifact behavior.
@@ -721,13 +720,13 @@ Prompt-to-artifact checklist:
 - Durable implementation contract: this file,
   `docs/specs/grey-box-modules.md`, records scope, cadence, accepted
   decisions, guardrails, progress, shape exceptions, and validation criteria.
-- Processing Plan module: `src-tauri/src/commands/audio_processing/run.rs`
+- Processing Plan module: `src-tauri/src/processing/run.rs`
   delegates plan construction to `resolve_preflight_plan` and
   `prepare_execution_plan` in
-  `src-tauri/src/commands/audio_processing/plan.rs`.
+  `src-tauri/src/processing/plan.rs`.
 - Output Artifact Plan / Commit module:
-  `src-tauri/src/audio/output_path/review.rs` owns review/signature policy and
-  `src-tauri/src/audio/output_path/commit.rs` owns final artifact commit
+  `src-tauri/src/output_artifact/review.rs` owns review/signature policy and
+  `src-tauri/src/output_artifact/commit.rs` owns final artifact commit
   behavior.
 - Metadata Intent Plan module: `src-tauri/src/metadata/intent.rs` owns the Rust
   metadata intent/write-plan contract, and
@@ -862,9 +861,9 @@ The Five Public APIs (use these names verbatim in test descriptions and AGENTS.m
 
 1. **Tauri Runtime Boundary** (`src/lib/tauri/client.ts` exports;
    `commands.ts` stays private).
-2. **Processing Plan** (`src-tauri/src/commands/audio_processing/plan.rs`:
+2. **Processing Plan** (`src-tauri/src/processing/plan.rs`:
    `resolve_preflight_plan`, `prepare_execution_plan`).
-3. **Output Artifact Plan / Commit** (`src-tauri/src/audio/output_path/`:
+3. **Output Artifact Plan / Commit** (`src-tauri/src/output_artifact/`:
    `OutputPlanLedger::resolve`, `enforce_output_plan_review`,
    `ensure_output_parent_dirs`, `commit_output_artifact`,
    `finalized_output_success`).
@@ -915,8 +914,8 @@ counts as a breaking change. Right now this is oral tradition plus this spec.
 
 Files to add or extend:
 
-- `src-tauri/src/audio/output_path/AGENTS.md` (new).
-- `src-tauri/src/commands/audio_processing/AGENTS.md` (new).
+- `src-tauri/src/output_artifact/AGENTS.md` (new).
+- `src-tauri/src/processing/AGENTS.md` (new).
 - `src-tauri/src/metadata/AGENTS.md` (extend with the Metadata Intent Plan
   Public API Strip section).
 - `src/lib/tauri/AGENTS.md` (extend with the explicit public/private split
@@ -953,7 +952,7 @@ a CI-enforced guarantee.
 Assertions to add (one rg-based check per rule, mirroring the existing four
 shapes in `check-no-bridge-imports.sh`):
 
-- No file outside `src-tauri/src/audio/output_path/` imports
+- No file outside `src-tauri/src/output_artifact/` imports
   `commit_output_artifact`, `finalized_output_success`, or `OutputPlanLedger`
   except its allowlisted consumer(s).
 - No file outside `src-tauri/src/metadata/` imports
@@ -963,7 +962,7 @@ shapes in `check-no-bridge-imports.sh`):
   `statusPanel/reducer*` paths.
 - `src-tauri/src/audio/processor/finalize.rs` does not call
   `std::fs::rename`, `std::fs::copy`, or `std::fs::hard_link` against a path
-  derived from a final output artifact (commit lives in `output_path/`).
+  derived from a final output artifact (commit lives in `output_artifact/`).
 - `src/lib/tauri/client.ts` re-exports only symbols on an allowlist; new
   exports must update the allowlist. This assertion is implemented in
   `scripts/check-public-api-strips.sh` because it is a Public API Strip guard.
@@ -1146,7 +1145,7 @@ Each row says how the grey-box arch relates to the issue today.
 
 | Issue | Title | Relation to grey-box arch |
 | --- | --- | --- |
-| #300 | Align metadata resolution and processor finalization boundaries | **Substantially addressed.** The Metadata Intent Plan module now owns `resolve_effective_processing_metadata` and `resolve_naming_metadata` (formerly in `audio_processing/run.rs`); the Output Artifact Plan / Commit module now owns `commit_output_artifact` (formerly in `processor/finalize.rs`). Close after promotion lands; reference the new Public API Strips in the close note. |
+| #300 | Align metadata resolution and processor finalization boundaries | **Substantially addressed.** The Metadata Intent Plan module now owns `resolve_effective_processing_metadata` and `resolve_naming_metadata` (formerly in the processing runner); the Output Artifact Plan / Commit module now owns `commit_output_artifact` (formerly in `processor/finalize.rs`). Close after promotion lands; reference the new Public API Strips in the close note. |
 | #299 | Decide staged artifact failure handling and orphan cleanup | **Boundary positioned, decision still open.** Output Artifact Plan / Commit is the right owner for staged-artifact failure behavior, but the orphan-cleanup ledger decision is not made. Promotion does not block this; revisit after P0–P2. |
 | #298 | FEAT (2): subfolder loading + bulk metadata progress UX | **Orthogonal.** Future product work; lands inside Processing Plan (subfolder enumeration) and Status Panel Runtime (bulk progress) once that work is scoped. |
 | #296 | Reduce redundant metadata opens after container classification | **Internal to the Metadata Intent Plan Private Cluster.** Safe candidate for a Phase P5 cluster audit, then a future internal refactor that does not touch the Public API Strip. |
@@ -1164,14 +1163,14 @@ than reverting to scattered helpers.
 ## Seed: Output Artifact Plan / Commit Contract Test Sketch
 
 Non-binding seed for Phase P0's first contract test. The shape below maps to
-the current public functions in `src-tauri/src/audio/output_path/` and is
+the current public functions in `src-tauri/src/output_artifact/` and is
 designed to fail informatively when a public symbol is added or removed.
 
 Goal: lock the Public API Strip and a small set of behavior invariants for the
 Output Artifact Plan / Commit module without depending on any Private Cluster
 helper.
 
-Location candidate: `src-tauri/src/audio/output_path/contract_tests.rs`,
+Location candidate: `src-tauri/src/output_artifact/contract_tests.rs`,
 included by `mod.rs` with `#[cfg(test)] mod contract_tests;`. A standalone
 draft also lives at
 `.artifacts/output-artifact-contract-test.draft.rs` for review.
@@ -1180,13 +1179,13 @@ draft also lives at
 //! Contract tests for the Output Artifact Plan / Commit Public API Strip.
 //!
 //! These tests must read only the public surface published by
-//! `src-tauri/src/audio/output_path/mod.rs`. Internal cluster refactors keep
+//! `src-tauri/src/output_artifact/mod.rs`. Internal cluster refactors keep
 //! these tests green. Adding or removing a public symbol must require a
 //! deliberate update to this file.
 
 use std::path::PathBuf;
 
-use crate::audio::output_path::{
+use crate::output_artifact::{
     build_output_path_preview,
     CollisionPolicy,
     NamingPreset,

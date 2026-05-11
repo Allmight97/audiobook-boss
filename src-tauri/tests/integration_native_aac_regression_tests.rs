@@ -1,7 +1,10 @@
 use audiobook_boss_lib::audio::settings_encoder::{
     BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{self, OutputConfig, SampleRateConfig};
+use audiobook_boss_lib::audio::{self, SampleRateConfig};
+use audiobook_boss_lib::processing::{
+    OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
+};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use tempfile::TempDir;
@@ -65,8 +68,8 @@ async fn native_aac_regression_encodes_valid_output() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("native-regression.m4b");
 
-    let session = Arc::new(audio::session::ProcessingSession::new());
-    let context = audio::ProcessingContext::new_headless(
+    let session = Arc::new(ProcessingSession::new());
+    let context = ProcessingContext::new_headless(
         session,
         native_aac_settings(),
         SampleRateConfig::Auto,
@@ -114,14 +117,14 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     let preview_path = preview_output_path(&output_path);
     let preview_seconds = 3.0;
 
-    let session = Arc::new(audio::session::ProcessingSession::new());
-    let mut context = audio::ProcessingContext::new_headless(
+    let session = Arc::new(ProcessingSession::new());
+    let mut context = ProcessingContext::new_headless(
         session,
         native_aac_settings(),
         SampleRateConfig::Auto,
         OutputConfig::for_preview(&preview_path),
     );
-    context.preview = Some(audio::context::PreviewConfig::new(preview_seconds));
+    context.preview = Some(PreviewConfig::new(preview_seconds));
 
     let result = audio::process_audiobook_with_context(context, file_info.files, None, true).await;
     assert!(
@@ -161,9 +164,9 @@ async fn native_aac_removes_destination_staging_when_execute_fails() {
     std::fs::create_dir(&output_dir).expect("create output dir");
     let output_path = output_dir.join("broken-output.m4b");
 
-    let session = Arc::new(audio::session::ProcessingSession::new());
+    let session = Arc::new(ProcessingSession::new());
     let expected_staging_dir = output_dir.join(format!(".abb-processing-{}", session.id()));
-    let context = audio::ProcessingContext::new_headless(
+    let context = ProcessingContext::new_headless(
         session,
         native_aac_settings(),
         SampleRateConfig::Auto,

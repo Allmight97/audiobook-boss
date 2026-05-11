@@ -1,5 +1,5 @@
 ## Public API Strip
-- Import from `crate::audio::output_path`, not private child modules.
+- Import from `crate::output_artifact`, not private child modules.
 - Functions: `build_output_path_preview`, `derive_output_artifact_path`, `build_output_path`, `action_requires_output_write`, `plan_is_hard_block`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`.
 - Types: `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `OutputCollision`, `ResolvedOutputPlan`.
 
@@ -15,4 +15,4 @@
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.
 - Changing collision/review semantics, source-destination overlap handling, final commit behavior, or success message truth.
-- Relaxing `scripts/check-public-api-strips.sh` or output-path assertions in `scripts/check-no-bridge-imports.sh`.
+- Relaxing `scripts/check-public-api-strips.sh` or output-artifact assertions in `scripts/check-no-bridge-imports.sh`.

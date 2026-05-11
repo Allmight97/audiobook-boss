@@ -12,8 +12,9 @@ use crate::audio::processor::frame_pipeline::{
 };
 use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
 use crate::audio::processor::preview_state::PreviewState;
-use crate::audio::{ProcessingContext, SampleRateConfig};
+use crate::audio::SampleRateConfig;
 use crate::errors::Result;
+use crate::processing::ProcessingContext;
 
 /// ffmpeg-next based processor
 pub struct FfmpegNextProcessor;

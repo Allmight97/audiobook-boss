@@ -291,7 +291,7 @@ mod tests {
     use super::{
         detect_output_collision, next_rename_candidate, path_entry_exists, OutputCollisionCache,
     };
-    use crate::audio::output_path::OutputCollisionKind;
+    use crate::output_artifact::OutputCollisionKind;
     use std::collections::HashSet;
     use std::fs::write;
     use tempfile::TempDir;
