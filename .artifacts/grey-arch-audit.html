@@ -100,6 +100,7 @@
     <a href="#sec-ipc">IPC Boundary</a>
     <a href="#sec-flow">Control & Data Flow</a>
     <a href="#sec-observations">Observations</a>
+    <a href="#sec-repo-org">Repo Organization</a>
   </div>
 
   <div class="legend">
@@ -1016,6 +1017,125 @@
         This is a real seam but leaks internal metadata symbols into the crate root.
       </li>
     </ul>
+  </div>
+
+  <h2 id="sec-repo-org">7. Repo Organization Findings & Proposal</h2>
+
+  <div class="card">
+    <h3>7.1 Current Structure Friction</h3>
+    <table>
+      <tr><th>Observation</th><th>Impact</th><th>Example</th></tr>
+      <tr>
+        <td><strong>Layer-first folders</strong></td>
+        <td>Product concepts are split across directories</td>
+        <td><code>src/ui/</code> and <code>src-tauri/src/audio/</code> group by layer, not by feature</td>
+      </tr>
+      <tr>
+        <td><strong>Flat test dumping grounds</strong></td>
+        <td>Tests drift from the modules they cover</td>
+        <td>Integration tests live in <code>src-tauri/tests/</code> without mirroring module structure</td>
+      </tr>
+      <tr>
+        <td><strong>No public API files</strong></td>
+        <td>Callers import from deep internal paths</td>
+        <td>Frontend imports <code>lib/tauri/client.ts</code> directly; backend imports <code>audio::processor::*</code></td>
+      </tr>
+      <tr>
+        <td><strong>Root clutter</strong></td>
+        <td>Stray test/compile files at repo root</td>
+        <td><code>test_compilation.rs</code>, <code>test_quick.rs</code>, <code>test_ui.rs</code> in root</td>
+      </tr>
+      <tr>
+        <td><strong>Boundary mixed with domain</strong></td>
+        <td>Commands, IPC contracts, and errors live next to business logic</td>
+        <td><code>src-tauri/src/commands/</code> and <code>src-tauri/src/ipc_contract.rs</code> are adjacent to deep modules</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>7.2 Proposed Target Structure</h3>
+    <p style="font-size:.9rem; color:var(--muted)">
+      Align folders with the <strong>grey-box / deep-module philosophy</strong>: each folder is a product module with a small public surface.
+      Boundary code (commands, IPC, adapters) is extracted into its own layer so domain logic does not leak.
+    </p>
+
+    <h4>Frontend</h4>
+    <div class="contract-box">
+      <code>src/ui/</code> → <code>src/modules/</code> <em>(product-first modules)</em><br/>
+      <code>src/lib/tauri/</code> → <code>src/boundary/tauri/</code> <em>(separate boundary from domain)</em><br/>
+      Co-locate tests in <code>__tests__/</code> per module<br/>
+      Add <code>index.ts</code> public API files at every module root
+    </div>
+
+    <h4>Backend</h4>
+    <div class="contract-box">
+      <code>src-tauri/src/audio/</code> + <code>commands/</code> → product modules:<br/>
+      &nbsp;&nbsp;<code>processing/</code> — encode, merge, pipeline<br/>
+      &nbsp;&nbsp;<code>artifact/</code> — output path, naming, collision, commit<br/>
+      &nbsp;&nbsp;<code>metadata/</code> — read, write, intent, cover art<br/>
+      &nbsp;&nbsp;<code>lifecycle/</code> — job registry, concurrency, cancellation<br/>
+      Extract <code>boundary/</code> for commands + <code>ipc_contract.rs</code> + <code>errors.rs</code><br/>
+      Shrink <code>lib.rs</code> to declarations; move logic into modules
+    </div>
+
+    <h4>Root Cleanup</h4>
+    <div class="contract-box">
+      Move stray test files (<code>test_compilation.rs</code>, <code>test_quick.rs</code>, <code>test_ui.rs</code>) into <code>scripts/scratch/</code> or a dedicated <code>experiments/</code> directory.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>7.3 Migration Strategy (4 Phases)</h3>
+    <table>
+      <tr><th>Phase</th><th>Scope</th><th>Goal</th></tr>
+      <tr>
+        <td><strong>1. Boundary extraction</strong></td>
+        <td><code>commands/</code>, <code>ipc_contract.rs</code>, <code>errors.rs</code></td>
+        <td>Create <code>src-tauri/src/boundary/</code> and move Tauri glue there without touching domain logic</td>
+      </tr>
+      <tr>
+        <td><strong>2. Domain re-bucketing</strong></td>
+        <td><code>audio/</code> → <code>processing/</code> + <code>artifact/</code> + <code>lifecycle/</code></td>
+        <td>Move files into product modules; keep git history with <code>git mv</code></td>
+      </tr>
+      <tr>
+        <td><strong>3. Frontend alignment</strong></td>
+        <td><code>src/ui/</code> → <code>src/modules/</code>; <code>src/lib/tauri/</code> → <code>src/boundary/tauri/</code></td>
+        <td>Same product-first move; update all import paths</td>
+      </tr>
+      <tr>
+        <td><strong>4. Public API + tests</strong></td>
+        <td>Add <code>index.ts</code> / <code>mod.rs</code> surfaces; co-locate tests</td>
+        <td>Shrink import paths; enforce that cross-module imports go through the public API</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>7.4 Open Questions</h3>
+    <ol style="font-size:.9rem; color:var(--muted)">
+      <li>
+        <strong>Module merging scope:</strong> Should <code>metadata</code> and <code>cover_art</code> stay separate,
+        or merge into a single <code>metadata/</code> deep module with internal sub-folders?
+      </li>
+      <li>
+        <strong>Test migration depth:</strong> Should integration tests mirror the new module structure,
+        or remain in a single <code>tests/</code> directory with module-named sub-folders?
+      </li>
+      <li>
+        <strong>Aggressiveness level:</strong> Do a one-shot big-bang refactor, or phase it incrementally
+        (one module per PR) to keep reviews reviewable and bisectable?
+      </li>
+      <li>
+        <strong>Workspace split consideration:</strong> Should the backend become a Cargo workspace
+        with separate crates (<code>processing</code>, <code>metadata</code>, <code>artifact</code>) to enforce API boundaries at compile time?
+      </li>
+      <li>
+        <strong>Frontend module granularity:</strong> Is <code>src/modules/</code> the right level,
+        or should top-level islands live directly under <code>src/</code> (e.g. <code>src/statusPanel/</code>)?
+      </li>
+    </ol>
   </div>
 
   <div style="margin-top: 24px; color:var(--muted); font-size:.85rem; border-top:1px solid var(--border); padding-top:12px;">
