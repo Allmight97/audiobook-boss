@@ -17,7 +17,22 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# macOS metadata noise
 .DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
 *.suo
 *.ntvs*
 *.njsproj
@@ -58,6 +73,10 @@ opencode.json
 /.repomix/handoffs/*
 !/.repomix/handoffs/.gitkeep
 
-# Harness verification artifacts
-/.artifacts/harness/*
+# Local generated reports / AI artifacts
+/.artifacts/*
+!/.artifacts/harness/
 !/.artifacts/harness/.gitkeep
+
+# Generated human-facing artifacts belong under .artifacts, not docs canon
+/docs/artifacts/
