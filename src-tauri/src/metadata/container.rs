@@ -27,15 +27,17 @@ pub(crate) fn classify(path: &Path) -> Result<ContainerRoute> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let input_format = ictx.format();
-    let format_name = input_format.name();
+    Ok(classify_format_name(ictx.format().name()))
+}
+
+pub(crate) fn classify_format_name(format_name: &str) -> ContainerRoute {
     if is_mp4_family_format(format_name) {
-        return Ok(ContainerRoute::Mp4Family);
+        return ContainerRoute::Mp4Family;
     }
 
-    Ok(ContainerRoute::Other {
+    ContainerRoute::Other {
         remux_output_format: remux_output_format_for(format_name).to_string(),
-    })
+    }
 }
 
 fn primary_format_name(format_name: &str) -> &str {
@@ -59,7 +61,10 @@ fn is_mp4_family_format(format_name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_mp4_family_format, primary_format_name, remux_output_format_for};
+    use super::{
+        classify_format_name, is_mp4_family_format, primary_format_name, remux_output_format_for,
+        ContainerRoute,
+    };
 
     #[test]
     fn classifies_ffmpeg_mp4_family_format_name() {
@@ -78,5 +83,19 @@ mod tests {
         assert_eq!(remux_output_format_for("mp3"), "mp3");
         assert_eq!(remux_output_format_for("wav"), "wav");
         assert_eq!(remux_output_format_for("flac"), "flac");
+    }
+
+    #[test]
+    fn classifies_format_name_without_reopening_path() {
+        assert_eq!(
+            classify_format_name("mov,mp4,m4a,3gp,3g2,mj2"),
+            ContainerRoute::Mp4Family
+        );
+        assert_eq!(
+            classify_format_name("mp3"),
+            ContainerRoute::Other {
+                remux_output_format: "mp3".to_string()
+            }
+        );
     }
 }

@@ -21,22 +21,20 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         )));
     }
 
-    if matches!(
-        super::container::classify(path)?,
-        super::container::ContainerRoute::Mp4Family
-    ) {
+    ff::init().map_err(AppError::Ffmpeg)?;
+    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+    let route = super::container::classify_format_name(ictx.format().name());
+
+    if matches!(route, super::container::ContainerRoute::Mp4Family) {
         let mut metadata = mp4ameta_bridge::read_metadata(path)?;
         metadata.cover_art = normalize_cover_art(metadata.cover_art);
         return Ok(metadata);
     }
 
-    read_metadata_with_ffmpeg(path)
+    read_metadata_with_ffmpeg_input(&ictx)
 }
 
-fn read_metadata_with_ffmpeg(path: &Path) -> Result<AudiobookMetadata> {
-    ff::init().map_err(AppError::Ffmpeg)?;
-
-    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<AudiobookMetadata> {
     let dict = ictx.metadata();
 
     let mut metadata = AudiobookMetadata::new();
