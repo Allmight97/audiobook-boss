@@ -10,7 +10,7 @@ mod types;
 mod contract_tests;
 
 pub(crate) use artifact::derive_output_artifact_path;
-pub(crate) use commit::{commit_output_artifact, finalized_output_success};
+pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
 #[cfg_attr(not(test), allow(unused_imports))]
 pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;

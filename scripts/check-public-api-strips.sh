@@ -38,9 +38,9 @@ extract_export_blocks() {
   ' "$1"
 }
 
-output_path_exports="$(extract_export_blocks src-tauri/src/output_artifact/mod.rs)"
-compare_block "Output Artifact Plan / Commit Public API Strip" "$output_path_exports" 'pub(crate) use artifact::derive_output_artifact_path;
-pub(crate) use commit::{commit_output_artifact, finalized_output_success};
+output_artifact_exports="$(extract_export_blocks src-tauri/src/output_artifact/mod.rs)"
+compare_block "Output Artifact Plan / Commit Public API Strip" "$output_artifact_exports" 'pub(crate) use artifact::derive_output_artifact_path;
+pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
 pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;
 pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};

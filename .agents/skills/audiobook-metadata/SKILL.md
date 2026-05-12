@@ -30,6 +30,10 @@ player evidence and an explicit product decision.
 Honor explicit `set | clear | noop` intent semantics end-to-end.
 - Empty sentinels (`''`, `0`, `[]`) are explicit clear commands.
 - Do not collapse clear to noop via emptiness heuristics.
+- Metadata Intent Plan lives under `src-tauri/src/metadata/` and is governed by
+  `src-tauri/src/metadata/AGENTS.md`.
+- Output naming that depends on metadata flows through the Output Artifact
+  boundary; keep naming policy in `src-tauri/src/output_artifact/naming.rs`.
 
 ## Verification
 
@@ -44,5 +48,6 @@ ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
 
 - Strategy and mappings: `references/tag-mapping.md`
 - Folder conventions: `references/folder-conventions.md`
-- Metadata model: `src-tauri/src/metadata/mod.rs`
+- Metadata model and intent plan: `src-tauri/src/metadata/`
 - Boundary commands: `src-tauri/src/commands/metadata.rs`
+- Output artifact naming: `src-tauri/src/output_artifact/naming.rs`

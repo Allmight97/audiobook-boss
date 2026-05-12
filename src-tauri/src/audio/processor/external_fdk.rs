@@ -8,7 +8,9 @@ use crate::metadata::passthrough::{
     apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
 };
 use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata};
-use crate::output_artifact::{commit_output_artifact, finalized_output_success};
+use crate::output_artifact::{
+    commit_output_artifact, finalized_output_success, OutputCommitRequest,
+};
 use crate::processing::{ProcessingContext, ProgressEmitter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -99,12 +101,13 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
 
     ui.emit_cleanup("Cleaning up...");
-    let outcome = commit_output_artifact(
-        &context,
-        temp_output,
+    let commit_request = OutputCommitRequest::new(
         context.output.artifact_path(),
-        &mut cleanup_guard,
-    )?;
+        context.output.commit_action(),
+    );
+    let outcome = commit_output_artifact(commit_request, temp_output, &mut cleanup_guard, || {
+        context.is_cancelled()
+    })?;
     let success = finalized_output_success(
         context.output.output_kind(),
         &outcome.final_output,

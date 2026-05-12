@@ -1,7 +1,7 @@
 ## Public API Strip
 - Import from `crate::output_artifact`, not private child modules.
 - Functions: `build_output_path_preview`, `derive_output_artifact_path`, `build_output_path`, `action_requires_output_write`, `plan_is_hard_block`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`.
-- Types: `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `OutputCollision`, `ResolvedOutputPlan`.
+- Types: `OutputCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `OutputCollision`, `ResolvedOutputPlan`.
 
 ## Private Cluster
 - Files: `artifact.rs`, `collision.rs`, `commit.rs`, `naming.rs`, `plan.rs`, `review.rs`, `types.rs`, `contract_tests.rs`.

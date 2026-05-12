@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
-import { createCoverArtTracker } from './coverArtTracker';
+import { createCoverArtTracker } from '../services/coverArtTracker';
 
 function makeFileList(files: Array<{ path: string; isValid: boolean }>): FileListInfo {
 	const audioFiles: AudioFile[] = files.map((file) => ({

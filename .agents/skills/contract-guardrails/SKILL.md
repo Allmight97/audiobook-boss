@@ -13,6 +13,8 @@ Use this skill when touching Tauri commands/events or TS client boundary contrac
 - `package.json`
 - `src-tauri/tauri.conf.json`
 - `src-tauri/Cargo.toml`
+- `src-tauri/Cargo.lock`
+- `CHANGELOG.md`
 2. For command/event or payload changes, verify contract parity:
 ```bash
 scripts/checks.sh standard

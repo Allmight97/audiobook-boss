@@ -23,8 +23,8 @@ owner manual testing reported clear before promotion.
 
 ### Added
 
-- Grey-box implementation spec and presentation/audit artifacts retained for
-  review under `docs/specs/`, `docs/artifacts/`, and `.artifacts/`.
+- Grey-box review artifacts retained under `docs/artifacts/`, with remaining
+  follow-up audits deferred to GitHub issue #304.
 - Public API strip contract tests and source allowlisting for the Tauri Runtime
   Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent
   Plan, and Status Panel Runtime.
@@ -36,14 +36,24 @@ owner manual testing reported clear before promotion.
 - Reshaped processing planning, output artifact commit, metadata intent
   projection, Tauri runtime adapters, and status-panel runtime behavior behind
   smaller Public API strips.
-- Refreshed repo guidance docs for the grey-box ownership map while keeping the
-  active grey-box spec and related artifacts for owner review.
+- Decoupled output artifact commit from `ProcessingContext` by passing an
+  explicit `OutputCommitRequest` and cancellation check into the commit
+  boundary.
+- Refreshed repo guidance, skill docs, and the audio-processing system map for
+  the promoted grey-box ownership model.
+- Moved the status-panel cover-art tracker test into the local `__tests__`
+  cluster.
 
 ### Fixed
 
 - Strengthened boundary assertions so generated invokers, metadata intent
   projection, status-panel internals, output artifact commit behavior, and raw
   Tauri invoke usage stay behind their owning boundaries.
+
+### Removed
+
+- Removed the promoted grey-box implementation spec after review and cleaned up
+  obsolete root-level scratch probe files.
 
 ## [1.0.20] - 2026-05-10
 

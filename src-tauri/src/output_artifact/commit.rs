@@ -2,7 +2,6 @@ use super::collision::path_entry_exists;
 use super::types::{OutputKind, PlannedOutputAction};
 use crate::audio::cleanup::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::context::ProcessingContext;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -170,29 +169,41 @@ pub(crate) struct OutputCommitOutcome {
     pub cancelled: bool,
 }
 
+pub(crate) struct OutputCommitRequest<'a> {
+    final_path: &'a Path,
+    action: PlannedOutputAction,
+}
+
+impl<'a> OutputCommitRequest<'a> {
+    pub(crate) fn new(final_path: &'a Path, action: PlannedOutputAction) -> Self {
+        Self { final_path, action }
+    }
+}
+
 pub(crate) struct FinalizedOutputSuccess {
     pub ui_message: &'static str,
     pub result_message: String,
 }
 
-fn commit_output_artifact_internal<F>(
-    context: &ProcessingContext,
+fn commit_output_artifact_internal<F, C>(
+    request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
-    destination: &Path,
     cleanup_guard: &mut CleanupGuard,
     after_move: F,
+    is_cancelled: C,
 ) -> Result<OutputCommitOutcome>
 where
     F: FnOnce(),
+    C: FnOnce() -> bool,
 {
     let final_output =
-        commit_temp_output_to_artifact(temp_output, destination, context.output.commit_action())?;
+        commit_temp_output_to_artifact(temp_output, request.final_path, request.action)?;
 
     // Destination output is now canonical and must not be cleaned up on cancellation.
     cleanup_guard.remove_path(&final_output);
     after_move();
 
-    let cancelled = context.is_cancelled();
+    let cancelled = is_cancelled();
     cleanup_guard.cleanup_now()?;
 
     Ok(OutputCommitOutcome {
@@ -201,27 +212,37 @@ where
     })
 }
 
-pub(crate) fn commit_output_artifact(
-    context: &ProcessingContext,
+pub(crate) fn commit_output_artifact<C>(
+    request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
-    destination: &Path,
     cleanup_guard: &mut CleanupGuard,
-) -> Result<OutputCommitOutcome> {
-    commit_output_artifact_internal(context, temp_output, destination, cleanup_guard, || {})
+    is_cancelled: C,
+) -> Result<OutputCommitOutcome>
+where
+    C: FnOnce() -> bool,
+{
+    commit_output_artifact_internal(request, temp_output, cleanup_guard, || {}, is_cancelled)
 }
 
 #[cfg(test)]
-pub(crate) fn commit_output_artifact_with_hook<F>(
-    context: &ProcessingContext,
+pub(crate) fn commit_output_artifact_with_hook<F, C>(
+    request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
-    destination: &Path,
     cleanup_guard: &mut CleanupGuard,
     after_move: F,
+    is_cancelled: C,
 ) -> Result<OutputCommitOutcome>
 where
     F: FnOnce(),
+    C: FnOnce() -> bool,
 {
-    commit_output_artifact_internal(context, temp_output, destination, cleanup_guard, after_move)
+    commit_output_artifact_internal(
+        request,
+        temp_output,
+        cleanup_guard,
+        after_move,
+        is_cancelled,
+    )
 }
 
 pub(crate) fn finalized_output_success(
@@ -251,33 +272,8 @@ pub(crate) fn finalized_output_success(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::settings_encoder::{
-        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-    };
-    use crate::audio::SampleRateConfig;
-    use crate::processing::context::OutputConfig;
-    use crate::processing::job_registry::CancellationChecker;
-    use crate::processing::session::ProcessingSession;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
     use tempfile::TempDir;
-
-    fn test_context(final_path: &Path, session: Arc<ProcessingSession>) -> ProcessingContext {
-        ProcessingContext::new_headless(
-            session,
-            EncoderSettings {
-                encoder_type: EncoderType::NativeAac,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Cbr,
-                channels: ChannelConfig::Auto,
-                afterburner: true,
-                threads: ThreadSetting::Auto,
-                twoloop: true,
-            },
-            SampleRateConfig::Auto,
-            OutputConfig::new(final_path),
-        )
-    }
 
     #[test]
     fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
@@ -290,30 +286,20 @@ mod tests {
 
         let final_output = root.path().join("final-output.m4b");
 
-        let job_flag = Arc::new(AtomicBool::new(false));
-        let global_flag = Arc::new(AtomicBool::new(false));
-        let checker = CancellationChecker {
-            job_flag: job_flag.clone(),
-            global_flag,
-        };
-        let session = Arc::new(ProcessingSession::from_job_registry(
-            uuid::Uuid::new_v4(),
-            checker,
-        ));
-        let context = test_context(&final_output, session);
-
-        let mut cleanup_guard = CleanupGuard::new(context.session.id());
+        let cancelled = AtomicBool::new(false);
+        let mut cleanup_guard = CleanupGuard::new("commit-test".to_string());
         cleanup_guard.add_path(&temp_dir);
         cleanup_guard.add_path(&temp_output);
 
+        let request = OutputCommitRequest::new(&final_output, PlannedOutputAction::Write);
         let outcome = commit_output_artifact_with_hook(
-            &context,
+            request,
             temp_output,
-            &final_output,
             &mut cleanup_guard,
             || {
-                job_flag.store(true, Ordering::Release);
+                cancelled.store(true, Ordering::Release);
             },
+            || cancelled.load(Ordering::Acquire),
         )
         .expect("commit should succeed");
 

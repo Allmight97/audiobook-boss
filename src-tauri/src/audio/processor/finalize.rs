@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 use crate::audio::cleanup::CleanupGuard;
 use crate::errors::Result;
 use crate::metadata::AudiobookMetadata;
-use crate::output_artifact::{commit_output_artifact, finalized_output_success};
+use crate::output_artifact::{
+    commit_output_artifact, finalized_output_success, OutputCommitRequest,
+};
 use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 
 use super::ProcessingWorkflow;
@@ -63,12 +65,14 @@ pub(crate) fn complete_processing(
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(workflow.temp_dir);
     cleanup_guard.add_path(&merged_output);
-    let outcome = commit_output_artifact(
-        context,
-        merged_output,
+    let commit_request = OutputCommitRequest::new(
         context.output.artifact_path(),
-        &mut cleanup_guard,
-    )?;
+        context.output.commit_action(),
+    );
+    let outcome =
+        commit_output_artifact(commit_request, merged_output, &mut cleanup_guard, || {
+            context.is_cancelled()
+        })?;
     log::info!(
         "✓ File moved successfully to: {}",
         outcome.final_output.display()

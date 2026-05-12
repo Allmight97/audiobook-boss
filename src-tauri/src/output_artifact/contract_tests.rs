@@ -1,31 +1,10 @@
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::settings_encoder::{
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-};
-use crate::audio::SampleRateConfig;
 use crate::output_artifact::{
     commit_output_artifact, enforce_output_plan_review, ensure_output_parent_dirs,
-    finalized_output_success, CollisionPolicy, OutputCollisionKind, OutputKind, OutputPlanLedger,
-    OutputPlanReview, PlannedOutputAction,
+    finalized_output_success, CollisionPolicy, OutputCollisionKind, OutputCommitRequest,
+    OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
 };
-use crate::processing::context::{OutputConfig, ProcessingContext};
-use crate::processing::job_registry::CancellationChecker;
-use crate::processing::session::ProcessingSession;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use tempfile::TempDir;
-
-fn encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Auto,
-        afterburner: true,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
-    }
-}
 
 #[test]
 fn output_artifact_plan_contract_blocks_source_destination_overlap() {
@@ -121,25 +100,12 @@ fn output_artifact_commit_contract_promotes_temp_output_and_reports_success() {
     std::fs::write(&temp_output, b"payload").expect("write temp output");
     let final_output = temp_dir.path().join("final").join("book.m4b");
 
-    let checker = CancellationChecker {
-        job_flag: Arc::new(AtomicBool::new(false)),
-        global_flag: Arc::new(AtomicBool::new(false)),
-    };
-    let session = Arc::new(ProcessingSession::from_job_registry(
-        uuid::Uuid::new_v4(),
-        checker,
-    ));
-    let context = ProcessingContext::new_headless(
-        session,
-        encoder_settings(),
-        SampleRateConfig::Auto,
-        OutputConfig::new(&final_output),
-    );
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
+    let mut cleanup_guard = CleanupGuard::new("output-artifact-contract".to_string());
     cleanup_guard.add_path(&worker_dir);
     cleanup_guard.add_path(&temp_output);
 
-    let outcome = commit_output_artifact(&context, temp_output, &final_output, &mut cleanup_guard)
+    let request = OutputCommitRequest::new(&final_output, PlannedOutputAction::Write);
+    let outcome = commit_output_artifact(request, temp_output, &mut cleanup_guard, || false)
         .expect("commit output");
 
     assert_eq!(outcome.final_output, final_output);
