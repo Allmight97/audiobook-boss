@@ -16,6 +16,8 @@
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
 - Use `process_audiobook_files` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
 - Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion.
+- Consult `docs/unsafe-code-register.md` before changing production Rust `unsafe`
+  and update it when unsafe scope, purpose, or blast radius changes.
 
 ## Hard Invariants
 
@@ -24,6 +26,8 @@
 - Preserve external audiobook tag interoperability in metadata read/write behavior.
 - Fallbacks follow root policy and fallback-register discipline.
 - Keep command and event shape parity with frontend boundary adapters.
+- Keep unsafe blocks narrow and owned by the FFmpeg/FFI boundary that requires
+  them; do not let unsafe details leak into product orchestration or IPC shape.
 
 ### Backend Shape Triggers
 
