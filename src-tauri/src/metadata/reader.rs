@@ -26,6 +26,7 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     let route = super::container::classify_format_name(ictx.format().name());
 
     if matches!(route, super::container::ContainerRoute::Mp4Family) {
+        drop(ictx);
         let mut metadata = mp4ameta_bridge::read_metadata(path)?;
         metadata.cover_art = normalize_cover_art(metadata.cover_art);
         return Ok(metadata);
@@ -73,7 +74,7 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
         .and_then(normalize_publication_date);
 
     // Attached picture (cover art)
-    metadata.cover_art = extract_attached_pic(&ictx);
+    metadata.cover_art = extract_attached_pic(ictx);
 
     Ok(metadata)
 }

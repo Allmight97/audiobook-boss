@@ -87,6 +87,11 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
 
     stream_copy_packets(&mut ictx, &mut octx, &stream_mapping, &output_time_bases)?;
     octx.write_trailer().map_err(AppError::Ffmpeg)?;
+
+    // Release FFmpeg's file handles before replacing the source path.
+    drop(octx);
+    drop(ictx);
+
     std::fs::rename(&temp_path, input_path).map_err(AppError::Io)?;
     Ok(())
 }
