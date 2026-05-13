@@ -11,6 +11,7 @@
 - Change intent internals when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.
 - Preserve `set | clear | noop` semantics across save, processing projection, naming projection, write plans, and cover-art handling.
 - Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
+- Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.

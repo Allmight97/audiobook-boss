@@ -17,6 +17,7 @@
 
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
 - Processor code must not directly perform final artifact `rename`, `copy`, or `hard_link`; `scripts/check-no-bridge-imports.sh` enforces this.
+- Drop probe/inspection contexts before reopening the same path for decoder trials, processing, replacement, or another library.
 - Cancellation is checked at critical boundaries, including post-move and pre-success paths.
 - Terminal paths clean temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.

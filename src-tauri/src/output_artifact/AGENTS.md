@@ -11,6 +11,7 @@
 - Change private implementation files when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.
 - Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
 - Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
+- Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.
