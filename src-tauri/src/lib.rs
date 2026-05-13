@@ -5,6 +5,7 @@
 
 pub mod commands;
 mod errors;
+mod file_replace;
 pub mod ipc_contract;
 mod metadata;
 pub mod output_artifact;
