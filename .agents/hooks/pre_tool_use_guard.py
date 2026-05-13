@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
-
-from common import emit, read_hook_input
+import sys
 
 
 DESTRUCTIVE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -35,6 +35,23 @@ SHELL_WRITE_RE = re.compile(
     r"((?:cat|printf|echo)\b[^;&|\n]*>\s*|tee\s+(?:-a\s+)?)"
     r"(?:src/|src-tauri/|docs/|scripts/|\.agents/|\.codex/|README\.md|AGENTS\.md)"
 )
+
+
+def read_hook_input() -> dict[str, object]:
+    raw = sys.stdin.read().strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def emit(payload: dict[str, object]) -> None:
+    print(json.dumps(payload))
 
 
 def command_from_input(payload: dict[str, object]) -> str:
