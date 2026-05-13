@@ -287,7 +287,7 @@ describe('StatusPanel lifecycle', () => {
 		expect(showErrorSpy).toHaveBeenCalledWith('Processed 1/2. Failed: beta.m4b');
 	});
 
-	it('uses a success override when batch results include completed and cancelled entries', () => {
+	it('uses an info override when batch results include completed and cancelled entries', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
@@ -331,8 +331,8 @@ describe('StatusPanel lifecycle', () => {
 
 		vi.advanceTimersByTime(2000);
 
-		expect(showSuccessSpy).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
-		expect(showInfoSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
+		expect(showSuccessSpy).not.toHaveBeenCalled();
 		expect(getStepText()).toBe('Processed 1/2. Cancelled: 1.');
 	});
 

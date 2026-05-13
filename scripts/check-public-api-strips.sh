@@ -70,6 +70,9 @@ export type { TauriCommand };'
 
 status_panel_exports="$(extract_export_blocks src/ui/statusPanel/index.ts)"
 compare_block "Status Panel Runtime Public API Strip" "$status_panel_exports" 'export {
+beginMetadataSaveInStatusPanel,
+completeMetadataSaveInStatusPanel,
+failMetadataSaveInStatusPanel,
 initStatusPanel,
 isStatusPanelProcessing,
 pushStatusPanelTransientStatus,

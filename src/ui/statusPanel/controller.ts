@@ -1,4 +1,5 @@
 import { tauriClient } from '../../lib/tauri/client';
+import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { setFileOrderLocked } from '../fileList/actions';
 import { getCurrentFileList } from '../fileList/state.svelte';
@@ -8,6 +9,7 @@ import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './processing';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
 import { buildStatus, type AggregateProgress, type ProcessingStatus } from './state';
+import { buildMetadataSaveCompletionFeedback } from './metadataSaveFeedback';
 import type { ProcessCommandResult } from '../../types/audio';
 import { calculateAggregateProgressAndStage } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
@@ -82,6 +84,41 @@ export class StatusPanelRuntime {
 
 	public setBatchCompletionMessage(message: string | null): void {
 		this.model = withBatchCompletionMessage(this.model, message);
+	}
+
+	public async beginMetadataSave(): Promise<void> {
+		this.clearSingleCompletionTimeout();
+		this.clearBatchCompletionTimeout();
+		this.model = withCurrentJobType(
+			{
+				...this.model,
+				isProcessing: true,
+				batchCompletionMessageOverride: null,
+			},
+			'metadataSave',
+		);
+		this.updateStatus(buildStatus('writing', 0, 'Preparing metadata save...'));
+		setJobControlsEnabled(false);
+		setFileOrderLocked(true);
+		await this.progressSubscription.start();
+		this.renderModel();
+	}
+
+	public completeMetadataSave(result: MetadataSaveBatchResult): void {
+		const feedbackResult = buildMetadataSaveCompletionFeedback(result);
+		this.setBatchCompletionMessage(feedbackResult.message);
+		if (this.model.jobProgress.size === 0) {
+			this.model = resetStatusPanelModel();
+			this.applyIdleSideEffects();
+			this.showCompletionFeedback(feedbackResult);
+		}
+	}
+
+	public failMetadataSave(message = 'Save failed - see console'): void {
+		const feedbackResult: StatusPanelCompletionFeedback = { kind: 'error', message };
+		this.model = resetStatusPanelModel();
+		this.applyIdleSideEffects();
+		this.showCompletionFeedback(feedbackResult);
 	}
 
 	public reconcileProcessResult(result: ProcessCommandResult): void {
@@ -414,6 +451,18 @@ export function triggerProcessFromStatusPanel(options?: { previewSeconds?: numbe
 
 export function triggerCancelAllFromStatusPanel(): void {
 	void statusPanelInstance?.requestCancelAll();
+}
+
+export function beginMetadataSaveInStatusPanel(): Promise<void> {
+	return initStatusPanel().beginMetadataSave();
+}
+
+export function completeMetadataSaveInStatusPanel(result: MetadataSaveBatchResult): void {
+	initStatusPanel().completeMetadataSave(result);
+}
+
+export function failMetadataSaveInStatusPanel(message?: string): void {
+	initStatusPanel().failMetadataSave(message);
 }
 
 export function pushStatusPanelTransientStatus(

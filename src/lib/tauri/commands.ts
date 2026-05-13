@@ -9,7 +9,7 @@ import type {
 	ProcessPayload,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
-import type { AudiobookMetadata, MetadataSource } from '../../types/metadata';
+import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
@@ -20,6 +20,7 @@ import {
 	normalizeFileList,
 	normalizeLookupResult,
 	normalizeMetadata,
+	normalizeMetadataSaveBatchResult,
 	normalizeNullish,
 	normalizeProcessResult,
 } from './normalizers';
@@ -91,6 +92,13 @@ function compileMetadataIntentMap(
 	);
 }
 
+function compileMetadataSaveRequests(items: MetadataSaveRequest[]): MetadataSaveRequest[] {
+	return items.map((item) => ({
+		filePath: item.filePath,
+		metadataPatch: compileMetadataIntentPatch(item.metadataPatch),
+	}));
+}
+
 export const commandSpecs = {
 	ping: (_args?: undefined) => runGeneratedCommand(generatedCommands.ping()),
 	echo: (args: { input: string }) => runGeneratedCommand(generatedCommands.echo(args.input)),
@@ -110,6 +118,11 @@ export const commandSpecs = {
 				args.filePath,
 				compileMetadataIntentPatch(args.metadataIntent),
 			),
+		),
+	save_metadata_batch: (args: { items: MetadataSaveRequest[] }) =>
+		runGeneratedCommand(
+			generatedCommands.saveMetadataBatch(compileMetadataSaveRequests(args.items)),
+			normalizeMetadataSaveBatchResult,
 		),
 	search_online_metadata: (args: {
 		query: string;

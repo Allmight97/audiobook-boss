@@ -17,6 +17,7 @@ import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	EncoderAvailability as GeneratedEncoderAvailability,
 	FileListInfo as GeneratedFileListInfo,
+	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
@@ -29,7 +30,11 @@ import type {
 	ProcessCommandResult,
 	ProcessPayload,
 } from '../../types/audio';
-import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
+import type {
+	AudiobookMetadata,
+	MetadataSaveBatchResult,
+	OnlineMetadataResult,
+} from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { NullToOptionalDeep } from '../../types/ipc';
 import { normalizeAppError } from './appError';
@@ -196,6 +201,19 @@ export function normalizeProcessResult(
 	result: GeneratedProcessCommandResult,
 ): ProcessCommandResult {
 	const normalized = normalizeNullish(result) as ProcessCommandResult;
+	return {
+		...normalized,
+		results: (normalized.results ?? []).map((entry) => ({
+			...entry,
+			error: entry.error == null ? undefined : normalizeAppError(entry.error),
+		})),
+	};
+}
+
+export function normalizeMetadataSaveBatchResult(
+	result: GeneratedMetadataSaveBatchResult,
+): MetadataSaveBatchResult {
+	const normalized = normalizeNullish(result) as MetadataSaveBatchResult;
 	return {
 		...normalized,
 		results: (normalized.results ?? []).map((entry) => ({

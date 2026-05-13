@@ -118,6 +118,63 @@ vi.mock('@tauri-apps/api/core', () => ({
 					],
 				});
 			}
+			case 'save_metadata_batch': {
+				mockJobCounter += 1;
+				const jobId = `mock-metadata-save-${mockJobCounter}`;
+				const args = _args as
+					| {
+							items?: Array<{
+								filePath: string;
+								metadataPatch: Record<string, unknown>;
+							}>;
+					  }
+					| undefined;
+				const items = args?.items ?? [];
+				emitTestEvent('processing-queue', {
+					items: items.map((item, index) => ({
+						input_index: index,
+						file_path: item.filePath,
+						job_id: jobId,
+					})),
+					max_concurrent: 1,
+				});
+				for (const [index, item] of items.entries()) {
+					emitTestEvent('processing-progress', {
+						stage: 'writing',
+						percentage: 0,
+						message: `Saving metadata ${index + 1}/${items.length}`,
+						current_file: item.filePath,
+						eta_seconds: null,
+						job_id: jobId,
+						input_index: index,
+					});
+					emitTestEvent('processing-progress', {
+						stage: 'completed',
+						percentage: 100,
+						message: `Saved metadata ${index + 1}/${items.length}`,
+						current_file: item.filePath,
+						eta_seconds: 0,
+						job_id: jobId,
+						input_index: index,
+					});
+				}
+				return Promise.resolve({
+					summary: {
+						total: items.length,
+						succeeded: items.length,
+						skipped: 0,
+						cancelled: 0,
+						failed: 0,
+					},
+					results: items.map((item, index) => ({
+						inputIndex: index,
+						filePath: item.filePath,
+						status: 'success',
+						message: 'Metadata saved',
+						error: null,
+					})),
+				});
+			}
 			case 'cancel_processing': {
 				const args = _args as { jobId?: string | null } | undefined;
 				emitTestEvent('processing-progress', {

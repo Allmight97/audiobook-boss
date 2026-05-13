@@ -19,6 +19,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'processAudiobookFiles',
 	'readAudioMetadata',
 	'refreshExternalToolchain',
+	'saveMetadataBatch',
 	'saveMetadataIntentToFile',
 	'searchOnlineMetadata',
 	'setMaxConcurrentJobs',
@@ -35,6 +36,7 @@ describe('Tauri Runtime Boundary public API contract', () => {
 	it('keeps command and app event names exposed through the boundary', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('process_audiobook_files');
 		expect(TAURI_COMMAND_NAMES).toContain('preflight_processing_plan');
+		expect(TAURI_COMMAND_NAMES).toContain('save_metadata_batch');
 		expect([...TAURI_APP_EVENT_NAMES]).toEqual(['processing-progress', 'processing-queue']);
 	});
 });

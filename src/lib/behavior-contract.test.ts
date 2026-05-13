@@ -23,6 +23,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'process_audiobook_files',
 	'read_audio_metadata',
 	'refresh_external_toolchain',
+	'save_metadata_batch',
 	'save_metadata_to_file',
 	'search_online_metadata',
 	'set_max_concurrent_jobs',

@@ -259,7 +259,7 @@ describe('statusPanel state machine', () => {
 			},
 		]);
 		expect(buildBatchCompletionFeedback(result.model)).toEqual({
-			kind: 'success',
+			kind: 'info',
 			message: 'Processed 1/2. Cancelled: 1.',
 		});
 	});

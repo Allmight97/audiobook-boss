@@ -7,6 +7,9 @@ import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '..
 import { metadataSaveInProgressStore } from '../metadataSaveState';
 import { resetDirtyState } from '../metadataForm';
 import {
+	beginMetadataSaveInStatusPanel,
+	completeMetadataSaveInStatusPanel,
+	failMetadataSaveInStatusPanel,
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
@@ -54,38 +57,30 @@ export async function saveMetadataFromUI(): Promise<void> {
 			return;
 		}
 
-		let successCount = 0;
-		let failureCount = 0;
-		const failedFiles: string[] = [];
+		await beginMetadataSaveInStatusPanel();
+		const result = await tauriClient.saveMetadataBatch(
+			pendingEntries.map(([filePath, metadataIntent]) => ({
+				filePath,
+				metadataPatch: metadataIntent,
+			})),
+		);
 
-		for (const [index, [filePath, metadataIntent]] of pendingEntries.entries()) {
-			pushStatusPanelTransientStatus(`Saving ${index + 1}/${pendingEntries.length}...`, {
-				ttlMs: 1_200,
-			});
-
-			try {
-				await tauriClient.saveMetadataIntentToFile(filePath, metadataIntent);
-				clearPendingMetadataForFile(filePath);
-				successCount++;
-			} catch (error) {
-				failureCount++;
-				failedFiles.push(filePath.split(/[\\/]/).pop() || filePath);
-				console.error(`Failed metadata save for ${filePath}:`, error);
+		for (const entry of result.results) {
+			if (entry.status === 'success') {
+				clearPendingMetadataForFile(entry.filePath);
+			} else if (entry.status === 'failed') {
+				console.error(`Failed metadata save for ${entry.filePath}:`, entry.error ?? entry.message);
 			}
 		}
 
 		resetDirtyState();
-		console.log(`Metadata save complete: success=${successCount}, failed=${failureCount}`);
-
-		const message =
-			failureCount === 0
-				? successCount > 1
-					? `Metadata saved (${successCount} files)!`
-					: 'Metadata saved!'
-				: `Saved ${successCount}/${pendingEntries.length}. Failed: ${failedFiles.join(', ')}`;
-		pushStatusPanelTransientStatus(message, { ttlMs: 3_000 });
+		console.log(
+			`Metadata save complete: success=${result.summary.succeeded}, failed=${result.summary.failed}, cancelled=${result.summary.cancelled}`,
+		);
+		completeMetadataSaveInStatusPanel(result);
 	} catch (error) {
 		console.error('Failed to save metadata:', error);
+		failMetadataSaveInStatusPanel('Save failed - see console');
 		pushStatusPanelTransientStatus('Save failed - see console', { ttlMs: 3_000 });
 	} finally {
 		metadataSaveInProgressStore.set(false);

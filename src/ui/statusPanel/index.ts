@@ -1,4 +1,7 @@
 export {
+	beginMetadataSaveInStatusPanel,
+	completeMetadataSaveInStatusPanel,
+	failMetadataSaveInStatusPanel,
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
