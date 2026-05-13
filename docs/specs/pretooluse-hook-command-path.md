@@ -34,6 +34,12 @@ Before re-enabling this hook in local Codex state, align on these points:
 3. The hook should block only clearly destructive commands, not ordinary edits, reads, checks, or git inspection.
 4. Verification and policy checks should remain explicit repo commands, not lifecycle Stop hooks.
 
+## Acceptable Design Options
+
+1. Keep the current inline fail-quiet command path. This is the smallest retained hook design and is appropriate while the hook does only destructive-command screening.
+2. Replace the inline shell with a tiny wrapper script only if the command grows beyond path resolution and one Python invocation. A wrapper is easier to test but would add hook infrastructure back to the repo.
+3. Remove `.codex/hooks.json` entirely if even the command-safety hook proves noisy. In that case, destructive-command policy should live only in `AGENTS.md` and ordinary agent judgment.
+
 ## Acceptable Next Actions
 
 - Keep all ABB hooks disabled locally and treat this repo config as dormant safety scaffolding.
