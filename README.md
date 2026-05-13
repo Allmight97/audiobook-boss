@@ -53,11 +53,10 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
-- Release: `bun run release:notes`, `bun run release:run`
-  `bun run app:build` remains the direct local `.app` path.
-  `bun run release:run` now preflights the DMG release artifact.
-  GitHub Releases are published from pushed `v*` tags and use the matching
-  `CHANGELOG.md` section as the release body and attach the versioned DMG.
+- Release: use `.agents/skills/release`.
+  `scripts/bump-version.sh <version>` updates version surfaces.
+  `bun run app:build` builds the local `.app`; `bun run app:build:dmg` builds a DMG.
+  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before manual publishing.
 
 ## Project Operation
 
@@ -67,5 +66,5 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).
 - For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.
 - UI work is not done from static inspection alone. Use targeted tests for deterministic behavior and browser-agent or human review for visual/UX outcomes.
-- Cheap deterministic repo guardrails live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`. The only retained repo hook is the `PreToolUse` Bash guard that blocks destructive worktree commands.
+- Cheap deterministic repo guardrails live in `.codex/hooks.json` and `./.agents/hooks/`; `.codex` is a tracked symlink to `.agents`.
 - Durable truth lives in code, GitHub issues, this file, and [AGENTS.md](AGENTS.md). `.artifacts/` is temporary local state only.

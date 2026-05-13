@@ -27,8 +27,6 @@
 		"bindings:check": "scripts/check-generated-bindings.sh --mode verify",
 		"bindings:check:local": "scripts/check-generated-bindings.sh --mode local",
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
-		"release:notes": "scripts/generate-release-changelog.sh",
-		"release:run": "scripts/release.sh",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage"

@@ -31,6 +31,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
 - Load global `lib-research` when external library/API behavior affects implementation or review findings.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
+- Load `release` when preparing or deciding release/version/changelog/tag/DMG work.
 
 ## Architecture Orientation
 
@@ -51,7 +52,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Run all Cargo commands from the repository root workspace.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
-- For release work, treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging; the tag commit is the release truth.
+- For release work, use `.agents/skills/release`; treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
 ### Communication With Repo Owner
