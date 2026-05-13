@@ -115,9 +115,7 @@ fi
 
 if [[ "$CHANGELOG_VERIFIED" -eq 0 ]]; then
   echo ""
-  echo -e "${YELLOW}Before continuing, update CHANGELOG.md:${NC}"
-  echo "  1. Move [Unreleased] items to [$NEW_VERSION] - $(date +%Y-%m-%d)"
-  echo "  2. Add new empty [Unreleased] section at top"
+  echo -e "${YELLOW}Before continuing, make sure CHANGELOG.md has a [$NEW_VERSION] release section.${NC}"
   echo ""
   read -p "Press Enter when CHANGELOG.md is updated (or 'q' to quit): " CONFIRM
   if [[ "$CONFIRM" = "q" ]]; then

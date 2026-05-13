@@ -192,7 +192,6 @@ emit_category() {
   if [[ -s "$source_file" ]]; then
     echo "### $header" >> "$RELEASE_FILE"
     echo "" >> "$RELEASE_FILE"
-    echo "- **Release Highlights**" >> "$RELEASE_FILE"
     cat "$source_file" >> "$RELEASE_FILE"
     echo "" >> "$RELEASE_FILE"
   fi
