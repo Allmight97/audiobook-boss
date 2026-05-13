@@ -2,9 +2,6 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
 ### Added
@@ -14,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Removed
+
+## [1.0.22] - 2026-05-12
+
+Metadata/audio file-handle hygiene release for PR #305 and issue #296.
+
+### Changed
+
+- Metadata reads now classify container routes from an existing FFmpeg input
+  context, avoiding probe-only reopen churn before the real metadata read.
+- Audio file-list validation now scopes its duration probe before decoder
+  inspection opens the same file.
+
+### Fixed
+
+- MP4-family metadata reads now release the FFmpeg probe context before
+  `mp4ameta` opens the file, avoiding simultaneous library readers on stricter
+  file-locking platforms.
+- FFmpeg metadata remux now releases input/output contexts before replacing the
+  source path, avoiding same-path replacement while FFmpeg handles are live.
 
 ## [1.0.21] - 2026-05-11
 

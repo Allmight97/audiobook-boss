@@ -127,13 +127,12 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
-    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let audio_stream = ictx
-        .streams()
-        .best(ff::media::Type::Audio)
-        .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
-
     let duration = {
+        let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+        let audio_stream = ictx
+            .streams()
+            .best(ff::media::Type::Audio)
+            .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
         let container = ictx.duration();
         if container > 0 {
             container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
