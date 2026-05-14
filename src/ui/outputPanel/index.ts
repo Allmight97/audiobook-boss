@@ -16,5 +16,4 @@ export function initOutputPanel(): void {
 export { getState } from './state.svelte';
 export { readOutputConfigForProcessing } from './state.svelte';
 export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './preview';
-export { sanitizeFilename, calculateOutputPath } from './pathBuilder';
 export { default as OutputPanelIsland } from './OutputPanelIsland.svelte';

@@ -18,31 +18,41 @@ if rg -n "['\"](?:\\./|\\.\\./)*lib/bridge(?:\\.[a-zA-Z0-9]+)?['\"]" src >/dev/n
   exit 1
 fi
 
-if rg -n "commands as generatedCommands" src \
-  -g '*.ts' \
-  -g '*.svelte' \
-  -g '!src/lib/tauri/commands.ts' \
-  -g '!src/lib/generated/tauri.ts' \
-  >/tmp/no-generated-command-imports.out 2>/dev/null; then
-  echo "[no-bridge] Generated command invokers must stay inside src/lib/tauri/commands.ts." >&2
-  cat /tmp/no-generated-command-imports.out >&2
-  rm -f /tmp/no-generated-command-imports.out
+if ! bun scripts/check-generated-tauri-imports.ts >/tmp/no-generated-tauri-imports.out 2>&1; then
+  echo "[no-bridge] Generated command/event value imports must stay inside the Tauri runtime boundary." >&2
+  cat /tmp/no-generated-tauri-imports.out >&2
+  rm -f /tmp/no-generated-tauri-imports.out
   exit 1
 fi
-rm -f /tmp/no-generated-command-imports.out
+rm -f /tmp/no-generated-tauri-imports.out
 
-if rg -n "events as generatedEvents" src \
-  -g '*.ts' \
-  -g '*.svelte' \
-  -g '!src/lib/tauri/client.ts' \
-  -g '!src/lib/generated/tauri.ts' \
-  >/tmp/no-generated-event-imports.out 2>/dev/null; then
-  echo "[no-bridge] Generated event listeners must stay inside src/lib/tauri/client.ts." >&2
-  cat /tmp/no-generated-event-imports.out >&2
-  rm -f /tmp/no-generated-event-imports.out
+if [[ -f "src/ui/outputPanel/pathBuilder.ts" ]]; then
+  echo "[no-bridge] Frontend output path naming mirrors must not exist; use tauriClient.previewOutputPath." >&2
   exit 1
 fi
-rm -f /tmp/no-generated-event-imports.out
+
+if rg -n "['\"][^'\"]*outputPanel/pathBuilder(?:\\.[a-zA-Z0-9]+)?['\"]" src \
+  -g '*.ts' \
+  -g '*.svelte' \
+  -g '!src/lib/generated/tauri.ts' \
+  >/tmp/no-output-path-builder-imports.out 2>/dev/null; then
+  echo "[no-bridge] Frontend code must not import an output path naming mirror." >&2
+  cat /tmp/no-output-path-builder-imports.out >&2
+  rm -f /tmp/no-output-path-builder-imports.out
+  exit 1
+fi
+rm -f /tmp/no-output-path-builder-imports.out
+
+if rg -n "\\b(export\\s+)?function\\s+(calculateOutputPath|sanitizeFilename)\\b|\\b(calculateOutputPath|sanitizeFilename)\\s*[:=(]" src/ui \
+  -g '*.ts' \
+  -g '*.svelte' \
+  >/tmp/no-output-path-builder-symbols.out 2>/dev/null; then
+  echo "[no-bridge] Output path naming must stay in the Rust output_artifact boundary." >&2
+  cat /tmp/no-output-path-builder-symbols.out >&2
+  rm -f /tmp/no-output-path-builder-symbols.out
+  exit 1
+fi
+rm -f /tmp/no-output-path-builder-symbols.out
 
 if rg -n "@tauri-apps/api/core|__TAURI_INVOKE|\\binvoke\\(" src \
   -g '*.ts' \
