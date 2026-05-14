@@ -7,7 +7,7 @@ description: Audiobook Boss release workflow for deciding whether changes need a
 
 ## Overview
 
-Use this skill to keep release work consistent without spreading release logic across repo scripts. Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script; do not add changelog generators, release orchestrators, or GitHub release automation unless the owner explicitly chooses that tradeoff.
+Use this skill to keep release work consistent without spreading release logic across repo scripts. Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script. A complete public release includes a Git tag plus a GitHub Release with the verified DMG attached; a tag alone is not enough for GitHub to show the release as latest.
 
 ## Decision Rule
 
@@ -57,27 +57,40 @@ Omit empty categories in a release section. Keep `[Unreleased]` as the staging a
 2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
 3. Run `scripts/bump-version.sh <x.y.z>`.
 4. Run `scripts/checks.sh standard`.
-5. For a local app smoke build, run `bun run app:build`.
-6. For a DMG release, run:
+5. For a local launcher-visible app smoke build, run:
+```bash
+bun run app:install-local
+```
+This builds the `.app`, installs a real `/Applications/AudioBook Boss.app`, signs it ad-hoc for local execution, registers it with LaunchServices, refreshes Spotlight metadata, and removes the repo-local `.app` install artifact. Use `bun run app:install-local:existing` only when a fresh repo-local `.app` already exists and you only need to reinstall it locally.
+6. For repo-local `.app` artifact validation without touching `/Applications`, run:
+```bash
+bun run app:build
+```
+7. For a DMG release, run:
 ```bash
 bun run app:build:dmg
 bun scripts/resolve-release-dmg.ts --version <x.y.z>
 hdiutil verify "<resolved-dmg-path>"
 ```
-7. Commit release metadata and code together when they are part of the same accepted release:
+8. Commit release metadata and code together when they are part of the same accepted release:
 ```bash
 git add -A
 git commit -m "rel: release v<x.y.z>"
 git tag v<x.y.z>
 ```
-8. Push intentionally:
+9. Push intentionally:
 ```bash
 git push origin main
 git push origin v<x.y.z>
 ```
-
-GitHub Release publishing is manual unless repo automation is deliberately reintroduced. Use the matching `CHANGELOG.md` section as the release notes and attach the verified DMG.
+10. Publish the GitHub Release unless the owner explicitly asks for tag-only:
+```bash
+gh release create v<x.y.z> "<resolved-dmg-path>" --title "AudioBook Boss v<x.y.z>" --notes-file <notes-file>
+gh release view v<x.y.z>
+gh release list --limit 5
+```
+Use the matching `CHANGELOG.md` section as the release notes and attach the verified DMG.
 
 ## Final Proof
 
-End release work by reporting the version, tag, changelog entry, validation commands, artifact path if built, and local/remote SHA parity.
+End release work by reporting the version, tag, changelog entry, validation commands, DMG path, GitHub Release URL, attached asset name, and local/remote SHA parity. If publishing was intentionally tag-only, state that GitHub will not show it as the latest release.

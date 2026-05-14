@@ -6,6 +6,7 @@ import {
 	readdirSync,
 	readFileSync,
 	readlinkSync,
+	rmSync,
 	symlinkSync,
 	unlinkSync,
 } from 'node:fs';
@@ -24,6 +25,7 @@ interface BundlePaths {
 	bundleDir: string;
 	canonicalAppPath: string;
 	executablePath: string;
+	applicationsAppPath: string;
 	applicationsLinkPath: string;
 	dmgDir: string;
 }
@@ -134,6 +136,7 @@ export function resolveMacOsBundlePaths(
 		bundleDir,
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
+		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		applicationsLinkPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
 	};
@@ -322,6 +325,74 @@ export function refreshApplicationsLink(
 	return 'updated';
 }
 
+export function installLocalApplicationBundle(
+	paths: BundlePaths,
+	commandRunner: typeof spawnSync = spawnSync,
+): void {
+	if (!existsSync(paths.canonicalAppPath)) {
+		throw new Error(`Expected canonical app bundle at ${paths.canonicalAppPath}`);
+	}
+
+	rmSync(paths.applicationsAppPath, { force: true, recursive: true });
+
+	runCheckedCommand(commandRunner, 'ditto', [paths.canonicalAppPath, paths.applicationsAppPath]);
+	runCheckedCommand(commandRunner, 'codesign', [
+		'--force',
+		'--deep',
+		'--sign',
+		'-',
+		paths.applicationsAppPath,
+	]);
+	runCheckedCommand(commandRunner, 'codesign', [
+		'--verify',
+		'--deep',
+		'--strict',
+		'--verbose=2',
+		paths.applicationsAppPath,
+	]);
+	runCheckedCommand(commandRunner, launchServicesRegisterPath(), ['-f', paths.applicationsAppPath]);
+	runCheckedCommand(commandRunner, 'mdimport', [paths.applicationsAppPath]);
+}
+
+export function pruneLocalInstallArtifacts(paths: BundlePaths): string[] {
+	const removedPaths: string[] = [];
+
+	if (existsSync(paths.canonicalAppPath)) {
+		rmSync(paths.canonicalAppPath, { force: true, recursive: true });
+		removedPaths.push(paths.canonicalAppPath);
+	}
+
+	if (existsSync(paths.bundleDir)) {
+		for (const entry of readdirSync(paths.bundleDir)) {
+			if (!/^rw\.\d+\..+\.dmg$/.test(entry)) {
+				continue;
+			}
+			const artifactPath = path.join(paths.bundleDir, entry);
+			rmSync(artifactPath, { force: true, recursive: true });
+			removedPaths.push(artifactPath);
+		}
+	}
+
+	return removedPaths;
+}
+
+function runCheckedCommand(commandRunner: typeof spawnSync, command: string, args: string[]): void {
+	const result = commandRunner(command, args, { stdio: 'inherit' });
+	if (typeof result.status === 'number' && result.status !== 0) {
+		throw new Error(`${command} failed with status ${result.status}`);
+	}
+	if (result.error) {
+		throw result.error;
+	}
+}
+
+function launchServicesRegisterPath(): string {
+	return [
+		'/System/Library/Frameworks/CoreServices.framework',
+		'Frameworks/LaunchServices.framework/Support/lsregister',
+	].join('/');
+}
+
 function readLinkStats(
 	linkPath: string,
 	lstat: typeof lstatSync,
@@ -360,13 +431,6 @@ function main(): void {
 	const bundlePaths = resolveMacOsBundlePaths(repoRoot);
 	if (requestedBundles.has('app')) {
 		verifyMacOsBundle(bundlePaths);
-
-		const linkOutcome = refreshApplicationsLink(bundlePaths);
-		if (linkOutcome !== 'skipped') {
-			console.log(
-				`Refreshed /Applications link: ${bundlePaths.applicationsLinkPath} -> ${bundlePaths.canonicalAppPath}`,
-			);
-		}
 	}
 
 	if (requestedBundles.has('dmg')) {

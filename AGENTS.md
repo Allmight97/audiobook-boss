@@ -52,7 +52,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Run all Cargo commands from the repository root workspace.
 - For docs-only changes, run `bash scripts/check-context-surface.sh`.
 - For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
-- For release work, use `.agents/skills/release`; treat `bun run app:build` as the local `.app` path and prove the DMG/release-artifact path before tagging.
+- For release work, use `.agents/skills/release`; use `bun run app:install-local` for a launcher-visible local `/Applications` app, use `bun run app:build` only for repo-local `.app` artifact validation, and prove the DMG/GitHub Release surface before calling a release complete.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
 ### Communication With Repo Owner

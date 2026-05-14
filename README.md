@@ -55,8 +55,10 @@ Use this section as the human-facing index. `package.json` is the source of trut
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces.
-  `bun run app:build` builds the local `.app`; `bun run app:build:dmg` builds a DMG.
-  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before manual publishing.
+  `bun run app:build` builds the repo-local `.app` artifact only.
+  `bun run app:install-local` builds, installs, signs, registers, and indexes a real `/Applications/AudioBook Boss.app` for local Raycast/Finder testing, then removes the repo-local `.app` install artifact.
+  `bun run app:build:dmg` builds a DMG.
+  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.
 
 ## Project Operation
 

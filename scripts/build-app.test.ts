@@ -1,4 +1,5 @@
 import {
+	existsSync,
 	lstatSync,
 	mkdtempSync,
 	mkdirSync,
@@ -8,6 +9,7 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from 'node:fs';
+import type { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'bun:test';
@@ -17,6 +19,8 @@ import {
 	ensureFeatureArg,
 	findForbiddenLinkedLibraries,
 	findUnsupportedMacOsArchitectures,
+	installLocalApplicationBundle,
+	pruneLocalInstallArtifacts,
 	refreshApplicationsLink,
 	resolveRequestedBundles,
 	resolveMacOsBundlePaths,
@@ -62,6 +66,7 @@ describe('resolveMacOsBundlePaths', () => {
 				'target/release/bundle/macos/AudioBook Boss.app/Contents/MacOS/audiobook-boss',
 			),
 		);
+		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
 		expect(paths.applicationsLinkPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
 		expect(paths.dmgDir).toBe(path.join(repoRoot, 'target/release/bundle/dmg'));
 	});
@@ -80,6 +85,78 @@ describe('findForbiddenLinkedLibraries', () => {
 			'/opt/homebrew/opt/ffmpeg/lib/libavcodec.62.dylib',
 			'/usr/local/opt/libx11/lib/libX11.6.dylib',
 		]);
+	});
+});
+
+describe('installLocalApplicationBundle', () => {
+	it('copies, signs, verifies, registers, and imports the Applications bundle', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.canonicalAppPath, { recursive: true });
+		mkdirSync(paths.applicationsAppPath, { recursive: true });
+
+		const calls: Array<{ args: string[]; command: string }> = [];
+		const commandRunner = ((command: string, args: string[]) => {
+			calls.push({ command, args });
+			return { status: 0 };
+		}) as typeof spawnSync;
+
+		installLocalApplicationBundle(paths, commandRunner);
+
+		expect(existsSync(paths.applicationsAppPath)).toBe(false);
+		expect(calls).toEqual([
+			{ command: 'ditto', args: [paths.canonicalAppPath, paths.applicationsAppPath] },
+			{
+				command: 'codesign',
+				args: ['--force', '--deep', '--sign', '-', paths.applicationsAppPath],
+			},
+			{
+				command: 'codesign',
+				args: ['--verify', '--deep', '--strict', '--verbose=2', paths.applicationsAppPath],
+			},
+			{
+				command:
+					'/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister',
+				args: ['-f', paths.applicationsAppPath],
+			},
+			{ command: 'mdimport', args: [paths.applicationsAppPath] },
+		]);
+	});
+
+	it('fails when a local install command fails', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.canonicalAppPath, { recursive: true });
+
+		const commandRunner = ((command: string) => ({
+			status: command === 'codesign' ? 1 : 0,
+		})) as typeof spawnSync;
+
+		expect(() => installLocalApplicationBundle(paths, commandRunner)).toThrow(
+			'codesign failed with status 1',
+		);
+	});
+});
+
+describe('pruneLocalInstallArtifacts', () => {
+	it('removes the repo-local app bundle and temporary writable dmg residue', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.canonicalAppPath, { recursive: true });
+		writeFileSync(path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'), '');
+		writeFileSync(path.join(paths.bundleDir, 'AudioBook Boss_1.0.23_aarch64.dmg'), '');
+
+		expect(pruneLocalInstallArtifacts(paths).sort()).toEqual(
+			[
+				paths.canonicalAppPath,
+				path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'),
+			].sort(),
+		);
+		expect(existsSync(paths.canonicalAppPath)).toBe(false);
+		expect(existsSync(path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'))).toBe(
+			false,
+		);
+		expect(existsSync(path.join(paths.bundleDir, 'AudioBook Boss_1.0.23_aarch64.dmg'))).toBe(true);
 	});
 });
 
