@@ -53,7 +53,7 @@ where
 
     match rename(source, destination) {
         Ok(()) => {
-            let _ = remove_file(backup_path);
+            cleanup_backup_after_success(backup_path, &mut remove_file);
             Ok(())
         }
         Err(replace_error) => {
@@ -68,6 +68,37 @@ where
             Err(replace_error)
         }
     }
+}
+
+fn cleanup_backup_after_success<M>(backup_path: &Path, remove_file: &mut M)
+where
+    M: FnMut(&Path) -> io::Result<()>,
+{
+    if let Err(error) = remove_file(backup_path) {
+        #[cfg(windows)]
+        {
+            if clear_readonly_backup(backup_path).is_ok() && remove_file(backup_path).is_ok() {
+                return;
+            }
+        }
+
+        log::warn!(
+            "Replacement succeeded, but failed to remove backup '{}': {}",
+            backup_path.display(),
+            error
+        );
+    }
+}
+
+#[cfg(windows)]
+fn clear_readonly_backup(backup_path: &Path) -> io::Result<()> {
+    let metadata = std::fs::metadata(backup_path)?;
+    let mut permissions = metadata.permissions();
+    if permissions.readonly() {
+        permissions.set_readonly(false);
+        std::fs::set_permissions(backup_path, permissions)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
@@ -144,5 +175,45 @@ mod tests {
         );
         assert_eq!(std::fs::read(&source).expect("read source"), b"new");
         assert!(!backup.exists(), "backup should be consumed by rollback");
+    }
+
+    #[test]
+    fn replace_file_reports_success_when_backup_cleanup_fails_after_install() {
+        let root = TempDir::new().expect("temp root");
+        let source = root.path().join("source.m4b");
+        let destination = root.path().join("destination.m4b");
+        let backup = root.path().join("backup.m4b");
+        let calls = Cell::new(0);
+
+        std::fs::write(&source, b"new").expect("write source");
+        std::fs::write(&destination, b"old").expect("write destination");
+
+        replace_file_with_ops(
+            &source,
+            &destination,
+            &backup,
+            |from, to| {
+                calls.set(calls.get() + 1);
+                match calls.get() {
+                    1 => Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        "destination exists",
+                    )),
+                    _ => std::fs::rename(from, to),
+                }
+            },
+            |_path| Err(io::Error::new(io::ErrorKind::PermissionDenied, "locked")),
+        )
+        .expect("successful install should remain successful");
+
+        assert_eq!(
+            std::fs::read(&destination).expect("read destination"),
+            b"new"
+        );
+        assert!(!source.exists(), "source should be consumed");
+        assert_eq!(
+            std::fs::read(&backup).expect("read leftover backup"),
+            b"old"
+        );
     }
 }
