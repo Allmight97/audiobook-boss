@@ -19,7 +19,7 @@ import type {
 	ProcessingPreflightPlan,
 	OutputKind,
 } from '../../types/audio';
-import type { AudiobookMetadata, MetadataSource } from '../../types/metadata';
+import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import { normalizeProgressEvent, normalizeQueueEvent } from './normalizers';
@@ -90,6 +90,9 @@ export const tauriClient = {
 		metadataIntent: MetadataIntentPatch,
 	): Promise<CommandResult<'save_metadata_to_file'>> =>
 		commandSpecs.save_metadata_to_file({ filePath, metadataIntent }),
+	saveMetadataBatch: (
+		items: MetadataSaveRequest[],
+	): Promise<CommandResult<'save_metadata_batch'>> => commandSpecs.save_metadata_batch({ items }),
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;

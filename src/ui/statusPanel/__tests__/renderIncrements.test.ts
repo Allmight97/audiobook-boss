@@ -97,10 +97,13 @@ describe('renderJobList incremental updates', () => {
 		expect(statusPanelViewState.jobItems.map((item) => item.key)).toEqual(['idx:0', 'idx:1']);
 		expect(statusPanelViewState.jobItems[0]).toMatchObject({
 			label: 'alpha.m4b',
+			status: 'queued',
 			statusText: 'Queued • #1 of 2',
 		});
 		expect(statusPanelViewState.jobItems[1]).toMatchObject({
 			label: 'beta.m4b',
+			status: 'processing',
+			stage: 'writing',
 			statusText: 'Writing Metadata',
 			percentage: 50,
 		});

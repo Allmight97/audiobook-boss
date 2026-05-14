@@ -480,8 +480,8 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
         inspect_stream.parameters()
     };
-    let selected_candidate = select_decoder_candidate(path, &params)?;
     drop(inspect_ctx);
+    let selected_candidate = select_decoder_candidate(path, &params)?;
 
     let input = open_input_context(path)?;
     let stream = best_audio_stream(&input, path)?;

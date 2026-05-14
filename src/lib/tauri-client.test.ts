@@ -94,9 +94,69 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadataPatch.artist).toBeUndefined();
 	});
 
-	it('exposes saveMetadataIntentToFile as the sole metadata-save helper', async () => {
+	it('compiles every metadata intent patch in a batch save', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			summary: {
+				total: 2,
+				succeeded: 1,
+				skipped: 0,
+				cancelled: 0,
+				failed: 1,
+			},
+			results: [
+				{
+					inputIndex: 0,
+					filePath: '/books/a.m4b',
+					status: 'success',
+					message: 'ok',
+					error: null,
+				},
+				{
+					inputIndex: 1,
+					filePath: '/books/b.m4b',
+					status: 'failed',
+					message: 'bad',
+					error: null,
+				},
+			],
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const result = await tauriClient.saveMetadataBatch([
+			{
+				filePath: '/books/a.m4b',
+				metadataPatch: { title: { op: 'set', value: 'A' } },
+			},
+			{
+				filePath: '/books/b.m4b',
+				metadataPatch: { title: { op: 'clear' }, cover_art: { op: 'clear' } },
+			},
+		]);
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{
+				items: Array<{
+					filePath: string;
+					metadataPatch: Record<string, unknown>;
+				}>;
+			},
+		];
+		expect(commandName).toBe('save_metadata_batch');
+		expect(args.items).toHaveLength(2);
+		expect(args.items[0]?.metadataPatch.title).toEqual({ op: 'set', value: 'A' });
+		expect(args.items[1]?.metadataPatch.title).toEqual({ op: 'clear' });
+		expect(args.items[1]?.metadataPatch.cover_art).toEqual({ op: 'clear' });
+		expect(result.results[1]?.error).toBeUndefined();
+	});
+
+	it('exposes metadata-save helpers without the legacy metadata alias', async () => {
 		const { tauriClient } = await import('./tauri/client');
 		expect(typeof tauriClient.saveMetadataIntentToFile).toBe('function');
+		expect(typeof tauriClient.saveMetadataBatch).toBe('function');
 		expect('saveMetadataToFile' in tauriClient).toBe(false);
 	});
 

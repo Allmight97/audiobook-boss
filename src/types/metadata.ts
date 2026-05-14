@@ -18,9 +18,14 @@
 
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
+	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
+	MetadataSaveRequest as GeneratedMetadataSaveRequest,
+	MetadataSaveResultEntry as GeneratedMetadataSaveResultEntry,
+	MetadataSaveResultStatus as GeneratedMetadataSaveResultStatus,
 	MetadataSource as GeneratedMetadataSource,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 } from '../lib/generated/tauri';
+import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 /**
@@ -35,3 +40,23 @@ export type AudiobookMetadataMap = Record<string, AudiobookMetadata>;
 export type MetadataSource = GeneratedMetadataSource;
 
 export type OnlineMetadataResult = NullToOptionalDeep<GeneratedOnlineMetadataResult>;
+
+export type MetadataSaveRequest = GeneratedMetadataSaveRequest;
+
+export type MetadataSaveResultError = AppErrorEnvelope;
+
+export type MetadataSaveResultEntry = Omit<
+	NullToOptionalDeep<GeneratedMetadataSaveResultEntry>,
+	'error'
+> & {
+	error?: MetadataSaveResultError | null;
+};
+
+export type MetadataSaveBatchResult = Omit<
+	NullToOptionalDeep<GeneratedMetadataSaveBatchResult>,
+	'results'
+> & {
+	results: MetadataSaveResultEntry[];
+};
+
+export type MetadataSaveResultStatus = GeneratedMetadataSaveResultStatus;

@@ -115,7 +115,9 @@ export function renderJobList(
 		const item: JobListItem = {
 			key,
 			label: job.label,
+			status: job.status,
 			statusText,
+			stage: job.stage,
 			canCancel,
 			cancelId: job.jobId,
 			onCancel: canCancel ? onCancel : undefined,

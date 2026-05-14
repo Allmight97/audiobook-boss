@@ -92,7 +92,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     drop(octx);
     drop(ictx);
 
-    std::fs::rename(&temp_path, input_path).map_err(AppError::Io)?;
+    crate::file_replace::replace_file(&temp_path, input_path).map_err(AppError::Io)?;
     Ok(())
 }
 

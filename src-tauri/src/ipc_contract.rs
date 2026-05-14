@@ -14,6 +14,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::load_cover_art_file,
             crate::commands::load_cover_art_from_url,
             crate::commands::save_metadata_to_file,
+            crate::commands::metadata::save_batch::save_metadata_batch,
             crate::commands::search_online_metadata,
             crate::commands::analyze_audio_files,
             crate::commands::validate_encoder_settings,

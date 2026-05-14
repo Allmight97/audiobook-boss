@@ -141,7 +141,7 @@ fn commit_temp_output_to_artifact(
             )));
         }
     }
-    match std::fs::rename(&temp_output, final_path) {
+    match crate::file_replace::replace_file(&temp_output, final_path) {
         Ok(()) => {
             log::info!(
                 "finalize_move method=rename-replace status=ok dest={}",

@@ -10,6 +10,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+pub(crate) mod save_batch;
+pub use save_batch::{
+    save_metadata_batch, MetadataSaveBatchResult, MetadataSaveRequest, MetadataSaveResultEntry,
+    MetadataSaveResultStatus, MetadataSaveSummary,
+};
+
 /// Reads metadata from an audio file
 /// Returns metadata as JSON-serializable struct
 #[tauri::command]

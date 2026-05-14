@@ -19,17 +19,17 @@ export function buildBatchCompletionFeedback(
 	const hasCompleted = statuses.includes('completed');
 	const hasSkipped = statuses.includes('skipped');
 
-	if (hasFailed) {
+	if (model.batchCompletionMessageOverride !== null) {
 		return {
-			kind: 'error',
-			message: model.batchCompletionMessageOverride ?? 'One or more files failed to process.',
+			kind: hasFailed ? 'error' : hasCancelled ? 'info' : hasCompleted ? 'success' : 'info',
+			message: model.batchCompletionMessageOverride,
 		};
 	}
 
-	if (model.batchCompletionMessageOverride !== null) {
+	if (hasFailed) {
 		return {
-			kind: hasCompleted ? 'success' : 'info',
-			message: model.batchCompletionMessageOverride,
+			kind: 'error',
+			message: 'One or more files failed to process.',
 		};
 	}
 

@@ -50,6 +50,7 @@ export const commands = {
 	 *  3. Handles cover art: preserves existing if not provided, replaces if new art given
 	 */
 	saveMetadataToFile: (filePath: string, metadataPatch: MetadataIntentPatch) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch })),
+	saveMetadataBatch: (items: MetadataSaveRequest[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
 	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<OnlineMetadataResult[], AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
 	/**
 	 *  Validates and analyzes a list of audio files
@@ -334,6 +335,26 @@ export type MetadataIntentPatch = {
 	album_sort?: AlbumSortPatchOp,
 	cover_art?: PatchOp<number[]>,
 };
+
+export type MetadataSaveBatchResult = {
+	summary: ProcessResultSummary,
+	results: MetadataSaveResultEntry[],
+};
+
+export type MetadataSaveRequest = {
+	filePath: string,
+	metadataPatch: MetadataIntentPatch,
+};
+
+export type MetadataSaveResultEntry = {
+	inputIndex: number,
+	filePath: string,
+	status: MetadataSaveResultStatus,
+	message: string,
+	error: AppErrorEnvelope | null,
+};
+
+export type MetadataSaveResultStatus = "success" | "cancelled" | "failed";
 
 export type MetadataSource = "audnexus" | "openlibrary";
 

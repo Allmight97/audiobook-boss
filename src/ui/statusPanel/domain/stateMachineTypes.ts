@@ -7,7 +7,7 @@ export const MERGE_SKIP_HOLD_MS = 1500;
 export const PROGRESS_THROTTLE_MS = 1000;
 
 export type CompletionFeedbackKind = 'success' | 'error' | 'info';
-export type JobType = 'merge' | 'batch';
+export type JobType = 'merge' | 'batch' | 'metadataSave';
 
 export interface StatusPanelCompletionFeedback {
 	kind: CompletionFeedbackKind;
