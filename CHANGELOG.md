@@ -12,6 +12,33 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Removed
 
+## [1.0.23] - 2026-05-14
+
+Resource lifetime and bulk metadata progress release for PR #306.
+
+### Added
+
+- Bulk metadata saves now publish queue-aware progress so metadata batches show
+  active, queued, completed, failed, and cancelled jobs in the status panel.
+- Status panel queue details can now stay compact by default, with a dedicated
+  expandable queue view and summary chips for large metadata batches.
+
+### Changed
+
+- Metadata save batches now run through a backend batch command with
+  cancellation checks between files, matching the safer cancellation behavior
+  used by audio processing jobs.
+- File replacement now uses a shared helper to preserve backup cleanup
+  diagnostics and avoid silent cleanup residue.
+
+### Fixed
+
+- Reduced file-handle contention during metadata remuxing and output artifact
+  commit replacement by tightening resource lifetimes before source-file
+  replacement.
+- Backup cleanup leftovers are now surfaced as warnings instead of being hidden
+  after an otherwise successful write.
+
 ## [1.0.22] - 2026-05-12
 
 Metadata/audio file-handle hygiene release for PR #305 and issue #296.
