@@ -1,10 +1,10 @@
 import { tauriClient } from '../../lib/tauri/client';
-import type { OutputConfig, OutputKind } from '../../types/audio';
+import type { ProcessingRequestConfig, OutputKind } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { setFileOrderLocked } from '../fileList/actions';
 import { getCurrentFileList, getSelectedFileIndex } from '../fileList/state.svelte';
 import { getSelectedFileIndices } from '../fileList/state.svelte';
-import { readOutputConfigForProcessing, updateOutputPath } from '../outputPanel';
+import { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {
@@ -36,7 +36,7 @@ interface StartProcessingContext {
 	setProcessingState: (isProcessing: boolean) => void;
 	updateArtThumbnail: () => Promise<void>;
 	startProgressListener: () => Promise<void>;
-	setCurrentJobType: (jobType: 'merge' | 'batch') => void;
+	setCurrentWorkKind: (workKind: 'merge' | 'batch') => void;
 	setBatchCompletionMessage: (message: string | null) => void;
 	reconcileProcessResult?: (result: ProcessCommandResult) => void;
 	handleCancellation: () => void;
@@ -145,11 +145,14 @@ export async function startProcessing(
 
 		console.log('StatusPanel: Files validated, getting output configuration...');
 
-		// Get output configuration
-		let outputConfig: OutputConfig;
+		// Get processing request configuration
+		let processingRequestConfig: ProcessingRequestConfig;
 		try {
-			outputConfig = readOutputConfigForProcessing();
-			console.log('StatusPanel: Output configuration retrieved:', outputConfig);
+			processingRequestConfig = readProcessingRequestConfig();
+			console.log(
+				'StatusPanel: Processing request configuration retrieved:',
+				processingRequestConfig,
+			);
 		} catch (error) {
 			console.log('StatusPanel: Settings validation failed:', error);
 			feedback.showError(`Settings validation failed: ${error}`);
@@ -196,16 +199,16 @@ export async function startProcessing(
 		}
 
 		const jobType = getJobType();
-		context.setCurrentJobType(jobType);
+		context.setCurrentWorkKind(jobType);
 
 		const processPayload: ProcessPayload = {
 			inputFiles: filePaths,
-			outputDir: outputConfig.outputPath,
-			settings: outputConfig.encoderSettings,
-			externalToolchain: outputConfig.toolchainSettings,
-			sampleRate: outputConfig.sampleRate,
+			outputDir: processingRequestConfig.outputDirectory,
+			settings: processingRequestConfig.encoderSettings,
+			externalToolchain: processingRequestConfig.toolchainSettings,
+			sampleRate: processingRequestConfig.sampleRate,
 			jobType,
-			outputNaming: outputConfig.outputNaming,
+			outputNaming: processingRequestConfig.outputNaming,
 		};
 
 		if (processPayload.jobType === 'batch') {

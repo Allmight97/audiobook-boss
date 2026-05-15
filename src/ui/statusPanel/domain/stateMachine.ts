@@ -24,7 +24,7 @@ import {
 	MERGE_SKIP_HOLD_MS,
 	PROGRESS_THROTTLE_MS,
 	SINGLE_COMPLETION_HOLD_MS,
-	type JobType,
+	type StatusPanelWorkKind,
 	type SingleCompletionHoldIntent,
 	type StatusPanelCompletionFeedback,
 	type StatusPanelIntent,
@@ -49,7 +49,7 @@ export function createStatusPanelModel(): StatusPanelModel {
 		lastProgressRenderByKey: new Map(),
 		currentStatus: createInitialStatus(),
 		isProcessing: false,
-		currentJobType: null,
+		currentWorkKind: null,
 		latestProgressEvent: null,
 		batchCompletionMessageOverride: null,
 	};
@@ -65,13 +65,13 @@ export function withBatchCompletionMessage(
 	};
 }
 
-export function withCurrentJobType(
+export function withCurrentWorkKind(
 	model: StatusPanelModel,
-	jobType: JobType | null,
+	workKind: StatusPanelWorkKind | null,
 ): StatusPanelModel {
 	return {
 		...model,
-		currentJobType: jobType,
+		currentWorkKind: workKind,
 	};
 }
 
@@ -88,7 +88,7 @@ export function applyQueueSnapshot(
 		lastProgressRenderByKey: new Map(),
 		currentStatus: model.currentStatus,
 		isProcessing: queueSnapshot.queueOrder.length > 0,
-		currentJobType: model.currentJobType,
+		currentWorkKind: model.currentWorkKind,
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
 	};

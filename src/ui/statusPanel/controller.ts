@@ -31,7 +31,7 @@ import {
 	reconcileProcessResult,
 	resetStatusPanelModel,
 	withBatchCompletionMessage,
-	withCurrentJobType,
+	withCurrentWorkKind,
 	type StatusPanelCompletionFeedback,
 	type StatusPanelIntent,
 	type StatusPanelModel,
@@ -70,8 +70,8 @@ export class StatusPanelRuntime {
 				},
 				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
 				startProgressListener: () => this.progressSubscription.start(),
-				setCurrentJobType: (jobType) => {
-					this.model = withCurrentJobType(this.model, jobType);
+				setCurrentWorkKind: (workKind) => {
+					this.model = withCurrentWorkKind(this.model, workKind);
 				},
 				setBatchCompletionMessage: (message) => this.setBatchCompletionMessage(message),
 				reconcileProcessResult: (result) => this.reconcileProcessResult(result),
@@ -89,7 +89,7 @@ export class StatusPanelRuntime {
 	public async beginMetadataSave(): Promise<void> {
 		this.clearSingleCompletionTimeout();
 		this.clearBatchCompletionTimeout();
-		this.model = withCurrentJobType(
+		this.model = withCurrentWorkKind(
 			{
 				...this.model,
 				isProcessing: true,
@@ -143,7 +143,7 @@ export class StatusPanelRuntime {
 	public applyProgress(event: ProcessingProgressEvent): void {
 		const jobKey = this.buildJobKey(event.input_index, event.job_id ?? undefined);
 		const existing = this.model.jobProgress.get(jobKey);
-		const label = existing?.label ?? this.buildFallbackLabel(event);
+		const label = existing?.label ?? this.buildInferredProgressLabel(event);
 		const transition = applyProgress(this.model, event, Date.now(), { label });
 
 		if (transition.model === this.model && transition.intents.length === 0) {
@@ -228,9 +228,9 @@ export class StatusPanelRuntime {
 		return buildJobKeyDomain(inputIndex, jobId);
 	}
 
-	private buildFallbackLabel(event: ProcessingProgressEvent): string {
+	private buildInferredProgressLabel(event: ProcessingProgressEvent): string {
 		const fileList = getCurrentFileList();
-		if (this.model.currentJobType === 'merge' && fileList?.files?.length) {
+		if (this.model.currentWorkKind === 'merge' && fileList?.files?.length) {
 			const firstValidFile = fileList.files.find((file) => file.isValid);
 			if (firstValidFile?.path) {
 				return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;
@@ -408,7 +408,7 @@ export class StatusPanelRuntime {
 		this.updateConcurrencyIndicator(aggregate);
 		this.updateStatus(this.model.currentStatus);
 
-		if (this.model.currentJobType === 'batch' && this.model.latestProgressEvent) {
+		if (this.model.currentWorkKind === 'batch' && this.model.latestProgressEvent) {
 			const event = this.model.latestProgressEvent;
 			const indexedPath =
 				typeof event.input_index === 'number' ? this.findFilePathByIndex(event.input_index) : null;

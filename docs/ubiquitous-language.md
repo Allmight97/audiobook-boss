@@ -26,8 +26,8 @@
 | **Terminal Truth** | The backend-owned final report of what happened to a job or batch, used by the UI for user-visible completion state. | optimistic status, frontend truth |
 | **Metadata Intent Patch** | An explicit patch-op payload that preserves whether a metadata field is being set, cleared, or left alone. | raw metadata object, sentinel mutation |
 | **Patch Op** | A single explicit metadata action such as `set`, `clear`, or `noop` used to preserve user intent across the boundary. | magic empty value, implicit clear |
-| **Preflight Processing Plan** | A backend-generated preview of how a processing request will execute before the actual long-running job begins. | dry guess, UI-only estimate |
-| **Output Naming Preview** | The backend-owned computation of the intended output path before collision suffixing or final processing writes. | frontend filename guess |
+| **Processing Preflight Plan** | A backend-generated preview of how a processing request will execute before the actual long-running job begins. | dry guess, UI-only estimate |
+| **Output Path Preview** | The backend-owned computation of the intended output path before collision suffixing or final processing writes. | frontend filename guess, audio preview |
 | **Fallback** | A deliberately registered temporary compatibility or integrity path with a concrete trigger, observable signal, and sunset condition. | convenience workaround, silent compatibility shim |
 | **Fallback Register** | The canonical list of still-active fallbacks that repo checks enforce and sunset-date. | misc exceptions, hidden legacy notes |
 
@@ -89,8 +89,11 @@
 
 - "API", "command surface", and "runtime boundary" can blur together. Prefer **IPC Contract** for the Rust-exported command/event set and **Runtime Boundary** for the handwritten TS adapter seam.
 - "generated bindings" can sound like the primary client. Prefer **Generated Bindings** for drift detection and typed integration, and **tauriClient** for the real runtime adapter.
-- "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a bug, compatibility requirement, or design decision.
-- "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field.
+- "preview" can mean different things. Prefer **Output Path Preview** for path derivation, **Processing Preflight Plan** for pre-run backend review, **audio preview** for a short media render, and **preview artifact** for the file created by that render.
+- "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a compatibility path, recovery default, bug, or design decision.
+- "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
+- "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Standard Gate** for `scripts/checks.sh standard`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
+- Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.
 - "module" alone is ambiguous in ABB. Prefer **Grey-Box Module** for the owned Public-API + Private-Cluster unit, and **Private Cluster File** for any implementation file inside one.

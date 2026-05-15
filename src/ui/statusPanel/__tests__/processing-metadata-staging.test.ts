@@ -12,7 +12,7 @@ const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
-	readOutputConfigForProcessingMock: vi.fn(),
+	readProcessingRequestConfigMock: vi.fn(),
 	updateOutputPathMock: vi.fn(),
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock('../../fileList/state.svelte', () => ({
 }));
 
 vi.mock('../../outputPanel', () => ({
-	readOutputConfigForProcessing: context.readOutputConfigForProcessingMock,
+	readProcessingRequestConfig: context.readProcessingRequestConfigMock,
 	updateOutputPath: context.updateOutputPathMock,
 }));
 
@@ -83,7 +83,7 @@ function processingContext() {
 		setProcessingState: vi.fn(),
 		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
-		setCurrentJobType: vi.fn(),
+		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
 		handleCancellation: vi.fn(),
 		resetToIdle: vi.fn(),
@@ -99,7 +99,7 @@ describe('startProcessing metadata staging', () => {
 		context.getCurrentFileListMock.mockReset();
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
-		context.readOutputConfigForProcessingMock.mockReset();
+		context.readProcessingRequestConfigMock.mockReset();
 		context.updateOutputPathMock.mockReset();
 		context.getJobTypeMock.mockReset();
 		context.readMetadataFormMock.mockReset();
@@ -121,11 +121,11 @@ describe('startProcessing metadata staging', () => {
 		});
 		context.getSelectedFileIndexMock.mockReturnValue(0);
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
-		context.readOutputConfigForProcessingMock.mockReturnValue({
+		context.readProcessingRequestConfigMock.mockReturnValue({
 			encoderSettings: defaultEncoderSettings(),
 			toolchainSettings: {},
 			sampleRate: 'auto',
-			outputPath: '/tmp/out',
+			outputDirectory: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		context.getJobTypeMock.mockReturnValue('merge');

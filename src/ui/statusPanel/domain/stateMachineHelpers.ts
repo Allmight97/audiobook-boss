@@ -94,7 +94,7 @@ export function cloneModel(model: StatusPanelModel): StatusPanelModel {
 		lastProgressRenderByKey: new Map(model.lastProgressRenderByKey),
 		currentStatus: model.currentStatus,
 		isProcessing: model.isProcessing,
-		currentJobType: model.currentJobType,
+		currentWorkKind: model.currentWorkKind,
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
 	};

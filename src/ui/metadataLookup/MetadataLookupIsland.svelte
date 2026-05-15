@@ -220,7 +220,7 @@
 							</div>
 						<span
 							class="metadata-lookup-source"
-							class:is-fallback={result.source === 'openlibrary'}
+							class:is-secondary-source={result.source === 'openlibrary'}
 						>
 							{result.source === 'audnexus'
 								? (result.audibleOnly ? 'Audible-only' : 'Audnexus')
@@ -294,7 +294,7 @@
 		font-size: 0.7rem;
 	}
 
-	.metadata-lookup-source.is-fallback {
+	.metadata-lookup-source.is-secondary-source {
 		color: var(--text-muted);
 	}
 
