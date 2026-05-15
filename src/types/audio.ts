@@ -61,11 +61,11 @@ export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalTo
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
 
 // Combined UI output configuration used by the UI boundary
-export interface OutputConfig {
+export interface ProcessingRequestConfig {
 	encoderSettings: EncoderSettings;
 	toolchainSettings: ExternalToolchainPreference;
 	sampleRate: SampleRateConfig;
-	outputPath: string; // backend contract name; stores the selected output directory
+	outputDirectory: string;
 	outputNaming: OutputNamingConfig;
 }
 

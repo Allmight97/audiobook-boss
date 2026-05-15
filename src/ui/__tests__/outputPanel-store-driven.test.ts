@@ -3,7 +3,7 @@ import { defaultEncoderSettings } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel/preview';
 import {
 	outputPanelState,
-	readOutputConfigForProcessing,
+	readProcessingRequestConfig,
 	updateAbsIncludeYear,
 	updateEncoderSettings,
 	updateNamingPreset,
@@ -40,10 +40,10 @@ describe('output panel state-driven contracts', () => {
 	});
 
 	it('reads processing output config from canonical state selector', () => {
-		const config = readOutputConfigForProcessing();
+		const config = readProcessingRequestConfig();
 
 		expect(config).toMatchObject({
-			outputPath: '/tmp/out',
+			outputDirectory: '/tmp/out',
 			sampleRate: 'auto',
 			toolchainSettings: {},
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
@@ -55,7 +55,7 @@ describe('output panel state-driven contracts', () => {
 		updateNamingPreset('customTemplate');
 		updateNamingTemplate('   ');
 
-		const config = readOutputConfigForProcessing();
+		const config = readProcessingRequestConfig();
 		expect(config.outputNaming).toMatchObject({
 			preset: 'customTemplate',
 			customTemplate: '{author}/{title}',

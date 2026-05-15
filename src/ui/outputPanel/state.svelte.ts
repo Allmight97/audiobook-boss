@@ -1,7 +1,7 @@
 import type {
 	EncoderSettings,
 	ExternalToolchainPreference,
-	OutputConfig,
+	ProcessingRequestConfig,
 	OutputNamingConfig,
 	SampleRateConfig,
 } from '../../types/audio';
@@ -77,7 +77,7 @@ export function getOutputNamingConfig(): OutputNamingConfig {
 	};
 }
 
-export function readOutputConfigForProcessing(): OutputConfig {
+export function readProcessingRequestConfig(): ProcessingRequestConfig {
 	if (!outputPanelState.outputDirectory) {
 		throw new Error('Output directory not selected');
 	}
@@ -86,7 +86,7 @@ export function readOutputConfigForProcessing(): OutputConfig {
 		encoderSettings: outputPanelState.encoderSettings,
 		toolchainSettings: outputPanelState.toolchainSettings,
 		sampleRate: outputPanelState.sampleRate,
-		outputPath: outputPanelState.outputDirectory,
+		outputDirectory: outputPanelState.outputDirectory,
 		outputNaming: getOutputNamingConfig(),
 	};
 }
