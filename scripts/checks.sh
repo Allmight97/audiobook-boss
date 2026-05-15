@@ -135,8 +135,8 @@ run_standard() {
   log_step "cargo test"
   cargo test
 
-  log_step "bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/resolve-release-dmg.test.ts"
-  bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/resolve-release-dmg.test.ts
+  log_step "bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/check-no-bridge-imports.test.ts scripts/resolve-release-dmg.test.ts"
+  bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/check-no-bridge-imports.test.ts scripts/resolve-release-dmg.test.ts
 
   log_step "bun run test"
   bun run test
