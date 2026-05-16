@@ -1,0 +1,30 @@
+	.a.svelte-xyz ~ .e:where(.svelte-xyz) { color: green; }
+	.a.svelte-xyz ~ .f:where(.svelte-xyz) { color: green; }
+	.b.svelte-xyz ~ .c:where(.svelte-xyz) { color: green; }
+	.b.svelte-xyz ~ .d:where(.svelte-xyz) { color: green; }
+	.c.svelte-xyz ~ .e:where(.svelte-xyz) { color: green; }
+	.c.svelte-xyz ~ .f:where(.svelte-xyz) { color: green; }
+	.d.svelte-xyz ~ .e:where(.svelte-xyz) { color: green; }
+	.d.svelte-xyz ~ .f:where(.svelte-xyz) { color: green; }
+	.e.svelte-xyz ~ .e:where(.svelte-xyz) { color: green; }
+	.i.svelte-xyz ~ .j:where(.svelte-xyz) { color: green; }
+	.g.svelte-xyz ~ .h:where(.svelte-xyz) ~ .j:where(.svelte-xyz) { color: green; }
+	.g.svelte-xyz ~ .i:where(.svelte-xyz) ~ .j:where(.svelte-xyz) { color: green; }
+	.m.svelte-xyz ~ .m:where(.svelte-xyz) { color: green; }
+	.m.svelte-xyz ~ .l:where(.svelte-xyz) { color: green; }
+	.l.svelte-xyz ~ .m:where(.svelte-xyz) { color: green; }
+	.a.svelte-xyz ~ .c:where(.svelte-xyz) { color: green; }
+	.a.svelte-xyz ~ .g:where(.svelte-xyz) { color: green; }
+	.b.svelte-xyz ~ .e:where(.svelte-xyz) { color: green; }
+	.c.svelte-xyz ~ .g:where(.svelte-xyz) { color: green; }
+	.c.svelte-xyz ~ .k:where(.svelte-xyz) { color: green; }
+	.d.svelte-xyz ~ .d:where(.svelte-xyz) { color: green; }
+	.g.svelte-xyz ~ .g:where(.svelte-xyz) { color: green; }
+	.h.svelte-xyz ~ .h:where(.svelte-xyz) { color: green; }
+	.i.svelte-xyz ~ .i:where(.svelte-xyz) { color: green; }
+	.j.svelte-xyz ~ .j:where(.svelte-xyz) { color: green; }
+	.g.svelte-xyz ~ .j:where(.svelte-xyz) { color: green; }
+	.g.svelte-xyz ~ .h:where(.svelte-xyz) ~ .i:where(.svelte-xyz) ~ .j:where(.svelte-xyz) { color: green; }
+
+	/* no match */
+	/* (unused) .e ~ .f { color: green; }*/

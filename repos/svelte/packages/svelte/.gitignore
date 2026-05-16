@@ -1,0 +1,15 @@
+/types/*.map
+/types/compiler
+/compiler/index.js
+
+/action.d.ts
+/animate.d.ts
+/compiler.d.ts
+/easing.d.ts
+/index.d.ts
+/legacy.d.ts
+/motion.d.ts
+/store.d.ts
+/transition.d.ts
+
+/scripts/_bundle.js

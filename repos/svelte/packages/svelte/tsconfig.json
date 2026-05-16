@@ -1,0 +1,43 @@
+{
+	"compilerOptions": {
+		"module": "esnext",
+		"lib": ["esnext", "dom", "dom.iterable"],
+		"target": "esnext",
+		"noEmit": true,
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"noEmitOnError": true,
+		"noErrorTruncation": true,
+		"allowSyntheticDefaultImports": true,
+		"verbatimModuleSyntax": true,
+		"types": ["node"],
+		"strict": true,
+		"allowJs": true,
+		"checkJs": true,
+		"paths": {
+			"svelte": ["./src/index.d.ts"],
+			"svelte/action": ["./src/action/public.d.ts"],
+			"svelte/compiler": ["./src/compiler/public.d.ts"],
+			"svelte/events": ["./src/events/public.d.ts"],
+			"svelte/internal/client": ["./src/internal/client/index.js"],
+			"svelte/legacy": ["./src/legacy/legacy-client.js"],
+			"svelte/motion": ["./src/motion/public.d.ts"],
+			"svelte/server": ["./src/server/index.d.ts"],
+			"svelte/store": ["./src/store/public.d.ts"],
+			"svelte/reactivity": ["./src/reactivity/index-client.js"]
+		}
+	},
+	"include": [
+		"./*.js",
+		"./scripts/",
+		"./src/",
+		"./tests/*/test.ts",
+		"./tests/runtime-browser/test-ssr.ts",
+		"./tests/*/samples/*/_config.js"
+	],
+	"exclude": [
+		"./scripts/process-messages/templates/",
+		"./scripts/_bundle.js",
+		"./src/compiler/optimizer/"
+	]
+}

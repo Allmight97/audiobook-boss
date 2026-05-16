@@ -1,0 +1,14 @@
+[
+	{
+		"code": "reactive_declaration_module_script_dependency",
+		"message": "Reassignments of module-level declarations will not cause reactive statements to update",
+		"start": {
+			"column": 10,
+			"line": 10
+		},
+		"end": {
+			"column": 13,
+			"line": 10
+		}
+	}
+]

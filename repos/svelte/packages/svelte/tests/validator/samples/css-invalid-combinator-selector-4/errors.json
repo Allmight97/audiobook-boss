@@ -1,0 +1,14 @@
+[
+	{
+		"code": "css_selector_invalid",
+		"message": "Invalid selector",
+		"start": {
+			"line": 4,
+			"column": 5
+		},
+		"end": {
+			"line": 4,
+			"column": 5
+		}
+	}
+]

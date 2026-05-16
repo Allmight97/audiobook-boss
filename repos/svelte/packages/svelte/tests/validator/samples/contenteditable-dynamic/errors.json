@@ -1,0 +1,14 @@
+[
+	{
+		"code": "attribute_contenteditable_dynamic",
+		"message": "'contenteditable' attribute cannot be dynamic if element uses two-way binding",
+		"start": {
+			"line": 11,
+			"column": 8
+		},
+		"end": {
+			"line": 11,
+			"column": 32
+		}
+	}
+]

@@ -1,0 +1,14 @@
+[
+	{
+		"code": "transition_conflict",
+		"message": "Cannot use `in:` alongside existing `transition:` directive",
+		"start": {
+			"line": 6,
+			"column": 12
+		},
+		"end": {
+			"line": 6,
+			"column": 26
+		}
+	}
+]

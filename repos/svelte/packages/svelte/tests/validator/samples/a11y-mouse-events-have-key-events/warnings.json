@@ -1,0 +1,26 @@
+[
+	{
+		"code": "a11y_mouse_events_have_key_events",
+		"end": {
+			"column": 34,
+			"line": 9
+		},
+		"message": "'mouseover' event must be accompanied by 'focus' event",
+		"start": {
+			"column": 0,
+			"line": 9
+		}
+	},
+	{
+		"code": "a11y_mouse_events_have_key_events",
+		"end": {
+			"column": 33,
+			"line": 15
+		},
+		"message": "'mouseout' event must be accompanied by 'blur' event",
+		"start": {
+			"column": 0,
+			"line": 15
+		}
+	}
+]

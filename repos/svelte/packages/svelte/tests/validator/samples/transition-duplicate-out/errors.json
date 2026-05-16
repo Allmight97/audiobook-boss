@@ -1,0 +1,14 @@
+[
+	{
+		"code": "transition_duplicate",
+		"message": "Cannot use multiple `out:` directives on a single element",
+		"start": {
+			"line": 6,
+			"column": 13
+		},
+		"end": {
+			"line": 6,
+			"column": 20
+		}
+	}
+]

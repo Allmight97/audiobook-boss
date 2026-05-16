@@ -1,0 +1,14 @@
+[
+	{
+		"code": "constant_assignment",
+		"message": "Cannot assign to constant",
+		"start": {
+			"line": 7,
+			"column": 26
+		},
+		"end": {
+			"line": 7,
+			"column": 30
+		}
+	}
+]

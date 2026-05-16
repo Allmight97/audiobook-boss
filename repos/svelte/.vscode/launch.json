@@ -1,0 +1,14 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Run sandbox",
+			"program": "${workspaceFolder}/playgrounds/sandbox/run.js",
+			"env": {
+				"NODE_OPTIONS": "--stack-trace-limit=10000"
+			}
+		}
+	]
+}

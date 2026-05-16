@@ -1,0 +1,38 @@
+[
+	{
+		"code": "a11y_autocomplete_valid",
+		"end": {
+			"column": 31,
+			"line": 25
+		},
+		"message": "'true' is an invalid value for 'autocomplete' on `<input type=\"text\">`",
+		"start": {
+			"column": 19,
+			"line": 25
+		}
+	},
+	{
+		"code": "a11y_autocomplete_valid",
+		"end": {
+			"column": 43,
+			"line": 26
+		},
+		"message": "'incorrect' is an invalid value for 'autocomplete' on `<input type=\"text\">`",
+		"start": {
+			"column": 19,
+			"line": 26
+		}
+	},
+	{
+		"code": "a11y_autocomplete_valid",
+		"end": {
+			"column": 42,
+			"line": 27
+		},
+		"message": "'webauthn' is an invalid value for 'autocomplete' on `<input type=\"text\">`",
+		"start": {
+			"column": 19,
+			"line": 27
+		}
+	}
+]

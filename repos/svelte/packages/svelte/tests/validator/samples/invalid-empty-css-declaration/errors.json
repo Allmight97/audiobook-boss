@@ -1,0 +1,14 @@
+[
+	{
+		"code": "css_empty_declaration",
+		"message": "Declaration cannot be empty",
+		"start": {
+			"line": 5,
+			"column": 2
+		},
+		"end": {
+			"line": 5,
+			"column": 8
+		}
+	}
+]

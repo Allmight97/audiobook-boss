@@ -1,0 +1,10 @@
+	div.svelte-xyz {
+		&.class{
+			color: green;
+		}
+	}
+	* {
+		&:hover .class.svelte-xyz {
+			color: green;
+		}
+	}
