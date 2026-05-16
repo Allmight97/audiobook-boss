@@ -30,7 +30,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
 - Load global `lib-research` when external library/API behavior affects implementation or review findings.
-- Load `reference-repos` when vendored source under `repos/*` should inform Effect, Svelte, Tauri, Specta, tauri-specta, frontend stack, or TS↔Rust boundary work.
+- Load `reference-repos` when vendored source under `repos/*` should inform Effect, Svelte, Tauri, Tauri plugins, Specta, tauri-specta, frontend stack, or TS↔Rust boundary work.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
 - Load `release` when preparing or deciding release/version/changelog/tag/DMG work.
 
@@ -143,7 +143,7 @@ git subtrees for agent research.
 
 - Use `repos/*` as read-only reference material for related library behavior.
 - Prefer vendored source patterns over generated guesses when working with
-  Effect, Svelte, Tauri, Specta, or tauri-specta.
+  Effect, Svelte, Tauri, Tauri plugins, Specta, or tauri-specta.
 - Do not edit files under `repos/*` unless explicitly refreshing or patching a
   reference subtree.
 - Do not import from `repos/*`; application code uses normal package or crate

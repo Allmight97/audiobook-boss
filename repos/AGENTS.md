@@ -25,6 +25,8 @@
 - `repos/svelte`: Svelte 5 runtime/compiler behavior and component patterns.
 - `repos/tauri`: Tauri runtime, command, event, API, plugin, and bundling
   behavior.
+- `repos/tauri-plugins`: Tauri v2 plugin source, including dialog and opener
+  behavior used by ABB's runtime boundary.
 - `repos/specta`: Rust type export and TypeScript binding generation behavior.
 - `repos/tauri-specta`: Tauri/Specta integration and event/command export
   behavior.

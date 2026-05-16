@@ -1,6 +1,6 @@
 ---
 name: reference-repos
-description: Navigate ABB's vendored frontend and boundary reference repositories under repos/. Use when working with Effect, Svelte, Tauri, Specta, tauri-specta, TS/Rust boundary behavior, or agent-harness source examples.
+description: Navigate ABB's vendored frontend and boundary reference repositories under repos/. Use when working with Effect, Svelte, Tauri, Tauri plugins, Specta, tauri-specta, TS/Rust boundary behavior, or agent-harness source examples.
 ---
 
 # Reference Repos
@@ -30,6 +30,9 @@ Start from ABB ownership first, then inspect the matching vendored source.
 - Tauri JS API, events, plugins, command behavior, or app runtime details:
   inspect `repos/tauri/packages/api`, `repos/tauri/crates/tauri`, and relevant
   examples under `repos/tauri/examples`.
+- Tauri plugin behavior, including ABB's dialog and opener dependencies:
+  inspect `repos/tauri-plugins/plugins/<plugin-name>` first, especially
+  `repos/tauri-plugins/plugins/dialog` and `repos/tauri-plugins/plugins/opener`.
 - Specta type export behavior: inspect `repos/specta/specta`,
   `repos/specta/specta-typescript`, and tests/examples under `repos/specta`.
 - Tauri/Specta integration behavior: inspect `repos/tauri-specta` and its
@@ -53,6 +56,7 @@ Use subtree refreshes only when explicitly asked:
 git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
 git subtree pull --prefix=repos/svelte https://github.com/sveltejs/svelte.git main --squash
 git subtree pull --prefix=repos/tauri https://github.com/tauri-apps/tauri.git dev --squash
+git subtree pull --prefix=repos/tauri-plugins https://github.com/tauri-apps/plugins-workspace.git v2 --squash
 git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git main --squash
 git subtree pull --prefix=repos/tauri-specta https://github.com/specta-rs/tauri-specta.git main --squash
 ```
