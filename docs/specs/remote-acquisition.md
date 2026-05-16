@@ -14,6 +14,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 
 - Authenticate to Audible (Amazon Login With Amazon flow; capture `/ap/maplanding` redirect; persist tokens to macOS Keychain).
 - Audible device registration (Android-shaped) for Widevine eligibility.
+- Widevine device identity resolution: ABB maintains a private `WidevineDeviceProvider` that loads a cached validated device identity, refreshes it from a configured resolver/index when missing or invalid, and supports user-supplied override/import. The device identity is provider-private acquisition infrastructure, not user-facing account state.
 - Library discovery with pagination + retry, scoped to a single account.
 - Acquisition for **AAXC** (AES-128-CBC with per-title voucher key+IV) and **Widevine** (AES-128-CTR with content key extracted from a Widevine license response). These two cover Audible's current active distribution.
 - Atomic commit of decrypted M4B into ABB-owned staging, then handoff via a shared `LocalImportBridge` into the existing file list.
@@ -31,7 +32,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 
 ### Constraints (Forbidden Paths)
 
-1. No tokens, license blobs, decrypt keys, device private keys, or callback secrets reach the frontend. UI sees opaque account refs, title IDs, and phase status only.
+1. No tokens, license blobs, decrypt keys, device private keys, Widevine device identity blobs, or callback secrets reach the frontend. UI sees opaque account refs, title IDs, and phase status only.
 2. No DRM internals, account refs, remote URLs, or provider-specific data enter `ProcessPayload` or any processing-pipeline contract. Processing remains local-file + user-intent.
 3. No provider-supplied output paths cross the materialized-asset gate. Staging root, filename, and final commit path are ABB-owned. Provider manifests are advisory.
 4. Acquisition never causes processing. The user must inspect/decide/preflight/process manually.
@@ -125,7 +126,12 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
   - Anything else (including `DrmType=Adrm` with 4-byte key, i.e. AAX legacy) → unsupported in v1, fail with explicit user-visible error
 - **D2**. **AAXC decrypt**: streaming HTTPS GET with Range-resume into staging temp file; open as MP4 reader; AES-128-CBC frame decrypt with voucher key+IV; remove `adrm` + DRM-related boxes from moov; verify resulting MP4 structure parses as valid M4B (one audio track, AAC/USAC, expected sample count vs declared duration).
 - **D3**. **Widevine decrypt**: HTTPS GET on resolved MPD `BaseURL` (single concatenated URL pattern per Audible; segment splicing not needed); open MP4 with CENC `sinf`/`pssh` boxes; parse Widevine LicenseResponse protobuf to extract AES content key; AES-128-CTR streaming decrypt of CENC samples; strip CENC protection atoms; verify resulting M4B.
-- **D4**. **Widevine "device" identity**: ABB needs a serialized device identity to construct Widevine LicenseRequest protobufs. Open implementation decision to resolve during D4: (a) ABB pulls from a community-hosted index URL similar to Libation's `.cdmurls.json`, (b) ABB ships its own constant device blob in release builds, (c) ABB requires user to supply one (paste/import). Recommendation: **(a) with documented source URL and graceful fallback to user-supplied via settings**. Capture the decision here once made; do not vendor or copy the blob from Libation's repo.
+- **D4**. **Widevine device identity**: implement a private `WidevineDeviceProvider` inside the Audible provider cluster.
+  - First load a cached validated device identity from the provider-private store.
+  - If cache is absent or invalid, fetch a configured resolver/index, try resolver endpoints using an Android-registered Audible account proof, validate the returned WVD/device bytes by parsing the header/client ID/private key and constructing a license challenge, then cache the bytes with source URL, retrieval timestamp, and SHA-256.
+  - Support a user-supplied WVD/device identity import as an override/fallback.
+  - Do not vendor a device blob into ABB release artifacts. Do not depend on Libation's `.cdmurls.json` as an unowned canonical service; Libation's shape is evidence for the mechanism, not ABB's infrastructure contract.
+  - If no valid device identity is available, Widevine acquisition fails explicitly as `widevineDeviceUnavailable`; do not silently downgrade the title into another acquisition route unless the license response itself supports AAXC.
 - **D5**. Acquisition job lifecycle: phase enum `{ libraryScan, licenseRequest, download, decrypt, verify, stageCommit }`; per-phase progress where measurable (download bytes, decrypt sample count); cancellation at any phase with cleanup; one terminal outcome per job (`success`/`cancelled`/`failed`).
 - **D6**. Staging: ABB-owned root under `$DATA_DIR/abb/remote-source-staging/<accountRef>/<jobId>/`; generated filenames (UUID-based, no provider data in path); `.partial` suffix during writes; atomic rename on completion; rejected if any path escapes staging root.
 - **D7**. Provenance manifest: ASIN, ACR, source DRM type, locale, acquisition timestamp, integrity hash (SHA-256 of decrypted M4B), provider version. Persisted as sidecar JSON next to staged file; copied into a side-table indexed by canonical path at commit.
@@ -215,6 +221,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **Acquisition**: job ledger persists across restarts. Resume guidance: download phase is HTTP-Range-resumable; decrypt phase is streaming — partial decrypt requires re-download (acceptable for v1; revisit if titles are large enough that this matters). Cancellation cleans up partial staging files. `.partial` suffix lets a cleaner on startup remove abandoned writes.
 - **Commit**: atomic rename; revalidate path at commit boundary; idempotent — re-running commit on an already-committed asset is a no-op.
 - **Logout**: idempotent purge. Partial purge (e.g., network failure during server-side deregistration) leaves the local side fully purged and the server-side state staled-but-not-corrupted.
+- **Widevine device identity**: cache is reusable across Android-registered accounts and independent of any single Audible account. Cache invalidation is explicit on parse/challenge failure; refresh attempts record source URL + hash. User-supplied override is idempotent and replaces resolver-provided cache atomically.
 
 ## Surprises And Discoveries
 
@@ -223,6 +230,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **2026-05-16**: Three test files acquired via Libation (Billy Fingers / Star Trek / 7 Habits, source dates 2014 / 2019 / 1989) all report `AUDIBLE_DRM_TYPE: Widevine` in their `org.libation` Apple-list freeform tags. AAX legacy is effectively absent from active Audible distribution for this account. v1 ships without AAX-classic support.
 - **2026-05-16**: AAXClean is GPL-3, not MIT. There is no easy license-clean decrypt library to vendor. Decrypt math must be derived from public protocol (FFmpeg AAX demuxer, public AAXC voucher field shapes, CENC/AES-CTR ISO spec, Widevine LicenseRequest protobuf shape).
 - **2026-05-16**: Libation's auth shape is Amazon LWA via embedded browser, catching `/ap/maplanding` redirect. Standard OAuth-style redirect catch, NOT RFC 8252 PKCE. The complexity is in device registration + request signing, not the OAuth dance itself.
+- **2026-05-16**: Libation handles Widevine device identity by caching a base64 CDM/WVD blob in `AccountsSettings.Cdm`; if missing/invalid, it fetches a URI list from its repo `.cdmurls.json`, tries resolver endpoints using a signed Android-account Audible API proof, validates the returned binary as a Widevine device, then caches it. ABB adopts this mechanism category (validated resolver + cache + override), not Libation's exact infrastructure or source code.
 
 ## Accepted Decisions
 
@@ -236,10 +244,10 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **`LocalImportBridge` extraction** is a prerequisite for the work, not a follow-up. Done in Phase A.
 - **GPL contamination rule** is hard-binding on agents implementing the Audible provider cluster.
 - **Source acquisition format is a provenance label**, not a DRM-state label. Display "Source: Audible Widevine (DASH)" not "DRM: Widevine."
+- **Widevine device identity policy**: resolver-based acquisition with local validated cache and user-supplied override. ABB does not vendor a Widevine device blob and does not treat Libation's `.cdmurls.json` as an owned dependency.
 
 ### Open Implementation Decisions (resolved in-spec when work hits them)
 
-- **D4**: Where the Widevine device identity blob comes from. Recommended: community-hosted index URL with documented source + graceful fallback to user-supplied (paste/import) via settings. Decide before D4 lands.
 - **B2**: Loopback HTTP listener vs. embedded webview vs. external browser with user-paste fallback for the OAuth callback. Recommended: loopback first, embedded webview as graceful fallback. Decide during B2 implementation based on real-traffic observation.
 
 ## Validation And Acceptance
@@ -250,6 +258,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - `scripts/check-no-remote-source-reach-through.sh` green (added in A4).
 - `cargo test` in `src-tauri/` passes including new contract tests for `RemoteSourceRuntime` Public API Strip.
 - Fixture-driven provider tests pass against committed fixtures under `src-tauri/tests/fixtures/audible/` covering: library response, AAXC license response, Widevine license response, MPD manifest, at least one failure-class fixture per acquisition phase.
+- Widevine device-provider tests pass against fixtures for valid WVD bytes, invalid/corrupt cache, resolver failure, override import, and cache metadata recording. Tests must not call Libation's resolver or any live resolver in CI.
 - Real-account smoke procedure documented + recorded in this spec's Progress section: at minimum one Widevine title successfully acquired, decrypted, committed, imported into the file list, and visible with "Source: Audible Widevine (DASH)" in the inspector. AAXC smoke optional, run if a title is reachable.
 - Boundary-assertion test: an attempted reach-through import from outside `RemoteSourceRuntime` into the Audible provider cluster fails CI.
 - Logout test: a logged-in account's purge leaves zero Vault entries, zero staging files, zero ledger entries for that account; library cache emptied; in-flight job (if present) cancelled cleanly.
@@ -284,3 +293,4 @@ Spec is deleted after:
 *(timestamped notes added here as work proceeds; resume-without-rereading-chat is the bar)*
 
 - **2026-05-16** — Spec created. Decision-alignment loop with jstar confirmed: native acquisition, Widevine v1, no metadata seam, AAX-legacy deferred, GPL contamination rule for agents, sixth Public API shape.
+- **2026-05-16** — Widevine device identity policy locked: ABB uses a private resolver-backed `WidevineDeviceProvider` with validated local cache and user override, but does not vendor a device blob or depend on Libation's `.cdmurls.json` as owned infrastructure.
