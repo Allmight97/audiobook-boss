@@ -1,0 +1,37 @@
+[package]
+name = "specta-zod"
+description = "Export your Rust types to Zod schemas for TypeScript"
+version = "0.0.3"
+authors = ["Oscar Beaumont <oscar@otbeaumont.me>"]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/specta-rs/specta"
+documentation = "https://docs.rs/specta-zod/latest/specta-zod"
+keywords = ["async", "specta", "rspc", "typescript", "typesafe"]
+categories = ["web-programming", "asynchronous"]
+readme = "../README.md"
+
+# /bin/sh RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+[package.metadata."docs.rs"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# Implement `serde::Serialize` for Zod-specific wrapper types (Any, Unknown, Never)
+serde = ["dep:serde"]
+
+[dependencies]
+specta = { version = "=2.0.0-rc.25", path = "../specta" }
+serde = { version = "1", default-features = false, optional = true }
+specta-typescript = { version = "=0.0.12", path = "../specta-typescript" }
+# TODO: Don't depend on serde
+specta-serde = { version = "=0.0.12", path = "../specta-serde" }
+thiserror = "2" # TODO: Remove this
+
+[dev-dependencies]
+specta-util = { path = "../specta-util" }
