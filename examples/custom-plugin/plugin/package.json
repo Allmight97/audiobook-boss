@@ -1,0 +1,13 @@
+{
+  "name": "tauri-specta-custom-plugin",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "postinstall": "pnpm build",
+    "build": "pnpm tsc",
+    "codegen": "cargo test && pnpm build"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
