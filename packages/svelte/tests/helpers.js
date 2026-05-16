@@ -1,0 +1,269 @@
+/** @import { CompileOptions } from '#compiler' */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { globSync } from 'tinyglobby';
+import { VERSION, compile, compileModule, preprocess } from 'svelte/compiler';
+import { vi } from 'vitest';
+
+/**
+ * @param {string} file
+ */
+export function try_load_json(file) {
+	try {
+		return JSON.parse(fs.readFileSync(file, 'utf-8'));
+	} catch (err) {
+		if (/** @type {any} */ (err).code !== 'ENOENT') throw err;
+		return null;
+	}
+}
+
+/**
+ * @param {string} file
+ */
+export function try_read_file(file) {
+	try {
+		return read_file(file);
+	} catch (err) {
+		if (/** @type {any} */ (err).code !== 'ENOENT') throw err;
+		return null;
+	}
+}
+
+/**
+ * @param {string} file
+ */
+export function read_file(file) {
+	return fs.readFileSync(file, 'utf-8').replace(/\r\n/g, '\n');
+}
+
+export function create_deferred() {
+	/** @param {any} [value] */
+	let resolve = (value) => {};
+
+	/** @param {any} [reason] */
+	let reject = (reason) => {};
+
+	/** @type {Promise<any>} */
+	const promise = new Promise((f, r) => {
+		resolve = f;
+		reject = r;
+	});
+
+	return { promise, resolve, reject };
+}
+
+/**
+ *
+ * @param {string} cwd
+ * @param {'client' | 'server'} generate
+ * @param {Partial<CompileOptions>} compileOptions
+ * @param {boolean} [output_map]
+ * @param {any} [preprocessor]
+ */
+export async function compile_directory(
+	cwd,
+	generate,
+	compileOptions = {},
+	output_map = false,
+	preprocessor
+) {
+	const output_dir = `${cwd}/_output/${generate}`;
+
+	fs.rmSync(output_dir, { recursive: true, force: true });
+
+	for (let file of globSync('**', { cwd, onlyFiles: true })) {
+		if (file.startsWith('_')) continue;
+
+		let text = fs.readFileSync(`${cwd}/${file}`, 'utf-8').replace(/\r\n/g, '\n');
+		let opts = {
+			filename: path.join(cwd, file),
+			...compileOptions,
+			generate
+		};
+
+		if (file.endsWith('.js')) {
+			const out = `${output_dir}/${file}`;
+			if (file.endsWith('.svelte.js')) {
+				const compiled = compileModule(text, {
+					filename: opts.filename,
+					generate: opts.generate,
+					dev: opts.dev,
+					experimental: opts.experimental
+				});
+				write(out, compiled.js.code.replace(`v${VERSION}`, 'VERSION'));
+			} else {
+				// for non-runes tests, just re-export from the original source file — this
+				// allows the `_config.js` module to import shared state to use in tests
+				const source = path
+					.relative(path.dirname(out), path.resolve(cwd, file))
+					.replace(/\\/g, '/');
+				let result = `export * from '${source}';`;
+				if (text.includes('export default')) {
+					result += `\nexport { default } from '${source}';`;
+				}
+
+				write(out, result);
+			}
+		} else if (
+			file.endsWith('.svelte') &&
+			// Make it possible to compile separate versions for client and server to simulate
+			// cases where `{browser ? 'foo' : 'bar'}` is turning into `{'foo'}` on the server
+			// and `{bar}` on the client, assuming we have sophisticated enough treeshaking
+			// in the future to make this a thing.
+			(!file.endsWith('.server.svelte') || generate === 'server') &&
+			(!file.endsWith('.client.svelte') || generate === 'client')
+		) {
+			file = file.replace(/\.client\.svelte$/, '.svelte').replace(/\.server\.svelte$/, '.svelte');
+
+			if (preprocessor?.preprocess) {
+				const preprocessed = await preprocess(
+					text,
+					preprocessor.preprocess,
+					preprocessor.options || {
+						filename: opts.filename
+					}
+				);
+				text = preprocessed.code;
+				opts = { ...opts, sourcemap: preprocessed.map };
+				write(`${output_dir}/${file.slice(0, -7)}.preprocessed.svelte`, text);
+				if (output_map) {
+					write(
+						`${output_dir}/${file.slice(0, -7)}.preprocessed.svelte.map`,
+						JSON.stringify(preprocessed.map, null, '\t')
+					);
+				}
+			}
+
+			const compiled = compile(text, {
+				outputFilename: `${output_dir}/${file}${file.endsWith('.js') ? '' : '.js'}`,
+				cssOutputFilename: `${output_dir}/${file}.css`,
+				...opts
+			});
+			compiled.js.code = compiled.js.code.replace(`v${VERSION}`, 'VERSION');
+
+			write(`${output_dir}/${file}.js`, compiled.js.code);
+			if (output_map) {
+				write(`${output_dir}/${file}.js.map`, JSON.stringify(compiled.js.map, null, '\t'));
+			}
+
+			if (compiled.css) {
+				write(`${output_dir}/${file}.css`, compiled.css.code);
+				write(
+					`${output_dir}/${file}.css.json`,
+					JSON.stringify({ hasGlobal: compiled.css.hasGlobal })
+				);
+				if (output_map) {
+					write(`${output_dir}/${file}.css.map`, JSON.stringify(compiled.css.map, null, '\t'));
+				}
+			}
+
+			if (compiled.warnings.length > 0) {
+				write(`${output_dir}/${file}.warnings.json`, JSON.stringify(compiled.warnings, null, '\t'));
+			}
+		}
+	}
+}
+
+export function should_update_expected() {
+	return process.env.SHOULD_UPDATE_EXPECTED === 'true';
+}
+
+/**
+ * @param {string} file
+ * @param {string} contents
+ */
+export function write(file, contents) {
+	try {
+		fs.mkdirSync(path.dirname(file), { recursive: true });
+	} catch {}
+
+	fs.writeFileSync(file, contents);
+}
+
+// Guard because not all test contexts load this with JSDOM
+if (typeof window !== 'undefined') {
+	// @ts-expect-error JS DOM doesn't support it
+	Window.prototype.matchMedia = vi.fn((media) => {
+		return {
+			matches: false,
+			media,
+			addEventListener: () => {},
+			removeEventListener: () => {}
+		};
+	});
+}
+
+export const fragments = /** @type {'html' | 'tree'} */ (process.env.FRAGMENTS) ?? 'html';
+
+export const async_mode = process.env.SVELTE_NO_ASYNC !== 'true';
+
+/**
+ * @param {any[]} logs
+ */
+export function normalise_inspect_logs(logs) {
+	/** @type {any[]} */
+	const normalised = [];
+
+	for (const log of logs) {
+		if (log === 'stack trace') {
+			// ignore `console.group('stack trace')` in default `$inspect(...)` output
+			continue;
+		}
+
+		if (log instanceof Error) {
+			const last_line = log.stack
+				?.trim()
+				.split('\n')
+				.filter((line) => !line.includes('at Module.get_stack'))[1];
+
+			const match = last_line && /(at .+) /.exec(last_line);
+
+			if (match) normalised.push(match[1]);
+		} else {
+			normalised.push(log);
+		}
+	}
+
+	return normalised;
+}
+
+/**
+ * @param {any[]} logs
+ */
+export function normalise_trace_logs(logs) {
+	let normalised = [];
+
+	logs = logs.slice();
+
+	while (logs.length > 0) {
+		const log = logs.shift();
+
+		if (log instanceof Error) {
+			continue;
+		}
+
+		if (typeof log === 'string' && log.includes('%c')) {
+			const split = log.split('%c');
+
+			const first = /** @type {string} */ (split.shift()).trim();
+			if (first) normalised.push({ log: first });
+
+			while (split.length > 0) {
+				const log = /** @type {string} */ (split.shift()).trim();
+				const highlighted = logs.shift() === 'color: CornflowerBlue; font-weight: bold';
+
+				// omit timings, as they will differ between runs
+				if (/\(.+ms\)/.test(log)) continue;
+
+				normalised.push({
+					log,
+					highlighted
+				});
+			}
+		} else {
+			normalised.push({ log });
+		}
+	}
+
+	return normalised;
+}

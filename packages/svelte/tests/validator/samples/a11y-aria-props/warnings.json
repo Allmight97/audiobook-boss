@@ -1,0 +1,26 @@
+[
+	{
+		"code": "a11y_unknown_aria_attribute",
+		"message": "Unknown aria attribute 'aria-labeledby'. Did you mean 'labelledby'?",
+		"start": {
+			"line": 1,
+			"column": 20
+		},
+		"end": {
+			"line": 1,
+			"column": 40
+		}
+	},
+	{
+		"code": "a11y_missing_attribute",
+		"message": "`<input type=\"image\">` element should have an alt, aria-label or aria-labelledby attribute",
+		"start": {
+			"column": 0,
+			"line": 1
+		},
+		"end": {
+			"line": 1,
+			"column": 41
+		}
+	}
+]

@@ -1,0 +1,14 @@
+[
+	{
+		"code": "title_illegal_attribute",
+		"message": "`<title>` cannot have attributes nor directives",
+		"start": {
+			"line": 2,
+			"column": 8
+		},
+		"end": {
+			"line": 2,
+			"column": 25
+		}
+	}
+]

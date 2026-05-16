@@ -1,0 +1,146 @@
+[
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 19,
+			"line": 1
+		},
+		"message": "Abstract role 'command' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 1
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 21,
+			"line": 2
+		},
+		"message": "Abstract role 'composite' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 2
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 17,
+			"line": 3
+		},
+		"message": "Abstract role 'input' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 3
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 20,
+			"line": 4
+		},
+		"message": "Abstract role 'landmark' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 4
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 17,
+			"line": 5
+		},
+		"message": "Abstract role 'range' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 5
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 20,
+			"line": 6
+		},
+		"message": "Abstract role 'roletype' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 6
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 19,
+			"line": 7
+		},
+		"message": "Abstract role 'section' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 7
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 23,
+			"line": 8
+		},
+		"message": "Abstract role 'sectionhead' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 8
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 18,
+			"line": 9
+		},
+		"message": "Abstract role 'select' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 9
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 21,
+			"line": 10
+		},
+		"message": "Abstract role 'structure' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 10
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 18,
+			"line": 11
+		},
+		"message": "Abstract role 'widget' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 11
+		}
+	},
+	{
+		"code": "a11y_no_abstract_role",
+		"end": {
+			"column": 18,
+			"line": 12
+		},
+		"message": "Abstract role 'window' is forbidden",
+		"start": {
+			"column": 5,
+			"line": 12
+		}
+	}
+]

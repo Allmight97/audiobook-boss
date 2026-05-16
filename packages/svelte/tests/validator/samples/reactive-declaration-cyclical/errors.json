@@ -1,0 +1,14 @@
+[
+	{
+		"message": "Cyclical dependency detected: a → b → a",
+		"code": "reactive_declaration_cycle",
+		"start": {
+			"line": 5,
+			"column": 1
+		},
+		"end": {
+			"line": 5,
+			"column": 14
+		}
+	}
+]

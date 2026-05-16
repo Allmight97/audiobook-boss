@@ -1,0 +1,14 @@
+[
+	{
+		"code": "constant_binding",
+		"message": "Cannot bind to constant",
+		"start": {
+			"line": 6,
+			"column": 8
+		},
+		"end": {
+			"line": 6,
+			"column": 24
+		}
+	}
+]

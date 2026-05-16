@@ -1,0 +1,38 @@
+[
+	{
+		"code": "a11y_media_has_caption",
+		"end": {
+			"column": 23,
+			"line": 2
+		},
+		"message": "`<video>` elements must have a `<track kind=\"captions\">`",
+		"start": {
+			"column": 0,
+			"line": 2
+		}
+	},
+	{
+		"code": "a11y_media_has_caption",
+		"end": {
+			"column": 32,
+			"line": 3
+		},
+		"message": "`<video>` elements must have a `<track kind=\"captions\">`",
+		"start": {
+			"column": 0,
+			"line": 3
+		}
+	},
+	{
+		"code": "a11y_media_has_caption",
+		"end": {
+			"column": 43,
+			"line": 6
+		},
+		"message": "`<video>` elements must have a `<track kind=\"captions\">`",
+		"start": {
+			"column": 0,
+			"line": 6
+		}
+	}
+]
