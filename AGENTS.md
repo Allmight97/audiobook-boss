@@ -51,8 +51,12 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
-- For docs-only changes, run `bash scripts/check-context-surface.sh`.
-- For non-doc code changes, run `scripts/checks.sh standard` before sharing changes for review.
+- For docs, guidance, and reference-source changes, use focused coherence or
+  source-presence verification; run `bash scripts/check-context-surface.sh`
+  when active repo guidance/docs could drift.
+- For behavior/runtime, IPC, dependency/toolchain, build/test semantics, or
+  release-surface changes, run `scripts/checks.sh standard` before sharing
+  changes for review.
 - For release work, use `.agents/skills/release`; use `bun run app:install-local` for a launcher-visible local `/Applications` app, use `bun run app:build` only for repo-local `.app` artifact validation, and prove the DMG/GitHub Release surface before calling a release complete.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
 
@@ -66,7 +70,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ### Execution Defaults
 
 - Before editing, inspect enough of the owning boundary to name the invariant being changed.
-- Use focused tests/checks that match the changed surface.
+- Use focused tests/checks that match the changed surface. Name the risk before
+  choosing a broad gate; prefer the cheapest verification that can falsify that
+  risk.
 - Keep verification tied to user outcomes and acceptance evidence: correct output files, truthful progress, stable metadata, contract parity, or coherent docs as applicable.
 - For UI-affecting work, use targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only. Treat alternate viewport diagnostics as out of scope unless a task explicitly asks for them.
@@ -156,11 +162,21 @@ git subtrees for agent research.
 - Touched paths comply with the nearest local `AGENTS.md`.
 - Safety and contract invariants remain true after edits.
 - Any new compatibility/fallback behavior includes explicit evidence, trigger, and sunset/removal condition.
-- Verification is explicit by change type:
-  - docs-only edits: the active repo surface remains coherent and stale references are removed
-  - UI-affecting edits: targeted tests plus explicit visual/UX review evidence when static assertions cannot prove the outcome
-  - boundary/backend edits: `scripts/checks.sh standard` plus any targeted contract/regression coverage for the touched surface
+- Verification is explicit by risk:
+  - docs/guidance/reference edits: the active repo surface remains coherent,
+    stale references are removed, and source/subtree presence is checked when
+    relevant
+  - tool/editor excludes with no runtime path: focused config sanity or diff
+    review is enough
+  - UI-affecting behavior: targeted tests plus explicit visual/UX review
+    evidence when static assertions cannot prove the outcome
+  - boundary/backend/runtime behavior: `scripts/checks.sh standard` plus any
+    targeted contract/regression coverage for the touched surface
 - Verification matches scope:
-  - docs-only edits: `bash scripts/check-context-surface.sh`
-  - code/config/build edits: `scripts/checks.sh standard`
+  - docs/guidance changes that can affect active repo instructions:
+    `bash scripts/check-context-surface.sh`
+  - tool/subsystem-local changes: targeted commands for the changed surface
+    first
+  - app behavior, contracts, dependency resolution, build/test semantics,
+    release artifacts, or broad config semantics: `scripts/checks.sh standard`
 - Final delivery includes changes made, validation performed, and residual risk notes.

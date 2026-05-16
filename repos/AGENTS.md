@@ -40,4 +40,6 @@ git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git m
 ```
 
 Use the upstream branch recorded for each subtree. Keep refreshes grouped by
-coherent stack area, and run ABB context checks afterward.
+coherent stack area. Refreshing or adding reference subtrees does not require
+`scripts/checks.sh standard` unless ABB app code, dependency manifests,
+build/test semantics, or runtime imports also change.

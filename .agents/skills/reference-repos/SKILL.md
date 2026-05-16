@@ -61,8 +61,12 @@ git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git m
 git subtree pull --prefix=repos/tauri-specta https://github.com/specta-rs/tauri-specta.git main --squash
 ```
 
-After refreshes, run:
+After refreshes, verify subtree metadata, expected source directories, and
+`git status`. Run the context-surface check only when AGENTS/skill/docs guidance
+changed:
 
 ```bash
 bash scripts/check-context-surface.sh
 ```
+
+Do not run `scripts/checks.sh standard` for pure reference-source refreshes.
