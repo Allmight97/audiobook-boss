@@ -1,0 +1,45 @@
+{
+  "productName": "app",
+  "version": "0.1.0",
+  "identifier": "com.tauri.single-instance",
+  "build": {
+    "frontendDist": "../public"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "app",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src blob: data: filesystem: ws: wss: http: https: tauri: http://tauri.localhost 'unsafe-eval' 'unsafe-inline' 'self' img-src: 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "cli": {
+      "description": "Testing single-instance on MacOS",
+      "args": [
+        {
+          "name": "somearg",
+          "index": 1,
+          "takesValue": true
+        }
+      ]
+    }
+  }
+}

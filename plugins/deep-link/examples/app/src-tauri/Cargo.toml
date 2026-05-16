@@ -1,0 +1,34 @@
+[package]
+name = "deep-link-example"
+version = "0.0.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true, features = ["wry", "common-controls-v6", "x11"] }
+tauri-plugin-deep-link = { path = "../../../" }
+tauri-plugin-log = { path = "../../../../log" }
+tauri-plugin-single-instance = { path = "../../../../single-instance", features = [
+  "deep-link",
+] }
+log = "0.4"
+
+[features]
+# this feature is used for production builds or when `devUrl` points to the filesystem and the built-in dev server is disabled.
+# If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
+# DO NOT REMOVE!!
+prod = ["tauri/custom-protocol"]
