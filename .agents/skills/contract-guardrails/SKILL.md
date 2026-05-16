@@ -15,11 +15,17 @@ Use this skill when touching Tauri commands/events or TS client boundary contrac
 - `src-tauri/Cargo.toml`
 - `Cargo.lock`
 - `CHANGELOG.md`
-2. For command/event or payload changes, verify contract parity:
+2. For command/event or payload changes, verify contract parity with focused
+   boundary checks first:
 ```bash
-scripts/checks.sh standard
+bun run bindings:check:local
+bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
+scripts/check-public-api-strips.sh
 ```
-3. For release-critical merges, run strict binding drift checks:
+3. Run `scripts/checks.sh standard` when the change affects Rust command/event
+   signatures, generated bindings, runtime behavior, dependency/build/test
+   semantics, or release-critical merge confidence.
+4. For release-critical binding drift checks:
 ```bash
 bun run bindings:check
 # or
@@ -36,7 +42,9 @@ CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard
 
 - Rust commands/events compile and remain registered.
 - Generated TS bindings match Rust contract.
-- Standard checks pass for non-doc changes.
+- Verification follows root `AGENTS.md` risk-based scope: focused boundary
+  checks for local adapter changes; `scripts/checks.sh standard` for contract,
+  runtime, build/test, dependency, or release-critical risk.
 
 ## Alignment
 

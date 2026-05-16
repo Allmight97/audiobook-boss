@@ -13,7 +13,9 @@ Use this skill when adding or changing Tauri commands, command payloads, or even
 2. Validate inputs at command boundary and return `crate::errors::Result<T>`.
 3. Register command/event in `src-tauri/src/ipc_contract.rs`.
 4. Route frontend command/event usage through `src/lib/tauri/client.ts`.
-5. Regenerate/check bindings and run standard checks.
+5. Regenerate/check bindings and choose verification by risk: focused boundary
+   checks for local adapter changes; `scripts/checks.sh standard` for command
+   contracts, runtime behavior, build/test semantics, or release-critical work.
 
 ## Command Skeleton
 
@@ -37,9 +39,24 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
 
 ## Verification
 
+For focused TS boundary or generated-binding changes:
+
+```bash
+bun run bindings:check:local
+bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
+scripts/check-public-api-strips.sh
+```
+
+For command contracts, runtime behavior, build/test semantics, or
+release-critical work:
+
 ```bash
 scripts/checks.sh standard
-# release-critical contract checks
+```
+
+For release-critical contract checks:
+
+```bash
 bun run bindings:check
 ```
 
@@ -55,7 +72,8 @@ bun run bindings:check
 
 - Command compiles, is registered, and callable from TS boundary adapter.
 - Errors map to stable `AppError` variants.
-- Contract checks are green for non-doc changes.
+- Verification follows root `AGENTS.md` risk-based scope and proves the changed
+  Tauri boundary surface.
 
 ## Alignment
 
