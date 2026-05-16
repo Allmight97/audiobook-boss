@@ -1,0 +1,59 @@
+{
+  "productName": "deep-link-example",
+  "version": "0.1.0",
+  "identifier": "com.tauri.deep-link-example",
+  "build": {
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 600,
+        "resizable": true,
+        "title": "tauri-app",
+        "width": 800
+      }
+    ]
+  },
+  "plugins": {
+    "whatever": "helloworld",
+    "sec": {
+      "hello": "world"
+    },
+    "deep-link": {
+      "mobile": [
+        {
+          "host": "fabianlars.de",
+          "pathPrefix": ["/intent"]
+        },
+        {
+          "host": "tauri.app"
+        },
+        {
+          "scheme": ["taurideeplink"]
+        }
+      ],
+      "desktop": {
+        "schemes": ["fabianlars", "my-tauri-app"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
