@@ -1,0 +1,153 @@
+use super::{
+    AttributeScope, attr::*, build_runtime_attributes, generics::type_with_inferred_lifetimes,
+    r#struct::decode_field_attrs,
+};
+use crate::{r#type::field::construct_field_with_variant_skip, utils::*};
+use proc_macro2::TokenStream;
+use quote::{ToTokens, quote};
+use syn::{DataEnum, Fields, spanned::Spanned};
+
+pub fn parse_enum(
+    crate_ref: &TokenStream,
+    container_attrs: &ContainerAttr,
+    data: &DataEnum,
+) -> syn::Result<TokenStream> {
+    if container_attrs.transparent {
+        return Err(syn::Error::new(
+            data.enum_token.span(),
+            "#[specta(transparent)] is not allowed on an enum",
+        ));
+    }
+
+    let variant_types = data
+        .variants
+        .iter()
+        .map(|v| {
+            // We pass all the attributes at the start and when decoding them pop them off the list.
+            // This means at the end we can check for any that weren't consumed and throw an error.
+            let mut attrs = parse_attrs_with_filter(&v.attrs, &container_attrs.skip_attrs)?;
+            let variant_attrs = VariantAttr::from_attrs(&mut attrs)?;
+
+            reject_unknown_specta_attrs(&attrs, Scope::Variant)?;
+
+            let runtime_attrs = build_runtime_attributes(
+                crate_ref,
+                AttributeScope::Variant,
+                quote!(v.attributes),
+                &v.attrs,
+                &container_attrs.skip_attrs,
+            )?;
+
+            Ok((v, variant_attrs, runtime_attrs))
+        })
+        .collect::<syn::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|(variant, attrs, runtime_attrs)| {
+            let variant_ident_str = unraw_raw_ident(&variant.ident);
+            let variant_name_str = variant_ident_str.to_token_stream();
+
+            let variant_value = if let Some(ref variant_ty) = attrs.r#type {
+                let variant_ty = type_with_inferred_lifetimes(variant_ty);
+                quote!(datatype::Variant::unnamed().field({
+                    datatype::Field::new(<#variant_ty as #crate_ref::Type>::definition(types))
+                }).build())
+            } else {
+                match &variant.fields {
+                    Fields::Unit => quote!(datatype::Variant::unit()),
+                    Fields::Unnamed(fields) => {
+                        let fields = fields
+                            .unnamed
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, field)| {
+                                let (mut field_attrs, raw_attrs) =
+                                    decode_field_attrs(field, &container_attrs.skip_attrs)?;
+
+                                if attrs.inline && idx == 0 {
+                                    field_attrs.inline = true;
+                                }
+
+                                construct_field_with_variant_skip(
+                                    crate_ref,
+                                    container_attrs,
+                                    field_attrs,
+                                    &field.ty,
+                                    raw_attrs,
+                                    attrs.skip,
+                                )
+                            })
+                            .collect::<syn::Result<Vec<TokenStream>>>()?;
+
+                        quote!(datatype::Variant::unnamed() #(.field(#fields))* .build())
+                    }
+                    Fields::Named(fields) => {
+                        let field_calls = fields
+                            .named
+                            .iter()
+                            .map(|field| {
+                                let (field_attrs, raw_attrs) =
+                                    decode_field_attrs(field, &container_attrs.skip_attrs)?;
+
+                                let field_ident_str =
+                                    unraw_raw_ident(field.ident.as_ref().ok_or_else(|| {
+                                        syn::Error::new(
+                                            field.span(),
+                                            "specta: named field must have an identifier",
+                                        )
+                                    })?);
+
+                                let field_name = field_ident_str;
+
+                                let inner = construct_field_with_variant_skip(
+                                    crate_ref,
+                                    container_attrs,
+                                    field_attrs,
+                                    &field.ty,
+                                    raw_attrs,
+                                    attrs.skip,
+                                )?;
+                                Ok(quote!(.field(#field_name, #inner)))
+                            })
+                            .collect::<syn::Result<Vec<TokenStream>>>()?;
+
+                        quote!(datatype::Variant::named() #(#field_calls)* .build())
+                    }
+                }
+            };
+
+            let variant_skip = attrs.skip.then(|| quote!( v.skip = true;));
+
+            let variant_docs = (!attrs.common.doc.is_empty()).then(|| {
+                let docs = &attrs.common.doc;
+                quote! {
+                    v.docs = Cow::Borrowed(#docs);
+                }
+            });
+            let field_deprecated = attrs.common.deprecated.map(|deprecated| {
+                let tokens = deprecated_as_tokens(deprecated);
+                quote!(v.deprecated = #tokens;)
+            });
+
+            let type_overridden_attribute = attrs
+                .r#type
+                .as_ref()
+                .map(|_| quote!(v.attributes.insert("specta:type_override", true);));
+
+            Ok(quote!((#variant_name_str.into(), {
+                let mut v = #variant_value;
+                #variant_skip
+                #field_deprecated
+                #variant_docs
+                #runtime_attrs
+                #type_overridden_attribute
+                v
+            })))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    Ok(quote!({
+        let mut e = datatype::Enum::default();
+        e.variants = vec![#(#variant_types),*];
+        e.into()
+    }))
+}

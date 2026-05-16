@@ -1,0 +1,23 @@
+[package]
+name = "specta-kotlin"
+description = "Export your Rust types to Kotlin"
+version = "0.0.3"
+authors = ["Oscar Beaumont <oscar@otbeaumont.me>"]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/specta-rs/specta"
+documentation = "https://docs.rs/specta-kotlin/latest/specta-kotlin"
+keywords = ["async", "specta", "rspc", "kotlin", "typesafe"]
+categories = ["web-programming", "asynchronous"]
+readme = "../README.md"
+
+# /bin/sh RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+[package.metadata."docs.rs"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dependencies]
+specta = { version = "=2.0.0-rc.25", path = "../specta" }

@@ -1,0 +1,36 @@
+[package]
+name = "specta-jsonschema"
+description = "Export your Rust types to a JSON Schema"
+version = "0.0.3"
+authors = ["Oscar Beaumont <oscar@otbeaumont.me>"]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/specta-rs/specta"
+documentation = "https://docs.rs/specta-jsonschema/latest/specta-jsonschema"
+keywords = ["async", "specta", "rspc", "jsonschema", "typesafe"]
+categories = ["web-programming", "asynchronous"]
+readme = "../README.md"
+
+# /bin/sh RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+[package.metadata."docs.rs"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+specta = { version = "=2.0.0-rc.25", path = "../specta" }
+schemars = { version = "1.2", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+specta = { version = "=2.0.0-rc.25", path = "../specta", features = ["derive", "collect"] }
+specta-serde = { path = "../specta-serde" }
+specta-util = { path = "../specta-util", features = ["serde"] }
+insta = { version = "1", features = ["json"] }
