@@ -9,13 +9,5 @@
 	},
 	"search.exclude": {
 		"repos/**": true
-	},
-	"plugins": {
-		"continual-learning": {
-			"enabled": true
-		},
-		"svelte": {
-			"enabled": true
-		}
 	}
 }
