@@ -80,4 +80,4 @@ bun run bindings:check
 - Use root AGENTS precedence.
 - No implicit internal legacy assumptions.
 - Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.
-- For external API uncertainty, invoke `lib-research`.
+- For external API uncertainty, invoke `abb-library-research`.

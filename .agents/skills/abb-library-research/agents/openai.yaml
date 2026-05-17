@@ -1,0 +1,4 @@
+interface:
+  display_name: "ABB Library Research"
+  short_description: "Route ABB docs, Context7, refs, and installed APIs"
+  default_prompt: "Use $abb-library-research to validate external library behavior for ABB planning, implementation, review, or audit through Context7, vendored repos, and installed dependency truth."

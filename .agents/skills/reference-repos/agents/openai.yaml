@@ -1,4 +1,0 @@
-interface:
-  display_name: "Reference Repos"
-  short_description: "Use vendored frontend and boundary refs"
-  default_prompt: "Use $reference-repos to inspect the vendored source before changing ABB frontend or boundary code."

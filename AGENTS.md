@@ -29,8 +29,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
 - Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
-- Load global `lib-research` when external library/API behavior affects implementation or review findings.
-- Load `reference-repos` when vendored source under `repos/*` should inform Effect, Svelte, Tauri, Tauri plugins, Specta, tauri-specta, frontend stack, or TS↔Rust boundary work.
+- Load `abb-library-research` when external library/API behavior or vendored
+  `repos/*` source affects planning, implementation, review, or audit work.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
 - Load `release` when preparing or deciding release/version/changelog/tag/DMG work.
 
@@ -140,16 +140,17 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ## Tooling Preferences
 - Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Use legacy equivalents only when the modern tool is unavailable or inappropriate.
-- Documentation lookup: Use global `lib-research`.
+- Library/docs lookup: Use `abb-library-research` for ABB planning,
+  implementation, review, and audit.
 
-## Vendored Reference Repositories
+## Library And Reference Research
 
 External frontend and boundary-layer source lives under `repos/*` as squashed
 git subtrees for agent research.
 
-- Use `repos/*` as read-only reference material for related library behavior.
-- Prefer vendored source patterns over generated guesses when working with
-  Effect, Svelte, Tauri, Tauri plugins, Specta, or tauri-specta.
+- Use `abb-library-research` to route Context7/current docs, `repos/*`
+  reference source, and installed dependency truth.
+- Treat `repos/*` as read-only reference material for related library behavior.
 - Do not edit files under `repos/*` unless explicitly refreshing or patching a
   reference subtree.
 - Do not import from `repos/*`; application code uses normal package or crate
