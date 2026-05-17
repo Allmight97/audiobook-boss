@@ -370,4 +370,31 @@ describe('refreshApplicationsLink', () => {
 			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
 		);
 	});
+
+	it('returns skipped when reading an existing symlink is permission denied', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		mkdirSync(paths.canonicalAppPath, { recursive: true });
+		symlinkSync(
+			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
+			paths.applicationsLinkPath,
+			'dir',
+		);
+
+		const outcome = refreshApplicationsLink(paths, {
+			lstatSync,
+			mkdirSync,
+			readlinkSync: () => {
+				const error = new Error('operation not permitted') as NodeJS.ErrnoException;
+				error.code = 'EPERM';
+				throw error;
+			},
+			symlinkSync,
+			unlinkSync,
+		});
+		expect(outcome).toBe('skipped');
+		expect(readlinkSync(paths.applicationsLinkPath)).toBe(
+			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
+		);
+	});
 });

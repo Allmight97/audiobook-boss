@@ -304,10 +304,18 @@ export function refreshApplicationsLink(
 		return 'skipped';
 	}
 
-	const currentTarget = path.resolve(
-		path.dirname(paths.applicationsLinkPath),
-		fsOps.readlinkSync(paths.applicationsLinkPath),
-	);
+	let currentTarget: string;
+	try {
+		currentTarget = path.resolve(
+			path.dirname(paths.applicationsLinkPath),
+			fsOps.readlinkSync(paths.applicationsLinkPath),
+		);
+	} catch (error) {
+		if (isPermissionDeniedError(error)) {
+			return 'skipped';
+		}
+		throw error;
+	}
 	if (currentTarget === paths.canonicalAppPath) {
 		return 'skipped';
 	}
