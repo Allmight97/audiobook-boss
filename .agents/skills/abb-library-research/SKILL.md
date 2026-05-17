@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: ABB-specific library/docs and reference-source router. Use during Audiobook Boss planning, implementation, review, or audit when external API behavior, authenticated Context7 docs, squashed repos/* reference source, installed dependency surfaces, or Effect/Svelte/Tauri/Specta/tauri-specta behavior affects the work.
+description: ABB-specific library/docs and reference-source router. Use during Audiobook Boss planning, implementation, review, or audit when external API behavior, Context7/ctx7 MCP docs, squashed repos/* reference source, installed dependency surfaces, or Effect/Svelte/Tauri/Specta/tauri-specta behavior affects the work.
 ---
 
 # ABB Library Research
@@ -24,24 +24,24 @@ safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
 
 1. Locate ABB ownership first: nearest `AGENTS.md`, relevant docs/source/tests,
    dependency manifests, lockfiles, generated bindings, and active config.
-2. Use Context7 only when external library/API behavior is uncertain or
-   version-sensitive. Prefer the authenticated Context7 app connector when
-   available so usage appears on the Context7 dashboard.
-3. Save quota: use known library IDs when possible, ask one precise question,
-   and skip library resolution when the ID is already known.
-4. Confirm with `repos/*` for source-level patterns, tests, examples,
+2. Use Context7/ctx7 MCP only when external library/API behavior is uncertain
+   or version-sensitive. Use known library IDs when possible, ask one precise
+   question, and skip library resolution when the ID is already known.
+3. Confirm with `repos/*` for source-level patterns, tests, examples,
    permission schemas, and implementation details.
-5. Reconcile with ABB's installed/importable truth before implementation:
+4. Reconcile with ABB's installed/importable truth before implementation:
    `package.json`, `bun.lock`, `node_modules` declarations, Cargo lockfiles,
    generated schemas, and generated bindings.
 
-## Context7 Quota Discipline
+## Context7 Discipline
 
 - Known library ID plus one precise query is the default.
 - Do not run broad surveys or repeated resolve/query loops unless the user asks.
 - Avoid deep/research mode unless ordinary docs plus `repos/*` are insufficient.
-- If authenticated Context7 is degraded, keep moving with official docs,
-  `repos/*`, installed declarations, local generated docs, and `rg`.
+- Use `ctx7` CLI only when the user explicitly asks to diagnose Context7 tooling
+  or compare MCP behavior. Do not use CLI for ordinary ABB library research.
+- If Context7 is degraded, keep moving with official docs, `repos/*`, installed
+  declarations, local generated docs, and `rg`.
 
 ## Planning Mode
 
@@ -71,17 +71,18 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 ## Route Map
 
 - Effect workflow, typed errors, services, layers, scopes, streams, schedules,
-  tests: Context7 Effect docs such as `/llmstxt/effect_website_llms_txt` for
-  usage guidance or `/effect-ts/effect` for API/source examples, then
-  `repos/effect/packages/effect`, then ABB dependency state.
+  tests: Context7/ctx7 MCP Effect docs such as
+  `/llmstxt/effect_website_llms_txt` for usage guidance or `/effect-ts/effect`
+  for API/source examples, then `repos/effect/packages/effect`, then ABB
+  dependency state.
 - Svelte 5 components, runes, events, stores, compiler/runtime behavior:
-  Context7 Svelte docs, then `repos/svelte/packages/svelte` and targeted tests,
-  then installed `svelte` declarations/version.
+  Context7/ctx7 MCP Svelte docs, then `repos/svelte/packages/svelte` and
+  targeted tests, then installed `svelte` declarations/version.
 - Tauri core JS/Rust APIs, commands, events, runtime behavior:
-  Context7 Tauri docs, then `repos/tauri/packages/api`,
+  Context7/ctx7 MCP Tauri docs, then `repos/tauri/packages/api`,
   `repos/tauri/crates/tauri`, and `repos/tauri/examples`, then installed
   `@tauri-apps/*` or Cargo surfaces.
-- Tauri plugins: Context7 Tauri plugins docs, then
+- Tauri plugins: Context7/ctx7 MCP Tauri plugins docs, then
   `repos/tauri-plugins/plugins/<plugin-name>` and examples, then installed
   plugin declarations and `src-tauri/capabilities`.
 - Specta type export behavior: Context7/current docs if available, then
@@ -90,9 +91,7 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 - Tauri/Specta integration: Context7/current docs if available, then
   `repos/tauri-specta` source/tests/examples, then ABB generated binding checks.
 
-## Subtree Refreshes
-
-Use subtree refreshes only when explicitly asked:
+## Subtree Refreshes (only when requested)
 
 ```bash
 git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
