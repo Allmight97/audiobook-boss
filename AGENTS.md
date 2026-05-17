@@ -148,23 +148,23 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ## Library And Reference Research
 
-External frontend and boundary-layer source lives under `repos/*` as squashed
-git subtrees for agent research.
+Use `abb-library-research` when ABB planning, implementation, review, or audit
+depends on external library behavior.
 
-- Use `abb-library-research` to route Context7/current docs, `repos/*`
-  reference source, and installed dependency truth.
-- Treat it as a supporting router, not a replacement for domain skills such as
-  metadata, path safety, IPC, job lifecycle, dependency maintenance, or release.
-- Treat `repos/*` as read-only reference material for related library behavior.
-- Do not edit files under `repos/*` unless explicitly refreshing or patching a
-  reference subtree.
-- Do not import from `repos/*`; application code uses normal package or crate
-  dependencies.
-- Use ABB code and docs to locate owners, constraints, and tests; do not treat
-  current ABB shape as final design authority when better source-backed library
-  patterns expose a stronger route.
-- Upstream `AGENTS.md` files inside vendored repos describe upstream internals
-  only and do not override ABB application ownership.
+Evidence ladder:
+
+1. ABB owner surface: locate boundaries, constraints, tests, and installed
+   dependency gates.
+2. Context7/current docs: confirm current public API behavior when uncertainty
+   matters.
+3. `repos/*`: inspect squashed upstream source, tests, examples, permissions,
+   and implementation patterns.
+4. Installed ABB dependencies: decide what can actually be imported or relied on.
+
+`repos/*` is read-only reference material. Do not import from it, and do not edit
+it except when explicitly refreshing or patching a reference subtree. Upstream
+`AGENTS.md` files inside `repos/*` describe upstream internals only; they do not
+override ABB application ownership.
 
 ## Done Criteria
 

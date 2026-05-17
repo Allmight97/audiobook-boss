@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: ABB-specific library/docs and reference-source router. Use during Audiobook Boss planning, implementation, review, or audit when external API behavior, Context7 docs, vendored repos/* source, installed dependency surfaces, or Effect/Svelte/Tauri/Specta/tauri-specta behavior affects the work.
+description: ABB-specific library/docs and reference-source router. Use during Audiobook Boss planning, implementation, review, or audit when external API behavior, authenticated Context7 docs, squashed repos/* reference source, installed dependency surfaces, or Effect/Svelte/Tauri/Specta/tauri-specta behavior affects the work.
 ---
 
 # ABB Library Research
@@ -12,32 +12,36 @@ patterns. Optimize for implementation-ready answers, not broad research.
 
 ABB is current-state evidence and the owning integration surface, not the final
 authority on what should be built. Use ABB to locate boundaries, constraints,
-tests, and product intent; use well-regarded libraries, current docs, vendored
-source, and installed dependency truth to challenge, improve, or validate the
-plan.
+tests, and product intent; use well-regarded libraries, current docs, `repos/*`
+reference source, and installed dependency truth to challenge, improve, or
+validate the plan.
 
 This is a supporting router for planning and implementation agents. It grounds
 work in real sources without absorbing domain skills such as metadata, path
 safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
 
-## Start Here
+## Source Ladder
 
-1. Name the ABB owner surface and dependency gate first: `AGENTS.md`, nearest
-   nested `AGENTS.md`, relevant docs/source/tests, `package.json`, lockfiles,
-   generated bindings, and active capability/config files.
-2. Use Context7 for fast public-doc discovery, examples, and planning context.
-3. Use `repos/*` for source-level confirmation, tests, examples, permission
-   schemas, and implementation patterns.
-4. Reconcile against ABB's installed surface before importing or mirroring
-   anything:
-   `package.json`, `bun.lock`, `node_modules` type declarations, Cargo
-   lockfiles, generated schemas, or generated bindings.
-5. Use current official docs, release notes, changelogs, advisories, or
-   maintainer repos when the claim is version-sensitive, security-sensitive, or
-   likely to have changed.
+1. Locate ABB ownership first: nearest `AGENTS.md`, relevant docs/source/tests,
+   dependency manifests, lockfiles, generated bindings, and active config.
+2. Use Context7 only when external library/API behavior is uncertain or
+   version-sensitive. Prefer the authenticated Context7 app connector when
+   available so usage appears on the Context7 dashboard.
+3. Save quota: use known library IDs when possible, ask one precise question,
+   and skip library resolution when the ID is already known.
+4. Confirm with `repos/*` for source-level patterns, tests, examples,
+   permission schemas, and implementation details.
+5. Reconcile with ABB's installed/importable truth before implementation:
+   `package.json`, `bun.lock`, `node_modules` declarations, Cargo lockfiles,
+   generated schemas, and generated bindings.
 
-If Context7 or web tools are degraded, keep moving with official sites,
-vendored source, installed declarations, local generated docs, and `rg`.
+## Context7 Quota Discipline
+
+- Known library ID plus one precise query is the default.
+- Do not run broad surveys or repeated resolve/query loops unless the user asks.
+- Avoid deep/research mode unless ordinary docs plus `repos/*` are insufficient.
+- If authenticated Context7 is degraded, keep moving with official docs,
+  `repos/*`, installed declarations, local generated docs, and `rg`.
 
 ## Planning Mode
 

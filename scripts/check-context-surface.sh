@@ -13,6 +13,7 @@ active_files=(
   "docs/api-map.md"
   "docs/unsafe-code-register.md"
   ".codex/hooks.json"
+  ".agents/settings.local.json"
 )
 
 retained_skills=(
@@ -54,6 +55,7 @@ stale_doc_pattern='docs/README\.md|docs/AGENTS\.md|docs/agent-execution\.md|docs
 stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
 stale_skill_pattern='lib-research|reference-repos|tauri-command-conventions|Tauri Command Conventions|Ref documentation|ref_search_documentation|global lib-research'
+stale_context7_tool_pattern='mcp__plugin_context7_context7|mcp__context7__'
 
 append_unique_paths() {
   local dest_name="$1"
@@ -153,6 +155,7 @@ surface_paths=(
   "package.json"
   ".codex/hooks.json"
   ".agents/hooks.json"
+  ".agents/settings.local.json"
   "scripts/checks.sh"
   "scripts/check-context-surface.sh"
   "src/AGENTS.md"
@@ -171,6 +174,7 @@ legacy_surface_paths=(
   "package.json"
   ".codex/hooks.json"
   ".agents/hooks.json"
+  ".agents/settings.local.json"
   "scripts/checks.sh"
   "src/AGENTS.md"
   ".agents/skills"
@@ -211,6 +215,7 @@ text_surface_paths=(
   "docs/fallbacks.md"
   "docs/api-map.md"
   "docs/unsafe-code-register.md"
+  ".agents/settings.local.json"
   "src/AGENTS.md"
 )
 
@@ -225,6 +230,7 @@ append_unique_paths existing_legacy_surface_paths legacy_surface_paths
 ! rg -n "$stale_check_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$stale_tracking_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$stale_skill_pattern" "${existing_text_surface_paths[@]}" >/dev/null
+! rg -n "$stale_context7_tool_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n 'docs/decisions' "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$removed_surface_pattern" "${existing_legacy_surface_paths[@]}" >/dev/null
 
