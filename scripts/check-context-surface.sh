@@ -6,10 +6,12 @@ cd "$repo_root"
 
 active_files=(
   "README.md"
+  "AGENTS.md"
   "docs/system-map.md"
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
   "docs/api-map.md"
+  "docs/unsafe-code-register.md"
   ".codex/hooks.json"
 )
 
@@ -18,8 +20,11 @@ retained_skills=(
   "audiobook-metadata"
   "decision-alignment"
   "contract-guardrails"
+  "dependency-maintenance"
   "job-registry-and-progress"
   "path-security-validation"
+  "release"
+  "resource-lifetime-audit"
 )
 
 retained_hook_files=(
@@ -39,6 +44,7 @@ removed_skills=(
   "pull"
   "push"
   "release-changelog"
+  "reference-repos"
   "repomix-explorer"
   "task-tracker"
   "tauri-command-conventions"
@@ -47,6 +53,7 @@ removed_skills=(
 stale_doc_pattern='docs/README\.md|docs/AGENTS\.md|docs/agent-execution\.md|docs/browser-harness\.md|docs/skills-audit\.md|docs/specs/technical-reference\.md|docs/verification\.md|docs/workloop\.md'
 stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
+stale_skill_pattern='lib-research|reference-repos|tauri-command-conventions|Tauri Command Conventions|Ref documentation|ref_search_documentation|global lib-research'
 
 append_unique_paths() {
   local dest_name="$1"
@@ -92,7 +99,12 @@ for file in "${active_files[@]}"; do
   }
 done
 
-find . -name 'AGENTS.md' -type f ! -path './.git/*' | grep -q . || {
+find . \
+  -path './.git' -prune -o \
+  -path './repos' -prune -o \
+  -path './target' -prune -o \
+  -path './node_modules' -prune -o \
+  -name 'AGENTS.md' -type f -print | grep -q . || {
   echo "[context-surface] Missing AGENTS.md files" >&2
   exit 1
 }
@@ -137,6 +149,7 @@ surface_paths=(
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
   "docs/api-map.md"
+  "docs/unsafe-code-register.md"
   "package.json"
   ".codex/hooks.json"
   ".agents/hooks.json"
@@ -154,6 +167,7 @@ legacy_surface_paths=(
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
   "docs/api-map.md"
+  "docs/unsafe-code-register.md"
   "package.json"
   ".codex/hooks.json"
   ".agents/hooks.json"
@@ -168,6 +182,27 @@ removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|h
 existing_surface_paths=()
 append_unique_paths existing_surface_paths surface_paths spec_surface_paths
 
+agent_surface_paths=()
+while IFS= read -r file; do
+  agent_surface_paths+=("$file")
+done < <(
+  find . \
+    -path './.git' -prune -o \
+    -path './repos' -prune -o \
+    -path './target' -prune -o \
+    -path './node_modules' -prune -o \
+    -name 'AGENTS.md' -type f -print | sort
+)
+
+skill_text_paths=()
+if [[ -d ".agents/skills" ]]; then
+  while IFS= read -r file; do
+    skill_text_paths+=("$file")
+  done < <(
+    find ".agents/skills" -type f \( -name 'SKILL.md' -o -name '*.yaml' -o -path '*/references/*.md' \) | sort
+  )
+fi
+
 text_surface_paths=(
   "README.md"
   "AGENTS.md"
@@ -175,11 +210,12 @@ text_surface_paths=(
   "docs/ubiquitous-language.md"
   "docs/fallbacks.md"
   "docs/api-map.md"
+  "docs/unsafe-code-register.md"
   "src/AGENTS.md"
 )
 
 existing_text_surface_paths=()
-append_unique_paths existing_text_surface_paths text_surface_paths spec_surface_paths
+append_unique_paths existing_text_surface_paths text_surface_paths agent_surface_paths skill_text_paths spec_surface_paths
 
 existing_legacy_surface_paths=()
 append_unique_paths existing_legacy_surface_paths legacy_surface_paths
@@ -188,6 +224,7 @@ append_unique_paths existing_legacy_surface_paths legacy_surface_paths
 ! rg -n "$stale_doc_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$stale_check_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$stale_tracking_pattern" "${existing_text_surface_paths[@]}" >/dev/null
+! rg -n "$stale_skill_pattern" "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n 'docs/decisions' "${existing_text_surface_paths[@]}" >/dev/null
 ! rg -n "$removed_surface_pattern" "${existing_legacy_surface_paths[@]}" >/dev/null
 

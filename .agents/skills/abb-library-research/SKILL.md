@@ -67,7 +67,8 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 ## Route Map
 
 - Effect workflow, typed errors, services, layers, scopes, streams, schedules,
-  tests: Context7 `/effect-ts/effect` or effect.website docs, then
+  tests: Context7 Effect docs such as `/llmstxt/effect_website_llms_txt` for
+  usage guidance or `/effect-ts/effect` for API/source examples, then
   `repos/effect/packages/effect`, then ABB dependency state.
 - Svelte 5 components, runes, events, stores, compiler/runtime behavior:
   Context7 Svelte docs, then `repos/svelte/packages/svelte` and targeted tests,

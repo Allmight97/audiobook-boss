@@ -33,6 +33,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `abb-library-research` when external library/API behavior or vendored
   `repos/*` source affects planning, implementation, review, or audit work.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
+- Load `resource-lifetime-audit` when hunting file-handle, temp-file, process,
+  cancellation, reopen, replace, or cleanup hazards.
 - Load `release` when preparing or deciding release/version/changelog/tag/DMG work.
 
 ## Architecture Orientation
@@ -151,11 +153,16 @@ git subtrees for agent research.
 
 - Use `abb-library-research` to route Context7/current docs, `repos/*`
   reference source, and installed dependency truth.
+- Treat it as a supporting router, not a replacement for domain skills such as
+  metadata, path safety, IPC, job lifecycle, dependency maintenance, or release.
 - Treat `repos/*` as read-only reference material for related library behavior.
 - Do not edit files under `repos/*` unless explicitly refreshing or patching a
   reference subtree.
 - Do not import from `repos/*`; application code uses normal package or crate
   dependencies.
+- Use ABB code and docs to locate owners, constraints, and tests; do not treat
+  current ABB shape as final design authority when better source-backed library
+  patterns expose a stronger route.
 - Upstream `AGENTS.md` files inside vendored repos describe upstream internals
   only and do not override ABB application ownership.
 
