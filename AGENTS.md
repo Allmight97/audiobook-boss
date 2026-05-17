@@ -24,11 +24,12 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 ### Skill Trigger Policy
 
 - Load `dependency-maintenance` when auditing or updating Bun, JS packages, Rust/Cargo dependencies, Rust toolchains, Homebrew build tools, GitHub Actions pins, or supply-chain dependency guardrails.
-- Load `contract-guardrails` for TS↔Rust command/event shape changes.
+- Load `contract-guardrails` for Tauri runtime boundary changes: commands,
+  events, plugin adapters, `tauriClient`, generated bindings, or TS↔Rust shape
+  changes.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
-- Load `tauri-command-conventions` when adding/refactoring Tauri command handlers.
 - Load `abb-library-research` when external library/API behavior or vendored
   `repos/*` source affects planning, implementation, review, or audit work.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.

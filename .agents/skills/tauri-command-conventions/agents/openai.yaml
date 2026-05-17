@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tauri Command Conventions"
-  short_description: "Implement stable command and IPC boundaries"
-  default_prompt: "Use $tauri-command-conventions to add or refactor Tauri commands with stable IPC registration."

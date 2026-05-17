@@ -14,12 +14,12 @@ active_files=(
 )
 
 retained_skills=(
+  "abb-library-research"
   "audiobook-metadata"
   "decision-alignment"
   "contract-guardrails"
   "job-registry-and-progress"
   "path-security-validation"
-  "tauri-command-conventions"
 )
 
 retained_hook_files=(
@@ -41,6 +41,7 @@ removed_skills=(
   "release-changelog"
   "repomix-explorer"
   "task-tracker"
+  "tauri-command-conventions"
 )
 
 stale_doc_pattern='docs/README\.md|docs/AGENTS\.md|docs/agent-execution\.md|docs/browser-harness\.md|docs/skills-audit\.md|docs/specs/technical-reference\.md|docs/verification\.md|docs/workloop\.md'

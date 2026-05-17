@@ -8,6 +8,18 @@ description: ABB-specific library/docs and reference-source router. Use during A
 Use this skill when ABB work depends on external library behavior or source
 patterns. Optimize for implementation-ready answers, not broad research.
 
+## Posture
+
+ABB is current-state evidence and the owning integration surface, not the final
+authority on what should be built. Use ABB to locate boundaries, constraints,
+tests, and product intent; use well-regarded libraries, current docs, vendored
+source, and installed dependency truth to challenge, improve, or validate the
+plan.
+
+This is a supporting router for planning and implementation agents. It grounds
+work in real sources without absorbing domain skills such as metadata, path
+safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
+
 ## Start Here
 
 1. Name the ABB owner surface and dependency gate first: `AGENTS.md`, nearest
