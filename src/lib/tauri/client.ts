@@ -1,5 +1,9 @@
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
-import { open as tauriOpen, type OpenDialogOptions } from '@tauri-apps/plugin-dialog';
+import {
+	open as tauriOpen,
+	type OpenDialogOptions,
+	type OpenDialogReturn,
+} from '@tauri-apps/plugin-dialog';
 import { openPath as tauriOpenPath, openUrl as tauriOpenUrl } from '@tauri-apps/plugin-opener';
 
 import { events as generatedEvents } from '../generated/tauri';
@@ -30,13 +34,6 @@ type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
 type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
-type OpenDialogReturn<T extends OpenDialogOptions> = T['directory'] extends true
-	? T['multiple'] extends true
-		? string[] | null
-		: string | null
-	: T['multiple'] extends true
-		? string[] | null
-		: string | null;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
 	return generatedEvents.processingProgress.listen((event) => {

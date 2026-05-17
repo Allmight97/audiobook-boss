@@ -20,6 +20,22 @@ Start from ABB ownership first, then inspect the matching vendored source.
 - If current release behavior may have changed, combine this skill with global
   `lib-research` or current official docs.
 
+## Validation Ladder
+
+When a library detail affects ABB implementation or review, validate in this
+order and name any mismatch:
+
+1. Context7/current official docs for the library's intended public behavior.
+2. The matching squashed reference repo under `repos/*` for source-level API
+   shape, tests, permission schemas, and examples.
+3. ABB's installed dependency surface (`package.json`, `bun.lock`,
+   `node_modules` type declarations, Cargo lockfiles, or generated schemas) for
+   what the current app can actually import.
+
+Prefer exported library types from installed packages over copying conditional
+types or mirrors from `repos/*`. Use local mirrors only when the dependency does
+not export the needed type and the mirror is covered by a focused contract test.
+
 ## Route By Question
 
 - Effect workflow, typed errors, services, layers, scopes, streams, schedules,
