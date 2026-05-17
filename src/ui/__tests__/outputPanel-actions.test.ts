@@ -17,7 +17,7 @@ import { tauriClient } from '../../lib/tauri/client';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		open: vi.fn(),
+		openDirectory: vi.fn(),
 	},
 }));
 
@@ -70,7 +70,7 @@ describe('output panel actions', () => {
 	});
 
 	it('normalizes a selected output directory and refreshes the preview', async () => {
-		vi.mocked(tauriClient.open).mockResolvedValueOnce(['/books/out']);
+		vi.mocked(tauriClient.openDirectory).mockResolvedValueOnce('/books/out');
 
 		await browseOutputDirectory();
 
@@ -79,7 +79,7 @@ describe('output panel actions', () => {
 	});
 
 	it('ignores cancelled output directory selection', async () => {
-		vi.mocked(tauriClient.open).mockResolvedValueOnce(null);
+		vi.mocked(tauriClient.openDirectory).mockResolvedValueOnce(null);
 
 		await browseOutputDirectory();
 

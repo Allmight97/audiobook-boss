@@ -46,13 +46,6 @@ const AUTO_LABEL_BASE = 'Auto';
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
 
-const normalizeDialogPath = (selected: null | string | string[]): string | null =>
-	typeof selected === 'string'
-		? selected
-		: Array.isArray(selected) && selected.length > 0
-			? (selected[0] ?? null)
-			: null;
-
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (flavor !== 'auto') return flavor;
 	if (encoderPanelState.availability?.fdkAvailable) return 'fdk_he_aac';
@@ -340,16 +333,13 @@ export const handleToolchainPathCommit = (): void => {
 
 export const handleToolchainBrowse = async (): Promise<void> => {
 	try {
-		const selected = await tauriClient.open({
-			multiple: false,
-			directory: false,
+		const selected = await tauriClient.openFile({
 			title: 'Select ffmpeg executable',
 		});
-		const normalized = normalizeDialogPath(selected);
-		if (!normalized) {
+		if (!selected) {
 			return;
 		}
-		setExternalToolchainOverridePath(normalized);
+		setExternalToolchainOverridePath(selected);
 		syncAfterStateChange();
 		await hydrateAvailability('refresh');
 	} catch (error) {

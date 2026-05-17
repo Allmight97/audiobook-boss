@@ -30,21 +30,12 @@ function resetTemplatePreviewDebounce(): void {
 
 export async function browseOutputDirectory(): Promise<void> {
 	try {
-		const selectedPath = await tauriClient.open({
-			directory: true,
-			multiple: false,
+		const selectedPath = await tauriClient.openDirectory({
 			title: 'Select Output Directory',
 		});
 
-		const normalized =
-			typeof selectedPath === 'string'
-				? selectedPath
-				: Array.isArray(selectedPath) && selectedPath.length > 0
-					? selectedPath[0]
-					: null;
-
-		if (normalized) {
-			updateOutputDirectory(normalized);
+		if (selectedPath) {
+			updateOutputDirectory(selectedPath);
 			updateOutputPath('final');
 		}
 	} catch (error) {

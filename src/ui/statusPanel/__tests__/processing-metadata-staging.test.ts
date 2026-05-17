@@ -8,7 +8,7 @@ const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
 	processAudiobookFilesMock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
-	openExternalMock: vi.fn(),
+	openPathMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 		preflightProcessingPlan: context.preflightProcessingPlanMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		readAudioMetadata: context.readAudioMetadataMock,
-		openExternal: context.openExternalMock,
+		openPath: context.openPathMock,
 	},
 }));
 
@@ -95,7 +95,7 @@ describe('startProcessing metadata staging', () => {
 		context.preflightProcessingPlanMock.mockReset();
 		context.processAudiobookFilesMock.mockReset();
 		context.readAudioMetadataMock.mockReset();
-		context.openExternalMock.mockReset();
+		context.openPathMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
@@ -461,8 +461,8 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext(), { previewSeconds: 30 });
 
-		expect(context.openExternalMock).toHaveBeenCalledTimes(1);
-		expect(context.openExternalMock).toHaveBeenCalledWith('/tmp/out/one.preview.m4b');
+		expect(context.openPathMock).toHaveBeenCalledTimes(1);
+		expect(context.openPathMock).toHaveBeenCalledWith('/tmp/out/one.preview.m4b');
 		expect(context.updateOutputPathMock).toHaveBeenNthCalledWith(1, 'preview');
 		expect(context.updateOutputPathMock).toHaveBeenLastCalledWith('final');
 	});
@@ -491,7 +491,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext(), { previewSeconds: 30 });
 
-		expect(context.openExternalMock).not.toHaveBeenCalled();
+		expect(context.openPathMock).not.toHaveBeenCalled();
 	});
 
 	it('does not auto-open preview for failed result entries', async () => {
@@ -512,6 +512,6 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext(), { previewSeconds: 30 });
 
-		expect(context.openExternalMock).not.toHaveBeenCalled();
+		expect(context.openPathMock).not.toHaveBeenCalled();
 	});
 });

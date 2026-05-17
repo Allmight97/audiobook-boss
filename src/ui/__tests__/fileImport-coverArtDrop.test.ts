@@ -20,14 +20,14 @@ type DragDropListener = (event: { payload: DragDropPayload }) => void;
 const {
 	analyzeAudioFilesMock,
 	loadCoverArtFileMock,
-	openMock,
+	openFilesMock,
 	pushStatusPanelTransientStatusMock,
 	readAudioMetadataMock,
 	listeners,
 } = vi.hoisted(() => ({
 	analyzeAudioFilesMock: vi.fn(),
 	loadCoverArtFileMock: vi.fn(),
-	openMock: vi.fn(),
+	openFilesMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
 	listeners: {} as Record<'tauri://drag-drop', DragDropListener>,
@@ -40,7 +40,7 @@ vi.mock('../../lib/tauri/client', () => ({
 				listeners[event] = cb;
 			}
 		}),
-		open: openMock,
+		openFiles: openFilesMock,
 		analyzeAudioFiles: analyzeAudioFilesMock,
 		loadCoverArtFile: loadCoverArtFileMock,
 		readAudioMetadata: readAudioMetadataMock,
@@ -101,7 +101,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		analyzeAudioFilesMock.mockReset();
 		loadCoverArtFileMock.mockReset();
 		loadCoverArtFileMock.mockResolvedValue(null);
-		openMock.mockReset();
+		openFilesMock.mockReset();
 		pushStatusPanelTransientStatusMock.mockReset();
 		readAudioMetadataMock.mockReset();
 		readAudioMetadataMock.mockResolvedValue({});
@@ -158,16 +158,14 @@ describe('File import drop vs cover art drop isolation', () => {
 	});
 
 	it('uses the expanded supported audio list in the file picker filter', async () => {
-		openMock.mockResolvedValue([]);
+		openFilesMock.mockResolvedValue([]);
 
 		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;
 		expect(dropZone).toBeTruthy();
 		dropZone?.click();
 		await flushAsync();
 
-		expect(openMock).toHaveBeenCalledWith({
-			multiple: true,
-			directory: false,
+		expect(openFilesMock).toHaveBeenCalledWith({
 			filters: [
 				{
 					name: 'Audio Files',
@@ -247,7 +245,7 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 
-		openMock.mockResolvedValueOnce(['/tmp/book-b.mp3']);
+		openFilesMock.mockResolvedValueOnce(['/tmp/book-b.mp3']);
 		analyzeAudioFilesMock.mockResolvedValueOnce(
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-b.mp3')], {
 				totalDuration: 2,
@@ -286,7 +284,7 @@ describe('File import drop vs cover art drop isolation', () => {
 				},
 			),
 		);
-		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3', '/tmp/book-b.mp3']);
+		openFilesMock.mockResolvedValueOnce(['/tmp/book-a.mp3', '/tmp/book-b.mp3']);
 
 		document
 			.querySelector('.drop-zone-header')
@@ -312,7 +310,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		analyzeAudioFilesMock.mockResolvedValueOnce(
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
 		);
-		openMock.mockResolvedValueOnce(['/tmp/book-a.mp3']);
+		openFilesMock.mockResolvedValueOnce(['/tmp/book-a.mp3']);
 
 		document
 			.querySelector('.drop-zone-header')

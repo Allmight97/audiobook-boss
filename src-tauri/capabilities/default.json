@@ -7,6 +7,10 @@
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "dialog:allow-open",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }]
+    }
   ]
 }

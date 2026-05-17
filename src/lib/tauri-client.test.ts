@@ -40,10 +40,70 @@ describe('tauriClient', () => {
 		});
 	});
 
-	describe('openExternal', () => {
+	describe('dialog helpers', () => {
 		it('should be importable', async () => {
 			const { tauriClient } = await import('./tauri/client');
-			expect(typeof tauriClient.openExternal).toBe('function');
+			expect(typeof tauriClient.openFile).toBe('function');
+			expect(typeof tauriClient.openFiles).toBe('function');
+			expect(typeof tauriClient.openDirectory).toBe('function');
+		});
+
+		it('sets single-file dialog options at the boundary', async () => {
+			const { open } = await import('@tauri-apps/plugin-dialog');
+			const mockOpen = vi.mocked(open);
+			mockOpen.mockResolvedValueOnce('/tmp/book.m4b');
+
+			const { tauriClient } = await import('./tauri/client');
+			await expect(tauriClient.openFile({ title: 'Select file' })).resolves.toBe('/tmp/book.m4b');
+
+			expect(mockOpen).toHaveBeenLastCalledWith({
+				title: 'Select file',
+				multiple: false,
+				directory: false,
+			});
+		});
+
+		it('sets multi-file dialog options at the boundary', async () => {
+			const { open } = await import('@tauri-apps/plugin-dialog');
+			const mockOpen = vi.mocked(open);
+			mockOpen.mockResolvedValueOnce(['/tmp/a.m4b', '/tmp/b.m4b']);
+
+			const { tauriClient } = await import('./tauri/client');
+			await expect(tauriClient.openFiles()).resolves.toEqual(['/tmp/a.m4b', '/tmp/b.m4b']);
+
+			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: true, directory: false });
+		});
+
+		it('sets directory dialog options at the boundary', async () => {
+			const { open } = await import('@tauri-apps/plugin-dialog');
+			const mockOpen = vi.mocked(open);
+			mockOpen.mockResolvedValueOnce('/tmp/output');
+
+			const { tauriClient } = await import('./tauri/client');
+			await expect(tauriClient.openDirectory()).resolves.toBe('/tmp/output');
+
+			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: false, directory: true });
+		});
+	});
+
+	describe('opener helpers', () => {
+		it('should be importable', async () => {
+			const { tauriClient } = await import('./tauri/client');
+			expect(typeof tauriClient.openPath).toBe('function');
+			expect(typeof tauriClient.openUrl).toBe('function');
+		});
+
+		it('routes paths and URLs to distinct Tauri opener commands', async () => {
+			const { openPath, openUrl } = await import('@tauri-apps/plugin-opener');
+			const mockOpenPath = vi.mocked(openPath);
+			const mockOpenUrl = vi.mocked(openUrl);
+
+			const { tauriClient } = await import('./tauri/client');
+			await tauriClient.openPath('/tmp/preview.m4b');
+			await tauriClient.openUrl('https://example.com/login');
+
+			expect(mockOpenPath).toHaveBeenLastCalledWith('/tmp/preview.m4b', undefined);
+			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login', undefined);
 		});
 	});
 });

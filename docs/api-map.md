@@ -79,9 +79,20 @@ Source files:
 
 ## Tauri Plugins Used At Runtime
 
-- Dialog open: `@tauri-apps/plugin-dialog` via `tauriClient.open`
-- External opener: `@tauri-apps/plugin-opener` via `tauriClient.openExternal`
+- Raw dialog open: `@tauri-apps/plugin-dialog` via `tauriClient.open`
+- Typed dialog helpers: `tauriClient.openFile`, `tauriClient.openFiles`, and
+  `tauriClient.openDirectory`
+- Path opener: `@tauri-apps/plugin-opener` via `tauriClient.openPath`
+- URL opener: `@tauri-apps/plugin-opener` via `tauriClient.openUrl`
 - Generic event listen channel: `@tauri-apps/api/event` via `tauriClient.listen` for events outside the typed processing event pair.
+
+```text
+UI caller
+  -> tauriClient
+     -> openFile/openFiles/openDirectory -> plugin-dialog open
+     -> openPath                       -> plugin-opener open_path
+     -> openUrl                        -> plugin-opener open_url (HTTPS only)
+```
 
 ## Verification Pointers
 

@@ -24,7 +24,9 @@ vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		saveMetadataBatch: context.saveMetadataBatchMock,
 		listen: vi.fn(async () => () => {}),
-		open: vi.fn(),
+		openFiles: vi.fn(),
+		openFile: vi.fn(),
+		openDirectory: vi.fn(),
 		analyzeAudioFiles: vi.fn(async () => ({
 			files: [],
 			totalDuration: 0,

@@ -1,6 +1,6 @@
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open as tauriOpen, type OpenDialogOptions } from '@tauri-apps/plugin-dialog';
-import { openPath as tauriOpenExternal } from '@tauri-apps/plugin-opener';
+import { openPath as tauriOpenPath, openUrl as tauriOpenUrl } from '@tauri-apps/plugin-opener';
 
 import { events as generatedEvents } from '../generated/tauri';
 import {
@@ -29,6 +29,14 @@ type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
 type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
+type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
+type OpenDialogReturn<T extends OpenDialogOptions> = T['directory'] extends true
+	? T['multiple'] extends true
+		? string[] | null
+		: string | null
+	: T['multiple'] extends true
+		? string[] | null
+		: string | null;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
 	return generatedEvents.processingProgress.listen((event) => {
@@ -67,6 +75,26 @@ function listen(
 		event,
 		handler as (event: { payload: ApplicationEvents[RuntimeEventName] }) => void,
 	);
+}
+
+function openDialog<T extends OpenDialogOptions>(options: T): Promise<OpenDialogReturn<T>>;
+function openDialog(): Promise<string | string[] | null>;
+function openDialog<T extends OpenDialogOptions>(
+	options?: T,
+): Promise<OpenDialogReturn<T> | string | string[] | null> {
+	return tauriOpen(options) as Promise<OpenDialogReturn<T>>;
+}
+
+function openFile(options?: DialogOptions): Promise<string | null> {
+	return tauriOpen({ ...options, multiple: false, directory: false } as const);
+}
+
+function openFiles(options?: DialogOptions): Promise<string[] | null> {
+	return tauriOpen({ ...options, multiple: true, directory: false } as const);
+}
+
+function openDirectory(options?: DialogOptions): Promise<string | null> {
+	return tauriOpen({ ...options, multiple: false, directory: true } as const);
 }
 
 export const tauriClient = {
@@ -148,8 +176,12 @@ export const tauriClient = {
 			? commandSpecs.cancel_processing()
 			: commandSpecs.cancel_processing({ job_id: jobId }),
 	listen,
-	open: (options?: OpenDialogOptions): Promise<null | string | string[]> => tauriOpen(options),
-	openExternal: (path: string): Promise<void> => tauriOpenExternal(path),
+	open: openDialog,
+	openFile,
+	openFiles,
+	openDirectory,
+	openPath: (path: string, openWith?: string): Promise<void> => tauriOpenPath(path, openWith),
+	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
 };
 
 export const TAURI_COMMAND_NAMES = Object.freeze(

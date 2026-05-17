@@ -29,9 +29,7 @@ export function onClearCoverArt(): void {
  */
 export async function onLoadCoverArtFromFilePicker(): Promise<void> {
 	try {
-		const selectedFile = await tauriClient.open({
-			multiple: false,
-			directory: false,
+		const selectedFile = await tauriClient.openFile({
 			title: 'Select Cover Art Image',
 			filters: [
 				{
@@ -41,7 +39,7 @@ export async function onLoadCoverArtFromFilePicker(): Promise<void> {
 			],
 		});
 
-		if (!selectedFile || typeof selectedFile !== 'string') {
+		if (!selectedFile) {
 			return;
 		}
 

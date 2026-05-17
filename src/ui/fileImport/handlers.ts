@@ -108,9 +108,7 @@ export async function handleClickToSelect(existingFiles: AudioFile[] = []): Prom
 	}
 
 	try {
-		const selected = await tauriClient.open({
-			multiple: true,
-			directory: false,
+		const selected = await tauriClient.openFiles({
 			filters: [
 				{
 					name: 'Audio Files',
@@ -121,11 +119,9 @@ export async function handleClickToSelect(existingFiles: AudioFile[] = []): Prom
 
 		if (Array.isArray(selected) && selected.length > 0) {
 			await processFilePaths(selected, existingFiles);
-		} else if (typeof selected === 'string') {
-			await processFilePaths([selected], existingFiles);
 		}
 	} catch (error) {
-		setFileImportError(`Failed to tauriClient.open file dialog: ${error}`);
+		setFileImportError(`Failed to open file dialog: ${error}`);
 	}
 }
 

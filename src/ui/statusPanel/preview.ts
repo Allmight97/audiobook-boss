@@ -31,7 +31,7 @@ export async function openGeneratedPreviewIfSingle(result: ProcessCommandResult)
 	console.log(`Preview file created at: ${previewPath} (${seconds}s)`);
 
 	try {
-		await tauriClient.openExternal(previewPath);
+		await tauriClient.openPath(previewPath);
 	} catch (error) {
 		console.warn('Failed to open preview file automatically:', error);
 	}

@@ -15,7 +15,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		listAvailableEncoders: context.listAvailableEncodersMock,
 		refreshExternalToolchain: context.refreshExternalToolchainMock,
-		open: vi.fn(),
+		openFile: vi.fn(),
 	},
 }));
 

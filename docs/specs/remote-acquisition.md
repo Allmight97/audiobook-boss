@@ -211,7 +211,9 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ### Tauri Plugin Surfaces
 
-- `@tauri-apps/plugin-opener` — already used; opens external browser for auth.
+- `@tauri-apps/plugin-opener` — already available through `tauriClient.openUrl`
+  for HTTPS external-browser auth; local file preview/opening uses
+  `tauriClient.openPath`.
 - Optional fallback: tauri webview window for embedded login if loopback proves unreliable.
 
 ## Idempotence And Recovery

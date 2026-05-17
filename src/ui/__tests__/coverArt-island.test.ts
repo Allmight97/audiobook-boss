@@ -13,7 +13,7 @@ import {
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		listen: vi.fn(),
-		open: vi.fn(),
+		openFile: vi.fn(),
 		loadCoverArtFile: vi.fn(),
 		loadCoverArtFromUrl: vi.fn(),
 	},

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileImportUiState } from '../fileImport/state.svelte';
 
 const context = vi.hoisted(() => ({
-	openMock: vi.fn(),
+	openFilesMock: vi.fn(),
 	analyzeAudioFilesMock: vi.fn(),
 	appendFileListMock: vi.fn(),
 	persistPendingDraftsMock: vi.fn(),
@@ -10,7 +10,7 @@ const context = vi.hoisted(() => ({
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		open: context.openMock,
+		openFiles: context.openFilesMock,
 		analyzeAudioFiles: context.analyzeAudioFilesMock,
 	},
 }));
@@ -26,7 +26,7 @@ vi.mock('../fileList/state.svelte', () => ({
 
 describe('file import handlers', () => {
 	beforeEach(() => {
-		context.openMock.mockReset();
+		context.openFilesMock.mockReset();
 		context.analyzeAudioFilesMock.mockReset();
 		context.appendFileListMock.mockReset();
 		context.persistPendingDraftsMock.mockReset();
@@ -36,7 +36,7 @@ describe('file import handlers', () => {
 	});
 
 	it('aborts importing when metadata staging fails', async () => {
-		context.openMock.mockResolvedValue(['/books/new.m4b']);
+		context.openFilesMock.mockResolvedValue(['/books/new.m4b']);
 		context.analyzeAudioFilesMock.mockResolvedValue({
 			files: [
 				{
