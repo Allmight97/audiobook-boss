@@ -25,3 +25,19 @@ EB2 harness proof:
   success cleanup, partial failure retention, thrown infrastructure failures,
   and typed error mapping without rendering the full Svelte app.
 - Focused command: `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts`
+
+Future workflow ingress:
+
+- New frontend work that coordinates multiple real boundaries should start with
+  an explicit workflow owner, service contract, live layer, and fake-layer
+  tests.
+- Plain local UI state, pure transforms, and single-boundary event handlers can
+  stay vanilla TypeScript when Effect would not clarify ownership or testing.
+
+EB3 harness proof:
+
+- `MetadataLookupWorkflow` owns metadata lookup search, selected-file queue
+  progression, result application, and lookup-result cover-art replacement.
+- Manual cover-art file, URL, drop, and clear loading remains vanilla in
+  `src/ui/coverArt.ts` until that flow proves it needs a workflow owner.
+- Focused command: `bun run test -- src/ui/metadataLookup/__tests__/metadataLookupWorkflow.test.ts`
