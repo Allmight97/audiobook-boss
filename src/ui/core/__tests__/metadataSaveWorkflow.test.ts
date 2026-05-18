@@ -8,7 +8,7 @@ import {
 	MetadataSaveWorkflowFailed,
 	makeMetadataSaveWorkflowServicesLayer,
 	metadataSaveWorkflowExecution,
-	saveMetadataFromUI,
+	runMetadataSaveWorkflow,
 	type MetadataSaveWorkflowServices,
 } from '../metadataSaveWorkflow';
 
@@ -154,7 +154,7 @@ describe('MetadataSaveWorkflow', () => {
 	it('returns without status mutation when no files are loaded', async () => {
 		const harness = makeHarness({ fileList: null });
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.consoleLog).toHaveBeenCalledWith('No files loaded - nothing to save');
 		expect(harness.mocks.initStatusPanel).not.toHaveBeenCalled();
@@ -166,7 +166,7 @@ describe('MetadataSaveWorkflow', () => {
 	it('short-circuits while status panel processing is active', async () => {
 		const harness = makeHarness({ isProcessing: true });
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.initStatusPanel).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.consoleLog).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ describe('MetadataSaveWorkflow', () => {
 	it('short-circuits while another metadata save is in progress', async () => {
 		const harness = makeHarness({ saveInProgress: true });
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.pushStatusPanelTransientStatus).toHaveBeenNthCalledWith(
 			1,
@@ -199,7 +199,7 @@ describe('MetadataSaveWorkflow', () => {
 	it('stops when draft persistence reports validation failure', async () => {
 		const harness = makeHarness({ persistDrafts: async () => false });
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.persistPendingMetadataDraftsForCurrentSelection).toHaveBeenCalledWith({
 			showStatus: false,
@@ -218,7 +218,7 @@ describe('MetadataSaveWorkflow', () => {
 			pendingEntries: [['/books/missing.m4b', titlePatch('Missing')]],
 		});
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.pushStatusPanelTransientStatus).toHaveBeenCalledWith(
 			'No pending metadata changes',
@@ -239,7 +239,7 @@ describe('MetadataSaveWorkflow', () => {
 			],
 		});
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.beginMetadataSaveInStatusPanel).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.saveMetadataBatch).toHaveBeenCalledWith([
@@ -275,7 +275,7 @@ describe('MetadataSaveWorkflow', () => {
 			saveMetadataBatch: async () => result,
 		});
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.clearPendingMetadataForFile).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.clearPendingMetadataForFile).toHaveBeenCalledWith('/books/a.m4b');
@@ -296,7 +296,7 @@ describe('MetadataSaveWorkflow', () => {
 			},
 		});
 
-		await saveMetadataFromUI(harness.layer);
+		await runMetadataSaveWorkflow(harness.layer);
 
 		expect(harness.mocks.failMetadataSaveInStatusPanel).toHaveBeenCalledWith(
 			'Save failed - see console',

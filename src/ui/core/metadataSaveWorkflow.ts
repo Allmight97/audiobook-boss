@@ -26,6 +26,21 @@ interface MetadataSaveRunState {
 	enteredSave: boolean;
 }
 
+export type MetadataSaveWorkflowEntryServices = Pick<
+	MetadataSaveWorkflowServices,
+	| 'getCurrentFileList'
+	| 'initStatusPanel'
+	| 'isStatusPanelProcessing'
+	| 'pushStatusPanelTransientStatus'
+	| 'isMetadataSaveInProgress'
+	| 'setMetadataSaveInProgress'
+	| 'console'
+>;
+
+export interface PreparedMetadataSaveWorkflowEntry {
+	readonly fileList: FileListInfo;
+}
+
 function workflowFailure(message: string, cause: unknown): MetadataSaveWorkflowFailed {
 	return new MetadataSaveWorkflowFailed({ message, cause });
 }
@@ -98,7 +113,7 @@ function reportWorkflowFailure(
 	error: MetadataSaveWorkflowFailed,
 ): AppEffect<void> {
 	return Effect.sync(() => {
-		services.console.error('Failed to save metadata:', error.cause);
+		services.console.error(`Failed to save metadata: ${error.message}`, error.cause);
 		services.failMetadataSaveInStatusPanel('Save failed - see console');
 		services.pushStatusPanelTransientStatus('Save failed - see console', { ttlMs: 3_000 });
 	});
@@ -116,10 +131,44 @@ function resetInProgressWhenNeeded(
 	});
 }
 
-function metadataSaveWorkflowBody(
+export function enterMetadataSaveWorkflow(
+	services: MetadataSaveWorkflowEntryServices,
+): PreparedMetadataSaveWorkflowEntry | null {
+	const fileList = services.getCurrentFileList();
+	if (!fileList?.files.length) {
+		services.console.log('No files loaded - nothing to save');
+		return null;
+	}
+
+	services.initStatusPanel();
+	if (services.isStatusPanelProcessing()) {
+		services.console.log('Processing in progress - cannot save metadata now');
+		return null;
+	}
+
+	services.pushStatusPanelTransientStatus('Preparing metadata save...', { ttlMs: 1_000 });
+
+	if (services.isMetadataSaveInProgress()) {
+		services.pushStatusPanelTransientStatus('Save already in progress...', {
+			ttlMs: 1_500,
+		});
+		return null;
+	}
+
+	services.setMetadataSaveInProgress(true);
+	return { fileList };
+}
+
+function prepareMetadataSaveWorkflowEntry(
 	state: MetadataSaveRunState,
-): AppEffect<void, MetadataSaveWorkflowFailed, MetadataSaveWorkflowServicesId> {
+	preparedEntry: PreparedMetadataSaveWorkflowEntry | undefined,
+): AppEffect<FileListInfo | null, MetadataSaveWorkflowFailed, MetadataSaveWorkflowServicesId> {
 	return Effect.gen(function* () {
+		if (preparedEntry) {
+			state.enteredSave = true;
+			return preparedEntry.fileList;
+		}
+
 		const services = yield* MetadataSaveWorkflowServicesTag;
 		const fileList = yield* workflowSync(
 			() => services.getCurrentFileList(),
@@ -130,7 +179,7 @@ function metadataSaveWorkflowBody(
 				() => services.console.log('No files loaded - nothing to save'),
 				'Failed to report metadata save status.',
 			);
-			return;
+			return null;
 		}
 
 		yield* workflowSync(() => services.initStatusPanel(), 'Failed to initialize status panel.');
@@ -143,7 +192,7 @@ function metadataSaveWorkflowBody(
 				() => services.console.log('Processing in progress - cannot save metadata now'),
 				'Failed to report metadata save status.',
 			);
-			return;
+			return null;
 		}
 
 		yield* workflowSync(
@@ -163,7 +212,7 @@ function metadataSaveWorkflowBody(
 					}),
 				'Failed to report metadata save status.',
 			);
-			return;
+			return null;
 		}
 
 		yield* workflowSync(
@@ -171,6 +220,20 @@ function metadataSaveWorkflowBody(
 			'Failed to enter metadata save state.',
 		);
 		state.enteredSave = true;
+		return fileList;
+	});
+}
+
+function metadataSaveWorkflowBody(
+	state: MetadataSaveRunState,
+	preparedEntry?: PreparedMetadataSaveWorkflowEntry,
+): AppEffect<void, MetadataSaveWorkflowFailed, MetadataSaveWorkflowServicesId> {
+	return Effect.gen(function* () {
+		const services = yield* MetadataSaveWorkflowServicesTag;
+		const fileList = yield* prepareMetadataSaveWorkflowEntry(state, preparedEntry);
+		if (!fileList) {
+			return;
+		}
 
 		const staged = yield* workflowPromise(
 			() => services.persistPendingMetadataDraftsForCurrentSelection({ showStatus: false }),
@@ -226,13 +289,11 @@ export function metadataSaveWorkflowExecution(): AppEffect<
 	return metadataSaveWorkflowBody(state).pipe(Effect.ensuring(resetInProgressWhenNeeded(state)));
 }
 
-export function metadataSaveWorkflowProgram(): AppEffect<
-	void,
-	never,
-	MetadataSaveWorkflowServicesId
-> {
-	const state = { enteredSave: false };
-	return metadataSaveWorkflowBody(state).pipe(
+export function metadataSaveWorkflowProgram(
+	preparedEntry?: PreparedMetadataSaveWorkflowEntry,
+): AppEffect<void, never, MetadataSaveWorkflowServicesId> {
+	const state = { enteredSave: preparedEntry !== undefined };
+	return metadataSaveWorkflowBody(state, preparedEntry).pipe(
 		Effect.catchAll((error) =>
 			Effect.gen(function* () {
 				const services = yield* MetadataSaveWorkflowServicesTag;
@@ -243,10 +304,9 @@ export function metadataSaveWorkflowProgram(): AppEffect<
 	);
 }
 
-export function saveMetadataFromUI(layer?: MetadataSaveWorkflowLayer): Promise<void> {
-	return (async () => {
-		const workflowLayer =
-			layer ?? (await import('./metadataSaveWorkflowLive')).MetadataSaveWorkflowLive;
-		return runAppEffect(metadataSaveWorkflowProgram().pipe(Effect.provide(workflowLayer)));
-	})();
+export function runMetadataSaveWorkflow(
+	layer: MetadataSaveWorkflowLayer,
+	preparedEntry?: PreparedMetadataSaveWorkflowEntry,
+): Promise<void> {
+	return runAppEffect(metadataSaveWorkflowProgram(preparedEntry).pipe(Effect.provide(layer)));
 }
