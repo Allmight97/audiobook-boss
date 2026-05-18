@@ -21,6 +21,7 @@ vi.mock('../fileList/actions', () => ({
 }));
 
 vi.mock('../fileList/state.svelte', () => ({
+	getCurrentFileList: vi.fn(() => null),
 	isOrderLocked: vi.fn(() => false),
 }));
 

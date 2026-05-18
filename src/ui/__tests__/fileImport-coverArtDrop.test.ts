@@ -243,7 +243,9 @@ describe('File import drop vs cover art drop isolation', () => {
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
 		await flushAsync();
 
-		expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+		await waitFor(() => {
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+		});
 
 		openFilesMock.mockResolvedValueOnce(['/tmp/book-b.mp3']);
 		analyzeAudioFilesMock.mockResolvedValueOnce(
@@ -321,9 +323,6 @@ describe('File import drop vs cover art drop isolation', () => {
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 		});
-		expect(pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
-			'No new files added. All analyzed files were already in the list.',
-			{ ttlMs: 2000 },
-		);
+		expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 	});
 });

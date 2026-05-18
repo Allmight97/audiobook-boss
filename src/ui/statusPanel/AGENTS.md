@@ -3,7 +3,7 @@
 - Exports: `beginMetadataSaveInStatusPanel`, `completeMetadataSaveInStatusPanel`, `failMetadataSaveInStatusPanel`, `initStatusPanel`, `isStatusPanelProcessing`, `pushStatusPanelTransientStatus`, `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`, `updateStatusPanelConcurrencyStatus`, `StatusPanelIsland`.
 
 ## Private Cluster
-- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `feedback.ts`, `formatting.ts`, `processing.ts`, `preview.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `feedback.ts`, `formatting.ts`, `outputPlanReview.ts`, `preview.ts`, `processing.ts`, `processingWorkflow.ts`, `processingWorkflowLive.ts`, `processingWorkflowServices.ts`, `processingCancellationWorkflow.ts`, `processingCancellationWorkflowLive.ts`, `processingCancellationWorkflowServices.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
 - The cluster owns progress events, queue snapshots, cancellation, terminal status truth, view-state derivation, and status feedback.
 
 ## Allowed Agent Edits Without Escalation

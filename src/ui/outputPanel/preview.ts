@@ -1,6 +1,5 @@
 import { formatFileSize } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList } from '../fileList/state.svelte';
 import { getSelectedFileIndices } from '../fileList/state.svelte';
 import { getCurrentCoverArt } from '../coverArt';
@@ -12,18 +11,16 @@ import {
 } from '../metadataForm/state.svelte';
 import {
 	beginOutputPreviewRequest,
-	isLatestOutputPreviewRequest,
-	getOutputNamingConfig,
 	getState,
 	setEstimatedSizeText,
 	setOutputNamingUiState,
-	setOutputPreview,
 } from './state.svelte';
 import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
 import type { OutputKind } from '../../types/audio';
+import { runOutputPathPreviewWorkflow } from './outputPlanWorkflow';
 
 type OutputPreviewCallSiteState = {
 	outputDirectory: string;
@@ -101,43 +98,8 @@ export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
 }
 
 export function updateOutputPath(outputKind: OutputKind): void {
-	void updateOutputPathAsync(outputKind);
-}
-
-async function updateOutputPathAsync(outputKind: OutputKind): Promise<void> {
-	const state = getState();
-	const metadata = getCurrentMetadata();
-
-	updateSeriesPartWarning(metadata);
-	updateSubseriesPartWarning(metadata);
-
-	if (!state.outputDirectory) {
-		setOutputPreview('Select output directory...', 'No directory selected');
-		return;
-	}
-
-	const previewCallSiteState = buildOutputPreviewCallSiteState();
-	const requestId = beginOutputPreviewRequest();
-	try {
-		const previewPath = await tauriClient.previewOutputPath({
-			outputDir: previewCallSiteState.outputDirectory,
-			metadata,
-			outputNaming: getOutputNamingConfig(),
-			sourcePath: previewCallSiteState.sourcePath,
-			outputKind,
-		});
-		if (!isLatestOutputPreviewRequest(requestId)) {
-			return;
-		}
-		setOutputPreview(previewPath);
-	} catch (error) {
-		if (!isLatestOutputPreviewRequest(requestId)) {
-			return;
-		}
-		const message = 'Output preview unavailable. Fix metadata/template and retry.';
-		setOutputPreview(message);
-		showOutputError(`Rust preview failed: ${String(error)}`);
-	}
+	const requestId = getState().outputDirectory ? beginOutputPreviewRequest() : undefined;
+	void runOutputPathPreviewWorkflow(outputKind, undefined, requestId);
 }
 
 export function updateNamingOptionState(): void {

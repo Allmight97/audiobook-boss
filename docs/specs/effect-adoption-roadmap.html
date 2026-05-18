@@ -574,7 +574,7 @@
 	<div class="shell">
 		<header>
 			<div>
-				<div class="kicker">Audiobook Boss roadmap draft</div>
+				<div class="kicker">Audiobook Boss active roadmap</div>
 					<h1>ABB Greenfield Convergence via Effect</h1>
 					<p class="lede">
 						A forest-level adoption roadmap: move current ABB toward the greenfield shape, then
@@ -624,8 +624,8 @@
 						<div>ABB has a strong boundary model and five current grey-box public APIs.</div>
 					</div>
 					<div class="metric">
-						<span class="badge watch">Gap</span>
-						<div><code>effect</code> is not installed in ABB today.</div>
+						<span class="badge good">Done</span>
+						<div><code>effect</code> is installed; AppEffect and workflow-owner proof points exist through EB4.</div>
 					</div>
 					<div class="metric">
 						<span class="badge info">Fit</span>
@@ -733,13 +733,20 @@
 									<td>Adjust scripts only when a milestone opens a real boundary reason.</td>
 									<td>M8 / opportunistic</td>
 								</tr>
+								<tr>
+									<td>Residual false seams</td>
+									<td>Remaining wrappers, adapters, and boundary-like modules may be real infrastructure or accidental boundary management.</td>
+									<td>Classify each meaningful seam as technically required, useful local detail, or false seam to remove, deepen, or defer.</td>
+									<td>M9</td>
+								</tr>
 							</tbody>
 						</table>
 					</div>
 					<div class="callout">
 						<strong>What else the map must carry:</strong> a workflow-owner template, an Effect-native
 						rule for new multi-boundary frontend work after M2, a boring Specta/<code>tauriClient</code>
-						contract posture, workflow tests that avoid full Svelte rendering, and an M9 residual-glue review.
+						contract posture, workflow tests that avoid full Svelte rendering, an M9 critical
+						boundary/glue audit, and a Nextest-informed testing feedback audit.
 					</div>
 					<div class="callout">
 						<strong>Remote Acquisition scope boundary:</strong> this roadmap does not own the Remote
@@ -779,19 +786,19 @@
 									<tr>
 										<td>EB2</td>
 										<td>M4 + narrow M7 proof</td>
-										<td><span class="badge watch">In flight</span></td>
+										<td><span class="badge good">Complete</span></td>
 										<td>MetadataSaveWorkflow extraction plus metadata workflow harness proof.</td>
 									</tr>
 									<tr>
 										<td>EB3</td>
 										<td>M5 + metadata slice of M6</td>
-										<td><span class="badge info">Planned</span></td>
+										<td><span class="badge good">Complete</span></td>
 										<td>Future workflow ingress rule plus metadata enrichment workflows.</td>
 									</tr>
 									<tr>
 										<td>EB4</td>
 										<td>Remaining M6</td>
-										<td><span class="badge info">Planned</span></td>
+										<td><span class="badge good">Complete</span></td>
 										<td>Import, preflight, and job-control workflow migration.</td>
 									</tr>
 									<tr>
@@ -804,7 +811,7 @@
 										<td>EB6</td>
 										<td>M9</td>
 										<td><span class="badge info">Planned</span></td>
-										<td>Greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision.</td>
+										<td>Greenfield convergence review, Nextest-informed test feedback, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision.</td>
 									</tr>
 								</tbody>
 							</table>
@@ -829,7 +836,7 @@
 					</select>
 				</div>
 				<div class="milestone-list" id="milestonesList">
-					<article class="milestone" data-id="M0" data-status="not-started">
+					<article class="milestone" data-id="M0" data-status="done">
 						<div class="m-id">M0</div>
 						<div class="m-body">
 							<div class="phase-tag">Alignment</div>
@@ -855,7 +862,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M1" data-status="not-started">
+					<article class="milestone" data-id="M1" data-status="done">
 						<div class="m-id">M1</div>
 						<div class="m-body">
 							<div class="phase-tag">Baseline</div>
@@ -879,7 +886,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M2" data-status="not-started">
+					<article class="milestone" data-id="M2" data-status="done">
 						<div class="m-id">M2</div>
 						<div class="m-body">
 							<div class="phase-tag">Kernel</div>
@@ -904,7 +911,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M3" data-status="not-started">
+					<article class="milestone" data-id="M3" data-status="done">
 						<div class="m-id">M3</div>
 						<div class="m-body">
 							<div class="phase-tag">Workflow owner</div>
@@ -929,7 +936,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M4" data-status="not-started">
+					<article class="milestone" data-id="M4" data-status="done">
 						<div class="m-id">M4</div>
 						<div class="m-body">
 							<div class="phase-tag">Metadata boundary</div>
@@ -954,7 +961,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M5" data-status="not-started">
+					<article class="milestone" data-id="M5" data-status="done">
 						<div class="m-id">M5</div>
 						<div class="m-body">
 							<div class="phase-tag">Future feature ingress</div>
@@ -980,7 +987,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M6" data-status="not-started">
+					<article class="milestone" data-id="M6" data-status="done">
 						<div class="m-id">M6</div>
 						<div class="m-body">
 							<div class="phase-tag">Migration</div>
@@ -1059,15 +1066,17 @@
 						<div class="m-body">
 							<div class="phase-tag">Review</div>
 							<h3>Greenfield Convergence Review</h3>
-							<p>Decide whether Effect is now ABB's frontend workflow default and whether the roadmap branch can merge.</p>
+							<p>Decide whether Effect is now ABB's frontend workflow default, whether remaining boundaries are genuinely needed, and whether the testing feedback loop is strong enough for future agent work.</p>
 							<ul>
 								<li>List migrated workflow owners and intentionally vanilla surfaces.</li>
-								<li>List remaining glue surfaces as accepted, deferred, or assigned to follow-up work.</li>
+								<li>Classify remaining wrappers, adapters, public strips, and boundary-like modules as hard technical/domain boundaries, useful local details, or false seams to remove, deepen, or defer.</li>
+								<li>Audit testing feedback, including Nextest/<code>cargo-nextest</code> surfaces for per-test timing, slow-test summaries, JUnit/machine-readable output, fail-fast/retry profiles, and explicit doctest handling.</li>
+								<li>Lead the test-gap review with gaps that would have reduced agent retry loops during the roadmap.</li>
 								<li>Decide whether to keep Effect private, broaden to <code>tauriClient</code> internals, or stop at current scope.</li>
 								<li>Decide whether <code>roadmap/effect-adoption</code> is ready to merge to <code>main</code>.</li>
 								<li>Delete the active implementation spec once work is merged, validated, documented, and synced.</li>
 							</ul>
-							<div class="gate">Exit gate: adoption definition is met or consciously narrowed.</div>
+							<div class="gate">Exit gate: adoption definition is met or consciously narrowed; remaining boundary management is technically required, intentionally boring, or assigned to follow-up work; testing-feedback improvements are accepted or explicitly deferred.</div>
 						</div>
 						<div class="status-box">
 							<label for="status-M9">Roadmap status</label>
@@ -1496,7 +1505,7 @@
 	</div>
 
 	<script>
-		const storageKey = "abb-effect-roadmap-status-v1";
+		const storageKey = "abb-effect-roadmap-status-v2";
 		const sourceMarkdownPath =
 			"/Users/jstar/Projects/audiobook-boss/docs/specs/effect-adoption-roadmap.md";
 		const sourceMarkdownHref = "./effect-adoption-roadmap.md";
@@ -1525,16 +1534,17 @@ Full adoption means async orchestration, typed workflow errors, service layers, 
 - An Effect-native rule for new multi-boundary frontend work after M2.
 - Boring Specta and tauriClient contract posture.
 - Workflow tests without full Svelte rendering.
-- M9 residual-glue review.
+- M9 critical boundary/glue audit.
+- M9 Nextest-informed testing feedback audit.
 
 	Engineering blocks:
 - Setup: M0-M1 complete; destination accepted and Effect baseline installed.
 - EB1: M2-M3 complete; AppEffect kernel validated by ProcessingWorkflow extraction.
-- EB2: M4 + narrow M7 proof in flight; MetadataSaveWorkflow plus metadata workflow harness proof.
-- EB3: M5 + metadata slice of M6 planned; future workflow ingress plus metadata enrichment workflows.
-- EB4: Remaining M6 planned; import, preflight, and job-control workflow migration.
+- EB2: M4 + narrow M7 proof complete; MetadataSaveWorkflow plus metadata workflow harness proof.
+- EB3: M5 + metadata slice of M6 complete; future workflow ingress plus metadata enrichment workflows.
+- EB4: Remaining M6 complete; import, preflight, and job-control workflow migration.
 - EB5: M7-M8 planned; workflow service catalog, agent proof, docs, and boundary guardrails.
-- EB6: M9 planned; greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision.
+- EB6: M9 planned; greenfield convergence review, Nextest-informed test feedback, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision.
 
 	Greenfield frontend frame:
 - Keep TypeScript as the frontend language.
@@ -1590,7 +1600,7 @@ ${sourceMarkdownPath}
 			document.querySelectorAll(".milestone").forEach((milestone) => {
 				const id = milestone.dataset.id;
 				const select = milestone.querySelector("[data-status-select]");
-				const status = statuses[id] || "not-started";
+				const status = statuses[id] || milestone.dataset.status || "not-started";
 				milestone.dataset.status = status;
 				select.value = status;
 			});

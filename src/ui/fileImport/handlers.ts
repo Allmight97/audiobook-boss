@@ -1,18 +1,14 @@
 import { tauriClient } from '../../lib/tauri/client';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import { isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
+import { getCurrentFileList } from '../fileList/state.svelte';
+import { setFileImportDragOver } from './state.svelte';
+import { enterImportAnalysisWorkflow, runImportAnalysisWorkflow } from './importAnalysisWorkflow';
 import {
-	appendFileList,
-	persistPendingMetadataDraftsForCurrentSelection,
-} from '../fileList/actions';
-import { isOrderLocked } from '../fileList/state.svelte';
-import { clearFileImportError, setFileImportDragOver, setFileImportError } from './state.svelte';
-import {
-	SUPPORTED_AUDIO_EXTENSIONS,
-	SUPPORTED_AUDIO_FORMATS_TEXT,
-	isSupportedAudioPath,
-} from './supportedAudio';
+	ImportAnalysisWorkflowLive,
+	liveImportAnalysisWorkflowServices,
+} from './importAnalysisWorkflowLive';
 
 export interface DragDropContext {
 	getCoverArtArea: () => HTMLElement | null;
@@ -102,66 +98,23 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 }
 
 export async function handleClickToSelect(existingFiles: AudioFile[] = []): Promise<void> {
-	if (isOrderLocked()) {
-		setFileImportError('Order locked while processing. Wait for completion to add files.');
+	const currentFiles =
+		existingFiles.length > 0 ? existingFiles : (getCurrentFileList()?.files ?? []);
+	const action = { type: 'clickToSelect' as const, existingFiles: currentFiles };
+	const preparedEntry = enterImportAnalysisWorkflow(liveImportAnalysisWorkflowServices, action);
+	if (!preparedEntry) {
 		return;
 	}
-
-	try {
-		const selected = await tauriClient.openFiles({
-			filters: [
-				{
-					name: 'Audio Files',
-					extensions: [...SUPPORTED_AUDIO_EXTENSIONS],
-				},
-			],
-		});
-
-		if (Array.isArray(selected) && selected.length > 0) {
-			await processFilePaths(selected, existingFiles);
-		}
-	} catch (error) {
-		setFileImportError(`Failed to open file dialog: ${error}`);
-	}
+	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
 }
 
 async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {
-	if (isOrderLocked()) {
-		setFileImportError('Order locked while processing. Wait for completion to add files.');
+	const currentFiles =
+		existingFiles.length > 0 ? existingFiles : (getCurrentFileList()?.files ?? []);
+	const action = { type: 'dropFiles' as const, paths, existingFiles: currentFiles };
+	const preparedEntry = enterImportAnalysisWorkflow(liveImportAnalysisWorkflowServices, action);
+	if (!preparedEntry) {
 		return;
 	}
-
-	const supportedPaths = filterSupportedFiles(paths);
-	if (supportedPaths.length === 0) {
-		setFileImportError(
-			`No supported audio files dropped. Please use ${SUPPORTED_AUDIO_FORMATS_TEXT} files.`,
-		);
-		return;
-	}
-
-	await processFilePaths(supportedPaths, existingFiles);
-}
-
-function filterSupportedFiles(paths: string[]): string[] {
-	return paths.filter((path) => isSupportedAudioPath(path));
-}
-
-async function processFilePaths(
-	filePaths: string[],
-	existingFiles: AudioFile[] = [],
-): Promise<void> {
-	if (filePaths.length === 0) return;
-
-	try {
-		const fileListInfo: FileListInfo = await tauriClient.analyzeAudioFiles(filePaths);
-		const staged = await persistPendingMetadataDraftsForCurrentSelection();
-		if (!staged) {
-			setFileImportError('Fix metadata validation errors before adding files.');
-			return;
-		}
-		appendFileList(fileListInfo, { existingFiles });
-		clearFileImportError();
-	} catch (error) {
-		setFileImportError(`Failed to analyze files: ${error}`);
-	}
+	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
 }
