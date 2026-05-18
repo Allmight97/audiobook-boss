@@ -53,9 +53,6 @@ export class ProcessingWorkflowCancelled extends Data.TaggedError('ProcessingWor
 export type ProcessingWorkflowError = ProcessingWorkflowFailed | ProcessingWorkflowCancelled;
 
 function errorDisplayText(error: unknown): string {
-	if (error instanceof Error) {
-		return String(error);
-	}
 	if (typeof error === 'string') {
 		return error;
 	}
