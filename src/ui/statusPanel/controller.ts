@@ -168,7 +168,7 @@ export class StatusPanelRuntime {
 		await runProcessingCancellationWorkflow(
 			{
 				type: 'cancelAll',
-				currentStatus: this.model.currentStatus,
+				getCurrentStatus: () => this.model.currentStatus,
 				updateStatus: (status) => this.updateStatus(status),
 			},
 			ProcessingCancellationWorkflowLive,

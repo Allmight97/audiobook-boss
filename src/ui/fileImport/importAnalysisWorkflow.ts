@@ -66,6 +66,35 @@ function unsupportedDropMessage(): string {
 	return `No supported audio files dropped. Please use ${SUPPORTED_AUDIO_FORMATS_TEXT} files.`;
 }
 
+function reportAnalysisFailure(
+	services: ImportAnalysisWorkflowServices,
+	cause: unknown,
+): FileListInfo | null {
+	services.console.error('Failed to analyze files:', cause);
+	services.setFileImportError('Failed to analyze files. Please try again.');
+	return null;
+}
+
+function reportMetadataStagingFailure(
+	services: ImportAnalysisWorkflowServices,
+	cause: unknown,
+): false {
+	services.console.error('Failed to stage metadata drafts:', cause);
+	services.setFileImportError(
+		'Failed to prepare metadata drafts before adding files. Please try again.',
+	);
+	return false;
+}
+
+function reportOpenFileDialogFailure(
+	services: ImportAnalysisWorkflowServices,
+	cause: unknown,
+): null {
+	services.console.error('Failed to open file dialog:', cause);
+	services.setFileImportError('Failed to open file dialog. Please try again.');
+	return null;
+}
+
 function hasOnlyDuplicateFiles(fileListInfo: FileListInfo, existingFiles: AudioFile[]): boolean {
 	if (existingFiles.length === 0 || fileListInfo.files.length === 0) {
 		return false;
@@ -110,8 +139,7 @@ function processFilePaths(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to analyze files: ${error.cause}`);
-					return null as FileListInfo | null;
+					return reportAnalysisFailure(services, error.cause);
 				}),
 			),
 		);
@@ -125,8 +153,7 @@ function processFilePaths(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to analyze files: ${error.cause}`);
-					return false;
+					return reportMetadataStagingFailure(services, error.cause);
 				}),
 			),
 		);
@@ -152,8 +179,7 @@ function processPreparedFileList(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to analyze files: ${error.cause}`);
-					return null as FileListInfo | null;
+					return reportAnalysisFailure(services, error.cause);
 				}),
 			),
 		);
@@ -167,8 +193,7 @@ function processPreparedFileList(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to analyze files: ${error.cause}`);
-					return false;
+					return reportMetadataStagingFailure(services, error.cause);
 				}),
 			),
 		);
@@ -206,8 +231,7 @@ function clickToSelect(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to open file dialog: ${error.cause}`);
-					return null;
+					return reportOpenFileDialogFailure(services, error.cause);
 				}),
 			),
 		);
@@ -229,8 +253,7 @@ function clickToSelectFromPrepared(
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.setFileImportError(`Failed to open file dialog: ${error.cause}`);
-					return null;
+					return reportOpenFileDialogFailure(services, error.cause);
 				}),
 			),
 		);
@@ -305,7 +328,7 @@ export function enterImportAnalysisWorkflow(
 				existingFiles: action.existingFiles,
 			};
 		} catch (cause) {
-			services.setFileImportError(`Failed to open file dialog: ${cause}`);
+			reportOpenFileDialogFailure(services, cause);
 			return null;
 		}
 	}
@@ -323,7 +346,7 @@ export function enterImportAnalysisWorkflow(
 			existingFiles: action.existingFiles,
 		};
 	} catch (cause) {
-		services.setFileImportError(`Failed to analyze files: ${cause}`);
+		reportAnalysisFailure(services, cause);
 		return null;
 	}
 }

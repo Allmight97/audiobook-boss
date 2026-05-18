@@ -109,6 +109,34 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
+	it('preserves latest progress when cancel-all resolves after progress advances', async () => {
+		const controller = new StatusPanelRuntime();
+
+		let resolveCancel!: (value: string) => void;
+		const inFlightCancel = new Promise<string>((resolve) => {
+			resolveCancel = resolve;
+		});
+		vi.spyOn(tauriClient, 'cancelProcessing').mockImplementation(() => inFlightCancel);
+
+		const cancelRequest = controller.requestCancelAll();
+		controller.applyProgress({
+			input_index: 0,
+			stage: STAGES.writing,
+			percentage: 68,
+			message: 'Writing metadata',
+		});
+
+		resolveCancel('cancel requested');
+		await cancelRequest;
+
+		expect(controller.getCurrentStatus()).toMatchObject({
+			stage: STAGES.writing,
+			percentage: 68,
+			message: 'Cancellation requested…',
+		});
+		expect(getStepText()).toContain('Cancellation requested…');
+	});
+
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
 		const controller = new StatusPanelRuntime();
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

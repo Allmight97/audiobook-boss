@@ -127,8 +127,34 @@ describe('ImportAnalysisWorkflow', () => {
 		);
 
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
+		expect(harness.services.console.error).toHaveBeenCalledWith('Failed to analyze files:', cause);
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
-			`Failed to analyze files: ${cause}`,
+			'Failed to analyze files. Please try again.',
+		);
+	});
+
+	it('reports file picker failures without rendering technical details', async () => {
+		const cause = new Error('dialog failed');
+		const harness = makeHarness({
+			openFiles: vi.fn(async () => {
+				throw cause;
+			}),
+		});
+
+		await runAppEffect(
+			importAnalysisWorkflowExecution({
+				type: 'clickToSelect',
+				existingFiles: [],
+			}).pipe(Effect.provide(harness.layer)),
+		);
+
+		expect(harness.services.analyzeAudioFiles).not.toHaveBeenCalled();
+		expect(harness.services.console.error).toHaveBeenCalledWith(
+			'Failed to open file dialog:',
+			cause,
+		);
+		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
+			'Failed to open file dialog. Please try again.',
 		);
 	});
 
@@ -147,6 +173,31 @@ describe('ImportAnalysisWorkflow', () => {
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
 			'Fix metadata validation errors before adding files.',
+		);
+	});
+
+	it('reports metadata staging exceptions separately from analysis failures', async () => {
+		const cause = new Error('draft store failed');
+		const harness = makeHarness({
+			persistPendingMetadataDraftsForCurrentSelection: vi.fn(async () => {
+				throw cause;
+			}),
+		});
+
+		await runAppEffect(
+			importAnalysisWorkflowExecution({
+				type: 'clickToSelect',
+				existingFiles: [],
+			}).pipe(Effect.provide(harness.layer)),
+		);
+
+		expect(harness.services.appendFileList).not.toHaveBeenCalled();
+		expect(harness.services.console.error).toHaveBeenCalledWith(
+			'Failed to stage metadata drafts:',
+			cause,
+		);
+		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
+			'Failed to prepare metadata drafts before adding files. Please try again.',
 		);
 	});
 

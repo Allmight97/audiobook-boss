@@ -22,7 +22,7 @@ export interface PreparedCancelAllRequest {
 export type ProcessingCancellationWorkflowAction =
 	| {
 			type: 'cancelAll';
-			currentStatus: ProcessingStatus;
+			getCurrentStatus: () => ProcessingStatus;
 			updateStatus: (status: ProcessingStatus) => void;
 	  }
 	| { type: 'cancelJob'; jobId: string };
@@ -78,7 +78,7 @@ function cancelAll(
 		).pipe(
 			Effect.tap(() =>
 				Effect.sync(() => {
-					action.updateStatus(cancellationRequestedStatus(action.currentStatus));
+					action.updateStatus(cancellationRequestedStatus(action.getCurrentStatus()));
 				}),
 			),
 			Effect.catchAll((error) =>

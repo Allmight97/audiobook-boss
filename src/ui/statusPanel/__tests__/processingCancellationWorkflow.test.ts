@@ -38,7 +38,7 @@ describe('ProcessingCancellationWorkflow', () => {
 		await runAppEffect(
 			processingCancellationWorkflowExecution({
 				type: 'cancelAll',
-				currentStatus: activeStatus(),
+				getCurrentStatus: activeStatus,
 				updateStatus,
 			}).pipe(Effect.provide(harness.layer)),
 		);
@@ -65,7 +65,7 @@ describe('ProcessingCancellationWorkflow', () => {
 		await runAppEffect(
 			processingCancellationWorkflowExecution({
 				type: 'cancelAll',
-				currentStatus: activeStatus(),
+				getCurrentStatus: activeStatus,
 				updateStatus,
 			}).pipe(Effect.provide(harness.layer)),
 		);
