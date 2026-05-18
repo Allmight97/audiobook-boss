@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { render, waitFor } from '@testing-library/svelte';
 import type { AudiobookMetadata } from '../../types/metadata';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
@@ -118,18 +118,28 @@ async function initLookup(): Promise<void> {
 	const module = await import('../metadataLookup');
 	module.initMetadataLookup();
 	module.openMetadataLookup();
-	await flushAsync();
+	await waitFor(() => {
+		expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(true);
+	});
 }
 
 async function runSearchAndApply(): Promise<void> {
 	click('metadata-lookup-search-btn');
-	await flushAsync();
-	const applyButton = document.querySelector<HTMLButtonElement>(
-		"#metadata-lookup-results button[data-index='0']",
-	);
-	if (!applyButton) throw new Error('Expected an apply button');
+	const applyButton = await waitFor(() => {
+		const button = document.querySelector<HTMLButtonElement>(
+			"#metadata-lookup-results button[data-index='0']",
+		);
+		if (!button) throw new Error('Expected an apply button');
+		return button;
+	});
 	applyButton.click();
 	await flushAsync();
+}
+
+async function waitForStatus(text: string): Promise<void> {
+	await waitFor(() => {
+		expect(getStatusText()).toBe(text);
+	});
 }
 
 describe('metadata lookup queue cover art isolation', () => {
@@ -197,8 +207,8 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
+		await waitForStatus('Metadata applied. Ready for next search.');
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
-		expect(getStatusText()).toBe('Metadata applied. Ready for next search.');
 		expect(getQueryValue()).toBe('Beta Existing');
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
@@ -227,13 +237,13 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
+		await waitForStatus('Metadata applied. Ready for next search.');
 		expect(context.loadCoverArtFromUrlMock).not.toHaveBeenCalled();
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.objectContaining({ cover_art: [1, 1, 1] }),
 			expect.objectContaining({ markPending: true }),
 		);
-		expect(getStatusText()).toBe('Metadata applied. Ready for next search.');
 	});
 
 	it('applies mixed keep/replace decisions per file without bleed', async () => {
@@ -243,10 +253,12 @@ describe('metadata lookup queue cover art isolation', () => {
 		toggle.checked = true;
 		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
+		await waitForStatus('Metadata applied. Ready for next search.');
 
 		toggle.checked = false;
 		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
+		await waitForStatus('Queue complete.');
 
 		const writesByPath = new Map<string, StoredMetadata>();
 		context.setMetadataForFileMock.mock.calls.forEach(([filePath, metadata]) => {
@@ -261,17 +273,15 @@ describe('metadata lookup queue cover art isolation', () => {
 		);
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
 		expect(context.setCoverArtMock).toHaveBeenLastCalledWith([2, 2, 2]);
-		expect(getStatusText()).toBe('Queue complete.');
 	});
 
 	it('does not mutate metadata when skipping queue item', async () => {
 		await initLookup();
 
 		click('metadata-lookup-skip-btn');
-		await flushAsync();
+		await waitForStatus('Skipped. Ready for next search.');
 
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
-		expect(getStatusText()).toBe('Skipped. Ready for next search.');
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(context.selectFileMock).toHaveBeenCalledWith(
 			1,
@@ -285,7 +295,11 @@ describe('metadata lookup queue cover art isolation', () => {
 		await initLookup();
 
 		click('metadata-lookup-search-btn');
-		await flushAsync();
+		await waitFor(() => {
+			expect(document.querySelector('.metadata-lookup-empty')?.textContent ?? '').toContain(
+				'Older CD-era or rare audiobook editions may not be indexed.',
+			);
+		});
 
 		const emptyState = document.querySelector('.metadata-lookup-empty');
 		expect(emptyState?.textContent ?? '').toContain(
@@ -296,12 +310,13 @@ describe('metadata lookup queue cover art isolation', () => {
 		) as HTMLButtonElement | null;
 		expect(manualButton).toBeTruthy();
 		manualButton?.click();
-		await flushAsync();
 
-		expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
-			false,
-		);
-		expect((document.activeElement as HTMLElement | null)?.id).toBe('meta-title');
+		await waitFor(() => {
+			expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
+				false,
+			);
+			expect((document.activeElement as HTMLElement | null)?.id).toBe('meta-title');
+		});
 	});
 
 	it('keeps backend failure distinct from no-result state', async () => {
@@ -309,9 +324,8 @@ describe('metadata lookup queue cover art isolation', () => {
 		await initLookup();
 
 		click('metadata-lookup-search-btn');
-		await flushAsync();
+		await waitForStatus('Search failed. Check your query and try again.');
 
-		expect(getStatusText()).toBe('Search failed. Check your query and try again.');
 		expect(document.querySelector('.metadata-lookup-empty')).toBeNull();
 		expect(document.getElementById('metadata-lookup-manual-entry-btn')).toBeNull();
 		expect(document.querySelector("#metadata-lookup-results button[data-index='0']")).toBeNull();
