@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { writable } from 'svelte/store';
+import { get, writable, type Writable } from 'svelte/store';
+
+import type { MetadataSaveBatchResult } from '../../types/metadata';
 
 const context = vi.hoisted(() => ({
 	saveMetadataBatchMock: vi.fn(),
@@ -99,6 +101,7 @@ function getStatusText(): HTMLElement {
 
 describe('metadata save pending flow', () => {
 	let saveMetadataFromUI: typeof import('../core/actions').saveMetadataFromUI;
+	let metadataSaveInProgressStore: Writable<boolean>;
 
 	beforeAll(async () => {
 		document.body.innerHTML = `
@@ -109,6 +112,7 @@ describe('metadata save pending flow', () => {
 
 		await import('../../main');
 		({ saveMetadataFromUI } = await import('../core/actions'));
+		({ metadataSaveInProgressStore } = await import('../metadataSaveState'));
 	});
 
 	beforeEach(() => {
@@ -128,6 +132,7 @@ describe('metadata save pending flow', () => {
 				{ path: '/books/b.m4b', isValid: true },
 			],
 		});
+		metadataSaveInProgressStore.set(false);
 		getStatusText().textContent = 'Idle';
 	});
 
@@ -177,6 +182,47 @@ describe('metadata save pending flow', () => {
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/b.m4b');
 		expect(context.resetDirtyStateMock).toHaveBeenCalledTimes(1);
 		expect(context.completeMetadataSaveMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('blocks repeat save attempts synchronously while a save is in progress', async () => {
+		let resolveSave: (result: MetadataSaveBatchResult) => void = () => {};
+		context.persistPendingDraftsMock.mockResolvedValue(true);
+		context.getPendingIntentEntriesMock.mockReturnValue([
+			['/books/a.m4b', { title: { op: 'set', value: 'A' } }],
+		]);
+		context.saveMetadataBatchMock.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveSave = resolve;
+				}),
+		);
+
+		const firstSave = saveMetadataFromUI();
+
+		expect(get(metadataSaveInProgressStore)).toBe(true);
+
+		await saveMetadataFromUI();
+
+		await vi.waitFor(() => {
+			expect(context.saveMetadataBatchMock).toHaveBeenCalledTimes(1);
+		});
+		expect(getStatusText().textContent).toBe('Save already in progress...');
+
+		resolveSave({
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					filePath: '/books/a.m4b',
+					status: 'success',
+					message: 'saved',
+				},
+			],
+		});
+		await firstSave;
+
+		expect(context.saveMetadataBatchMock).toHaveBeenCalledTimes(1);
+		expect(get(metadataSaveInProgressStore)).toBe(false);
 	});
 
 	it('retains failed files in pending state and surfaces partial failure summary', async () => {

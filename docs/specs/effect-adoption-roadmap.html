@@ -747,6 +747,69 @@
 						<code>RemoteAcquisitionWorkflow</code> should consume if that separate roadmap needs
 						frontend auth, scanning, acquisition progress, cancellation, import handoff, or logout/purge orchestration.
 					</div>
+					<div class="panel" style="margin-top: 14px;">
+						<h3>Engineering Blocks</h3>
+						<p>
+							Milestones remain the design shape. Engineering blocks group the largest coherent
+							implementation and review units for fresh execution sessions.
+						</p>
+						<div class="table-wrap">
+							<table>
+								<thead>
+									<tr>
+										<th>Block</th>
+										<th>Roadmap Coverage</th>
+										<th>Status</th>
+										<th>Coherent Outcome</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td>Setup</td>
+										<td>M0-M1</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>Destination accepted and Effect dependency baseline installed.</td>
+									</tr>
+									<tr>
+										<td>EB1</td>
+										<td>M2-M3</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>AppEffect kernel validated by ProcessingWorkflow extraction.</td>
+									</tr>
+									<tr>
+										<td>EB2</td>
+										<td>M4 + narrow M7 proof</td>
+										<td><span class="badge watch">In flight</span></td>
+										<td>MetadataSaveWorkflow extraction plus metadata workflow harness proof.</td>
+									</tr>
+									<tr>
+										<td>EB3</td>
+										<td>M5 + metadata slice of M6</td>
+										<td><span class="badge info">Planned</span></td>
+										<td>Future workflow ingress rule plus metadata enrichment workflows.</td>
+									</tr>
+									<tr>
+										<td>EB4</td>
+										<td>Remaining M6</td>
+										<td><span class="badge info">Planned</span></td>
+										<td>Import, preflight, and job-control workflow migration.</td>
+									</tr>
+									<tr>
+										<td>EB5</td>
+										<td>M7-M8</td>
+										<td><span class="badge info">Planned</span></td>
+										<td>Workflow service catalog, agent proof, docs, and boundary guardrails.</td>
+									</tr>
+									<tr>
+										<td>EB6</td>
+										<td>M9</td>
+										<td><span class="badge info">Planned</span></td>
+										<td>Greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision.</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
 				</div>
 			</section>
 
@@ -1463,6 +1526,15 @@ Full adoption means async orchestration, typed workflow errors, service layers, 
 - Boring Specta and tauriClient contract posture.
 - Workflow tests without full Svelte rendering.
 - M9 residual-glue review.
+
+	Engineering blocks:
+- Setup: M0-M1 complete; destination accepted and Effect baseline installed.
+- EB1: M2-M3 complete; AppEffect kernel validated by ProcessingWorkflow extraction.
+- EB2: M4 + narrow M7 proof in flight; MetadataSaveWorkflow plus metadata workflow harness proof.
+- EB3: M5 + metadata slice of M6 planned; future workflow ingress plus metadata enrichment workflows.
+- EB4: Remaining M6 planned; import, preflight, and job-control workflow migration.
+- EB5: M7-M8 planned; workflow service catalog, agent proof, docs, and boundary guardrails.
+- EB6: M9 planned; greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision.
 
 	Greenfield frontend frame:
 - Keep TypeScript as the frontend language.
