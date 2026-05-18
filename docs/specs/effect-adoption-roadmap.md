@@ -1,7 +1,7 @@
 # ABB Effect Adoption Roadmap
 
 Date: 2026-05-17
-Status: Active roadmap surface; work through EB4 is complete, EB5-EB6 remain
+Status: Active roadmap surface; work through EB5 is complete, EB6 remains
 Source repo: `/Users/jstar/Projects/audiobook-boss`
 
 Artifact relationship:
@@ -261,7 +261,7 @@ Engineering blocks are the implementation packaging for the roadmap. Milestones 
 | EB2 | M4 + narrow M7 proof | Complete | MetadataSaveWorkflow extraction plus metadata workflow harness proof. |
 | EB3 | M5 + metadata slice of M6 | Complete | Future workflow ingress rule plus metadata enrichment workflows. |
 | EB4 | Remaining M6 | Complete | Import, preflight, and job-control workflow migration. |
-| EB5 | M7-M8 | Planned | Workflow service catalog, agent proof, docs, and boundary guardrails. |
+| EB5 | M7-M8 | Complete | Workflow service catalog, agent proof, docs, and boundary guardrails. |
 | EB6 | M9 | Planned | Greenfield convergence review, Nextest-informed test-feedback audit, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision. |
 
 ## Roadmap Milestones
@@ -401,6 +401,7 @@ Deliverables:
 - Scenario tests that run workflows directly without rendering entire Svelte islands.
 - Optional `@effect/vitest` adoption only after compatibility is proven.
 - Agent-facing proof notes in the active implementation spec: owner, dependencies, terminal outcomes, and checks.
+- EB5 proof lives in `src/lib/effect/AGENTS.md`: current owner catalog, fake-layer harness conventions, terminal outcomes, public-strip impact, and focused test commands.
 
 Exit gate:
 
@@ -417,6 +418,7 @@ Deliverables:
 - Add local `AGENTS.md` guidance only where Effect changes allowed imports or public-strip rules.
 - Add or adjust boundary assertions only when reach-through into workflow private clusters becomes a real risk.
 - Treat guardrail scripts as lower-priority support work: harden regex/text checks only when a milestone opens that script surface for a real boundary reason.
+- EB5 tightened the existing status-panel private-import assertion for the new workflow-private files; no broad workflow access-control surface was added.
 
 Exit gate:
 

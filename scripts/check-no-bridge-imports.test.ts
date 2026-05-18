@@ -32,6 +32,7 @@ function createFixtureRepo(): string {
 		'src/lib/tauri',
 		'src/types',
 		'src/ui/outputPanel',
+		'src/ui/statusPanel',
 		'src/ui/__tests__',
 	]) {
 		mkdirSync(path.join(repoRoot, dir), { recursive: true });
@@ -229,6 +230,29 @@ describe('check-no-bridge-imports.sh', () => {
 				'Output path naming must stay in the Rust output_artifact boundary',
 			);
 			expect(result.stderr).toContain('src/ui/outputPanel/utils.ts');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
+
+	it('rejects status-panel workflow private imports from outside the status panel', () => {
+		const repoRoot = createFixtureRepo();
+		try {
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/statusPanel/processingWorkflow.ts'),
+				'export const privateWorkflow = true;\n',
+			);
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/bypass.ts'),
+				"import { privateWorkflow } from './statusPanel/processingWorkflow';\nvoid privateWorkflow;\n",
+			);
+
+			const result = runNoBridgeCheck(repoRoot);
+			expectStatus(result, 1);
+			expect(result.stderr).toContain(
+				'Code outside src/ui/statusPanel must use the status panel public API',
+			);
+			expect(result.stderr).toContain('src/ui/bypass.ts');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}

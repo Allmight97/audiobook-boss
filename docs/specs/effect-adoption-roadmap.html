@@ -804,7 +804,7 @@
 									<tr>
 										<td>EB5</td>
 										<td>M7-M8</td>
-										<td><span class="badge info">Planned</span></td>
+										<td><span class="badge good">Complete</span></td>
 										<td>Workflow service catalog, agent proof, docs, and boundary guardrails.</td>
 									</tr>
 									<tr>
@@ -1011,7 +1011,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M7" data-status="not-started">
+					<article class="milestone" data-id="M7" data-status="done">
 						<div class="m-id">M7</div>
 						<div class="m-body">
 							<div class="phase-tag">Harness</div>
@@ -1022,6 +1022,7 @@
 								<li>Fake layers for deterministic tests.</li>
 								<li>Scenario tests that run workflows without rendering whole Svelte islands.</li>
 								<li>Agent-facing proof notes: owner, dependencies, terminal outcomes, and checks.</li>
+								<li>EB5 proof lives in <code>src/lib/effect/AGENTS.md</code>.</li>
 							</ul>
 							<div class="gate">Exit gate: focused workflow tests explain each major flow's dependencies and terminal outcomes.</div>
 						</div>
@@ -1036,7 +1037,7 @@
 						</div>
 					</article>
 
-					<article class="milestone" data-id="M8" data-status="not-started">
+					<article class="milestone" data-id="M8" data-status="done">
 						<div class="m-id">M8</div>
 						<div class="m-body">
 							<div class="phase-tag">Guardrails</div>
@@ -1047,6 +1048,7 @@
 								<li>Add local guidance only where imports or public strips change.</li>
 								<li>Add or adjust boundary assertions only when reach-through becomes a real risk.</li>
 								<li>Harden guardrail scripts only when a milestone opens that script surface for a real boundary reason.</li>
+								<li>EB5 tightened status-panel workflow-private import protection without adding a broad workflow guardrail.</li>
 							</ul>
 							<div class="gate">Exit gate: context checks pass; guardrails protect real boundaries without becoming a noisy parallel project.</div>
 						</div>
@@ -1543,7 +1545,7 @@ Full adoption means async orchestration, typed workflow errors, service layers, 
 - EB2: M4 + narrow M7 proof complete; MetadataSaveWorkflow plus metadata workflow harness proof.
 - EB3: M5 + metadata slice of M6 complete; future workflow ingress plus metadata enrichment workflows.
 - EB4: Remaining M6 complete; import, preflight, and job-control workflow migration.
-- EB5: M7-M8 planned; workflow service catalog, agent proof, docs, and boundary guardrails.
+- EB5: M7-M8 complete; workflow service catalog, agent proof, docs, and boundary guardrails.
 - EB6: M9 planned; greenfield convergence review, Nextest-informed test feedback, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision.
 
 	Greenfield frontend frame:
