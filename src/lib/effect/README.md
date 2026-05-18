@@ -16,3 +16,12 @@ Keep Effect private to workflow owners:
   symbols or changed return types, keep the existing public strip stable.
 - Scenario tests should prove visible workflow outcomes, cleanup/lifetime
   handoff, cancellation behavior, terminal results, and typed failure handling.
+
+EB2 harness proof:
+
+- `MetadataSaveWorkflow` uses the same private owner/service/layer pattern for
+  metadata save orchestration while keeping Rust as metadata write truth.
+- Its direct fake-layer tests cover no-op terminal paths, validation stops,
+  success cleanup, partial failure retention, thrown infrastructure failures,
+  and typed error mapping without rendering the full Svelte app.
+- Focused command: `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts`
