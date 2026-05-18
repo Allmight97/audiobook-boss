@@ -385,7 +385,34 @@ describe('MetadataLookupWorkflow', () => {
 				intentPatch: expect.not.objectContaining({ cover_art: expect.anything() }),
 			}),
 		);
-		expect(harness.lookupState.statusMessage).toBe('Metadata applied. Ready for next search.');
+		expect(harness.lookupState.statusMessage).toBe(
+			'Metadata applied, but cover art failed to load. Ready for next search.',
+		);
+		expect(harness.lookupState.statusVariant).toBe('error');
+	});
+
+	it('reports partial success when current-file cover art replacement fails', async () => {
+		const cause = new Error('blocked');
+		const result = lookupResult({ coverUrl: 'https://example.com/cover.jpg' });
+		const harness = makeHarness({
+			lookupState: { results: [result], applyMode: 'current', replaceCoverArt: true },
+			queueState: { queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }], index: 0 },
+			loadCoverArtFromUrl: async () => {
+				throw cause;
+			},
+		});
+
+		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+
+		expect(harness.mocks.consoleWarn).toHaveBeenCalledWith(
+			'Failed to load cover art from lookup:',
+			cause,
+		);
+		expect(harness.mocks.setCustomCoverArt).not.toHaveBeenCalled();
+		expect(harness.lookupState.statusMessage).toBe(
+			'Metadata applied to form, but cover art failed to load.',
+		);
+		expect(harness.lookupState.statusVariant).toBe('error');
 	});
 
 	it('skips queue items without mutating metadata', async () => {
@@ -445,6 +472,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('exposes typed workflow errors for rejected infrastructure calls', async () => {
 		const cause = new Error('selection failed');
 		const harness = makeHarness({
+			lookupState: { queueContext: '1 of 2 • alpha.m4b' },
 			queueState: {
 				queue: [
 					{ file: audioFile('/books/alpha.m4b'), index: 0 },
@@ -468,5 +496,8 @@ describe('MetadataLookupWorkflow', () => {
 		expect(error).toBeInstanceOf(MetadataLookupWorkflowFailed);
 		expect(error.message).toBe('Failed to skip metadata lookup queue item.');
 		expect(error.cause).toBe(cause);
+		expect(harness.queueState.index).toBe(0);
+		expect(harness.mocks.setMetadataLookupQueueIndex).not.toHaveBeenCalled();
+		expect(harness.lookupState.queueContext).toBe('1 of 2 • alpha.m4b');
 	});
 });

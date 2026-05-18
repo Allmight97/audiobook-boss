@@ -34,6 +34,15 @@ const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 type QueueAdvanceReason = 'applied' | 'skipped';
 
+type QueueAdvanceOptions = {
+	readonly coverArtFailed?: boolean;
+};
+
+type CoverArtApplyResult =
+	| { readonly status: 'applied'; readonly bytes: number[] }
+	| { readonly status: 'failed' }
+	| { readonly status: 'notRequested' };
+
 export type MetadataLookupWorkflowAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
@@ -98,51 +107,64 @@ function hideModal(services: MetadataLookupWorkflowServices): void {
 async function advanceQueue(
 	services: MetadataLookupWorkflowServices,
 	reason: QueueAdvanceReason,
+	options: QueueAdvanceOptions = {},
 ): Promise<void> {
 	const { queue, index } = services.getQueueState();
 	if (queue.length === 0) return;
 
 	if (index >= queue.length - 1) {
 		restoreCoverArtForFile(services, queue[index]?.file ?? null);
-		setStatus(services, 'Queue complete.', 'success');
+		setStatus(
+			services,
+			options.coverArtFailed ? 'Queue complete, but cover art failed to load.' : 'Queue complete.',
+			options.coverArtFailed ? 'error' : 'success',
+		);
 		return;
 	}
 
-	services.clearCoverArt();
-	services.setMetadataLookupQueueIndex(index + 1);
-	updateQueueContext(services);
+	const nextIndex = index + 1;
+	const nextItem = queue[nextIndex];
 
-	const nextItem = services.getQueueState().queue[index + 1];
+	services.clearCoverArt();
+
 	if (nextItem) {
 		await services.selectFile(
 			nextItem.index,
 			{ multi: false, range: false },
 			{ skipPersistPrevious: true },
 		);
+		services.setMetadataLookupQueueIndex(nextIndex);
+		updateQueueContext(services);
 		services.getLookupState().query = deriveQueryFromFile(services, nextItem.file);
 	}
 
 	resetResults(services);
-	const message =
-		reason === 'applied'
-			? 'Metadata applied. Ready for next search.'
-			: 'Skipped. Ready for next search.';
-	setStatus(services, message, reason === 'applied' ? 'success' : 'info');
+	if (reason === 'applied') {
+		setStatus(
+			services,
+			options.coverArtFailed
+				? 'Metadata applied, but cover art failed to load. Ready for next search.'
+				: 'Metadata applied. Ready for next search.',
+			options.coverArtFailed ? 'error' : 'success',
+		);
+		return;
+	}
+
+	setStatus(services, 'Skipped. Ready for next search.', 'info');
 }
 
 async function applyCoverArt(
 	services: MetadataLookupWorkflowServices,
 	result: OnlineMetadataResult,
-): Promise<number[] | null> {
-	if (!result.coverUrl) return null;
+): Promise<CoverArtApplyResult> {
+	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
 		const coverBytes = await services.loadCoverArtFromUrl(result.coverUrl);
 		services.setCustomCoverArt(coverBytes);
-		return coverBytes;
+		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {
 		services.console.warn('Failed to load cover art from lookup:', error);
-		setStatus(services, 'Cover art failed to load from source.', 'error');
-		return null;
+		return { status: 'failed' };
 	}
 }
 
@@ -170,10 +192,13 @@ async function applyResult(
 
 	services.applyMetadataToForm(metadata, { mode: 'single', markDirty: true });
 	let queueCoverState: QueueCoverState = { intent: 'keep' };
+	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
-		const coverBytes = await applyCoverArt(services, result);
-		if (coverBytes && coverBytes.length > 0) {
-			queueCoverState = { intent: 'replace', bytes: coverBytes };
+		const coverArtResult = await applyCoverArt(services, result);
+		if (coverArtResult.status === 'applied' && coverArtResult.bytes.length > 0) {
+			queueCoverState = { intent: 'replace', bytes: coverArtResult.bytes };
+		} else if (coverArtResult.status === 'failed') {
+			coverArtFailed = true;
 		}
 	}
 	refreshOutputForMetadataChange(services);
@@ -187,11 +212,17 @@ async function applyResult(
 			};
 			persistQueueMetadata(services, current.file, queueState);
 		}
-		await advanceQueue(services, 'applied');
+		await advanceQueue(services, 'applied', { coverArtFailed });
 		return;
 	}
 
-	setStatus(services, 'Metadata applied to form.', 'success');
+	setStatus(
+		services,
+		coverArtFailed
+			? 'Metadata applied to form, but cover art failed to load.'
+			: 'Metadata applied to form.',
+		coverArtFailed ? 'error' : 'success',
+	);
 }
 
 async function runSearch(services: MetadataLookupWorkflowServices): Promise<void> {
