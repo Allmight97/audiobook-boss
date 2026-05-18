@@ -248,6 +248,20 @@ Milestone PR rule:
 - Each milestone PR should name its workflow owner or boundary owner, public-strip impact, tests/checks, and done evidence.
 - Merge milestone PRs into `roadmap/effect-adoption`; merge that branch to `main` only after M9 or an explicit roadmap narrowing decision.
 
+## Engineering Block Plan
+
+Engineering blocks are the implementation packaging for the roadmap. Milestones remain the design shape; blocks group the largest coherent implementation and review units.
+
+| Block | Roadmap coverage | Status | Coherent outcome |
+| --- | --- | --- | --- |
+| Setup | M0-M1 | Complete | Destination accepted and Effect dependency baseline installed. |
+| EB1 | M2-M3 | Complete | AppEffect kernel validated by ProcessingWorkflow extraction. |
+| EB2 | M4 + narrow M7 proof | In flight | MetadataSaveWorkflow extraction plus metadata workflow harness proof. |
+| EB3 | M5 + metadata slice of M6 | Planned | Future workflow ingress rule plus metadata enrichment workflows. |
+| EB4 | Remaining M6 | Planned | Import, preflight, and job-control workflow migration. |
+| EB5 | M7-M8 | Planned | Workflow service catalog, agent proof, docs, and boundary guardrails. |
+| EB6 | M9 | Planned | Greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision. |
+
 ## Roadmap Milestones
 
 ### M0 - Destination And Glue Inventory
