@@ -76,9 +76,11 @@ vi.mock('../metadataForm', () => ({
 
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
+	isOrderLocked: vi.fn(() => false),
 }));
 
 vi.mock('../fileList/actions', () => ({
+	appendFileList: vi.fn(),
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 

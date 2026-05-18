@@ -5,6 +5,8 @@ import type { JobProgress } from '../state';
 
 vi.mock('../feedback', () => ({
 	renderJobList: vi.fn(),
+	setCancelAllButtonPending: vi.fn(),
+	showError: vi.fn(),
 }));
 
 describe('renderJobList order and queue status text', () => {

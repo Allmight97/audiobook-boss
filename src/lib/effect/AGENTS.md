@@ -42,5 +42,8 @@ Keep Effect private to workflow owners:
   Rust as metadata write truth.
 - `MetadataLookupWorkflow` validates metadata lookup queue progression and
   lookup-result cover-art replacement.
+- `OutputPlanWorkflow`, `ToolchainValidationWorkflow`,
+  `ImportAnalysisWorkflow`, and `ProcessingCancellationWorkflow` validate the
+  remaining processing-adjacent migration surfaces from EB4.
 - Manual cover-art file, URL, drop, and clear loading remains vanilla in
   `src/ui/coverArt.ts` until that flow proves it needs a workflow owner.

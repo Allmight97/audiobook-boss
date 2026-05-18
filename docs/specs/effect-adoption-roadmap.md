@@ -1,7 +1,7 @@
 # ABB Effect Adoption Roadmap
 
 Date: 2026-05-17
-Status: Alignment draft, not repo canon
+Status: Active roadmap surface; work through EB4 is complete, EB5-EB6 remain
 Source repo: `/Users/jstar/Projects/audiobook-boss`
 
 Artifact relationship:
@@ -55,6 +55,7 @@ These are the known current-state smells the roadmap should actively pull toward
 | Status processing orchestration | `src/ui/statusPanel/processing.ts` coordinates IPC, metadata staging, output-plan review, progress startup, cancellation, processing result handling, and user-visible status truth. | `ProcessingWorkflow` owns the multi-boundary workflow; the status panel renders and dispatches. | M3 |
 | Metadata save and intent staging | Metadata draft/state/intent behavior is spread across frontend state/actions and Rust intent truth. Some TS duplication is useful for UX, but ownership can blur. | `MetadataSaveWorkflow` owns save orchestration, typed errors, state transitions, and boundary calls while Rust remains metadata truth. | M4 |
 | Guardrail script brittleness/noise | Boundary scripts are valuable assertions, but regex/text checks can become their own maintenance surface. | Adjust scripts only when a milestone creates or changes a real boundary assertion. Guardrails support the roadmap; they do not lead it. | M8 / opportunistic |
+| Residual false seams and glue boundaries | After EB4, any remaining wrapper, adapter, or boundary-like module may be real infrastructure or accidental boundary management. | EB6 classifies each meaningful seam as hard technical boundary, useful local implementation detail, or false seam to remove, deepen, or defer with an owner. | M9 |
 
 ## What Else The Roadmap Must Carry
 
@@ -64,7 +65,8 @@ The current ask is enough to lay out the roadmap. To accomplish the destination,
 - A sequencing rule for new frontend work: after M2, new multi-boundary workflows should start Effect-native instead of adding Promise glue that must be cleaned later.
 - A contract-drift posture: Specta remains generated evidence, `tauriClient` remains the owned adapter, and direct generated-binding imports remain exceptional until explicitly approved.
 - A test-harness target: workflows should be testable without rendering whole Svelte islands or requiring live Tauri/Rust behavior.
-- A residual-glue review at the end: every remaining glue surface is either accepted as local/boring, assigned follow-up work, or consciously left outside Effect's value zone.
+- A residual-glue review at the end: every remaining boundary-management surface is either proven technically needed and narrow, accepted as local/boring, assigned follow-up work, or consciously left outside Effect's value zone.
+- A testing-feedback audit at the end: adopt the high-value parts of Nextest/`cargo-nextest` for agent loops if they improve visibility, timing, failure summaries, machine-readable output, or retry/fail-fast behavior without weakening ABB's proof gates.
 - A guardrail posture: scripts/docs change only where a milestone changes a real ownership boundary.
 
 Remote Acquisition scope boundary:
@@ -83,9 +85,9 @@ Known:
 - The five current grey-box public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, and Status Panel Runtime.
 - Frontend runtime commands/events route through `src/lib/tauri/client.ts`.
 - Generated bindings are committed for drift detection and adaptation, not direct UI use.
-- `package.json` has no `effect` or `@effect/*` dependency today.
+- `package.json` now includes `effect`; the AppEffect kernel and workflow-owner pattern have proof points through EB4.
 - `docs/specs/remote-acquisition.md` is a parallel feature-planning surface. This roadmap should shape its workflow architecture if needed, but should not own its feature delivery.
-- Candidate Effect proof surfaces are status processing, metadata save, and progress subscription.
+- Completed Effect proof surfaces through EB4 include processing orchestration, metadata save, metadata lookup/enrichment, output planning, import analysis, toolchain validation, and processing cancellation.
 
 Inferred:
 
@@ -256,11 +258,11 @@ Engineering blocks are the implementation packaging for the roadmap. Milestones 
 | --- | --- | --- | --- |
 | Setup | M0-M1 | Complete | Destination accepted and Effect dependency baseline installed. |
 | EB1 | M2-M3 | Complete | AppEffect kernel validated by ProcessingWorkflow extraction. |
-| EB2 | M4 + narrow M7 proof | In flight | MetadataSaveWorkflow extraction plus metadata workflow harness proof. |
-| EB3 | M5 + metadata slice of M6 | Planned | Future workflow ingress rule plus metadata enrichment workflows. |
-| EB4 | Remaining M6 | Planned | Import, preflight, and job-control workflow migration. |
+| EB2 | M4 + narrow M7 proof | Complete | MetadataSaveWorkflow extraction plus metadata workflow harness proof. |
+| EB3 | M5 + metadata slice of M6 | Complete | Future workflow ingress rule plus metadata enrichment workflows. |
+| EB4 | Remaining M6 | Complete | Import, preflight, and job-control workflow migration. |
 | EB5 | M7-M8 | Planned | Workflow service catalog, agent proof, docs, and boundary guardrails. |
-| EB6 | M9 | Planned | Greenfield convergence review, highest-ROI test-gap audit, and merge-readiness decision. |
+| EB6 | M9 | Planned | Greenfield convergence review, Nextest-informed test-feedback audit, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision. |
 
 ## Roadmap Milestones
 
@@ -424,13 +426,16 @@ Exit gate:
 
 ### M9 - Greenfield Convergence Review
 
-Purpose: decide whether Effect is now ABB's frontend workflow default.
+Purpose: decide whether Effect is now ABB's frontend workflow default, whether remaining boundaries are genuinely needed, and whether the testing feedback loop is strong enough for future agent work.
 
 Deliverables:
 
 - List of migrated workflow owners.
 - List of intentionally vanilla surfaces.
-- List of remaining known glue surfaces, each either accepted, deferred, or assigned to a follow-up issue/spec.
+- Critical boundary and seam audit: every meaningful remaining wrapper, adapter, bridge, public strip, or boundary-like module is classified as a hard technical/domain boundary, useful local implementation detail, or false seam to remove, deepen, or defer with an owner.
+- List of remaining known glue surfaces, each either technically justified and narrow, accepted as local/boring, deferred, or assigned to a follow-up issue/spec.
+- Testing feedback audit: decide which Nextest/`cargo-nextest` surfaces ABB should adopt for better agent loops, such as per-test timing, slow-test summaries, JUnit/machine-readable output, fail-fast/retry profiles, and explicit doctest handling where needed.
+- Highest-ROI test-gap audit, led by gaps that would have reduced agent retry loops during the roadmap.
 - Remaining risks and no-go zones.
 - Decision: keep Effect private to workflow owners, broaden to `tauriClient`, or stop at current scope.
 - Decision: merge `roadmap/effect-adoption` to `main`, keep it open for a narrowed roadmap, or split remaining work into new issues.
@@ -438,6 +443,8 @@ Deliverables:
 Exit gate:
 
 - Adoption definition is met or consciously narrowed.
+- Remaining boundary management is either technically required and documented, intentionally boring, or assigned to follow-up work.
+- Testing-feedback improvements are either accepted into the proof path or explicitly deferred with rationale.
 - Active implementation spec is deleted after work is merged, validated, documented, and synced.
 - The roadmap branch is ready for final sync to `main`, or the remaining work has been explicitly rerouted.
 

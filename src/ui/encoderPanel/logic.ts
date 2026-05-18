@@ -10,7 +10,6 @@ import {
 	readSampleRateFromState,
 	readToolchainSettingsFromState,
 	setChannelsAutoHint,
-	setEncoderAvailability,
 	setExternalToolchainOverridePath,
 	setSampleRateAutoHint,
 	type BitrateModeSelection,
@@ -18,8 +17,8 @@ import {
 } from './state.svelte';
 import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability } from '../../types/audio';
-import { tauriClient } from '../../lib/tauri/client';
 import { resetAutoResolutionHints } from './autoResolutionHints';
+import { runToolchainValidationWorkflow } from './toolchainValidationWorkflow';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -235,25 +234,12 @@ const syncEncoderState = (): void => {
 	updateAvailabilityHint();
 };
 
-const syncAfterStateChange = (): void => {
+export const syncAfterStateChange = (): void => {
 	syncEncoderState();
 	syncOutputSizingFromEncoderState();
 };
 
-const hydrateAvailability = async (mode: 'initial' | 'refresh' = 'initial'): Promise<void> => {
-	try {
-		const settings = readToolchainSettingsFromState();
-		const availability =
-			mode === 'refresh'
-				? await tauriClient.refreshExternalToolchain(settings)
-				: await tauriClient.listAvailableEncoders(settings);
-		debugLog('Encoder availability:', availability);
-		setEncoderAvailability(availability);
-	} catch (error) {
-		console.warn('Failed to load encoder availability', error);
-		setEncoderAvailability(null);
-	}
-
+export const syncEncoderPanelAfterAvailabilityChange = (): void => {
 	syncEncoderState();
 	syncOutputSizingFromEncoderState();
 	debugLog('Encoder panel ready');
@@ -265,7 +251,7 @@ export const initializeEncoderPanelLogic = (): void => {
 	setSampleRateAutoHint('Auto resolves from source audio.');
 	setChannelsAutoHint('Auto resolves from source audio.');
 	syncOutputSizingFromEncoderState();
-	void hydrateAvailability();
+	void runToolchainValidationWorkflow({ type: 'hydrateAvailability' });
 };
 
 export const handleFlavorChange = (event: Event): void => {
@@ -328,33 +314,19 @@ export const handleToolchainPathInput = (event: Event): void => {
 
 export const handleToolchainPathCommit = (): void => {
 	syncAfterStateChange();
-	void hydrateAvailability('refresh');
+	void runToolchainValidationWorkflow({ type: 'commitOverride' });
 };
 
 export const handleToolchainBrowse = async (): Promise<void> => {
-	try {
-		const selected = await tauriClient.openFile({
-			title: 'Select ffmpeg executable',
-		});
-		if (!selected) {
-			return;
-		}
-		setExternalToolchainOverridePath(selected);
-		syncAfterStateChange();
-		await hydrateAvailability('refresh');
-	} catch (error) {
-		console.warn('Failed to choose ffmpeg executable', error);
-	}
+	await runToolchainValidationWorkflow({ type: 'browseToolchain' });
 };
 
 export const clearToolchainOverride = (): void => {
-	setExternalToolchainOverridePath('');
-	syncAfterStateChange();
-	void hydrateAvailability('refresh');
+	void runToolchainValidationWorkflow({ type: 'clearOverride' });
 };
 
 export const refreshExternalToolchain = (): void => {
-	void hydrateAvailability('refresh');
+	void runToolchainValidationWorkflow({ type: 'refresh' });
 };
 
 export const handleSampleRateSelectionChange = (event: Event): void => {
