@@ -30,6 +30,7 @@ Use these layers to locate ownership before changing behavior:
 | --- | --- |
 | Product intent | What the user believes they asked the app to do. |
 | UI state | Selected files, edits, visible status, and enabled actions. |
+| Frontend workflow coordination | Effect workflow owners for multi-boundary async orchestration, typed workflow errors, fakeable services, and terminal UI outcomes. |
 | IPC contract | Command, event, and payload shapes crossing TS <-> Rust. |
 | Backend lifecycle | Planning, queueing, execution, cancellation, skipping, and finalization. |
 | Artifact truth | Final files, tags, paths, and terminal results on disk. |
@@ -64,6 +65,8 @@ ownership or proof.
 ## Core Truth Boundaries
 
 - UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
+- Multi-boundary frontend orchestration lives in named Effect workflow owners;
+  Svelte/UI modules dispatch intent and render state.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.

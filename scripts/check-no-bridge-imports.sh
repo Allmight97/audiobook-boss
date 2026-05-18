@@ -95,7 +95,7 @@ if rg -n "\\b(resolve_effective_processing_metadata|resolve_naming_metadata)\\b"
 fi
 rm -f /tmp/no-metadata-intent-reach-through.out
 
-if rg -n "['\"][^'\"]*statusPanel/(viewState(?:\\.svelte)?|controller|runtimeApi|domain/stateMachine|domain/stateMachineHelpers|domain/stateMachineTypes|render|feedback|reducer[^'\"]*)" src \
+if rg -n "['\"][^'\"]*statusPanel/(viewState(?:\\.svelte)?|controller|runtimeApi|domain/stateMachine|domain/stateMachineHelpers|domain/stateMachineTypes|render|feedback|reducer[^'\"]*|processingWorkflow(?:Live|Services)?|processingCancellationWorkflow(?:Live|Services)?)" src \
   -g '*.ts' \
   -g '*.svelte' \
   -g '!src/ui/statusPanel/**' \
