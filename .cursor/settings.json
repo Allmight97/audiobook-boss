@@ -10,8 +10,8 @@
 	"search.exclude": {
 		"repos/**": true
 	},
-  "plugins": {
-    "svelte": {
+	"plugins": {
+		"svelte": {
 			"enabled": true
 		}
 	}
