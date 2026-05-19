@@ -30,8 +30,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Load `path-security-validation` when adding/modifying path inputs or outputs.
 - Load `job-registry-and-progress` when touching queueing, cancellation, or progress semantics.
 - Load `audiobook-metadata` when changing M4B/MP4 metadata behavior.
-- Load `abb-library-research` when external library/API behavior or vendored
-  `repos/*` source affects planning, implementation, review, or audit work.
+- Load `abb-library-research` when external library/API behavior, vendored
+  `repos/*` source, route cards, subtree refreshes, or reference pattern files
+  affect planning, implementation, review, audit, or maintenance work.
 - Load global `improve-codebase-architecture` for broad architecture/refactor discovery, including wrapper-heavy boundary code, false seams, duplicate rules, mirror mappings, or deep-module candidates.
 - Load `resource-lifetime-audit` when hunting file-handle, temp-file, process,
   cancellation, reopen, replace, or cleanup hazards.
@@ -157,9 +158,11 @@ Evidence ladder:
    dependency gates.
 2. Context7/current docs: confirm current public API behavior when uncertainty
    matters.
-3. `repos/*`: inspect squashed upstream source, tests, examples, permissions,
+3. `abb-library-research` references: choose focused route cards and subtree
+   paths without duplicating routing in `AGENTS.md`.
+4. `repos/*`: inspect squashed upstream source, tests, examples, permissions,
    and implementation patterns.
-4. Installed ABB dependencies: decide what can actually be imported or relied on.
+5. Installed ABB dependencies: decide what can actually be imported or relied on.
 
 `repos/*` is read-only reference material. Do not import from it, and do not edit
 it except when explicitly refreshing or patching a reference subtree. Upstream

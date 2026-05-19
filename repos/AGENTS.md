@@ -18,28 +18,12 @@
 - Prefer focused `rg`, `fd`, and targeted file reads inside the relevant
   subtree over broad scans of every vendored repo.
 
-## Current Reference Map
+## Control Plane
 
-- `repos/effect`: Effect services, layers, streams, scopes, schedules, typed
-  errors, test utilities, and idiomatic Effect examples.
-- `repos/svelte`: Svelte 5 runtime/compiler behavior and component patterns.
-- `repos/tauri`: Tauri runtime, command, event, API, plugin, and bundling
-  behavior.
-- `repos/tauri-plugins`: Tauri v2 plugin source, including dialog and opener
-  behavior used by ABB's runtime boundary.
-- `repos/specta`: Rust type export and TypeScript binding generation behavior.
-- `repos/tauri-specta`: Tauri/Specta integration and event/command export
-  behavior.
+- Use `.agents/skills/abb-library-research` for route cards, subtree refresh
+  commands, and task-specific pattern-file policy.
+- Keep detailed routing out of `AGENTS.md`; this file only protects the raw
+  subtree boundary and points agents to the owning skill.
 
-## Refresh Pattern
-
-Refresh only as an explicit dependency/reference maintenance task:
-
-```bash
-git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
-```
-
-Use the upstream branch recorded for each subtree. Keep refreshes grouped by
-coherent stack area. Refreshing or adding reference subtrees does not require
-`scripts/checks.sh standard` unless ABB app code, dependency manifests,
-build/test semantics, or runtime imports also change.
+For available subtrees, refresh commands, and route cards, use the owning skill's
+`references/` files rather than duplicating routing here.

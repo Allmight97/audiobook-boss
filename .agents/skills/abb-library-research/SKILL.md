@@ -1,24 +1,37 @@
 ---
 name: abb-library-research
-description: ABB-specific library/docs and reference-source router. Use during Audiobook Boss planning, implementation, review, or audit when external API behavior, Context7/ctx7 MCP docs, squashed repos/* reference source, installed dependency surfaces, or Effect/Svelte/Tauri/Specta/tauri-specta behavior affects the work.
+description: ABB reference-library control plane for external library/API research, vendored repos/* subtrees, route cards, subtree refreshes, and pattern files. Use during ABB planning, implementation, review, audits, or maintenance involving Context7/current docs, installed dependency truth, or Effect/Svelte/Tauri/Specta/tauri-specta behavior.
 ---
 
 # ABB Library Research
 
-Use this skill when ABB work depends on external library behavior or source
-patterns. Optimize for implementation-ready answers, not broad research.
+Use this skill when ABB work depends on external library behavior, reference
+subtree source, or route-card maintenance. Optimize for implementation-ready
+answers, not broad research.
 
 ## Posture
 
 ABB is current-state evidence and the owning integration surface, not the final
 authority on what should be built. Use ABB to locate boundaries, constraints,
-tests, and product intent; use well-regarded libraries, current docs, `repos/*`
-reference source, and installed dependency truth to challenge, improve, or
-validate the plan.
+tests, and product intent; use well-regarded libraries, current docs, this
+skill's route references, `repos/*` reference source, and installed dependency
+truth to challenge, improve, or validate the plan.
 
-This is a supporting router for planning and implementation agents. It grounds
-work in real sources without absorbing domain skills such as metadata, path
-safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
+This skill is the control plane for ABB reference libraries: source routing,
+subtree refresh guidance, route-card maintenance, and task-specific pattern-file
+policy. It does not absorb domain skills such as metadata, path safety, job
+lifecycle, release, dependency maintenance, or IPC guardrails.
+
+## References
+
+- Read `references/subtree-management.md` when refreshing subtrees, adding or
+  removing reference libraries, updating route cards, or creating pattern files.
+- Read the relevant route card before searching raw source:
+  `references/effect.md`, `references/svelte.md`, `references/tauri.md`,
+  `references/tauri-plugins.md`, `references/specta.md`, or
+  `references/tauri-specta.md`.
+- Route cards are navigation only. They do not override upstream source,
+  current docs, ABB manifests, generated bindings, or installed dependencies.
 
 ## Source Ladder
 
@@ -27,9 +40,11 @@ safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
 2. Use Context7/ctx7 MCP only when external library/API behavior is uncertain
    or version-sensitive. Use known library IDs when possible, ask one precise
    question, and skip library resolution when the ID is already known.
-3. Confirm with `repos/*` for source-level patterns, tests, examples,
+3. Read the relevant `references/<library>.md` route card to choose focused
+   source, test, example, and docs paths.
+4. Confirm with `repos/*` for source-level patterns, tests, examples,
    permission schemas, and implementation details.
-4. Reconcile with ABB's installed/importable truth before implementation:
+5. Reconcile with ABB's installed/importable truth before implementation:
    `package.json`, `bun.lock`, `node_modules` declarations, Cargo lockfiles,
    generated schemas, and generated bindings.
 
@@ -41,7 +56,16 @@ safety, job lifecycle, release, dependency maintenance, or IPC guardrails.
 - Use `ctx7` CLI only when the user explicitly asks to diagnose Context7 tooling
   or compare MCP behavior. Do not use CLI for ordinary ABB library research.
 - If Context7 is degraded, keep moving with official docs, `repos/*`, installed
-  declarations, local generated docs, and `rg`.
+  declarations, generated bindings, and `rg`.
+
+## Pattern Files
+
+- Do not create pattern files speculatively.
+- Create `references/pattern-<library>-<topic>.md` only when a real ABB task
+  repeatedly needs the same external-library idiom.
+- Pattern files must cite concrete source/test/docs paths, stay practical for
+  ABB usage, include what to avoid when useful, and be refreshed or deleted when
+  stale.
 
 ## Planning Mode
 
@@ -59,7 +83,8 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 
 - Prefer exported installed dependency types over copying conditional types or
   local mirrors from reference repos.
-- Use `repos/*` as read-only source material; do not import from it.
+- Use this skill's route references to find the right subtree paths, then use
+  `repos/*` as read-only source material; do not import from it.
 - Keep `src/lib/tauri/*` as ABB's runtime boundary for Tauri IPC/plugin access.
 - For Effect pilots, keep Effect private to the owning workflow until the
   boundary decision changes intentionally.
@@ -73,35 +98,28 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 - Effect workflow, typed errors, services, layers, scopes, streams, schedules,
   tests: Context7/ctx7 MCP Effect docs such as
   `/llmstxt/effect_website_llms_txt` for usage guidance or `/effect-ts/effect`
-  for API/source examples, then `repos/effect/packages/effect`, then ABB
-  dependency state.
+  for API/source examples, then `references/effect.md`, then listed
+  `repos/effect` paths, then ABB dependency state.
 - Svelte 5 components, runes, events, stores, compiler/runtime behavior:
-  Context7/ctx7 MCP Svelte docs, then `repos/svelte/packages/svelte` and
-  targeted tests, then installed `svelte` declarations/version.
+  Context7/ctx7 MCP Svelte docs, then `references/svelte.md`, then listed
+  `repos/svelte` paths and targeted tests, then installed `svelte`
+  declarations/version.
 - Tauri core JS/Rust APIs, commands, events, runtime behavior:
-  Context7/ctx7 MCP Tauri docs, then `repos/tauri/packages/api`,
-  `repos/tauri/crates/tauri`, and `repos/tauri/examples`, then installed
-  `@tauri-apps/*` or Cargo surfaces.
+  Context7/ctx7 MCP Tauri docs, then `references/tauri.md`, then listed
+  `repos/tauri` paths, then installed `@tauri-apps/*` or Cargo surfaces.
 - Tauri plugins: Context7/ctx7 MCP Tauri plugins docs, then
-  `repos/tauri-plugins/plugins/<plugin-name>` and examples, then installed
-  plugin declarations and `src-tauri/capabilities`.
+  `references/tauri-plugins.md`, then listed
+  `repos/tauri-plugins/plugins/<plugin-name>` paths and examples, then
+  installed plugin declarations and `src-tauri/capabilities`.
 - Specta type export behavior: Context7/current docs if available, then
-  `repos/specta/specta`, `repos/specta/specta-typescript`, tests/examples, and
-  generated ABB bindings.
+  `references/specta.md`, then listed `repos/specta` paths, tests/examples,
+  and generated ABB bindings.
 - Tauri/Specta integration: Context7/current docs if available, then
-  `repos/tauri-specta` source/tests/examples, then ABB generated binding checks.
+  `references/tauri-specta.md`, then listed `repos/tauri-specta`
+  source/tests/examples, then ABB generated binding checks.
 
 ## Subtree Refreshes (only when requested)
 
-```bash
-git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
-git subtree pull --prefix=repos/svelte https://github.com/sveltejs/svelte.git main --squash
-git subtree pull --prefix=repos/tauri https://github.com/tauri-apps/tauri.git dev --squash
-git subtree pull --prefix=repos/tauri-plugins https://github.com/tauri-apps/plugins-workspace.git v2 --squash
-git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git main --squash
-git subtree pull --prefix=repos/tauri-specta https://github.com/specta-rs/tauri-specta.git main --squash
-```
-
-After refreshes, verify subtree metadata, expected source directories, and
-`git status`. Do not run `scripts/checks.sh standard` for pure reference-source
-refreshes.
+Read `references/subtree-management.md`, use the recorded subtree command, then
+verify subtree metadata, expected source directories, and `git status`. Do not
+run `scripts/checks.sh standard` for pure reference-source refreshes.
