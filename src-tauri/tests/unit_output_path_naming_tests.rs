@@ -1,7 +1,7 @@
 use audiobook_boss_lib::output_artifact::{
     build_output_path_preview, NamingPreset, OutputNamingConfig,
 };
-use audiobook_boss_lib::AudiobookMetadata;
+use audiobook_boss_lib::{AudiobookMetadata, NamingMetadata};
 use tempfile::TempDir;
 
 fn sample_metadata() -> AudiobookMetadata {
@@ -25,10 +25,15 @@ fn sample_metadata() -> AudiobookMetadata {
     }
 }
 
+fn naming_metadata(metadata: &AudiobookMetadata) -> NamingMetadata {
+    NamingMetadata::from_metadata(metadata)
+}
+
 #[test]
 fn abs_default_preview_matches_existing_abs_layout() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let metadata = sample_metadata();
+    let metadata = naming_metadata(&metadata);
     let naming = OutputNamingConfig::default();
 
     let preview = build_output_path_preview(temp_dir.path(), Some(&metadata), naming, None)
@@ -48,6 +53,7 @@ fn abs_default_preview_matches_existing_abs_layout() {
 fn custom_template_substitutes_whitelisted_tokens() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let metadata = sample_metadata();
+    let metadata = naming_metadata(&metadata);
     let naming = OutputNamingConfig {
         preset: NamingPreset::CustomTemplate,
         include_year: false,
@@ -69,6 +75,7 @@ fn custom_template_substitutes_whitelisted_tokens() {
 fn custom_template_rejects_unknown_tokens() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let metadata = sample_metadata();
+    let metadata = naming_metadata(&metadata);
     let naming = OutputNamingConfig {
         preset: NamingPreset::CustomTemplate,
         include_year: false,
@@ -84,6 +91,7 @@ fn custom_template_rejects_unknown_tokens() {
 fn custom_template_rejects_traversal_and_absolute_paths() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let metadata = sample_metadata();
+    let metadata = naming_metadata(&metadata);
 
     let traversal = OutputNamingConfig {
         preset: NamingPreset::CustomTemplate,
@@ -109,6 +117,7 @@ fn custom_template_rejects_traversal_and_absolute_paths() {
 fn custom_template_auto_appends_m4b_extension() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let metadata = sample_metadata();
+    let metadata = naming_metadata(&metadata);
     let naming = OutputNamingConfig {
         preset: NamingPreset::CustomTemplate,
         include_year: false,
@@ -132,6 +141,7 @@ fn custom_template_with_missing_series_skips_empty_segment() {
     metadata.series_part = None;
     metadata.subseries = None;
     metadata.subseries_part = None;
+    let metadata = naming_metadata(&metadata);
 
     let naming = OutputNamingConfig {
         preset: NamingPreset::CustomTemplate,

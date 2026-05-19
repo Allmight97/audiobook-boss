@@ -1,8 +1,129 @@
-use super::{AudiobookMetadata, MetadataIntentPatch};
+use super::{AudiobookMetadata, MetadataIntentPatch, MetadataWritePlan};
 use crate::errors::Result;
+use crate::metadata::passthrough::PassthroughMetadata;
 use std::path::Path;
 
-pub(crate) fn resolve_effective_processing_metadata(
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NamingMetadata {
+    title: Option<String>,
+    artist: Option<String>,
+    series: Option<String>,
+    series_part: Option<String>,
+    subseries: Option<String>,
+    subseries_part: Option<String>,
+    date: Option<String>,
+}
+
+impl NamingMetadata {
+    pub fn from_metadata(metadata: &AudiobookMetadata) -> Self {
+        Self {
+            title: metadata.title.clone(),
+            artist: metadata.artist.clone(),
+            series: metadata.series.clone(),
+            series_part: metadata.series_part.clone(),
+            subseries: metadata.subseries.clone(),
+            subseries_part: metadata.subseries_part.clone(),
+            date: metadata.date.clone(),
+        }
+    }
+
+    pub(crate) fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    pub(crate) fn artist(&self) -> Option<&str> {
+        self.artist.as_deref()
+    }
+
+    pub(crate) fn series(&self) -> Option<&str> {
+        self.series.as_deref()
+    }
+
+    pub(crate) fn series_part(&self) -> Option<&str> {
+        self.series_part.as_deref()
+    }
+
+    pub(crate) fn subseries(&self) -> Option<&str> {
+        self.subseries.as_deref()
+    }
+
+    pub(crate) fn subseries_part(&self) -> Option<&str> {
+        self.subseries_part.as_deref()
+    }
+
+    pub(crate) fn date(&self) -> Option<&str> {
+        self.date.as_deref()
+    }
+
+    fn scrub_legacy_source_series_parts_for_naming(&mut self) {
+        scrub_invalid_series_part_for_naming(&mut self.series_part);
+        scrub_invalid_series_part_for_naming(&mut self.subseries_part);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoverArtPassthroughPolicy {
+    Preserve,
+    SuppressAfterExplicitClear,
+}
+
+impl CoverArtPassthroughPolicy {
+    pub(crate) fn from_intent_patch(patch: Option<&MetadataIntentPatch>) -> Self {
+        if patch.is_some_and(MetadataIntentPatch::clears_cover_art) {
+            Self::SuppressAfterExplicitClear
+        } else {
+            Self::Preserve
+        }
+    }
+
+    pub(crate) fn apply_to_passthrough(
+        self,
+        passthrough: Option<PassthroughMetadata>,
+    ) -> Option<PassthroughMetadata> {
+        match self {
+            Self::Preserve => passthrough,
+            Self::SuppressAfterExplicitClear => {
+                log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
+                passthrough.and_then(PassthroughMetadata::without_cover_art)
+            }
+        }
+    }
+}
+
+pub(crate) struct MetadataOutcomeRequest<'a> {
+    pub(crate) input_path: Option<&'a Path>,
+    pub(crate) intent_patch: Option<&'a MetadataIntentPatch>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct MetadataOutcomePlan {
+    pub(crate) effective_metadata: Option<AudiobookMetadata>,
+    pub(crate) naming_metadata: Option<NamingMetadata>,
+    pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
+}
+
+pub(crate) fn plan_metadata_outcome(
+    request: MetadataOutcomeRequest<'_>,
+) -> Result<MetadataOutcomePlan> {
+    let effective_metadata =
+        resolve_effective_processing_metadata(request.input_path, request.intent_patch)?;
+    let naming_metadata = resolve_naming_metadata(
+        effective_metadata.as_ref(),
+        request.input_path,
+        request.intent_patch,
+    );
+    Ok(MetadataOutcomePlan {
+        effective_metadata,
+        naming_metadata,
+        cover_art_passthrough: CoverArtPassthroughPolicy::from_intent_patch(request.intent_patch),
+    })
+}
+
+pub(crate) fn plan_metadata_write(patch: &MetadataIntentPatch) -> Result<MetadataWritePlan> {
+    patch.to_write_plan()
+}
+
+fn resolve_effective_processing_metadata(
     input_path: Option<&Path>,
     patch: Option<&MetadataIntentPatch>,
 ) -> Result<Option<AudiobookMetadata>> {
@@ -17,23 +138,18 @@ pub(crate) fn resolve_effective_processing_metadata(
     }
 }
 
-pub(crate) fn resolve_naming_metadata(
+fn resolve_naming_metadata(
     resolved_metadata: Option<&AudiobookMetadata>,
     input_path: Option<&Path>,
     patch: Option<&MetadataIntentPatch>,
-) -> Option<AudiobookMetadata> {
-    let mut naming_metadata = resolved_metadata.cloned()?;
+) -> Option<NamingMetadata> {
+    let mut naming_metadata = resolved_metadata.map(NamingMetadata::from_metadata)?;
 
     if input_path.is_some() && patch.is_none() {
-        scrub_legacy_source_series_parts_for_naming(&mut naming_metadata);
+        naming_metadata.scrub_legacy_source_series_parts_for_naming();
     }
 
     Some(naming_metadata)
-}
-
-fn scrub_legacy_source_series_parts_for_naming(metadata: &mut AudiobookMetadata) {
-    scrub_invalid_series_part_for_naming(&mut metadata.series_part);
-    scrub_invalid_series_part_for_naming(&mut metadata.subseries_part);
 }
 
 fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
@@ -50,8 +166,11 @@ fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_effective_processing_metadata, resolve_naming_metadata};
-    use crate::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
+    use super::{plan_metadata_outcome, MetadataOutcomeRequest};
+    use crate::metadata::{
+        plan_metadata_write, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
+        PatchOp,
+    };
     use crate::output_artifact::{build_output_path, OutputNamingConfig};
     use std::path::Path;
 
@@ -68,7 +187,10 @@ mod tests {
     #[test]
     fn effective_processing_metadata_no_patch_reads_source_or_errors() {
         let missing_source = Path::new("/path/that/does/not/exist/input.m4b");
-        let outcome = resolve_effective_processing_metadata(Some(missing_source), None);
+        let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: Some(missing_source),
+            intent_patch: None,
+        });
         assert!(
             outcome.is_err(),
             "missing input should fail read, not return empty metadata"
@@ -99,8 +221,12 @@ mod tests {
             ..Default::default()
         };
 
-        let resolved =
-            resolve_effective_processing_metadata(None, Some(&patch)).expect("metadata resolves");
+        let resolved = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: None,
+            intent_patch: Some(&patch),
+        })
+        .expect("metadata resolves")
+        .effective_metadata;
 
         assert_eq!(
             resolved.and_then(|value| value.title),
@@ -115,8 +241,11 @@ mod tests {
             ..Default::default()
         };
 
-        let err = resolve_effective_processing_metadata(None, Some(&patch))
-            .expect_err("invalid patch should fail");
+        let err = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: None,
+            intent_patch: Some(&patch),
+        })
+        .expect_err("invalid patch should fail");
         assert!(
             err.to_string().contains("Publication date"),
             "unexpected error: {err}"
@@ -135,7 +264,7 @@ mod tests {
             .expect("metadata should resolve");
         let output_path = build_output_path(
             Path::new("/tmp"),
-            Some(&effective),
+            Some(&crate::metadata::NamingMetadata::from_metadata(&effective)),
             OutputNamingConfig::default(),
             None,
         )
@@ -159,15 +288,27 @@ mod tests {
             ..Default::default()
         };
 
-        let naming =
-            resolve_naming_metadata(Some(&metadata), Some(Path::new("/tmp/source.m4b")), None)
-                .expect("naming metadata should exist");
+        let naming = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: None,
+            intent_patch: None,
+        })
+        .expect("empty request resolves");
+        assert!(
+            naming.naming_metadata.is_none(),
+            "empty request should not invent naming metadata"
+        );
+        let naming = super::resolve_naming_metadata(
+            Some(&metadata),
+            Some(Path::new("/tmp/source.m4b")),
+            None,
+        )
+        .expect("naming metadata should exist");
 
-        assert_eq!(naming.title.as_deref(), Some("Legacy Source"));
-        assert_eq!(naming.series.as_deref(), Some("Series"));
-        assert_eq!(naming.series_part, None);
-        assert_eq!(naming.subseries.as_deref(), Some("Subseries"));
-        assert_eq!(naming.subseries_part, None);
+        assert_eq!(naming.title(), Some("Legacy Source"));
+        assert_eq!(naming.series(), Some("Series"));
+        assert_eq!(naming.series_part(), None);
+        assert_eq!(naming.subseries(), Some("Subseries"));
+        assert_eq!(naming.subseries_part(), None);
 
         let output_path = build_output_path(
             Path::new("/tmp"),
@@ -196,7 +337,7 @@ mod tests {
             ..Default::default()
         };
 
-        let naming = resolve_naming_metadata(
+        let naming = super::resolve_naming_metadata(
             Some(&metadata),
             Some(Path::new("/tmp/source.m4b")),
             Some(&patch),
@@ -214,6 +355,44 @@ mod tests {
         assert!(
             err.to_string().contains("Series sequence"),
             "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn outcome_plan_reports_cover_art_clear_policy() {
+        let patch = MetadataIntentPatch {
+            cover_art: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: None,
+            intent_patch: Some(&patch),
+        })
+        .expect("metadata outcome resolves");
+
+        assert!(
+            matches!(
+                outcome.cover_art_passthrough,
+                CoverArtPassthroughPolicy::SuppressAfterExplicitClear
+            ),
+            "explicit cover clear must suppress source cover art passthrough"
+        );
+    }
+
+    #[test]
+    fn metadata_write_plan_preserves_cover_art_clear() {
+        let patch = MetadataIntentPatch {
+            cover_art: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            plan_metadata_write(&patch)
+                .expect("write plan")
+                .metadata
+                .cover_art,
+            Some(Vec::new())
         );
     }
 }

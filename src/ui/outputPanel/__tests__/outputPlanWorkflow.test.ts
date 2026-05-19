@@ -57,7 +57,7 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 	let latestRequestId = 0;
 	const services: OutputPlanWorkflowServices = {
 		getState: vi.fn(() => state as ReturnType<OutputPlanWorkflowServices['getState']>),
-		getCurrentMetadata: vi.fn(() => ({
+		readOutputPathPreviewMetadataDraft: vi.fn(() => ({
 			title: 'A',
 			album: 'A',
 			artist: 'Author',
@@ -69,7 +69,7 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 		})),
 		updateSeriesPartWarning: vi.fn(),
 		updateSubseriesPartWarning: vi.fn(),
-		buildOutputPreviewCallSiteState: vi.fn(() => ({
+		buildOutputPathPreviewContext: vi.fn(() => ({
 			outputDirectory: state.outputDirectory,
 			sourcePath: '/books/a.m4b',
 		})),
@@ -175,7 +175,7 @@ describe('OutputPlanWorkflow', () => {
 		const result = await runAppEffect(
 			outputPlanReviewWorkflowExecution({
 				payload: payload(),
-				metadataIntent: null,
+				metadataIntentByPath: null,
 				previewSeconds: null,
 			}).pipe(Effect.provide(harness.layer)),
 		);
@@ -214,7 +214,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntent: null }).pipe(
+			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -248,7 +248,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntent: null }).pipe(
+			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -281,7 +281,7 @@ describe('OutputPlanWorkflow', () => {
 			.fn()
 			.mockResolvedValueOnce(initialPlan)
 			.mockResolvedValueOnce(reviewedPlan);
-		const metadataIntent: Record<string, MetadataIntentPatch> = {
+		const metadataIntentByPath: Record<string, MetadataIntentPatch> = {
 			'/books/a.m4b': { title: { op: 'set', value: 'A' } },
 		};
 		const processPayload = payload();
@@ -293,14 +293,14 @@ describe('OutputPlanWorkflow', () => {
 		const result = await runAppEffect(
 			outputPlanReviewWorkflowExecution({
 				payload: processPayload,
-				metadataIntent,
+				metadataIntentByPath,
 				previewSeconds: 30,
 			}).pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(preflightProcessingPlan).toHaveBeenNthCalledWith(2, {
 			payload: { ...processPayload, collisionPolicy: 'rename_new' },
-			metadataIntent,
+			metadataIntent: metadataIntentByPath,
 			previewSeconds: 30,
 		});
 		expect(result).toEqual({

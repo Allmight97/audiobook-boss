@@ -3,6 +3,7 @@ use audiobook_boss_lib::audio::settings_encoder::{
 };
 use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+use audiobook_boss_lib::CoverArtPassthroughPolicy;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -54,9 +55,14 @@ async fn encode_with_fastpath_mode(
         OutputConfig::new(output_path),
     );
 
-    audio::process_audiobook_with_context(context, input_info.files, None, true)
-        .await
-        .expect("native AAC processing should complete")
+    audio::process_audiobook_with_context(
+        context,
+        input_info.files,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+    )
+    .await
+    .expect("native AAC processing should complete")
 }
 
 #[tokio::test(flavor = "multi_thread")]

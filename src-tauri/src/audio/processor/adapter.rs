@@ -8,7 +8,7 @@ use crate::audio::toolchain::{
 };
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,7 +50,7 @@ impl ResolvedProcessorAdapter {
         files: Vec<AudioFile>,
         selected_decoders: Vec<Option<DecoderSelection>>,
         metadata: Option<AudiobookMetadata>,
-        allow_passthrough_cover_art: bool,
+        cover_art_passthrough: CoverArtPassthroughPolicy,
     ) -> Result<String> {
         match self {
             Self::NativeFfmpegNext => {
@@ -58,7 +58,7 @@ impl ResolvedProcessorAdapter {
                     context,
                     files,
                     metadata,
-                    allow_passthrough_cover_art,
+                    cover_art_passthrough,
                 )
                 .await
             }
@@ -68,7 +68,7 @@ impl ResolvedProcessorAdapter {
                     files,
                     selected_decoders,
                     metadata,
-                    allow_passthrough_cover_art,
+                    cover_art_passthrough,
                     toolchain,
                 )
                 .await

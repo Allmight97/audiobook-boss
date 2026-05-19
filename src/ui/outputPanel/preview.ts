@@ -23,12 +23,14 @@ import {
 import type { OutputKind } from '../../types/audio';
 import { runOutputPathPreviewWorkflow } from './outputPlanWorkflow';
 
-type OutputPreviewCallSiteState = {
+export type OutputPathPreviewMetadataDraft = AudiobookMetadata;
+
+type OutputPathPreviewContext = {
 	outputDirectory: string;
 	sourcePath?: string;
 };
 
-export function getCurrentMetadata(): AudiobookMetadata {
+export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataDraft {
 	const metadata = readMetadataForm({
 		mode: metadataFormState.mode,
 		onlyDirty: false,
@@ -51,6 +53,8 @@ export function getCurrentMetadata(): AudiobookMetadata {
 		cover_art: coverArt ?? metadata.cover_art ?? undefined,
 	};
 }
+
+export const getCurrentMetadata = readOutputPathPreviewMetadataDraft;
 
 export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 	const seriesValue = metadata.series?.trim() ?? '';
@@ -117,7 +121,7 @@ export function updateNamingOptionState(): void {
 	});
 }
 
-export function buildOutputPreviewCallSiteState(): OutputPreviewCallSiteState {
+export function buildOutputPathPreviewContext(): OutputPathPreviewContext {
 	const state = getState();
 	const fileList = getCurrentFileList();
 	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);

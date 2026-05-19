@@ -15,8 +15,8 @@ use crate::audio::cleanup::CleanupGuard;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::AudioFile;
 use crate::errors::Result;
-use crate::metadata::passthrough::apply_cover_art_policy;
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::passthrough::merge_passthrough_cover_art;
+use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 use std::time::Duration;
 
@@ -82,7 +82,7 @@ pub async fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
-    allow_passthrough_cover_art: bool,
+    cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<String> {
     let mut reporter = ProgressReporter::new(files.len());
     let mut metrics = ProcessingMetrics::new();
@@ -95,29 +95,11 @@ pub async fn process_audiobook_with_context(
     workflow_cleanup.add_path(&workflow_temp_dir);
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
-    let passthrough_metadata = apply_cover_art_policy(
+    let passthrough_metadata = cover_art_passthrough.apply_to_passthrough(
         crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option(),
-        allow_passthrough_cover_art,
     );
 
-    // Merge passthrough cover art when user metadata is absent or missing cover art.
-    let mut effective_metadata = metadata;
-    if let Some(ref passthrough) = passthrough_metadata {
-        if let Some(ref cover) = passthrough.cover_art {
-            match effective_metadata.as_mut() {
-                Some(md) => {
-                    if md.cover_art.is_none() {
-                        md.cover_art = Some(cover.clone());
-                    }
-                }
-                None => {
-                    let mut md = AudiobookMetadata::new();
-                    md.cover_art = Some(cover.clone());
-                    effective_metadata = Some(md);
-                }
-            }
-        }
-    }
+    let effective_metadata = merge_passthrough_cover_art(metadata, passthrough_metadata.as_ref());
 
     // Metrics accumulation (estimates)
     for file in &files {

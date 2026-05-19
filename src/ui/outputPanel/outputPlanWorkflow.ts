@@ -62,26 +62,26 @@ function outputPathPreviewBody(
 	return Effect.gen(function* () {
 		const services = yield* OutputPlanWorkflowServicesTag;
 		const state = services.getState();
-		const metadata = services.getCurrentMetadata();
+		const previewMetadataDraft = services.readOutputPathPreviewMetadataDraft();
 
-		services.updateSeriesPartWarning(metadata);
-		services.updateSubseriesPartWarning(metadata);
+		services.updateSeriesPartWarning(previewMetadataDraft);
+		services.updateSubseriesPartWarning(previewMetadataDraft);
 
 		if (!state.outputDirectory) {
 			services.setOutputPreview('Select output directory...', 'No directory selected');
 			return;
 		}
 
-		const previewCallSiteState = services.buildOutputPreviewCallSiteState();
+		const previewContext = services.buildOutputPathPreviewContext();
 		const requestId = reservedRequestId ?? services.beginOutputPreviewRequest();
 
 		const previewPath = yield* workflowPromise(
 			() =>
 				services.previewOutputPath({
-					outputDir: previewCallSiteState.outputDirectory,
-					metadata,
+					outputDir: previewContext.outputDirectory,
+					metadata: previewMetadataDraft,
 					outputNaming: services.getOutputNamingConfig(),
-					sourcePath: previewCallSiteState.sourcePath,
+					sourcePath: previewContext.sourcePath,
 					outputKind,
 				}),
 			'Output preview failed.',
@@ -112,10 +112,15 @@ function outputPlanReviewBody(
 ): AppEffect<OutputPlanReviewResult, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* OutputPlanWorkflowServicesTag;
-		const { payload, metadataIntent, previewSeconds } = request;
+		const { payload, metadataIntentByPath, previewSeconds } = request;
 
 		const initialPlan = yield* workflowPromise(
-			() => services.preflightProcessingPlan({ payload, metadataIntent, previewSeconds }),
+			() =>
+				services.preflightProcessingPlan({
+					payload,
+					metadataIntent: metadataIntentByPath,
+					previewSeconds,
+				}),
 			'Output plan preflight failed.',
 		);
 		const hardBlockMessage = getBlockingReviewMessage(initialPlan);
@@ -148,7 +153,7 @@ function outputPlanReviewBody(
 			() =>
 				services.preflightProcessingPlan({
 					payload: reviewedPayload,
-					metadataIntent,
+					metadataIntent: metadataIntentByPath,
 					previewSeconds,
 				}),
 			'Reviewed output plan preflight failed.',

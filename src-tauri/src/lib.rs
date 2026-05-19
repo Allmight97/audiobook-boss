@@ -19,7 +19,10 @@ pub use metadata::{
     write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     CoverFormat as FfmpegCoverFormat,
 };
-pub use metadata::{AlbumSortPatchOp, AudiobookMetadata, MetadataIntentPatch, PatchOp};
+pub use metadata::{
+    AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
+    NamingMetadata, PatchOp,
+};
 
 // Test-facing passthrough helpers used by integration tests.
 pub use metadata::passthrough::{

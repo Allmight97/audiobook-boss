@@ -25,7 +25,7 @@ import {
 	normalizeProcessResult,
 } from './normalizers';
 
-type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
+type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 type GeneratedExternalToolchain = { overridePath: string | null };
 
 type UnwrapGeneratedResult<T> = T extends { status: 'error' }
@@ -78,14 +78,14 @@ function toGeneratedOutputNamingConfig(
 }
 
 function compileMetadataIntentMap(
-	metadataIntent?: MetadataIntentPayload | null,
+	metadataIntentByPath?: MetadataIntentByPath | null,
 ): Record<string, MetadataIntentPatch> | null {
-	if (!metadataIntent) {
+	if (!metadataIntentByPath) {
 		return null;
 	}
 
 	return Object.fromEntries(
-		Object.entries(metadataIntent).map(([path, value]) => [
+		Object.entries(metadataIntentByPath).map(([path, value]) => [
 			path,
 			compileMetadataIntentPatch(value),
 		]),
@@ -177,7 +177,7 @@ export const commandSpecs = {
 		),
 	preflight_processing_plan: (args: {
 		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentPayload | null;
+		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}) =>
 		runGeneratedCommand(
@@ -194,7 +194,7 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null)),
 	process_audiobook_files: (args: {
 		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentPayload | null;
+		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}) =>
 		runGeneratedCommand(

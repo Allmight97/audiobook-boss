@@ -9,7 +9,7 @@ use crate::audio::toolchain::{
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
-use crate::metadata::MetadataIntentPatch;
+use crate::metadata::{MetadataIntentPatch, NamingMetadata};
 use crate::output_artifact::{build_output_path_preview, derive_output_artifact_path, OutputKind};
 use crate::processing::job_registry::JobId;
 use crate::processing::run;
@@ -110,9 +110,10 @@ pub fn preview_output_path(
     let base_output_dir = PathBuf::from(output_dir);
     let source_path_buf = source_path.as_deref().map(PathBuf::from);
     let naming = output_naming.unwrap_or_default();
+    let draft_naming_metadata = metadata.as_ref().map(NamingMetadata::from_metadata);
     let requested = build_output_path_preview(
         &base_output_dir,
-        metadata.as_ref(),
+        draft_naming_metadata.as_ref(),
         naming,
         source_path_buf.as_deref(),
     )?;

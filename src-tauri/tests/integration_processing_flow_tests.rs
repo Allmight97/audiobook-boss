@@ -13,7 +13,7 @@ use audiobook_boss_lib::processing::{
     OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession, ProcessingStage,
     ProgressReporter,
 };
-use audiobook_boss_lib::AudiobookMetadata;
+use audiobook_boss_lib::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use ffmpeg_next as ff;
 use mp4ameta::{FreeformIdent, Tag};
 use std::path::{Path, PathBuf};
@@ -178,9 +178,14 @@ async fn process_roundtrip_files(
         context.preview = Some(PreviewConfig::new(seconds));
     }
 
-    audio::process_audiobook_with_context(context, input_info.files, Some(metadata), true)
-        .await
-        .expect("processing should complete")
+    audio::process_audiobook_with_context(
+        context,
+        input_info.files,
+        Some(metadata),
+        CoverArtPassthroughPolicy::Preserve,
+    )
+    .await
+    .expect("processing should complete")
 }
 
 fn chapter_count(path: &Path) -> usize {

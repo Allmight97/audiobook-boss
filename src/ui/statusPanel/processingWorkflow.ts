@@ -26,6 +26,8 @@ import {
 } from './processingWorkflowServices';
 import type { ProcessingStatus } from './state';
 
+type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
+
 export {
 	ProcessingWorkflowServicesTag,
 	makeProcessingWorkflowServicesLayer,
@@ -157,14 +159,19 @@ function workflowPromise<A>(
 
 function processingCommand(
 	services: ProcessingWorkflowServices,
-	payload: {
+	request: {
 		payload: ProcessPayload;
-		metadataIntent: Record<string, MetadataIntentPatch> | null;
+		metadataIntentByPath: MetadataIntentByPath | null;
 		previewSeconds?: number;
 	},
 ): AppEffect<ProcessCommandResult, ProcessingWorkflowError> {
 	return Effect.tryPromise({
-		try: () => services.processAudiobookFiles(payload),
+		try: () =>
+			services.processAudiobookFiles({
+				payload: request.payload,
+				metadataIntent: request.metadataIntentByPath,
+				previewSeconds: request.previewSeconds,
+			}),
 		catch: (cause) => {
 			const normalized = normalizeAppError(cause);
 			const wasCancelled =
@@ -345,7 +352,7 @@ export function processingWorkflowProgram(
 			}
 		}
 
-		let metadataIntentPayload: Record<string, MetadataIntentPatch> | null = null;
+		let metadataIntentByPath: MetadataIntentByPath | null = null;
 		if (processPayload.jobType === 'merge') {
 			const mergeKey = processPayload.inputFiles[0];
 			const mergeIntentPatch = mergeKey
@@ -356,28 +363,28 @@ export function processingWorkflowProgram(
 				processPayload.inputFiles.length > 0 &&
 				hasActionableMetadataDraftIntent(mergeIntentPatch)
 			) {
-				metadataIntentPayload = {
+				metadataIntentByPath = {
 					[mergeKey]: mergeIntentPatch,
 				};
 			}
 		} else {
-			const storedMetadataIntent = services.getAllMetadataIntentPatches();
+			const storedMetadataIntentByPath = services.getAllMetadataIntentPatches();
 			const activeInputFiles = new Set(processPayload.inputFiles);
-			const filteredMetadataIntent = Object.fromEntries(
-				Object.entries(storedMetadataIntent).filter(
+			const filteredMetadataIntentByPath = Object.fromEntries(
+				Object.entries(storedMetadataIntentByPath).filter(
 					([filePath, value]) =>
 						activeInputFiles.has(filePath) && hasActionableMetadataDraftIntent(value),
 				),
 			);
-			metadataIntentPayload =
-				Object.keys(filteredMetadataIntent).length > 0 ? filteredMetadataIntent : null;
+			metadataIntentByPath =
+				Object.keys(filteredMetadataIntentByPath).length > 0 ? filteredMetadataIntentByPath : null;
 		}
 
 		const reviewResult = yield* workflowPromise(
 			() =>
 				services.runOutputPlanReviewWorkflow({
 					payload: processPayload,
-					metadataIntent: metadataIntentPayload,
+					metadataIntentByPath,
 					previewSeconds: options?.previewSeconds,
 				}),
 			'Output plan review failed.',
@@ -409,7 +416,7 @@ export function processingWorkflowProgram(
 
 		const result = yield* processingCommand(services, {
 			payload: reviewResult.payload,
-			metadataIntent: metadataIntentPayload,
+			metadataIntentByPath,
 			previewSeconds: options?.previewSeconds,
 		});
 

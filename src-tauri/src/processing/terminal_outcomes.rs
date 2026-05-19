@@ -396,7 +396,7 @@ mod tests {
             input_path: Some(PathBuf::from(format!("/tmp/input-{index}.m4b"))),
             output: output_plan(action, format!("/tmp/output-{index}.m4b")),
             metadata: None,
-            allow_passthrough_cover_art: false,
+            cover_art_passthrough: crate::metadata::CoverArtPassthroughPolicy::Preserve,
         }
     }
 

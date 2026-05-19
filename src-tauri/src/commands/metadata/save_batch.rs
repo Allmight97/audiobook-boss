@@ -1,7 +1,7 @@
 use crate::audio::path_validation::validate_input_audio_path;
 use crate::commands::CommandResult;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
-use crate::metadata::MetadataIntentPatch;
+use crate::metadata::{plan_metadata_write, MetadataIntentPatch};
 use crate::processing::{
     CancellationChecker, EventStage, JobId, ProgressEvent, QueueEvent, QueueItem,
 };
@@ -231,7 +231,7 @@ fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> R
     let validated_path = validate_input_audio_path(&path)?;
     log::info!("Saving metadata to: {}", validated_path.display());
 
-    let write_plan = metadata_patch.to_write_plan()?;
+    let write_plan = plan_metadata_write(&metadata_patch)?;
     crate::metadata::save_metadata_with_plan(&validated_path, &write_plan)?;
 
     log::info!("Metadata saved to: {}", validated_path.display());

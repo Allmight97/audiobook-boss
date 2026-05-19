@@ -12,7 +12,11 @@ import type {
 } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import type { buildOutputPreviewCallSiteState, showOutputError } from './preview';
+import type {
+	buildOutputPathPreviewContext,
+	OutputPathPreviewMetadataDraft,
+	showOutputError,
+} from './preview';
 import type {
 	beginOutputPreviewRequest,
 	getOutputNamingConfig,
@@ -23,10 +27,10 @@ import type {
 
 export interface OutputPlanWorkflowServices {
 	getState: typeof getState;
-	getCurrentMetadata: () => AudiobookMetadata;
+	readOutputPathPreviewMetadataDraft: () => OutputPathPreviewMetadataDraft;
 	updateSeriesPartWarning: (metadata: AudiobookMetadata) => void;
 	updateSubseriesPartWarning: (metadata: AudiobookMetadata) => void;
-	buildOutputPreviewCallSiteState: typeof buildOutputPreviewCallSiteState;
+	buildOutputPathPreviewContext: typeof buildOutputPathPreviewContext;
 	beginOutputPreviewRequest: typeof beginOutputPreviewRequest;
 	isLatestOutputPreviewRequest: typeof isLatestOutputPreviewRequest;
 	getOutputNamingConfig: typeof getOutputNamingConfig;
@@ -38,9 +42,11 @@ export interface OutputPlanWorkflowServices {
 	console: Pick<Console, 'error'>;
 }
 
+export type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
+
 export interface OutputPlanReviewRequest {
 	payload: ProcessPayload;
-	metadataIntent: Record<string, MetadataIntentPatch> | null;
+	metadataIntentByPath: MetadataIntentByPath | null;
 	previewSeconds?: number | null;
 }
 
