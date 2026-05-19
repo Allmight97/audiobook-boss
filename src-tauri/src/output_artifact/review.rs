@@ -93,15 +93,13 @@ pub(crate) fn enforce_output_plan_review<'a>(
         {
             return Err(AppError::FileValidation(output_plan_review_message(output)));
         }
-    }
 
-    if review.expected_signature.is_none()
-        && outputs.iter().any(|output| output.collision.is_some())
-    {
-        return Err(AppError::FileValidation(
-            "Output collisions require review before processing. Open the collision dialog and choose how to continue."
-                .to_string(),
-        ));
+        if outputs.iter().any(|output| output.collision.is_some()) {
+            return Err(AppError::FileValidation(
+                "Output collisions require review before processing. Open the collision dialog and choose how to continue."
+                    .to_string(),
+            ));
+        }
     }
 
     Ok(())
@@ -186,11 +184,14 @@ mod tests {
             detail: Some("An existing file already occupies the destination path.".to_string()),
         });
 
-        enforce_output_plan_review(
+        let result = enforce_output_plan_review(
             review(Some("sig"), "sig", CollisionPolicy::Fail),
             [&output],
-        )
-        .expect("reviewed fail policy should allow review-required outputs to be skipped at dispatch");
+        );
+
+        result.expect(
+            "reviewed fail policy should allow review-required outputs to be skipped at dispatch",
+        );
     }
 
     #[test]
@@ -209,11 +210,8 @@ mod tests {
             detail: None,
         });
 
-        let err = enforce_output_plan_review(
-            review(None, "sig", CollisionPolicy::Fail),
-            [&output],
-        )
-        .expect_err("unreviewed review-required output should fail");
+        let err = enforce_output_plan_review(review(None, "sig", CollisionPolicy::Fail), [&output])
+            .expect_err("unreviewed review-required output should fail");
 
         assert!(err.to_string().contains("collision review is required"));
     }

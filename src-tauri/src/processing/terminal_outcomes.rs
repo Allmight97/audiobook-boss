@@ -44,13 +44,27 @@ pub(super) fn build_all_skipped_batch_result(
     Some(ProcessCommandResult::new(JobType::Batch, skipped_results))
 }
 
-pub(super) fn review_required_skipped_result(
+pub(super) fn no_write_skipped_result(
+    input_index: Option<usize>,
+    job_id: Option<String>,
+    output: &ResolvedOutputPlan,
+) -> Option<ProcessResultEntry> {
+    match output.action {
+        PlannedOutputAction::SkipExisting => Some(skipped_result(input_index, job_id, output)),
+        PlannedOutputAction::ReviewRequired => {
+            Some(review_required_skipped_result(input_index, job_id, output))
+        }
+        _ => None,
+    }
+}
+
+fn review_required_skipped_result(
     input_index: Option<usize>,
     job_id: Option<String>,
     output: &ResolvedOutputPlan,
 ) -> ProcessResultEntry {
     let message = format!(
-        "Skipped '{}' because collision review did not authorize writing this output.",
+        "Skipped '{}' because the selected collision policy does not allow overwriting this output.",
         sanitize_path_for_display(&output.requested_path)
     );
     ProcessResultEntry {
@@ -350,8 +364,9 @@ mod tests {
     use super::{
         build_all_skipped_batch_result, cancellation_error_for_failed_entry,
         classify_processing_error, classify_terminal_results, collect_batch_results,
-        is_cancellation_error, terminal_cancelled_result, terminal_failure_result,
-        ProcessingJobTerminalOutcome, RunTerminalClass, TerminalFailureEvent,
+        is_cancellation_error, no_write_skipped_result, terminal_cancelled_result,
+        terminal_failure_result, ProcessingJobTerminalOutcome, RunTerminalClass,
+        TerminalFailureEvent,
     };
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
     use crate::output_artifact::{
@@ -475,6 +490,38 @@ mod tests {
         assert!(
             build_all_skipped_batch_result(&plan).is_none(),
             "mixed runnable work must still use normal queue scheduling"
+        );
+    }
+
+    #[test]
+    fn no_write_skipped_result_covers_skip_and_review_required_outputs() {
+        let skip_existing = output_plan(
+            PlannedOutputAction::SkipExisting,
+            "/tmp/existing-output.m4b",
+        );
+        let review_required = output_plan(
+            PlannedOutputAction::ReviewRequired,
+            "/tmp/review-output.m4b",
+        );
+        let writable = output_plan(PlannedOutputAction::Write, "/tmp/new-output.m4b");
+
+        let skip_result = no_write_skipped_result(Some(0), None, &skip_existing)
+            .expect("skip-existing output should become a skipped result");
+        assert_eq!(skip_result.status, ProcessResultStatus::Skipped);
+        assert_eq!(skip_result.input_index, Some(0));
+        assert!(skip_result.message.contains("Skipped existing output"));
+
+        let review_result = no_write_skipped_result(Some(1), None, &review_required)
+            .expect("review-required output should become a skipped result");
+        assert_eq!(review_result.status, ProcessResultStatus::Skipped);
+        assert_eq!(review_result.input_index, Some(1));
+        assert!(review_result
+            .message
+            .contains("selected collision policy does not allow overwriting"));
+
+        assert!(
+            no_write_skipped_result(Some(2), None, &writable).is_none(),
+            "writable outputs must still enter normal processing"
         );
     }
 
