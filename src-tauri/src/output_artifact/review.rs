@@ -85,21 +85,21 @@ pub(crate) fn enforce_output_plan_review<'a>(
         return Err(AppError::FileValidation(output_plan_review_message(output)));
     }
 
-    if let Some(output) = outputs
-        .iter()
-        .copied()
-        .find(|output| output.action == PlannedOutputAction::ReviewRequired)
-    {
-        return Err(AppError::FileValidation(output_plan_review_message(output)));
-    }
+    if review.expected_signature.is_none() {
+        if let Some(output) = outputs
+            .iter()
+            .copied()
+            .find(|output| output.action == PlannedOutputAction::ReviewRequired)
+        {
+            return Err(AppError::FileValidation(output_plan_review_message(output)));
+        }
 
-    if review.expected_signature.is_none()
-        && outputs.iter().any(|output| output.collision.is_some())
-    {
-        return Err(AppError::FileValidation(
-            "Output collisions require review before processing. Open the collision dialog and choose how to continue."
-                .to_string(),
-        ));
+        if outputs.iter().any(|output| output.collision.is_some()) {
+            return Err(AppError::FileValidation(
+                "Output collisions require review before processing. Open the collision dialog and choose how to continue."
+                    .to_string(),
+            ));
+        }
     }
 
     Ok(())
@@ -108,7 +108,7 @@ pub(crate) fn enforce_output_plan_review<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output_artifact::{OutputCollision, OutputKind};
+    use crate::output_artifact::{OutputCollision, OutputCollisionKind, OutputKind};
     use std::path::PathBuf;
     use tempfile::TempDir;
 
@@ -166,6 +166,54 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Collision policy selections require"));
+    }
+
+    #[test]
+    fn allows_review_required_outputs_after_collision_review_signature() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let existing = temp_dir.path().join("existing.m4b");
+        std::fs::write(&existing, b"existing").expect("write existing");
+
+        let mut output = output_plan(
+            PlannedOutputAction::ReviewRequired,
+            temp_dir.path().join("existing.m4b"),
+        );
+        output.collision = Some(OutputCollision {
+            kind: OutputCollisionKind::ExistingFile,
+            conflicting_path: Some(existing),
+            detail: Some("An existing file already occupies the destination path.".to_string()),
+        });
+
+        let result = enforce_output_plan_review(
+            review(Some("sig"), "sig", CollisionPolicy::Fail),
+            [&output],
+        );
+
+        result.expect(
+            "reviewed fail policy should allow review-required outputs to be skipped at dispatch",
+        );
+    }
+
+    #[test]
+    fn rejects_unreviewed_review_required_outputs() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let existing = temp_dir.path().join("existing.m4b");
+        std::fs::write(&existing, b"existing").expect("write existing");
+
+        let mut output = output_plan(
+            PlannedOutputAction::ReviewRequired,
+            temp_dir.path().join("existing.m4b"),
+        );
+        output.collision = Some(OutputCollision {
+            kind: OutputCollisionKind::ExistingFile,
+            conflicting_path: Some(existing),
+            detail: None,
+        });
+
+        let err = enforce_output_plan_review(review(None, "sig", CollisionPolicy::Fail), [&output])
+            .expect_err("unreviewed review-required output should fail");
+
+        assert!(err.to_string().contains("collision review is required"));
     }
 
     #[test]

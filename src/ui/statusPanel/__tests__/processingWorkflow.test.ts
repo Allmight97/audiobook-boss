@@ -123,6 +123,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getSelectedFileIndex: vi.fn(() => 0),
 		getSelectedFileIndices: vi.fn(() => new Set([0])),
 		readProcessingRequestConfig: vi.fn(() => processingConfig()),
+		syncEncoderPanelBeforeProcess: vi.fn(),
 		getJobType: getJobTypeMock,
 		hasDirtyMetadataFields: vi.fn(() => false),
 		readMetadataForm: vi.fn(() => ({})),
@@ -169,6 +170,7 @@ describe('ProcessingWorkflow', () => {
 		await runWithServices(ctx, services);
 
 		expect(services.runOutputPlanReviewWorkflow).toHaveBeenCalledTimes(1);
+		expect(services.syncEncoderPanelBeforeProcess).toHaveBeenCalledTimes(1);
 		expect(ctx.setProcessingState).toHaveBeenCalledWith(true);
 		expect(ctx.updateStatus).toHaveBeenCalledWith({
 			stage: 'analyzing',

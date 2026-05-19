@@ -1,14 +1,14 @@
 use super::plan::{prepare_execution_plan, resolve_preflight_plan, ResolvedProcessingPlan};
 use super::terminal_outcomes::{
     build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
-    skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
+    no_write_skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
 };
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::audio::toolchain::ExternalToolchainPreference;
 use crate::errors::{AppError, Result};
-use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
@@ -165,19 +165,16 @@ async fn dispatch_merge_job(
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
 ) -> Result<ProcessCommandResult> {
-    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&paths)?;
     let planned_job = plan.jobs.into_iter().next().ok_or_else(|| {
         AppError::InvalidInput("No output plan entries were built for merge processing".to_string())
     })?;
 
-    if planned_job.output.action == PlannedOutputAction::SkipExisting {
-        return Ok(ProcessCommandResult::new(
-            JobType::Merge,
-            vec![skipped_result(None, None, &planned_job.output)],
-        ));
+    if let Some(skipped) = no_write_skipped_result(None, None, &planned_job.output) {
+        return Ok(ProcessCommandResult::new(JobType::Merge, vec![skipped]));
     }
 
+    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
+    let file_info = audio::get_file_list_info(&paths)?;
     let result = run_processing_job(ProcessingJobRequest {
         window,
         registry,
@@ -219,10 +216,9 @@ async fn dispatch_batch_jobs(
     let preview_seconds = plan.preview_seconds;
     let sample_rate = resolve_sample_rate(payload)?;
     for planned_job in plan.jobs {
-        if planned_job.output.action == PlannedOutputAction::SkipExisting {
-            let input_index = planned_job.input_index;
-            let output = planned_job.output.clone();
-            let skipped_entry = skipped_result(input_index, None, &output);
+        if let Some(skipped_entry) =
+            no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
+        {
             emit_terminal_skipped_event(
                 &window,
                 skipped_entry.input_index,
@@ -429,6 +425,15 @@ async fn execute_processing_job(
         &encoder_settings,
         external_toolchain.as_ref(),
     )?;
+    log::info!(
+        "processor adapter: kind={:?} requested_encoder={:?} external_toolchain_override={}",
+        adapter.kind(),
+        encoder_settings.encoder_type,
+        external_toolchain
+            .as_ref()
+            .and_then(|preference| preference.override_path.as_deref())
+            .unwrap_or("(auto-detect)")
+    );
     adapter
         .execute(
             context,

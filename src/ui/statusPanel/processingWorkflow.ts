@@ -258,6 +258,8 @@ export function processingWorkflowProgram(
 			services.console.log('StatusPanel: Files validated, getting output configuration...'),
 		);
 
+		yield* Effect.sync(() => services.syncEncoderPanelBeforeProcess());
+
 		const processingRequestConfig = yield* readProcessingConfig(services);
 		if (!processingRequestConfig) {
 			return;

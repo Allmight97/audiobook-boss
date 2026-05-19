@@ -18,6 +18,7 @@ import {
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
 import { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
+import { syncAfterStateChange } from '../encoderPanel/logic';
 import { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
@@ -32,6 +33,7 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	getSelectedFileIndex,
 	getSelectedFileIndices,
 	readProcessingRequestConfig,
+	syncEncoderPanelBeforeProcess: syncAfterStateChange,
 	getJobType,
 	hasDirtyMetadataFields,
 	readMetadataForm,
