@@ -46,6 +46,10 @@ vi.mock('../../outputPanel', () => ({
 	updateOutputPath: context.updateOutputPathMock,
 }));
 
+vi.mock('../../encoderPanel/logic', () => ({
+	syncAfterStateChange: vi.fn(),
+}));
+
 vi.mock('../../jobControls', () => ({
 	getJobType: context.getJobTypeMock,
 	setJobControlsEnabled: vi.fn(),

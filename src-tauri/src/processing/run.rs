@@ -1,7 +1,8 @@
 use super::plan::{prepare_execution_plan, resolve_preflight_plan, ResolvedProcessingPlan};
 use super::terminal_outcomes::{
     build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
-    skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
+    review_required_skipped_result, skipped_result, terminal_failure_result,
+    ProcessingJobTerminalOutcome,
 };
 use crate::audio;
 use crate::audio::file_list::FileListInfo;
@@ -233,6 +234,20 @@ async fn dispatch_batch_jobs(
             continue;
         }
 
+        if planned_job.output.action == PlannedOutputAction::ReviewRequired {
+            let input_index = planned_job.input_index;
+            let output = planned_job.output.clone();
+            let skipped_entry = review_required_skipped_result(input_index, None, &output);
+            emit_terminal_skipped_event(
+                &window,
+                skipped_entry.input_index,
+                skipped_entry.job_id.as_deref(),
+                &skipped_entry.message,
+            );
+            scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
+            continue;
+        }
+
         let window_cloned = window.clone();
         let registry_cloned = registry.clone();
         let settings_cloned = payload.settings.clone();
@@ -429,6 +444,15 @@ async fn execute_processing_job(
         &encoder_settings,
         external_toolchain.as_ref(),
     )?;
+    log::info!(
+        "processor adapter: kind={:?} requested_encoder={:?} external_toolchain_override={}",
+        adapter.kind(),
+        encoder_settings.encoder_type,
+        external_toolchain
+            .as_ref()
+            .and_then(|preference| preference.override_path.as_deref())
+            .unwrap_or("(auto-detect)")
+    );
     adapter
         .execute(
             context,

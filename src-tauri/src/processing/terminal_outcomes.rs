@@ -44,6 +44,26 @@ pub(super) fn build_all_skipped_batch_result(
     Some(ProcessCommandResult::new(JobType::Batch, skipped_results))
 }
 
+pub(super) fn review_required_skipped_result(
+    input_index: Option<usize>,
+    job_id: Option<String>,
+    output: &ResolvedOutputPlan,
+) -> ProcessResultEntry {
+    let message = format!(
+        "Skipped '{}' because collision review did not authorize writing this output.",
+        sanitize_path_for_display(&output.requested_path)
+    );
+    ProcessResultEntry {
+        input_index,
+        status: ProcessResultStatus::Skipped,
+        message,
+        error: None,
+        preview_file_path: None,
+        preview_actual_seconds: None,
+        job_id,
+    }
+}
+
 pub(super) fn skipped_result(
     input_index: Option<usize>,
     job_id: Option<String>,

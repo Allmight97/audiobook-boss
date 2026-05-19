@@ -24,6 +24,7 @@ import type {
 } from '../metadataValidation';
 import type { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import type { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
+import type { syncAfterStateChange } from '../encoderPanel/logic';
 import type * as feedback from './feedback';
 import type { openGeneratedPreviewIfSingle } from './preview';
 
@@ -33,6 +34,7 @@ export interface ProcessingWorkflowServices {
 	getSelectedFileIndex: typeof getSelectedFileIndex;
 	getSelectedFileIndices: typeof getSelectedFileIndices;
 	readProcessingRequestConfig: typeof readProcessingRequestConfig;
+	syncEncoderPanelBeforeProcess: typeof syncAfterStateChange;
 	getJobType: typeof getJobType;
 	hasDirtyMetadataFields: typeof hasDirtyMetadataFields;
 	readMetadataForm: typeof readMetadataForm;
