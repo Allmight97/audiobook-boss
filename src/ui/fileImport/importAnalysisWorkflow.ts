@@ -1,5 +1,12 @@
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+} from '../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { ImportAnalysisWorkflowLive } from './importAnalysisWorkflowLive';
 import {
 	SUPPORTED_AUDIO_EXTENSIONS,
 	SUPPORTED_AUDIO_FORMATS_TEXT,
@@ -48,10 +55,7 @@ function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, ImportAnalysisWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function filterSupportedFiles(paths: string[]): string[] {
@@ -351,11 +355,6 @@ export function enterImportAnalysisWorkflow(
 	}
 }
 
-async function defaultImportAnalysisWorkflowLayer(): Promise<ImportAnalysisWorkflowLayer> {
-	const live = await import('./importAnalysisWorkflowLive');
-	return live.ImportAnalysisWorkflowLive;
-}
-
 export function importAnalysisWorkflowExecution(
 	action: ImportAnalysisWorkflowAction,
 ): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
@@ -367,7 +366,7 @@ export async function runImportAnalysisWorkflow(
 	layer?: ImportAnalysisWorkflowLayer,
 	preparedEntry?: PreparedImportAnalysisWorkflowEntry,
 ): Promise<void> {
-	const workflowLayer = layer ?? (await defaultImportAnalysisWorkflowLayer());
+	const workflowLayer = layer ?? ImportAnalysisWorkflowLive;
 	return runAppEffect(
 		importAnalysisWorkflowBody(action, preparedEntry).pipe(Effect.provide(workflowLayer)),
 	);

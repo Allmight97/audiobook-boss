@@ -22,9 +22,9 @@ import type {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
+import type { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import type { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
 import type * as feedback from './feedback';
-import type { reviewOutputPlanForProcessing } from './outputPlanReview';
 import type { openGeneratedPreviewIfSingle } from './preview';
 
 export interface ProcessingWorkflowServices {
@@ -47,7 +47,7 @@ export interface ProcessingWorkflowServices {
 	setFileOrderLocked: typeof setFileOrderLocked;
 	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
-	reviewOutputPlanForProcessing: typeof reviewOutputPlanForProcessing;
+	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: Pick<typeof feedback, 'showError'>;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;

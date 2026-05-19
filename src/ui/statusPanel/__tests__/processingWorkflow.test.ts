@@ -15,7 +15,7 @@ import {
 	type ProcessPayload,
 	type JobType,
 } from '../../../types/audio';
-import type { OutputPlanReviewResult } from '../outputPlanReview';
+import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
 
 function audioFile(path: string): AudioFile {
 	return {
@@ -109,7 +109,7 @@ function workflowContext(): ProcessingWorkflowContext {
 function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 	const feedback = { showError: vi.fn() };
 	const getJobTypeMock = vi.fn((): JobType => 'merge');
-	const reviewOutputPlanForProcessingMock: ProcessingWorkflowServices['reviewOutputPlanForProcessing'] =
+	const runOutputPlanReviewWorkflowMock: ProcessingWorkflowServices['runOutputPlanReviewWorkflow'] =
 		vi.fn(
 			async ({ payload }): Promise<OutputPlanReviewResult> => ({
 				status: 'approved',
@@ -137,7 +137,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		setFileOrderLocked: vi.fn(),
 		readAudioMetadata: vi.fn(async () => ({})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
-		reviewOutputPlanForProcessing: reviewOutputPlanForProcessingMock,
+		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
 		feedback,
 		console: {
@@ -168,7 +168,7 @@ describe('ProcessingWorkflow', () => {
 
 		await runWithServices(ctx, services);
 
-		expect(services.reviewOutputPlanForProcessing).toHaveBeenCalledTimes(1);
+		expect(services.runOutputPlanReviewWorkflow).toHaveBeenCalledTimes(1);
 		expect(ctx.setProcessingState).toHaveBeenCalledWith(true);
 		expect(ctx.updateStatus).toHaveBeenCalledWith({
 			stage: 'analyzing',
@@ -195,7 +195,7 @@ describe('ProcessingWorkflow', () => {
 	it('stops before listener startup when output-plan review blocks processing', async () => {
 		const ctx = workflowContext();
 		const { services, feedback } = workflowServices({
-			reviewOutputPlanForProcessing: vi.fn(
+			runOutputPlanReviewWorkflow: vi.fn(
 				async ({ payload }): Promise<OutputPlanReviewResult> => ({
 					status: 'blocked',
 					message: 'Output path collides with source.',

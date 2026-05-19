@@ -26,6 +26,19 @@ Keep Effect private to workflow owners:
   cancellation behavior where relevant, terminal results, and typed failure
   handling.
 
+## Workflow Harness Helpers
+
+Workflow owners map infrastructure failures into owner-specific tagged errors
+through the shared kernel helpers:
+
+- `workflowTryPromise` for async service calls
+- `workflowTrySync` for synchronous service calls
+
+Each owner keeps its own `*WorkflowFailed` tagged error and `workflowFailure`
+factory. Do not reintroduce local `Effect.tryPromise` / `Effect.try` blocks in
+owner files unless the failure mapping is genuinely unique (for example
+`ProcessingWorkflow` normalizes `AppError` before constructing its failure).
+
 ## Fake-Layer Harness Shape
 
 Workflow tests should run the Effect program directly with fake services:

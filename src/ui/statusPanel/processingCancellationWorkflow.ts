@@ -1,4 +1,10 @@
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+} from '../../lib/effect/appEffect';
 import type { ProcessingStatus } from './state';
 import {
 	ProcessingCancellationWorkflowServicesTag,
@@ -42,10 +48,7 @@ function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, ProcessingCancellationWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function cancellationRequestedStatus(status: ProcessingStatus): ProcessingStatus {

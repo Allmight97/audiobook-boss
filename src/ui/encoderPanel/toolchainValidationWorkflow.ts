@@ -1,4 +1,10 @@
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+} from '../../lib/effect/appEffect';
 import {
 	ToolchainValidationWorkflowServicesTag,
 	type ToolchainHydrationMode,
@@ -32,10 +38,7 @@ function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, ToolchainValidationWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function hydrateAvailability(

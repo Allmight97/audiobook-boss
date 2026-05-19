@@ -18,8 +18,8 @@ import {
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
 import { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
+import { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import * as feedback from './feedback';
-import { reviewOutputPlanForProcessing } from './outputPlanReview';
 import { openGeneratedPreviewIfSingle } from './preview';
 import {
 	makeProcessingWorkflowServicesLayer,
@@ -46,7 +46,7 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	setFileOrderLocked,
 	readAudioMetadata: tauriClient.readAudioMetadata,
 	processAudiobookFiles: tauriClient.processAudiobookFiles,
-	reviewOutputPlanForProcessing,
+	runOutputPlanReviewWorkflow,
 	openGeneratedPreviewIfSingle,
 	feedback,
 	console,

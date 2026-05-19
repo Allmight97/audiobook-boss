@@ -1,6 +1,13 @@
 import type { AudioFile } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+	workflowTrySync,
+} from '../../lib/effect/appEffect';
 import {
 	buildQueueMetadataPatch,
 	deriveQueryFromFile,
@@ -65,20 +72,14 @@ function workflowSync<A>(
 	evaluate: () => A,
 	message: string,
 ): AppEffect<A, MetadataLookupWorkflowFailed> {
-	return Effect.try({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTrySync(evaluate, message, workflowFailure);
 }
 
 function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, MetadataLookupWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function refreshOutputForMetadataChange(services: MetadataLookupWorkflowServices): void {
