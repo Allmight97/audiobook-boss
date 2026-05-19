@@ -41,8 +41,11 @@ vi.mock('../../fileList/state.svelte', () => ({
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,
 }));
 
-vi.mock('../../outputPanel', () => ({
+vi.mock('../processingConfig', () => ({
 	readProcessingRequestConfig: context.readProcessingRequestConfigMock,
+}));
+
+vi.mock('../../outputPanel', () => ({
 	updateOutputPath: context.updateOutputPathMock,
 }));
 

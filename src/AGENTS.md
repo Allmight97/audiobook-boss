@@ -15,6 +15,8 @@
 - Route UI proof-of-done through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
+- When touching Effect workflow owners or the AppEffect kernel, open
+  `src/lib/effect/AGENTS.md` first.
 - Treat function/file size as readability triggers: extract helpers when component scripts become hard to scan or test.
 
 ## Hard Invariants

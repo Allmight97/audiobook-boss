@@ -1,0 +1,1669 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>ABB Effect Adoption Roadmap</title>
+	<style>
+		:root {
+			color-scheme: dark;
+			--bg: #111318;
+			--surface: #181c24;
+			--surface-2: #202632;
+			--surface-3: #27303f;
+			--text: #eef2f7;
+			--muted: #aeb7c5;
+			--quiet: #7e8999;
+			--line: #333d4d;
+			--blue: #6ea8ff;
+			--teal: #52d6c5;
+			--green: #78d991;
+			--amber: #f1c66d;
+			--red: #f28b82;
+			--purple: #b9a7ff;
+			--ink: #0c0f14;
+			--radius: 8px;
+			--shadow: 0 18px 48px rgb(0 0 0 / 0.28);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			font-family:
+				Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			line-height: 1.48;
+		}
+
+		a {
+			color: var(--blue);
+			text-decoration: none;
+		}
+
+		a:hover,
+		a:focus {
+			text-decoration: underline;
+		}
+
+		button,
+		select {
+			font: inherit;
+		}
+
+		.shell {
+			max-width: 1240px;
+			margin: 0 auto;
+			padding: 28px 22px 56px;
+		}
+
+		header {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: 18px;
+			align-items: start;
+			border-bottom: 1px solid var(--line);
+			padding-bottom: 22px;
+		}
+
+		.kicker {
+			color: var(--teal);
+			font-size: 0.78rem;
+			font-weight: 700;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+		}
+
+		h1 {
+			margin: 8px 0 8px;
+			font-size: clamp(2rem, 5vw, 4.5rem);
+			line-height: 0.95;
+			letter-spacing: 0;
+			max-width: 920px;
+		}
+
+		.lede {
+			max-width: 840px;
+			margin: 0;
+			color: var(--muted);
+			font-size: 1.04rem;
+		}
+
+		.header-actions {
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+		}
+
+		.action {
+			border: 1px solid var(--line);
+			background: var(--surface-2);
+			color: var(--text);
+			border-radius: var(--radius);
+			padding: 9px 12px;
+			cursor: pointer;
+			min-height: 40px;
+		}
+
+		.action:hover,
+		.action:focus-visible {
+			background: var(--surface-3);
+			outline: 2px solid transparent;
+		}
+
+		.summary-grid {
+			display: grid;
+			grid-template-columns: 1.35fr 0.65fr;
+			gap: 18px;
+			margin: 22px 0;
+		}
+
+		.panel {
+			background: var(--surface);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			padding: 18px;
+		}
+
+		.panel h2,
+		.panel h3 {
+			margin: 0 0 10px;
+			letter-spacing: 0;
+		}
+
+		.panel p {
+			margin: 0 0 12px;
+			color: var(--muted);
+		}
+
+		.panel p:last-child {
+			margin-bottom: 0;
+		}
+
+		.decision {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 12px;
+			margin-top: 16px;
+		}
+
+		.decision-item {
+			background: var(--surface-2);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 14px;
+		}
+
+		.decision-item strong {
+			display: block;
+			margin-bottom: 7px;
+			color: var(--text);
+		}
+
+		.decision-item span {
+			display: block;
+			color: var(--muted);
+			font-size: 0.94rem;
+		}
+
+		.metric-list {
+			display: grid;
+			gap: 10px;
+		}
+
+		.metric {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			gap: 10px;
+			align-items: start;
+			padding: 10px 0;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.metric:last-child {
+			border-bottom: 0;
+		}
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			min-width: 78px;
+			border-radius: 999px;
+			padding: 4px 9px;
+			font-size: 0.76rem;
+			font-weight: 700;
+			color: var(--ink);
+			background: var(--quiet);
+			white-space: nowrap;
+		}
+
+		.badge.good { background: var(--green); }
+		.badge.watch { background: var(--amber); }
+		.badge.info { background: var(--blue); }
+		.badge.stop { background: var(--red); }
+		.badge.future { background: var(--purple); }
+		.badge.neutral { background: #cbd5e1; }
+
+		.tabs {
+			position: sticky;
+			top: 0;
+			z-index: 5;
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			background: rgb(17 19 24 / 0.92);
+			backdrop-filter: blur(12px);
+			border-bottom: 1px solid var(--line);
+			padding: 12px 0;
+			margin: 8px 0 22px;
+		}
+
+		.tab {
+			border: 1px solid var(--line);
+			background: transparent;
+			color: var(--muted);
+			border-radius: var(--radius);
+			padding: 8px 11px;
+			cursor: pointer;
+		}
+
+		.tab[aria-selected="true"] {
+			background: var(--surface-2);
+			color: var(--text);
+			border-color: var(--teal);
+		}
+
+		.tab-panel {
+			display: none;
+		}
+
+		.tab-panel.active {
+			display: block;
+		}
+
+		.section-title {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 12px;
+			margin-bottom: 12px;
+		}
+
+		.section-title h2 {
+			margin: 0;
+			font-size: 1.35rem;
+		}
+
+		.section-title .note {
+			color: var(--quiet);
+			font-size: 0.9rem;
+		}
+
+		.map {
+			display: grid;
+			grid-template-columns: repeat(5, minmax(130px, 1fr));
+			gap: 10px;
+			margin-top: 12px;
+		}
+
+		.map-node {
+			min-height: 138px;
+			background: var(--surface-2);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 13px;
+			position: relative;
+		}
+
+		.map-node::after {
+			content: "";
+			position: absolute;
+			right: -10px;
+			top: 50%;
+			width: 10px;
+			border-top: 1px solid var(--line);
+		}
+
+		.map-node:last-child::after {
+			display: none;
+		}
+
+		.map-node strong {
+			display: block;
+			margin-bottom: 8px;
+		}
+
+		.map-node small {
+			color: var(--quiet);
+			display: block;
+			margin-bottom: 8px;
+			text-transform: uppercase;
+			font-weight: 700;
+			letter-spacing: 0.06em;
+		}
+
+		.map-node p {
+			margin: 0;
+			color: var(--muted);
+			font-size: 0.92rem;
+		}
+
+		.filters {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			flex-wrap: wrap;
+			margin: 0 0 12px;
+		}
+
+		.filters label {
+			color: var(--muted);
+			font-size: 0.9rem;
+		}
+
+		.filters select {
+			background: var(--surface-2);
+			color: var(--text);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 7px 9px;
+		}
+
+		.milestone-list {
+			display: grid;
+			gap: 12px;
+		}
+
+		.milestone {
+			display: grid;
+			grid-template-columns: 86px minmax(0, 1fr) 190px;
+			gap: 14px;
+			align-items: start;
+			background: var(--surface);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 15px;
+		}
+
+		.milestone.hidden {
+			display: none;
+		}
+
+		.m-id {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 58px;
+			height: 58px;
+			border-radius: 50%;
+			background: var(--surface-2);
+			border: 1px solid var(--line);
+			color: var(--teal);
+			font-weight: 800;
+		}
+
+		.m-body h3 {
+			margin: 0 0 7px;
+			font-size: 1.1rem;
+		}
+
+		.m-body p {
+			margin: 0 0 10px;
+			color: var(--muted);
+		}
+
+		.m-body ul {
+			margin: 0;
+			padding-left: 18px;
+			color: var(--muted);
+		}
+
+		.m-body li {
+			margin: 3px 0;
+		}
+
+		.gate {
+			margin-top: 10px;
+			color: var(--text);
+			font-size: 0.92rem;
+			border-left: 3px solid var(--amber);
+			padding-left: 10px;
+		}
+
+		.status-box {
+			display: grid;
+			gap: 9px;
+			align-content: start;
+		}
+
+		.status-box select {
+			width: 100%;
+			background: var(--surface-2);
+			color: var(--text);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 8px 9px;
+		}
+
+		.phase-tag {
+			font-size: 0.78rem;
+			color: var(--quiet);
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+		}
+
+		.two-col {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 14px;
+		}
+
+		.table-wrap {
+			overflow-x: auto;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			min-width: 720px;
+		}
+
+		th,
+		td {
+			padding: 11px 12px;
+			border-bottom: 1px solid var(--line);
+			text-align: left;
+			vertical-align: top;
+		}
+
+		th {
+			color: var(--text);
+			background: var(--surface-2);
+			font-size: 0.86rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+
+		td {
+			color: var(--muted);
+		}
+
+		tr:last-child td {
+			border-bottom: 0;
+		}
+
+		.callout {
+			border-left: 4px solid var(--teal);
+			padding: 12px 14px;
+			background: var(--surface-2);
+			border-radius: var(--radius);
+			color: var(--muted);
+			margin: 14px 0;
+		}
+
+		.callout strong {
+			color: var(--text);
+		}
+
+		.source-list {
+			display: grid;
+			gap: 10px;
+		}
+
+		.source-list a,
+		.source-list span {
+			display: block;
+		}
+
+		.source-list span {
+			color: var(--quiet);
+			font-size: 0.9rem;
+		}
+
+		.copy-state {
+			color: var(--green);
+			font-size: 0.88rem;
+			min-height: 1.2em;
+		}
+
+		.export-box {
+			display: none;
+			width: 100%;
+			min-height: 180px;
+			margin-top: 12px;
+			padding: 12px;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			color: var(--text);
+			font: 0.9rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			resize: vertical;
+		}
+
+		.export-box.visible {
+			display: block;
+		}
+
+		@media (max-width: 960px) {
+			header,
+			.summary-grid,
+			.two-col {
+				grid-template-columns: 1fr;
+			}
+
+			.header-actions {
+				justify-content: flex-start;
+			}
+
+			.decision,
+			.map {
+				grid-template-columns: 1fr;
+			}
+
+			.map-node::after {
+				display: none;
+			}
+
+			.milestone {
+				grid-template-columns: 1fr;
+			}
+
+			.m-id {
+				width: 48px;
+				height: 48px;
+			}
+		}
+
+		@media print {
+			body {
+				background: #fff;
+				color: #111;
+			}
+
+			.panel,
+			.milestone,
+			.decision-item,
+			.map-node {
+				box-shadow: none;
+				break-inside: avoid;
+			}
+
+			.tabs,
+			.header-actions,
+			.filters,
+			.status-box select {
+				display: none;
+			}
+
+			.tab-panel {
+				display: block;
+				margin-bottom: 24px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="shell">
+		<header>
+			<div>
+				<div class="kicker">Audiobook Boss active roadmap</div>
+					<h1>ABB Greenfield Convergence via Effect</h1>
+					<p class="lede">
+						A forest-level adoption roadmap: move current ABB toward the greenfield shape, then
+						turn each milestone into a one-PR design shape on the roadmap branch.
+					</p>
+			</div>
+			<div class="header-actions">
+				<button class="action" id="copyMarkdown" type="button">Copy roadmap Markdown</button>
+				<button class="action" id="resetStatuses" type="button">Reset milestone status</button>
+			</div>
+		</header>
+
+		<section class="summary-grid" aria-labelledby="summary-title">
+			<div class="panel">
+				<h2 id="summary-title">Recommendation</h2>
+				<p>
+					Adopt Effect if the target is ABB's TypeScript workflow operating model, not a blanket
+					rewrite. Effect should own async orchestration, typed workflow errors, dependency
+					injection, resource lifetime, retries, streams, and test harness seams.
+				</p>
+				<p>
+					The destination is current ABB moved as close as practical to the greenfield shape:
+					Rust owns durable truth, Svelte renders, Effect owns workflow coordination, Specta
+					guards the TS-Rust contract, and <code>tauriClient</code> stays the boring runtime adapter.
+				</p>
+				<div class="decision" aria-label="Decision summary">
+					<div class="decision-item">
+						<strong>Workflow owners</strong>
+						<span>Move multi-boundary coordination out of UI modules and into named Effect workflows.</span>
+					</div>
+					<div class="decision-item">
+						<strong>Boring boundaries</strong>
+						<span>Specta and <code>tauriClient</code> stay mechanical: enough protection, no clever glue.</span>
+					</div>
+					<div class="decision-item">
+						<strong>Make agents stronger</strong>
+						<span>Workflow owners, services, typed errors, and fake layers become easy to locate.</span>
+					</div>
+				</div>
+			</div>
+
+			<aside class="panel" aria-labelledby="state-title">
+				<h2 id="state-title">Current Evidence</h2>
+				<div class="metric-list">
+					<div class="metric">
+						<span class="badge good">Known</span>
+						<div>ABB has a strong boundary model and five current grey-box public APIs.</div>
+					</div>
+					<div class="metric">
+						<span class="badge good">Done</span>
+						<div><code>effect</code> is installed; AppEffect and workflow-owner proof points exist through EB4.</div>
+					</div>
+					<div class="metric">
+						<span class="badge info">Fit</span>
+						<div>Effect's strengths match frontend orchestration: errors, interruption, retry, services, streams.</div>
+					</div>
+					<div class="metric">
+						<span class="badge future">Destination</span>
+						<div>Greenfield convergence means real boundaries stay; accidental UI coordination becomes workflow ownership.</div>
+					</div>
+					<div class="metric">
+						<span class="badge watch">Gate</span>
+						<div><code>@effect/vitest</code> needs a Vitest 4 compatibility check before adoption.</div>
+					</div>
+					<div class="metric">
+						<span class="badge info">Branch</span>
+						<div><code>roadmap/effect-adoption</code> is the integration branch until the roadmap is complete.</div>
+					</div>
+				</div>
+			</aside>
+		</section>
+
+		<nav class="tabs" aria-label="Roadmap sections">
+				<button class="tab" type="button" aria-selected="true" aria-controls="panel-map" data-tab="map">Forest Map</button>
+					<button class="tab" type="button" aria-selected="false" aria-controls="panel-milestones" data-tab="milestones">Milestones</button>
+					<button class="tab" type="button" aria-selected="false" aria-controls="panel-boundaries" data-tab="boundaries">Boundaries</button>
+					<button class="tab" type="button" aria-selected="false" aria-controls="panel-greenfield" data-tab="greenfield">Greenfield</button>
+					<button class="tab" type="button" aria-selected="false" aria-controls="panel-proof" data-tab="proof">Proof</button>
+				</nav>
+
+		<main>
+			<section class="tab-panel active" id="panel-map" role="tabpanel" aria-labelledby="map">
+				<div class="section-title">
+					<h2>Forest Map</h2>
+					<span class="note">Destination first; implementation lanes second.</span>
+				</div>
+				<div class="panel">
+					<div class="map" aria-label="ABB Effect adoption operating model">
+						<div class="map-node">
+							<small>Product spine</small>
+							<strong>Intent to truth</strong>
+							<p>Import, inspect, decide, preflight, process, verify. Effect helps frontend workflows preserve this spine under async pressure.</p>
+						</div>
+						<div class="map-node">
+							<small>Real boundaries</small>
+							<strong>Rust, Tauri, TS</strong>
+							<p>Keep technological/domain boundaries where they are real: IPC, metadata intent, artifact truth, filesystem, audio, and remote providers.</p>
+						</div>
+						<div class="map-node">
+							<small>Workflow owners</small>
+							<strong>Processing / metadata / remote</strong>
+							<p>Move multi-boundary sequencing out of UI modules and into named Effect-backed owners.</p>
+						</div>
+						<div class="map-node">
+							<small>Boring adapters</small>
+							<strong>Specta + tauriClient</strong>
+							<p>Generated bindings guard drift; <code>tauriClient</code> normalizes runtime calls. Neither becomes a clever architecture layer.</p>
+						</div>
+						<div class="map-node">
+							<small>Agent harness</small>
+							<strong>Scenario proof</strong>
+							<p>Fake layers and focused workflow tests let agents reason from declared dependencies and terminal outcomes.</p>
+						</div>
+					</div>
+					<div class="callout">
+						<strong>Definition of full adoption:</strong> every frontend workflow that coordinates async work,
+						resource lifetime, cancellation, retry, progress, or multi-service orchestration is represented
+						as an Effect workflow or Effect-backed workflow service. UI modules render and dispatch; workflow
+						owners coordinate real boundaries. Pure transforms and simple UI state stay plain.
+					</div>
+					<div class="callout">
+						<strong>Roadmap branch rule:</strong> implementation PRs target <code>roadmap/effect-adoption</code>
+						until M9 is complete. The branch syncs with <code>main</code> as needed, but it does not merge back
+						to <code>main</code> until the roadmap train is complete, validated, and documented.
+					</div>
+					<div class="callout">
+						<strong>Working model:</strong> design the system shape first, keep the roadmap as the durable
+						source, then turn each milestone into a PR-sized implementation plan on the roadmap branch.
+					</div>
+					<div class="table-wrap" style="margin-top: 14px;">
+						<table>
+							<thead>
+								<tr>
+									<th>Glue Smell</th>
+									<th>Current Shape</th>
+									<th>Destination</th>
+									<th>Roadmap Home</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Status processing orchestration</td>
+									<td><code>src/ui/statusPanel/processing.ts</code> coordinates IPC, metadata staging, output review, progress, cancellation, and terminal status truth.</td>
+									<td><code>ProcessingWorkflow</code> owns the multi-boundary workflow; the status panel renders and dispatches.</td>
+									<td>M3</td>
+								</tr>
+								<tr>
+									<td>Metadata save and intent staging</td>
+									<td>Draft, state, intent, action, and Rust truth layers can blur during save orchestration.</td>
+									<td><code>MetadataSaveWorkflow</code> owns save sequencing while Rust remains metadata write truth.</td>
+									<td>M4</td>
+								</tr>
+								<tr>
+									<td>Guardrail script brittleness</td>
+									<td>Boundary scripts are useful assertions, but text checks can become their own maintenance surface.</td>
+									<td>Adjust scripts only when a milestone opens a real boundary reason.</td>
+									<td>M8 / opportunistic</td>
+								</tr>
+								<tr>
+									<td>Residual false seams</td>
+									<td>Remaining wrappers, adapters, and boundary-like modules may be real infrastructure or accidental boundary management.</td>
+									<td>Classify each meaningful seam as technically required, useful local detail, or false seam to remove, deepen, or defer.</td>
+									<td>M9</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+					<div class="callout">
+						<strong>What else the map must carry:</strong> a workflow-owner template, an Effect-native
+						rule for new multi-boundary frontend work after M2, a boring Specta/<code>tauriClient</code>
+						contract posture, workflow tests that avoid full Svelte rendering, an M9 critical
+						boundary/glue audit, and a Nextest-informed testing feedback audit.
+					</div>
+					<div class="callout">
+						<strong>Remote Acquisition scope boundary:</strong> this roadmap does not own the Remote
+						Acquisition feature set. It owns the Effect/greenfield posture that a future
+						<code>RemoteAcquisitionWorkflow</code> should consume if that separate roadmap needs
+						frontend auth, scanning, acquisition progress, cancellation, import handoff, or logout/purge orchestration.
+					</div>
+					<div class="panel" style="margin-top: 14px;">
+						<h3>Engineering Blocks</h3>
+						<p>
+							Milestones remain the design shape. Engineering blocks group the largest coherent
+							implementation and review units for fresh execution sessions.
+						</p>
+						<div class="table-wrap">
+							<table>
+								<thead>
+									<tr>
+										<th>Block</th>
+										<th>Roadmap Coverage</th>
+										<th>Status</th>
+										<th>Coherent Outcome</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td>Setup</td>
+										<td>M0-M1</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>Destination accepted and Effect dependency baseline installed.</td>
+									</tr>
+									<tr>
+										<td>EB1</td>
+										<td>M2-M3</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>AppEffect kernel validated by ProcessingWorkflow extraction.</td>
+									</tr>
+									<tr>
+										<td>EB2</td>
+										<td>M4 + narrow M7 proof</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>MetadataSaveWorkflow extraction plus metadata workflow harness proof.</td>
+									</tr>
+									<tr>
+										<td>EB3</td>
+										<td>M5 + metadata slice of M6</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>Future workflow ingress rule plus metadata enrichment workflows.</td>
+									</tr>
+									<tr>
+										<td>EB4</td>
+										<td>Remaining M6</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>Import, preflight, and job-control workflow migration.</td>
+									</tr>
+									<tr>
+										<td>EB5</td>
+										<td>M7-M8</td>
+										<td><span class="badge good">Complete</span></td>
+										<td>Workflow service catalog, agent proof, docs, and boundary guardrails.</td>
+									</tr>
+									<tr>
+										<td>EB6</td>
+										<td>M9</td>
+										<td><span class="badge info">Planned</span></td>
+										<td>Greenfield convergence review, Nextest-informed test feedback, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision.</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-milestones" role="tabpanel" aria-labelledby="milestones">
+				<div class="section-title">
+					<h2>Milestones</h2>
+					<span class="note">Status persists in this browser via local storage.</span>
+				</div>
+				<div class="filters">
+					<label for="statusFilter">Show</label>
+					<select id="statusFilter">
+						<option value="all">All milestones</option>
+						<option value="not-started">Not started</option>
+						<option value="in-progress">In progress</option>
+						<option value="blocked">Blocked</option>
+						<option value="done">Done</option>
+					</select>
+				</div>
+				<div class="milestone-list" id="milestonesList">
+					<article class="milestone" data-id="M0" data-status="done">
+						<div class="m-id">M0</div>
+						<div class="m-body">
+							<div class="phase-tag">Alignment</div>
+							<h3>Destination And Glue Inventory</h3>
+							<p>Decide the greenfield-convergence destination and adoption rules before touching code.</p>
+							<ul>
+								<li>Accept or revise this roadmap.</li>
+								<li>Prepare a compact adoption charter for a future active spec.</li>
+								<li>Capture the three known glue smells as roadmap work, not side issues.</li>
+								<li>Name candidate workflow owners for the first conversion wave.</li>
+								<li>Use <code>roadmap/effect-adoption</code> as the PR integration branch until M9.</li>
+							</ul>
+							<div class="gate">Exit gate: destination, adoption definition, boundary rules, and first implementation milestone are agreed.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M0">Roadmap status</label>
+							<select id="status-M0" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M1" data-status="done">
+						<div class="m-id">M1</div>
+						<div class="m-body">
+							<div class="phase-tag">Baseline</div>
+							<h3>Dependency And Compatibility Baseline</h3>
+							<p>Install Effect and prove ABB can build and test without product behavior changes.</p>
+							<ul>
+								<li>Add <code>effect</code>.</li>
+								<li>Keep <code>@effect/vitest</code> behind a Vitest 4 compatibility proof.</li>
+								<li>Measure build, test, and bundle impact.</li>
+							</ul>
+							<div class="gate">Exit gate: install, build, smoke test, and focused frontend tests pass.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M1">Roadmap status</label>
+							<select id="status-M1" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M2" data-status="done">
+						<div class="m-id">M2</div>
+						<div class="m-body">
+							<div class="phase-tag">Kernel</div>
+							<h3>AppEffect Kernel And Workflow Owner Shape</h3>
+							<p>Create ABB's local Effect operating style before real workflow conversion.</p>
+							<ul>
+								<li>Promise bridge for Svelte-callable entrypoints.</li>
+								<li>Typed workflow error bridge from <code>AppErrorEnvelope</code>.</li>
+								<li>Service/tag/layer naming conventions.</li>
+								<li>Workflow owner template: dependencies, typed errors, output events, public-strip impact, fake layers, and tests.</li>
+							</ul>
+							<div class="gate">Exit gate: a tiny workflow proves the bridge without public API strip changes.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M2">Roadmap status</label>
+							<select id="status-M2" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M3" data-status="done">
+						<div class="m-id">M3</div>
+						<div class="m-body">
+							<div class="phase-tag">Workflow owner</div>
+							<h3>ProcessingWorkflow Extraction</h3>
+							<p>Remove the largest frontend orchestration glue surface by giving status processing an explicit workflow owner.</p>
+							<ul>
+								<li>Extract <code>ProcessingWorkflow</code> from <code>src/ui/statusPanel/processing.ts</code>.</li>
+								<li>Move output review, metadata staging, progress startup, IPC processing, cancellation, terminal result handling, and status feedback into the workflow owner.</li>
+								<li>Keep Status Panel Runtime responsible for renderable status truth and user interaction.</li>
+								<li>Include progress subscription lifetime if needed for coherent cleanup.</li>
+							</ul>
+							<div class="gate">Exit gate: equivalent behavior, stable public strips, and workflow tests for status, cleanup, cancellation, typed errors, and terminal outcomes.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M3">Roadmap status</label>
+							<select id="status-M3" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M4" data-status="done">
+						<div class="m-id">M4</div>
+						<div class="m-body">
+							<div class="phase-tag">Metadata boundary</div>
+							<h3>MetadataSaveWorkflow And Intent Staging</h3>
+							<p>Reduce metadata boundary ambiguity without pretending the TS-Rust metadata boundary can disappear.</p>
+							<ul>
+								<li>Extract <code>MetadataSaveWorkflow</code> around metadata save and intent staging.</li>
+								<li>Preserve frontend draft/validation behavior while Rust remains metadata write truth.</li>
+								<li>Centralize typed save errors, save-progress state transitions, and boundary calls.</li>
+								<li>Clarify editable intent, command payload, generated contract shape, and persisted artifact truth.</li>
+							</ul>
+							<div class="gate">Exit gate: equivalent save behavior, clear contract parity, and tests for success, typed failure, cleanup, and no generated-binding reach-through.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M4">Roadmap status</label>
+							<select id="status-M4" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M5" data-status="done">
+						<div class="m-id">M5</div>
+						<div class="m-body">
+							<div class="phase-tag">Future feature ingress</div>
+							<h3>Future Workflow Ingress Rule</h3>
+							<p>Prevent future feature work from reintroducing frontend orchestration glue while keeping feature roadmaps separate.</p>
+							<ul>
+								<li>After M2, new frontend work coordinating multiple real boundaries starts with an explicit Effect workflow owner.</li>
+								<li>Name <code>RemoteAcquisitionWorkflow</code> as a likely future consumer without implementing that feature set here.</li>
+								<li>Sketch auth, library scan, progress, cancellation, import handoff, and logout/purge service ports only if needed for roadmap alignment.</li>
+								<li>Keep tokens, provider internals, acquisition lifecycle, and artifact truth with the Rust/Remote Acquisition feature design.</li>
+								<li>Exclude live provider proof and user-facing feature delivery unless a separate feature roadmap PR intentionally combines them.</li>
+							</ul>
+							<div class="gate">Exit gate: future feature work has a clear ingress rule: use a workflow owner for multi-boundary orchestration, or document why the work is local and boring enough to stay plain.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M5">Roadmap status</label>
+							<select id="status-M5" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M6" data-status="done">
+						<div class="m-id">M6</div>
+						<div class="m-body">
+							<div class="phase-tag">Migration</div>
+							<h3>Broader Frontend Workflow Migration</h3>
+							<p>Migrate high-value workflow surfaces and leave pure transforms plain.</p>
+							<ul>
+								<li>Metadata lookup queue and cover-art application.</li>
+								<li>Output preview and collision review.</li>
+								<li>Encoder/toolchain refresh, file import staging, cover art load/write, and job controls.</li>
+							</ul>
+							<div class="gate">Exit gate: each migrated surface has one owning workflow module, typed errors, fakeable services, and targeted tests.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M6">Roadmap status</label>
+							<select id="status-M6" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M7" data-status="done">
+						<div class="m-id">M7</div>
+						<div class="m-body">
+							<div class="phase-tag">Harness</div>
+							<h3>Workflow Harness And Agent Proof</h3>
+							<p>Make Effect adoption visibly improve the agent harness, not only local coding style.</p>
+							<ul>
+								<li>Service catalog for Tauri, status feedback, metadata state, file list, output plan, and remote source.</li>
+								<li>Fake layers for deterministic tests.</li>
+								<li>Scenario tests that run workflows without rendering whole Svelte islands.</li>
+								<li>Agent-facing proof notes: owner, dependencies, terminal outcomes, and checks.</li>
+								<li>EB5 proof lives in <code>src/lib/effect/AGENTS.md</code>.</li>
+							</ul>
+							<div class="gate">Exit gate: focused workflow tests explain each major flow's dependencies and terminal outcomes.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M7">Roadmap status</label>
+							<select id="status-M7" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M8" data-status="done">
+						<div class="m-id">M8</div>
+						<div class="m-body">
+							<div class="phase-tag">Guardrails</div>
+							<h3>Boundary Guardrails, Docs, And Opportunistic Script Hardening</h3>
+							<p>Lock in the operating model only where it changes future behavior.</p>
+							<ul>
+								<li>Update canon docs only for stable ownership changes.</li>
+								<li>Add local guidance only where imports or public strips change.</li>
+								<li>Add or adjust boundary assertions only when reach-through becomes a real risk.</li>
+								<li>Harden guardrail scripts only when a milestone opens that script surface for a real boundary reason.</li>
+								<li>EB5 tightened status-panel workflow-private import protection without adding a broad workflow guardrail.</li>
+							</ul>
+							<div class="gate">Exit gate: context checks pass; guardrails protect real boundaries without becoming a noisy parallel project.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M8">Roadmap status</label>
+							<select id="status-M8" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+
+					<article class="milestone" data-id="M9" data-status="not-started">
+						<div class="m-id">M9</div>
+						<div class="m-body">
+							<div class="phase-tag">Review</div>
+							<h3>Greenfield Convergence Review</h3>
+							<p>Decide whether Effect is now ABB's frontend workflow default, whether remaining boundaries are genuinely needed, and whether the testing feedback loop is strong enough for future agent work.</p>
+							<ul>
+								<li>List migrated workflow owners and intentionally vanilla surfaces.</li>
+								<li>Classify remaining wrappers, adapters, public strips, and boundary-like modules as hard technical/domain boundaries, useful local details, or false seams to remove, deepen, or defer.</li>
+								<li>Audit testing feedback, including Nextest/<code>cargo-nextest</code> surfaces for per-test timing, slow-test summaries, JUnit/machine-readable output, fail-fast/retry profiles, and explicit doctest handling.</li>
+								<li>Lead the test-gap review with gaps that would have reduced agent retry loops during the roadmap.</li>
+								<li>Decide whether to keep Effect private, broaden to <code>tauriClient</code> internals, or stop at current scope.</li>
+								<li>Decide whether <code>roadmap/effect-adoption</code> is ready to merge to <code>main</code>.</li>
+								<li>Delete the active implementation spec once work is merged, validated, documented, and synced.</li>
+							</ul>
+							<div class="gate">Exit gate: adoption definition is met or consciously narrowed; remaining boundary management is technically required, intentionally boring, or assigned to follow-up work; testing-feedback improvements are accepted or explicitly deferred.</div>
+						</div>
+						<div class="status-box">
+							<label for="status-M9">Roadmap status</label>
+							<select id="status-M9" data-status-select>
+								<option value="not-started">Not started</option>
+								<option value="in-progress">In progress</option>
+								<option value="blocked">Blocked</option>
+								<option value="done">Done</option>
+							</select>
+						</div>
+					</article>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-boundaries" role="tabpanel" aria-labelledby="boundaries">
+				<div class="section-title">
+					<h2>Boundary Rules</h2>
+					<span class="note">Adoption stays useful only if ownership stays sharp.</span>
+				</div>
+				<div class="two-col">
+					<div class="panel">
+						<h3>Allowed Shape</h3>
+						<div class="table-wrap">
+							<table>
+								<thead>
+									<tr>
+										<th>Surface</th>
+										<th>Effect role</th>
+										<th>Public shape</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td>Workflow modules</td>
+										<td>Primary owner for async orchestration, typed errors, service layers, and cleanup.</td>
+										<td>Private unless exported through an existing public strip.</td>
+									</tr>
+									<tr>
+										<td>UI modules</td>
+										<td>Dispatch user intent and render workflow state, but do not coordinate multiple boundaries.</td>
+										<td>Svelte-callable entrypoints stay ordinary Promise functions.</td>
+									</tr>
+									<tr>
+										<td>Svelte components</td>
+										<td>Call Promise-returning entrypoints and render state.</td>
+										<td>No Effect in markup as the first adoption mode.</td>
+									</tr>
+									<tr>
+										<td><code>tauriClient</code></td>
+										<td>Can be consumed as a service by workflows.</td>
+										<td>Promise methods stay stable unless explicitly changed.</td>
+									</tr>
+									<tr>
+										<td>Rust IPC</td>
+										<td>No direct role.</td>
+										<td>Specta/Tauri remain the contract truth.</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+					<div class="panel">
+						<h3>No-Go Zones</h3>
+						<div class="metric-list">
+							<div class="metric">
+								<span class="badge stop">No</span>
+								<div>No Rust rewrite and no generated-binding edits.</div>
+							</div>
+							<div class="metric">
+								<span class="badge stop">No</span>
+								<div>No public <code>tauriClient</code> Effect return types without a later explicit decision.</div>
+							</div>
+							<div class="metric">
+								<span class="badge watch">Avoid</span>
+								<div>No Effect for pure transforms just to make imports look uniform.</div>
+							</div>
+							<div class="metric">
+								<span class="badge watch">Watch</span>
+								<div>Any fallback discovered during migration still needs ABB's fallback policy.</div>
+							</div>
+							<div class="metric">
+								<span class="badge watch">Support</span>
+								<div>Guardrail scripts change only when a roadmap milestone opens a real boundary reason.</div>
+							</div>
+						</div>
+						<div class="callout">
+							<strong>Canary:</strong> if Effect adoption creates hidden coupling between UI state and the Tauri
+							boundary, treat that as a boundary trap and document the smallest corrective rule.
+						</div>
+					</div>
+				</div>
+				</section>
+
+					<section class="tab-panel" id="panel-greenfield" role="tabpanel" aria-labelledby="greenfield">
+						<div class="section-title">
+							<h2>Greenfield Frontend Frame</h2>
+							<span class="note">Question current frontend choices without destabilizing settled backend truth.</span>
+						</div>
+							<div class="panel">
+								<h3>Stack Decision Matrix</h3>
+								<p>
+									From a true greenfield frontend view, the recommendation is still TypeScript + Effect +
+									Svelte + Tauri. The Svelte choice is contextual and nuanced, not a universal renderer win.
+								</p>
+								<div class="callout">
+									<strong>Greenfield convergence target:</strong> keep the real Rust/Tauri/TypeScript boundary,
+									then remove accidental frontend coordination by giving workflows explicit owners. Effect is
+									the workflow runtime; it is not a renderer, IPC generator, or replacement for Rust truth.
+								</div>
+								<div class="table-wrap">
+									<table>
+									<thead>
+										<tr>
+											<th>Layer</th>
+											<th>Recommendation</th>
+											<th>Serious alternatives</th>
+											<th>Why this default holds</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr>
+											<td>Frontend language</td>
+											<td>TypeScript</td>
+											<td>Plain JS, Rust/WASM UI, Dart/Flutter, Elm/ReScript/Kotlin JS</td>
+											<td>Effect is TypeScript-native, Specta/Tauri produce TS-facing contracts, and agents get checkable payload shapes.</td>
+										</tr>
+										<tr>
+											<td>Workflow runtime</td>
+											<td>Effect</td>
+											<td>Promise-only modules, RxJS, XState, custom services</td>
+											<td>Effect covers typed errors, services, interruption, scoped cleanup, retry, streams, and fake layers in one model.</td>
+										</tr>
+											<tr>
+												<td>Renderer</td>
+												<td>Svelte</td>
+												<td>React, Vue, Solid, Web Components, plain DOM</td>
+												<td>Svelte is the best ABB default because the current pain is workflow ownership, not rendering. React is the strongest challenger if ecosystem depth or team fluency dominates.</td>
+											</tr>
+										<tr>
+											<td>Desktop shell</td>
+											<td>Tauri</td>
+											<td>Electron, native SwiftUI/AppKit, Flutter desktop</td>
+											<td>Tauri aligns with ABB's Rust core, security/capability boundary, smaller app posture, and no need for Node in the renderer.</td>
+										</tr>
+											<tr>
+												<td>TS-Rust contract</td>
+												<td>Tauri + Specta + <code>tauriClient</code></td>
+												<td>Raw invoke, HTTP localhost API, GraphQL, custom JSON bridge</td>
+												<td>Rust declares the contract, generated TS catches drift, and the handwritten <code>tauriClient</code> adapter centralizes normalization.</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+							<div class="panel" style="margin-top: 14px;">
+								<h3>Renderer Comparison</h3>
+								<p>
+									A renderer turns state into DOM, events, and pixels inside the Tauri webview. Effect is not
+									a renderer; it is the workflow runtime behind the UI.
+								</p>
+								<div class="table-wrap">
+									<table>
+										<thead>
+											<tr>
+												<th>Renderer</th>
+												<th>Where it is strong</th>
+												<th>ABB fit</th>
+												<th>Reassess trigger</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr>
+												<td>Svelte</td>
+												<td>Compiler-backed components, HTML/CSS/JS closeness, compact local UI islands.</td>
+												<td>Best current default. ABB's complexity is workflow orchestration, not rendering.</td>
+												<td>Effect-to-Svelte state projection becomes awkward, duplicated, or harder for agents than the workflow itself.</td>
+											</tr>
+											<tr>
+												<td>React</td>
+												<td>Largest ecosystem, mature devtools, common large-app patterns, contributor familiarity.</td>
+												<td>Strongest challenger, especially if component-library depth becomes more important than local UI simplicity.</td>
+												<td>UI composition and design-system scale become harder than workflow or IPC complexity.</td>
+											</tr>
+											<tr>
+												<td>Vue</td>
+												<td>Approachable templates and a larger ecosystem than Svelte.</td>
+												<td>Plausible, but not a clear ABB-specific improvement over Svelte.</td>
+												<td>Svelte tooling becomes a recurring blocker.</td>
+											</tr>
+											<tr>
+												<td>Solid</td>
+												<td>Fine-grained reactivity and JSX-like composition.</td>
+												<td>Technically interesting, but lower continuity and ecosystem fit for ABB.</td>
+												<td>A future UI rewrite wants React-like syntax without React runtime costs.</td>
+											</tr>
+											<tr>
+												<td>Web Components</td>
+												<td>Framework-independent custom elements.</td>
+												<td>Useful for isolated widgets, weak as the whole app architecture.</td>
+												<td>ABB needs reusable standalone widgets across renderer boundaries.</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+							<div class="two-col" style="margin-top: 14px;">
+								<div class="panel">
+									<h3>Why Svelte Stays</h3>
+									<div class="metric-list">
+										<div class="metric">
+											<span class="badge good">Fit</span>
+											<div>Svelte keeps ABB screens close to HTML/CSS/TypeScript while Effect owns async workflow logic.</div>
+										</div>
+										<div class="metric">
+											<span class="badge info">Nuance</span>
+											<div>This is a narrow ABB decision. React is not wrong; it solves a different center of gravity.</div>
+										</div>
+										<div class="metric">
+											<span class="badge watch">React Wins If</span>
+											<div>ABB's hardest problem becomes design-system scale, third-party components, or contributor React fluency.</div>
+										</div>
+									</div>
+								</div>
+								<div class="panel">
+									<h3>Tauri vs Electron</h3>
+									<p>
+										Electron is credible and can be performant when engineered well. The greenfield reason to keep
+										Tauri is not "Electron is bad"; it is that ABB already wants Rust, a tight IPC boundary, smaller
+										app posture, and no Node runtime in the UI.
+									</p>
+									<div class="metric-list">
+										<div class="metric">
+											<span class="badge good">Tauri</span>
+											<div>Best default when Rust backend ownership and app-size/security posture matter.</div>
+										</div>
+										<div class="metric">
+											<span class="badge info">Electron</span>
+											<div>Best challenger when identical Chromium behavior, Node ecosystem depth, or Electron-specific desktop tooling matters more.</div>
+										</div>
+										<div class="metric">
+											<span class="badge watch">Watch</span>
+											<div>Tauri's system WebView can mean platform-specific rendering behavior. That is the real tradeoff to monitor.</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="panel" style="margin-top: 14px;">
+								<h3>TS-Rust Contract Layers</h3>
+								<div class="table-wrap">
+									<table>
+										<thead>
+											<tr>
+												<th>Layer</th>
+												<th>Owner</th>
+												<th>What it does</th>
+												<th>Why keep it</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr>
+												<td>Rust commands/events</td>
+												<td>Rust backend</td>
+												<td>Own durable command shapes, event payloads, app errors, processing truth, and artifact behavior.</td>
+												<td>Rust remains the backend source of truth.</td>
+											</tr>
+											<tr>
+												<td>Specta / tauri-specta</td>
+												<td>Generated contract strip</td>
+												<td>Export Rust-declared command/type shapes into TypeScript-facing bindings and expose drift.</td>
+												<td>Solves TS-Rust contract drift without hand-maintaining frontend mirrors.</td>
+											</tr>
+											<tr>
+												<td><code>tauriClient</code></td>
+												<td>Handwritten adapter</td>
+												<td>Wrap generated calls, normalize payloads, translate errors, centralize events, and expose Promise methods.</td>
+												<td>Keeps UI and workflow modules away from raw invoke strings and generated churn.</td>
+											</tr>
+											<tr>
+												<td>Effect services</td>
+												<td>Workflow modules</td>
+												<td>Consume <code>tauriClient</code> through injectable services for workflow errors, cleanup, retries, and tests.</td>
+												<td>Improves orchestration without leaking Effect into Rust or public UI boundaries.</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								<div class="callout" style="margin-top: 14px;">
+									<strong>Handwritten client means <code>tauriClient</code>:</strong> generated bindings are mechanical
+									contract output; <code>src/lib/tauri/client.ts</code> is ABB's owned adapter for domain naming,
+									error normalization, null/undefined policy, event cleanup shape, and public Promise methods.
+								</div>
+							</div>
+							<div class="callout">
+								<strong>Agent-experience read:</strong> ABB's grey-box module architecture is still a net positive.
+								It gives agents names for ownership, public strips to protect, and private clusters they can reshape
+								without guessing which caller depends on which helper.
+							</div>
+						</section>
+
+				<section class="tab-panel" id="panel-proof" role="tabpanel" aria-labelledby="proof">
+				<div class="section-title">
+					<h2>Proof And Sources</h2>
+					<span class="note">Known, inferred, and still needing proof.</span>
+				</div>
+				<div class="two-col">
+					<div class="panel">
+						<h3>Evidence Status</h3>
+						<div class="metric-list">
+							<div class="metric">
+								<span class="badge good">Known</span>
+								<div>ABB current docs define the product spine, layer model, boundary rule, and five grey-box public APIs.</div>
+							</div>
+							<div class="metric">
+								<span class="badge good">Known</span>
+								<div>ABB routes frontend runtime commands/events through <code>tauriClient</code>, with public-strip tests.</div>
+							</div>
+							<div class="metric">
+								<span class="badge good">Known</span>
+								<div>Effect 3.21.2 is current in the local reference subtree and npm lookup used for this pass.</div>
+							</div>
+							<div class="metric">
+								<span class="badge watch">Needs proof</span>
+								<div><code>@effect/vitest</code> peers on Vitest 3, so ABB's Vitest 4 setup needs a real compatibility check.</div>
+							</div>
+							<div class="metric">
+								<span class="badge future">Inferred</span>
+								<div>Effect should improve ABB as an agent harness if workflows expose services, typed errors, and fake layers.</div>
+							</div>
+						</div>
+					</div>
+					<div class="panel">
+						<h3>Source Map</h3>
+						<div class="source-list">
+							<div>
+								<a href="../system-map.md">ABB system map</a>
+								<span>Product spine, layer model, boundary rule, grey-box APIs.</span>
+							</div>
+							<div>
+								<a href="../api-map.md">ABB API map</a>
+								<span>Tauri runtime boundary and event/command index.</span>
+							</div>
+							<div>
+								<a href="../../src/lib/tauri/AGENTS.md">Tauri client public strip</a>
+								<span>Public boundary rules for frontend runtime commands/events.</span>
+							</div>
+								<div>
+									<a href="./remote-acquisition.md">Remote Acquisition active spec</a>
+									<span>Parallel feature-planning surface. This roadmap shapes workflow architecture if needed, but does not own feature delivery.</span>
+								</div>
+								<div>
+									<a href="https://effect.website/">Effect official site</a>
+									<span>Current positioning: type-safe errors, retry, interruption, observability, Bun/Vite/Tauri compatibility, incremental adoption.</span>
+								</div>
+								<div>
+									<a href="https://svelte.dev/docs/svelte/overview">Svelte docs</a>
+									<span>Compiler-backed web UI framework that turns components into optimized JavaScript.</span>
+								</div>
+								<div>
+									<a href="https://react.dev/learn/describing-the-ui">React docs</a>
+									<span>JavaScript UI library built around reusable, nestable components and JSX.</span>
+								</div>
+								<div>
+									<a href="https://tauri.app/start/">Tauri docs</a>
+									<span>Desktop shell with Rust foundation, system WebView posture, and frontend flexibility.</span>
+								</div>
+								<div>
+									<a href="https://www.electronjs.org/docs/latest/">Electron docs</a>
+									<span>Desktop framework embedding Chromium and Node.js for cross-platform apps.</span>
+								</div>
+								<div>
+									<a href="https://specta.dev/">Specta docs</a>
+									<span>Rust type export and TypeScript contract tooling, including Tauri command type safety.</span>
+								</div>
+								<div>
+									<a href="../../repos/effect/packages/effect/package.json">Local Effect reference package</a>
+									<span>Effect 3.21.2 reference subtree and package metadata.</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="panel" style="margin-top: 14px;">
+					<h3>Open Alignment Questions</h3>
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Question</th>
+									<th>Recommended default</th>
+									<th>Decision impact</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Should <code>ProcessingWorkflow</code> definitely precede <code>MetadataSaveWorkflow</code>?</td>
+									<td>Yes by destination fit; switch only if M3 implementation planning proves too wide.</td>
+									<td>Controls whether the first serious conversion attacks the biggest glue surface or starts with a smaller proof.</td>
+								</tr>
+								<tr>
+									<td>How should the separate Remote Acquisition roadmap consume this roadmap?</td>
+									<td>Use the M2 workflow-owner shape and M5 ingress rule; keep feature delivery in its own roadmap.</td>
+									<td>Lets future work avoid Promise glue without making this roadmap own uninstantiated features.</td>
+								</tr>
+									<tr>
+										<td>Should Specta-generated bindings ever be imported directly by workflows?</td>
+										<td>Default no. Keep generated bindings as adapter input through <code>tauriClient</code>.</td>
+										<td>Preserves boring contract machinery and prevents generated churn from becoming workflow API.</td>
+									</tr>
+									<tr>
+										<td>What would make us replace Svelte?</td>
+										<td>Only evidence that state projection becomes awkward, duplicated, or agent-hostile.</td>
+										<td>Keeps greenfield thinking honest without forcing UI churn.</td>
+									</tr>
+									<tr>
+										<td>When is remaining glue acceptable?</td>
+										<td>When it is local, boring, tested, and not coordinating multiple real boundaries.</td>
+										<td>Prevents the roadmap from chasing every adapter while still removing architectural glue.</td>
+									</tr>
+							</tbody>
+						</table>
+					</div>
+					<p class="copy-state" id="copyState" aria-live="polite"></p>
+					<textarea class="export-box" id="markdownExport" readonly aria-label="Roadmap Markdown export"></textarea>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<script>
+		const storageKey = "abb-effect-roadmap-status-v2";
+		const sourceMarkdownPath =
+			"/Users/jstar/Projects/audiobook-boss/docs/specs/effect-adoption-roadmap.md";
+		const sourceMarkdownHref = "./effect-adoption-roadmap.md";
+		const markdownFallback = `# ABB Effect Adoption Roadmap
+
+Recommendation: adopt Effect as ABB's TypeScript workflow harness, not as a blanket rewrite.
+
+Destination: move current ABB as close as practical to the greenfield shape. Rust owns durable truth, Svelte renders, Effect owns workflow coordination, Specta guards the TS-Rust contract, and tauriClient stays the boring runtime adapter.
+
+Full adoption means async orchestration, typed workflow errors, service layers, resource lifetimes, retry/backoff, streams, and workflow tests are Effect-backed where those concerns actually exist. Multi-boundary workflow coordination moves out of UI modules and into explicit workflow owners.
+
+	Boundary rules:
+	- Rust remains the durable truth engine.
+	- Svelte remains declarative UI.
+	- Specta and tauriClient stay technically boring boundary machinery.
+	- tauriClient stays Promise-based until an explicit boundary decision changes it.
+	- Guardrail scripts change only when a roadmap milestone opens a real boundary reason.
+
+	Known glue smells:
+- src/ui/statusPanel/processing.ts becomes ProcessingWorkflow work.
+- Metadata save and intent staging become MetadataSaveWorkflow work.
+- Guardrail script hardening stays lower-priority and opportunistic.
+
+	What else the map must carry:
+- A workflow-owner template before conversion.
+- An Effect-native rule for new multi-boundary frontend work after M2.
+- Boring Specta and tauriClient contract posture.
+- Workflow tests without full Svelte rendering.
+- M9 critical boundary/glue audit.
+- M9 Nextest-informed testing feedback audit.
+
+	Engineering blocks:
+- Setup: M0-M1 complete; destination accepted and Effect baseline installed.
+- EB1: M2-M3 complete; AppEffect kernel validated by ProcessingWorkflow extraction.
+- EB2: M4 + narrow M7 proof complete; MetadataSaveWorkflow plus metadata workflow harness proof.
+- EB3: M5 + metadata slice of M6 complete; future workflow ingress plus metadata enrichment workflows.
+- EB4: Remaining M6 complete; import, preflight, and job-control workflow migration.
+- EB5: M7-M8 complete; workflow service catalog, agent proof, docs, and boundary guardrails.
+- EB6: M9 planned; greenfield convergence review, Nextest-informed test feedback, critical boundary/glue audit, highest-ROI test-gap audit, and merge-readiness decision.
+
+	Greenfield frontend frame:
+- Keep TypeScript as the frontend language.
+- Keep Svelte as renderer by default.
+- Use Effect as the workflow harness from day one.
+- Keep Tauri as the desktop shell.
+- Keep grey-box modules as the ownership architecture.
+
+Branch management:
+- roadmap/effect-adoption is the dedicated roadmap integration branch.
+- Effect implementation PRs target that branch until M9 is complete.
+- Do not merge the roadmap branch to main until the roadmap is complete, validated, documented, and ready to land.
+- Treat each milestone as the default PR unit on the roadmap branch.
+
+Milestones:
+- M0 Destination and glue inventory.
+- M1 Dependency and compatibility baseline.
+- M2 AppEffect kernel and workflow owner shape.
+- M3 ProcessingWorkflow extraction.
+- M4 MetadataSaveWorkflow and intent staging.
+- M5 Future workflow ingress rule.
+- M6 Broader frontend workflow migration.
+- M7 Workflow harness and agent proof.
+- M8 Boundary guardrails, docs, and opportunistic script hardening.
+- M9 Greenfield convergence review.
+
+Source markdown file:
+${sourceMarkdownPath}
+`;
+
+		function readStatuses() {
+			try {
+				return JSON.parse(localStorage.getItem(storageKey) || "{}");
+			} catch {
+				return {};
+			}
+		}
+
+		function writeStatuses(statuses) {
+			localStorage.setItem(storageKey, JSON.stringify(statuses));
+		}
+
+		function applyStatusFilter() {
+			const filter = document.getElementById("statusFilter").value;
+			document.querySelectorAll(".milestone").forEach((milestone) => {
+				const visible = filter === "all" || milestone.dataset.status === filter;
+				milestone.classList.toggle("hidden", !visible);
+			});
+		}
+
+		function hydrateStatuses() {
+			const statuses = readStatuses();
+			document.querySelectorAll(".milestone").forEach((milestone) => {
+				const id = milestone.dataset.id;
+				const select = milestone.querySelector("[data-status-select]");
+				const status = statuses[id] || milestone.dataset.status || "not-started";
+				milestone.dataset.status = status;
+				select.value = status;
+			});
+			applyStatusFilter();
+		}
+
+		document.querySelectorAll(".tab").forEach((tab) => {
+			tab.addEventListener("click", () => {
+				document.querySelectorAll(".tab").forEach((candidate) => {
+					const selected = candidate === tab;
+					candidate.setAttribute("aria-selected", String(selected));
+				});
+				document.querySelectorAll(".tab-panel").forEach((panel) => {
+					panel.classList.toggle("active", panel.id === `panel-${tab.dataset.tab}`);
+				});
+			});
+		});
+
+		document.querySelectorAll("[data-status-select]").forEach((select) => {
+			select.addEventListener("change", () => {
+				const milestone = select.closest(".milestone");
+				const statuses = readStatuses();
+				statuses[milestone.dataset.id] = select.value;
+				milestone.dataset.status = select.value;
+				writeStatuses(statuses);
+				applyStatusFilter();
+			});
+		});
+
+		document.getElementById("statusFilter").addEventListener("change", applyStatusFilter);
+
+		document.getElementById("resetStatuses").addEventListener("click", () => {
+			localStorage.removeItem(storageKey);
+			document.getElementById("statusFilter").value = "all";
+			hydrateStatuses();
+			document.getElementById("copyState").textContent = "Milestone status reset.";
+		});
+
+		document.getElementById("copyMarkdown").addEventListener("click", async () => {
+			const state = document.getElementById("copyState");
+			const exportBox = document.getElementById("markdownExport");
+			let markdown = markdownFallback;
+			try {
+				const response = await fetch(sourceMarkdownHref);
+				markdown = response.ok ? await response.text() : markdownFallback;
+			} catch {
+				markdown = markdownFallback;
+			}
+
+			try {
+				await navigator.clipboard.writeText(markdown);
+				exportBox.classList.remove("visible");
+				state.textContent = "Roadmap Markdown copied.";
+			} catch {
+				exportBox.value = markdown;
+				exportBox.classList.add("visible");
+				state.textContent = "Copy unavailable in this browser context; Markdown export shown below.";
+			}
+		});
+
+		hydrateStatuses();
+	</script>
+</body>
+</html>

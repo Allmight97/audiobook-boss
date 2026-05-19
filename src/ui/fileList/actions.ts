@@ -153,7 +153,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 export function appendFileList(
 	fileListInfo: FileListInfo,
-	options?: { existingFiles?: AudioFile[] },
+	options?: { existingFiles?: AudioFile[]; showDuplicateStatus?: boolean },
 ): void {
 	const currentFileList = getCurrentFileList();
 	const existingFiles = options?.existingFiles ?? currentFileList?.files ?? [];
@@ -168,7 +168,9 @@ export function appendFileList(
 	);
 
 	if (appendedFiles.length === 0) {
-		setTransientStatusMessage('No new files added. All analyzed files were already in the list.');
+		if (options?.showDuplicateStatus ?? true) {
+			setTransientStatusMessage('No new files added. All analyzed files were already in the list.');
+		}
 		return;
 	}
 

@@ -8,6 +8,7 @@ import { metadataFormState } from '../metadataForm/state.svelte';
 import { updateOutputPath } from '../outputPanel/preview';
 import {
 	outputPanelState,
+	setOutputPreview,
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateAbsIncludeYear,
@@ -20,9 +21,12 @@ vi.mock('../../lib/tauri/client', () => ({
 }));
 
 describe('output panel preview resilience', () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		vi.mocked(tauriClient.previewOutputPath).mockReset();
+		updateOutputDirectory('');
+		setOutputPreview('Select output directory...', 'No directory selected');
 		render(OutputPanelIsland);
+		await Promise.resolve();
 		populateMetadataFormSingle({
 			title: 'Ghosts',
 			album: 'Ghosts',
@@ -33,6 +37,9 @@ describe('output panel preview resilience', () => {
 		updateAbsIncludeYear(false);
 		setJobTypeSelection('merge');
 		vi.mocked(tauriClient.previewOutputPath).mockResolvedValue('/Library/Audiobooks/Ghosts.m4b');
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		vi.mocked(tauriClient.previewOutputPath).mockClear();
+		setOutputPreview('Select output directory...', 'No directory selected');
 	});
 
 	afterEach(() => {
@@ -44,7 +51,9 @@ describe('output panel preview resilience', () => {
 
 		const previewText = document.getElementById('output-preview-text');
 		await waitFor(() => {
-			expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(tauriClient.previewOutputPath)).toHaveBeenCalledWith(
+				expect.objectContaining({ outputKind: 'final' }),
+			);
 			expect(outputPanelState.previewText).toContain('/Library/Audiobooks');
 			expect(previewText?.textContent).toContain('/Library/Audiobooks');
 		});

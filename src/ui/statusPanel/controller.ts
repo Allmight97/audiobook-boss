@@ -1,4 +1,3 @@
-import { tauriClient } from '../../lib/tauri/client';
 import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { setFileOrderLocked } from '../fileList/actions';
@@ -19,6 +18,14 @@ import {
 	findFilePathByCurrentFile as findFilePathByCurrentFileService,
 } from './services/fileLookup';
 import { createProgressSubscription } from './services/progressSubscription';
+import {
+	enterCancelAllCancellationWorkflow,
+	runProcessingCancellationWorkflow,
+} from './processingCancellationWorkflow';
+import {
+	ProcessingCancellationWorkflowLive,
+	liveProcessingCancellationWorkflowServices,
+} from './processingCancellationWorkflowLive';
 import {
 	applyCancellation,
 	applyProgress,
@@ -155,22 +162,18 @@ export class StatusPanelRuntime {
 	}
 
 	public async requestCancelAll(): Promise<void> {
-		feedback.setCancelAllButtonPending(true);
-		try {
-			await tauriClient.cancelProcessing();
-			this.updateStatus(
-				buildStatus(
-					this.model.currentStatus.stage,
-					this.model.currentStatus.percentage,
-					'Cancellation requested…',
-				),
-			);
-		} catch (error) {
-			console.error('Failed to cancel processing:', error);
-			feedback.showError('Failed to cancel processing. Please try again.');
-		} finally {
-			feedback.setCancelAllButtonPending(false);
-		}
+		const preparedCancelAll = enterCancelAllCancellationWorkflow(
+			liveProcessingCancellationWorkflowServices,
+		);
+		await runProcessingCancellationWorkflow(
+			{
+				type: 'cancelAll',
+				getCurrentStatus: () => this.model.currentStatus,
+				updateStatus: (status) => this.updateStatus(status),
+			},
+			ProcessingCancellationWorkflowLive,
+			preparedCancelAll,
+		);
 	}
 
 	public handleProcessingCancellation(): void {
@@ -383,12 +386,10 @@ export class StatusPanelRuntime {
 	}
 
 	private async cancelJob(jobId: string): Promise<void> {
-		try {
-			await tauriClient.cancelProcessing(jobId);
-		} catch (error) {
-			console.error(`Failed to cancel job ${jobId}:`, error);
-			feedback.showError(`Failed to cancel job ${jobId}`);
-		}
+		await runProcessingCancellationWorkflow(
+			{ type: 'cancelJob', jobId },
+			ProcessingCancellationWorkflowLive,
+		);
 	}
 
 	private scheduleRender(immediate: boolean): void {

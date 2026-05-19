@@ -1,19 +1,9 @@
-import type {
-	EncoderSettings,
-	ExternalToolchainPreference,
-	ProcessingRequestConfig,
-	OutputNamingConfig,
-	SampleRateConfig,
-} from '../../types/audio';
-import { defaultEncoderSettings } from '../../types/audio';
+import type { OutputRequestConfig, OutputNamingConfig } from '../../types/audio';
 
 export type OutputNamingPreset = OutputNamingConfig['preset'];
 const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
 
 export interface OutputPanelState {
-	encoderSettings: EncoderSettings;
-	toolchainSettings: ExternalToolchainPreference;
-	sampleRate: SampleRateConfig;
 	outputDirectory: string;
 	namingPreset: OutputNamingPreset;
 	namingTemplate: string;
@@ -27,9 +17,6 @@ export interface OutputPanelState {
 }
 
 export const outputPanelState = $state<OutputPanelState>({
-	encoderSettings: { ...defaultEncoderSettings() },
-	toolchainSettings: {},
-	sampleRate: { explicit: 22050 },
 	outputDirectory: '',
 	namingPreset: 'absDefault',
 	namingTemplate: '',
@@ -77,15 +64,12 @@ export function getOutputNamingConfig(): OutputNamingConfig {
 	};
 }
 
-export function readProcessingRequestConfig(): ProcessingRequestConfig {
+export function readOutputRequestConfig(): OutputRequestConfig {
 	if (!outputPanelState.outputDirectory) {
 		throw new Error('Output directory not selected');
 	}
 
 	return {
-		encoderSettings: outputPanelState.encoderSettings,
-		toolchainSettings: outputPanelState.toolchainSettings,
-		sampleRate: outputPanelState.sampleRate,
 		outputDirectory: outputPanelState.outputDirectory,
 		outputNaming: getOutputNamingConfig(),
 	};
@@ -109,18 +93,6 @@ export function updateNamingTemplate(template: string): void {
 
 export function updateAbsIncludeYear(enabled: boolean): void {
 	outputPanelState.absIncludeYear = enabled;
-}
-
-export function updateEncoderSettings(settings: EncoderSettings): void {
-	outputPanelState.encoderSettings = settings;
-}
-
-export function updateToolchainSettings(settings: ExternalToolchainPreference): void {
-	outputPanelState.toolchainSettings = settings;
-}
-
-export function updateSampleRate(sampleRate: SampleRateConfig): void {
-	outputPanelState.sampleRate = sampleRate;
 }
 
 export function setOutputPreview(text: string, title: string = text): void {
