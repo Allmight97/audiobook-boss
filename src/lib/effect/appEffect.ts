@@ -65,3 +65,25 @@ export function tryAppPromise<A>(
 		catch: (cause) => unexpectedWorkflowError(message, cause),
 	});
 }
+
+export function workflowTryPromise<A, E>(
+	evaluate: () => PromiseLike<A>,
+	message: string,
+	toFailure: (message: string, cause: unknown) => E,
+): AppEffect<A, E> {
+	return Effect.tryPromise({
+		try: evaluate,
+		catch: (cause) => toFailure(message, cause),
+	});
+}
+
+export function workflowTrySync<A, E>(
+	evaluate: () => A,
+	message: string,
+	toFailure: (message: string, cause: unknown) => E,
+): AppEffect<A, E> {
+	return Effect.try({
+		try: evaluate,
+		catch: (cause) => toFailure(message, cause),
+	});
+}

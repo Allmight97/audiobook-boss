@@ -1,7 +1,14 @@
 import type { FileListInfo } from '../../types/audio';
 import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+	workflowTrySync,
+} from '../../lib/effect/appEffect';
 import {
 	MetadataSaveWorkflowServicesTag,
 	type MetadataSaveWorkflowLayer,
@@ -49,20 +56,14 @@ function workflowSync<A>(
 	evaluate: () => A,
 	message: string,
 ): AppEffect<A, MetadataSaveWorkflowFailed> {
-	return Effect.try({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTrySync(evaluate, message, workflowFailure);
 }
 
 function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, MetadataSaveWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function validFilePathSet(fileList: FileListInfo): Set<string> {

@@ -6,7 +6,13 @@ import type {
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError';
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+} from '../../lib/effect/appEffect';
 import {
 	applyMetadataDraftIntent,
 	buildMetadataDraftIntent,
@@ -146,10 +152,7 @@ function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, ProcessingWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function processingCommand(
@@ -372,7 +375,7 @@ export function processingWorkflowProgram(
 
 		const reviewResult = yield* workflowPromise(
 			() =>
-				services.reviewOutputPlanForProcessing({
+				services.runOutputPlanReviewWorkflow({
 					payload: processPayload,
 					metadataIntent: metadataIntentPayload,
 					previewSeconds: options?.previewSeconds,

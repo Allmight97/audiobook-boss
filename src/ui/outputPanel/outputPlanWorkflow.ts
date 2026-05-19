@@ -1,4 +1,10 @@
-import { Data, Effect, type AppEffect, runAppEffect } from '../../lib/effect/appEffect';
+import {
+	Data,
+	Effect,
+	type AppEffect,
+	runAppEffect,
+	workflowTryPromise,
+} from '../../lib/effect/appEffect';
 import type { CollisionPolicy, ProcessPayload, ProcessingPreflightPlan } from '../../types/audio';
 import {
 	OutputPlanWorkflowServicesTag,
@@ -33,10 +39,7 @@ function workflowPromise<A>(
 	evaluate: () => PromiseLike<A>,
 	message: string,
 ): AppEffect<A, OutputPlanWorkflowFailed> {
-	return Effect.tryPromise({
-		try: evaluate,
-		catch: (cause) => workflowFailure(message, cause),
-	});
+	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
 function getBlockingReviewMessage(plan: ProcessingPreflightPlan): string | null {
