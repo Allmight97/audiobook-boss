@@ -12,6 +12,45 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Removed
 
+## [1.0.24] - 2026-05-19
+
+Effect workflow adoption release.
+
+### Added
+
+- Added Effect-backed workflow owners for processing, cancellation, metadata
+  save, metadata lookup, output-plan review, toolchain validation, and file
+  import so long-running frontend orchestration has typed errors, injectable
+  services, and focused test harnesses.
+- Added an Effect adoption roadmap artifact under `docs/specs/` to keep the
+  architecture direction, milestones, and boundary decisions visible.
+- Added local public-strip guidance for the encoder, output, status, and Effect
+  workflow surfaces.
+
+### Changed
+
+- Moved process request composition into the status-panel workflow boundary:
+  encoder settings now come from the encoder panel, output/naming settings come
+  from the output panel, and processing composes both through explicit public
+  strips.
+- Replaced duplicated workflow Promise/sync harness code with shared AppEffect
+  helpers.
+- Routed processing directly through the output-plan workflow owner instead of
+  the status-panel output-plan review adapter.
+- File import, output preflight, metadata save, metadata lookup, cancellation,
+  and toolchain validation now use explicit workflow services instead of hidden
+  UI orchestration.
+
+### Fixed
+
+- Reviewed no-write batch outputs are now skipped without blocking runnable
+  preview or processing jobs.
+- Auto and explicit FDK processing now log the resolved processor adapter,
+  making External FDK routing auditable during manual testing.
+- Removed stale encoder/toolchain/sample-rate mirroring from the output panel so
+  encoder changes cannot drift from the processing payload.
+- Removed the ineffective import-analysis live-layer dynamic import warning.
+
 ## [1.0.23] - 2026-05-14
 
 Resource lifetime and bulk metadata progress release for PR #306.
