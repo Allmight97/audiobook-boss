@@ -3,6 +3,7 @@ import { render } from '@testing-library/svelte';
 import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
 import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
+import { readEncodingRequestConfig } from '../encoderPanel';
 import { outputPanelState } from '../outputPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
@@ -103,7 +104,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('keeps afterburner enabled in output state when auto resolves to FDK', async () => {
+	it('keeps afterburner enabled in encoding config when auto resolves to FDK', async () => {
 		context.listAvailableEncodersMock.mockResolvedValue(
 			availabilityFixture({
 				fdkAvailable: true,
@@ -117,8 +118,9 @@ describe('encoder panel behavior controls', () => {
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
-			expect(outputPanelState.encoderSettings.encoderType).toBe('auto');
-			expect(outputPanelState.encoderSettings.afterburner).toBe(true);
+			const config = readEncodingRequestConfig();
+			expect(config.encoderSettings.encoderType).toBe('auto');
+			expect(config.encoderSettings.afterburner).toBe(true);
 		});
 	});
 
@@ -254,7 +256,7 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('external-toolchain-path-display')?.textContent).toContain(
 				'/custom/ffmpeg',
 			);
-			expect(outputPanelState.toolchainSettings.overridePath).toBe('/custom/ffmpeg');
+			expect(readEncodingRequestConfig().toolchainSettings.overridePath).toBe('/custom/ffmpeg');
 		});
 	});
 
@@ -368,7 +370,7 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Auto will use Native AAC (FFmpeg).',
 			);
-			expect(outputPanelState.encoderSettings.encoderType).toBe('auto');
+			expect(readEncodingRequestConfig().encoderSettings.encoderType).toBe('auto');
 		});
 	});
 
@@ -393,7 +395,7 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toBe(
 				'Auto will use Apple AAC.',
 			);
-			expect(outputPanelState.encoderSettings.encoderType).toBe('auto');
+			expect(readEncodingRequestConfig().encoderSettings.encoderType).toBe('auto');
 		});
 	});
 });

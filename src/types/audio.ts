@@ -60,14 +60,19 @@ export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalTo
 // Output naming options for folder/filename generation
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
 
-// Combined UI output configuration used by the UI boundary
-export interface ProcessingRequestConfig {
+export interface EncodingRequestConfig {
 	encoderSettings: EncoderSettings;
 	toolchainSettings: ExternalToolchainPreference;
 	sampleRate: SampleRateConfig;
+}
+
+export interface OutputRequestConfig {
 	outputDirectory: string;
 	outputNaming: OutputNamingConfig;
 }
+
+// Combined UI process configuration composed at the processing workflow boundary.
+export type ProcessingRequestConfig = EncodingRequestConfig & OutputRequestConfig;
 
 // Preview command typing helpers (Tauri boundary)
 export interface PreviewRequest {

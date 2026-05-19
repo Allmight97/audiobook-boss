@@ -17,11 +17,11 @@ import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
-import { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
-import { syncAfterStateChange } from '../encoderPanel/logic';
+import { updateOutputPath } from '../outputPanel';
 import { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
+import { readProcessingRequestConfig } from './processingConfig';
 import {
 	makeProcessingWorkflowServicesLayer,
 	type ProcessingWorkflowServices,
@@ -33,7 +33,6 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	getSelectedFileIndex,
 	getSelectedFileIndices,
 	readProcessingRequestConfig,
-	syncEncoderPanelBeforeProcess: syncAfterStateChange,
 	getJobType,
 	hasDirtyMetadataFields,
 	readMetadataForm,

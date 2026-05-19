@@ -1,4 +1,8 @@
-import type { EncoderAvailability, SampleRateConfig } from '../../types/audio';
+import type {
+	EncoderAvailability,
+	EncodingRequestConfig,
+	SampleRateConfig,
+} from '../../types/audio';
 import {
 	type EncoderFlavor,
 	type EncoderSettingsState,
@@ -97,6 +101,14 @@ export function readSampleRateFromState(): SampleRateConfig {
 	}
 
 	return 'auto';
+}
+
+export function readEncodingRequestConfig(): EncodingRequestConfig {
+	return {
+		encoderSettings: readBoundaryEncoderSettings(),
+		toolchainSettings: readToolchainSettingsFromState(),
+		sampleRate: readSampleRateFromState(),
+	};
 }
 
 export function setEncoderAvailability(availability: EncoderAvailability | null): void {

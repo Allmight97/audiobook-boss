@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultEncoderSettings } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel/preview';
 import {
 	outputPanelState,
-	readProcessingRequestConfig,
+	readOutputRequestConfig,
 	updateAbsIncludeYear,
-	updateEncoderSettings,
 	updateNamingPreset,
 	updateNamingTemplate,
 	updateOutputDirectory,
-	updateSampleRate,
-	updateToolchainSettings,
 } from '../outputPanel/state.svelte';
+import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
@@ -30,52 +27,41 @@ describe('output panel state-driven contracts', () => {
 		});
 
 		document.body.innerHTML = '<span id="estimated-size"></span>';
+		resetEncoderPanelState();
 		updateOutputDirectory('/tmp/out');
 		updateNamingPreset('absDefault');
 		updateNamingTemplate('');
 		updateAbsIncludeYear(false);
-		updateSampleRate('auto');
-		updateEncoderSettings(defaultEncoderSettings());
-		updateToolchainSettings({});
 	});
 
-	it('reads processing output config from canonical state selector', () => {
-		const config = readProcessingRequestConfig();
+	it('reads output request config from canonical state selector', () => {
+		const config = readOutputRequestConfig();
 
 		expect(config).toMatchObject({
 			outputDirectory: '/tmp/out',
-			sampleRate: 'auto',
-			toolchainSettings: {},
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
-		expect(config.encoderSettings).toEqual(defaultEncoderSettings());
 	});
 
 	it('defaults custom template when custom preset is selected without template text', () => {
 		updateNamingPreset('customTemplate');
 		updateNamingTemplate('   ');
 
-		const config = readProcessingRequestConfig();
+		const config = readOutputRequestConfig();
 		expect(config.outputNaming).toMatchObject({
 			preset: 'customTemplate',
 			customTemplate: '{author}/{title}',
 		});
 	});
 
-	it('updates estimated size from shared state', () => {
-		updateEncoderSettings({
-			...defaultEncoderSettings(),
-			bitrateKbps: 48,
-			channels: 'mono',
-		});
+	it('updates estimated size from encoder panel public state', () => {
+		encoderPanelState.bitrateValue = 48;
+		encoderPanelState.channelsSelection = 'mono';
 		updateEstimatedSize();
 		const lowValue = outputPanelState.estimatedSizeText;
 
-		updateEncoderSettings({
-			...defaultEncoderSettings(),
-			bitrateKbps: 128,
-			channels: 'stereo',
-		});
+		encoderPanelState.bitrateValue = 128;
+		encoderPanelState.channelsSelection = 'stereo';
 		updateEstimatedSize();
 		const highValue = outputPanelState.estimatedSizeText;
 

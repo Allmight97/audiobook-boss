@@ -15,6 +15,7 @@ import {
 	setEstimatedSizeText,
 	setOutputNamingUiState,
 } from './state.svelte';
+import { readEncodingRequestConfig } from '../encoderPanel';
 import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
@@ -131,12 +132,11 @@ export function buildOutputPreviewCallSiteState(): OutputPreviewCallSiteState {
 }
 
 function calculateEstimatedSize(totalDurationSeconds: number): number {
-	const state = getState();
 	if (!totalDurationSeconds || totalDurationSeconds <= 0) {
 		return 0;
 	}
 
-	const encoderSettings = state.encoderSettings;
+	const { encoderSettings } = readEncodingRequestConfig();
 	let sizeBytes = (totalDurationSeconds * encoderSettings.bitrateKbps * 1000) / 8;
 
 	if (encoderSettings.channels === 'stereo') {

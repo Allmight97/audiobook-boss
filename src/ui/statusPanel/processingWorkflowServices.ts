@@ -23,10 +23,10 @@ import type {
 	getSubseriesPartValidationError,
 } from '../metadataValidation';
 import type { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
-import type { readProcessingRequestConfig, updateOutputPath } from '../outputPanel';
-import type { syncAfterStateChange } from '../encoderPanel/logic';
+import type { updateOutputPath } from '../outputPanel';
 import type * as feedback from './feedback';
 import type { openGeneratedPreviewIfSingle } from './preview';
+import type { readProcessingRequestConfig } from './processingConfig';
 
 export interface ProcessingWorkflowServices {
 	updateOutputPath: typeof updateOutputPath;
@@ -34,7 +34,6 @@ export interface ProcessingWorkflowServices {
 	getSelectedFileIndex: typeof getSelectedFileIndex;
 	getSelectedFileIndices: typeof getSelectedFileIndices;
 	readProcessingRequestConfig: typeof readProcessingRequestConfig;
-	syncEncoderPanelBeforeProcess: typeof syncAfterStateChange;
 	getJobType: typeof getJobType;
 	hasDirtyMetadataFields: typeof hasDirtyMetadataFields;
 	readMetadataForm: typeof readMetadataForm;

@@ -41,13 +41,12 @@ vi.mock('../../fileList/state.svelte', () => ({
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,
 }));
 
-vi.mock('../../outputPanel', () => ({
+vi.mock('../processingConfig', () => ({
 	readProcessingRequestConfig: context.readProcessingRequestConfigMock,
-	updateOutputPath: context.updateOutputPathMock,
 }));
 
-vi.mock('../../encoderPanel/logic', () => ({
-	syncAfterStateChange: vi.fn(),
+vi.mock('../../outputPanel', () => ({
+	updateOutputPath: context.updateOutputPathMock,
 }));
 
 vi.mock('../../jobControls', () => ({

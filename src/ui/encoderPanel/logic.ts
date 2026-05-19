@@ -1,14 +1,6 @@
 import { updateEstimatedSize } from '../outputPanel/preview';
 import {
-	updateEncoderSettings,
-	updateSampleRate,
-	updateToolchainSettings,
-} from '../outputPanel/state.svelte';
-import {
 	encoderPanelState,
-	readBoundaryEncoderSettings,
-	readSampleRateFromState,
-	readToolchainSettingsFromState,
 	setChannelsAutoHint,
 	setExternalToolchainOverridePath,
 	setSampleRateAutoHint,
@@ -68,17 +60,7 @@ const encoderFlavorLabel = (flavor: EncoderFlavor): string => {
 const autoOptionLabel = (effectiveEncoder: EncoderFlavor): string =>
 	`${AUTO_LABEL_BASE} (${encoderFlavorLabel(effectiveEncoder)})`;
 
-const syncOutputState = (): void => {
-	const settings = readBoundaryEncoderSettings();
-	const sampleRate = readSampleRateFromState();
-	const toolchainSettings = readToolchainSettingsFromState();
-	updateEncoderSettings(settings);
-	updateSampleRate(sampleRate);
-	updateToolchainSettings(toolchainSettings);
-};
-
 const syncOutputSizingFromEncoderState = (): void => {
-	syncOutputState();
 	updateEstimatedSize();
 };
 
@@ -297,19 +279,16 @@ export const handleBitrateValueChange = (event: Event): void => {
 export const handleFdkAfterburnerChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
-	syncOutputState();
 };
 
 export const handleNativeTwoloopChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
-	syncOutputState();
 };
 
 export const handleToolchainPathInput = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	setExternalToolchainOverridePath(target?.value ?? '');
-	syncOutputState();
 };
 
 export const handleToolchainPathCommit = (): void => {
