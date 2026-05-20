@@ -4,6 +4,7 @@ Active register for fallback behavior that is still enforced by repo checks.
 Keep entries here only when they materially protect product behavior, output integrity, real external-file interoperability, or the main release-quality gate.
 Best-effort UI preference persistence and tooling convenience fallbacks should be trimmed out instead of living here indefinitely.
 Repo checks validate register sunsets, source-adjacent marker sunsets, and any renewal dates as real calendar dates.
+Boundary smells, design smells, and implementation smells belong in active specs, Architecture Scout reports, or targeted issues unless they are actual fallback/shim behavior with enforcement markers and a removal path.
 
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
