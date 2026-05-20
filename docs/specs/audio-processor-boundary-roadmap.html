@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>ABB Audio Engine Deep Module Roadmap</title>
+	<style>
+		:root {
+			color-scheme: dark;
+			--bg: #101218;
+			--surface: #171c25;
+			--surface-2: #1f2733;
+			--surface-3: #263142;
+			--surface-blue: #14263b;
+			--text: #eef3fb;
+			--muted: #b2bfd0;
+			--quiet: #8794a7;
+			--line: #344154;
+			--line-soft: #273244;
+			--blue: #65a8ff;
+			--teal: #46dac3;
+			--green: #75dc91;
+			--amber: #f0c760;
+			--red: #f28482;
+			--purple: #bba6ff;
+			--radius: 8px;
+			--shadow: 0 18px 52px rgb(0 0 0 / 0.32);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background:
+				linear-gradient(180deg, rgb(31 41 58 / 0.28), transparent 360px),
+				var(--bg);
+			color: var(--text);
+			font-family:
+				Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			line-height: 1.5;
+		}
+
+		a {
+			color: var(--blue);
+			text-decoration: none;
+		}
+
+		a:hover,
+		a:focus {
+			text-decoration: underline;
+		}
+
+		button {
+			font: inherit;
+		}
+
+		.shell {
+			width: min(1240px, calc(100vw - 36px));
+			margin: 0 auto;
+			padding: 30px 0 56px;
+		}
+
+		header {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: 18px;
+			align-items: start;
+			padding-bottom: 22px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.kicker {
+			color: var(--teal);
+			font-size: 0.78rem;
+			font-weight: 800;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+		}
+
+		h1 {
+			margin: 8px 0 8px;
+			max-width: 900px;
+			font-size: clamp(2rem, 5vw, 4.6rem);
+			line-height: 0.96;
+			letter-spacing: 0;
+		}
+
+		.lede {
+			margin: 0;
+			max-width: 860px;
+			color: var(--muted);
+			font-size: 1.05rem;
+		}
+
+		.header-actions {
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+		}
+
+		.action {
+			min-height: 40px;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			color: var(--text);
+			padding: 9px 12px;
+			cursor: pointer;
+		}
+
+		.action:hover,
+		.action:focus-visible {
+			background: var(--surface-3);
+			outline: 2px solid transparent;
+		}
+
+		.chips {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			margin-top: 16px;
+		}
+
+		.chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 7px;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			color: var(--muted);
+			padding: 6px 9px;
+			font-size: 0.8rem;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+		}
+
+		.chip strong {
+			color: var(--text);
+		}
+
+		.chip.green {
+			border-color: rgb(117 220 145 / 0.55);
+			color: var(--green);
+		}
+
+		.chip.amber {
+			border-color: rgb(240 199 96 / 0.58);
+			color: var(--amber);
+		}
+
+		.chip.blue {
+			border-color: rgb(101 168 255 / 0.58);
+			color: var(--blue);
+		}
+
+		.chip.purple {
+			border-color: rgb(187 166 255 / 0.58);
+			color: var(--purple);
+		}
+
+		main {
+			padding-top: 22px;
+		}
+
+		.summary-grid {
+			display: grid;
+			grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+			gap: 18px;
+			margin-bottom: 18px;
+		}
+
+		.panel {
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			box-shadow: var(--shadow);
+			padding: 18px;
+		}
+
+		.panel h2,
+		.panel h3 {
+			margin: 0 0 10px;
+			letter-spacing: 0;
+		}
+
+		.panel p {
+			margin: 0 0 12px;
+			color: var(--muted);
+		}
+
+		.panel p:last-child {
+			margin-bottom: 0;
+		}
+
+		.decision {
+			background:
+				linear-gradient(135deg, rgb(70 218 195 / 0.12), transparent 50%),
+				var(--surface);
+		}
+
+		.decision h2 {
+			font-size: 1rem;
+			color: var(--teal);
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+		}
+
+		.decision .callout {
+			margin: 0;
+			color: var(--text);
+			font-size: clamp(1.25rem, 2vw, 1.75rem);
+			line-height: 1.24;
+			font-weight: 750;
+		}
+
+		.next-list {
+			display: grid;
+			gap: 10px;
+			margin: 0;
+			padding: 0;
+			list-style: none;
+		}
+
+		.next-list li {
+			border-left: 3px solid var(--amber);
+			background: var(--surface-2);
+			border-radius: var(--radius);
+			padding: 10px 11px;
+			color: var(--muted);
+		}
+
+		.next-list strong {
+			display: block;
+			color: var(--text);
+			margin-bottom: 2px;
+		}
+
+		.tabs {
+			position: sticky;
+			top: 0;
+			z-index: 5;
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			padding: 12px 0;
+			background: rgb(16 18 24 / 0.94);
+			backdrop-filter: blur(10px);
+			border-bottom: 1px solid var(--line-soft);
+		}
+
+		.tab {
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			color: var(--muted);
+			padding: 9px 12px;
+			cursor: pointer;
+			min-height: 40px;
+		}
+
+		.tab[aria-selected="true"] {
+			border-color: var(--blue);
+			color: var(--text);
+			background: var(--surface-3);
+			box-shadow: inset 0 -2px 0 var(--blue);
+		}
+
+		.tab:focus-visible {
+			outline: 2px solid var(--blue);
+			outline-offset: 2px;
+		}
+
+		.tab-panel {
+			display: none;
+			margin-top: 18px;
+		}
+
+		.tab-panel.active {
+			display: block;
+		}
+
+		.grid-2 {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 16px;
+		}
+
+		.grid-3 {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 16px;
+		}
+
+		.card {
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			padding: 16px;
+		}
+
+		.card h3 {
+			margin: 0 0 9px;
+			font-size: 1rem;
+		}
+
+		.card p,
+		.card li {
+			color: var(--muted);
+		}
+
+		.card ul {
+			margin: 8px 0 0;
+			padding-left: 19px;
+		}
+
+		.term-table,
+		.boundary-table {
+			width: 100%;
+			border-collapse: collapse;
+			overflow: hidden;
+			border-radius: var(--radius);
+			border: 1px solid var(--line);
+			background: var(--surface);
+		}
+
+		.term-table th,
+		.term-table td,
+		.boundary-table th,
+		.boundary-table td {
+			padding: 12px 13px;
+			border-bottom: 1px solid var(--line-soft);
+			text-align: left;
+			vertical-align: top;
+		}
+
+		.term-table th,
+		.boundary-table th {
+			color: var(--quiet);
+			background: var(--surface-2);
+			font-size: 0.8rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+
+		.term-table tr:last-child td,
+		.boundary-table tr:last-child td {
+			border-bottom: 0;
+		}
+
+		code {
+			border-radius: 5px;
+			background: var(--surface-2);
+			color: var(--text);
+			padding: 1px 5px;
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+			font-size: 0.92em;
+		}
+
+		.flow {
+			display: grid;
+			grid-template-columns: repeat(5, minmax(140px, 1fr));
+			gap: 10px;
+			align-items: stretch;
+			overflow-x: auto;
+			padding-bottom: 4px;
+		}
+
+		.flow-step {
+			min-height: 130px;
+			border: 1px solid var(--line);
+			border-top: 4px solid var(--blue);
+			border-radius: var(--radius);
+			background: var(--surface);
+			padding: 12px;
+		}
+
+		.flow-step h3 {
+			margin: 0 0 8px;
+			font-size: 0.96rem;
+		}
+
+		.flow-step p {
+			margin: 0;
+			color: var(--muted);
+			font-size: 0.9rem;
+		}
+
+		.flow-step.media {
+			border-top-color: var(--teal);
+			background:
+				linear-gradient(180deg, rgb(70 218 195 / 0.08), transparent),
+				var(--surface);
+		}
+
+		.flow-step.audit {
+			border-top-color: var(--amber);
+		}
+
+		.milestones {
+			display: grid;
+			gap: 12px;
+		}
+
+		.milestone {
+			display: grid;
+			grid-template-columns: 74px minmax(0, 1fr) auto;
+			gap: 14px;
+			align-items: start;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			padding: 14px;
+		}
+
+		.milestone .num {
+			display: inline-flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 40px;
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			color: var(--blue);
+			font-weight: 850;
+			letter-spacing: 0.04em;
+		}
+
+		.milestone h3 {
+			margin: 0 0 4px;
+			font-size: 1rem;
+		}
+
+		.milestone p {
+			margin: 0;
+			color: var(--muted);
+		}
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			padding: 5px 8px;
+			color: var(--muted);
+			background: var(--surface-2);
+			font-size: 0.78rem;
+			font-weight: 760;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			white-space: nowrap;
+		}
+
+		.badge.rec {
+			color: var(--green);
+			border-color: rgb(117 220 145 / 0.52);
+		}
+
+		.badge.decision {
+			color: var(--amber);
+			border-color: rgb(240 199 96 / 0.52);
+		}
+
+		.scout-grid {
+			display: grid;
+			grid-template-columns: repeat(5, minmax(180px, 1fr));
+			gap: 12px;
+			overflow-x: auto;
+			padding-bottom: 4px;
+		}
+
+		.scout {
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			padding: 13px;
+			min-height: 190px;
+		}
+
+		.scout h3 {
+			margin: 0 0 8px;
+			font-size: 0.96rem;
+		}
+
+		.scout .label {
+			color: var(--teal);
+			font-size: 0.76rem;
+			font-weight: 800;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+		}
+
+		.checklist {
+			display: grid;
+			gap: 10px;
+			margin: 0;
+			padding: 0;
+			list-style: none;
+		}
+
+		.checklist li {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			gap: 10px;
+			align-items: start;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			padding: 12px;
+		}
+
+		.check {
+			width: 22px;
+			height: 22px;
+			border-radius: 6px;
+			border: 1px solid var(--amber);
+			background: rgb(240 199 96 / 0.12);
+			color: var(--amber);
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 850;
+			line-height: 1;
+		}
+
+		.check.ready {
+			border-color: var(--green);
+			background: rgb(117 220 145 / 0.12);
+			color: var(--green);
+		}
+
+		.note {
+			border: 1px solid rgb(240 199 96 / 0.48);
+			border-radius: var(--radius);
+			background: rgb(240 199 96 / 0.08);
+			color: var(--muted);
+			padding: 13px;
+		}
+
+		.note strong {
+			color: var(--amber);
+		}
+
+		.footer {
+			margin-top: 24px;
+			padding-top: 18px;
+			border-top: 1px solid var(--line);
+			color: var(--quiet);
+			font-size: 0.9rem;
+		}
+
+		.toast {
+			position: fixed;
+			right: 18px;
+			bottom: 18px;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface-2);
+			box-shadow: var(--shadow);
+			padding: 10px 12px;
+			color: var(--text);
+			opacity: 0;
+			transform: translateY(8px);
+			pointer-events: none;
+			transition: opacity 160ms ease, transform 160ms ease;
+		}
+
+		.toast.show {
+			opacity: 1;
+			transform: translateY(0);
+		}
+
+		@media (max-width: 920px) {
+			header,
+			.summary-grid,
+			.grid-2,
+			.grid-3 {
+				grid-template-columns: 1fr;
+			}
+
+			.header-actions {
+				justify-content: flex-start;
+			}
+
+			.milestone {
+				grid-template-columns: 1fr;
+			}
+
+			.badge {
+				width: fit-content;
+			}
+		}
+
+		@media (max-width: 620px) {
+			.shell {
+				width: min(100vw - 24px, 1240px);
+				padding-top: 20px;
+			}
+
+			.tabs {
+				position: static;
+			}
+
+			.tab,
+			.action {
+				width: 100%;
+				text-align: left;
+			}
+
+			.header-actions,
+			.tabs {
+				display: grid;
+				grid-template-columns: 1fr;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="shell">
+		<header>
+			<div>
+				<div class="kicker">Audiobook Boss roadmap brief</div>
+				<h1>Audio Engine Deep Module</h1>
+				<p class="lede">
+					Companion view for the active spec. Use this to align the roadmap before handing
+					work to an implementation-planning agent.
+				</p>
+				<div class="chips" aria-label="roadmap status">
+					<span class="chip green">Primary target: <strong>Audio engine</strong></span>
+					<span class="chip amber">Status runtime: <strong>audit milestone</strong></span>
+					<span class="chip blue">Posture: <strong>one coherent PR</strong></span>
+					<span class="chip purple">Mode: <strong>planning only</strong></span>
+				</div>
+			</div>
+			<div class="header-actions">
+				<a class="action" href="./audio-processor-boundary-roadmap.md">Open source spec</a>
+				<button class="action" type="button" data-copy="readiness">Copy readiness checklist</button>
+			</div>
+		</header>
+
+		<main>
+			<section class="summary-grid" aria-label="roadmap summary">
+				<div class="panel decision">
+					<h2>Recommended decision</h2>
+					<p class="callout">
+						Roadmap the Audio Engine Deep Module as the next boundary candidate, with
+						Operational Status Runtime included as a formal audit decision rather than
+						default implementation scope.
+					</p>
+				</div>
+				<div class="panel">
+					<h2>Before handoff</h2>
+					<ul class="next-list">
+						<li>
+							<strong>Lock the owner hypothesis</strong>
+							Sixth Grey-Box owner versus Private Cluster under processing.
+						</li>
+						<li>
+							<strong>Name the public strip</strong>
+							What processing passes in, what media execution returns, and what stays private.
+						</li>
+						<li>
+							<strong>Define scout stop conditions</strong>
+							What evidence is enough to hand this to implementation planning.
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<nav class="tabs" aria-label="Roadmap sections" role="tablist">
+				<button class="tab" id="tab-decision" role="tab" aria-controls="panel-decision" aria-selected="true">Decision</button>
+				<button class="tab" id="tab-before-after" role="tab" aria-controls="panel-before-after" aria-selected="false">Before/After</button>
+				<button class="tab" id="tab-discovery" role="tab" aria-controls="panel-discovery" aria-selected="false">M0 Discovery</button>
+				<button class="tab" id="tab-boundaries" role="tab" aria-controls="panel-boundaries" aria-selected="false">Boundaries</button>
+				<button class="tab" id="tab-roadmap" role="tab" aria-controls="panel-roadmap" aria-selected="false">Milestones</button>
+				<button class="tab" id="tab-scouts" role="tab" aria-controls="panel-scouts" aria-selected="false">Scouts</button>
+				<button class="tab" id="tab-handoff" role="tab" aria-controls="panel-handoff" aria-selected="false">Handoff</button>
+			</nav>
+
+			<section class="tab-panel active" id="panel-decision" role="tabpanel" aria-labelledby="tab-decision">
+				<div class="grid-2">
+					<div class="card">
+						<h3>What this roadmap is for</h3>
+						<p>
+							Audio processing is where media execution, toolchain selection, stream integrity,
+							metadata write timing, staging, finalization, cancellation, and progress reporting
+							currently meet. The roadmap should make that meeting point explicit and owned.
+						</p>
+						<p>
+							The likely destination is a media-engine-shaped boundary: processing coordinates
+							work, audio executes media truth, output artifact commits final files, metadata owns
+							tag outcome, and status runtime renders truthful operation state.
+						</p>
+					</div>
+					<div class="card">
+						<h3>What this roadmap is not for</h3>
+						<ul>
+							<li>No implementation in this planning thread.</li>
+							<li>No generic operation manager unless evidence forces it.</li>
+							<li>No metadata redesign unless audio discovery exposes a specific contract gap.</li>
+							<li>No fallback behavior without trigger, signal, register entry, and removal condition.</li>
+						</ul>
+					</div>
+				</div>
+				<div class="panel" style="margin-top: 16px;">
+					<h2>SWE terminology map</h2>
+					<table class="term-table">
+						<thead>
+							<tr>
+								<th>Plain term</th>
+								<th>ABB term</th>
+								<th>General SWE terms</th>
+								<th>Use when</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Owned truth boundary</td>
+								<td>Grey-Box Public API owner</td>
+								<td>Bounded context, subsystem, component boundary</td>
+								<td>Naming who owns a durable rule or outcome.</td>
+							</tr>
+							<tr>
+								<td>Small caller surface</td>
+								<td>Public API Strip</td>
+								<td>Port, facade, service interface</td>
+								<td>Naming what other code may call/import.</td>
+							</tr>
+							<tr>
+								<td>Hidden implementation</td>
+								<td>Private Cluster</td>
+								<td>Adapter cluster, internal package, implementation module</td>
+								<td>Naming files callers should not reach through into.</td>
+							</tr>
+							<tr>
+								<td>Rule split across owners</td>
+								<td>Ownership Smear</td>
+								<td>Leaky abstraction, misplaced responsibility</td>
+								<td>Naming tech debt caused by partial ownership.</td>
+							</tr>
+						</tbody>
+					</table>
+					<p style="margin-top: 12px;">
+						Roadmap language: use <strong>Audio Engine Deep Module</strong> as the human-facing
+						name. Repo-precise translation: a Grey-Box Public API owner with a Public API Strip
+						and Private Cluster.
+					</p>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-before-after" role="tabpanel" aria-labelledby="tab-before-after">
+				<div class="panel">
+					<h2>Before and intended after</h2>
+					<p>
+						This is the roadmap delta at the architectural level. The "after" column is the
+						intended final state to validate during discovery and implementation planning, not
+						a promise that every row requires code movement.
+					</p>
+					<table class="boundary-table">
+						<thead>
+							<tr>
+								<th>System area</th>
+								<th>Current shape to audit</th>
+								<th>Intended final state</th>
+								<th>Milestone zoom-in</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Audio ownership</strong></td>
+								<td>Audio processing is strongly guided by nested rules, but not yet canon as a Grey-Box Public API owner.</td>
+								<td>Either promoted to Audio Engine Deep Module owner or explicitly kept private under processing with evidence.</td>
+								<td>M0, M1</td>
+							</tr>
+							<tr>
+								<td><strong>Caller surface</strong></td>
+								<td>Callers can see multiple audio/processor exports and may need to understand adapter details.</td>
+								<td>Processing calls a small media execution strip; codec/toolchain details remain inside the media engine cluster.</td>
+								<td>M1, M2</td>
+							</tr>
+							<tr>
+								<td><strong>Media execution</strong></td>
+								<td>Native, Apple, and external FDK paths may carry real tool differences plus accidental duplicated choreography.</td>
+								<td>Adapters expose one result contract while preserving real encoder/toolchain differences internally.</td>
+								<td>M3</td>
+							</tr>
+							<tr>
+								<td><strong>Metadata timing</strong></td>
+								<td>Audio paths participate in metadata write timing and passthrough during finalization.</td>
+								<td>Audio consumes Metadata Outcome decisions and reports media facts; metadata policy stays owned by metadata.</td>
+								<td>M2, M4</td>
+							</tr>
+							<tr>
+								<td><strong>Artifact commit</strong></td>
+								<td>Processor finalization delegates commit truth, but staging/final success still needs a clean handoff model.</td>
+								<td>Audio produces a candidate artifact; Output Artifact Plan / Commit owns final path, replacement, and commit truth.</td>
+								<td>M4</td>
+							</tr>
+							<tr>
+								<td><strong>Status/progress</strong></td>
+								<td>Progress and terminal truth span processing, statusPanel, metadata save, and recent Effect workflow changes.</td>
+								<td>Status runtime remains truthful and bounded; audio emits stage facts without becoming UI status policy.</td>
+								<td>M5</td>
+							</tr>
+							<tr>
+								<td><strong>Agent maintainability</strong></td>
+								<td>Future agents may need broad context to safely change media behavior without disturbing metadata/output/status.</td>
+								<td>A fresh agent can follow the public strip, private cluster rules, contract tests, and implementation notes.</td>
+								<td>M6</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="grid-3" style="margin-top: 16px;">
+					<div class="card">
+						<h3>Current-state smell</h3>
+						<p>Media execution is adjacent to too many truths: lifecycle, metadata, artifact commit, status, and external process behavior.</p>
+					</div>
+					<div class="card">
+						<h3>Target-state principle</h3>
+						<p>Each boundary can ask audio for media execution without importing or reimplementing media decisions.</p>
+					</div>
+					<div class="card">
+						<h3>Zoom-in rule</h3>
+						<p>If a before/after row feels fuzzy, zoom into the listed milestone rather than expanding the whole roadmap.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-discovery" role="tabpanel" aria-labelledby="tab-discovery">
+				<div class="panel decision">
+					<h2>M0 verdict</h2>
+					<p class="callout">
+						Use Audio Engine Deep Module as the default owner hypothesis for implementation
+						planning. Keep Operational Status Runtime as audit/decision scope unless source
+						evidence shows audio cannot be made coherent without status-runtime changes.
+					</p>
+				</div>
+				<div class="grid-2" style="margin-top: 16px;">
+					<div class="card">
+						<h3>Public edge finding</h3>
+						<p>
+							Current audio exports mix caller-facing API with internal engine pieces:
+							file info, validation, toolchain detection, cleanup, processor execution,
+							adapter routing, native engine types, preview internals, and processor
+							submodules.
+						</p>
+						<p>
+							Implementation planning should validate and narrow the strip rather than
+							treating today&apos;s export list as the intended API.
+						</p>
+					</div>
+					<div class="card">
+						<h3>Processing lifecycle finding</h3>
+						<p>
+							Processing owns queue/session/cancel identity, execution plan preparation,
+							job registration, terminal normalization, and command results.
+						</p>
+						<p>
+							It currently reaches into audio for file info and adapter resolution; that
+							is the caller surface the Audio Engine Deep Module should simplify or make
+							explicit.
+						</p>
+					</div>
+					<div class="card">
+						<h3>Finalization finding</h3>
+						<p>
+							Native finalization delegates final commit truth to <code>output_artifact</code>.
+							External FDK repeats staging, metadata rewrite, output commit, cleanup,
+							cancellation check, and success emit choreography.
+						</p>
+						<p>
+							M4 should preserve output artifact ownership and treat native/FDK finalization
+							convergence as in-scope.
+						</p>
+					</div>
+					<div class="card">
+						<h3>Status-runtime finding</h3>
+						<p>
+							Rust emits <code>EventStage</code>, <code>ProgressEvent</code>, and
+							<code>QueueEvent</code>; frontend <code>StatusPanelRuntime</code> tracks
+							merge, batch, and metadata-save work kinds.
+						</p>
+							<p>
+								This supports M5 as a formal audit gate. It does not yet justify a status
+								runtime implementation milestone by default.
+							</p>
+							<p>
+								The mandatory guard is narrower: preserve or explicitly improve the path from
+								backend terminal event emission to command-result reconciliation to job-registry
+								terminalization.
+							</p>
+						</div>
+				</div>
+				<div class="note" style="margin-top: 16px;">
+					<strong>Handoff implication:</strong> the implementation agent should validate the
+					public strip, track progress/cancel/finalization surprises in implementation notes,
+					and expand M5 only with source evidence.
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-boundaries" role="tabpanel" aria-labelledby="tab-boundaries">
+				<div class="panel">
+					<h2>Owner boundaries and system impact</h2>
+					<table class="boundary-table">
+						<thead>
+							<tr>
+								<th>Owner</th>
+								<th>System impact</th>
+								<th>Roadmap concern</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Processing Plan</strong></td>
+								<td>Preflight, execution planning, dispatch, queue identity, cancellation identity, terminal normalization.</td>
+								<td>Must coordinate media execution without absorbing codec/toolchain internals.</td>
+							</tr>
+							<tr>
+								<td><strong>Audio Engine Deep Module</strong></td>
+								<td>Candidate owner for decoder selection, stream preparation, resample/encode/mux, media staging, and media integrity facts.</td>
+								<td>Decide whether it becomes the sixth Grey-Box owner and what its Public API Strip is.</td>
+							</tr>
+							<tr>
+								<td><strong>Metadata Outcome Plan</strong></td>
+								<td>Effective metadata, naming metadata, write instructions, and cover-art passthrough policy.</td>
+								<td>Audio should consume metadata outcome, not recreate metadata policy through choreography.</td>
+							</tr>
+							<tr>
+								<td><strong>Output Artifact Plan / Commit</strong></td>
+								<td>Resolved final paths, collision policy, parent creation, replacement, and final artifact truth.</td>
+								<td>Audio may produce staged media, but output artifact owns final commit truth.</td>
+							</tr>
+							<tr>
+								<td><strong>Status Panel Runtime</strong></td>
+								<td>User-visible progress, terminal status, controls, and truthful operation rendering.</td>
+								<td>Audit as formal milestone; implement only if residue affects audio boundaries.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="panel" style="margin-top: 16px;">
+					<h2>Boundary flow model</h2>
+					<div class="flow" aria-label="Boundary flow">
+						<div class="flow-step">
+							<h3>Product intent</h3>
+							<p>User chooses files, settings, metadata, and output rules.</p>
+						</div>
+						<div class="flow-step">
+							<h3>Processing plan</h3>
+							<p>Preflight and execution plan become the backend lifecycle contract.</p>
+						</div>
+						<div class="flow-step media">
+							<h3>Media engine</h3>
+							<p>Codec/toolchain execution produces staged media and integrity facts.</p>
+						</div>
+						<div class="flow-step">
+							<h3>Artifact truth</h3>
+							<p>Output boundary commits final path and replacement truth.</p>
+						</div>
+						<div class="flow-step audit">
+							<h3>Status truth</h3>
+							<p>Status runtime renders progress and terminal result without inventing truth.</p>
+						</div>
+					</div>
+				</div>
+				<div class="panel" style="margin-top: 16px;">
+					<h2>Candidate public strip shape</h2>
+					<div class="grid-3">
+						<div class="card">
+							<h3>Inputs from processing</h3>
+							<ul>
+								<li>validated execution context/session</li>
+								<li>planned media inputs</li>
+								<li>encoder/toolchain settings</li>
+								<li>metadata outcome/write facts</li>
+								<li>output/staging intent</li>
+								<li>cancellation/progress handles</li>
+							</ul>
+						</div>
+						<div class="card">
+							<h3>Outputs to processing</h3>
+							<ul>
+								<li>staged artifact candidate or execution result</li>
+								<li>media-integrity facts</li>
+								<li>adapter/toolchain facts</li>
+								<li>structured failure/cancel facts</li>
+							</ul>
+						</div>
+						<div class="card">
+							<h3>Private cluster</h3>
+							<ul>
+								<li>adapter selection and FFmpeg/FDK routing</li>
+								<li>frame pipeline and stream probing</li>
+								<li>sample-buffer and encoder helpers</li>
+								<li>external process choreography</li>
+								<li>temp media staging mechanics</li>
+							</ul>
+						</div>
+					</div>
+					<div class="note" style="margin-top: 16px;">
+						<strong>Design level:</strong> this is the public API shape for the Audio Engine Deep
+						Module. Exact Rust symbols should be validated by the implementation-planning agent
+						against current source before code moves.
+					</div>
+				</div>
+				<div class="panel" style="margin-top: 16px;">
+					<h2>Public strip contract v0</h2>
+					<table class="boundary-table">
+						<thead>
+							<tr>
+								<th>Surface</th>
+								<th>Likely public</th>
+								<th>Likely private</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Source inspection</strong></td>
+								<td>File-list/media inspection needed by commands, preflight, and UI.</td>
+								<td>Stream probing internals, decoder trial order, FFmpeg inspection structs.</td>
+							</tr>
+							<tr>
+								<td><strong>Input validation</strong></td>
+								<td>Audio input path validation and supported-input classification.</td>
+								<td>Low-level extension/container helpers unless another owner has explicit need.</td>
+							</tr>
+							<tr>
+								<td><strong>Toolchain facts</strong></td>
+								<td>User/config-facing encoder and external toolchain capability facts.</td>
+								<td>Resolution strategy, fallback routing, external process argument construction.</td>
+							</tr>
+							<tr>
+								<td><strong>Execution</strong></td>
+								<td>One audio job execution entrypoint or request/result contract.</td>
+								<td>Native engine structs, adapter selection, frame pipeline, preview internals.</td>
+							</tr>
+							<tr>
+								<td><strong>Finalization handoff</strong></td>
+								<td>Staged/final media execution facts needed by processing and output artifact.</td>
+								<td>Final path commit policy, replacement semantics, output collision decisions.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-roadmap" role="tabpanel" aria-labelledby="tab-roadmap">
+				<div class="milestones">
+					<div class="milestone">
+						<div class="num">M0</div>
+						<div>
+							<h3>Current trace and discovery</h3>
+							<p>Trace current main from UX request through preflight, adapter selection, media execution, metadata writes, staging, final commit, cancellation, and terminal result.</p>
+						</div>
+						<span class="badge rec">start here</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M1</div>
+						<div>
+							<h3>Boundary decision</h3>
+							<p>Decide Audio Engine Deep Module as sixth Grey-Box Public API owner versus Private Cluster under the existing processing owner.</p>
+						</div>
+						<span class="badge decision">decision</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M2</div>
+						<div>
+							<h3>Runner versus engine contract</h3>
+							<p>Define what processing passes into audio, what audio returns, and what remains owned by metadata/output/status.</p>
+						</div>
+						<span class="badge">contract</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M3</div>
+						<div>
+							<h3>Adapter convergence</h3>
+							<p>Separate real toolchain differences from duplicated choreography across native AAC, Apple AAC/AAC-AT, and external FDK paths.</p>
+						</div>
+						<span class="badge">internal model</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M4</div>
+						<div>
+							<h3>Finalization and artifact handoff</h3>
+							<p>Clarify staged media, metadata rewrite timing, output commit, cleanup, and post-success proof.</p>
+						</div>
+						<span class="badge">artifact truth</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M5</div>
+						<div>
+							<h3>Operational status integration decision</h3>
+							<p>Audit Effect and Metadata Outcome residue in progress/status/lifecycle surfaces, then decide no change, small cleanup, or follow-on roadmap.</p>
+						</div>
+						<span class="badge decision">audit decision</span>
+					</div>
+					<div class="milestone">
+						<div class="num">M6</div>
+						<div>
+							<h3>Implementation handoff</h3>
+							<p>Create the prompt only after M0-M5 are aligned enough for a fresh agent to validate, plan, implement, and keep implementation notes.</p>
+						</div>
+						<span class="badge">handoff</span>
+					</div>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-scouts" role="tabpanel" aria-labelledby="tab-scouts">
+				<div class="scout-grid">
+					<div class="scout">
+						<div class="label">Scout lane</div>
+						<h3>Audio source</h3>
+						<p>Trace <code>src-tauri/src/audio/</code> and <code>audio/processor/</code> for current exports, stage ownership, and private cluster candidates.</p>
+					</div>
+					<div class="scout">
+						<div class="label">Scout lane</div>
+						<h3>Processing lifecycle</h3>
+						<p>Trace runner, plan, terminal outcomes, queue, cancellation, and what currently leaks media concerns.</p>
+					</div>
+					<div class="scout">
+						<div class="label">Scout lane</div>
+						<h3>Output/finalization</h3>
+						<p>Trace staging, commit, cleanup, final success, replacement, and resource lifetime risk around media artifacts.</p>
+					</div>
+					<div class="scout">
+						<div class="label">Scout lane</div>
+						<h3>Status/progress</h3>
+						<p>Trace progress events, status panel runtime, metadata save status, and remaining Effect workflow residue.</p>
+					</div>
+					<div class="scout">
+						<div class="label">Scout lane</div>
+						<h3>Library/reference</h3>
+						<p>Use <code>abb-library-research</code> only where current FFmpeg, Tauri, Specta, or Effect behavior changes the design.</p>
+					</div>
+				</div>
+				<div class="note" style="margin-top: 16px;">
+					<strong>Scout rule:</strong> synthesize by boundary, not by agent transcript. The point is to remove soft assumptions before implementation planning.
+				</div>
+				<div class="panel" style="margin-top: 16px;">
+					<h2>Scout acceptance criteria</h2>
+					<table class="boundary-table">
+						<thead>
+							<tr>
+								<th>Lane</th>
+								<th>Ready when</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Public edge</strong></td>
+								<td>Exports are classified as keep-public, make-private, or needs-proof; accidental visibility may be narrowed.</td>
+							</tr>
+							<tr>
+								<td><strong>Runner/engine</strong></td>
+								<td>Processing calls are classified as legitimate contract calls, temporary coupling, or reach-through.</td>
+							</tr>
+							<tr>
+								<td><strong>Adapter convergence</strong></td>
+								<td>Real toolchain differences are separated from duplicated choreography.</td>
+							</tr>
+							<tr>
+								<td><strong>Finalization</strong></td>
+								<td>Output artifact remains commit truth; native/FDK staging, cleanup, metadata rewrite, and success emit scope is explicit.</td>
+							</tr>
+								<tr>
+									<td><strong>Status runtime</strong></td>
+									<td>Progress/queue contract is preserved by default; terminal event emission, command-result reconciliation, and job-registry terminalization stay aligned.</td>
+								</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+			<section class="tab-panel" id="panel-handoff" role="tabpanel" aria-labelledby="tab-handoff">
+				<div class="grid-2">
+					<div class="panel">
+						<h2>Ready to drop when</h2>
+						<ul class="checklist">
+							<li>
+								<span class="check ready">1</span>
+								<span><strong>Spec exists.</strong> The active Markdown spec and this presentation companion are paired.</span>
+							</li>
+							<li>
+								<span class="check">2</span>
+								<span><strong>Owner hypothesis is explicit.</strong> We either promote the Audio Engine Deep Module to sixth Grey-Box owner or reject that with evidence.</span>
+							</li>
+							<li>
+								<span class="check">3</span>
+								<span><strong>Public strip candidate is named.</strong> Inputs, outputs, private helpers, and forbidden reach-throughs are clear enough to validate.</span>
+							</li>
+								<li>
+									<span class="check">4</span>
+									<span><strong>Status scope is bounded.</strong> M5 remains audit/decision scope unless lifecycle evidence says implementation belongs here.</span>
+								</li>
+							<li>
+								<span class="check">5</span>
+								<span><strong>Scout outputs are known.</strong> The implementation agent knows what to trace before making code moves.</span>
+							</li>
+						</ul>
+					</div>
+					<div class="panel">
+						<h2>Handoff shape</h2>
+						<p>
+							The implementation agent should be asked to validate the spec first, create an
+							implementation plan, work it as an active goal on a fresh branch from <code>main</code>,
+							and maintain a running implementation notes artifact.
+						</p>
+						<p>
+							The notes artifact should capture decisions not in the spec, changed assumptions,
+							tradeoffs, deferred follow-ups, and anything the roadmap owner should know before PR
+							review.
+						</p>
+							<p>
+								Status runtime and scout acceptance belong together: the implementation agent should
+								track whether terminal event emission, command-result reconciliation, or job-registry
+								terminalization requires status work, then keep, trim, or promote M5 based on evidence.
+							</p>
+							<div class="note">
+								<strong>Accepted defaults:</strong> allow Rust visibility narrowing when it removes
+								accidental public surface, preserve the existing progress/queue event contract unless
+								audio correctness forces a change, and prefer one coherent PR unless implementation
+								planning finds a concrete split reason.
+						</div>
+						<button class="action" type="button" data-copy="handoff">Copy handoff skeleton</button>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div class="footer">
+			Source: <a href="./audio-processor-boundary-roadmap.md">docs/specs/audio-processor-boundary-roadmap.md</a>.
+			Currency: planning snapshot created 2026-05-20 from current repo orientation and active architecture discussion.
+			This HTML is a companion briefing surface, not canon.
+		</div>
+	</div>
+
+	<div class="toast" role="status" aria-live="polite" id="toast">Copied</div>
+
+	<script>
+		const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+		const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
+		const toast = document.getElementById('toast');
+
+		function showTab(tab) {
+			tabs.forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+			panels.forEach((panel) => panel.classList.toggle('active', panel.id === tab.getAttribute('aria-controls')));
+			tab.focus({ preventScroll: true });
+		}
+
+		tabs.forEach((tab, index) => {
+			tab.addEventListener('click', () => showTab(tab));
+			tab.addEventListener('keydown', (event) => {
+				if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+				event.preventDefault();
+				let nextIndex = index;
+				if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+				if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+				if (event.key === 'Home') nextIndex = 0;
+				if (event.key === 'End') nextIndex = tabs.length - 1;
+				showTab(tabs[nextIndex]);
+			});
+		});
+
+		const copyText = {
+			readiness: [
+				'Audio Engine Deep Module Roadmap - readiness checklist',
+				'- Confirm owner hypothesis: Audio Engine Deep Module as sixth Grey-Box Public API owner vs Private Cluster under processing.',
+					'- Name public strip candidate: what processing passes in, what audio returns, private helpers, and forbidden reach-throughs.',
+					'- Classify current exports as keep-public, make-private, or needs-proof.',
+					'- Keep Operational Status Runtime as formal audit/decision milestone unless lifecycle evidence expands scope.',
+					'- Treat status runtime scope and scout acceptance as linked: terminal event emission, command-result reconciliation, and job-registry terminalization must stay aligned.',
+					'- Run scout lanes for audio source, processing lifecycle, output/finalization, status/progress, and library/reference gaps.',
+					'- Handoff only after scout evidence is synthesized by boundary.'
+				].join('\\n'),
+			handoff: [
+				'Implementation planning handoff skeleton:',
+				'Validate docs/specs/audio-processor-boundary-roadmap.md against current main.',
+				'Create a fresh branch from main and produce an implementation plan before editing.',
+					'Use targeted scout lanes for audio source, processing lifecycle, output/finalization, status/progress, and library/reference gaps.',
+					'Validate the candidate public strip: processing inputs, audio execution outputs, private cluster helpers, and forbidden reach-throughs.',
+					'Classify current audio exports as keep-public, make-private, or needs-proof; narrow accidental public visibility when source validation supports it.',
+					'Track Operational Status Runtime findings in the implementation notes scratch pad; expand M5 only if terminal event emission, command-result reconciliation, or job-registry terminalization cannot stay coherent otherwise.',
+					'Preserve output_artifact as final commit truth; treat duplicated native/FDK finalization choreography as M4 scope.',
+				'Implement the aligned roadmap as one coherent PR unless discovery proves a split is necessary.',
+				'Keep a running implementation-notes artifact with decisions, changed assumptions, tradeoffs, deferred follow-ups, and review concerns.',
+				'Run the appropriate final checks before PR handoff.'
+			].join('\\n')
+		};
+
+		function showToast(message) {
+			toast.textContent = message;
+			toast.classList.add('show');
+			window.setTimeout(() => toast.classList.remove('show'), 1700);
+		}
+
+		async function copyToClipboard(text) {
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				try {
+					await navigator.clipboard.writeText(text);
+					return true;
+				} catch {
+					// Fall through to the local-file fallback below.
+				}
+			}
+
+			const textarea = document.createElement('textarea');
+			textarea.value = text;
+			textarea.setAttribute('readonly', '');
+			textarea.style.position = 'fixed';
+			textarea.style.left = '-9999px';
+			document.body.appendChild(textarea);
+			textarea.select();
+			const copied = document.execCommand('copy');
+			document.body.removeChild(textarea);
+			return copied;
+		}
+
+		document.querySelectorAll('[data-copy]').forEach((button) => {
+			button.addEventListener('click', async () => {
+				const key = button.getAttribute('data-copy');
+				const text = copyText[key];
+				try {
+					const copied = await copyToClipboard(text);
+					showToast(copied ? 'Copied' : 'Select and copy unavailable');
+				} catch {
+					showToast('Copy unavailable');
+				}
+			});
+		});
+	</script>
+</body>
+</html>
