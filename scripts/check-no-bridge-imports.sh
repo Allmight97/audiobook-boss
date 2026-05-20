@@ -73,7 +73,6 @@ if rg -n "\\b(commit_output_artifact|finalized_output_success|OutputPlanLedger)\
   -g '*.rs' \
   -g '!src-tauri/src/output_artifact/**' \
   -g '!src-tauri/src/audio/processor/finalize.rs' \
-  -g '!src-tauri/src/audio/processor/external_fdk.rs' \
   -g '!src-tauri/src/processing/plan.rs' \
   >/tmp/no-output-path-reach-through.out 2>/dev/null; then
   echo "[no-bridge] Output artifact truth may only be used by allowlisted boundary consumers." >&2

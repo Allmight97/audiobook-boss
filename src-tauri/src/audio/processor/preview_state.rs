@@ -1,7 +1,10 @@
 //! Preview state and chapter marker helpers.
 
-/// Chapter marker for preview output (embedded in M4B)
+/// Chapter marker collected for preview output.
+// TODO(audio-preview): wire collected markers into preview chapter emission or
+// remove marker collection if adaptive previews no longer need it.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ChapterMarker {
     /// Chapter start time in milliseconds
     pub start_ms: i64,
@@ -24,7 +27,7 @@ pub struct PreviewState {
     pub current_file_start_pts: i64,
     /// Samples processed for current file excerpt
     pub current_file_elapsed_samples: u64,
-    /// Collected chapter markers for embedding
+    /// Collected chapter markers for preview chapter emission
     pub chapter_markers: Vec<ChapterMarker>,
     /// Current file name for chapter title
     pub current_file_name: String,
@@ -86,3 +89,7 @@ pub fn sanitize_chapter_title(filename: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "preview_state_tests.rs"]
+mod tests;

@@ -14,7 +14,7 @@
 //! - Type-safe, memory-efficient processing
 //! - Embedded FFmpeg, no external dependency
 
-use crate::audio::processor::FfmpegNextProcessor;
+use super::engine::FfmpegNextProcessor;
 
 /// The default native media processor implementation.
 ///

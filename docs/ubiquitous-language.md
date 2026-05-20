@@ -56,7 +56,8 @@
 | **Public API Strip** | The deliberately small set of public symbols (functions, types, events, commands) a grey-box module allows callers to import. Symbols outside the strip are not public even when the language would allow them to be. | exports list, "everything pub", surface area |
 | **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
 | **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
-| **Five Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime. | "the modules" (ambiguous), deep modules (too broad) |
+| **Six Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module. | "the modules" (ambiguous), deep modules (too broad) |
+| **Audio Engine Deep Module** | The Grey-Box Public API owner for media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. | processor helper, ffmpeg wrapper, generic media manager |
 | **Reach-Through** | An import that crosses a module boundary into another module's Private Cluster. Always a smell; always names a bug, an unowned rule, or an unintentional contract. | shortcut, "just this once" |
 | **Ownership Smear** | A product rule whose implementation is split across two or more modules where each holds a partial answer and no single source of truth exists. | shared concern, "it depends" |
 | **Contract Test** | A test that pins the externally visible behavior of a grey-box module's Public API Strip. Internal cluster changes must keep contract tests green. | unit test, helper existence test |
@@ -80,7 +81,7 @@
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
-- Each **Public API Strip** in the **Five Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green.
+- Each **Public API Strip** in the **Six Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green.
 - A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue

@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::AudioFile;
 use crate::audio::SampleRateConfig;
 use crate::errors::Result;
 use crate::processing::ProcessingContext;
@@ -39,25 +38,6 @@ impl MediaProcessingPlan {
             input_file_paths,
             total_duration,
         }
-    }
-
-    /// Helper function to calculate total duration from AudioFile list
-    /// Handles Option<f64> duration fields properly
-    pub fn calculate_total_duration(files: &[AudioFile]) -> f64 {
-        files.iter().filter_map(|f| f.duration).sum()
-    }
-
-    /// Executes the processing plan with context-based progress tracking
-    pub async fn execute_with_context(
-        &self,
-        context: &ProcessingContext,
-        metadata: Option<&crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
-    ) -> Result<()> {
-        let processor = crate::audio::processor::FfmpegNextProcessor;
-        processor
-            .execute(self, context, metadata, passthrough)
-            .await
     }
 }
 

@@ -4,9 +4,10 @@ use super::terminal_outcomes::{
     no_write_skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
 };
 use crate::audio;
-use crate::audio::file_list::FileListInfo;
-use crate::audio::settings_encoder::validate_encoder_settings;
-use crate::audio::toolchain::ExternalToolchainPreference;
+use crate::audio::{
+    validate_encoder_settings, AudioExecutionRequest, EncoderSettings, ExternalToolchainPreference,
+    FileListInfo,
+};
 use crate::errors::{AppError, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
@@ -96,7 +97,7 @@ fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::SampleRateConf
         .sample_rate
         .clone()
         .unwrap_or(audio::SampleRateConfig::Auto);
-    audio::settings::validate_sample_rate_config(&sample_rate)?;
+    audio::validate_sample_rate_config(&sample_rate)?;
     Ok(sample_rate)
 }
 
@@ -110,11 +111,11 @@ fn validate_external_processing_contract_with_file_info(
     payload: &ProcessPayload,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    let adapter = audio::processor::resolve_processor_adapter(
+    audio::validate_audio_engine_inputs(
         &payload.settings,
         payload.external_toolchain.as_ref(),
+        file_info,
     )?;
-    adapter.validate_inputs(file_info)?;
     Ok(())
 }
 
@@ -272,7 +273,7 @@ async fn dispatch_batch_jobs(
 struct ProcessingJobRequest {
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
-    encoder_settings: audio::settings_encoder::EncoderSettings,
+    encoder_settings: EncoderSettings,
     external_toolchain: Option<ExternalToolchainPreference>,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
@@ -368,7 +369,7 @@ async fn register_job_and_validate_output(
     );
     let cancellation_checker = registry.cancellation_checker(job_id).await;
 
-    if let Err(error) = audio::settings::validate_output_path(output_path) {
+    if let Err(error) = audio::validate_output_path(output_path) {
         registry.fail_job(job_id, error.to_string()).await;
         return Err(error);
     }
@@ -380,7 +381,7 @@ struct ProcessingContextRequest {
     window: tauri::Window,
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
-    encoder_settings: audio::settings_encoder::EncoderSettings,
+    encoder_settings: EncoderSettings,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     output_plan: ResolvedOutputPlan,
@@ -414,36 +415,18 @@ async fn execute_processing_job(
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
-    encoder_settings: audio::settings_encoder::EncoderSettings,
+    encoder_settings: EncoderSettings,
     external_toolchain: Option<ExternalToolchainPreference>,
 ) -> Result<String> {
-    let FileListInfo {
-        files,
-        selected_decoders,
-        ..
-    } = file_info;
-    let adapter = audio::processor::resolve_processor_adapter(
-        &encoder_settings,
-        external_toolchain.as_ref(),
-    )?;
-    log::info!(
-        "processor adapter: kind={:?} requested_encoder={:?} external_toolchain_override={}",
-        adapter.kind(),
-        encoder_settings.encoder_type,
-        external_toolchain
-            .as_ref()
-            .and_then(|preference| preference.override_path.as_deref())
-            .unwrap_or("(auto-detect)")
-    );
-    adapter
-        .execute(
-            context,
-            files,
-            selected_decoders,
-            metadata,
-            cover_art_passthrough,
-        )
-        .await
+    audio::execute_audio_engine(AudioExecutionRequest::new(
+        context,
+        file_info,
+        metadata,
+        cover_art_passthrough,
+        encoder_settings,
+        external_toolchain,
+    ))
+    .await
 }
 
 fn emit_terminal_failed_event(
@@ -477,11 +460,10 @@ fn emit_terminal_skipped_event(
 #[cfg(test)]
 mod tests {
     use super::{preflight_payload, validate_external_processing_contract_with_file_info};
-    use crate::audio::file_list::FileListInfo;
-    use crate::audio::settings_encoder::{
-        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+    use crate::audio::{
+        AudioFile, BitrateMode, ChannelConfig, DecoderSelection, EncoderSettings, EncoderType,
+        ExternalToolchainPreference, FileListInfo, ThreadSetting,
     };
-    use crate::audio::{AudioFile, DecoderSelection, ExternalToolchainPreference};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
     use crate::output_artifact::{CollisionPolicy, OutputCollisionKind};
     use crate::processing::{JobType, OutputNamingConfig, ProcessPayload};

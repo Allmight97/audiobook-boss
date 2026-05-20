@@ -2,7 +2,7 @@
 //!
 //! Tests sample rate detection and other operations that require real audio files.
 
-use audiobook_boss_lib::audio::processor::detect_input_sample_rate;
+use audiobook_boss_lib::audio;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -39,6 +39,11 @@ fn sample_rate_detection_reads_from_inputs() {
         create_test_audio_file(&temp_dir, "file2.wav").expect("create file2"),
     ];
 
-    let detected = detect_input_sample_rate(&files).expect("detect sample rate");
+    let detected = audio::get_file_list_info(&files)
+        .expect("inspect sample rate")
+        .files
+        .first()
+        .and_then(|file| file.sample_rate)
+        .expect("detected sample rate");
     assert_eq!(detected, 8000);
 }

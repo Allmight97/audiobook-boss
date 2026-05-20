@@ -106,7 +106,7 @@ pub(crate) fn create_audio_encoder(
 /// to the output context before the header is written (#66).
 #[allow(clippy::too_many_lines)]
 pub(crate) fn setup_encoder(
-    plan: &crate::audio::processor::MediaProcessingPlan,
+    plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,

@@ -1,4 +1,4 @@
-use crate::audio::path_validation::{validate_input_audio_path, validate_input_image_path};
+use crate::audio::{validate_input_audio_path, validate_input_image_path};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 use crate::metadata::{plan_metadata_write, read_metadata, AudiobookMetadata, MetadataIntentPatch};

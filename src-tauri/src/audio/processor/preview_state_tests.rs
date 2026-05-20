@@ -1,6 +1,5 @@
-use audiobook_boss_lib::audio::processor::{
-    sanitize_chapter_title, ChapterMarker, PreviewAction, PreviewState,
-};
+use super::{sanitize_chapter_title, ChapterMarker, PreviewState};
+use crate::audio::processor::frame_pipeline::PreviewAction;
 
 #[test]
 fn sanitize_chapter_title_removes_extension() {
@@ -16,7 +15,6 @@ fn sanitize_chapter_title_handles_no_extension() {
 
 #[test]
 fn sanitize_chapter_title_replaces_special_chars() {
-    // FFMETADATA special characters should be replaced with underscore
     assert_eq!(sanitize_chapter_title("chapter=1.mp3"), "chapter_1");
     assert_eq!(sanitize_chapter_title("chapter[1].mp3"), "chapter_1_");
     assert_eq!(sanitize_chapter_title("chapter#1.mp3"), "chapter_1");
@@ -26,13 +24,14 @@ fn sanitize_chapter_title_replaces_special_chars() {
 
 #[test]
 fn sanitize_chapter_title_preserves_unicode() {
-    let input = "\u{7B2C}\u{4E00}\u{7AE0}.mp3";
-    let expected = "\u{7B2C}\u{4E00}\u{7AE0}";
-    assert_eq!(sanitize_chapter_title(input), expected);
-
-    let input = "\u{041A}\u{0430}\u{043F}\u{0438}\u{0442}\u{0443}\u{043B} 1.mp3";
-    let expected = "\u{041A}\u{0430}\u{043F}\u{0438}\u{0442}\u{0443}\u{043B} 1";
-    assert_eq!(sanitize_chapter_title(input), expected);
+    assert_eq!(
+        sanitize_chapter_title("\u{7B2C}\u{4E00}\u{7AE0}.mp3"),
+        "\u{7B2C}\u{4E00}\u{7AE0}"
+    );
+    assert_eq!(
+        sanitize_chapter_title("\u{041A}\u{0430}\u{043F}\u{0438}\u{0442}\u{0443}\u{043B} 1.mp3"),
+        "\u{041A}\u{0430}\u{043F}\u{0438}\u{0442}\u{0443}\u{043B} 1"
+    );
 }
 
 #[test]
@@ -46,7 +45,6 @@ fn sanitize_chapter_title_handles_multiple_dots() {
 
 #[test]
 fn sanitize_chapter_title_handles_full_path() {
-    // file_stem extracts just the filename without extension
     assert_eq!(
         sanitize_chapter_title("/path/to/Chapter 01.mp3"),
         "Chapter 01"
@@ -94,7 +92,6 @@ fn preview_state_record_chapter() {
     state.current_file_name = "Chapter 01.mp3".to_string();
     state.current_file_start_pts = 0;
 
-    // Record chapter at 48000 samples @ 48000 Hz = 1000ms
     state.record_chapter(48_000, 48_000);
 
     assert_eq!(state.chapter_markers.len(), 1);
@@ -105,7 +102,6 @@ fn preview_state_record_chapter() {
 
 #[test]
 fn preview_action_enum_values() {
-    // Verify enum variants exist and can be compared
     assert_eq!(PreviewAction::Continue, PreviewAction::Continue);
     assert_ne!(PreviewAction::Continue, PreviewAction::NextFile);
     assert_ne!(PreviewAction::NextFile, PreviewAction::StopAll);

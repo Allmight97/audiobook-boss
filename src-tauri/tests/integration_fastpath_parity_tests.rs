@@ -1,7 +1,7 @@
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+use audiobook_boss_lib::audio::{
+    self, AudioExecutionRequest, BitrateMode, ChannelConfig as EncoderChannelConfig,
+    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use audiobook_boss_lib::CoverArtPassthroughPolicy;
 use std::path::{Path, PathBuf};
@@ -55,12 +55,14 @@ async fn encode_with_fastpath_mode(
         OutputConfig::new(output_path),
     );
 
-    audio::process_audiobook_with_context(
+    audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
-        input_info.files,
+        input_info,
         None,
         CoverArtPassthroughPolicy::Preserve,
-    )
+        native_encoder_settings(),
+        None,
+    ))
     .await
     .expect("native AAC processing should complete")
 }

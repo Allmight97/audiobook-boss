@@ -82,7 +82,7 @@ Known:
 
 - ABB product spine is `Import -> Inspect -> Decide -> Preflight -> Process -> Verify`.
 - ABB's current layer model is Product intent, UI state, IPC contract, Backend lifecycle, and Artifact truth.
-- The five current grey-box public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, and Status Panel Runtime.
+- The six current grey-box public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, and Audio Engine Deep Module.
 - Frontend runtime commands/events route through `src/lib/tauri/client.ts`.
 - Generated bindings are committed for drift detection and adaptation, not direct UI use.
 - `package.json` now includes `effect`; the AppEffect kernel and workflow-owner pattern have proof points through EB4.

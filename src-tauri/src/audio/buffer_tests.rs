@@ -1,5 +1,57 @@
-use audiobook_boss_lib::audio::buffer::SampleAccumulator;
+use super::SampleAccumulator;
 use ffmpeg_next as ff;
+
+const RATE: u32 = 22_050;
+const FORMAT: ff::format::Sample = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+const LAYOUT: ff::channel_layout::ChannelLayout = ff::channel_layout::ChannelLayout::STEREO;
+
+fn f32_planar_stereo_frame(left: &[f32], right: &[f32]) -> ff::frame::Audio {
+    assert_eq!(left.len(), right.len());
+    let _ = ff::init();
+
+    let mut frame = ff::frame::Audio::empty();
+    frame.set_format(FORMAT);
+    frame.set_channel_layout(LAYOUT);
+    frame.set_rate(RATE);
+    frame.set_samples(left.len());
+    unsafe {
+        frame.alloc(FORMAT, left.len(), LAYOUT);
+    }
+
+    frame.plane_mut::<f32>(0).copy_from_slice(left);
+    frame.plane_mut::<f32>(1).copy_from_slice(right);
+    frame
+}
+
+#[test]
+fn f32_planar_stereo_push_preserves_both_channels() {
+    let left = [0.10, 0.20, 0.30, 0.40];
+    let right = [-0.10, -0.20, -0.30, -0.40];
+    let frame = f32_planar_stereo_frame(&left, &right);
+    let mut accumulator =
+        SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+    let ready = accumulator.push_frame(&frame);
+
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].plane::<f32>(0), left);
+    assert_eq!(ready[0].plane::<f32>(1), right);
+}
+
+#[test]
+fn f32_planar_stereo_flush_pads_each_channel_independently() {
+    let left = [0.10, 0.20, 0.30];
+    let right = [-0.10, -0.20, -0.30];
+    let frame = f32_planar_stereo_frame(&left, &right);
+    let mut accumulator =
+        SampleAccumulator::new(2, 4, RATE, LAYOUT, FORMAT).expect("create accumulator");
+
+    assert!(accumulator.push_frame(&frame).is_empty());
+    let tail = accumulator.flush_tail(true).expect("flush padded tail");
+
+    assert_eq!(tail.plane::<f32>(0), [0.10, 0.20, 0.30, 0.0]);
+    assert_eq!(tail.plane::<f32>(1), [-0.10, -0.20, -0.30, 0.0]);
+}
 
 fn mono_f32_frame(samples: &[f32]) -> ff::frame::Audio {
     let mut frame = ff::frame::Audio::empty();
@@ -64,7 +116,7 @@ fn sanitize_clamps_and_fixes_non_finite() {
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
     )
-    .unwrap();
+    .expect("create mono f32 accumulator");
 
     let mut frame = ff::frame::Audio::empty();
     frame.set_format(ff::format::Sample::F32(ff::format::sample::Type::Planar));
@@ -109,7 +161,7 @@ fn s16_packed_copies_without_sanitization() {
         ff::channel_layout::ChannelLayout::STEREO,
         ff::format::Sample::I16(ff::format::sample::Type::Packed),
     )
-    .unwrap();
+    .expect("create stereo s16 accumulator");
 
     let mut frame = ff::frame::Audio::empty();
     frame.set_format(ff::format::Sample::I16(ff::format::sample::Type::Packed));
@@ -149,7 +201,7 @@ fn f32_planar_preserves_order_across_multiple_consumption_cycles() {
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
     )
-    .unwrap();
+    .expect("create mono f32 accumulator");
 
     let expected: Vec<f32> = (0..15).map(|i| i as f32 / 20.0).collect();
     let mut observed = Vec::new();
@@ -182,7 +234,7 @@ fn f32_planar_flush_tail_preserves_remaining_samples_once() {
         ff::channel_layout::ChannelLayout::MONO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
     )
-    .unwrap();
+    .expect("create mono f32 accumulator");
 
     let frame = mono_f32_frame(&[0.25, -0.25, 0.5]);
     assert!(acc.push_frame(&frame).is_empty());
@@ -209,7 +261,7 @@ fn f32_planar_stereo_preserves_channel_order_across_drain_cycles() {
         ff::channel_layout::ChannelLayout::STEREO,
         ff::format::Sample::F32(ff::format::sample::Type::Planar),
     )
-    .unwrap();
+    .expect("create stereo f32 accumulator");
 
     let expected_left: Vec<f32> = (0..11).map(|i| 0.05 * i as f32).collect();
     let expected_right: Vec<f32> = (0..11).map(|i| -0.05 * i as f32).collect();
@@ -243,7 +295,7 @@ fn s16_packed_preserves_interleaved_order_with_short_flush_tail() {
         ff::channel_layout::ChannelLayout::STEREO,
         ff::format::Sample::I16(ff::format::sample::Type::Packed),
     )
-    .unwrap();
+    .expect("create stereo s16 accumulator");
 
     let frame_a = stereo_s16_frame(2, &[1, -1, 2, -2]);
     let frame_b = stereo_s16_frame(2, &[3, -3, 4, -4]);

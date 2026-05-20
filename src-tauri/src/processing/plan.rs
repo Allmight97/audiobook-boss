@@ -335,7 +335,7 @@ fn build_batch_processing_jobs(
     let validated_input_paths: Vec<PathBuf> = payload
         .input_files
         .iter()
-        .map(|input| audio::path_validation::validate_input_audio_path(&PathBuf::from(input)))
+        .map(|input| audio::validate_input_audio_path(&PathBuf::from(input)))
         .collect::<Result<_>>()?;
 
     let mut jobs = Vec::new();
@@ -394,9 +394,7 @@ impl ResolvedProcessingPlan {
 #[cfg(test)]
 mod tests {
     use super::{prepare_execution_plan, resolve_preflight_plan};
-    use crate::audio::settings_encoder::{
-        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-    };
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
     use crate::metadata::{CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp};
     use crate::output_artifact::{CollisionPolicy, OutputKind};
     use crate::processing::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};

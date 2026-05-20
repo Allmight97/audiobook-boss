@@ -8,9 +8,6 @@ use crate::metadata::passthrough::{
     extract_passthrough_metadata, merge_passthrough_cover_art, PassthroughMetadata,
 };
 use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata, CoverArtPassthroughPolicy};
-use crate::output_artifact::{
-    commit_output_artifact, finalized_output_success, OutputCommitRequest,
-};
 use crate::processing::{ProcessingContext, ProgressEmitter};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -54,6 +51,11 @@ pub(super) async fn process_audiobook_with_external_fdk(
             "No valid audio files found for external FDK processing.".to_string(),
         ));
     }
+    log::info!(
+        "external FDK toolchain: source={:?} path={}",
+        toolchain.source,
+        sanitize_path_for_display(&toolchain.ffmpeg_path)
+    );
     validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
 
     let passthrough = cover_art_passthrough.apply_to_passthrough(collect_passthrough_metadata(
@@ -95,26 +97,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
         ui.emit_finalizing("Finalizing metadata...");
     }
 
-    if context.is_cancelled() {
-        ui.emit_cancelled("Processing was cancelled");
-        return Err(AppError::cancelled());
-    }
-
-    ui.emit_cleanup("Cleaning up...");
-    let commit_request = OutputCommitRequest::new(
-        context.output.artifact_path(),
-        context.output.commit_action(),
-    );
-    let outcome = commit_output_artifact(commit_request, temp_output, &mut cleanup_guard, || {
-        context.is_cancelled()
-    })?;
-    let success = finalized_output_success(
-        context.output.output_kind(),
-        &outcome.final_output,
-        outcome.cancelled,
-    );
-    ui.emit_complete(success.ui_message);
-    Ok(success.result_message)
+    super::finalize::complete_staged_output(&context, temp_output, &mut cleanup_guard, None)
 }
 
 fn collect_passthrough_metadata(

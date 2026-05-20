@@ -2,13 +2,11 @@
 //!
 //! Extracted from settings_encoder.rs to keep production code clean.
 
-use audiobook_boss_lib::audio::settings_encoder::{
-    resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
-    validate_requested_encoder_available, validate_threads, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, ThreadSetting, VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE,
-};
 use audiobook_boss_lib::audio::{
-    detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
+    detect_encoder_availability, resolve_encoder_name, resolve_encoder_type,
+    validate_encoder_settings, validate_requested_encoder_available, validate_threads, BitrateMode,
+    ChannelConfig, EncoderAvailability, EncoderCapabilitySource, EncoderSettings, EncoderType,
+    ThreadSetting, VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE,
 };
 
 fn base_settings() -> EncoderSettings {

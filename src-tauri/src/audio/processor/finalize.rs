@@ -7,8 +7,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::audio::cleanup::CleanupGuard;
-use crate::errors::Result;
+use crate::audio::CleanupGuard;
+use crate::errors::{AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest,
@@ -45,39 +45,49 @@ pub(crate) fn write_metadata_stage(
     Ok(())
 }
 
-/// Completes processing: move to final path + cleanup + final UI emit
-pub(crate) fn complete_processing(
+fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()> {
+    if context.is_cancelled() {
+        context
+            .new_emitter()
+            .emit_cancelled("Processing was cancelled");
+        return Err(AppError::cancelled());
+    }
+
+    Ok(())
+}
+
+pub(super) fn complete_staged_output(
     context: &ProcessingContext,
-    workflow: ProcessingWorkflow,
-    merged_output: PathBuf,
-    reporter: &mut ProgressReporter,
+    staged_output: PathBuf,
+    cleanup_guard: &mut CleanupGuard,
+    reporter: Option<&mut ProgressReporter>,
 ) -> Result<String> {
-    log::info!("🚀 Starting complete_processing stage");
-    log::info!("Temporary file: {}", merged_output.display());
+    log::info!("🚀 Starting staged output completion");
+    log::info!("Temporary file: {}", staged_output.display());
     log::info!(
         "Final output path: {}",
         context.output.artifact_path().display()
     );
 
+    ensure_not_cancelled_before_commit(context)?;
+
     let ui = context.new_emitter();
     ui.emit_cleanup("Cleaning up...");
 
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(workflow.temp_dir);
-    cleanup_guard.add_path(&merged_output);
     let commit_request = OutputCommitRequest::new(
         context.output.artifact_path(),
         context.output.commit_action(),
     );
-    let outcome =
-        commit_output_artifact(commit_request, merged_output, &mut cleanup_guard, || {
-            context.is_cancelled()
-        })?;
+    let outcome = commit_output_artifact(commit_request, staged_output, cleanup_guard, || {
+        context.is_cancelled()
+    })?;
     log::info!(
         "✓ File moved successfully to: {}",
         outcome.final_output.display()
     );
-    reporter.complete();
+    if let Some(reporter) = reporter {
+        reporter.complete();
+    }
     let success = finalized_output_success(
         context.output.output_kind(),
         &outcome.final_output,
@@ -86,6 +96,20 @@ pub(crate) fn complete_processing(
     ui.emit_complete(success.ui_message);
     log::info!("🎉 {}", success.result_message);
     Ok(success.result_message)
+}
+
+/// Completes processing: move to final path + cleanup + final UI emit
+pub(crate) fn complete_processing(
+    context: &ProcessingContext,
+    workflow: ProcessingWorkflow,
+    merged_output: PathBuf,
+    reporter: &mut ProgressReporter,
+) -> Result<String> {
+    let mut cleanup_guard = CleanupGuard::new(context.session.id());
+    cleanup_guard.add_path(workflow.temp_dir);
+    cleanup_guard.add_path(&merged_output);
+
+    complete_staged_output(context, merged_output, &mut cleanup_guard, Some(reporter))
 }
 
 /// Finalize pipeline: metadata + completion
@@ -102,3 +126,7 @@ pub(crate) async fn finalize_processing(
 
     complete_processing(context, workflow, merged_output, reporter)
 }
+
+#[cfg(test)]
+#[path = "finalize_tests.rs"]
+mod tests;

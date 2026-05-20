@@ -37,12 +37,6 @@ pub const SUPPORTED_AUDIO_FORMATS: &[SupportedAudioFormat] = &[
     },
 ];
 
-pub fn supported_audio_extensions() -> impl Iterator<Item = &'static str> {
-    SUPPORTED_AUDIO_FORMATS
-        .iter()
-        .map(|format| format.extension)
-}
-
 pub fn audio_format_for_path(path: &Path) -> Result<&'static SupportedAudioFormat> {
     let ext = path
         .extension()
@@ -93,7 +87,10 @@ mod tests {
 
     #[test]
     fn supported_audio_extensions_come_from_canonical_format_table() {
-        let extensions = supported_audio_extensions().collect::<Vec<_>>();
+        let extensions = SUPPORTED_AUDIO_FORMATS
+            .iter()
+            .map(|format| format.extension)
+            .collect::<Vec<_>>();
         assert_eq!(extensions, ["mp3", "m4a", "m4b", "aac", "wav", "flac"]);
     }
 }

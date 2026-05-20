@@ -1,8 +1,7 @@
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+use audiobook_boss_lib::audio::{
+    self, AudioExecutionRequest, BitrateMode, ChannelConfig as EncoderChannelConfig,
+    EncoderSettings, EncoderType, ExternalToolchainPreference, SampleRateConfig, ThreadSetting,
 };
-use audiobook_boss_lib::audio::toolchain::ExternalToolchainPreference;
-use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::processing::{
     OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
 };
@@ -34,33 +33,29 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
         twoloop: true,
     };
     let toolchain_preference = toolchain_preference();
-    let adapter =
-        audio::processor::resolve_processor_adapter(&settings, toolchain_preference.as_ref())
-            .expect("external FDK adapter should resolve for fixture validation");
-    adapter
-        .validate_inputs(&file_info)
+    audio::validate_audio_engine_inputs(&settings, toolchain_preference.as_ref(), &file_info)
         .expect("selected decoder should be available in the external toolchain");
 
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("xhe-aac-preview.m4b");
     let mut context = ProcessingContext::new_headless(
         Arc::new(ProcessingSession::new()),
-        settings,
+        settings.clone(),
         SampleRateConfig::Auto,
         OutputConfig::for_preview(&output_path),
     );
     context.preview = Some(PreviewConfig::new(20.0));
 
-    let result = adapter
-        .execute(
-            context,
-            file_info.files,
-            file_info.selected_decoders,
-            None,
-            CoverArtPassthroughPolicy::Preserve,
-        )
-        .await
-        .expect("external FDK preview should encode the xHE-AAC fixture");
+    let result = audio::execute_audio_engine(AudioExecutionRequest::new(
+        context,
+        file_info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+        settings,
+        toolchain_preference,
+    ))
+    .await
+    .expect("external FDK preview should encode the xHE-AAC fixture");
 
     assert!(result.contains("Successfully created preview"));
     assert!(output_path.exists(), "preview output should exist");

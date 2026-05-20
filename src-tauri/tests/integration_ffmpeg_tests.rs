@@ -4,11 +4,10 @@
 
 use std::path::PathBuf;
 
-use audiobook_boss_lib::audio::processor::selection::get_engine_description;
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+use audiobook_boss_lib::audio::{
+    detect_encoder_availability, BitrateMode, ChannelConfig as EncoderChannelConfig,
+    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
-use audiobook_boss_lib::audio::SampleRateConfig;
 
 const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
 
@@ -23,11 +22,11 @@ fn ensure_media() -> Option<PathBuf> {
 
 #[test]
 fn test_native_engine_is_available() {
-    // Engine diagnostics should report the native in-process ffmpeg-next path.
-    let description = get_engine_description();
+    // Engine capability diagnostics should keep the native in-process path visible.
+    let availability = detect_encoder_availability(None);
     assert!(
-        description.contains("FfmpegNextProcessor"),
-        "Engine description should mention FfmpegNextProcessor, got: {description}"
+        availability.native_aac_available,
+        "Native AAC should be available through the public audio strip"
     );
 }
 

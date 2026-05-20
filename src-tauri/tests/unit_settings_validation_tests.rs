@@ -3,11 +3,10 @@
 //! Tests validation functions for sample rate, output paths, and encoder settings
 //! without touching real files or FFmpeg infrastructure.
 
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-};
 use audiobook_boss_lib::audio::{
-    validate_output_path, validate_sample_rate_config, MediaProcessingPlan, SampleRateConfig,
+    validate_encoder_settings, validate_output_path, validate_sample_rate_config, BitrateMode,
+    ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    ThreadSetting,
 };
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -69,13 +68,11 @@ fn encoder_settings_validation_accepts_supported_combinations() {
     let mut settings = baseline_encoder_settings();
     settings.bitrate_mode = BitrateMode::Cbr;
     settings.encoder_type = EncoderType::NativeAac;
-    audiobook_boss_lib::audio::settings_encoder::validate_encoder_settings(&settings)
-        .expect("native AAC + CBR should be valid");
+    validate_encoder_settings(&settings).expect("native AAC + CBR should be valid");
 
     settings.encoder_type = EncoderType::AacAt;
     settings.bitrate_mode = BitrateMode::Cvbr;
-    audiobook_boss_lib::audio::settings_encoder::validate_encoder_settings(&settings)
-        .expect("AAC-AT + CVBR should be valid");
+    validate_encoder_settings(&settings).expect("AAC-AT + CVBR should be valid");
 }
 
 #[test]
@@ -83,33 +80,16 @@ fn encoder_settings_validation_rejects_invalid_combinations() {
     let mut settings = baseline_encoder_settings();
     settings.encoder_type = EncoderType::AacAt;
     settings.bitrate_mode = BitrateMode::Cbr;
-    let err = audiobook_boss_lib::audio::settings_encoder::validate_encoder_settings(&settings)
-        .expect_err("AAC-AT + CBR should be rejected");
+    let err = validate_encoder_settings(&settings).expect_err("AAC-AT + CBR should be rejected");
     assert!(err.to_string().contains("not supported"));
 }
 
 #[test]
-fn media_processing_plan_preserves_settings() {
-    let temp_dir = TempDir::new().expect("create temp dir");
-    let output_file = temp_dir.path().join("output.m4b");
-    let input_file = temp_dir.path().join("input.wav");
+fn encoder_settings_preserve_public_fields() {
     let encoder_settings = baseline_encoder_settings();
-    let sample_rate = SampleRateConfig::Explicit(22050);
-    let total_duration = 1.5;
-
-    let plan = MediaProcessingPlan::new(
-        output_file.clone(),
-        encoder_settings.clone(),
-        sample_rate.clone(),
-        vec![input_file.clone()],
-        total_duration,
-    );
-
-    assert_eq!(plan.output_path, output_file);
-    assert_eq!(plan.input_file_paths, vec![input_file]);
-    assert_eq!(plan.total_duration, total_duration);
-    assert_eq!(plan.encoder_settings, encoder_settings);
-    assert_eq!(plan.sample_rate, sample_rate);
+    assert_eq!(encoder_settings.encoder_type, EncoderType::NativeAac);
+    assert_eq!(encoder_settings.bitrate_mode, BitrateMode::Cbr);
+    assert_eq!(encoder_settings.channels, EncoderChannelConfig::Mono);
 }
 
 #[test]

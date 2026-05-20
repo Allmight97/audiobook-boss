@@ -41,17 +41,6 @@ impl CleanupGuard {
         self.paths.insert(path_buf);
     }
 
-    /// Adds multiple paths to be cleaned up
-    pub fn add_paths<I, P>(&mut self, paths: I)
-    where
-        I: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
-        for path in paths {
-            self.add_path(path);
-        }
-    }
-
     /// Removes a path from cleanup (useful if resource should be preserved)
     pub fn remove_path<P: AsRef<Path>>(&mut self, path: P) -> bool {
         let path_buf = path.as_ref().to_path_buf();
@@ -64,31 +53,6 @@ impl CleanupGuard {
             );
         }
         removed
-    }
-
-    /// Disables cleanup for debugging purposes
-    pub fn disable_cleanup(&mut self) {
-        debug!(
-            "Session {}: Cleanup disabled for debugging",
-            self.session_id
-        );
-        self.enabled = false;
-    }
-
-    /// Enables cleanup (default state)
-    pub fn enable_cleanup(&mut self) {
-        debug!("Session {}: Cleanup enabled", self.session_id);
-        self.enabled = true;
-    }
-
-    /// Returns the number of paths being tracked
-    pub fn path_count(&self) -> usize {
-        self.paths.len()
-    }
-
-    /// Returns the session ID
-    pub fn session_id(&self) -> &str {
-        &self.session_id
     }
 
     /// Performs immediate cleanup of all tracked paths

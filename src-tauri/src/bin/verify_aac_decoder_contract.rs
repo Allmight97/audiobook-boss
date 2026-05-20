@@ -1,4 +1,4 @@
-use audiobook_boss_lib::audio::processor::streams::{
+use audiobook_boss_lib::audio::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels,
 };
 

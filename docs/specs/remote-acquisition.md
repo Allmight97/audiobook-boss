@@ -46,7 +46,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 
 | Module | Type | Public API Strip | Notes |
 | --- | --- | --- | --- |
-| `RemoteSourceRuntime` | Rust grey-box (sixth Public API of ABB) | `providers()`, `accountStatus(providerId)`, `beginAuth/completeAuth/logout(providerId)`, `scanLibrary(accountRef, cursor)`, `preflightAcquisition(plan)`, `startAcquisition(plan)`, `cancelAcquisition(jobId)`, `acquisitionStatus(jobId)`, `commitMaterializedAssets(jobId)` | Provider registry, vault adapter, library cache, acquisition job ledger, staging root, provenance writer, capability matrix. Audible provider lives inside as a private cluster. |
+| `RemoteSourceRuntime` | Rust grey-box (new Public API after ABB's six current Public APIs) | `providers()`, `accountStatus(providerId)`, `beginAuth/completeAuth/logout(providerId)`, `scanLibrary(accountRef, cursor)`, `preflightAcquisition(plan)`, `startAcquisition(plan)`, `cancelAcquisition(jobId)`, `acquisitionStatus(jobId)`, `commitMaterializedAssets(jobId)` | Provider registry, vault adapter, library cache, acquisition job ledger, staging root, provenance writer, capability matrix. Audible provider lives inside as a private cluster. |
 | `LocalImportBridge` | TS grey-box | `importLocalAudioFiles(paths)` returning `FileListInfo` | Extracted from `processFilePaths` in `src/ui/fileImport/handlers.ts:153-171`. Used by picker, drop, AND remote-source UI. Enforces "remote import is not a privileged bypass." |
 
 **Why this posture**: Native acquisition with the trait shape ABB owns end-to-end. No sidecar invocation, no bundled .NET worker, no embedded-binary GPL dependency. The boundary that protects processing's purity is the `MaterializedAsset` handoff — a verified local M4B path + provenance manifest, nothing more.
@@ -77,7 +77,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - `src-tauri/src/ipc_contract.rs` — register new command/event families.
 - `src/lib/tauri/client.ts` — adapter additions for new commands/events.
 - `docs/api-map.md` — add Remote Source command/event family.
-- `docs/system-map.md` — Five Public APIs → Six Public APIs; add Remote Source row.
+- `docs/system-map.md` — add Remote Source row to the current six Public APIs if this spec is implemented.
 - `docs/ubiquitous-language.md` — add: Remote Acquisition Plane, Materialized Asset, Acquisition Job Ledger, Vault Adapter, Provider Driver, Source Acquisition Format.
 - `docs/fallbacks.md` — register Widevine/AAXC-related compat paths if any emerge during D5/D6 with explicit triggers, signals, and sunsets.
 - File inspector display (existing UI component currently showing Codec/Decoder/Bitrate/etc.) — add "Source" row.
@@ -294,5 +294,5 @@ Spec is deleted after:
 
 *(timestamped notes added here as work proceeds; resume-without-rereading-chat is the bar)*
 
-- **2026-05-16** — Spec created. Decision-alignment loop with jstar confirmed: native acquisition, Widevine v1, no metadata seam, AAX-legacy deferred, GPL contamination rule for agents, sixth Public API shape.
+- **2026-05-16** — Spec created. Decision-alignment loop with jstar confirmed: native acquisition, Widevine v1, no metadata seam, AAX-legacy deferred, GPL contamination rule for agents, and a new Remote Source Public API shape.
 - **2026-05-16** — Widevine device identity policy locked: ABB uses a private resolver-backed `WidevineDeviceProvider` with validated local cache and user override, but does not vendor a device blob or depend on Libation's `.cdmurls.json` as owned infrastructure.

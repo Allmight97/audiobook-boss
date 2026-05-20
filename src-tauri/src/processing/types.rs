@@ -1,6 +1,5 @@
 use crate::audio;
-use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::toolchain::ExternalToolchainPreference;
+use crate::audio::{EncoderSettings, ExternalToolchainPreference};
 use crate::errors::AppErrorEnvelope;
 pub use crate::output_artifact::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,

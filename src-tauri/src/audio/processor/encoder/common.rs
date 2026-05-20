@@ -30,7 +30,7 @@ pub(super) fn encoder_log(message: &str) {
 }
 
 pub(super) fn resolve_plan_encoder_settings<'a>(
-    plan: &'a crate::audio::processor::MediaProcessingPlan,
+    plan: &'a crate::audio::processor::plan::MediaProcessingPlan,
     availability: &EncoderAvailability,
 ) -> (Cow<'a, EncoderSettings>, EncoderType) {
     let resolved = settings_encoder::resolve_encoder_type(&plan.encoder_settings, availability);

@@ -1,4 +1,4 @@
-use crate::audio::path_validation::validate_input_audio_path;
+use crate::audio::validate_input_audio_path;
 use crate::commands::CommandResult;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
 use crate::metadata::{plan_metadata_write, MetadataIntentPatch};

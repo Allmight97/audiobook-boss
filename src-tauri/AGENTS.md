@@ -8,7 +8,9 @@
 
 ## Preferred Path
 
-- Route audio processing through the `ffmpeg-next` based engine path.
+- Route media execution through the `crate::audio` Audio Engine Deep Module
+  public strip; callers outside audio must not choose processor adapters or
+  import private audio engine files directly.
 - Route metadata reads and writes through the public `metadata` boundary; outside callers should request metadata outcomes, not choose private MP4/FFmpeg strategy modules.
 - Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side fallback assumptions.
 - Use `JobRegistry` as the central concurrency lifecycle surface.
@@ -21,7 +23,8 @@
 
 ## Hard Invariants
 
-- Validate input audio paths at the boundary with `audio::path_validation::validate_input_audio_path()`.
+- Validate input audio paths at the boundary with
+  `crate::audio::validate_input_audio_path()`.
 - Long-running stages must emit progress/failure states so UI status remains truthful.
 - Preserve external audiobook tag interoperability in metadata read/write behavior.
 - Fallbacks follow root policy and fallback-register discipline.

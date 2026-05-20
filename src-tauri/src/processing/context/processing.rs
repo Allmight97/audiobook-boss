@@ -1,7 +1,6 @@
 //! Processing context structures and builders.
 
-use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::SampleRateConfig;
+use crate::audio::{EncoderSettings, SampleRateConfig};
 use crate::errors::sanitize_path_str_for_display;
 use crate::errors::Result;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
