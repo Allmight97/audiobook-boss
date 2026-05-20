@@ -7,17 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
 
-pub mod buffer;
-pub mod cleanup;
-pub mod constants;
-pub mod extensions;
-pub mod file_list;
-pub mod metrics;
-pub mod path_validation;
-pub mod processor;
-pub mod settings;
-pub mod settings_encoder;
-pub mod toolchain;
+mod buffer;
+mod cleanup;
+pub(crate) mod constants;
+mod extensions;
+mod file_list;
+mod metrics;
+mod path_validation;
+mod processor;
+mod settings;
+mod settings_encoder;
+mod toolchain;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -92,23 +92,23 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
-// Re-export main functions for convenience
-pub use file_list::get_file_list_info;
-pub use path_validation::validate_input_audio_path;
+// Audio Engine Deep Module public strip.
+pub use file_list::{get_file_list_info, FileListInfo};
+pub use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub use processor::{
+    detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
+};
+pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
 pub use settings::{validate_output_path, validate_sample_rate_config};
+pub use settings_encoder::{
+    resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
+    validate_requested_encoder_available, validate_threads, BitrateMode, ChannelConfig,
+    EncoderSettings, EncoderType, ThreadSetting, VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE,
+};
 pub use toolchain::{
     detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
-    ExternalToolchainPreference, ValidatedExternalToolchain,
+    ExternalToolchainPreference,
 };
 
-// Core processor API (post-split staged)
-pub use processor::{detect_input_sample_rate, process_audiobook_with_context};
-
-// Cleanup infrastructure - CleanupGuard used, ProcessGuard feature-gated
-pub use cleanup::CleanupGuard;
-
-// Processor plan, native engine, and adapter routing surface
-pub use processor::{
-    FfmpegNextProcessor, MediaProcessingPlan, MediaProcessor, ProcessorAdapterKind,
-    ResolvedProcessorAdapter,
-};
+// Crate-internal cleanup strip used by owned backend boundaries.
+pub(crate) use cleanup::CleanupGuard;

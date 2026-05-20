@@ -1,4 +1,4 @@
-use crate::audio::cleanup::CleanupGuard;
+use crate::audio::CleanupGuard;
 use crate::output_artifact::{
     commit_output_artifact, enforce_output_plan_review, ensure_output_parent_dirs,
     finalized_output_success, CollisionPolicy, OutputCollisionKind, OutputCommitRequest,

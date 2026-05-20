@@ -6,6 +6,60 @@
 - Nested `AGENTS.md` files own narrower rules for `processor/`; processing
   lifecycle rules live under `src-tauri/src/processing/`.
 - This file owns audio integrity rules that cross stream probing, decoder setup, resampling, sample buffering, encoder setup, muxing, and output validation.
+- Audio is the **Audio Engine Deep Module** Grey-Box Public API owner. Its
+  public strip lives at `crate::audio`; processor internals stay private under
+  `src-tauri/src/audio/processor/`.
+
+## Public API Strip
+
+- Import from `crate::audio`, not private child modules such as
+  `crate::audio::processor`, `crate::audio::settings_encoder`,
+  `crate::audio::toolchain`, `crate::audio::path_validation`, or
+  `crate::audio::cleanup`.
+- Modules: `constants` is crate-visible for existing processing event names and
+  progress math until those constants move to the processing/status owner.
+- Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
+  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
+  `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
+  `EncoderCapabilitySource`, `ExternalToolchainPreference`.
+- Functions: `get_file_list_info`, `validate_input_audio_path`,
+  `validate_input_image_path`, `validate_output_path`,
+  `validate_sample_rate_config`, `validate_encoder_settings`,
+  `validate_requested_encoder_available`, `validate_threads`,
+  `resolve_encoder_type`, `resolve_encoder_name`, `detect_encoder_availability`,
+  `detect_aac_decoder_availability`, `preferred_aac_decoder_order_labels`,
+  `execute_audio_engine`, `validate_audio_engine_inputs`.
+- Execution request type: `AudioExecutionRequest`.
+- Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
+- Crate-internal helper: `CleanupGuard`.
+
+## Private Cluster
+
+- Files: `buffer.rs`, `cleanup/`, `extensions.rs`, `file_list.rs`,
+  `metrics.rs`, `path_validation.rs`, `processor/`, `settings.rs`,
+  `settings_encoder.rs`, and `toolchain.rs`.
+- The cluster owns decoder/toolchain selection, media inspection,
+  decode/resample/encode/mux internals, staging, cleanup, and media execution
+  facts. Processing owns lifecycle orchestration and terminal normalization;
+  `output_artifact` owns final artifact commit truth.
+
+## Allowed Agent Edits Without Escalation
+
+- Change private implementation files when focused audio/processing tests,
+  `scripts/check-public-api-strips.sh`, and `scripts/check-no-bridge-imports.sh`
+  stay green.
+- Narrow accidental visibility when callers can use the public strip without
+  losing contract truth.
+- Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside
+  the private cluster unless a caller needs a stable capability fact.
+
+## Breaking-Change Triggers
+
+- Adding, removing, or renaming any Public API Strip symbol.
+- Moving job lifecycle ownership out of processing, final artifact commit truth
+  out of `output_artifact`, or metadata policy out of metadata-owned APIs.
+- Changing user-visible progress, cancellation, or terminal success/failure
+  semantics.
 
 ## Preferred Path
 

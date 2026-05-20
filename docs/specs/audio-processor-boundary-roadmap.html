@@ -671,13 +671,13 @@
 			</section>
 
 			<nav class="tabs" aria-label="Roadmap sections" role="tablist">
-				<button class="tab" id="tab-decision" role="tab" aria-controls="panel-decision" aria-selected="true">Decision</button>
-				<button class="tab" id="tab-before-after" role="tab" aria-controls="panel-before-after" aria-selected="false">Before/After</button>
-				<button class="tab" id="tab-discovery" role="tab" aria-controls="panel-discovery" aria-selected="false">M0 Discovery</button>
-				<button class="tab" id="tab-boundaries" role="tab" aria-controls="panel-boundaries" aria-selected="false">Boundaries</button>
-				<button class="tab" id="tab-roadmap" role="tab" aria-controls="panel-roadmap" aria-selected="false">Milestones</button>
-				<button class="tab" id="tab-scouts" role="tab" aria-controls="panel-scouts" aria-selected="false">Scouts</button>
-				<button class="tab" id="tab-handoff" role="tab" aria-controls="panel-handoff" aria-selected="false">Handoff</button>
+				<button type="button" class="tab" id="tab-decision" role="tab" aria-controls="panel-decision" aria-selected="true">Decision</button>
+				<button type="button" class="tab" id="tab-before-after" role="tab" aria-controls="panel-before-after" aria-selected="false">Before/After</button>
+				<button type="button" class="tab" id="tab-discovery" role="tab" aria-controls="panel-discovery" aria-selected="false">M0 Discovery</button>
+				<button type="button" class="tab" id="tab-boundaries" role="tab" aria-controls="panel-boundaries" aria-selected="false">Boundaries</button>
+				<button type="button" class="tab" id="tab-roadmap" role="tab" aria-controls="panel-roadmap" aria-selected="false">Milestones</button>
+				<button type="button" class="tab" id="tab-scouts" role="tab" aria-controls="panel-scouts" aria-selected="false">Scouts</button>
+				<button type="button" class="tab" id="tab-handoff" role="tab" aria-controls="panel-handoff" aria-selected="false">Handoff</button>
 			</nav>
 
 			<section class="tab-panel active" id="panel-decision" role="tabpanel" aria-labelledby="tab-decision">
@@ -1246,8 +1246,12 @@
 		const toast = document.getElementById('toast');
 
 		function showTab(tab) {
-			tabs.forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
-			panels.forEach((panel) => panel.classList.toggle('active', panel.id === tab.getAttribute('aria-controls')));
+			tabs.forEach((item) => {
+				item.setAttribute('aria-selected', String(item === tab));
+			});
+			panels.forEach((panel) => {
+				panel.classList.toggle('active', panel.id === tab.getAttribute('aria-controls'));
+			});
 			tab.focus({ preventScroll: true });
 		}
 
@@ -1298,7 +1302,7 @@
 		}
 
 		async function copyToClipboard(text) {
-			if (navigator.clipboard && navigator.clipboard.writeText) {
+			if (navigator.clipboard?.writeText) {
 				try {
 					await navigator.clipboard.writeText(text);
 					return true;

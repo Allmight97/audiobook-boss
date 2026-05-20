@@ -1,7 +1,7 @@
 //! Audio processor module.
 //!
 //! Staged modules:
-//!   - prepare.rs   : validation, workspace setup, sample rate detection
+//!   - prepare.rs   : validation and workspace setup
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
 //!   - staging.rs   : destination-adjacent temp output directories
@@ -12,7 +12,10 @@
 
 // Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
+use crate::audio::file_list::FileListInfo;
 use crate::audio::metrics::ProcessingMetrics;
+use crate::audio::settings_encoder::EncoderSettings;
+use crate::audio::toolchain::ExternalToolchainPreference;
 use crate::audio::AudioFile;
 use crate::errors::Result;
 use crate::metadata::passthrough::merge_passthrough_cover_art;
@@ -21,29 +24,93 @@ use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 use std::time::Duration;
 
 // Submodules
-pub mod adapter;
-pub mod encoder;
-pub mod engine;
-pub mod execute;
-pub mod external_fdk;
-pub mod finalize;
-pub mod frame_pipeline;
-pub mod plan;
-pub mod prepare;
-pub mod preview_state;
-pub mod selection;
-pub mod staging;
-pub mod streams;
+mod adapter;
+mod encoder;
+mod engine;
+mod execute;
+mod external_fdk;
+mod finalize;
+mod frame_pipeline;
+mod plan;
+mod prepare;
+mod preview_state;
+mod selection;
+mod staging;
+mod streams;
 
-// Re-exports
-pub use adapter::{resolve_processor_adapter, ProcessorAdapterKind, ResolvedProcessorAdapter};
-pub use engine::FfmpegNextProcessor;
-pub use plan::{MediaProcessingPlan, MediaProcessor};
-pub use prepare::detect_input_sample_rate;
+pub(in crate::audio) use streams::inspect_audio_decoder;
+pub use streams::{
+    detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
+};
 
-// Adaptive preview types (PR2)
-pub use frame_pipeline::PreviewAction;
-pub use preview_state::{sanitize_chapter_title, ChapterMarker, PreviewState};
+pub struct AudioExecutionRequest {
+    context: ProcessingContext,
+    file_info: FileListInfo,
+    metadata: Option<AudiobookMetadata>,
+    cover_art_passthrough: CoverArtPassthroughPolicy,
+    encoder_settings: EncoderSettings,
+    external_toolchain: Option<ExternalToolchainPreference>,
+}
+
+impl AudioExecutionRequest {
+    pub fn new(
+        context: ProcessingContext,
+        file_info: FileListInfo,
+        metadata: Option<AudiobookMetadata>,
+        cover_art_passthrough: CoverArtPassthroughPolicy,
+        encoder_settings: EncoderSettings,
+        external_toolchain: Option<ExternalToolchainPreference>,
+    ) -> Self {
+        Self {
+            context,
+            file_info,
+            metadata,
+            cover_art_passthrough,
+            encoder_settings,
+            external_toolchain,
+        }
+    }
+}
+
+pub fn validate_audio_engine_inputs(
+    encoder_settings: &EncoderSettings,
+    external_toolchain: Option<&ExternalToolchainPreference>,
+    file_info: &FileListInfo,
+) -> Result<()> {
+    let adapter = adapter::resolve_processor_adapter(encoder_settings, external_toolchain)?;
+    adapter.validate_inputs(file_info)
+}
+
+pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<String> {
+    let FileListInfo {
+        files,
+        selected_decoders,
+        ..
+    } = request.file_info;
+    let adapter = adapter::resolve_processor_adapter(
+        &request.encoder_settings,
+        request.external_toolchain.as_ref(),
+    )?;
+    log::info!(
+        "audio engine adapter: kind={:?} requested_encoder={:?} external_toolchain_override={}",
+        adapter.kind(),
+        request.encoder_settings.encoder_type,
+        request
+            .external_toolchain
+            .as_ref()
+            .and_then(|preference| preference.override_path.as_deref())
+            .unwrap_or("(auto-detect)")
+    );
+    adapter
+        .execute(
+            request.context,
+            files,
+            selected_decoders,
+            request.metadata,
+            request.cover_art_passthrough,
+        )
+        .await
+}
 
 /// Internal workflow state passed between processing stages.
 ///
@@ -78,7 +145,7 @@ impl ProcessingWorkflow {
 /// 1. Validate & Prepare
 /// 2. Execute Processing
 /// 3. Finalize Processing
-pub async fn process_audiobook_with_context(
+async fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,

@@ -1,23 +1,15 @@
 //! Unit tests for audio processing pipeline data structures.
 //!
-//! Tests MediaProcessingPlan creation, duration calculation, and pipeline setup
-//! without executing real audio processing or touching files.
+//! Tests public audio data shapes without executing real audio processing.
 
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-};
 use audiobook_boss_lib::audio::{
-    AudioFile, FfmpegNextProcessor, MediaProcessingPlan, SampleRateConfig,
+    AudioFile, BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType,
+    SampleRateConfig, ThreadSetting,
 };
 use std::path::PathBuf;
-use tempfile::TempDir;
 
 #[test]
-fn test_media_processing_plan_execute_method_exists() {
-    // Verifies that the placeholder has been removed and the method compiles
-    let temp_dir = TempDir::new().expect("create temp dir");
-    let output_path = temp_dir.path().join("plan_output.m4b");
-
+fn test_public_encoder_settings_and_sample_rate_compile() {
     let encoder = EncoderSettings {
         encoder_type: EncoderType::NativeAac,
         bitrate_kbps: 64,
@@ -27,79 +19,16 @@ fn test_media_processing_plan_execute_method_exists() {
         threads: ThreadSetting::Auto,
         twoloop: true,
     };
+    let sample_rate = SampleRateConfig::Explicit(44100);
 
-    let plan = MediaProcessingPlan::new(
-        output_path.clone(),
-        encoder,
-        SampleRateConfig::Explicit(44100),
-        vec![PathBuf::from("dummy.mp3")],
-        60.0,
-    );
-
-    // We're just testing that the method exists and is callable
-    // (execution would require a proper ProcessingContext which needs Tauri)
-    assert_eq!(plan.total_duration, 60.0);
-    assert_eq!(plan.output_path, output_path);
-}
-
-#[test]
-fn test_ffmpeg_next_processor_instantiation() {
-    let _processor = FfmpegNextProcessor;
-    // Just verify it compiles and can be created
-}
-
-#[test]
-fn test_media_processing_plan_creation() {
-    let temp_dir = TempDir::new().expect("create temp dir");
-    let output_path = temp_dir.path().join("test.m4b");
-
-    // Test various encoder settings combinations
-    let test_cases = vec![
-        (
-            EncoderSettings {
-                encoder_type: EncoderType::NativeAac,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Cbr,
-                channels: EncoderChannelConfig::Mono,
-                afterburner: false,
-                threads: ThreadSetting::Auto,
-                twoloop: true,
-            },
-            SampleRateConfig::Auto,
-        ),
-        (
-            EncoderSettings {
-                encoder_type: EncoderType::NativeAac,
-                bitrate_kbps: 128,
-                bitrate_mode: BitrateMode::Cbr,
-                channels: EncoderChannelConfig::Stereo,
-                afterburner: false,
-                threads: ThreadSetting::Auto,
-                twoloop: true,
-            },
-            SampleRateConfig::Explicit(44100),
-        ),
-    ];
-
-    for (i, (encoder, sample_rate)) in test_cases.into_iter().enumerate() {
-        let plan = MediaProcessingPlan::new(
-            output_path.clone(),
-            encoder.clone(),
-            sample_rate.clone(),
-            vec![PathBuf::from(&format!("test{}.mp3", i))],
-            30.0 * (i as f64 + 1.0),
-        );
-
-        assert_eq!(plan.encoder_settings.bitrate_kbps, encoder.bitrate_kbps);
-        assert_eq!(plan.encoder_settings.channels, encoder.channels);
-        assert_eq!(plan.sample_rate, sample_rate);
-        assert_eq!(plan.total_duration, 30.0 * (i as f64 + 1.0));
-    }
+    assert_eq!(encoder.bitrate_kbps, 64);
+    assert_eq!(encoder.channels, EncoderChannelConfig::Stereo);
+    assert!(matches!(sample_rate, SampleRateConfig::Explicit(44100)));
 }
 
 #[test]
 fn test_duration_calculation() {
-    let files = vec![
+    let files = [
         AudioFile {
             path: PathBuf::from("file1.mp3"),
             duration: Some(30.0),
@@ -141,7 +70,7 @@ fn test_duration_calculation() {
         },
     ];
 
-    let total = MediaProcessingPlan::calculate_total_duration(&files);
+    let total: f64 = files.iter().filter_map(|file| file.duration).sum();
     assert_eq!(total, 75.5, "Should sum only non-None durations");
 }
 

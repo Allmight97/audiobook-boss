@@ -1,14 +1,13 @@
 //! Integration tests for file list validation and metadata extraction.
 
-use audiobook_boss_lib::audio::extensions::supported_audio_extensions;
-use audiobook_boss_lib::audio::file_list::{get_file_list_info, validate_audio_files};
+use audiobook_boss_lib::audio::get_file_list_info;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
 fn validate_empty_file_list_returns_error() {
-    let result = validate_audio_files::<&str>(&[]);
+    let result = get_file_list_info::<&str>(&[]);
     assert!(result.is_err());
     let err = result.expect_err("expected error for empty file list");
     assert!(err.to_string().contains("No files provided"));
@@ -17,11 +16,11 @@ fn validate_empty_file_list_returns_error() {
 #[test]
 fn validate_nonexistent_file_marks_invalid() {
     let files = vec!["nonexistent.mp3"];
-    let result =
-        validate_audio_files(&files).expect("validation should succeed, marking file invalid");
-    assert_eq!(result.len(), 1);
-    assert!(!result[0].is_valid);
-    let msg = result[0]
+    let result = get_file_list_info(&files).expect("validation should mark file invalid");
+    assert_eq!(result.files.len(), 1);
+    assert_eq!(result.invalid_count, 1);
+    assert!(!result.files[0].is_valid);
+    let msg = result.files[0]
         .error
         .as_ref()
         .expect("error message for invalid file");
@@ -35,11 +34,11 @@ fn validate_invalid_audio_file_marks_error() {
     fs::write(&file_path, b"not audio data").expect("write temp file");
 
     let files = vec![file_path];
-    let result =
-        validate_audio_files(&files).expect("validation should succeed, marking file invalid");
-    assert_eq!(result.len(), 1);
-    assert!(!result[0].is_valid);
-    assert!(result[0].error.is_some());
+    let result = get_file_list_info(&files).expect("validation should mark file invalid");
+    assert_eq!(result.files.len(), 1);
+    assert_eq!(result.invalid_count, 1);
+    assert!(!result.files[0].is_valid);
+    assert!(result.files[0].error.is_some());
 }
 
 fn create_test_wav_file(temp_dir: &TempDir, filename: &str) -> PathBuf {
@@ -80,31 +79,21 @@ fn validate_wav_file_is_supported() {
     let file_path = create_test_wav_file(&temp_dir, "valid.wav");
 
     let files = vec![file_path.clone()];
-    let result =
-        validate_audio_files(&files).expect("validation should succeed for a valid wav file");
-
-    assert_eq!(result.len(), 1);
-    assert!(result[0].is_valid);
-    assert_eq!(result[0].format.as_deref(), Some("WAV"));
+    let file_list_info = get_file_list_info(&files).expect("file list info should be available");
+    assert_eq!(file_list_info.files.len(), 1);
+    assert_eq!(file_list_info.valid_count, 1);
+    assert!(file_list_info.files[0].is_valid);
+    assert_eq!(file_list_info.files[0].format.as_deref(), Some("WAV"));
     assert_eq!(
-        result[0].selected_decoder.as_deref(),
+        file_list_info.files[0].selected_decoder.as_deref(),
         Some("Native AAC (FFmpeg)")
     );
-
-    let file_list_info = get_file_list_info(&files).expect("file list info should be available");
     assert_eq!(file_list_info.selected_decoders.len(), 1);
     let selected_decoder = file_list_info.selected_decoders[0]
         .as_ref()
         .expect("decoder identity should be present");
     assert_eq!(selected_decoder.decoder_id, "default");
     assert_eq!(selected_decoder.decoder_label, "Native AAC (FFmpeg)");
-}
-
-#[test]
-fn supported_audio_extensions_include_wav_and_flac() {
-    let extensions = supported_audio_extensions().collect::<Vec<_>>();
-    assert!(extensions.contains(&"wav"));
-    assert!(extensions.contains(&"flac"));
 }
 
 #[test]

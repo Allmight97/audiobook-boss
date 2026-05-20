@@ -342,7 +342,7 @@ fn build_output_path_inner(
 
     let full_path = dir.join(filename);
     if create_dirs {
-        crate::audio::settings::validate_output_path(&full_path)?;
+        crate::audio::validate_output_path(&full_path)?;
     }
     Ok(full_path)
 }

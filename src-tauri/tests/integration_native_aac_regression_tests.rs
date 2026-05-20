@@ -1,7 +1,7 @@
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+use audiobook_boss_lib::audio::{
+    self, AudioExecutionRequest, BitrateMode, ChannelConfig as EncoderChannelConfig,
+    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::processing::{
     OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
 };
@@ -77,12 +77,14 @@ async fn native_aac_regression_encodes_valid_output() {
         OutputConfig::new(&output_path),
     );
 
-    let result = audio::process_audiobook_with_context(
+    let result = audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
-        file_info.files,
+        file_info,
         None,
         CoverArtPassthroughPolicy::Preserve,
-    )
+        native_aac_settings(),
+        None,
+    ))
     .await;
     assert!(
         result.is_ok(),
@@ -133,12 +135,14 @@ async fn native_aac_preview_stops_near_requested_boundary() {
     );
     context.preview = Some(PreviewConfig::new(preview_seconds));
 
-    let result = audio::process_audiobook_with_context(
+    let result = audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
-        file_info.files,
+        file_info,
         None,
         CoverArtPassthroughPolicy::Preserve,
-    )
+        native_aac_settings(),
+        None,
+    ))
     .await;
     assert!(
         result.is_ok(),
@@ -199,12 +203,23 @@ async fn native_aac_removes_destination_staging_when_execute_fails() {
         error: None,
     };
 
-    let result = audio::process_audiobook_with_context(
+    let file_info = audiobook_boss_lib::audio::FileListInfo {
+        files: vec![file],
+        selected_decoders: vec![None],
+        total_duration: 1.0,
+        total_size: 22.0,
+        valid_count: 1,
+        invalid_count: 0,
+    };
+
+    let result = audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
-        vec![file],
+        file_info,
         None,
         CoverArtPassthroughPolicy::Preserve,
-    )
+        native_aac_settings(),
+        None,
+    ))
     .await;
 
     assert!(

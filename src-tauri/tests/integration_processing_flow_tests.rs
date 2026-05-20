@@ -2,10 +2,10 @@
 //!
 //! These tests document existing behavior to guard against regressions.
 
-use audiobook_boss_lib::audio::settings_encoder::{
-    BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+use audiobook_boss_lib::audio::{
+    self, AudioExecutionRequest, BitrateMode, ChannelConfig as EncoderChannelConfig,
+    EncoderSettings, EncoderType, ThreadSetting,
 };
-use audiobook_boss_lib::audio::{self, detect_input_sample_rate};
 use audiobook_boss_lib::commands::{
     analyze_audio_files, read_audio_metadata, save_metadata_to_file, validate_files,
 };
@@ -178,12 +178,14 @@ async fn process_roundtrip_files(
         context.preview = Some(PreviewConfig::new(seconds));
     }
 
-    audio::process_audiobook_with_context(
+    audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
-        input_info.files,
+        input_info,
         Some(metadata),
         CoverArtPassthroughPolicy::Preserve,
-    )
+        native_encoder_settings(),
+        None,
+    ))
     .await
     .expect("processing should complete")
 }
@@ -307,8 +309,7 @@ async fn test_current_processing_flow() {
     );
 
     // Step 3: Validate processing settings
-    audio::settings_encoder::validate_encoder_settings(&encoder_settings)
-        .expect("Encoder settings should validate");
+    audio::validate_encoder_settings(&encoder_settings).expect("Encoder settings should validate");
     audio::validate_sample_rate_config(&sample_rate).expect("Sample rate should validate");
     audio::validate_output_path(&output_path).expect("Output path should validate");
 
@@ -464,7 +465,7 @@ async fn test_error_handling() {
 
     // Invalid bitrate
     invalid_encoder.bitrate_kbps = 200; // unsupported
-    let settings_result = audio::settings_encoder::validate_encoder_settings(&invalid_encoder);
+    let settings_result = audio::validate_encoder_settings(&invalid_encoder);
     assert!(settings_result.is_err(), "Should fail for invalid bitrate");
     assert!(settings_result
         .expect_err("expected bitrate error")
@@ -557,29 +558,31 @@ fn test_file_validation() {
 #[test]
 fn test_sample_rate_detection() {
     // Test empty input
-    let empty_result = detect_input_sample_rate(&[]);
+    let empty_files: Vec<PathBuf> = Vec::new();
+    let empty_result = audio::get_file_list_info(&empty_files);
     assert!(empty_result.is_err(), "Empty input should fail");
     assert!(empty_result
         .expect_err("expected no input files error")
         .to_string()
-        .contains("no input files provided"));
+        .contains("No files provided"));
 
     // Test nonexistent files
     let nonexistent = vec![PathBuf::from("nonexistent.mp3")];
-    let nonexistent_result = detect_input_sample_rate(&nonexistent);
-    assert!(nonexistent_result.is_err(), "Nonexistent files should fail");
-    assert!(nonexistent_result
-        .expect_err("expected no valid audio files error")
-        .to_string()
-        .contains("no valid audio files found"));
+    let nonexistent_result =
+        audio::get_file_list_info(&nonexistent).expect("nonexistent files should be classified");
+    assert_eq!(nonexistent_result.valid_count, 0);
+    assert_eq!(nonexistent_result.invalid_count, 1);
+    assert!(nonexistent_result.files[0].sample_rate.is_none());
 
     // Test with actual media file if available
     if let Some(media_path) = verify_test_media_exists() {
         let files = vec![media_path];
-        let sample_rate_result = detect_input_sample_rate(&files);
+        let sample_rate_result = audio::get_file_list_info(&files)
+            .ok()
+            .and_then(|info| info.files.first().and_then(|file| file.sample_rate));
 
         match sample_rate_result {
-            Ok(sample_rate) => {
+            Some(sample_rate) => {
                 eprintln!("Detected sample rate: {sample_rate} Hz");
                 assert!(sample_rate > 0, "Sample rate should be positive");
 
@@ -589,8 +592,8 @@ fn test_sample_rate_detection() {
                     common_rates.contains(&sample_rate)
                 );
             }
-            Err(err) => {
-                eprintln!("Could not detect sample rate from test media: {err}");
+            None => {
+                eprintln!("Could not detect sample rate from test media");
             }
         }
     }
@@ -601,12 +604,13 @@ fn test_sample_rate_detection() {
 fn test_ffmpeg_command_construction() {
     eprintln!("FFmpeg command construction is tested indirectly through processor module");
 
-    let empty_result = detect_input_sample_rate(&[]);
+    let empty_files: Vec<PathBuf> = Vec::new();
+    let empty_result = audio::get_file_list_info(&empty_files);
     assert!(empty_result.is_err());
     assert!(empty_result
         .expect_err("expected no input files")
         .to_string()
-        .contains("no input files provided"));
+        .contains("No files provided"));
 
     eprintln!("FFmpeg command building behavior is captured by end-to-end tests");
 }

@@ -1,11 +1,8 @@
 use crate::audio;
-use crate::audio::file_list::FileListInfo;
-use crate::audio::settings_encoder::{
-    validate_encoder_settings as validate_encoder_settings_impl,
-    validate_requested_encoder_available, EncoderSettings,
-};
-use crate::audio::toolchain::{
-    detect_encoder_availability, EncoderAvailability, ExternalToolchainPreference,
+use crate::audio::{
+    detect_encoder_availability, validate_encoder_settings as validate_encoder_settings_impl,
+    validate_input_audio_path, validate_requested_encoder_available, EncoderAvailability,
+    EncoderSettings, ExternalToolchainPreference, FileListInfo,
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
@@ -35,7 +32,7 @@ pub fn validate_files(file_paths: Vec<String>) -> CommandResult<String> {
     for path_str in file_paths {
         let path = PathBuf::from(&path_str);
 
-        match audio::path_validation::validate_input_audio_path(&path) {
+        match validate_input_audio_path(&path) {
             Ok(_canonical_path) => {
                 validated_count += 1;
             }

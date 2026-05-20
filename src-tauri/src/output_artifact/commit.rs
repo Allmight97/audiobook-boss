@@ -1,6 +1,6 @@
 use super::collision::path_entry_exists;
 use super::types::{OutputKind, PlannedOutputAction};
-use crate::audio::cleanup::CleanupGuard;
+use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};

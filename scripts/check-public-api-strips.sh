@@ -38,6 +38,33 @@ extract_export_blocks() {
   ' "$1"
 }
 
+audio_exports="$(
+  rg "^(pub struct AudioFile|pub struct DecoderSelection|pub enum SampleRateConfig|pub\\(crate\\) mod constants;)" src-tauri/src/audio/mod.rs || true
+  extract_export_blocks src-tauri/src/audio/mod.rs
+)"
+compare_block "Audio Engine Deep Module Public API Strip" "$audio_exports" 'pub(crate) mod constants;
+pub struct AudioFile {
+pub struct DecoderSelection {
+pub enum SampleRateConfig {
+pub use file_list::{get_file_list_info, FileListInfo};
+pub use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub use processor::{
+detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
+};
+pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
+pub use settings::{validate_output_path, validate_sample_rate_config};
+pub use settings_encoder::{
+resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
+validate_requested_encoder_available, validate_threads, BitrateMode, ChannelConfig,
+EncoderSettings, EncoderType, ThreadSetting, VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE,
+};
+pub use toolchain::{
+detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
+ExternalToolchainPreference,
+};
+pub(crate) use cleanup::CleanupGuard;
+'
+
 output_artifact_exports="$(extract_export_blocks src-tauri/src/output_artifact/mod.rs)"
 compare_block "Output Artifact Plan / Commit Public API Strip" "$output_artifact_exports" 'pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};

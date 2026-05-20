@@ -93,7 +93,7 @@ Current canonical owners:
 | Metadata Outcome Plan | Effective metadata, naming metadata, write instructions, cover-art passthrough. | Audio execution should consume metadata decisions, not reconstruct them. |
 | Output Artifact Plan / Commit | Requested/resolved paths, collision review, parent creation, final commit truth. | Audio finalization must delegate artifact commit truth here. |
 | Status Panel Runtime | Backend progress/results rendered as truthful UI status and controls. | Audio should emit truthful stage signals without owning UI status policy. |
-| Audio Engine Deep Module | Candidate new owner for media execution truth. | Should own decoder/toolchain/encoder/mux/staging media invariants. |
+| Audio Engine Deep Module | Grey-Box Public API owner for media execution truth. | Owns decoder/toolchain/encoder/mux/staging media invariants behind `crate::audio`. |
 
 Known current orientation:
 
@@ -106,8 +106,8 @@ Known current orientation:
 - `src-tauri/src/processing/AGENTS.md` owns preflight planning, execution-plan
   preparation, runner orchestration, processing context/session state, job
   lifecycle, progress event types, and terminal result normalization.
-- `docs/system-map.md` currently lists five Grey-Box Public APIs. Audio is a
-  candidate addition, not yet canon.
+- `docs/system-map.md` lists Audio Engine Deep Module as the sixth Grey-Box
+  Public API owner.
 - `docs/ubiquitous-language.md` distinguishes Grey-Box Module, Public API Strip,
   Private Cluster, Deep Module, Reach-Through, Ownership Smear, Terminal Truth,
   and Backend Lifecycle.
@@ -130,15 +130,12 @@ Output: source-backed boundary map and list of verified seams.
 
 ### M1 - Audio Engine Deep Module Boundary Decision
 
-Decide whether audio processing becomes:
+Accepted boundary: audio processing becomes the sixth Grey-Box Public API owner
+named Audio Engine Deep Module. Its public strip is `crate::audio`; its private
+cluster includes processor internals, adapter routing, media execution,
+staging, cleanup, and low-level toolchain details.
 
-- a sixth Grey-Box Public API owner named Audio Engine Deep Module, or
-- a Private Cluster inside the existing Processing Plan/lifecycle owner.
-
-Recommended current bias: promote it if discovery confirms callers need a
-stable media execution contract independent of processing orchestration.
-
-Output: accepted boundary decision and public strip candidate.
+Output: encoded boundary decision and public strip.
 
 ### M2 - Runner Versus Engine Contract
 
@@ -333,9 +330,8 @@ implementation planning and bring the decision back to roadmap alignment.
 
 ### M0 Verdict
 
-Promote the owner hypothesis into the implementation handoff: default to the
-Audio Engine Deep Module becoming the sixth Grey-Box Public API owner unless the
-implementation-planning agent finds a better boundary during validation.
+Implementation discovery promoted the owner hypothesis: Audio Engine Deep Module
+is the sixth Grey-Box Public API owner.
 
 Do not ask the implementation agent to redesign status runtime by default. Ask
 it to track status/progress findings in implementation notes and expand M5 only
@@ -343,8 +339,7 @@ with source evidence.
 
 ## Accepted Alignment Defaults
 
-These are the defaults for implementation handoff unless later source discovery
-finds a concrete reason to revisit them:
+These are the accepted defaults for implementation:
 
 - Visibility: the implementation agent may narrow `pub` module exports and Rust
   visibility when doing so makes the Audio Engine Deep Module boundary more
@@ -364,13 +359,12 @@ finds a concrete reason to revisit them:
 
 ## Pre-Handoff Alignment
 
-Before an implementation-planning agent receives this work, align these points:
+Before further implementation work continues, keep these points aligned:
 
-- Owner hypothesis: default to "Audio Engine Deep Module becomes the sixth
-  Grey-Box Public API owner" unless scouts find a better owner boundary.
-- Public strip framing: yes, the roadmap is designing the public API shape for
-  the Audio Engine Deep Module, but at architecture-contract level first. Exact
-  Rust symbols come after source validation.
+- Owner decision: Audio Engine Deep Module is the sixth Grey-Box Public API
+  owner.
+- Public strip framing: use `crate::audio` for callers; exact Rust symbols are
+  enforced by `scripts/check-public-api-strips.sh`.
 - Operational status runtime: keep it as a formal M5 audit/decision. Track
   status/progress/lifecycle surprises in the implementation notes scratch pad
   and expand implementation only when evidence shows audio cannot be made
@@ -393,6 +387,14 @@ Before an implementation-planning agent receives this work, align these points:
 - 2026-05-20: Accepted Rust visibility narrowing as roadmap scope and refined
   status-runtime scope to a mandatory event/result/lifecycle preservation rule,
   with broader status cleanup still evidence-gated.
+- 2026-05-20: Implementation branch promoted Audio Engine Deep Module to a
+  canon Grey-Box owner, encoded `crate::audio` as its Public API Strip, hid
+  processor internals, replaced processing runner adapter reach-through with an
+  audio-owned execution facade, and routed native/FDK artifact success through a
+  shared finalization handoff.
+- 2026-05-20: M5 status audit preserved existing IPC/event shapes and status
+  runtime ownership; no generated binding, status model, or event-contract
+  change was required.
 
 ## Surprises And Discoveries
 
@@ -412,7 +414,7 @@ Before an implementation-planning agent receives this work, align these points:
 
 - Use `docs/specs/audio-processor-boundary-roadmap.md` as the active planning
   surface for this roadmap.
-- Treat the Audio Engine Deep Module as the primary candidate roadmap target.
+- Treat the Audio Engine Deep Module as the sixth Grey-Box Public API owner.
 - Use "Audio Engine Deep Module" as the human-facing roadmap label while
   preserving Grey-Box Public API owner / Public API Strip / Private Cluster as
   the repo-precise terminology.
@@ -428,6 +430,8 @@ Before an implementation-planning agent receives this work, align these points:
   owners; it does not collapse them into one generic operation subsystem.
 - Behavior mutations are allowed only when traced from user-visible outcome to
   boundary impact and explicitly chosen.
+- Audio Engine Deep Module is canon once this implementation lands. Public
+  callers use `crate::audio`; processor internals remain private cluster files.
 
 ## Validation And Acceptance
 
@@ -464,8 +468,7 @@ Potentially affected surfaces:
 - `src-tauri/src/metadata/`
 - `src/ui/statusPanel/`
 - generated IPC bindings only if public command/event shapes change
-- `docs/system-map.md` and `docs/ubiquitous-language.md` after implementation
-  if Audio Engine Deep Module becomes canon
+- `docs/system-map.md` and `docs/ubiquitous-language.md`
 
 ## Idempotence And Recovery
 

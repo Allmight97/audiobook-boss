@@ -1,6 +1,4 @@
-use crate::audio::settings_encoder::{
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
-};
+use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
 use crate::metadata::{MetadataIntentPatch, PatchOp};
 use crate::output_artifact::{CollisionPolicy, OutputKind};
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};

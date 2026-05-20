@@ -70,6 +70,9 @@ ownership or proof.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.
+- Audio engine execution owns media inspection, decoder/toolchain selection,
+  encode/mux/staging behavior, and media-integrity facts behind a small public
+  strip.
 - Run orchestration owns dispatch and side effects; terminal outcome helpers own final status normalization.
 - Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
 - Processing adapters produce media artifacts; final results report what actually happened.
@@ -91,6 +94,7 @@ assertions, and contract tests.
 | Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
 | Metadata Outcome Plan | Metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
+| Audio Engine Deep Module | Media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
 strip, private cluster, edit rules, and breaking-change triggers.

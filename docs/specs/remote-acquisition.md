@@ -77,7 +77,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - `src-tauri/src/ipc_contract.rs` — register new command/event families.
 - `src/lib/tauri/client.ts` — adapter additions for new commands/events.
 - `docs/api-map.md` — add Remote Source command/event family.
-- `docs/system-map.md` — Five Public APIs → Six Public APIs; add Remote Source row.
+- `docs/system-map.md` — Six Public APIs → Seven Public APIs; add Remote Source row.
 - `docs/ubiquitous-language.md` — add: Remote Acquisition Plane, Materialized Asset, Acquisition Job Ledger, Vault Adapter, Provider Driver, Source Acquisition Format.
 - `docs/fallbacks.md` — register Widevine/AAXC-related compat paths if any emerge during D5/D6 with explicit triggers, signals, and sunsets.
 - File inspector display (existing UI component currently showing Codec/Decoder/Bitrate/etc.) — add "Source" row.

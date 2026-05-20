@@ -24,24 +24,6 @@ pub struct FileListInfo {
     pub invalid_count: usize,
 }
 
-/// Validates a list of file paths and returns audio file information
-pub fn validate_audio_files<P: AsRef<Path>>(file_paths: &[P]) -> Result<Vec<AudioFile>> {
-    if file_paths.is_empty() {
-        return Err(AppError::InvalidInput(
-            "No files provided for validation".to_string(),
-        ));
-    }
-
-    let mut audio_files = Vec::new();
-
-    for path in file_paths {
-        let validated = validate_single_file(path.as_ref())?;
-        audio_files.push(validated.audio_file);
-    }
-
-    Ok(audio_files)
-}
-
 struct ValidatedAudioFile {
     audio_file: AudioFile,
     selected_decoder: Option<DecoderSelection>,
@@ -155,7 +137,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     }
 
     // Extract technical metadata
-    let inspection = crate::audio::processor::streams::inspect_audio_decoder(path)?;
+    let inspection = crate::audio::processor::inspect_audio_decoder(path)?;
     let selected_decoder = inspection.selected_decoder;
     log::info!(
         "validate_audio_format path={} selected_decoder_id={} selected_decoder={}",

@@ -3,10 +3,9 @@
 //! Verifies that invalid inputs are rejected at all API boundaries and
 //! tests symlink handling, output directory validation, and special characters.
 
-use audiobook_boss_lib::audio::path_validation::{
-    validate_input_audio_path, validate_input_image_path,
+use audiobook_boss_lib::audio::{
+    self, validate_input_audio_path, validate_input_image_path, SampleRateConfig,
 };
-use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::commands::{analyze_audio_files, validate_files};
 use std::fs::{self, File, Permissions};
 use std::path::{Path, PathBuf};

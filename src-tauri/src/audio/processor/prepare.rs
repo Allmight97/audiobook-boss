@@ -1,8 +1,7 @@
-//! Preparation stage — validation, workspace setup, and sample rate detection.
+//! Preparation stage — validation and workspace setup.
 //!
-//! Functions are `pub(crate)` and re-exported selectively by `processor::mod.rs`.
+//! Functions are private to the audio processor cluster.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::audio::AudioFile;
@@ -11,62 +10,6 @@ use crate::processing::{PreviewConfig, ProcessingContext, ProcessingStage, Progr
 use uuid::Uuid;
 
 use super::ProcessingWorkflow;
-
-/// Detects the most common sample rate across provided files.
-pub fn detect_input_sample_rate(file_paths: &[PathBuf]) -> Result<u32> {
-    if file_paths.is_empty() {
-        return Err(AppError::InvalidInput(
-            "Cannot detect sample rate: no input files provided".to_string(),
-        ));
-    }
-
-    let mut sample_rates: HashMap<u32, u32> = HashMap::new();
-    let mut first_rate = None;
-
-    for path in file_paths {
-        match get_file_sample_rate(path) {
-            Ok(rate) => {
-                if first_rate.is_none() {
-                    first_rate = Some(rate);
-                }
-                *sample_rates.entry(rate).or_insert(0) += 1;
-            }
-            Err(e) => {
-                log::warn!("Could not read sample rate from {}: {}", path.display(), e);
-            }
-        }
-    }
-
-    if sample_rates.is_empty() {
-        return Err(AppError::InvalidInput(
-            "Cannot detect sample rate: no valid audio files found".to_string(),
-        ));
-    }
-
-    let most_common = sample_rates
-        .iter()
-        .max_by_key(|(_, &count)| count)
-        .map(|(&rate, _)| rate);
-
-    match most_common {
-        Some(rate) => Ok(rate),
-        None => first_rate.ok_or_else(|| {
-            AppError::InvalidInput("Cannot determine sample rate from input files".to_string())
-        }),
-    }
-}
-
-/// Private helper to retrieve sample rate from a single file.
-fn get_file_sample_rate(path: &Path) -> Result<u32> {
-    let inspection = crate::audio::processor::streams::inspect_audio_decoder(path)?;
-    log::info!(
-        "sample_rate_probe path={} selected_decoder={} sample_rate={}",
-        sanitize_path_for_display(path),
-        inspection.selected_decoder,
-        inspection.sample_rate
-    );
-    Ok(inspection.sample_rate)
-}
 
 /// Validates processing inputs (files + settings).
 pub(crate) fn validate_processing_inputs(
