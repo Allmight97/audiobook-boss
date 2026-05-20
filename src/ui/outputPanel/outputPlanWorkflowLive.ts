@@ -8,8 +8,8 @@ import {
 	setOutputPreview,
 } from './state.svelte';
 import {
-	buildOutputPreviewCallSiteState,
-	getCurrentMetadata,
+	buildOutputPathPreviewContext,
+	readOutputPathPreviewMetadataDraft,
 	showOutputError,
 	updateSeriesPartWarning,
 	updateSubseriesPartWarning,
@@ -21,10 +21,10 @@ import {
 
 export const liveOutputPlanWorkflowServices: OutputPlanWorkflowServices = {
 	getState,
-	getCurrentMetadata,
+	readOutputPathPreviewMetadataDraft,
 	updateSeriesPartWarning,
 	updateSubseriesPartWarning,
-	buildOutputPreviewCallSiteState,
+	buildOutputPathPreviewContext,
 	beginOutputPreviewRequest,
 	isLatestOutputPreviewRequest,
 	getOutputNamingConfig,

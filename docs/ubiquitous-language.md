@@ -26,6 +26,7 @@
 | **Terminal Truth** | The backend-owned final report of what happened to a job or batch, used by the UI for user-visible completion state. | optimistic status, frontend truth |
 | **Metadata Intent Patch** | An explicit patch-op payload that preserves whether a metadata field is being set, cleared, or left alone. | raw metadata object, sentinel mutation |
 | **Patch Op** | A single explicit metadata action such as `set`, `clear`, or `noop` used to preserve user intent across the boundary. | magic empty value, implicit clear |
+| **Metadata Outcome Plan** | The metadata boundary's backend plan that turns source metadata plus intent into effective metadata, naming metadata, write instructions, and cover-art passthrough policy. | metadata helper chain, raw metadata object |
 | **Processing Preflight Plan** | A backend-generated preview of how a processing request will execute before the actual long-running job begins. | dry guess, UI-only estimate |
 | **Output Path Preview** | The backend-owned computation of the intended output path before collision suffixing or final processing writes. | frontend filename guess, audio preview |
 | **Fallback** | A deliberately registered temporary compatibility or integrity path with a concrete trigger, observable signal, and sunset condition. | convenience workaround, silent compatibility shim |
@@ -51,17 +52,17 @@
 ## Grey-Box Module Vocabulary
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Grey-Box Module** | An ABB ownership unit that pairs a small, deliberately published **Public API Strip** with a **Private Cluster** of implementation files. Formally: a deep module (Ousterhout) with strict information hiding (Parnas). The private cluster is AI-editable; the public API is the contract that locks behavior. | shallow module, façade-only wrapper, generic "module" |
+| **Grey-Box Module** | ABB's repo-governed form of a **Deep Module**: a small, deliberately published **Public API Strip** backed by a hidden **Private Cluster** of implementation files, boundary assertions, and contract tests. Use this term inside ABB when the ownership rules matter; use **Deep Module** in general engineering discussion. | shallow module, façade-only wrapper, generic "module", deep/grey module |
 | **Public API Strip** | The deliberately small set of public symbols (functions, types, events, commands) a grey-box module allows callers to import. Symbols outside the strip are not public even when the language would allow them to be. | exports list, "everything pub", surface area |
 | **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
 | **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
-| **Five Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, Status Panel Runtime. | "the modules" (ambiguous) |
+| **Five Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime. | "the modules" (ambiguous), deep modules (too broad) |
 | **Reach-Through** | An import that crosses a module boundary into another module's Private Cluster. Always a smell; always names a bug, an unowned rule, or an unintentional contract. | shortcut, "just this once" |
 | **Ownership Smear** | A product rule whose implementation is split across two or more modules where each holds a partial answer and no single source of truth exists. | shared concern, "it depends" |
 | **Contract Test** | A test that pins the externally visible behavior of a grey-box module's Public API Strip. Internal cluster changes must keep contract tests green. | unit test, helper existence test |
 | **Boundary Assertion** | A repo-level script check (the `scripts/check-no-bridge-imports.sh` family) that fails CI if a Reach-Through is reintroduced. | lint suggestion, code-review note |
 | **Cluster Audit** | A non-mutating gut check of a Private Cluster's code shape: file size, function size, decision-per-function clarity, internal naming, and tests-close-to-behavior. Used to plan future internal refactors without changing the Public API Strip. | refactor sweep, "clean code pass" |
-| **Deep Module** | The published Ousterhout term (A Philosophy of Software Design) for a module with a small interface and substantial hidden implementation. ABB calls these grey-box modules locally. | shallow façade, micro-module |
+| **Deep Module** | The published Ousterhout term (*A Philosophy of Software Design*) for a module with a small interface and substantial hidden implementation. ABB **Grey-Box Modules** are deep-module-shaped ownership units, but the terms are not interchangeable: "deep module" names the design quality; "Grey-Box Module" names ABB's documented contract and edit model. | shallow façade, micro-module, grey module |
 | **Information Hiding** | The published Parnas 1972 rule that callers must not depend on a module's implementation details. The reason the Private Cluster exists at all. | encapsulation (vague), abstraction (vague) |
 
 ## Relationships
@@ -72,9 +73,11 @@
 - The **Job Registry** is the authority for **Processing Flow** lifecycle, queue state, and cancellation.
 - A **Terminal Outcome** contributes to **Terminal Truth** only after backend processing resolves the job's final state.
 - A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values.
+- A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
 - A **Task Spec** is a **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
+- A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
 - Each **Public API Strip** in the **Five Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green.
@@ -91,11 +94,12 @@
 - "generated bindings" can sound like the primary client. Prefer **Generated Bindings** for drift detection and typed integration, and **tauriClient** for the real runtime adapter.
 - "preview" can mean different things. Prefer **Output Path Preview** for path derivation, **Processing Preflight Plan** for pre-run backend review, **audio preview** for a short media render, and **preview artifact** for the file created by that render.
 - "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a compatibility path, recovery default, bug, or design decision.
-- "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
+- "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use **Metadata Outcome Plan**, metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
 - "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Standard Gate** for `scripts/checks.sh standard`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
 - Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.
+- "deep module" and "grey-box module" are related but distinct. Prefer **Deep Module** when talking to other engineers about the general design principle; prefer **Grey-Box Module** when referring to ABB's Public-API + Private-Cluster + boundary-assertion ownership unit.
 - "module" alone is ambiguous in ABB. Prefer **Grey-Box Module** for the owned Public-API + Private-Cluster unit, and **Private Cluster File** for any implementation file inside one.
 - "API" can mean three different things in ABB. Prefer **IPC Contract** for the Rust-declared command/event set, **Runtime Boundary** for the TS adapter (`tauriClient`), and **Public API Strip** for the externally allowed import set of any **Grey-Box Module**.
 - "contract" can be ambiguous. Prefer **IPC Contract** for the cross-language command/event set and **Contract Test** for the behavior-locked test of any **Grey-Box Module's** Public API Strip.

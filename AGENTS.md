@@ -42,7 +42,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 - Use `docs/system-map.md` for product spine, layer ownership, and core truth boundaries before changing architecture.
 - Use `docs/ubiquitous-language.md` for canonical terms such as Grey-Box Module, Public API Strip, Private Cluster, Reach-Through, and Boundary Assertion.
-- The current grey-box Public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Intent Plan, and Status Panel Runtime.
+- The current grey-box Public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, and Status Panel Runtime.
 - Nearest nested `AGENTS.md` files own their local Public API Strip, Private Cluster, allowed-edit, and breaking-change rules.
 - Use `docs/api-map.md` only as the runtime command/event index; do not treat it as an architecture spec.
 

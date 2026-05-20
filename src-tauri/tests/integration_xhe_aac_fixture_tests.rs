@@ -6,6 +6,7 @@ use audiobook_boss_lib::audio::{self, SampleRateConfig};
 use audiobook_boss_lib::processing::{
     OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
 };
+use audiobook_boss_lib::CoverArtPassthroughPolicy;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -56,7 +57,7 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
             file_info.files,
             file_info.selected_decoders,
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
         )
         .await
         .expect("external FDK preview should encode the xHE-AAC fixture");

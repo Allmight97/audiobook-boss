@@ -24,7 +24,10 @@ mod remux;
 
 pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};
-pub(crate) use intent_plan::{resolve_effective_processing_metadata, resolve_naming_metadata};
+pub(crate) use intent_plan::{
+    plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,
+};
+pub use intent_plan::{CoverArtPassthroughPolicy, NamingMetadata};
 
 /// Represents audiobook metadata.
 ///

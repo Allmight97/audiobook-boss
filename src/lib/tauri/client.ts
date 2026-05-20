@@ -28,7 +28,7 @@ import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import { normalizeProgressEvent, normalizeQueueEvent } from './normalizers';
 
-type MetadataIntentPayload = Record<string, MetadataIntentPatch>;
+type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
@@ -154,7 +154,7 @@ export const tauriClient = {
 	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	preflightProcessingPlan: (args: {
 		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentPayload | null;
+		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}): Promise<ProcessingPreflightPlan> => commandSpecs.preflight_processing_plan(args),
 	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
@@ -165,7 +165,7 @@ export const tauriClient = {
 		commandSpecs.set_max_concurrent_jobs({ max_concurrent: maxConcurrent ?? null }),
 	processAudiobookFiles: (args: {
 		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentPayload | null;
+		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
 	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>

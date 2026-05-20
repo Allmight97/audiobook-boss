@@ -57,10 +57,21 @@ pub(crate) struct ResolvedProcessingPlan {
 pub(crate) fn resolve_preflight_plan(
 pub(crate) fn prepare_execution_plan('
 
-metadata_intent_exports="$(extract_export_blocks src-tauri/src/metadata/mod.rs | rg "intent|intent_plan" || true)"
-compare_block "Metadata Intent Plan Public API Strip" "$metadata_intent_exports" 'pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+metadata_intent_exports="$(extract_export_blocks src-tauri/src/metadata/mod.rs | awk '
+  /^pub(\(crate\))? use intent(_plan)?/ { capture=1 }
+  capture {
+    print
+    if ($0 ~ /;$/) {
+      capture=0
+    }
+  }
+')"
+compare_block "Metadata Outcome Plan Public API Strip" "$metadata_intent_exports" 'pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};
-pub(crate) use intent_plan::{resolve_effective_processing_metadata, resolve_naming_metadata};'
+pub(crate) use intent_plan::{
+plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,
+};
+pub use intent_plan::{CoverArtPassthroughPolicy, NamingMetadata};'
 
 tauri_client_exports="$(rg "^export (const|type)" src/lib/tauri/client.ts || true)"
 compare_block "Tauri Runtime Boundary Public API Strip" "$tauri_client_exports" 'export const tauriClient = {

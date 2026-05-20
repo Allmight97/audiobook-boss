@@ -5,9 +5,9 @@ use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::passthrough::{
-    apply_cover_art_policy, extract_passthrough_metadata, PassthroughMetadata,
+    extract_passthrough_metadata, merge_passthrough_cover_art, PassthroughMetadata,
 };
-use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata};
+use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest,
 };
@@ -23,7 +23,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
     files: Vec<AudioFile>,
     selected_decoders: Vec<Option<DecoderSelection>>,
     metadata: Option<AudiobookMetadata>,
-    allow_passthrough_cover_art: bool,
+    cover_art_passthrough: CoverArtPassthroughPolicy,
     toolchain: ValidatedExternalToolchain,
 ) -> Result<String> {
     if !matches!(
@@ -56,12 +56,12 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
     validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
 
-    let passthrough = apply_cover_art_policy(
-        collect_passthrough_metadata(&valid_files, context.preview.is_some()),
-        allow_passthrough_cover_art,
-    );
+    let passthrough = cover_art_passthrough.apply_to_passthrough(collect_passthrough_metadata(
+        &valid_files,
+        context.preview.is_some(),
+    ));
 
-    let effective_metadata = merge_cover_art(metadata, passthrough.as_ref());
+    let effective_metadata = merge_passthrough_cover_art(metadata, passthrough.as_ref());
     let ui = context.new_emitter();
     ui.emit_analyzing_start("Preparing external FDK job...");
     ui.emit_analyzing_end("External FDK toolchain validated.");
@@ -115,28 +115,6 @@ pub(super) async fn process_audiobook_with_external_fdk(
     );
     ui.emit_complete(success.ui_message);
     Ok(success.result_message)
-}
-
-fn merge_cover_art(
-    metadata: Option<AudiobookMetadata>,
-    passthrough: Option<&PassthroughMetadata>,
-) -> Option<AudiobookMetadata> {
-    let passthrough_cover = passthrough
-        .and_then(|value| value.cover_art.as_ref())
-        .cloned();
-    match metadata {
-        Some(mut metadata) => {
-            if metadata.cover_art.is_none() {
-                metadata.cover_art = passthrough_cover;
-            }
-            Some(metadata)
-        }
-        None => passthrough_cover.map(|cover_art| {
-            let mut metadata = AudiobookMetadata::new();
-            metadata.cover_art = Some(cover_art);
-            metadata
-        }),
-    }
 }
 
 fn collect_passthrough_metadata(
@@ -610,7 +588,7 @@ mod tests {
             }],
             vec![None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -667,7 +645,7 @@ mod tests {
             ],
             vec![None, None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg.clone(),
                 source: EncoderCapabilitySource::Override,
@@ -698,7 +676,7 @@ mod tests {
             vec![test_audio_file(first_input), test_audio_file(second_input)],
             vec![None, None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -750,7 +728,7 @@ mod tests {
             vec![test_audio_file(input_path.clone())],
             vec![None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -806,7 +784,7 @@ mod tests {
                 title: Some("Trigger rewrite".to_string()),
                 ..AudiobookMetadata::default()
             }),
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -866,7 +844,7 @@ mod tests {
             vec![test_audio_file(input_path.clone())],
             vec![None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -920,7 +898,7 @@ mod tests {
             vec![test_audio_file(input_path)],
             vec![None],
             None,
-            true,
+            CoverArtPassthroughPolicy::Preserve,
             ValidatedExternalToolchain {
                 ffmpeg_path: fake_ffmpeg,
                 source: EncoderCapabilitySource::Override,
@@ -1132,7 +1110,7 @@ mod tests {
     }
 
     #[test]
-    fn merge_cover_art_does_not_refill_when_passthrough_cover_is_filtered() {
+    fn merge_passthrough_cover_art_does_not_refill_when_passthrough_cover_is_filtered() {
         let metadata = AudiobookMetadata {
             cover_art: None,
             ..AudiobookMetadata::default()
@@ -1142,7 +1120,7 @@ mod tests {
             cover_art: None,
         };
 
-        let merged = merge_cover_art(Some(metadata), Some(&passthrough))
+        let merged = merge_passthrough_cover_art(Some(metadata), Some(&passthrough))
             .expect("metadata should remain present");
 
         assert_eq!(merged.cover_art, None);

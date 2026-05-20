@@ -7,6 +7,7 @@ use ffmpeg_next as ff;
 
 use crate::audio::AudioFile as PipelineAudioFile;
 use crate::errors::Result;
+use crate::metadata::AudiobookMetadata;
 
 /// Minimal chapter representation for passthrough (milliseconds time base).
 #[derive(Debug, Clone)]
@@ -43,16 +44,26 @@ impl PassthroughMetadata {
     }
 }
 
-pub fn apply_cover_art_policy(
-    passthrough: Option<PassthroughMetadata>,
-    allow_passthrough_cover_art: bool,
-) -> Option<PassthroughMetadata> {
-    if allow_passthrough_cover_art {
-        return passthrough;
+pub(crate) fn merge_passthrough_cover_art(
+    metadata: Option<AudiobookMetadata>,
+    passthrough: Option<&PassthroughMetadata>,
+) -> Option<AudiobookMetadata> {
+    let passthrough_cover = passthrough
+        .and_then(|value| value.cover_art.as_ref())
+        .cloned();
+    match metadata {
+        Some(mut metadata) => {
+            if metadata.cover_art.is_none() {
+                metadata.cover_art = passthrough_cover;
+            }
+            Some(metadata)
+        }
+        None => passthrough_cover.map(|cover_art| {
+            let mut metadata = AudiobookMetadata::new();
+            metadata.cover_art = Some(cover_art);
+            metadata
+        }),
     }
-
-    log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
-    passthrough.and_then(PassthroughMetadata::without_cover_art)
 }
 
 fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpec> {
@@ -214,7 +225,8 @@ fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_cover_art_policy, ChapterSpec, PassthroughMetadata};
+    use super::{merge_passthrough_cover_art, ChapterSpec, PassthroughMetadata};
+    use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 
     #[test]
     fn into_option_returns_none_for_empty_passthrough() {
@@ -284,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_cover_art_policy_drops_only_cover_art_after_explicit_clear() {
+    fn cover_art_passthrough_policy_drops_only_cover_art_after_explicit_clear() {
         let passthrough = PassthroughMetadata {
             chapters: vec![ChapterSpec {
                 title: Some("Chapter 1".to_string()),
@@ -294,10 +306,47 @@ mod tests {
             cover_art: Some(vec![1, 2, 3]),
         };
 
-        let effective =
-            apply_cover_art_policy(Some(passthrough), false).expect("chapter passthrough remains");
+        let effective = CoverArtPassthroughPolicy::SuppressAfterExplicitClear
+            .apply_to_passthrough(Some(passthrough))
+            .expect("chapter passthrough remains");
 
         assert_eq!(effective.chapters.len(), 1);
         assert_eq!(effective.cover_art, None);
+    }
+
+    #[test]
+    fn merge_passthrough_cover_art_fills_only_missing_cover_art() {
+        let passthrough = PassthroughMetadata {
+            chapters: Vec::new(),
+            cover_art: Some(vec![1, 2, 3]),
+        };
+        let metadata = AudiobookMetadata {
+            title: Some("Known title".to_string()),
+            cover_art: None,
+            ..Default::default()
+        };
+
+        let merged = merge_passthrough_cover_art(Some(metadata), Some(&passthrough))
+            .expect("metadata remains");
+
+        assert_eq!(merged.title.as_deref(), Some("Known title"));
+        assert_eq!(merged.cover_art, Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn merge_passthrough_cover_art_keeps_explicit_cover_art() {
+        let passthrough = PassthroughMetadata {
+            chapters: Vec::new(),
+            cover_art: Some(vec![1, 2, 3]),
+        };
+        let metadata = AudiobookMetadata {
+            cover_art: Some(vec![9]),
+            ..Default::default()
+        };
+
+        let merged = merge_passthrough_cover_art(Some(metadata), Some(&passthrough))
+            .expect("metadata remains");
+
+        assert_eq!(merged.cover_art, Some(vec![9]));
     }
 }

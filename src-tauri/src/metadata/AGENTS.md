@@ -1,6 +1,9 @@
 ## Public API Strip
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
-- Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`, `resolve_effective_processing_metadata`, `resolve_naming_metadata`.
+- Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`.
+- Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
+  `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
+  `plan_metadata_write`.
 - Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
 
 ## Private Cluster

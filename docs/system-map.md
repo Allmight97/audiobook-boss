@@ -78,12 +78,18 @@ ownership or proof.
 
 Use these as the current durable ownership map for architecture work:
 
+In general architecture language, each entry is being shaped toward a **deep
+module**: a small interface hiding substantial implementation complexity. In
+ABB repo language, a **Grey-Box Module** is the stricter working form of that
+idea: Public API Strip, Private Cluster, nested ownership rules, boundary
+assertions, and contract tests.
+
 | Public API | Owns |
 | --- | --- |
 | Tauri Runtime Boundary | Frontend runtime calls, payload normalization, generated-binding adaptation, and event listener setup. |
 | Processing Plan | Preflight and execution planning before jobs run. |
 | Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
-| Metadata Intent Plan | Explicit `set`, `clear`, and `noop` metadata intent projection for processing, naming, and writes. |
+| Metadata Outcome Plan | Metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import

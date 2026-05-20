@@ -8,6 +8,7 @@ use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::validate_encoder_settings;
 use crate::audio::toolchain::ExternalToolchainPreference;
 use crate::errors::{AppError, Result};
+use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
@@ -185,7 +186,7 @@ async fn dispatch_merge_job(
         output_plan: planned_job.output,
         file_info,
         metadata: planned_job.metadata,
-        allow_passthrough_cover_art: planned_job.allow_passthrough_cover_art,
+        cover_art_passthrough: planned_job.cover_art_passthrough,
         preview_seconds: plan.preview_seconds,
     })
     .await?;
@@ -235,7 +236,7 @@ async fn dispatch_batch_jobs(
         let external_toolchain_cloned = payload.external_toolchain.clone();
         let sr_cloned = sample_rate.clone();
         let md_cloned = planned_job.metadata.clone();
-        let allow_passthrough_cover_art = planned_job.allow_passthrough_cover_art;
+        let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
@@ -255,7 +256,7 @@ async fn dispatch_batch_jobs(
                 output_plan: output,
                 file_info,
                 metadata: md_cloned,
-                allow_passthrough_cover_art,
+                cover_art_passthrough,
                 preview_seconds: preview_cloned,
             })
             .await
@@ -278,7 +279,7 @@ struct ProcessingJobRequest {
     output_plan: ResolvedOutputPlan,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
-    allow_passthrough_cover_art: bool,
+    cover_art_passthrough: CoverArtPassthroughPolicy,
     preview_seconds: Option<f64>,
 }
 
@@ -303,7 +304,7 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
         context,
         request.file_info,
         request.metadata,
-        request.allow_passthrough_cover_art,
+        request.cover_art_passthrough,
         request.encoder_settings,
         request.external_toolchain,
     )
@@ -412,7 +413,7 @@ async fn execute_processing_job(
     context: ProcessingContext,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
-    allow_passthrough_cover_art: bool,
+    cover_art_passthrough: CoverArtPassthroughPolicy,
     encoder_settings: audio::settings_encoder::EncoderSettings,
     external_toolchain: Option<ExternalToolchainPreference>,
 ) -> Result<String> {
@@ -440,7 +441,7 @@ async fn execute_processing_job(
             files,
             selected_decoders,
             metadata,
-            allow_passthrough_cover_art,
+            cover_art_passthrough,
         )
         .await
 }

@@ -1,6 +1,9 @@
 use crate::audio;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::{resolve_effective_processing_metadata, resolve_naming_metadata};
+use crate::metadata::{
+    plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
+    NamingMetadata,
+};
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
     CollisionPolicy, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
@@ -22,7 +25,7 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) input_path: Option<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
-    pub(crate) allow_passthrough_cover_art: bool,
+    pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +132,7 @@ fn build_plan_signature(
 
 fn build_requested_output_path(
     base_output_dir: &Path,
-    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    metadata: Option<&NamingMetadata>,
     output_naming: OutputNamingConfig,
     source_path: Option<&Path>,
 ) -> Result<PathBuf> {
@@ -283,19 +286,14 @@ fn build_merge_processing_job(
         .first()
         .and_then(|key| metadata.and_then(|map| map.get(key)))
         .cloned();
-    let merge_metadata =
-        resolve_effective_processing_metadata(Some(&merge_source_path), merge_patch.as_ref())?;
-    let allow_passthrough_cover_art = !merge_patch
-        .as_ref()
-        .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
-    let merge_naming_metadata = resolve_naming_metadata(
-        merge_metadata.as_ref(),
-        Some(&merge_source_path),
-        merge_patch.as_ref(),
-    );
+    let metadata_outcome = plan_metadata_outcome(MetadataOutcomeRequest {
+        input_path: Some(&merge_source_path),
+        intent_patch: merge_patch.as_ref(),
+    })?;
+    let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
     let requested_output = build_requested_output_path(
         &inputs.base_output_dir,
-        merge_naming_metadata.as_ref(),
+        metadata_outcome.naming_metadata.as_ref(),
         inputs.output_naming.clone(),
         Some(&merge_source_path),
     )?;
@@ -315,8 +313,8 @@ fn build_merge_processing_job(
         input_index: None,
         input_path: None,
         output,
-        metadata: merge_metadata,
-        allow_passthrough_cover_art,
+        metadata: metadata_outcome.effective_metadata,
+        cover_art_passthrough: metadata_outcome.cover_art_passthrough,
     })
 }
 
@@ -344,19 +342,14 @@ fn build_batch_processing_jobs(
     for (index, path) in validated_input_paths.iter().cloned().enumerate() {
         let input = &payload.input_files[index];
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
-        let effective_metadata =
-            resolve_effective_processing_metadata(Some(&path), file_patch.as_ref())?;
-        let allow_passthrough_cover_art = !file_patch
-            .as_ref()
-            .is_some_and(crate::metadata::MetadataIntentPatch::clears_cover_art);
-        let naming_metadata = resolve_naming_metadata(
-            effective_metadata.as_ref(),
-            Some(&path),
-            file_patch.as_ref(),
-        );
+        let metadata_outcome = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: Some(&path),
+            intent_patch: file_patch.as_ref(),
+        })?;
+        let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
         let requested_output = build_requested_output_path(
             &inputs.base_output_dir,
-            naming_metadata.as_ref(),
+            metadata_outcome.naming_metadata.as_ref(),
             inputs.output_naming.clone(),
             Some(&path),
         )?;
@@ -370,8 +363,8 @@ fn build_batch_processing_jobs(
             input_index: Some(index),
             input_path: Some(path),
             output,
-            metadata: effective_metadata,
-            allow_passthrough_cover_art,
+            metadata: metadata_outcome.effective_metadata,
+            cover_art_passthrough: metadata_outcome.cover_art_passthrough,
         });
     }
 
@@ -404,7 +397,7 @@ mod tests {
     use crate::audio::settings_encoder::{
         BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
     };
-    use crate::metadata::{MetadataIntentPatch, PatchOp};
+    use crate::metadata::{CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp};
     use crate::output_artifact::{CollisionPolicy, OutputKind};
     use crate::processing::{JobType, NamingPreset, OutputNamingConfig, ProcessPayload};
     use std::collections::HashMap;
@@ -698,7 +691,10 @@ mod tests {
 
         assert_eq!(plan.jobs.len(), 1);
         assert!(
-            !plan.jobs[0].allow_passthrough_cover_art,
+            matches!(
+                plan.jobs[0].cover_art_passthrough,
+                CoverArtPassthroughPolicy::SuppressAfterExplicitClear
+            ),
             "explicit cover clear must not be refilled from source passthrough"
         );
     }

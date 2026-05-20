@@ -1,6 +1,6 @@
 use super::types::{NamingPreset, OutputNamingConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::NamingMetadata;
 use std::borrow::Cow;
 use std::path::{Component, Path, PathBuf};
 
@@ -76,7 +76,7 @@ fn build_abs_title(
 }
 
 fn collect_naming_values(
-    metadata: Option<&AudiobookMetadata>,
+    metadata: Option<&NamingMetadata>,
     source_path: Option<&Path>,
 ) -> Result<NamingValues> {
     let fallback = source_path
@@ -84,12 +84,12 @@ fn collect_naming_values(
         .map(|s| s.to_string_lossy())
         .unwrap_or_else(|| Cow::from("Untitled"));
     let title_raw = metadata
-        .and_then(|m| m.title.as_deref())
+        .and_then(NamingMetadata::title)
         .unwrap_or(&fallback);
-    let series_raw = metadata.and_then(|m| m.series.as_deref());
-    let series_part_raw = metadata.and_then(|m| m.series_part.as_deref());
-    let subseries_raw = metadata.and_then(|m| m.subseries.as_deref());
-    let subseries_part_raw = metadata.and_then(|m| m.subseries_part.as_deref());
+    let series_raw = metadata.and_then(NamingMetadata::series);
+    let series_part_raw = metadata.and_then(NamingMetadata::series_part);
+    let subseries_raw = metadata.and_then(NamingMetadata::subseries);
+    let subseries_part_raw = metadata.and_then(NamingMetadata::subseries_part);
     let mut title = sanitize_component(title_raw);
     if title.is_empty() {
         title = "Untitled".to_string();
@@ -97,7 +97,7 @@ fn collect_naming_values(
 
     let mut author = sanitize_author(
         metadata
-            .and_then(|m| m.artist.as_deref())
+            .and_then(NamingMetadata::artist)
             .unwrap_or("Unknown Author"),
     );
     if author.is_empty() {
@@ -128,8 +128,7 @@ fn collect_naming_values(
     } else {
         None
     };
-    let year =
-        metadata.and_then(|m| crate::metadata::publication_year_from_date(m.date.as_deref()));
+    let year = metadata.and_then(|value| crate::metadata::publication_year_from_date(value.date()));
 
     Ok(NamingValues {
         title,
@@ -351,7 +350,7 @@ fn build_output_path_inner(
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn build_output_path(
     base_dir: &Path,
-    metadata: Option<&AudiobookMetadata>,
+    metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
 ) -> Result<PathBuf> {
@@ -361,7 +360,7 @@ pub(crate) fn build_output_path(
 
 pub fn build_output_path_preview(
     base_dir: &Path,
-    metadata: Option<&AudiobookMetadata>,
+    metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
 ) -> Result<PathBuf> {
