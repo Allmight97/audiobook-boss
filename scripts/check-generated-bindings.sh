@@ -20,7 +20,7 @@ Modes:
   sync    Regenerate and auto-stage generated bindings when drift is found.
 
 Flags:
-  --staged  Evaluate change detection from staged files only (for hooks).
+  --staged  Evaluate change detection from staged files only.
 USAGE
 }
 

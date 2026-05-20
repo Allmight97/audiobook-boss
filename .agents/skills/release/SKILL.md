@@ -13,7 +13,7 @@ Use this skill to keep release work consistent without spreading release logic a
 
 Treat a formal release as needed when an accepted change affects user-visible behavior, output files, metadata, audio processing, packaging, runtime safety, supported fixtures, or dependency/security posture.
 
-Use an internal changelog note without a version bump when the change is only repo guidance, tests, comments, local agent hooks, docs, cleanup, or planning state and does not need a shipped build.
+Use an internal changelog note without a version bump when the change is only repo guidance, tests, comments, docs, cleanup, or planning state and does not need a shipped build.
 
 When in doubt, name the impact and choose the smallest honest release scope. Do not bump version just to make a PR look complete.
 

@@ -12,7 +12,6 @@ active_files=(
   "docs/fallbacks.md"
   "docs/api-map.md"
   "docs/unsafe-code-register.md"
-  ".codex/hooks.json"
   ".agents/settings.local.json"
 )
 
@@ -26,11 +25,6 @@ retained_skills=(
   "path-security-validation"
   "release"
   "resource-lifetime-audit"
-)
-
-retained_hook_files=(
-  ".codex/hooks.json"
-  ".agents/hooks/pre_tool_use_guard.py"
 )
 
 removed_skills=(
@@ -56,6 +50,13 @@ stale_check_pattern='check-docs-routing|check-skills-routing'
 stale_tracking_pattern='pebbles|task-tracker|\.pebbles|pb ready|pb list|pb show|pb update|pb close|~/.local/bin/pb'
 stale_skill_pattern='lib-research|reference-repos|tauri-command-conventions|Tauri Command Conventions|Ref documentation|ref_search_documentation|global lib-research'
 stale_context7_tool_pattern='mcp__plugin_context7_context7|mcp__context7__'
+
+retired_hook_paths=(
+  "hooks.json"
+  ".codex/hooks.json"
+  ".agents/hooks.json"
+  ".agents/hooks"
+)
 
 append_unique_paths() {
   local dest_name="$1"
@@ -89,10 +90,12 @@ append_unique_paths() {
   exit 1
 }
 
-[[ ! -e "hooks.json" ]] || {
-  echo "[context-surface] Root hooks.json is retired; use .codex/hooks.json" >&2
-  exit 1
-}
+for hook_path in "${retired_hook_paths[@]}"; do
+  [[ ! -e "$hook_path" ]] || {
+    echo "[context-surface] Repo hooks are retired; remove $hook_path" >&2
+    exit 1
+  }
+done
 
 for file in "${active_files[@]}"; do
   [[ -f "$file" ]] || {
@@ -114,13 +117,6 @@ find . \
 for skill in "${retained_skills[@]}"; do
   [[ -f ".agents/skills/${skill}/SKILL.md" ]] || {
     echo "[context-surface] Missing retained skill: $skill" >&2
-    exit 1
-  }
-done
-
-for hook_file in "${retained_hook_files[@]}"; do
-  [[ -f "$hook_file" ]] || {
-    echo "[context-surface] Missing retained hook file: $hook_file" >&2
     exit 1
   }
 done
@@ -153,14 +149,11 @@ surface_paths=(
   "docs/api-map.md"
   "docs/unsafe-code-register.md"
   "package.json"
-  ".codex/hooks.json"
-  ".agents/hooks.json"
   ".agents/settings.local.json"
   "scripts/checks.sh"
   "scripts/check-context-surface.sh"
   "src/AGENTS.md"
   ".agents/skills"
-  ".agents/hooks"
 )
 
 legacy_surface_paths=(
@@ -172,13 +165,10 @@ legacy_surface_paths=(
   "docs/api-map.md"
   "docs/unsafe-code-register.md"
   "package.json"
-  ".codex/hooks.json"
-  ".agents/hooks.json"
   ".agents/settings.local.json"
   "scripts/checks.sh"
   "src/AGENTS.md"
   ".agents/skills"
-  ".agents/hooks"
 )
 
 removed_surface_pattern='WORKFLOW\.md|issue:create|issue:run|test:controlplane|harness:agent|controlplane-operator|scripts/issues|scripts/work|abb:issue-kind|\.agent-work/|repomix:audit|repomix:full|scripts/repomix-handoff\.sh|\.repomix/|harness:verify|src/harness|scripts/harness|harness\.html|HarnessApp\.svelte|harness-main\.ts'
