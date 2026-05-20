@@ -6,6 +6,11 @@ owner's request after spec creation, so future agents resuming this
 work can see how the design choices were made, what alternatives were
 considered and rejected, and what evidence anchored each pivot.
 
+Current-canon note, added 2026-05-19: this transcript preserves historical
+wording. References inside the transcript to "Metadata Intent Plan" now map to
+the current **Metadata Outcome Plan** term in `docs/ubiquitous-language.md` and
+`docs/system-map.md`.
+
 Conventions:
 
 - `## User — Turn N` blocks contain the repo owner's (jstar's) messages verbatim, including original spelling and phrasing.

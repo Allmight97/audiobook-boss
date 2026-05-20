@@ -36,7 +36,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 2. No DRM internals, account refs, remote URLs, or provider-specific data enter `ProcessPayload` or any processing-pipeline contract. Processing remains local-file + user-intent.
 3. No provider-supplied output paths cross the materialized-asset gate. Staging root, filename, and final commit path are ABB-owned. Provider manifests are advisory.
 4. Acquisition never causes processing. The user must inspect/decide/preflight/process manually.
-5. Provider metadata does not enter `Metadata Intent Plan` directly. Embedded tags surface through normal file analysis; the existing online lookup pipeline remains the metadata authority.
+5. Provider metadata does not enter the Metadata Outcome Plan directly. Embedded tags surface through normal file analysis; the existing online lookup pipeline remains the metadata authority.
 6. Logout is atomic: keychain entry, library cache, staging artifacts, job-ledger entries, and in-flight acquisitions for that account are purged together; partial purge is a recoverable error state.
 7. **GPL contamination rule for agents**: code in `src-tauri/src/remote_source/providers/audible/` is implemented from protocol observation, public docs, behavior tests, and the behavioral map captured in this spec. Reading GPL-licensed Libation/AAXClean source files (`/Users/jstar/Projects/tmp_repos/Libation`, `/Users/jstar/Projects/tmp_repos/AAXClean`) while authoring ABB Audible-provider code is prohibited. Studying *protocol* (URLs, HTTP shapes, key derivations described in comments/specs) is allowed; copying *implementation* (file structure, distinctive function shapes, comment phrasing) is not.
 
@@ -85,7 +85,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 ### Invariants Protected
 
 - `ProcessPayload.input_files` stays `Vec<String>` of local paths; no remote shape.
-- `Metadata Intent Plan` stays single owner of `set/clear/noop` semantics.
+- Metadata Outcome Plan stays the single metadata boundary for source hydration, `set/clear/noop` intent projection, naming-safe metadata, write instructions, and cover-art passthrough policy.
 - `validate_input_audio_path` runs on every committed materialized asset before it enters `FileListInfo`.
 - `Specta` remains source of TS/Rust contract truth; no hand-edited bindings.
 - Terminal-outcome shape extends without breakage: `success`, `cancelled`, `failed` apply to acquisition jobs (no new categories).
