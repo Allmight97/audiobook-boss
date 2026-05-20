@@ -89,6 +89,24 @@ consult:
 Keep `docs/fallbacks.md` separate from general decisions. Fallbacks need active
 enforcement, source markers, sunset dates, and renewal rules.
 
+## Tool Routing
+
+Use other skills as tools only when they change the alignment outcome:
+
+- Use global `improve-codebase-architecture` / Architecture Scout when ABB
+  alignment needs bounded repo-grounded architecture or refactor candidates
+  before deciding direction.
+- Use global `implementation-handoff` when the decision, roadmap, or design is
+  aligned enough to hand to a tactical implementation agent.
+- Use `abb-library-research` when the decision depends on current external
+  library/API behavior or vendored reference source.
+- Use focused ABB execution skills when the aligned decision touches their
+  invariant: metadata, IPC contracts, path safety, job lifecycle, dependencies,
+  release, or resource lifetime.
+
+Stay in this skill when the live question is whether ABB should do the work,
+what outcome should hold, or where accepted context belongs.
+
 ## Spec Handoff
 
 Create or update one active `docs/specs/<task>.md` when work is substantial,
