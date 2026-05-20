@@ -395,6 +395,15 @@ Before further implementation work continues, keep these points aligned:
 - 2026-05-20: M5 status audit preserved existing IPC/event shapes and status
   runtime ownership; no generated binding, status model, or event-contract
   change was required.
+- 2026-05-20: Manual xHE-AAC validation succeeded for Auto FDK preview output
+  and explicit FDK full output using the local Star Trek fixture. Logs showed
+  external FDK adapter selection, forced `aac_at` input decoding, cover-art
+  embedding, delegated `output_artifact` hard-link commit, and `JobRegistry`
+  completion for both outputs.
+- 2026-05-20: Bulky private audio-engine tests were moved from inline
+  `#[cfg(test)]` blocks into sibling source-tree `*_tests.rs` modules while
+  preserving private-cluster visibility and keeping integration tests on the
+  public strip.
 
 ## Surprises And Discoveries
 

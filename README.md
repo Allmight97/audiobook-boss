@@ -63,7 +63,7 @@ Use this section as the human-facing index. `package.json` is the source of trut
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
-- Grey-box module work is governed by the five Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, and Status Panel Runtime.
+- Grey-box module work is governed by the six Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, and Audio Engine Deep Module.
 - For substantial multi-step work, use `.agents/skills/decision-alignment` to align outcomes with the repo owner and keep at most one active implementation spec under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
 - For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for authenticated Context7/current docs, squashed `repos/*` reference source, route cards, subtree refresh guidance, and installed dependency truth. Reference repos are read-only research material, not app dependencies.
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).

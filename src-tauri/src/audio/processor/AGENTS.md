@@ -8,6 +8,10 @@
 - This directory is the Audio Engine Deep Module private execution cluster. Code
   outside `src-tauri/src/audio/` must use the parent `crate::audio` public strip
   rather than importing processor files directly.
+- Private processor tests that assert execution-cluster invariants may live in
+  sibling `*_tests.rs` files declared from the owning module with `#[cfg(test)]`
+  and `#[path = "..._tests.rs"]`. Do not move private execution tests to
+  `src-tauri/tests` if that would require making processor internals public.
 
 ## Preferred Path
 

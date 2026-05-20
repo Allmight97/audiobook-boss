@@ -94,7 +94,7 @@ This change is small in code but big in ownership clarity: it means the Audible 
 RemoteSourceRuntime, RemoteLibraryRuntime, RemoteAcquisitionRuntime, ImportBridge
 ```
 
-That's 12+ methods across four façades. ABB's existing Five Public APIs are *each* one runtime: `tauriClient`, `processing::plan`, output artifact plan/commit, metadata intent plan, status panel. Splitting RAP into four runtimes mirrors *internal organization*, not *caller categories*, and is the classic "façade decomposition" anti-pattern the system map already warns against ("Do not use this bias to create generic managers, controllers, routers, or facades that merely rename complexity").
+That's 12+ methods across four façades. ABB's then-existing Public APIs were *each* one runtime: `tauriClient`, `processing::plan`, output artifact plan/commit, metadata intent plan, status panel. Splitting RAP into four runtimes mirrors *internal organization*, not *caller categories*, and is the classic "façade decomposition" anti-pattern the system map already warns against ("Do not use this bias to create generic managers, controllers, routers, or facades that merely rename complexity").
 
 **Recommendation**: collapse to two grey-box modules.
 
@@ -537,7 +537,7 @@ Spec written: `docs/specs/remote-acquisition.md`. Decision-complete, agent-resum
 - AAXC included opportunistically (small marginal cost once the API client exists)
 - AAX legacy explicitly out until a real user title proves it needed (single-PR addition when that day comes)
 - No metadata-enrichment seam — YAGNI confirmed by mediainfo: embedded tags + 2400×2400 cover + named chapters are richer than what ABB's online lookup typically retrieves
-- `RemoteSourceRuntime` becomes ABB's **sixth** grey-box Public API
+- `RemoteSourceRuntime` becomes a new grey-box Public API after ABB's current six
 - `LocalImportBridge` extracted from `handlers.ts:processFilePaths` as a prerequisite, not a follow-up
 - GPL contamination rule binds agents implementing `src-tauri/src/remote_source/providers/audible/`: protocol observation allowed, copying Libation/AAXClean implementation prohibited
 - File inspector adds a "Source" row labeled as acquisition provenance (`Audible Widevine (DASH)` / `Audible AAXC` / `Audible AAX (legacy)` / `unknown`), not as current DRM state since the output file is unencrypted

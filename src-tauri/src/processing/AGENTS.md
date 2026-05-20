@@ -10,7 +10,7 @@
 ## Allowed Agent Edits Without Escalation
 - Change planner or runner internals when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.
 - Keep preflight side-effect-free; execution may create output dirs only after review enforcement.
-- Keep runner responsibilities to encoder/toolchain validation, events, job registration, scheduler dispatch, processor adapters, and terminal normalization.
+- Keep runner responsibilities to encoder/toolchain validation, events, job registration, scheduler dispatch, audio execution requests through `crate::audio`, and terminal normalization.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.

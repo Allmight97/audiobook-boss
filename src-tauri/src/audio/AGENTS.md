@@ -35,13 +35,24 @@
 
 ## Private Cluster
 
-- Files: `buffer.rs`, `cleanup/`, `extensions.rs`, `file_list.rs`,
-  `metrics.rs`, `path_validation.rs`, `processor/`, `settings.rs`,
-  `settings_encoder.rs`, and `toolchain.rs`.
+- Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
+  `file_list.rs`, `metrics.rs`, `path_validation.rs`, `processor/`,
+  `settings.rs`, `settings_encoder.rs`, and `toolchain.rs`.
 - The cluster owns decoder/toolchain selection, media inspection,
   decode/resample/encode/mux internals, staging, cleanup, and media execution
   facts. Processing owns lifecycle orchestration and terminal normalization;
   `output_artifact` owns final artifact commit truth.
+
+## Test Placement
+
+- Public-strip behavior belongs in contract/integration tests that import only
+  `crate::audio`.
+- Private-cluster invariants may use source-tree unit tests, including sibling
+  `*_tests.rs` files declared from the owning module with `#[cfg(test)]` and
+  `#[path = "..._tests.rs"]`, when moving them to `src-tauri/tests` would widen
+  the Public API Strip or force test-only exports.
+- Keep small tests inline when they clarify the nearby code; move bulky private
+  test blocks to sibling test files when readability is the real issue.
 
 ## Allowed Agent Edits Without Escalation
 
