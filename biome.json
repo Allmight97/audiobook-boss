@@ -55,6 +55,18 @@
 			}
 		},
 		{
+			"includes": ["docs/**/*.html"],
+			"formatter": {
+				"enabled": false
+			},
+			"linter": {
+				"enabled": false
+			},
+			"assist": {
+				"enabled": false
+			}
+		},
+		{
 			"includes": ["src/**/*.test.ts", "src/test/**/*.ts"],
 			"linter": {
 				"rules": {
