@@ -593,6 +593,7 @@ describe('tauriClient nullish adapters', () => {
 				event: 'processing-progress',
 				id: 1,
 				payload: {
+					operation_kind: 'processingBatch',
 					stage: 'converting',
 					percentage: 42,
 					message: 'Working',

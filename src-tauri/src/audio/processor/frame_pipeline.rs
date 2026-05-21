@@ -52,7 +52,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             ctx.current_file_name.as_str()
         };
         ctx.emitter.emit_converting_progress(
-            percentage.min(crate::audio::constants::PROGRESS_CONVERTING_MAX as f64) as f32,
+            percentage.min(crate::processing::progress::PROGRESS_CONVERTING_MAX as f64) as f32,
             "Converting and merging audio files...",
             Some(format!(
                 "{} ({}/{})",

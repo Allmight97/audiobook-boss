@@ -3,13 +3,13 @@ use crate::commands::CommandResult;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
 use crate::metadata::{plan_metadata_write, MetadataIntentPatch};
 use crate::processing::{
-    CancellationChecker, EventStage, JobId, ProgressEvent, QueueEvent, QueueItem,
+    emit_progress_event, emit_queue_event, CancellationChecker, EventStage, JobId, OperationKind,
+    OperationResultSummary, ProgressEvent, QueueEvent, QueueItem,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::Emitter;
 
-pub type MetadataSaveSummary = crate::processing::ProcessResultSummary;
+pub type MetadataSaveSummary = OperationResultSummary;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -65,7 +65,7 @@ impl MetadataSaveBatchResult {
             .count();
         let failed = results.len().saturating_sub(succeeded + cancelled);
         Self {
-            summary: MetadataSaveSummary {
+            summary: OperationResultSummary {
                 total: results.len(),
                 succeeded,
                 skipped: 0,
@@ -239,22 +239,21 @@ fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> R
 }
 
 fn emit_metadata_save_queue(window: &tauri::Window, items: &[MetadataSaveRequest]) {
-    let queue_event = QueueEvent {
-        items: items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| QueueItem {
-                input_index: index,
-                file_path: item.file_path.clone(),
-            })
-            .collect(),
-        max_concurrent: 1,
-    };
-    let _ = window.emit(crate::audio::constants::QUEUE_EVENT_NAME, &queue_event);
+    let queue_items = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| QueueItem {
+            input_index: index,
+            file_path: item.file_path.clone(),
+        })
+        .collect();
+    let queue_event = QueueEvent::new(OperationKind::MetadataSave, queue_items, 1);
+    emit_queue_event(window, &queue_event);
 }
 
 fn emit_metadata_save_progress(window: &tauri::Window, progress: MetadataSaveProgress) {
     let event = ProgressEvent {
+        operation_kind: OperationKind::MetadataSave,
         stage: progress.stage,
         percentage: progress.percentage,
         message: progress.message,
@@ -263,7 +262,7 @@ fn emit_metadata_save_progress(window: &tauri::Window, progress: MetadataSavePro
         job_id: progress.job_id,
         input_index: Some(progress.input_index),
     };
-    let _ = window.emit(crate::audio::constants::PROGRESS_EVENT_NAME, &event);
+    emit_progress_event(window, &event);
 }
 
 #[cfg(test)]

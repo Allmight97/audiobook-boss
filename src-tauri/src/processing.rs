@@ -2,6 +2,7 @@ pub mod context;
 #[cfg(test)]
 mod contract_tests;
 pub mod job_registry;
+pub mod lifecycle;
 pub(crate) mod plan;
 pub mod preview_config;
 pub mod progress;
@@ -46,10 +47,12 @@ pub enum ProcessingStage {
 
 pub use context::{OutputConfig, ProcessingContext, ProcessingContextBuilder};
 pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
+pub use lifecycle::{OperationKind, OperationResultSummary};
 pub use preview_config::PreviewConfig;
 pub use progress::{
-    calculate_stage_progress, converting_percentage_from_seconds, format_eta, EventStage,
-    ProgressEmitter, ProgressEvent, ProgressReporter, QueueEvent, QueueItem,
+    calculate_stage_progress, converting_percentage_from_seconds, emit_progress_event,
+    emit_queue_event, format_eta, EventStage, ProgressEmitter, ProgressEvent, ProgressReporter,
+    QueueEvent, QueueItem,
 };
 pub use session::ProcessingSession;
 pub use types::{

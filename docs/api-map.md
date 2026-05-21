@@ -48,14 +48,16 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 - `get_max_concurrent_jobs`, `set_max_concurrent_jobs`, `process_audiobook_files`, `cancel_processing`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/processing/run.rs`, `src-tauri/src/processing/plan.rs`, `src-tauri/src/processing/job_registry/`
-  - Processor routing: native `ffmpeg-next` and external FFmpeg/FDK adapter selection live under `src-tauri/src/audio/processor/`
+  - Lifecycle helpers: `src-tauri/src/processing/lifecycle.rs`, `src-tauri/src/processing/progress/`
+  - Audio execution: call the `crate::audio` public strip; native `ffmpeg-next` and external FFmpeg/FDK adapter selection remain private under `src-tauri/src/audio/processor/`
   - Use: queueing, processing, cancellation, batch orchestration
 
 ### Metadata
 
-- `read_audio_metadata`, `save_metadata_to_file`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
+- `read_audio_metadata`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
   - Rust: `src-tauri/src/commands/metadata.rs`
   - Core helpers: `src-tauri/src/metadata/`, `src-tauri/src/audio/path_validation.rs`
+  - Lifecycle reporting: metadata batch save emits processing-owned queue/progress events with `operation_kind: metadataSave`
   - Note: metadata writes use intent patches at the boundary, not raw ad hoc object mutation; `track`/`disk` stay read-compatible only
 
 - `search_online_metadata`
@@ -72,10 +74,16 @@ Source files:
 
 - Rust event export: `src-tauri/src/ipc_contract.rs`
 - Rust event types: `src-tauri/src/processing/progress/mod.rs`
-- Rust event names: `src-tauri/src/audio/constants.rs`
+- Rust event names: `src-tauri/src/processing/progress/mod.rs`
+- Rust operation vocabulary: `src-tauri/src/processing/lifecycle.rs`
 - Frontend event contract: `src/types/events.ts`
 - Frontend listener boundary: `src/lib/tauri/client.ts`
 - Main UI consumer: `src/ui/statusPanel/events.ts`
+
+Lifecycle event payloads carry `operation_kind` so Status Panel can distinguish
+merge processing, batch processing, and metadata save from backend truth instead
+of caller-only choreography. Shared terminal counts use
+`OperationResultSummary` in generated bindings.
 
 ## Tauri Plugins Used At Runtime
 

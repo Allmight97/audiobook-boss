@@ -4,6 +4,7 @@ use crate::audio::{EncoderSettings, SampleRateConfig};
 use crate::errors::sanitize_path_str_for_display;
 use crate::errors::Result;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::processing::lifecycle::OperationKind;
 use crate::processing::preview_config::PreviewConfig;
 use crate::processing::session::ProcessingSession;
 use std::path::{Path, PathBuf};
@@ -91,6 +92,8 @@ pub struct ProcessingContext {
     pub job_id: Option<String>,
     /// Optional index of the input file in the original request
     pub input_index: Option<usize>,
+    /// Backend operation family for lifecycle events emitted by this context
+    pub operation_kind: OperationKind,
 }
 
 impl ProcessingContext {
@@ -111,6 +114,7 @@ impl ProcessingContext {
             preview: None,
             job_id: None,
             input_index: None,
+            operation_kind: OperationKind::ProcessingBatch,
         }
     }
 
@@ -130,6 +134,7 @@ impl ProcessingContext {
             preview: None,
             job_id: None,
             input_index: None,
+            operation_kind: OperationKind::ProcessingBatch,
         }
     }
 
@@ -193,10 +198,11 @@ impl ProcessingContext {
         match &self.window {
             Some(window) => crate::processing::progress::ProgressEmitter::with_context(
                 window.clone(),
+                self.operation_kind,
                 self.job_id.clone(),
                 self.input_index,
             ),
-            None => crate::processing::progress::ProgressEmitter::headless(),
+            None => crate::processing::progress::ProgressEmitter::headless_for(self.operation_kind),
         }
     }
 
@@ -226,6 +232,7 @@ pub struct ProcessingContextBuilder {
     preview: Option<PreviewConfig>,
     job_id: Option<String>,
     input_index: Option<usize>,
+    operation_kind: OperationKind,
 }
 
 impl ProcessingContextBuilder {
@@ -282,6 +289,12 @@ impl ProcessingContextBuilder {
         self
     }
 
+    /// Sets the operation kind for lifecycle reporting
+    pub fn operation_kind(mut self, operation_kind: OperationKind) -> Self {
+        self.operation_kind = operation_kind;
+        self
+    }
+
     /// Builds the ProcessingContext
     ///
     /// # Errors
@@ -327,6 +340,7 @@ impl ProcessingContextBuilder {
             preview: self.preview,
             job_id: self.job_id,
             input_index: self.input_index,
+            operation_kind: self.operation_kind,
         })
     }
 }

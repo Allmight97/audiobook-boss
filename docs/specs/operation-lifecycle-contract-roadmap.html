@@ -320,9 +320,9 @@
       </div>
       <h1>Operation Lifecycle Contract: Before / After</h1>
       <p class="subtitle">
-        The open question is whether ABB should name operation lifecycle facts
-        explicitly, instead of letting processing, metadata save, and status panel
-        infer them from separate call choreography.
+        Implementation now names ABB operation lifecycle facts explicitly under
+        processing, so processing, metadata save, and Status Panel share backend
+        operation identity instead of relying on separate call choreography.
       </p>
     </section>
 
@@ -330,7 +330,7 @@
       <h2>Short Answer</h2>
       <div class="decision">
         <div class="callout">
-          <p><strong>Accepted choice:</strong> introduce bounded lifecycle vocabulary inside <code>processing</code>, probably including an operation kind and shared result-summary vocabulary.</p>
+          <p><strong>Implemented choice:</strong> bounded lifecycle vocabulary lives inside <code>processing</code>, including <code>OperationKind</code> and shared <code>OperationResultSummary</code> vocabulary.</p>
         </div>
         <div class="callout">
           <p><strong>Why:</strong> the behavior already exists. Naming it makes the repo more agent-first because future work can ask "what operation is this?" and "what terminal truth did it produce?" without reading three unrelated flows.</p>
@@ -344,7 +344,7 @@
         <article class="diagram before">
           <div class="diagram-title">
             <h2>Before: Truth By Choreography</h2>
-            <span>current code shape</span>
+            <span>pre-implementation shape</span>
           </div>
           <div class="stack">
             <div class="box info">
@@ -372,7 +372,7 @@
         <article class="diagram after">
           <div class="diagram-title">
             <h2>After: Truth By Contract</h2>
-            <span>intended roadmap shape</span>
+            <span>implemented target shape</span>
           </div>
           <div class="stack">
             <div class="box good">
@@ -394,7 +394,7 @@
             </div>
             <div class="box neutral">
               <h3>Status Panel Runtime</h3>
-              <p>Stays a consumer/read model. If backend events include operation kind, it can consume that fact instead of relying only on caller choreography.</p>
+              <p>Stays a consumer/read model. Backend events include operation kind, so it can consume that fact instead of relying only on caller choreography.</p>
             </div>
           </div>
         </article>
@@ -420,8 +420,8 @@
             <td>Leaves future agents asking why metadata uses processing result summary and why status kind lives outside event truth.</td>
           </tr>
           <tr>
-            <td><span class="tag good">Bounded vocabulary</span><br>Accepted</td>
-            <td>Add lifecycle-level terms such as <code>OperationKind</code> and shared terminal summary vocabulary under processing lifecycle.</td>
+            <td><span class="tag good">Bounded vocabulary</span><br>Implemented</td>
+            <td>Add lifecycle-level terms such as <code>OperationKind</code> and <code>OperationResultSummary</code> under processing lifecycle.</td>
             <td>Makes the operation contract visible and reusable without inventing a new platform.</td>
             <td>May require generated binding churn and careful Status Panel consumption updates.</td>
           </tr>
@@ -436,7 +436,7 @@
     </section>
 
     <section class="section">
-      <h2>Lifecycle Flow After The Roadmap</h2>
+      <h2>Lifecycle Flow After Implementation</h2>
       <div class="flow">
         <div class="flow-step">
           <b>1. Operation starts</b>
@@ -472,10 +472,10 @@
         </p>
       </div>
       <p class="footer">
-        Temporary planning artifact. Sources: <code>docs/specs/operation-lifecycle-contract-roadmap.md</code>,
+        Temporary planning artifact, updated during implementation. Sources: <code>docs/specs/operation-lifecycle-contract-roadmap.md</code>,
         <code>src-tauri/src/processing/run.rs</code>, <code>src-tauri/src/commands/metadata/save_batch.rs</code>,
         <code>src-tauri/src/processing/progress/</code>, <code>src-tauri/src/audio/constants.rs</code>,
-        <code>src/ui/statusPanel/</code>. Validated against current main snapshot <code>22520b147e</code> on 2026-05-20.
+        <code>src/ui/statusPanel/</code>. Implementation update validated on 2026-05-20.
       </p>
     </section>
   </main>

@@ -1,5 +1,6 @@
 import type {
 	EventStage as GeneratedEventStage,
+	OperationKind as GeneratedOperationKind,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 } from '../lib/generated/tauri';
@@ -19,6 +20,7 @@ export const EVENTS = {
 } as const;
 
 export type EventStage = GeneratedEventStage;
+export type OperationKind = GeneratedOperationKind;
 
 /**
  * Exhaustive value-level access to the generated progress stages.
@@ -35,6 +37,12 @@ export const STAGES: { readonly [K in EventStage]: K } = {
 	skipped: 'skipped',
 	failed: 'failed',
 	cancelled: 'cancelled',
+} as const;
+
+export const OPERATION_KINDS: { readonly [K in OperationKind]: K } = {
+	processingMerge: 'processingMerge',
+	processingBatch: 'processingBatch',
+	metadataSave: 'metadataSave',
 } as const;
 
 export type ProcessingProgressEvent = NullToOptionalDeep<GeneratedProgressEvent>;

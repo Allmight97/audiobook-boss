@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 mod buffer;
 mod cleanup;
-pub(crate) mod constants;
+mod constants;
 mod extensions;
 mod file_list;
 mod metrics;

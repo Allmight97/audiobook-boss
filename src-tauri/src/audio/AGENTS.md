@@ -16,8 +16,6 @@
   `crate::audio::processor`, `crate::audio::settings_encoder`,
   `crate::audio::toolchain`, `crate::audio::path_validation`, or
   `crate::audio::cleanup`.
-- Modules: `constants` is crate-visible for existing processing event names and
-  progress math until those constants move to the processing/status owner.
 - Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
@@ -32,12 +30,15 @@
 - Execution request type: `AudioExecutionRequest`.
 - Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
 - Crate-internal helper: `CleanupGuard`.
+- Audio does not own lifecycle event names or progress math. Use
+  `crate::processing` / `processing::progress` for queue/progress event
+  vocabulary and operation lifecycle identity.
 
 ## Private Cluster
 
 - Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
-  `file_list.rs`, `metrics.rs`, `path_validation.rs`, `processor/`,
-  `settings.rs`, `settings_encoder.rs`, and `toolchain.rs`.
+  `constants.rs`, `file_list.rs`, `metrics.rs`, `path_validation.rs`,
+  `processor/`, `settings.rs`, `settings_encoder.rs`, and `toolchain.rs`.
 - The cluster owns decoder/toolchain selection, media inspection,
   decode/resample/encode/mux internals, staging, cleanup, and media execution
   facts. Processing owns lifecycle orchestration and terminal normalization;

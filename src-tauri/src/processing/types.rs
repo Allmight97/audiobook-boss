@@ -1,3 +1,4 @@
+use super::lifecycle::{OperationKind, OperationResultSummary};
 use crate::audio;
 use crate::audio::{EncoderSettings, ExternalToolchainPreference};
 use crate::errors::AppErrorEnvelope;
@@ -11,6 +12,15 @@ pub use crate::output_artifact::{
 pub enum JobType {
     Merge,
     Batch,
+}
+
+impl From<JobType> for OperationKind {
+    fn from(value: JobType) -> Self {
+        match value {
+            JobType::Merge => OperationKind::ProcessingMerge,
+            JobType::Batch => OperationKind::ProcessingBatch,
+        }
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
@@ -42,15 +52,7 @@ pub enum ProcessResultStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessResultSummary {
-    pub total: usize,
-    pub succeeded: usize,
-    pub skipped: usize,
-    pub cancelled: usize,
-    pub failed: usize,
-}
+pub type ProcessResultSummary = OperationResultSummary;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -99,7 +101,7 @@ impl ProcessCommandResult {
         let failed = results
             .len()
             .saturating_sub(succeeded + skipped + cancelled);
-        let summary = ProcessResultSummary {
+        let summary = OperationResultSummary {
             total: results.len(),
             succeeded,
             skipped,
