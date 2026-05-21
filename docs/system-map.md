@@ -32,7 +32,7 @@ Use these layers to locate ownership before changing behavior:
 | UI state | Selected files, edits, visible status, and enabled actions. |
 | Frontend workflow coordination | Effect workflow owners for multi-boundary async orchestration, typed workflow errors, fakeable services, and terminal UI outcomes. |
 | IPC contract | Command, event, and payload shapes crossing TS <-> Rust. |
-| Backend lifecycle | Planning, queueing, execution, cancellation, skipping, and finalization. |
+| Backend lifecycle | Operation identity, queue/progress events, cancellation, skipping, terminal summaries, and finalization. |
 | Artifact truth | Final files, tags, paths, and terminal results on disk. |
 
 ## Boundary Rule
@@ -70,6 +70,8 @@ ownership or proof.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.
+- Backend lifecycle vocabulary and event emission live under `processing` as a
+  sub-owner/public strip; it is not a seventh Grey-Box Public API.
 - Audio engine execution owns media inspection, decoder/toolchain selection,
   encode/mux/staging behavior, and media-integrity facts behind a small public
   strip.
@@ -98,6 +100,12 @@ assertions, and contract tests.
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
 strip, private cluster, edit rules, and breaking-change triggers.
+
+Backend Lifecycle is a named sub-owner inside `processing`, not a seventh
+Grey-Box Public API. It provides operation identity, progress/queue event
+vocabulary, cancellation hooks, and shared terminal-summary vocabulary for
+processing, metadata save, audio progress reporting, and Status Panel
+consumption.
 
 ## Core Invariants
 

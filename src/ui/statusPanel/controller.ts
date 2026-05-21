@@ -42,6 +42,7 @@ import {
 	type StatusPanelCompletionFeedback,
 	type StatusPanelIntent,
 	type StatusPanelModel,
+	workKindFromOperationKind,
 } from './domain/stateMachine';
 
 export class StatusPanelRuntime {
@@ -233,7 +234,8 @@ export class StatusPanelRuntime {
 
 	private buildInferredProgressLabel(event: ProcessingProgressEvent): string {
 		const fileList = getCurrentFileList();
-		if (this.model.currentWorkKind === 'merge' && fileList?.files?.length) {
+		const workKind = workKindFromOperationKind(event.operation_kind);
+		if (workKind === 'merge' && fileList?.files?.length) {
 			const firstValidFile = fileList.files.find((file) => file.isValid);
 			if (firstValidFile?.path) {
 				return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;

@@ -13,18 +13,17 @@ use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
-    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessingPreflightPlan,
+    emit_queue_event, OperationKind, OutputConfig, PreviewConfig, ProcessingContext,
+    ProcessingSession, ProgressEmitter, QueueEvent, QueueItem,
 };
 use crate::processing::{
-    OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession, ProgressEmitter, QueueEvent,
-    QueueItem,
+    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
+    ProcessingPreflightPlan,
 };
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use tauri::Emitter;
 use tokio::sync::OwnedSemaphorePermit;
 
 pub(crate) struct ProcessingRun;
@@ -132,11 +131,12 @@ fn emit_batch_queue_event(
             file_path: input.clone(),
         })
         .collect();
-    let queue_event = QueueEvent {
-        items: queue_items,
-        max_concurrent: registry.max_concurrent(),
-    };
-    let _ = window.emit(crate::audio::constants::QUEUE_EVENT_NAME, &queue_event);
+    let queue_event = QueueEvent::new(
+        OperationKind::ProcessingBatch,
+        queue_items,
+        registry.max_concurrent(),
+    );
+    emit_queue_event(window, &queue_event);
 }
 
 fn finalize_batch_results(
@@ -152,6 +152,7 @@ fn finalize_batch_results(
     for event in finalized.failure_events {
         emit_terminal_failed_event(
             window,
+            OperationKind::ProcessingBatch,
             event.input_index,
             event.job_id.as_deref(),
             &event.message,
@@ -184,6 +185,7 @@ async fn dispatch_merge_job(
         external_toolchain: payload.external_toolchain.clone(),
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
+        operation_kind: OperationKind::ProcessingMerge,
         output_plan: planned_job.output,
         file_info,
         metadata: planned_job.metadata,
@@ -223,6 +225,7 @@ async fn dispatch_batch_jobs(
         {
             emit_terminal_skipped_event(
                 &window,
+                OperationKind::ProcessingBatch,
                 skipped_entry.input_index,
                 skipped_entry.job_id.as_deref(),
                 &skipped_entry.message,
@@ -254,6 +257,7 @@ async fn dispatch_batch_jobs(
                 external_toolchain: external_toolchain_cloned,
                 sample_rate: sr_cloned,
                 input_index,
+                operation_kind: OperationKind::ProcessingBatch,
                 output_plan: output,
                 file_info,
                 metadata: md_cloned,
@@ -277,6 +281,7 @@ struct ProcessingJobRequest {
     external_toolchain: Option<ExternalToolchainPreference>,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
+    operation_kind: OperationKind,
     output_plan: ResolvedOutputPlan,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -296,6 +301,7 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
         encoder_settings: request.encoder_settings.clone(),
         sample_rate: request.sample_rate,
         input_index: request.input_index,
+        operation_kind: request.operation_kind,
         output_plan: request.output_plan.clone(),
         preview_seconds: request.preview_seconds,
     });
@@ -384,6 +390,7 @@ struct ProcessingContextRequest {
     encoder_settings: EncoderSettings,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
+    operation_kind: OperationKind,
     output_plan: ResolvedOutputPlan,
     preview_seconds: Option<f64>,
 }
@@ -400,6 +407,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     );
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;
+    context.operation_kind = request.operation_kind;
 
     let preview_seconds_resolved = request.preview_seconds;
     if let Some(seconds) = preview_seconds_resolved {
@@ -431,12 +439,14 @@ async fn execute_processing_job(
 
 fn emit_terminal_failed_event(
     window: &tauri::Window,
+    operation_kind: OperationKind,
     input_index: Option<usize>,
     job_id: Option<&str>,
     message: &str,
 ) {
     let emitter = ProgressEmitter::with_context(
         window.clone(),
+        operation_kind,
         job_id.map(|value| value.to_string()),
         input_index,
     );
@@ -445,12 +455,14 @@ fn emit_terminal_failed_event(
 
 fn emit_terminal_skipped_event(
     window: &tauri::Window,
+    operation_kind: OperationKind,
     input_index: Option<usize>,
     job_id: Option<&str>,
     message: &str,
 ) {
     let emitter = ProgressEmitter::with_context(
         window.clone(),
+        operation_kind,
         job_id.map(|value| value.to_string()),
         input_index,
     );

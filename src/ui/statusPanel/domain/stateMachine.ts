@@ -30,6 +30,7 @@ import {
 	type StatusPanelIntent,
 	type StatusPanelModel,
 	type StatusPanelReducerResult,
+	workKindFromOperationKind,
 } from './stateMachineTypes';
 
 export {
@@ -38,6 +39,7 @@ export {
 	SINGLE_COMPLETION_HOLD_MS,
 	buildBatchCompletionFeedback,
 	isTerminalProgressStage,
+	workKindFromOperationKind,
 };
 export type { StatusPanelCompletionFeedback, StatusPanelIntent, StatusPanelModel };
 
@@ -88,7 +90,7 @@ export function applyQueueSnapshot(
 		lastProgressRenderByKey: new Map(),
 		currentStatus: model.currentStatus,
 		isProcessing: queueSnapshot.queueOrder.length > 0,
-		currentWorkKind: model.currentWorkKind,
+		currentWorkKind: workKindFromOperationKind(event.operation_kind),
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
 	};
@@ -120,6 +122,7 @@ export function applyProgress(
 	}
 
 	const next = cloneModel(model);
+	next.currentWorkKind = workKindFromOperationKind(event.operation_kind);
 	next.lastProgressRenderByKey.set(jobKey, now);
 
 	const label = options?.label ?? resolveProgressLabel(event, existing?.label);

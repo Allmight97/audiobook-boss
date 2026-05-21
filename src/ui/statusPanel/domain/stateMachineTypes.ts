@@ -1,4 +1,4 @@
-import type { ProcessingProgressEvent, EventStage } from '../../../types/events';
+import type { ProcessingProgressEvent, EventStage, OperationKind } from '../../../types/events';
 import type { JobProgress, ProcessingStatus } from '../state';
 
 export const SINGLE_COMPLETION_HOLD_MS = 2000;
@@ -8,6 +8,17 @@ export const PROGRESS_THROTTLE_MS = 1000;
 
 export type CompletionFeedbackKind = 'success' | 'error' | 'info';
 export type StatusPanelWorkKind = 'merge' | 'batch' | 'metadataSave';
+
+export function workKindFromOperationKind(operationKind: OperationKind): StatusPanelWorkKind {
+	switch (operationKind) {
+		case 'processingMerge':
+			return 'merge';
+		case 'processingBatch':
+			return 'batch';
+		case 'metadataSave':
+			return 'metadataSave';
+	}
+}
 
 export interface StatusPanelCompletionFeedback {
 	kind: CompletionFeedbackKind;

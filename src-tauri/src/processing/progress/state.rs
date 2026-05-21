@@ -47,7 +47,10 @@ impl ProgressReporter {
 
     /// Calculates current progress percentage
     pub fn calculate_progress(&self) -> f32 {
-        use crate::audio::constants::*;
+        use crate::processing::progress::{
+            PROGRESS_ANALYZING_END, PROGRESS_COMPLETE, PROGRESS_CONVERTING_RANGE,
+            PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_WEIGHT,
+        };
 
         if self.total_files == 0 {
             return 0.0;

@@ -15,12 +15,14 @@
 ## Processing And Metadata
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Job Registry** | The backend-owned concurrency lifecycle surface that tracks processing jobs, queue state, and cancellation. | queue helper, incidental state |
+| **Job Registry** | The backend-owned active-job surface that tracks permits, queue state, and cancellation. | queue helper, incidental state |
 | **Processing Flow** | The end-to-end audiobook processing path coordinated through `process_audiobook_files`, progress events, and processor stages. | encode call, single task |
 | **Product Spine** | The user workflow from import through verification: Import, Inspect, Decide, Preflight, Process, Verify. | feature list, screen order |
 | **Product Intent** | What the user believes they asked Audiobook Boss to do with selected files, metadata, output rules, and processing settings. | UI state, backend guess |
 | **UI State** | The frontend-held state for selected files, edits, visible status, and enabled actions before or after backend truth is returned. | product truth, backend state |
-| **Backend Lifecycle** | The Rust-owned sequence that plans, queues, runs, cancels, skips, fails, succeeds, and finalizes processing work. | processing helper, job loop |
+| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation hooks, and terminal-summary truth used by long-running backend work. Not a seventh Grey-Box Public API. | processing helper, job loop, status UI owner |
+| **Operation Kind** | The backend-declared operation identity carried on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | caller mode guess, UI-only work kind |
+| **Operation Result Summary** | Shared terminal counts for long-running backend operations: total, succeeded, skipped, cancelled, and failed. | processing-only summary, UI completion guess |
 | **Artifact Truth** | The final files, tags, paths, and terminal results that exist after processing or metadata operations complete. | expected output, UI summary |
 | **Terminal Outcome** | The final per-job status after processing ambiguity resolves: `success`, `skipped`, `cancelled`, or `failed`. | progress stage, current status |
 | **Terminal Truth** | The backend-owned final report of what happened to a job or batch, used by the UI for user-visible completion state. | optimistic status, frontend truth |
@@ -71,7 +73,11 @@
 - The **IPC Contract** is exported from Rust, materialized as **Generated Bindings**, and consumed through the **tauriClient** **Runtime Boundary**.
 - A **Boundary** owns normalization and validation so **Contract Truth** does not leak into scattered UI callsites.
 - The **Product Spine** moves from **Product Intent** through **UI State**, **IPC Contract**, **Backend Lifecycle**, and **Artifact Truth**.
-- The **Job Registry** is the authority for **Processing Flow** lifecycle, queue state, and cancellation.
+- The **Backend Lifecycle** strip under `processing` names operation identity,
+  queue/progress events, cancellation hooks, and shared terminal summaries for
+  processing and metadata save.
+- The **Job Registry** is the authority for active **Processing Flow** jobs,
+  queue state, permits, and cancellation.
 - A **Terminal Outcome** contributes to **Terminal Truth** only after backend processing resolves the job's final state.
 - A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values.
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
@@ -81,7 +87,7 @@
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
-- Each **Public API Strip** in the **Six Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green.
+- Each **Public API Strip** in the **Six Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner/public strip inside `processing`.
 - A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue
@@ -100,6 +106,9 @@
 - Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.
+- "backend lifecycle" and "Status Panel Runtime" are not interchangeable. The
+  lifecycle strip emits operation facts; Status Panel consumes them as a read
+  model.
 - "deep module" and "grey-box module" are related but distinct. Prefer **Deep Module** when talking to other engineers about the general design principle; prefer **Grey-Box Module** when referring to ABB's Public-API + Private-Cluster + boundary-assertion ownership unit.
 - "module" alone is ambiguous in ABB. Prefer **Grey-Box Module** for the owned Public-API + Private-Cluster unit, and **Private Cluster File** for any implementation file inside one.
 - "API" can mean three different things in ABB. Prefer **IPC Contract** for the Rust-declared command/event set, **Runtime Boundary** for the TS adapter (`tauriClient`), and **Public API Strip** for the externally allowed import set of any **Grey-Box Module**.

@@ -121,6 +121,7 @@ describe('behavior-first IPC smoke', () => {
 		);
 
 		expect(queueEvents.length).toBeGreaterThan(0);
+		expect(queueEvents[0]?.operation_kind).toBe('processingBatch');
 		expect(queueEvents[0]?.items.length).toBeGreaterThan(0);
 		expect(queueEvents[0]?.max_concurrent).toBeGreaterThan(0);
 
@@ -132,6 +133,7 @@ describe('behavior-first IPC smoke', () => {
 		).toBe(true);
 
 		for (const event of progressEvents) {
+			expect(event.operation_kind).toBe('processingBatch');
 			expect(event.percentage).toBeGreaterThanOrEqual(0);
 			expect(event.percentage).toBeLessThanOrEqual(100);
 			expect(typeof event.message).toBe('string');

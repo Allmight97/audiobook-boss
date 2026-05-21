@@ -434,6 +434,11 @@ they would violate an accepted boundary or expand scope.
 - 2026-05-20: Marked roadmap handoff-ready. Remaining tactical decisions should
   be validated by the implementation agent against current code and escalated
   only if they violate accepted scope, ownership, or behavior boundaries.
+- 2026-05-20: Implementation branch validated the accepted shape: Backend
+  Lifecycle is a `processing` sub-owner; lifecycle constants moved out of
+  `audio/constants.rs`; queue/progress events now carry backend operation
+  identity; generated terminal summaries now use shared
+  `OperationResultSummary`.
 
 ## Surprises And Discoveries
 
@@ -446,6 +451,10 @@ they would violate an accepted boundary or expand scope.
   vocabulary before future long-running feature work.
 - `processing/progress` already owns the event payload types and Specta event
   names, which makes audio-owned lifecycle event constants look accidental.
+- Focused Cargo verification is currently noisier than expected: broad filters
+  and `-- --list` can still launch or walk unrelated test binaries. Exact
+  `--lib <test-name> -- --exact` commands gave cleaner lifecycle signal. Keep
+  broader testing-infra improvements deferred to issue #323.
 
 ## Accepted Decisions
 
@@ -465,6 +474,8 @@ they would violate an accepted boundary or expand scope.
 - Introduce bounded lifecycle vocabulary inside the processing-owned lifecycle
   strip, including operation identity if implementation validation confirms the
   benefit.
+- Operation identity is now accepted as contract vocabulary:
+  `processingMerge`, `processingBatch`, and `metadataSave`.
 - Implementation may move lifecycle constants out of `audio/constants.rs`.
 - Implementation may extract shared lifecycle helpers from `run.rs` and
   `metadata/save_batch.rs` if the extraction improves ownership clarity and does

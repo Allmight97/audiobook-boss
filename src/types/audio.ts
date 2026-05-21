@@ -18,10 +18,10 @@ import type {
 	OutputNamingConfig as GeneratedOutputNamingConfig,
 	PlannedOutput as GeneratedPlannedOutput,
 	PlannedOutputAction as GeneratedPlannedOutputAction,
+	OperationResultSummary as GeneratedOperationResultSummary,
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
-	ProcessResultSummary as GeneratedProcessResultSummary,
 	ProcessPayload as GeneratedProcessPayload,
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
 	SampleRateConfig as GeneratedSampleRateConfig,
@@ -80,7 +80,7 @@ export interface PreviewRequest {
 }
 
 export type ProcessResultStatus = GeneratedProcessResultStatus;
-export type ProcessResultSummary = NullToOptionalDeep<GeneratedProcessResultSummary>;
+export type ProcessResultSummary = NullToOptionalDeep<GeneratedOperationResultSummary>;
 export type ProcessResultError = AppErrorEnvelope;
 export type ProcessCommandJobResult = Omit<
 	NullToOptionalDeep<GeneratedProcessResultEntry>,

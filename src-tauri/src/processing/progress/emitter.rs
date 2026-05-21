@@ -1,12 +1,18 @@
 //! Tauri progress event emitter
 
-use super::{EventStage, ProgressEvent};
-use crate::audio::constants::*;
+use super::{
+    emit_progress_event, EventStage, ProgressEvent, PROGRESS_ANALYZING_END,
+    PROGRESS_ANALYZING_START, PROGRESS_CLEANUP, PROGRESS_COMPLETE, PROGRESS_CONVERTING_MAX,
+    PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
+};
+use crate::processing::OperationKind;
 use crate::processing::ProcessingStage;
-use tauri::{Emitter, Window};
+use tauri::Window;
 
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
+    /// Backend operation family this emitter reports for
+    operation_kind: OperationKind,
     /// Optional Tauri window for event emission (None in headless/test runs)
     window: Option<Window>,
     /// Optional job identifier for parallel batch processing
@@ -18,7 +24,13 @@ pub struct ProgressEmitter {
 impl ProgressEmitter {
     /// Creates a new progress emitter without job tracking (single-job mode)
     pub fn new(window: Window) -> Self {
+        Self::for_operation(window, OperationKind::ProcessingBatch)
+    }
+
+    /// Creates a new progress emitter scoped to an operation kind.
+    pub fn for_operation(window: Window, operation_kind: OperationKind) -> Self {
         Self {
+            operation_kind,
             window: Some(window),
             job_id: None,
             input_index: None,
@@ -28,6 +40,7 @@ impl ProgressEmitter {
     /// Creates a progress emitter with job tracking for parallel processing
     pub fn with_job_id(window: Window, job_id: String) -> Self {
         Self {
+            operation_kind: OperationKind::ProcessingBatch,
             window: Some(window),
             job_id: Some(job_id),
             input_index: None,
@@ -37,10 +50,12 @@ impl ProgressEmitter {
     /// Creates a progress emitter with job tracking and input index context
     pub fn with_context(
         window: Window,
+        operation_kind: OperationKind,
         job_id: Option<String>,
         input_index: Option<usize>,
     ) -> Self {
         Self {
+            operation_kind,
             window: Some(window),
             job_id,
             input_index,
@@ -49,7 +64,13 @@ impl ProgressEmitter {
 
     /// Creates a headless emitter (no UI events emitted).
     pub fn headless() -> Self {
+        Self::headless_for(OperationKind::ProcessingBatch)
+    }
+
+    /// Creates a headless emitter for a specific operation kind.
+    pub fn headless_for(operation_kind: OperationKind) -> Self {
         Self {
+            operation_kind,
             window: None,
             job_id: None,
             input_index: None,
@@ -63,6 +84,7 @@ impl ProgressEmitter {
 
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
         ProgressEvent {
+            operation_kind: self.operation_kind,
             stage,
             percentage: if stage == EventStage::Skipped {
                 100.0
@@ -80,7 +102,7 @@ impl ProgressEmitter {
     fn emit_terminal_event(&self, stage: EventStage, message: &str) {
         let event = self.terminal_event(stage, message);
         if let Some(window) = &self.window {
-            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
+            emit_progress_event(window, &event);
         }
     }
 
@@ -220,6 +242,7 @@ impl ProgressEmitter {
         eta_seconds: Option<f64>,
     ) {
         let event = ProgressEvent {
+            operation_kind: self.operation_kind,
             stage: EventStage::from(&stage),
             percentage,
             message: message.to_string(),
@@ -230,7 +253,7 @@ impl ProgressEmitter {
         };
 
         if let Some(window) = &self.window {
-            let _ = window.emit(PROGRESS_EVENT_NAME, &event);
+            emit_progress_event(window, &event);
         }
     }
 }
@@ -242,6 +265,7 @@ mod tests {
     #[test]
     fn terminal_events_share_context_and_reset_progress() {
         let emitter = ProgressEmitter {
+            operation_kind: OperationKind::ProcessingBatch,
             window: None,
             job_id: Some("job-123".to_string()),
             input_index: Some(7),
@@ -254,6 +278,9 @@ mod tests {
         assert_eq!(failed.stage, EventStage::Failed);
         assert_eq!(cancelled.stage, EventStage::Cancelled);
         assert_eq!(skipped.stage, EventStage::Skipped);
+        assert_eq!(failed.operation_kind, OperationKind::ProcessingBatch);
+        assert_eq!(cancelled.operation_kind, OperationKind::ProcessingBatch);
+        assert_eq!(skipped.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(failed.percentage, 0.0);
         assert_eq!(cancelled.percentage, 0.0);
         assert_eq!(skipped.percentage, 100.0);

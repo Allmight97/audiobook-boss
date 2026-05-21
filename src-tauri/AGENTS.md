@@ -11,9 +11,13 @@
 - Route media execution through the `crate::audio` Audio Engine Deep Module
   public strip; callers outside audio must not choose processor adapters or
   import private audio engine files directly.
+- Route backend operation lifecycle vocabulary, queue/progress events, and
+  terminal summaries through the `crate::processing` lifecycle/progress public
+  strip. Audio and metadata may report lifecycle truth there without owning the
+  lifecycle model.
 - Route metadata reads and writes through the public `metadata` boundary; outside callers should request metadata outcomes, not choose private MP4/FFmpeg strategy modules.
 - Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side fallback assumptions.
-- Use `JobRegistry` as the central concurrency lifecycle surface.
+- Use `JobRegistry` as the central active-job and cancellation surface.
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
 - Use `process_audiobook_files` for full processing flows; use dedicated auxiliary commands for non-processing tasks.

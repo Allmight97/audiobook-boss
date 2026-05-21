@@ -30,6 +30,7 @@ describe('statusPanel state machine', () => {
 	it('builds queue snapshot ordering and preserves queue labels', () => {
 		const model = createStatusPanelModel();
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 2, file_path: '/books/c.m4b' },
 				{ input_index: 0, file_path: '/books/a.m4b' },
@@ -51,9 +52,31 @@ describe('statusPanel state machine', () => {
 		expect(next.currentStatus).not.toHaveProperty('etaSeconds');
 	});
 
+	it('uses backend operation identity to classify lifecycle work kind', () => {
+		const queuedMetadataSave: ProcessingQueueEvent = {
+			operation_kind: 'metadataSave',
+			items: [{ input_index: 0, file_path: '/books/a.m4b' }],
+			max_concurrent: 1,
+		};
+		const afterQueue = applyQueueSnapshot(createStatusPanelModel(), queuedMetadataSave, 1_000);
+
+		expect(afterQueue.model.currentWorkKind).toBe('metadataSave');
+
+		const mergeProgress: ProcessingProgressEvent = {
+			operation_kind: 'processingMerge',
+			stage: 'converting',
+			percentage: 25,
+			message: 'Merging',
+		};
+		const afterProgress = applyProgress(afterQueue.model, mergeProgress, 1_100);
+
+		expect(afterProgress.model.currentWorkKind).toBe('merge');
+	});
+
 	it('handles progress events that arrive before queue snapshot', () => {
 		const model = createStatusPanelModel();
 		const earlyProgress: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: 'converting',
 			percentage: 55,
@@ -64,6 +87,7 @@ describe('statusPanel state machine', () => {
 		expect(afterEarly.model.currentStatus.stage).toBe('converting');
 
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
@@ -86,6 +110,7 @@ describe('statusPanel state machine', () => {
 
 	it('aggregates processing, completed, skipped, failed, and cancelled states', () => {
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
@@ -96,11 +121,41 @@ describe('statusPanel state machine', () => {
 			max_concurrent: 2,
 		};
 		const progressEvents: ProcessingProgressEvent[] = [
-			{ input_index: 0, stage: 'converting', percentage: 50, message: 'Converting' },
-			{ input_index: 1, stage: 'completed', percentage: 100, message: 'Done' },
-			{ input_index: 2, stage: 'skipped', percentage: 100, message: 'Skipped' },
-			{ input_index: 3, stage: 'failed', percentage: 100, message: 'Failed' },
-			{ input_index: 4, stage: 'cancelled', percentage: 100, message: 'Cancelled' },
+			{
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				stage: 'converting',
+				percentage: 50,
+				message: 'Converting',
+			},
+			{
+				operation_kind: 'processingBatch',
+				input_index: 1,
+				stage: 'completed',
+				percentage: 100,
+				message: 'Done',
+			},
+			{
+				operation_kind: 'processingBatch',
+				input_index: 2,
+				stage: 'skipped',
+				percentage: 100,
+				message: 'Skipped',
+			},
+			{
+				operation_kind: 'processingBatch',
+				input_index: 3,
+				stage: 'failed',
+				percentage: 100,
+				message: 'Failed',
+			},
+			{
+				operation_kind: 'processingBatch',
+				input_index: 4,
+				stage: 'cancelled',
+				percentage: 100,
+				message: 'Cancelled',
+			},
 		];
 		const result = progressEvents.reduce(
 			(state, event) => applyProgress(state.model, event, 1_000 + event.input_index! * 1000),
@@ -118,6 +173,7 @@ describe('statusPanel state machine', () => {
 
 	it('bypasses throttle for stage transitions while coalescing same-stage updates', () => {
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [{ input_index: 0, file_path: '/books/a.m4b' }],
 			max_concurrent: 1,
 		};
@@ -126,6 +182,7 @@ describe('statusPanel state machine', () => {
 		const initial = applyProgress(
 			base,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				stage: 'analyzing',
 				percentage: 10,
@@ -136,6 +193,7 @@ describe('statusPanel state machine', () => {
 		const sameStageIgnored = applyProgress(
 			initial.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				stage: 'analyzing',
 				percentage: 25,
@@ -147,6 +205,7 @@ describe('statusPanel state machine', () => {
 		const stageTransition = applyProgress(
 			sameStageIgnored.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				stage: 'writing',
 				percentage: 35,
@@ -164,6 +223,7 @@ describe('statusPanel state machine', () => {
 		const result = applyProgress(
 			createStatusPanelModel(),
 			{
+				operation_kind: 'processingBatch',
 				job_id: 'job-single',
 				stage: 'completed',
 				percentage: 100,
@@ -189,6 +249,7 @@ describe('statusPanel state machine', () => {
 		const result = applyProgress(
 			createStatusPanelModel(),
 			{
+				operation_kind: 'processingBatch',
 				job_id: 'job-single',
 				stage: 'skipped',
 				percentage: 100,
@@ -220,6 +281,7 @@ describe('statusPanel state machine', () => {
 
 	it('emits a batch completion hold intent with final feedback classification', () => {
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
@@ -234,6 +296,7 @@ describe('statusPanel state machine', () => {
 		result = applyProgress(
 			result.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				stage: 'completed',
 				percentage: 100,
@@ -244,6 +307,7 @@ describe('statusPanel state machine', () => {
 		result = applyProgress(
 			result.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 1,
 				stage: 'cancelled',
 				percentage: 100,
@@ -299,6 +363,7 @@ describe('statusPanel state machine', () => {
 
 	it('marks active rows cancelled on cancellation when jobs are still running', () => {
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
@@ -310,6 +375,7 @@ describe('statusPanel state machine', () => {
 		result = applyProgress(
 			result.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				stage: 'converting',
 				percentage: 15,
@@ -320,6 +386,7 @@ describe('statusPanel state machine', () => {
 		result = applyProgress(
 			result.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 1,
 				stage: 'converting',
 				percentage: 20,
@@ -346,6 +413,7 @@ describe('statusPanel state machine', () => {
 
 	it('repairs rows from command results for skipped, cancelled, and failed terminal statuses', () => {
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/a.m4b' },
 				{ input_index: 1, file_path: '/books/b.m4b' },
@@ -357,6 +425,7 @@ describe('statusPanel state machine', () => {
 		result = applyProgress(
 			result.model,
 			{
+				operation_kind: 'processingBatch',
 				input_index: 0,
 				job_id: 'job-0',
 				stage: 'converting',

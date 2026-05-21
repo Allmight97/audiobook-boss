@@ -41,6 +41,7 @@ describe('StatusPanel queue snapshot', () => {
 	it('initializes queued items in order', () => {
 		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -66,12 +67,14 @@ describe('StatusPanel queue snapshot', () => {
 	it('applies queue snapshot order and labels after early progress arrives', async () => {
 		const controller = new StatusPanelRuntime();
 		const earlyProgress: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: 'converting',
 			percentage: 45,
 			message: 'working',
 		};
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 2, file_path: '/books/gamma.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },

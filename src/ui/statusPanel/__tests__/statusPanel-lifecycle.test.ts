@@ -120,6 +120,7 @@ describe('StatusPanel lifecycle', () => {
 
 		const cancelRequest = controller.requestCancelAll();
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.writing,
 			percentage: 68,
@@ -187,6 +188,7 @@ describe('StatusPanel lifecycle', () => {
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -195,12 +197,14 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: terminalStages[0],
 			percentage: 100,
 			message: 'terminal-0',
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: terminalStages[1],
 			percentage: 100,
@@ -290,6 +294,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -298,12 +303,14 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'terminal-0',
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: STAGES.failed,
 			percentage: 100,
@@ -323,6 +330,7 @@ describe('StatusPanel lifecycle', () => {
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -331,6 +339,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
@@ -369,6 +378,7 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -377,6 +387,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.skipped,
 			percentage: 100,
@@ -397,6 +408,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.setBatchCompletionMessage('No files were processed successfully. Skipped: 2.');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -405,12 +417,14 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.skipped,
 			percentage: 100,
 			message: 'Skipped existing output at /books/alpha.m4b',
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: STAGES.skipped,
 			percentage: 100,
@@ -456,6 +470,7 @@ describe('StatusPanel lifecycle', () => {
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			job_id: 'job-1',
 			stage,
 			percentage: 100,
@@ -494,6 +509,7 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
@@ -504,6 +520,7 @@ describe('StatusPanel lifecycle', () => {
 		vi.advanceTimersByTime(1000);
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
@@ -530,6 +547,7 @@ describe('StatusPanel lifecycle', () => {
 		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -542,12 +560,14 @@ describe('StatusPanel lifecycle', () => {
 		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.cancelled,
 			percentage: 100,
 			message: 'cancelled-0',
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: STAGES.cancelled,
 			percentage: 100,
@@ -572,6 +592,7 @@ describe('StatusPanel lifecycle', () => {
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -598,6 +619,7 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -605,12 +627,14 @@ describe('StatusPanel lifecycle', () => {
 			max_concurrent: 2,
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'terminal-0',
 		});
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: STAGES.completed,
 			percentage: 100,
@@ -631,11 +655,13 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
 			max_concurrent: 1,
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'analyzing',
 			percentage: 10,
@@ -649,6 +675,7 @@ describe('StatusPanel lifecycle', () => {
 		// Prior to fix, shouldThrottleProgressUpdate dropped this update entirely and
 		// the stage transition never reached the UI until the next 1s tick.
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'writing',
 			percentage: 60,
@@ -662,6 +689,7 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			job_id: 'job-123',
 			stage: 'converting',
 			percentage: 35,
@@ -675,6 +703,7 @@ describe('StatusPanel lifecycle', () => {
 
 		const stepAfterReset = getStepText();
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			job_id: 'job-123',
 			stage: 'converting',
 			percentage: 50,
@@ -687,6 +716,7 @@ describe('StatusPanel lifecycle', () => {
 
 		controller.resetToIdle();
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			job_id: 'job-456',
 			stage: 'converting',
 			percentage: 42,

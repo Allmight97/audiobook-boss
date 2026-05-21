@@ -39,11 +39,10 @@ extract_export_blocks() {
 }
 
 audio_exports="$(
-  rg "^(pub struct AudioFile|pub struct DecoderSelection|pub enum SampleRateConfig|pub\\(crate\\) mod constants;)" src-tauri/src/audio/mod.rs || true
+  rg "^(pub struct AudioFile|pub struct DecoderSelection|pub enum SampleRateConfig)" src-tauri/src/audio/mod.rs || true
   extract_export_blocks src-tauri/src/audio/mod.rs
 )"
-compare_block "Audio Engine Deep Module Public API Strip" "$audio_exports" 'pub(crate) mod constants;
-pub struct AudioFile {
+compare_block "Audio Engine Deep Module Public API Strip" "$audio_exports" 'pub struct AudioFile {
 pub struct DecoderSelection {
 pub enum SampleRateConfig {
 pub use file_list::{get_file_list_info, FileListInfo};
@@ -64,6 +63,22 @@ ExternalToolchainPreference,
 };
 pub(crate) use cleanup::CleanupGuard;
 '
+
+processing_lifecycle_exports="$(
+  rg "^(pub mod lifecycle;|pub use lifecycle::\\{OperationKind, OperationResultSummary\\};)" src-tauri/src/processing.rs || true
+  rg "^(pub enum OperationKind|pub struct OperationResultSummary)" src-tauri/src/processing/lifecycle.rs || true
+  rg "^(pub const PROGRESS_EVENT_NAME|pub const QUEUE_EVENT_NAME|pub struct ProgressEvent|pub struct QueueEvent|pub fn emit_progress_event|pub fn emit_queue_event)" src-tauri/src/processing/progress/mod.rs || true
+)"
+compare_block "Backend Lifecycle Public API Strip" "$processing_lifecycle_exports" 'pub mod lifecycle;
+pub use lifecycle::{OperationKind, OperationResultSummary};
+pub enum OperationKind {
+pub struct OperationResultSummary {
+pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
+pub const QUEUE_EVENT_NAME: &str = "processing-queue";
+pub struct ProgressEvent {
+pub struct QueueEvent {
+pub fn emit_progress_event(window: &tauri::Window, event: &ProgressEvent) {
+pub fn emit_queue_event(window: &tauri::Window, event: &QueueEvent) {'
 
 output_artifact_exports="$(extract_export_blocks src-tauri/src/output_artifact/mod.rs)"
 compare_block "Output Artifact Plan / Commit Public API Strip" "$output_artifact_exports" 'pub(crate) use artifact::derive_output_artifact_path;

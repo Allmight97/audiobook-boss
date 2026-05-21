@@ -76,10 +76,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 				mockJobCounter += 1;
 				const jobId = `mock-job-${mockJobCounter}`;
 				emitTestEvent('processing-queue', {
+					operation_kind: 'processingBatch',
 					items: [{ input_index: 0, file_path: '/mock/path/chapter1.mp3' }],
 					max_concurrent: 2,
 				});
 				emitTestEvent('processing-progress', {
+					operation_kind: 'processingBatch',
 					stage: 'converting',
 					percentage: 40,
 					message: 'Converting audio',
@@ -89,6 +91,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					input_index: 0,
 				});
 				emitTestEvent('processing-progress', {
+					operation_kind: 'processingBatch',
 					stage: 'completed',
 					percentage: 100,
 					message: 'Processing completed successfully!',
@@ -131,6 +134,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					| undefined;
 				const items = args?.items ?? [];
 				emitTestEvent('processing-queue', {
+					operation_kind: 'metadataSave',
 					items: items.map((item, index) => ({
 						input_index: index,
 						file_path: item.filePath,
@@ -140,6 +144,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 				});
 				for (const [index, item] of items.entries()) {
 					emitTestEvent('processing-progress', {
+						operation_kind: 'metadataSave',
 						stage: 'writing',
 						percentage: 0,
 						message: `Saving metadata ${index + 1}/${items.length}`,
@@ -149,6 +154,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						input_index: index,
 					});
 					emitTestEvent('processing-progress', {
+						operation_kind: 'metadataSave',
 						stage: 'completed',
 						percentage: 100,
 						message: `Saved metadata ${index + 1}/${items.length}`,
@@ -178,6 +184,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 			case 'cancel_processing': {
 				const args = _args as { jobId?: string | null } | undefined;
 				emitTestEvent('processing-progress', {
+					operation_kind: 'processingBatch',
 					stage: 'cancelled',
 					percentage: 0,
 					message: 'Cancelled by user',

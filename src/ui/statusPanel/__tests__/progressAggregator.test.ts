@@ -43,6 +43,7 @@ describe('StatusPanel aggregate progress', () => {
 	it('computes simple averages across active and completed jobs', () => {
 		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -50,12 +51,14 @@ describe('StatusPanel aggregate progress', () => {
 			max_concurrent: 2,
 		};
 		const converting: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'converting',
 			percentage: 50,
 			message: 'Halfway',
 		};
 		const completed: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			input_index: 1,
 			stage: 'completed',
 			percentage: 100,
@@ -83,6 +86,7 @@ describe('StatusPanel aggregate progress', () => {
 	it('counts queued jobs as zero-progress participants in batch averages', () => {
 		const controller = new StatusPanelRuntime();
 		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -92,6 +96,7 @@ describe('StatusPanel aggregate progress', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'completed',
 			percentage: 100,
@@ -128,6 +133,7 @@ describe('StatusPanel aggregate progress', () => {
 	])('does not leak stale currentFile/etaSeconds onto terminal aggregates for %s', (terminalStage) => {
 		const controller = new StatusPanelRuntime();
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
 			max_concurrent: 1,
 		};
@@ -138,6 +144,7 @@ describe('StatusPanel aggregate progress', () => {
 		// fields; a careless flushRender would preserve these onto the terminal
 		// status that follows.
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'converting',
 			percentage: 80,
@@ -147,6 +154,7 @@ describe('StatusPanel aggregate progress', () => {
 		});
 
 		controller.applyProgress({
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: terminalStage,
 			percentage: 100,

@@ -4,6 +4,9 @@
 
 - Owns concurrency lifecycle and active-job state under `processing/job_registry/`.
 - Source of truth for permit discipline, scheduling behavior, and reconfiguration safety.
+- Operation identity, progress/queue event vocabulary, and shared terminal
+  summaries live in the parent `processing` lifecycle/progress public strip;
+  this directory owns active-job state, not the whole lifecycle contract.
 
 ## Preferred Path
 

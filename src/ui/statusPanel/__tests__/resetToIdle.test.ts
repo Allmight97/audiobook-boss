@@ -58,10 +58,12 @@ describe('StatusPanel resetToIdle', () => {
 		const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
 		const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
 		const snapshot: ProcessingQueueEvent = {
+			operation_kind: 'processingBatch',
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
 			max_concurrent: 1,
 		};
 		const progress: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			input_index: 0,
 			stage: 'converting',
 			percentage: 25,

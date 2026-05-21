@@ -337,7 +337,7 @@ export type MetadataIntentPatch = {
 };
 
 export type MetadataSaveBatchResult = {
-	summary: ProcessResultSummary,
+	summary: OperationResultSummary,
 	results: MetadataSaveResultEntry[],
 };
 
@@ -375,6 +375,24 @@ export type OnlineMetadataResult = {
 	durationSeconds: number | null,
 	coverUrl: string | null,
 	audibleOnly: boolean | null,
+};
+
+// Backend operation family reported through progress and queue events.
+export type OperationKind =
+// Merge selected inputs into one output artifact.
+"processingMerge" |
+// Process selected inputs as one output artifact per input.
+"processingBatch" |
+// Save pending metadata patches back to existing files.
+"metadataSave";
+
+// Shared terminal outcome counts for long-running backend operations.
+export type OperationResultSummary = {
+	total: number,
+	succeeded: number,
+	skipped: number,
+	cancelled: number,
+	failed: number,
 };
 
 export type OutputCollisionInfo = {
@@ -416,7 +434,7 @@ export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | 
 
 export type ProcessCommandResult = {
 	jobType: JobType,
-	summary: ProcessResultSummary,
+	summary: OperationResultSummary,
 	results: ProcessResultEntry[],
 };
 
@@ -452,14 +470,6 @@ export type ProcessResultEntry = {
  */
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
 
-export type ProcessResultSummary = {
-	total: number,
-	succeeded: number,
-	skipped: number,
-	cancelled: number,
-	failed: number,
-};
-
 export type ProcessingPreflightPlan = {
 	jobType: JobType,
 	previewSeconds: number | null,
@@ -473,6 +483,8 @@ export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Deserialize = {
+	// Backend operation family that emitted this event
+	operation_kind: OperationKind,
 	// Current processing stage
 	stage: EventStage,
 	// Progress percentage (0-100)
@@ -483,14 +495,16 @@ export type ProgressEvent_Deserialize = {
 	current_file: string | null,
 	// Estimated time remaining in seconds
 	eta_seconds: number | null,
-	// Job identifier for parallel batch processing (optional for backward compat)
+	// Job identifier when this event is tied to a registered job
 	job_id: string | null,
-	// Original input index for batch processing (optional for backward compat)
+	// Original input index when this event maps to one selected input
 	input_index: number | null,
 };
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Serialize = {
+	// Backend operation family that emitted this event
+	operation_kind: OperationKind,
 	// Current processing stage
 	stage: EventStage,
 	// Progress percentage (0-100)
@@ -501,14 +515,15 @@ export type ProgressEvent_Serialize = {
 	current_file: string | null,
 	// Estimated time remaining in seconds
 	eta_seconds: number | null,
-	// Job identifier for parallel batch processing (optional for backward compat)
+	// Job identifier when this event is tied to a registered job
 	job_id?: string | null,
-	// Original input index for batch processing (optional for backward compat)
+	// Original input index when this event maps to one selected input
 	input_index?: number | null,
 };
 
 // Batch queue snapshot for frontend communication
 export type QueueEvent = {
+	operation_kind: OperationKind,
 	items: QueueItem[],
 	max_concurrent: number,
 };
