@@ -1,6 +1,6 @@
 ---
 name: decision-alignment
-description: ABB-specific repo-grounded alignment for architecture, product, fallback/compat, domain-language, active spec, issue, doc, and proof-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
+description: ABB-specific repo-grounded alignment for architecture, product, fallback/compat, domain-language, active spec, issue, doc, and proof-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Align decisions to ABB's clean, agent-first repo north star, inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
 ---
 
 # Decision Alignment
@@ -14,6 +14,13 @@ proof step.
 Default to a proposed decision, patch shape, or proof route. Do not edit durable
 repo docs unless the user asks for the change.
 
+## North Star: Clean, agent-first codebase and repo
+- Proof infrastructure and docs that reflect current repo truth.
+- Collaborative human feedback as scope control.
+- Temporary planning state purged or distilled after use.
+- Smallest coherent home future agents must consult.
+- Clear feedback loops for Agentic Experience.
+
 ## Boundary
 
 Use this for ABB-specific decisions that depend on current repo truth, domain
@@ -25,21 +32,20 @@ non-ABB decisions, or strategy work whose primary need is a roadmap artifact.
 
 ## Core Loop
 
-1. Name the decision in one sentence.
-2. Locate the affected ABB layer using `docs/system-map.md`: Product intent, UI
+1. Reword the decision as a "north star" - the goal or objective that the decision is trying to achieve.
+2. Verify the affected ABB layer starting with `docs/system-map.md`: Product intent, UI
    state, IPC contract, Backend lifecycle, or Artifact truth.
-3. Inspect repo artifacts before asking for facts the repo can answer: start
+3. Inspect repo elements before asking for facts the repo can answer: start
    with `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`,
    `docs/fallbacks.md`, and owning code/docs for the touched boundary.
-4. Ask one or two action-changing questions at a time. Each question must move
-   toward coherence, alignment, a locked decision, a proof path, or a concrete
+4. Ask no more than two sharp questions aiming toward coherence, alignment, a locked decision, a proof path, or a concrete
    next action. Include recommended answers.
    Treat two questions as a hard cap: if more facts would help, combine them or
    choose the two that change routing or implementation readiness.
    A list of requested facts counts as questions; do not use it to bypass the
    cap.
-5. Keep going until the accepted decision, non-decision, proof path,
-   active-spec/issue route, or implementation-ready shape is clear.
+5. Keep going until the alignment is defined enough for a roadmap, and/or
+   active-spec/issue route, or implementation-ready shape is clear enough to hand off.
 
 ## Challenge Rules
 

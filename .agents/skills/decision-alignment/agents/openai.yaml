@@ -1,4 +1,4 @@
 interface:
   display_name: "Decision Alignment"
-  short_description: "Align ABB decisions and doc routing"
-  default_prompt: "Use $decision-alignment to align this ABB decision against repo truth before implementation."
+  short_description: "Align ABB decisions to repo truth and north star"
+  default_prompt: "Use $decision-alignment to align this ABB decision to current repo truth and the clean, agent-first repo north star before implementation."
