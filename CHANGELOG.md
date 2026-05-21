@@ -12,6 +12,33 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Removed
 
+## [1.0.25] - 2026-05-21
+
+Operation lifecycle contract release.
+
+### Added
+
+- Added a processing-owned Backend Lifecycle contract so processing, metadata
+  save, and status-panel runtime behavior share explicit operation identity and
+  terminal summary vocabulary.
+- Added lifecycle operation identity for batch processing, merge processing, and
+  metadata save events.
+
+### Changed
+
+- Moved lifecycle event names and progress math out of audio ownership and into
+  processing-owned progress/lifecycle surfaces.
+- Metadata batch save now reports queue and progress lifecycle truth through
+  processing-owned helpers while keeping metadata write policy inside metadata
+  APIs.
+- Status Panel now consumes backend operation identity from queue/progress events
+  without becoming a backend lifecycle owner.
+
+### Fixed
+
+- Tightened Audio Engine boundary documentation and public-strip checks so audio
+  no longer exposes lifecycle/status constants.
+
 ## [1.0.24] - 2026-05-19
 
 Effect workflow adoption release.
