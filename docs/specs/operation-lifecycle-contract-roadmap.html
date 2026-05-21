@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ABB Operation Lifecycle Contract - Before / After</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f131a;
+      --panel: #151b25;
+      --panel-2: #1a2431;
+      --line: #314057;
+      --text: #e7edf7;
+      --muted: #a9b7cc;
+      --soft: #7f8da3;
+      --blue: #5aa8ff;
+      --green: #2de39f;
+      --yellow: #f2c94c;
+      --orange: #ff9a5a;
+      --red: #ff6b7a;
+      --purple: #a779ff;
+      --shadow: rgba(0, 0, 0, 0.26);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(30px, 4vw, 48px);
+      letter-spacing: 0;
+      line-height: 1.05;
+    }
+
+    h2 {
+      font-size: 19px;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(127, 141, 163, 0.16);
+      color: #d8e4f7;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .hero {
+      display: grid;
+      gap: 18px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .subtitle {
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      background: #131923;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .chip.green { color: var(--green); border-color: rgba(45, 227, 159, 0.42); }
+    .chip.yellow { color: var(--yellow); border-color: rgba(242, 201, 76, 0.5); }
+    .chip.blue { color: var(--blue); border-color: rgba(90, 168, 255, 0.52); }
+
+    .section {
+      margin-top: 24px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 14px 32px var(--shadow);
+    }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .callout {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+
+    .callout strong {
+      color: var(--text);
+    }
+
+    .callout p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .diagram {
+      display: grid;
+      gap: 12px;
+      min-height: 520px;
+    }
+
+    .diagram.before {
+      border-top: 3px solid var(--orange);
+    }
+
+    .diagram.after {
+      border-top: 3px solid var(--green);
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .diagram-title span {
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .box {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #121923;
+    }
+
+    .box h3 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .box p, .box li {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .box ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .box.warn { border-color: rgba(255, 154, 90, 0.62); background: rgba(255, 154, 90, 0.08); }
+    .box.bad { border-color: rgba(255, 107, 122, 0.62); background: rgba(255, 107, 122, 0.08); }
+    .box.good { border-color: rgba(45, 227, 159, 0.56); background: rgba(45, 227, 159, 0.08); }
+    .box.info { border-color: rgba(90, 168, 255, 0.56); background: rgba(90, 168, 255, 0.08); }
+    .box.neutral { border-color: rgba(167, 121, 255, 0.52); background: rgba(167, 121, 255, 0.08); }
+
+    .arrow {
+      text-align: center;
+      color: var(--soft);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .flow-step {
+      min-height: 116px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #121923;
+    }
+
+    .flow-step b {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .flow-step p {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .matrix th {
+      color: var(--text);
+      background: #121923;
+    }
+
+    .matrix td {
+      color: var(--muted);
+    }
+
+    .matrix tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 6px;
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .tag.good { color: var(--green); border-color: rgba(45, 227, 159, 0.45); }
+    .tag.warn { color: var(--yellow); border-color: rgba(242, 201, 76, 0.5); }
+    .tag.bad { color: var(--red); border-color: rgba(255, 107, 122, 0.55); }
+    .tag.info { color: var(--blue); border-color: rgba(90, 168, 255, 0.5); }
+
+    .footer {
+      margin-top: 20px;
+      color: var(--soft);
+      font-size: 12px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        width: min(100vw - 24px, 1180px);
+      }
+
+      .before-after,
+      .decision {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="chips">
+        <span class="chip green">Temporary visual</span>
+        <span class="chip blue">Operation lifecycle</span>
+        <span class="chip yellow">Accepted direction</span>
+      </div>
+      <h1>Operation Lifecycle Contract: Before / After</h1>
+      <p class="subtitle">
+        The open question is whether ABB should name operation lifecycle facts
+        explicitly, instead of letting processing, metadata save, and status panel
+        infer them from separate call choreography.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Short Answer</h2>
+      <div class="decision">
+        <div class="callout">
+          <p><strong>Accepted choice:</strong> introduce bounded lifecycle vocabulary inside <code>processing</code>, probably including an operation kind and shared result-summary vocabulary.</p>
+        </div>
+        <div class="callout">
+          <p><strong>Why:</strong> the behavior already exists. Naming it makes the repo more agent-first because future work can ask "what operation is this?" and "what terminal truth did it produce?" without reading three unrelated flows.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Before And After Shape</h2>
+      <div class="before-after">
+        <article class="diagram before">
+          <div class="diagram-title">
+            <h2>Before: Truth By Choreography</h2>
+            <span>current code shape</span>
+          </div>
+          <div class="stack">
+            <div class="box info">
+              <h3>Processing runner <code>run.rs</code></h3>
+              <p>Owns merge/batch dispatch, job registration, queue emit, terminal result mapping, and audio execution handoff.</p>
+            </div>
+            <div class="arrow">shares some primitives, but not a named contract</div>
+            <div class="box warn">
+              <h3>Metadata save <code>save_batch.rs</code></h3>
+              <p>Uses <code>JobRegistry</code>, <code>ProgressEvent</code>, <code>QueueEvent</code>, and <code>ProcessResultSummary</code>, then emits events by hand.</p>
+            </div>
+            <div class="arrow">event names and progress bands come from the wrong house</div>
+            <div class="box bad">
+              <h3>Audio constants <code>audio/constants.rs</code></h3>
+              <p>Holds <code>processing-progress</code>, <code>processing-queue</code>, progress percentages, plus actual audio/media constants.</p>
+            </div>
+            <div class="arrow">status kind is set out-of-band</div>
+            <div class="box neutral">
+              <h3>Status Panel Runtime</h3>
+              <p>Consumes progress/queue events, but also relies on callers setting <code>currentWorkKind</code> before events arrive.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="diagram after">
+          <div class="diagram-title">
+            <h2>After: Truth By Contract</h2>
+            <span>intended roadmap shape</span>
+          </div>
+          <div class="stack">
+            <div class="box good">
+              <h3>Backend Lifecycle strip <code>processing::lifecycle</code></h3>
+              <p>Named sub-owner inside processing for job identity, cancellation, queue snapshots, progress events, operation kind, and terminal summary vocabulary.</p>
+            </div>
+            <div class="arrow">processing and metadata save call the same lifecycle language</div>
+            <div class="box info">
+              <h3>Processing runner <code>run.rs</code></h3>
+              <p>Keeps processing-specific work: preflight/run dispatch, output-plan interaction, and audio engine request assembly.</p>
+            </div>
+            <div class="box info">
+              <h3>Metadata save <code>save_batch.rs</code></h3>
+              <p>Keeps metadata policy in metadata, but reports lifecycle truth through the lifecycle strip instead of hand-building a parallel path.</p>
+            </div>
+            <div class="box good">
+              <h3>Progress/events owner</h3>
+              <p>Event names and progress math live beside <code>ProgressEvent</code>, <code>QueueEvent</code>, and emit helpers, not under audio.</p>
+            </div>
+            <div class="box neutral">
+              <h3>Status Panel Runtime</h3>
+              <p>Stays a consumer/read model. If backend events include operation kind, it can consume that fact instead of relying only on caller choreography.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What Q1 Actually Changes</h2>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Choice</th>
+            <th>What It Means</th>
+            <th>Upside</th>
+            <th>Cost / Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag warn">No new vocabulary</span><br>Move constants only</td>
+            <td>Keep existing <code>JobType</code>, <code>ProcessResultSummary</code>, metadata-specific result status, and UI <code>currentWorkKind</code>.</td>
+            <td>Smallest contract churn.</td>
+            <td>Leaves future agents asking why metadata uses processing result summary and why status kind lives outside event truth.</td>
+          </tr>
+          <tr>
+            <td><span class="tag good">Bounded vocabulary</span><br>Accepted</td>
+            <td>Add lifecycle-level terms such as <code>OperationKind</code> and shared terminal summary vocabulary under processing lifecycle.</td>
+            <td>Makes the operation contract visible and reusable without inventing a new platform.</td>
+            <td>May require generated binding churn and careful Status Panel consumption updates.</td>
+          </tr>
+          <tr>
+            <td><span class="tag bad">Generic operation framework</span><br>Avoid</td>
+            <td>Abstract everything into a broad operation manager that tries to own processing, metadata, audio, and status.</td>
+            <td>Looks tidy on paper.</td>
+            <td>Creates the blob we explicitly do not want.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Lifecycle Flow After The Roadmap</h2>
+      <div class="flow">
+        <div class="flow-step">
+          <b>1. Operation starts</b>
+          <p>Processing or metadata save declares the operation kind and registers lifecycle state.</p>
+        </div>
+        <div class="flow-step">
+          <b>2. Queue truth emits</b>
+          <p>Queue snapshot is built through lifecycle-owned event types and names.</p>
+        </div>
+        <div class="flow-step">
+          <b>3. Progress truth emits</b>
+          <p>Stage, percentage, job id, input index, and current file use one lifecycle vocabulary.</p>
+        </div>
+        <div class="flow-step">
+          <b>4. Terminal truth resolves</b>
+          <p>Success, skipped, cancelled, and failed produce shared summary shape without hiding owner-specific details.</p>
+        </div>
+        <div class="flow-step">
+          <b>5. Status consumes</b>
+          <p>Status Panel renders the read model. It does not become the backend operation owner.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Accepted Decision To Carry Forward</h2>
+      <div class="callout">
+        <p>
+          Use bounded lifecycle vocabulary when it removes call choreography and
+          improves agent readability. The stop rule is simple: if an abstraction
+          starts hiding processing, metadata, audio, output artifact, or status
+          ownership, it is too broad.
+        </p>
+      </div>
+      <p class="footer">
+        Temporary planning artifact. Sources: <code>docs/specs/operation-lifecycle-contract-roadmap.md</code>,
+        <code>src-tauri/src/processing/run.rs</code>, <code>src-tauri/src/commands/metadata/save_batch.rs</code>,
+        <code>src-tauri/src/processing/progress/</code>, <code>src-tauri/src/audio/constants.rs</code>,
+        <code>src/ui/statusPanel/</code>. Validated against current main snapshot <code>22520b147e</code> on 2026-05-20.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
