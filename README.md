@@ -37,7 +37,6 @@ bun install
 bun run tauri dev
 scripts/checks.sh standard
 bun run test
-bash scripts/check-context-surface.sh
 ```
 
 ## Script Guide
@@ -47,9 +46,10 @@ Use this section as the human-facing index. `package.json` is the source of trut
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
 - Main quality gate: `scripts/checks.sh standard`
   Use `quick` for a faster local pass and `package` when validating the full Tauri packaging path.
-- Context and policy checks: `bun run check:context`, `bun run check:fallback`, `bun run check:no-bridge`
+- Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
+  Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
-  This is explicit on purpose and is not part of the normal standard gate.
+  Run explicitly; it is not part of the normal standard gate.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
@@ -64,10 +64,9 @@ Use this section as the human-facing index. `package.json` is the source of trut
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
 - Grey-box module work is governed by the six Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, and Audio Engine Deep Module.
-- For substantial multi-step work, use `.agents/skills/decision-alignment` to align outcomes with the repo owner and keep at most one active implementation spec under `docs/specs/`; these specs are working docs and are deleted when the effort is fully done.
+- For substantial planning, roadmap, architecture, or implementation alignment, use `.agents/skills/decision-alignment` to align outcomes with the repo owner. Keep active specs under `docs/specs/` only while the work needs a temporary repo-carried plan; delete them or distill enduring truths into canon when done. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
 - For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for authenticated Context7/current docs, squashed `repos/*` reference source, route cards, subtree refresh guidance, and installed dependency truth. Reference repos are read-only research material, not app dependencies.
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).
 - For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.
 - UI work is not done from static inspection alone. Use targeted tests for deterministic behavior and browser-agent or human review for visual/UX outcomes.
-- Repo-local Codex hooks are intentionally retired for now; rely on explicit commands and documented checks until fresh guardrails are designed.
 - Durable truth lives in code, GitHub issues, this file, and [AGENTS.md](AGENTS.md). `.artifacts/` is temporary local state only.

@@ -22,7 +22,7 @@
 ## Hard Invariants
 
 - Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.
-- Do not hand-edit `src/lib/generated/tauri.ts`; regenerate/sync bindings through the standard scripts/hooks.
+- Do not hand-edit `src/lib/generated/tauri.ts`; regenerate or sync bindings through the standard scripts.
 - Keep runtime entry surfaces declarative: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, and `src/lib/**`.
 - UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage or explicit visual/UX review evidence for the user-facing outcome.
 - Follow fallback policy from root `AGENTS.md` for any compatibility fallback introduced in frontend flows.

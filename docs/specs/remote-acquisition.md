@@ -149,10 +149,11 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - **F1**. Contract tests for `RemoteSourceRuntime` Public API Strip behavior. Lock the strip; internal cluster changes must keep them green.
 - **F2**. Boundary-assertion CI: `scripts/check-no-remote-source-reach-through.sh` must be green in `scripts/checks.sh standard`.
 - **F3**. Drift fixture corpus committed under `src-tauri/tests/fixtures/audible/`: sanitized library response, AAXC license response, Widevine license response, MPD manifest, ADRM activation response (for future AAX), at least one failure-class fixture per phase. Provider tests run from fixtures, not live network.
-- **F4**. Real-account smoke test runbook: documented manual procedure to acquire one AAXC title (if available) and one Widevine title against jstar's account; recorded in spec progress section.
+- **F4**. Real-account smoke test runbook: documented manual procedure to acquire one AAXC title (if available) and one Widevine title against jstar's account; recorded in the spec progress section.
 - **F5**. `docs/system-map.md`, `docs/api-map.md`, `docs/ubiquitous-language.md` reflect committed state.
 - **F6**. `scripts/checks.sh standard` green.
-- **F7**. Delete this spec.
+- **F7**. Delete this active spec or distill enduring truths into canon once
+  implementation, review, validation, docs alignment, and sync are complete.
 
 ## Interfaces And Dependencies
 
@@ -248,7 +249,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **Source acquisition format is a provenance label**, not a DRM-state label. Display "Source: Audible Widevine (DASH)" not "DRM: Widevine."
 - **Widevine device identity policy**: resolver-based acquisition with local validated cache and user-supplied override. ABB does not vendor a Widevine device blob and does not treat Libation's `.cdmurls.json` as an owned dependency.
 
-### Open Implementation Decisions (resolved in-spec when work hits them)
+### Open Implementation Decisions (resolved in this spec when work hits them)
 
 - **B2**: Loopback HTTP listener vs. embedded webview vs. external browser with user-paste fallback for the OAuth callback. Recommended: loopback first, embedded webview as graceful fallback. Decide during B2 implementation based on real-traffic observation.
 
@@ -282,7 +283,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ## Completion And Cleanup
 
-Spec is deleted after:
+This spec is deleted or distilled after:
 
 - All Phase A–F work merged.
 - Validation and acceptance gates green.
@@ -292,7 +293,7 @@ Spec is deleted after:
 
 ## Progress
 
-*(timestamped notes added here as work proceeds; resume-without-rereading-chat is the bar)*
+Add timestamped progress notes here as work proceeds.
 
 - **2026-05-16** — Spec created. Decision-alignment loop with jstar confirmed: native acquisition, Widevine v1, no metadata seam, AAX-legacy deferred, GPL contamination rule for agents, and a new Remote Source Public API shape.
 - **2026-05-16** — Widevine device identity policy locked: ABB uses a private resolver-backed `WidevineDeviceProvider` with validated local cache and user override, but does not vendor a device blob or depend on Libation's `.cdmurls.json` as owned infrastructure.

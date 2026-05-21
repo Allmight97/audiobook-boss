@@ -5,17 +5,16 @@ description: ABB reference-library control plane for external library/API resear
 
 # ABB Library Research
 
-Use this skill when ABB work depends on external library behavior, reference
-subtree source, or route-card maintenance. Optimize for implementation-ready
-answers, not broad research.
+Use for ABB work that depends on external library behavior, reference subtree
+source, or route-card maintenance. Produce implementation-ready answers, not
+broad research.
 
 ## Posture
 
-ABB is current-state evidence and the owning integration surface, not the final
-authority on what should be built. Use ABB to locate boundaries, constraints,
-tests, and product intent; use well-regarded libraries, current docs, this
-skill's route references, `repos/*` reference source, and installed dependency
-truth to challenge, improve, or validate the plan.
+Use ABB to locate boundaries, constraints, tests, and product intent. Use
+well-regarded libraries, current docs, this skill's route references, `repos/*`
+reference source, and installed dependency truth to challenge, improve, or
+validate the plan.
 
 This skill is the control plane for ABB reference libraries: source routing,
 subtree refresh guidance, route-card maintenance, and task-specific pattern-file

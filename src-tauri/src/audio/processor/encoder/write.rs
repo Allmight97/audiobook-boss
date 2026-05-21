@@ -101,7 +101,7 @@ pub(crate) fn finalize_encoding_after_preview(
     output_stream_index: usize,
     output_time_base: ff::Rational,
 ) -> Result<()> {
-    // Currently identical to finalize_encoding; separated for clarity and future hooks
+    // Currently identical to finalize_encoding; separated for clarity if preview finalization diverges.
     finalize_encoding(
         encoder,
         output_context,

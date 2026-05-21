@@ -49,7 +49,7 @@ Effect workflow adoption release.
   save, metadata lookup, output-plan review, toolchain validation, and file
   import so long-running frontend orchestration has typed errors, injectable
   services, and focused test harnesses.
-- Added an Effect adoption roadmap artifact under `docs/specs/` to keep the
+- Added an Effect adoption roadmap artifact to keep the
   architecture direction, milestones, and boundary decisions visible.
 - Added local public-strip guidance for the encoder, output, status, and Effect
   workflow surfaces.
@@ -186,7 +186,7 @@ shims.
   removing audio fallback shims; staging responsibilities expanded and integrated with
   processor orchestration.
 - Audio buffer behavior and unit coverage updated to match the non-fallback pipeline.
-- Consolidated Codex hook guardrails and refreshed root agent guidance touched by this
+- Consolidated Codex automation guardrails and refreshed root agent guidance touched by this
   release train.
 
 ### Fixed
@@ -642,7 +642,7 @@ tests now prove that behavior instead of masking it.
 - Backend terminal progress cleanup now preserves failure `jobId` context
   without degrading cancellation into failed batch results.
 - Tooling/docs cleanup pass: shared release shell helpers, cheaper release
-  fixture setup, deduped context-surface lists, and compressed historical
+  fixture setup, deduped context lists, and compressed historical
   release notes.
 
 ### Fixed
@@ -751,7 +751,7 @@ Metadata lookup hardening release for legacy-title coverage and no-result recove
   - Merge behavior preserves Audnexus-first ordering while reducing cross-source duplicate title/author matches.
 - **DX / Contract Guardrails**
   - Introduce change-aware local IPC binding drift checks (`scripts/check-generated-bindings.sh --mode local`) to reduce iteration churn during non-contract edits.
-  - Add hook-based binding auto-sync/stage flow in `.githooks/pre-commit` for staged Rust IPC contract changes.
+  - Add binding auto-sync/stage flow for staged Rust IPC contract changes.
   - Add explicit scripts for strict/local/sync binding workflows: `bindings:check`, `bindings:check:local`, `bindings:sync`.
 
 ### Fixed

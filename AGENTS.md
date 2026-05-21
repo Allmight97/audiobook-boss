@@ -8,16 +8,18 @@
 ## Long-Horizon Planning
 
 Use `.agents/skills/decision-alignment` for repo-specific alignment work that
-turns ideas and substantial plans into one active implementation spec under
-`docs/specs/<task>.md`.
+turns fuzzy ideas and substantial plans into an aligned decision, proof route,
+GitHub issue, canon doc patch, or one active spec under `docs/specs/<task>.md`
+when work must span sessions or agents.
 
-Task specs are working state, not canon history:
+Active specs are temporary work state, not repo canon:
 
-- reuse the same file across sessions for the same effort
-- reuse an existing matching spec instead of creating a new one
-- do not create a new file per session
-- delete the file once implementation, review, validation, documentation
-  alignment, and sync are complete
+- create or reuse `docs/specs/<task>.md` only for substantial planning,
+  roadmap, architecture, or implementation work
+- keep specs self-contained and current while they are active
+- keep chat logs, presentation HTML, and review artifacts outside repo canon
+- when the work is implemented, rejected, or superseded, delete the spec or
+  distill only enduring truths into the owning canon surfaces
 
 Do not introduce a separate repo-local ticket ledger or scratch task database.
 
@@ -55,9 +57,8 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Keep architecture changes localized to the subsystem that owns the invariant.
 - Start with the nearest `AGENTS.md`.
 - Run all Cargo commands from the repository root workspace.
-- For docs, guidance, and reference-source changes, use focused coherence or
-  source-presence verification; run `bash scripts/check-context-surface.sh`
-  when active repo guidance/docs could drift.
+- For docs, guidance, and reference-source changes, use focused coherence,
+  source-presence verification, and targeted validators for the touched surface.
 - For behavior/runtime, IPC, dependency/toolchain, build/test semantics, or
   release-surface changes, run `scripts/checks.sh standard` before sharing
   changes for review.
@@ -176,8 +177,8 @@ override ABB application ownership.
 - Any new compatibility/fallback behavior includes explicit evidence, trigger, and sunset/removal condition.
 - Verification is explicit by risk:
   - docs/guidance/reference edits: the active repo surface remains coherent,
-    stale references are removed, and source/subtree presence is checked when
-    relevant
+    stale references are removed, source/subtree presence is checked when
+    relevant, and edited skills pass `quick_validate.py`
   - tool/editor excludes with no runtime path: focused config sanity or diff
     review is enough
   - UI-affecting behavior: targeted tests plus explicit visual/UX review
@@ -185,8 +186,8 @@ override ABB application ownership.
   - boundary/backend/runtime behavior: `scripts/checks.sh standard` plus any
     targeted contract/regression coverage for the touched surface
 - Verification matches scope:
-  - docs/guidance changes that can affect active repo instructions:
-    `bash scripts/check-context-surface.sh`
+  - docs/guidance changes that affect public-strip rules:
+    `scripts/check-public-api-strips.sh`
   - tool/subsystem-local changes: targeted commands for the changed surface
     first
   - app behavior, contracts, dependency resolution, build/test semantics,

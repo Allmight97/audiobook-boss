@@ -5,9 +5,11 @@ description: Audiobook Boss dependency and toolchain maintenance workflow. Use w
 
 # Dependency Maintenance
 
-## Purpose
+## Operating Rules
 
-Maintain ABB dependencies without bypassing supply-chain guardrails or turning routine updates into avoidable break/fix churn. Prefer staged updates, explicit risk classification, and full repo proof.
+- Preserve supply-chain guardrails.
+- Prefer staged updates, explicit risk classification, and full repo proof.
+- Keep routine updates out of avoidable break/fix churn.
 
 Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally means `scripts/checks.sh standard`.
 
@@ -76,13 +78,7 @@ If IPC/Rust contract shapes change, regenerate/check bindings with the existing 
 scripts/check-generated-bindings.sh --mode local
 ```
 
-For docs-only edits to this skill or policy surfaces, use:
-
-```bash
-bash scripts/check-context-surface.sh
-```
-
-Also validate the skill itself after edits:
+For docs-only edits to this skill or policy surfaces, validate the skill itself:
 
 ```bash
 python3 /Users/jstar/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/dependency-maintenance

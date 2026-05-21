@@ -37,8 +37,8 @@ After a pure reference-source refresh:
 - do not run `scripts/checks.sh standard` unless app code, manifests,
   build/test semantics, runtime imports, or generated bindings changed
 
-Run `bash scripts/check-context-surface.sh` when active guidance, skill text, or
-route references change.
+When active guidance, skill text, or route references change, verify source
+presence and validate any edited skills with `quick_validate.py`.
 
 ## Adding A Reference Subtree
 
@@ -50,8 +50,9 @@ For a new subtree:
 1. choose a stable `repos/<library>` prefix
 2. add the subtree with `--squash`
 3. create `references/<library>.md`
-4. update `SKILL.md` route selection and `repos/README.md`
-5. verify source presence and context surface coherence
+4. update `SKILL.md` route selection and `repos/AGENTS.md` if subtree boundary
+   policy changes
+5. verify source presence and route-card coherence
 
 ## Pattern Files
 

@@ -103,7 +103,7 @@ strip, private cluster, edit rules, and breaking-change triggers.
 
 Backend Lifecycle is a named sub-owner inside `processing`, not a seventh
 Grey-Box Public API. It provides operation identity, progress/queue event
-vocabulary, cancellation hooks, and shared terminal-summary vocabulary for
+vocabulary, cancellation checks, and shared terminal-summary vocabulary for
 processing, metadata save, audio progress reporting, and Status Panel
 consumption.
 

@@ -20,7 +20,7 @@
 | **Product Spine** | The user workflow from import through verification: Import, Inspect, Decide, Preflight, Process, Verify. | feature list, screen order |
 | **Product Intent** | What the user believes they asked Audiobook Boss to do with selected files, metadata, output rules, and processing settings. | UI state, backend guess |
 | **UI State** | The frontend-held state for selected files, edits, visible status, and enabled actions before or after backend truth is returned. | product truth, backend state |
-| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation hooks, and terminal-summary truth used by long-running backend work. Not a seventh Grey-Box Public API. | processing helper, job loop, status UI owner |
+| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a seventh Grey-Box Public API. | processing helper, job loop, status UI owner |
 | **Operation Kind** | The backend-declared operation identity carried on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | caller mode guess, UI-only work kind |
 | **Operation Result Summary** | Shared terminal counts for long-running backend operations: total, succeeded, skipped, cancelled, and failed. | processing-only summary, UI completion guess |
 | **Artifact Truth** | The final files, tags, paths, and terminal results that exist after processing or metadata operations complete. | expected output, UI summary |
@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | **Standard Gate** | The main non-doc quality gate run via `scripts/checks.sh standard` to validate code, contracts, and repo health. | test pass, quick smoke check |
 | **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
-| **Task Spec** | The one active `docs/specs/<task>.md` working document produced through decision alignment for substantial multi-session or multi-lane execution. | scratchpad, session log |
+| **Active Spec** | A temporary `docs/specs/<task>.md` work packet for substantial planning, roadmap, architecture, or implementation work. It is self-contained while active and must be deleted or distilled into canon when done. | permanent feature doc, transcript, generated report |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
 | **Minimal Churn** | Fewer reactive correction loops and less avoidable rework, not automatically the smallest diff. | smallest patch, least code motion |
 
@@ -74,7 +74,7 @@
 - A **Boundary** owns normalization and validation so **Contract Truth** does not leak into scattered UI callsites.
 - The **Product Spine** moves from **Product Intent** through **UI State**, **IPC Contract**, **Backend Lifecycle**, and **Artifact Truth**.
 - The **Backend Lifecycle** strip under `processing` names operation identity,
-  queue/progress events, cancellation hooks, and shared terminal summaries for
+  queue/progress events, cancellation checks, and shared terminal summaries for
   processing and metadata save.
 - The **Job Registry** is the authority for active **Processing Flow** jobs,
   queue state, permits, and cancellation.
@@ -83,7 +83,7 @@
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
-- A **Task Spec** is a **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
+- An **Active Spec** is a temporary **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.

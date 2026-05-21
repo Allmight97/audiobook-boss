@@ -8,7 +8,7 @@
 # Defaults to "standard".
 #
 # Tiers:
-# - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + runtime guardrails + fallback policy enforcement + context-surface coherence
+# - quick: Rust fmt + frontend format check + frontend lint check + clippy + change-aware IPC binding drift check + runtime guardrails + fallback policy enforcement
 # - standard: quick + Rust tests + direct Bun script tests + TS tests + app build
 # - package: standard + Tauri app bundling (validates real packaging path)
 #
@@ -121,9 +121,6 @@ run_quick() {
 
   log_step "scripts/check-no-legacy-test-contracts.sh"
   bash scripts/check-no-legacy-test-contracts.sh
-
-  log_step "scripts/check-context-surface.sh"
-  bash scripts/check-context-surface.sh
 
   log_step "scripts/check-fallback-policy.sh"
   bash scripts/check-fallback-policy.sh

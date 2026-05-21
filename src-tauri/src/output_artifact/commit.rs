@@ -225,7 +225,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) fn commit_output_artifact_with_hook<F, C>(
+pub(crate) fn commit_output_artifact_after_move<F, C>(
     request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
     cleanup_guard: &mut CleanupGuard,
@@ -292,7 +292,7 @@ mod tests {
         cleanup_guard.add_path(&temp_output);
 
         let request = OutputCommitRequest::new(&final_output, PlannedOutputAction::Write);
-        let outcome = commit_output_artifact_with_hook(
+        let outcome = commit_output_artifact_after_move(
             request,
             temp_output,
             &mut cleanup_guard,

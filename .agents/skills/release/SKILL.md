@@ -7,7 +7,10 @@ description: Audiobook Boss release workflow for deciding whether changes need a
 
 ## Overview
 
-Use this skill to keep release work consistent without spreading release logic across repo scripts. Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script. A complete public release includes a Git tag plus a GitHub Release with the verified DMG attached; a tag alone is not enough for GitHub to show the release as latest.
+- Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script.
+- A complete public release includes a Git tag, GitHub Release, and verified DMG
+  attachment.
+- A tag alone is tag-only; GitHub will not show it as the latest release.
 
 ## Decision Rule
 

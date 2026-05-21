@@ -14,7 +14,6 @@
 		"check": "scripts/checks.sh standard",
 		"check:quick": "scripts/checks.sh quick",
 		"check:package": "scripts/checks.sh package",
-		"check:context": "bash scripts/check-context-surface.sh",
 		"check:deps": "cargo audit -D warnings",
 		"check:fallback": "scripts/check-fallback-policy.sh",
 		"check:no-bridge": "scripts/check-no-bridge-imports.sh",
