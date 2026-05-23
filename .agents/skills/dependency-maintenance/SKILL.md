@@ -39,7 +39,13 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 ## Bun And JS Rules
 
 - Treat Bun as the project package manager, script runner, and test runner.
+- Treat `.node-version` as the preferred Node runtime for Node-backed CLIs. It
+  is policy guidance, not a hard engine gate.
+- Treat `package.json` `packageManager` as the intended stable Bun baseline.
 - Respect `bunfig.toml` `minimumReleaseAge = 604800`. Do not bypass it without explicit user approval.
+- If an active security advisory requires bypassing the age gate, keep the
+  update narrowly scoped, record the advisory reason, and rerun supply-chain
+  preflights.
 - After updating Bun, rerun `bun outdated`; interpret `*` entries as age-gated and leave them alone.
 - Use `bun ci` to prove the committed lockfile still installs cleanly.
 - Use `bun audit` and `bun pm untrusted` as standard supply-chain preflights.

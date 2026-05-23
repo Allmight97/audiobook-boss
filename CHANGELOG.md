@@ -14,6 +14,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Cleared Svelte/devalue dependency advisories and recorded the preferred
+  Node/Bun tooling baseline for dependency hygiene work.
+
 ### Removed
 
 ## [1.0.25] - 2026-05-21

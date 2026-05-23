@@ -19,6 +19,9 @@ Convert, tag, and organize your audiobook library with metadata that works every
 # System dependencies (macOS)
 brew install ffmpeg
 
+# Preferred Node runtime for Node-backed CLIs: Node 24 LTS.
+# Use a node manager that honors .node-version.
+
 # Install JS/TS dependencies
 bun install
 
@@ -50,6 +53,9 @@ Use this section as the human-facing index. `scripts/proof.sh --help` is the can
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
   Run explicitly, or use `scripts/proof.sh deps`; it is not part of the normal standard gate.
+- Tooling policy: Bun is the package manager/script runner/test runner.
+  `.node-version` records Node 24 LTS for Node-backed CLIs such as Vite; do not
+  switch Vite scripts to `--bun` without a proof-backed tooling decision.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b scripts/proof.sh rust-media-manual xhe-aac`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
