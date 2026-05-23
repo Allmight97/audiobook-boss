@@ -112,6 +112,21 @@ reject_args() {
   fi
 }
 
+run_generated_bindings_check() {
+  if [[ "${CHECK_BINDINGS_STRICT:-0}" == "1" ]]; then
+    log_step "scripts/check-generated-bindings.sh --mode verify (strict)"
+    bash scripts/check-generated-bindings.sh --mode verify
+  else
+    log_step "scripts/check-generated-bindings.sh --mode local"
+    bash scripts/check-generated-bindings.sh --mode local
+  fi
+}
+
+run_public_api_strips_check() {
+  log_step "scripts/check-public-api-strips.sh"
+  bash scripts/check-public-api-strips.sh
+}
+
 run_quick() {
   reject_args "$@"
   require cargo
@@ -132,16 +147,8 @@ run_quick() {
   log_step "cargo clippy --workspace --all-targets -- -D warnings"
   cargo clippy --workspace --all-targets -- -D warnings
 
-  if [[ "${CHECK_BINDINGS_STRICT:-0}" == "1" ]]; then
-    log_step "scripts/check-generated-bindings.sh --mode verify (strict)"
-    bash scripts/check-generated-bindings.sh --mode verify
-  else
-    log_step "scripts/check-generated-bindings.sh --mode local"
-    bash scripts/check-generated-bindings.sh --mode local
-  fi
-
-  log_step "scripts/check-public-api-strips.sh"
-  bash scripts/check-public-api-strips.sh
+  run_generated_bindings_check
+  run_public_api_strips_check
 
   log_step "scripts/check-no-bridge-imports.sh"
   bash scripts/check-no-bridge-imports.sh
@@ -176,27 +183,19 @@ run_rust_contract() {
   log_step "cargo test -p audiobook-boss contract_tests"
   cargo test -p audiobook-boss contract_tests
 
-  log_step "scripts/check-public-api-strips.sh"
-  bash scripts/check-public-api-strips.sh
+  run_public_api_strips_check
 }
 
 run_rust_media() {
   reject_args "$@"
   require cargo
-  log_step "cargo test -p audiobook-boss --test integration_file_list_tests"
-  cargo test -p audiobook-boss --test integration_file_list_tests
-
-  log_step "cargo test -p audiobook-boss --test integration_metadata_tests"
-  cargo test -p audiobook-boss --test integration_metadata_tests
-
-  log_step "cargo test -p audiobook-boss --test integration_metadata_reader_matrix_tests"
-  cargo test -p audiobook-boss --test integration_metadata_reader_matrix_tests
-
-  log_step "cargo test -p audiobook-boss --test integration_native_aac_regression_tests"
-  cargo test -p audiobook-boss --test integration_native_aac_regression_tests
-
-  log_step "cargo test -p audiobook-boss --test integration_processing_flow_tests"
-  cargo test -p audiobook-boss --test integration_processing_flow_tests
+  log_step "cargo test -p audiobook-boss integration tests (media subset)"
+  cargo test -p audiobook-boss \
+    --test integration_file_list_tests \
+    --test integration_metadata_tests \
+    --test integration_metadata_reader_matrix_tests \
+    --test integration_native_aac_regression_tests \
+    --test integration_processing_flow_tests
 }
 
 run_manual_xhe_aac() {
@@ -257,9 +256,10 @@ run_frontend() {
 
 run_runtime() {
   reject_args "$@"
+  require cargo
   require bun
-  log_step "scripts/check-generated-bindings.sh --mode local"
-  bash scripts/check-generated-bindings.sh --mode local
+  run_generated_bindings_check
+  run_public_api_strips_check
 
   log_step "runtime boundary Vitest contract tests"
   bun run test -- \
@@ -292,6 +292,9 @@ run_package() {
 }
 
 run_coverage() {
+  if [[ $# -gt 1 ]]; then
+    fail "Route '$route' accepts at most one target: rust, ts, or all."
+  fi
   local target="${1:-all}"
   log_step "scripts/coverage.sh $target"
   bash scripts/coverage.sh "$target"
