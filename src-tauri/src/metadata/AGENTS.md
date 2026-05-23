@@ -11,7 +11,7 @@
 - The broader metadata boundary owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, remux helpers, and container routing.
 
 ## Allowed Agent Edits Without Escalation
-- Change intent internals when `cargo test contract_tests` and `scripts/check-public-api-strips.sh` stay green.
+- Change intent internals when `scripts/proof.sh rust-contract` stays green.
 - Preserve `set | clear | noop` semantics across save, processing projection, naming projection, write plans, and cover-art handling.
 - Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.

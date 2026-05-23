@@ -34,7 +34,7 @@ After a pure reference-source refresh:
 - verify expected source directories still exist
 - update affected route cards only if high-value entry paths changed
 - verify `git status`
-- do not run `scripts/checks.sh standard` unless app code, manifests,
+- do not run `scripts/proof.sh standard` unless app code, manifests,
   build/test semantics, runtime imports, or generated bindings changed
 
 When active guidance, skill text, or route references change, verify source

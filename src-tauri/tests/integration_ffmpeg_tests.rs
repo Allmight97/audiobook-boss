@@ -2,23 +2,10 @@
 //!
 //! This test file ensures FFmpeg-next functionality is properly tested.
 
-use std::path::PathBuf;
-
 use audiobook_boss_lib::audio::{
     detect_encoder_availability, BitrateMode, ChannelConfig as EncoderChannelConfig,
     EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
-
-const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
-
-fn ensure_media() -> Option<PathBuf> {
-    let p = PathBuf::from(TEST_MEDIA_FILE);
-    if p.exists() && p.is_file() {
-        Some(p)
-    } else {
-        None
-    }
-}
 
 #[test]
 fn test_native_engine_is_available() {
@@ -28,20 +15,6 @@ fn test_native_engine_is_available() {
         availability.native_aac_available,
         "Native AAC should be available through the public audio strip"
     );
-}
-
-#[test]
-fn test_media_file_availability() {
-    // Test that the media file is available for testing
-    let media = ensure_media();
-    if let Some(path) = media {
-        println!("Test media file found: {}", TEST_MEDIA_FILE);
-        assert!(path.exists(), "Media file should exist");
-        assert!(path.is_file(), "Media file should be a regular file");
-    } else {
-        println!("Test media file not found: {}", TEST_MEDIA_FILE);
-        // This is not an error - tests should gracefully handle missing media
-    }
 }
 
 #[test]
@@ -74,21 +47,4 @@ fn test_ffmpeg_next_dependency_available() {
 
     // This test passing means the dependency is properly linked
     assert!(!version_info.is_empty());
-}
-
-#[test]
-fn test_compilation_status_report() {
-    println!("=== FFmpeg-next Integration Test Status (Native Engine) ===");
-    println!("Test media file path: {}", TEST_MEDIA_FILE);
-    println!("Media file exists: {}", ensure_media().is_some());
-    println!("✓ Native ffmpeg-next architecture active (no feature flags)");
-    let media_path = PathBuf::from(TEST_MEDIA_FILE);
-    assert_eq!(
-        media_path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default(),
-        "mp3",
-        "Expected demo media to be an mp3 file"
-    );
 }

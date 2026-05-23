@@ -47,4 +47,4 @@
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
 - Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Svelte surface.
 - UI-facing changes have targeted tests and, when needed, explicit visual/UX review evidence for the touched surface.
-- Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).
+- Validation matches scope (`scripts/proof.sh standard` for non-doc code changes).

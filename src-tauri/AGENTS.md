@@ -53,4 +53,4 @@
 
 - Processing, metadata, and concurrency edits follow the nearest local subsystem `AGENTS.md`.
 - Path validation, progress semantics, and contract parity remain intact.
-- Validation matches scope (`scripts/checks.sh standard` for non-doc code changes).
+- Validation matches scope (`scripts/proof.sh standard` for non-doc code changes).

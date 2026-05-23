@@ -11,7 +11,7 @@ description: Audiobook Boss dependency and toolchain maintenance workflow. Use w
 - Prefer staged updates, explicit risk classification, and full repo proof.
 - Keep routine updates out of avoidable break/fix churn.
 
-Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally means `scripts/checks.sh standard`.
+Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally means `scripts/proof.sh standard`.
 
 ## Quick Snapshot
 
@@ -69,7 +69,7 @@ bun ci
 bun audit
 bun pm untrusted
 cargo audit -D warnings
-scripts/checks.sh standard
+scripts/proof.sh standard
 ```
 
 If IPC/Rust contract shapes change, regenerate/check bindings with the existing repo scripts before trusting UI tests:

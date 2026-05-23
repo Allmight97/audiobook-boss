@@ -20,16 +20,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-/// Test media file path - relative to src-tauri directory
-const TEST_MEDIA_FILE: &str = "../media/01 - Introduction.mp3";
+const TEST_MEDIA_FILE: &str = "media/media_20sec.mp3";
 const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
 
-fn verify_test_media_exists() -> Option<PathBuf> {
-    let media_path = PathBuf::from(TEST_MEDIA_FILE);
-    if !media_path.exists() || !media_path.is_file() {
-        return None;
-    }
-    Some(media_path)
+fn committed_test_media() -> PathBuf {
+    let media_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("manifest dir parent")
+        .join(TEST_MEDIA_FILE);
+    assert!(
+        media_path.exists() && media_path.is_file(),
+        "committed media fixture missing: {}",
+        media_path.display()
+    );
+    media_path
 }
 
 fn native_encoder_settings() -> EncoderSettings {
@@ -258,13 +262,7 @@ async fn assert_metadata_round_trip(
 /// This test documents the exact current behavior for refactoring safety
 #[tokio::test]
 async fn test_current_processing_flow() {
-    let media_path = match verify_test_media_exists() {
-        Some(path) => path,
-        None => {
-            eprintln!("Skipping integration test - media file not found: {TEST_MEDIA_FILE}");
-            return;
-        }
-    };
+    let media_path = committed_test_media();
 
     let temp_dir = TempDir::new().expect("create temp dir");
     let output_path = temp_dir.path().join("test_output.m4b");
@@ -365,13 +363,7 @@ fn test_progress_reporting_accuracy() {
 /// Test that captures current metadata handling behavior
 #[tokio::test]
 async fn test_metadata_preservation() {
-    let media_path = match verify_test_media_exists() {
-        Some(path) => path,
-        None => {
-            eprintln!("Skipping metadata test - media file not found: {TEST_MEDIA_FILE}");
-            return;
-        }
-    };
+    let media_path = committed_test_media();
 
     let metadata_result = read_audio_metadata(media_path.to_string_lossy().to_string()).await;
     assert!(metadata_result.is_ok(), "Should be able to read metadata");
@@ -499,37 +491,28 @@ async fn test_error_handling() {
 /// Test that captures current file validation logic
 #[test]
 fn test_file_validation() {
-    if let Some(media_path) = verify_test_media_exists() {
-        let files = vec![media_path.to_string_lossy().to_string()];
-        let validation_result = validate_files(files.clone());
-        assert!(
-            validation_result.is_ok(),
-            "Valid file should pass validation"
-        );
+    let media_path = committed_test_media();
+    let files = vec![media_path.to_string_lossy().to_string()];
+    let validation_result = validate_files(files.clone());
+    assert!(
+        validation_result.is_ok(),
+        "Valid file should pass validation"
+    );
 
-        let analysis_result = analyze_audio_files(files);
-        assert!(analysis_result.is_ok(), "Valid file should be analyzable");
+    let analysis_result = analyze_audio_files(files);
+    assert!(analysis_result.is_ok(), "Valid file should be analyzable");
 
-        let file_info = analysis_result.expect("analysis ok");
-        let audio_file = &file_info.files[0];
+    let file_info = analysis_result.expect("analysis ok");
+    let audio_file = &file_info.files[0];
 
-        assert!(audio_file.is_valid, "Test media should be valid");
-        assert!(
-            audio_file.error.is_none(),
-            "Valid file should have no error"
-        );
-        assert!(audio_file.size.is_some(), "Should determine file size");
-        assert!(audio_file.duration.is_some(), "Should determine duration");
-        assert!(audio_file.format.is_some(), "Should determine format");
-
-        eprintln!("Valid file properties:");
-        eprintln!("  Size: {:?} bytes", audio_file.size);
-        eprintln!("  Duration: {:?} seconds", audio_file.duration);
-        eprintln!("  Format: {:?}", audio_file.format);
-        eprintln!("  Bitrate: {:?} kbps", audio_file.bitrate);
-        eprintln!("  Sample rate: {:?} Hz", audio_file.sample_rate);
-        eprintln!("  Channels: {:?}", audio_file.channels);
-    }
+    assert!(audio_file.is_valid, "Test media should be valid");
+    assert!(
+        audio_file.error.is_none(),
+        "Valid file should have no error"
+    );
+    assert!(audio_file.size.is_some(), "Should determine file size");
+    assert!(audio_file.duration.is_some(), "Should determine duration");
+    assert!(audio_file.format.is_some(), "Should determine format");
 
     let empty_result = analyze_audio_files(vec![]);
     assert!(empty_result.is_err(), "Empty file list should fail");
@@ -574,29 +557,14 @@ fn test_sample_rate_detection() {
     assert_eq!(nonexistent_result.invalid_count, 1);
     assert!(nonexistent_result.files[0].sample_rate.is_none());
 
-    // Test with actual media file if available
-    if let Some(media_path) = verify_test_media_exists() {
-        let files = vec![media_path];
-        let sample_rate_result = audio::get_file_list_info(&files)
-            .ok()
-            .and_then(|info| info.files.first().and_then(|file| file.sample_rate));
-
-        match sample_rate_result {
-            Some(sample_rate) => {
-                eprintln!("Detected sample rate: {sample_rate} Hz");
-                assert!(sample_rate > 0, "Sample rate should be positive");
-
-                let common_rates = [22050, 32000, 44100, 48000];
-                eprintln!(
-                    "Sample rate {sample_rate} is common: {}",
-                    common_rates.contains(&sample_rate)
-                );
-            }
-            None => {
-                eprintln!("Could not detect sample rate from test media");
-            }
-        }
-    }
+    let files = vec![committed_test_media()];
+    let sample_rate = audio::get_file_list_info(&files)
+        .expect("committed media should be analyzable")
+        .files
+        .first()
+        .and_then(|file| file.sample_rate)
+        .expect("committed media should report sample rate");
+    assert!(sample_rate > 0, "Sample rate should be positive");
 }
 
 /// Test that captures current FFmpeg command building behavior

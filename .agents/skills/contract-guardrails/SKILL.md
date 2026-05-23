@@ -42,18 +42,16 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
 2. For command/event, payload, or TS adapter changes, verify contract parity with focused
    boundary checks first:
 ```bash
-bun run bindings:check:local
-bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
-scripts/check-public-api-strips.sh
+scripts/proof.sh runtime
 ```
-3. Run `scripts/checks.sh standard` when the change affects Rust command/event
+3. Run `scripts/proof.sh standard` when the change affects Rust command/event
    signatures, generated bindings, runtime behavior, dependency/build/test
    semantics, or release-critical merge confidence.
 4. For release-critical binding drift checks:
 ```bash
 bun run bindings:check
 # or
-CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard
+CHECK_BINDINGS_STRICT=1 scripts/proof.sh standard
 ```
 
 ## Command Pointers
@@ -74,7 +72,7 @@ CHECK_BINDINGS_STRICT=1 scripts/checks.sh standard
 - Progress-stage authority is not duplicated here; use
   `job-registry-and-progress` and `src/types/events.ts` for lifecycle state.
 - Verification follows root `AGENTS.md` risk-based scope: focused boundary
-  checks for local adapter changes; `scripts/checks.sh standard` for contract,
+  checks for local adapter changes; `scripts/proof.sh standard` for contract,
   runtime, build/test, dependency, or release-critical risk.
 
 ## Alignment
