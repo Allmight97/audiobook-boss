@@ -127,10 +127,16 @@ run_public_api_strips_check() {
   bash scripts/check-public-api-strips.sh
 }
 
+run_node_toolchain_check() {
+  log_step "scripts/check-node-toolchain.sh"
+  bash scripts/check-node-toolchain.sh
+}
+
 run_quick() {
   reject_args "$@"
   require cargo
   require bun
+  run_node_toolchain_check
 
   log_step "cargo fmt --all -- --check"
   cargo fmt --all -- --check
@@ -239,6 +245,7 @@ run_rust_media_manual() {
 run_script_tests() {
   reject_args "$@"
   require bun
+  run_node_toolchain_check
   log_step "bun test scripts/*.test.ts proof subset"
   bun test \
     scripts/build-app.test.ts \
@@ -250,6 +257,7 @@ run_script_tests() {
 run_frontend() {
   reject_args "$@"
   require bun
+  run_node_toolchain_check
   log_step "bun run test"
   bun run test
 }
@@ -258,6 +266,7 @@ run_runtime() {
   reject_args "$@"
   require cargo
   require bun
+  run_node_toolchain_check
   run_generated_bindings_check
   run_public_api_strips_check
 
@@ -295,6 +304,7 @@ run_coverage() {
   if [[ $# -gt 1 ]]; then
     fail "Route '$route' accepts at most one target: rust, ts, or all."
   fi
+  run_node_toolchain_check
   local target="${1:-all}"
   log_step "scripts/coverage.sh $target"
   bash scripts/coverage.sh "$target"

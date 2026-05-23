@@ -39,8 +39,9 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 ## Bun And JS Rules
 
 - Treat Bun as the project package manager, script runner, and test runner.
-- Treat `.node-version` as the preferred Node runtime for Node-backed CLIs. It
-  is policy guidance, not a hard engine gate.
+- Treat `.node-version`, `.nvmrc`, and `package.json` `engines.node` as the
+  Node 24.x LTS policy for Node-backed CLIs. `scripts/check-node-toolchain.sh`
+  enforces this policy in canonical proof/build routes.
 - Treat `package.json` `packageManager` as the intended stable Bun baseline.
 - Respect `bunfig.toml` `minimumReleaseAge = 604800`. Do not bypass it without explicit user approval.
 - If an active security advisory requires bypassing the age gate, keep the
@@ -50,6 +51,9 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 - Use `bun ci` to prove the committed lockfile still installs cleanly.
 - Use `bun audit` and `bun pm untrusted` as standard supply-chain preflights.
 - Do not use `npm audit` here; the repo intentionally has no npm lockfile, so it fails with `ENOLOCK` and adds noise.
+- Do not adopt Tailwind insiders, Bun canary, Vite-under-Bun, or a package-manager
+  swap as routine warning cleanup. Track the stable dependency lane unless the
+  user explicitly opens a separate tooling decision.
 
 ## Rust Rules
 
