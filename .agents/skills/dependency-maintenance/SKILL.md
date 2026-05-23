@@ -23,6 +23,23 @@ bash .agents/skills/dependency-maintenance/dependency_snapshot.sh
 
 The helper gathers tool versions, dirty state, `bun outdated`, Bun/Rust audit status, `rustup check`, and workflow action pins. It must not edit lockfiles or install anything.
 
+## Weekly Or Manual Audit Route
+
+For recurring dependency/security checks, keep the route narrow and signal-first:
+
+```bash
+bash .agents/skills/dependency-maintenance/dependency_snapshot.sh
+bun audit --audit-level high
+bun pm untrusted
+cargo audit -D warnings
+```
+
+- Treat `bun outdated` and `cargo update --dry-run` output as summary context, not failure conditions.
+- Fail or escalate only on new high-severity JS advisories, RustSec findings, or untrusted dependency scripts.
+- Do not auto-open issues from routine scheduled output unless the user explicitly asks for issue creation.
+- If a security advisory requires an update before `minimumReleaseAge` expires, keep the exception narrow and record the advisory reason.
+- Leave local Homebrew `ffmpeg` version checks to release/package validation unless the active maintenance lane is Homebrew build tools.
+
 ## Staging Model
 
 Keep these lanes separate unless the user explicitly asks for a combined maintenance pass:
