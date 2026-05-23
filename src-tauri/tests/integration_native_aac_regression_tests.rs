@@ -16,17 +16,18 @@ fn native_aac_test_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-fn sample_mp3_path() -> Option<PathBuf> {
+fn sample_mp3_path() -> PathBuf {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("manifest dir parent")
         .join("media")
         .join("media_20sec.mp3");
-    if path.exists() && path.is_file() {
-        Some(path)
-    } else {
-        None
-    }
+    assert!(
+        path.exists() && path.is_file(),
+        "committed media fixture missing: {}",
+        path.display()
+    );
+    path
 }
 
 fn preview_output_path(output: &Path) -> PathBuf {
@@ -53,13 +54,7 @@ fn native_aac_settings() -> EncoderSettings {
 #[tokio::test(flavor = "multi_thread")]
 async fn native_aac_regression_encodes_valid_output() {
     let _guard = native_aac_test_lock().lock().await;
-    let input_path = match sample_mp3_path() {
-        Some(path) => path,
-        None => {
-            eprintln!("Skipping native AAC regression test - media fixture missing");
-            return;
-        }
-    };
+    let input_path = sample_mp3_path();
 
     let file_info = audio::get_file_list_info(std::slice::from_ref(&input_path))
         .expect("input media should be analyzable");
@@ -108,13 +103,7 @@ async fn native_aac_regression_encodes_valid_output() {
 #[tokio::test(flavor = "multi_thread")]
 async fn native_aac_preview_stops_near_requested_boundary() {
     let _guard = native_aac_test_lock().lock().await;
-    let input_path = match sample_mp3_path() {
-        Some(path) => path,
-        None => {
-            eprintln!("Skipping native AAC preview regression test - media fixture missing");
-            return;
-        }
-    };
+    let input_path = sample_mp3_path();
 
     let file_info = audio::get_file_list_info(std::slice::from_ref(&input_path))
         .expect("input media should be analyzable");

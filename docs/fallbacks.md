@@ -8,6 +8,6 @@ Boundary smells, design smells, and implementation smells belong in active specs
 
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| FB-018 | `scripts/checks.sh` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | RETAIN FOR NOW — main Svelte format gate still depends on Prettier |
+| FB-018 | `scripts/proof.sh` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | RETAIN FOR NOW — main Svelte format gate still depends on Prettier |
 
 Renewals, when needed, stay compact: append `renewal=YYYY-MM-DD; reason=...` to the Audit Status cell and make sure the renewal date is a valid calendar date that extends the sunset.

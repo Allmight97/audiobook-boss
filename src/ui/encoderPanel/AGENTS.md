@@ -7,7 +7,9 @@
 - The cluster owns audio encoder UI state, resolved encoder availability, toolchain override state, sample-rate/channel state, and encoding request configuration truth.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when focused encoder panel tests and `scripts/check-public-api-strips.sh` stay green.
+- Change internals when focused encoder panel tests stay green; run
+  `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
+  when public-strip or runtime contract surfaces change.
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
 - Keep estimated-size updates derived from encoder state; do not mirror encoder/toolchain/sample-rate state into output or status panels.
 

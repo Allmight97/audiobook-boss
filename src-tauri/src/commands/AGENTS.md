@@ -37,5 +37,5 @@
   binding drift checks.
 - Focused command tests or owning module tests prove the behavior moved through
   the intended boundary.
-- `scripts/checks.sh standard` is the default gate for command, contract, or
+- `scripts/proof.sh standard` is the default gate for command, contract, or
   generated-binding changes.

@@ -11,7 +11,10 @@
   vocabulary or terminal-summary truth.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when `bun run test -- src/ui/statusPanel/__tests__/runtime-api-contract.test.ts src/ui/statusPanel/__tests__/statusPanel-lifecycle.test.ts src/ui/statusPanel/__tests__/statusPanel-island.test.ts` and `scripts/check-public-api-strips.sh` stay green.
+- Change internals when focused status-panel tests stay green; run
+  `scripts/proof.sh frontend` before handoff for UI behavior changes and
+  `scripts/proof.sh runtime` when runtime contracts or generated event shapes
+  are touched.
 - Test visible status outcomes rather than private reducer shape when behavior is user-facing.
 - Keep direct view-state/controller/runtimeApi imports inside this cluster or tests.
 - Build `ProcessingRequestConfig` through `processingConfig.ts`; do not import encoder or output panel private state to assemble process payloads.

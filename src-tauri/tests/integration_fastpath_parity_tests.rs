@@ -8,17 +8,18 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-fn sample_mp3_path() -> Option<PathBuf> {
+fn sample_mp3_path() -> PathBuf {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("manifest dir parent")
         .join("media")
         .join("media_20sec.mp3");
-    if path.exists() && path.is_file() {
-        Some(path)
-    } else {
-        None
-    }
+    assert!(
+        path.exists() && path.is_file(),
+        "committed media fixture missing: {}",
+        path.display()
+    );
+    path
 }
 
 fn native_encoder_settings() -> EncoderSettings {
@@ -70,13 +71,7 @@ async fn encode_with_fastpath_mode(
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "diagnostic native AAC parity check; run manually when touching fast-path/native encoder paths"]
 async fn native_fastpath_parity_matches_core_output_properties() {
-    let input_path = match sample_mp3_path() {
-        Some(path) => path,
-        None => {
-            eprintln!("Skipping fast-path parity test - media fixture missing");
-            return;
-        }
-    };
+    let input_path = sample_mp3_path();
 
     let original_fastpath_var = std::env::var("ABB_DISABLE_FASTPATH").ok();
     let temp_dir = TempDir::new().expect("create temp dir");

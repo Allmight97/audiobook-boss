@@ -7,7 +7,9 @@
 - The cluster owns output directory, output naming, output-path preview, estimated-size display, tag preview display, collision review, and output-plan preflight.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when focused output panel tests and `scripts/check-public-api-strips.sh` stay green.
+- Change internals when focused output panel tests stay green; run
+  `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
+  when public-strip or runtime contract surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
 - Read encoder panel config through its Public API Strip only for derived display, such as estimated size.
 

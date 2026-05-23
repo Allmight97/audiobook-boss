@@ -35,24 +35,26 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 ```bash
 bun install
 bun run tauri dev
-scripts/checks.sh standard
+scripts/proof.sh standard
 bun run test
 ```
 
 ## Script Guide
 
-Use this section as the human-facing index. `package.json` is the source of truth for `bun run ...` entrypoints, and the scripts under `scripts/` are the source of truth for flags and implementation details.
+Use this section as the human-facing index. `scripts/proof.sh --help` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Main quality gate: `scripts/checks.sh standard`
-  Use `quick` for a faster local pass and `package` when validating the full Tauri packaging path.
+- Main quality gate: `scripts/proof.sh standard`
+  Use `quick` for static/boundary proof, `package` for the full Tauri packaging path, and `runtime`, `frontend`, `rust-contract`, `rust-private`, or `rust-media` for focused owner proof.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
-  Run explicitly; it is not part of the normal standard gate.
+  Run explicitly, or use `scripts/proof.sh deps`; it is not part of the normal standard gate.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored`
+- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b scripts/proof.sh rust-media-manual xhe-aac`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
+- Build timing: `scripts/proof.sh timing`
+  Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces.
   `bun run app:build` builds the repo-local `.app` artifact only.

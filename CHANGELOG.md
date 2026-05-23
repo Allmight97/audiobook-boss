@@ -8,6 +8,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Replaced the legacy checks script surface with canonical `scripts/proof.sh`
+  proof routes for review, package, Rust, media-fixture, frontend, runtime,
+  coverage, timing, and dependency validation.
+
 ### Fixed
 
 ### Removed

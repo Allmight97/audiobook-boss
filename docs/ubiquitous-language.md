@@ -37,7 +37,8 @@
 ## Verification And Planning
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Standard Gate** | The main non-doc quality gate run via `scripts/checks.sh standard` to validate code, contracts, and repo health. | test pass, quick smoke check |
+| **Proof Route** | A named route under `scripts/proof.sh` that chooses the cheapest meaningful proof for the touched owner surface. | random command, local incantation |
+| **Standard Gate** | The main non-doc review proof route run via `scripts/proof.sh standard` to validate code, contracts, and repo health. | test pass, quick smoke check |
 | **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
 | **Active Spec** | A temporary `docs/specs/<task>.md` work packet for substantial planning, roadmap, architecture, or implementation work. It is self-contained while active and must be deleted or distilled into canon when done. | permanent feature doc, transcript, generated report |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
@@ -102,7 +103,7 @@
 - "preview" can mean different things. Prefer **Output Path Preview** for path derivation, **Processing Preflight Plan** for pre-run backend review, **audio preview** for a short media render, and **preview artifact** for the file created by that render.
 - "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a compatibility path, recovery default, bug, or design decision.
 - "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use **Metadata Outcome Plan**, metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
-- "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Standard Gate** for `scripts/checks.sh standard`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
+- "proof route", "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Proof Route** for named `scripts/proof.sh` paths, **Standard Gate** for `scripts/proof.sh standard`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
 - Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.

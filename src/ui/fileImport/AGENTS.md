@@ -36,5 +36,6 @@
 - Behavior changes have focused file-import workflow or handler tests.
 - UI-facing changes prove visible error/status behavior, not only private helper
   calls.
-- `scripts/check-public-api-strips.sh` stays green when shared import surfaces
-  are added or changed.
+- Run `scripts/proof.sh frontend` before handoff for import UI/workflow changes.
+- Run `scripts/proof.sh runtime` when shared import surfaces or runtime
+  contracts are added or changed.
