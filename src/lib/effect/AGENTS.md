@@ -80,17 +80,5 @@ explicitly accepts a public API change.
   tests.
 - Plain local UI state, pure transforms, and single-boundary event handlers can
   stay vanilla TypeScript when Effect would not clarify ownership or testing.
-
-## Current Proof Points
-
-- `ProcessingWorkflow` validates the AppEffect kernel around processing
-  orchestration.
-- `MetadataSaveWorkflow` validates metadata save orchestration while keeping
-  Rust as metadata write truth.
-- `MetadataLookupWorkflow` validates metadata lookup queue progression and
-  lookup-result cover-art replacement.
-- `OutputPlanWorkflow`, `ToolchainValidationWorkflow`,
-  `ImportAnalysisWorkflow`, and `ProcessingCancellationWorkflow` validate the
-  remaining processing-adjacent migration surfaces from EB4.
 - Manual cover-art file, URL, drop, and clear loading remains vanilla in
   `src/ui/coverArt.ts` until that flow proves it needs a workflow owner.

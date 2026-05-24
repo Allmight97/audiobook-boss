@@ -84,14 +84,6 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Treat fallback additions as explicit design decisions, not convenience patches.
 - Treat code shape thresholds as review triggers; prefer structural improvements when they improve readability or testability.
 
-### Sub-Agent Defaults
-
-- The main agent owns design, code edits, final interpretation, and the final verification claim.
-- Use targeted GPT-5.4 Mini sub-agents for bounded discovery or audit lanes when they reduce context load without fragmenting ownership.
-- Do not delegate ordinary test monitoring by default. Prefer the main agent running long checks in its own terminal session and polling them directly.
-- Use a read-only test-shepherd lane only when the user explicitly asks for one or a separate check/audit lane has clear leverage; do not run the same heavy gate concurrently with the main agent.
-- If a sub-agent is assigned implementation or test-file edits, give explicit file ownership and remind it that other agents may be active in the same worktree.
-
 ### Active Refactor Bias
 
 - Actively surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
@@ -145,30 +137,6 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 ## Tooling Preferences
 - Prefer modern CLI tools (e.g. `rg`, `fd`, `yq`, `jq`, 'bat', 'eza', 'fzf', etc) to improve agentic workflow. Use legacy equivalents only when the modern tool is unavailable or inappropriate.
-- Library/docs lookup: Use `abb-library-research` for ABB planning,
-  implementation, review, and audit.
-
-## Library And Reference Research
-
-Use `abb-library-research` when ABB planning, implementation, review, or audit
-depends on external library behavior.
-
-Evidence ladder:
-
-1. ABB owner surface: locate boundaries, constraints, tests, and installed
-   dependency gates.
-2. Context7/current docs: confirm current public API behavior when uncertainty
-   matters.
-3. `abb-library-research` references: choose focused route cards and subtree
-   paths without duplicating routing in `AGENTS.md`.
-4. `repos/*`: inspect squashed upstream source, tests, examples, permissions,
-   and implementation patterns.
-5. Installed ABB dependencies: decide what can actually be imported or relied on.
-
-`repos/*` is read-only reference material. Do not import from it, and do not edit
-it except when explicitly refreshing or patching a reference subtree. Upstream
-`AGENTS.md` files inside `repos/*` describe upstream internals only; they do not
-override ABB application ownership.
 
 ## Done Criteria
 

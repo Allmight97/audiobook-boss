@@ -3,7 +3,6 @@
 ## Scope
 
 - Applies to backend architecture and command behavior under `src-tauri/`.
-- This file keeps backend rules focused on execution-critical invariants.
 - Deep traps for specific subsystems are owned by local `AGENTS.md` files in those directories.
 
 ## Preferred Path

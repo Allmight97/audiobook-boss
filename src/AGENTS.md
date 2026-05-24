@@ -3,7 +3,6 @@
 ## Scope
 
 - Applies to frontend runtime and UI work under `src/`.
-- This file keeps frontend behavior guidance concise.
 - IPC and metadata intent source-of-truth lives in `src/lib/tauri/AGENTS.md`.
 
 ## Preferred Path
