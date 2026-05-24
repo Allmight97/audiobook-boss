@@ -32,13 +32,17 @@ judgment, especially for Context7/current docs checks, route-card path scouting,
 focused web/source searches. The main agent still owns the final decision,
 implementation, and verification claim.
 
-Prompt Scout with:
+Prompt Scout with a compact assignment shape:
 
-- the exact library/API question or uncertainty to resolve
-- the source ladder segment to use
-- paths, package names, versions, or route cards already known
-- stopping rules for found evidence, absence, or conflict
-- a concise expected output: answer, source paths/links, and residual uncertainty
+- Question: exact library/API uncertainty to resolve.
+- Sources: source ladder segment, route card, library ID, repo path, or preferred
+  domain to start from.
+- Known context: ABB paths, package names, versions, or prior claims.
+- Stop when: evidence is found, absent after named checks, or sources conflict.
+- Return: answer, source paths/links, and residual uncertainty.
+
+This same shape works for targeted web/source searches: give preferred sources
+and stop rules instead of an open-ended research brief.
 
 Do not use Scout for a one-line lookup the main agent can answer faster, for
 mutation, or for broad surveys unless the user explicitly asks for one.
