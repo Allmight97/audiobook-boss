@@ -23,16 +23,14 @@ lifecycle, release, dependency maintenance, or IPC guardrails.
 
 ## Scout Delegation
 
-This skill authorizes the orchestrating agent to use the global Scout agent for
-bounded ABB library/source research without a separate user request.
+Use Scout without a separate user request for bounded ABB library/source
+research when the lane is separable from implementation or review judgment:
+Context7/current docs checks, route-card path scouting, `repos/*`
+source/test/example lookup, installed dependency confirmation, or focused
+web/source searches. The main agent owns the final decision, implementation,
+and verification claim.
 
-Use Scout when the research lane is separable from implementation or review
-judgment, especially for Context7/current docs checks, route-card path scouting,
-`repos/*` source/test/example lookup, installed dependency confirmation, or
-focused web/source searches. The main agent still owns the final decision,
-implementation, and verification claim.
-
-Prompt Scout with a compact assignment shape:
+Scout prompting shape:
 
 - Question: exact library/API uncertainty to resolve.
 - Sources: source ladder segment, route card, library ID, repo path, or preferred
@@ -41,8 +39,7 @@ Prompt Scout with a compact assignment shape:
 - Stop when: evidence is found, absent after named checks, or sources conflict.
 - Return: answer, source paths/links, and residual uncertainty.
 
-This same shape works for targeted web/source searches: give preferred sources
-and stop rules instead of an open-ended research brief.
+For targeted web/source searches, include preferred sources and stop rules.
 
 Do not use Scout for a one-line lookup the main agent can answer faster, for
 mutation, or for broad surveys unless the user explicitly asks for one.
