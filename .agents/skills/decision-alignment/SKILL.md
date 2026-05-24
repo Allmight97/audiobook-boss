@@ -164,32 +164,8 @@ If `docs/decisions.md` does not exist, propose the first entry in chat and
 create it only when the user asks. If it exists, append one compact accepted
 decision entry, newest first.
 
-Use this shape:
-
-```md
-## DEC-YYYY-MM-DD-short-title
-
-Date: YYYY-MM-DD
-Scope: Product intent | UI state | IPC contract | Backend lifecycle | Artifact truth
-
-Decision:
-One or two sentences stating the accepted choice.
-
-Why:
-One or two sentences with the durable rationale.
-
-Alternatives:
-- Include only alternatives that explain a real trade-off or tempting wrong turn.
-
-Consequences:
-What this makes easier, harder, or intentionally out of scope.
-
-Evidence:
-- PR, issue, code path, test, release, or canon doc proving the decision is real.
-
-Revisit Trigger:
-The concrete condition that should make ABB reconsider the decision.
-```
+When creating or appending an entry, load
+`references/decision-note-template.md`.
 
 If creating or updating `docs/decisions.md`, keep the file short and verify the
 references you add against current repo state.
