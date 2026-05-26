@@ -15,9 +15,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 ### Fixed
 
 - Cleared Svelte/devalue dependency advisories and recorded the preferred
-  Node/Bun tooling baseline for dependency hygiene work.
-- Enforced Node 24.x LTS for Node-backed build, test, lint, and proof routes so
-  canonical tooling uses the warning-free LTS baseline.
+  Bun-first tooling baseline for dependency hygiene work.
+- Removed the temporary Node version gate from build, test, lint, and proof
+  routes so dependency warning noise does not become repo policy.
 
 ### Removed
 
