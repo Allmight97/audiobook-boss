@@ -13,7 +13,10 @@ import {
 
 export const liveImportAnalysisWorkflowServices: ImportAnalysisWorkflowServices = {
 	isOrderLocked,
+	getSupportedAudioImportMetadata: tauriClient.getSupportedAudioImportMetadata,
 	openFiles: tauriClient.openFiles,
+	openDirectory: tauriClient.openDirectory,
+	discoverAudioImportPaths: tauriClient.discoverAudioImportPaths,
 	analyzeAudioFiles: tauriClient.analyzeAudioFiles,
 	persistPendingMetadataDraftsForCurrentSelection,
 	appendFileList,

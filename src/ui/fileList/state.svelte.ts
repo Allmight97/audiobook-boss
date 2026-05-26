@@ -8,6 +8,8 @@ type FileListSessionState = {
 	orderLocked: boolean;
 };
 
+type OrderLockListener = (locked: boolean) => void;
+
 export const fileListSessionState = $state<FileListSessionState>({
 	currentFileList: null,
 	selectedFileIndex: -1,
@@ -15,6 +17,8 @@ export const fileListSessionState = $state<FileListSessionState>({
 	sortAscending: true,
 	orderLocked: false,
 });
+
+const orderLockListeners = new Set<OrderLockListener>();
 
 function createSelectedIndexSet(indices: Set<number> | number[]): Set<number> {
 	const next = new Set<number>();
@@ -78,9 +82,23 @@ export function setSortAscending(ascending: boolean): void {
 }
 
 export function setOrderLocked(locked: boolean): void {
+	if (fileListSessionState.orderLocked === locked) {
+		return;
+	}
+
 	fileListSessionState.orderLocked = locked;
+	for (const listener of [...orderLockListeners]) {
+		listener(locked);
+	}
 }
 
 export function isOrderLocked(): boolean {
 	return fileListSessionState.orderLocked;
+}
+
+export function onOrderLockChange(listener: OrderLockListener): () => void {
+	orderLockListeners.add(listener);
+	return () => {
+		orderLockListeners.delete(listener);
+	};
 }

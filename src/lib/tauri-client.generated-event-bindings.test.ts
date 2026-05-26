@@ -20,9 +20,13 @@ describe('tauriClient generated event bindings', () => {
 		await tauriClient.listen(EVENTS.QUEUE, () => {
 			/* no-op */
 		});
+		await tauriClient.listen(EVENTS.OPENED_AUDIO_FILES, () => {
+			/* no-op */
+		});
 
 		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.PROGRESS, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(2, EVENTS.QUEUE, expect.any(Function));
-		expect(tauriListen).toHaveBeenCalledTimes(2);
+		expect(tauriListen).toHaveBeenNthCalledWith(3, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
+		expect(tauriListen).toHaveBeenCalledTimes(3);
 	});
 });

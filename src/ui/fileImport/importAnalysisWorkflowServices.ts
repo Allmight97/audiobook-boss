@@ -15,7 +15,10 @@ import type { clearFileImportError, setFileImportError } from './state.svelte';
 
 export interface ImportAnalysisWorkflowServices {
 	isOrderLocked: typeof isOrderLocked;
+	getSupportedAudioImportMetadata: typeof tauriClient.getSupportedAudioImportMetadata;
 	openFiles: typeof tauriClient.openFiles;
+	openDirectory: typeof tauriClient.openDirectory;
+	discoverAudioImportPaths: typeof tauriClient.discoverAudioImportPaths;
 	analyzeAudioFiles: typeof tauriClient.analyzeAudioFiles;
 	persistPendingMetadataDraftsForCurrentSelection: typeof persistPendingMetadataDraftsForCurrentSelection;
 	appendFileList: typeof appendFileList;
@@ -27,7 +30,8 @@ export interface ImportAnalysisWorkflowServices {
 
 export type ImportAnalysisWorkflowAction =
 	| { type: 'clickToSelect'; existingFiles: AudioFile[] }
-	| { type: 'dropFiles'; paths: string[]; existingFiles: AudioFile[] };
+	| { type: 'clickToSelectFolder'; existingFiles: AudioFile[] }
+	| { type: 'importPaths'; paths: string[]; existingFiles: AudioFile[] };
 
 export interface ImportAnalysisFileListResult {
 	readonly fileListInfo: FileListInfo;

@@ -255,6 +255,13 @@ textarea:hover:not(:focus) {
 	width: auto;
 	height: 100%;
 	min-width: 0;
+	overflow: hidden;
+}
+
+.input-workflow {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
 }
 
 .right-column-wrapper {

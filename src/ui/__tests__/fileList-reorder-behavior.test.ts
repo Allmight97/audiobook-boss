@@ -172,9 +172,10 @@ describe('file list reorder behavior', () => {
 		expect(inspectorState.contextDetail).toBe('1 of 3');
 	});
 
-	it('clears inspector context when a new file list is displayed', async () => {
+	it('selects a sole imported file when a new file list is displayed', async () => {
 		const alpha = makeFile('/books/alpha.m4b');
 		const beta = makeFile('/books/beta.m4b');
+		const replacement = makeFile('/books/new-alpha.m4b');
 
 		setCurrentFileList(makeFileList(alpha, beta));
 		setSelectedFileIndices([1]);
@@ -183,11 +184,12 @@ describe('file list reorder behavior', () => {
 		await showSingleSelection(beta);
 		expect(inspectorState.contextText).toBe('beta.m4b');
 
-		displayFileList(makeFileList(makeFile('/books/new-alpha.m4b')));
+		displayFileList(makeFileList(replacement));
+		await Promise.resolve();
 
-		expect(getSelectedFileIndex()).toBe(-1);
-		expect(inspectorState.contextText).toBe('No file selected');
-		expect(inspectorState.contextDetail).toBe('');
+		expect(getSelectedFileIndex()).toBe(0);
+		expect(inspectorState.contextText).toBe('new-alpha.m4b');
+		expect(inspectorState.contextDetail).toBe('1 of 1');
 	});
 
 	it('persists the current single-file draft before additive import and keeps selection stable', async () => {

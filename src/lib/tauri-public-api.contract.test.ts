@@ -5,8 +5,10 @@ import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri
 const EXPECTED_TAURI_CLIENT_METHODS = [
 	'analyzeAudioFiles',
 	'cancelProcessing',
+	'discoverAudioImportPaths',
 	'echo',
 	'getMaxConcurrentJobs',
+	'getSupportedAudioImportMetadata',
 	'listAvailableEncoders',
 	'listen',
 	'loadCoverArtFile',
@@ -27,6 +29,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'saveMetadataIntentToFile',
 	'searchOnlineMetadata',
 	'setMaxConcurrentJobs',
+	'takeOpenedAudioFiles',
 	'validateEncoderSettings',
 	'validateFiles',
 	'writeCoverArt',
@@ -41,6 +44,13 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('process_audiobook_files');
 		expect(TAURI_COMMAND_NAMES).toContain('preflight_processing_plan');
 		expect(TAURI_COMMAND_NAMES).toContain('save_metadata_batch');
-		expect([...TAURI_APP_EVENT_NAMES]).toEqual(['processing-progress', 'processing-queue']);
+		expect(TAURI_COMMAND_NAMES).toContain('discover_audio_import_paths');
+		expect(TAURI_COMMAND_NAMES).toContain('get_supported_audio_import_metadata');
+		expect(TAURI_COMMAND_NAMES).toContain('take_opened_audio_files');
+		expect([...TAURI_APP_EVENT_NAMES]).toEqual([
+			'processing-progress',
+			'processing-queue',
+			'opened-audio-files',
+		]);
 	});
 });

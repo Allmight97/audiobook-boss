@@ -12,8 +12,10 @@ import {
 const EXPECTED_COMMAND_NAMES = [
 	'analyze_audio_files',
 	'cancel_processing',
+	'discover_audio_import_paths',
 	'echo',
 	'get_max_concurrent_jobs',
+	'get_supported_audio_import_metadata',
 	'list_available_encoders',
 	'load_cover_art_file',
 	'load_cover_art_from_url',
@@ -27,6 +29,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'save_metadata_to_file',
 	'search_online_metadata',
 	'set_max_concurrent_jobs',
+	'take_opened_audio_files',
 	'validate_encoder_settings',
 	'validate_files',
 	'write_cover_art',
@@ -52,7 +55,11 @@ describe('compatibility guards', () => {
 	});
 
 	it('keeps app event names stable', () => {
-		expect([...TAURI_APP_EVENT_NAMES]).toEqual([EVENTS.PROGRESS, EVENTS.QUEUE]);
+		expect([...TAURI_APP_EVENT_NAMES]).toEqual([
+			EVENTS.PROGRESS,
+			EVENTS.QUEUE,
+			EVENTS.OPENED_AUDIO_FILES,
+		]);
 	});
 });
 

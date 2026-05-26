@@ -25,6 +25,7 @@ import type {
 	ProcessPayload as GeneratedProcessPayload,
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
 	SampleRateConfig as GeneratedSampleRateConfig,
+	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 	ThreadSetting as GeneratedThreadSetting,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
@@ -56,6 +57,7 @@ export type EncoderType = GeneratedEncoderType;
 export type ThreadSetting = GeneratedThreadSetting;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalToolchainPreference>;
+export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
 // Output naming options for folder/filename generation
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;

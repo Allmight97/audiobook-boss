@@ -5,17 +5,13 @@
 	"version": "1.0.25",
 	"type": "module",
 	"packageManager": "bun@1.3.14",
-	"engines": {
-		"node": ">=24 <25"
-	},
 	"scripts": {
-		"node:check": "scripts/check-node-toolchain.sh",
-		"dev": "scripts/check-node-toolchain.sh && vite",
-		"build": "scripts/check-node-toolchain.sh && tsc && vite build",
-		"fmt": "scripts/check-node-toolchain.sh && bunx @biomejs/biome format --write --no-errors-on-unmatched . && bunx prettier --write \"src/**/*.svelte\"",
-		"fmt:check": "scripts/check-node-toolchain.sh && bunx @biomejs/biome format --no-errors-on-unmatched . && bunx prettier --check \"src/**/*.svelte\"",
-		"fmt:changed": "scripts/check-node-toolchain.sh && bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
-		"lint:check": "scripts/check-node-toolchain.sh && bunx @biomejs/biome lint --no-errors-on-unmatched .",
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"fmt": "bunx @biomejs/biome format --write --no-errors-on-unmatched . && bunx prettier --write \"src/**/*.svelte\"",
+		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched . && bunx prettier --check \"src/**/*.svelte\"",
+		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
+		"lint:check": "bunx @biomejs/biome lint --no-errors-on-unmatched .",
 		"proof": "scripts/proof.sh standard",
 		"proof:quick": "scripts/proof.sh quick",
 		"proof:package": "scripts/proof.sh package",
@@ -28,7 +24,7 @@
 		"check:deps": "cargo audit -D warnings",
 		"check:fallback": "scripts/check-fallback-policy.sh",
 		"check:no-bridge": "scripts/check-no-bridge-imports.sh",
-		"preview": "scripts/check-node-toolchain.sh && vite preview",
+		"preview": "vite preview",
 		"tauri": "tauri",
 		"app:build": "bun scripts/build-app.ts --bundles app",
 		"app:build:dmg": "bun scripts/build-app.ts --bundles dmg",
@@ -39,9 +35,9 @@
 		"bindings:check": "scripts/check-generated-bindings.sh --mode verify",
 		"bindings:check:local": "scripts/check-generated-bindings.sh --mode local",
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
-		"test": "scripts/check-node-toolchain.sh && vitest run",
-		"test:watch": "scripts/check-node-toolchain.sh && vitest",
-		"test:coverage": "scripts/check-node-toolchain.sh && vitest run --coverage"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",

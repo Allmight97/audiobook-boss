@@ -15,12 +15,16 @@
 	} from '../fileList/events';
 	import { fileListViewState } from '../fileList/viewState.svelte';
 	import type { DragDropContext } from './handlers';
-	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
+	import {
+		attachTauriDragHandlers,
+		handleClickToSelect,
+		handleClickToSelectFolder,
+	} from './handlers';
 	import { fileImportUiState } from './state.svelte';
-	import { SUPPORTED_AUDIO_SUPPORT_TEXT } from './supportedAudio';
 
 	let dropZoneHeader: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
+	let fileListContent: HTMLDivElement | null = null;
 
 	const context: DragDropContext = {
 		getCoverArtArea: () => document.getElementById('cover-art-area'),
@@ -36,11 +40,24 @@
 		void handleClickToSelect([...fileListViewState.files]);
 	}
 
+	function handleFolderClick(): void {
+		void handleClickToSelectFolder([...fileListViewState.files]);
+	}
+
 	function handleHeaderKeydown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			void handleClickToSelect([...fileListViewState.files]);
 		}
+	}
+
+	function focusFileListContent(): void {
+		fileListContent?.focus({ preventScroll: true });
+	}
+
+	function handleFileListClick(index: number, event: MouseEvent): void {
+		focusFileListContent();
+		onFileListClick(index, event);
 	}
 
 	function handleSortClick(): void {
@@ -61,9 +78,24 @@
 		}
 		return `Error: ${file.error || 'Invalid file'}`;
 	}
-</script>
 
-<svelte:window on:keydown={onFileListKeyDown} />
+	function scrollSelectedFileIntoView(index: number): void {
+		requestAnimationFrame(() => {
+			const selectedItem = fileListContent?.querySelector<HTMLElement>(
+				`[data-file-index="${index}"]`,
+			);
+			selectedItem?.scrollIntoView({ block: 'nearest' });
+		});
+	}
+
+	$effect(() => {
+		const selectedIndices = fileListViewState.selectedIndices;
+		const selectedIndex = selectedIndices[selectedIndices.length - 1];
+		if (typeof selectedIndex !== 'number') return;
+
+		scrollSelectedFileIntoView(selectedIndex);
+	});
+</script>
 
 <div class="flex flex-col gap-2 mb-2">
   <div class="flex items-center justify-end gap-2">
@@ -80,6 +112,13 @@
         Order locked while processing
       </span>
     </div>
+    <button
+      id="add-folder-btn"
+      class="btn-pill btn-pill-secondary"
+      on:click={handleFolderClick}
+    >
+      Add Folder
+    </button>
     <button
       id="sort-toggle-btn"
       class="btn-pill btn-pill-secondary"
@@ -111,6 +150,11 @@
 		border: 1px solid var(--border-primary);
 		border-radius: 0.375rem;
 		background-color: var(--bg-input);
+	}
+
+	.file-list-content:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: -2px;
 	}
 
 	.drop-zone-header[data-has-files='false'] {
@@ -330,22 +374,33 @@
     on:click={handleHeaderClick}
     on:keydown={handleHeaderKeydown}
   >
-    <p class="text-sm muted-text">Drag & Drop files here or Click to Select</p>
-    <p class="text-xs muted-text mt-1">{SUPPORTED_AUDIO_SUPPORT_TEXT}</p>
+    <p class="text-sm muted-text">Drag & Drop files or folders here or Click to Select</p>
+    <p class="text-xs muted-text mt-1">{fileImportUiState.supportText}</p>
   </div>
 
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-  <div class="file-list-content" role="list" aria-label="Audio files">
+  <div
+    bind:this={fileListContent}
+    class="file-list-content"
+    role="listbox"
+    aria-label="Audio files"
+    aria-multiselectable="true"
+    tabindex="0"
+    on:keydown={onFileListKeyDown}
+  >
     {#each fileListViewState.files as file, index (file.path)}
       <div
+        data-file-index={index}
         class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
         class:selected={fileListViewState.selectedIndices.includes(index)}
         class:dragging={fileListViewState.draggedIndex === index}
         class:drag-over={fileListViewState.hoveredIndex === index}
         draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
-        role="listitem"
+        role="option"
+        aria-selected={fileListViewState.selectedIndices.includes(index)}
         aria-label={getFileName(file.path)}
-        on:click={(event) => onFileListClick(index, event)}
+        tabindex="-1"
+        on:click={(event) => handleFileListClick(index, event)}
         on:dragstart={(event) => onFileListDragStart(index, event)}
         on:dragover={(event) => onFileListDragOver(index, event)}
         on:drop={(event) => onFileListDrop(index, event)}

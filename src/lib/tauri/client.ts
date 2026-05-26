@@ -11,6 +11,7 @@ import {
 	EVENTS,
 	type ApplicationEvents,
 	type EventName,
+	type OpenedAudioFilesEvent,
 	type ProcessingProgressEvent,
 	type ProcessingQueueEvent,
 } from '../../types/events';
@@ -33,6 +34,7 @@ type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
 type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
+type OpenedAudioFilesHandler = (event: { payload: OpenedAudioFilesEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -47,8 +49,18 @@ async function listenProcessingQueue(handler: QueueEventHandler): Promise<Unlist
 	});
 }
 
+async function listenOpenedAudioFiles(handler: OpenedAudioFilesHandler): Promise<UnlistenFn> {
+	return generatedEvents.openedAudioFiles.listen((event) => {
+		handler({ payload: event.payload });
+	});
+}
+
 function listen(event: typeof EVENTS.PROGRESS, handler: ProgressEventHandler): Promise<UnlistenFn>;
 function listen(event: typeof EVENTS.QUEUE, handler: QueueEventHandler): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.OPENED_AUDIO_FILES,
+	handler: OpenedAudioFilesHandler,
+): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -58,6 +70,7 @@ function listen(
 	handler:
 		| ProgressEventHandler
 		| QueueEventHandler
+		| OpenedAudioFilesHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -66,6 +79,10 @@ function listen(
 
 	if (event === EVENTS.QUEUE) {
 		return listenProcessingQueue(handler as QueueEventHandler);
+	}
+
+	if (event === EVENTS.OPENED_AUDIO_FILES) {
+		return listenOpenedAudioFiles(handler as OpenedAudioFilesHandler);
 	}
 
 	return tauriListen(
@@ -125,6 +142,15 @@ export const tauriClient = {
 	}): Promise<CommandResult<'search_online_metadata'>> => commandSpecs.search_online_metadata(args),
 	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
 		commandSpecs.analyze_audio_files({ filePaths }),
+	getSupportedAudioImportMetadata: (): Promise<
+		CommandResult<'get_supported_audio_import_metadata'>
+	> => commandSpecs.get_supported_audio_import_metadata(),
+	discoverAudioImportPaths: (
+		inputPaths: string[],
+	): Promise<CommandResult<'discover_audio_import_paths'>> =>
+		commandSpecs.discover_audio_import_paths({ inputPaths }),
+	takeOpenedAudioFiles: (): Promise<CommandResult<'take_opened_audio_files'>> =>
+		commandSpecs.take_opened_audio_files(),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
 		externalToolchain?: ExternalToolchainPreference | null,
@@ -188,6 +214,7 @@ export const TAURI_COMMAND_NAMES = Object.freeze(
 export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'processing-progress',
 	'processing-queue',
+	'opened-audio-files',
 ] as const);
 
 export type { TauriCommand };

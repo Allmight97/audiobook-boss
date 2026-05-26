@@ -8,6 +8,7 @@ mod errors;
 mod file_replace;
 pub mod ipc_contract;
 mod metadata;
+mod opened_audio;
 pub mod output_artifact;
 pub mod processing;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
@@ -36,7 +37,7 @@ pub use errors::{
 };
 
 use std::sync::Arc;
-use tauri::{Manager, PhysicalSize, Size, WebviewWindow};
+use tauri::{Emitter, Manager, PhysicalSize, Size, WebviewWindow};
 
 /// Type alias for managed JobRegistry state
 pub type ManagedJobRegistry = Arc<processing::JobRegistry>;
@@ -121,6 +122,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(job_registry)
+        .manage(opened_audio::OpenedAudioFileQueue::default())
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
@@ -136,8 +138,36 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths = opened_audio::collect_opened_audio_file_paths(urls);
+                if paths.is_empty() {
+                    return;
+                }
+
+                let Some(queue) = app.try_state::<opened_audio::OpenedAudioFileQueue>() else {
+                    log::warn!("Opened audio queue state is unavailable");
+                    return;
+                };
+
+                match queue.push_paths(paths) {
+                    Ok(()) => {
+                        let event = opened_audio::OpenedAudioFilesEvent::default();
+                        if let Err(error) =
+                            app.emit(opened_audio::OPENED_AUDIO_FILES_EVENT_NAME, event)
+                        {
+                            log::warn!("Failed to emit opened audio files event: {}", error);
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("Failed to queue opened audio files: {}", error);
+                    }
+                }
+            }
+        });
 }
 
 #[cfg(test)]

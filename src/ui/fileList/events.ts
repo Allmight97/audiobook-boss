@@ -1,8 +1,17 @@
 import { get } from 'svelte/store';
 
-import { getCurrentFileList, isOrderLocked } from './state.svelte';
+import {
+	getCurrentFileList,
+	getSelectedFileIndex,
+	getSelectedFileIndices,
+	isOrderLocked,
+} from './state.svelte';
 import { metadataSaveInProgressStore } from '../metadataSaveState';
 import { setFileListDragState } from './viewState.svelte';
+import {
+	fileListNavigationCommandFromKey,
+	resolveFileListNavigationTarget,
+} from './keyboardNavigation';
 import {
 	clearSelectionAction,
 	moveFileDown,
@@ -69,10 +78,42 @@ export function onFileListRemove(index: number, event: MouseEvent): void {
 	removeFile(index);
 }
 
+function isCurrentSingleSelection(index: number): boolean {
+	const selectedIndices = getSelectedFileIndices();
+	return selectedIndices.size === 1 && selectedIndices.has(index);
+}
+
+function handleKeyboardNavigation(event: KeyboardEvent): boolean {
+	const command = fileListNavigationCommandFromKey(event);
+	if (!command) return false;
+
+	const fileList = getCurrentFileList();
+	if (!fileList) return false;
+
+	const targetIndex = resolveFileListNavigationTarget({
+		command,
+		fileCount: fileList.files.length,
+		selectedIndex: getSelectedFileIndex(),
+	});
+	if (targetIndex === null) return false;
+
+	event.preventDefault();
+	if (isCurrentSingleSelection(targetIndex)) {
+		return true;
+	}
+
+	void selectFile(targetIndex, { multi: false, range: false });
+	return true;
+}
+
 export function onFileListKeyDown(e: KeyboardEvent): void {
 	if (get(metadataSaveInProgressStore)) return;
 	if (!getCurrentFileList()) return;
 	if (isTextInputTarget(e.target)) return;
+
+	if (handleKeyboardNavigation(e)) {
+		return;
+	}
 
 	const key = e.key.toLowerCase();
 	if ((e.metaKey || e.ctrlKey) && key === 'a') {

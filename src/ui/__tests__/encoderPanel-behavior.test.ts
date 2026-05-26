@@ -22,6 +22,8 @@ vi.mock('../../lib/tauri/client', () => ({
 
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
+	isOrderLocked: vi.fn(() => false),
+	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
 const availabilityFixture = (overrides: {

@@ -56,9 +56,6 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 ## Bun And JS Rules
 
 - Treat Bun as the project package manager, script runner, and test runner.
-- Treat `.node-version`, `.nvmrc`, and `package.json` `engines.node` as the
-  Node 24.x LTS policy for Node-backed CLIs. `scripts/check-node-toolchain.sh`
-  enforces this policy in canonical proof/build routes.
 - Treat `package.json` `packageManager` as the intended stable Bun baseline.
 - Respect `bunfig.toml` `minimumReleaseAge = 604800`. Do not bypass it without explicit user approval.
 - If an active security advisory requires bypassing the age gate, keep the
