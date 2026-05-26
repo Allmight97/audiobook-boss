@@ -35,4 +35,10 @@ describe('file import layout', () => {
 		expect(inputWorkflowRule).toContain('overflow: hidden;');
 		expect(cssRule(importIslandSource, '.file-list-content')).toContain('overflow-y: auto;');
 	});
+
+	it('keeps file-list keyboard handling local to the file-management region', () => {
+		expect(importIslandSource).not.toContain('<svelte:window on:keydown={onFileListKeyDown}');
+		expect(importIslandSource).toContain('tabindex="0"');
+		expect(importIslandSource).toContain('on:keydown={onFileListKeyDown}');
+	});
 });
