@@ -65,7 +65,7 @@ function workflowPromise<A>(
 	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
-function orderLockedMessage(): string {
+export function importOrderLockedMessage(): string {
 	return 'Order locked while processing. Wait for completion to add files.';
 }
 
@@ -309,7 +309,7 @@ function clickToSelect(
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		if (services.isOrderLocked()) {
-			services.setFileImportError(orderLockedMessage());
+			services.setFileImportError(importOrderLockedMessage());
 			return;
 		}
 
@@ -336,7 +336,7 @@ function clickToSelectFolder(
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		if (services.isOrderLocked()) {
-			services.setFileImportError(orderLockedMessage());
+			services.setFileImportError(importOrderLockedMessage());
 			return;
 		}
 
@@ -470,7 +470,7 @@ export function enterImportAnalysisWorkflow(
 	action: ImportAnalysisWorkflowAction,
 ): PreparedImportAnalysisWorkflowEntry | null {
 	if (services.isOrderLocked()) {
-		services.setFileImportError(orderLockedMessage());
+		services.setFileImportError(importOrderLockedMessage());
 		return null;
 	}
 

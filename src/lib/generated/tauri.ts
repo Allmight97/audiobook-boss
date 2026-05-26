@@ -384,9 +384,7 @@ export type OnlineMetadataResult = {
 	audibleOnly: boolean | null,
 };
 
-export type OpenedAudioFilesEvent = {
-	paths: string[],
-};
+export type OpenedAudioFilesEvent = Record<string, never>;
 
 // Backend operation family reported through progress and queue events.
 export type OperationKind =

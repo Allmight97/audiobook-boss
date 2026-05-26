@@ -154,10 +154,8 @@ pub fn run() {
                 };
 
                 match queue.push_paths(paths) {
-                    Ok(queued_paths) => {
-                        let event = opened_audio::OpenedAudioFilesEvent {
-                            paths: queued_paths,
-                        };
+                    Ok(()) => {
+                        let event = opened_audio::OpenedAudioFilesEvent::default();
                         if let Err(error) =
                             app.emit(opened_audio::OPENED_AUDIO_FILES_EVENT_NAME, event)
                         {

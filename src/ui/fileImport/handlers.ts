@@ -8,7 +8,11 @@ import {
 	setFileImportError,
 	setFileImportSupportText,
 } from './state.svelte';
-import { enterImportAnalysisWorkflow, runImportAnalysisWorkflow } from './importAnalysisWorkflow';
+import {
+	enterImportAnalysisWorkflow,
+	importOrderLockedMessage,
+	runImportAnalysisWorkflow,
+} from './importAnalysisWorkflow';
 import {
 	ImportAnalysisWorkflowLive,
 	liveImportAnalysisWorkflowServices,
@@ -150,6 +154,11 @@ async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Prom
 }
 
 async function handleOpenedAudioFiles(existingFiles: AudioFile[] = []): Promise<void> {
+	if (liveImportAnalysisWorkflowServices.isOrderLocked()) {
+		liveImportAnalysisWorkflowServices.setFileImportError(importOrderLockedMessage());
+		return;
+	}
+
 	try {
 		const paths = await tauriClient.takeOpenedAudioFiles();
 		if (paths.length > 0) {

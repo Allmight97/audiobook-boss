@@ -11,6 +11,7 @@ const context = vi.hoisted(() => ({
 	analyzeAudioFilesMock: vi.fn(),
 	appendFileListMock: vi.fn(),
 	persistPendingDraftsMock: vi.fn(),
+	isOrderLockedMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -32,7 +33,7 @@ vi.mock('../fileList/actions', () => ({
 
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: vi.fn(() => null),
-	isOrderLocked: vi.fn(() => false),
+	isOrderLocked: context.isOrderLockedMock,
 }));
 
 describe('file import handlers', () => {
@@ -55,6 +56,8 @@ describe('file import handlers', () => {
 		context.analyzeAudioFilesMock.mockReset();
 		context.appendFileListMock.mockReset();
 		context.persistPendingDraftsMock.mockReset();
+		context.isOrderLockedMock.mockReset();
+		context.isOrderLockedMock.mockReturnValue(false);
 		fileImportUiState.errorMessage = '';
 		fileImportUiState.isDragOver = false;
 		fileImportUiState.hasFiles = false;
@@ -131,13 +134,45 @@ describe('file import handlers', () => {
 
 		const openedHandler = listeners.get('opened-audio-files');
 		expect(openedHandler).toBeDefined();
-		await openedHandler?.({ payload: { paths: ['/books/opened.m4b'] } });
+		await openedHandler?.({ payload: {} });
 		await Promise.resolve();
 		await Promise.resolve();
 
 		expect(context.discoverAudioImportPathsMock).toHaveBeenCalledWith(['/books/opened.m4b']);
 		expect(context.analyzeAudioFilesMock).toHaveBeenCalledWith(['/books/opened.m4b']);
 		expect(context.appendFileListMock).toHaveBeenCalled();
+		dispose();
+	});
+
+	it('preserves queued OS-opened files while import order is locked', async () => {
+		const listeners = new Map<string, (event: { payload: unknown }) => Promise<void> | void>();
+		context.listenMock.mockImplementation(
+			async (event: string, handler: (event: { payload: unknown }) => Promise<void> | void) => {
+				listeners.set(event, handler);
+				return () => listeners.delete(event);
+			},
+		);
+		context.isOrderLockedMock.mockReturnValue(true);
+
+		const { attachTauriDragHandlers } = await import('../fileImport/handlers');
+		const dispose = attachTauriDragHandlers({
+			getCoverArtArea: () => null,
+			getFileManagementContainer: () => null,
+			getVisibleFiles: () => [],
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const openedHandler = listeners.get('opened-audio-files');
+		expect(openedHandler).toBeDefined();
+		await openedHandler?.({ payload: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(context.takeOpenedAudioFilesMock).not.toHaveBeenCalled();
+		expect(fileImportUiState.errorMessage).toBe(
+			'Order locked while processing. Wait for completion to add files.',
+		);
 		dispose();
 	});
 });
