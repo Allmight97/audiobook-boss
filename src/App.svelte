@@ -40,7 +40,7 @@
 
 <div class="main-container">
 	<div class="panel input-panel">
-		<div class="flex flex-col gap-2 mb-2">
+		<div class="input-workflow flex flex-col gap-2 mb-2">
 			<div class="flex items-center justify-between">
 				<h3 class="section-title mb-0 whitespace-nowrap mr-2">Input and File Order</h3>
 				<JobControlsIsland
