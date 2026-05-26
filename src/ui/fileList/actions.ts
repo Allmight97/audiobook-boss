@@ -123,6 +123,16 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
 
+function selectSoleImportedFile(fileList: FileListInfo): void {
+	if (fileList.files.length !== 1) return;
+	if (!fileList.files[0]?.isValid) return;
+
+	setSelectedIndex(0);
+	setSelectedFileIndices([0]);
+	updateSelection();
+	void showSingleSelection(fileList.files[0]);
+}
+
 export function displayFileList(fileListInfo: FileListInfo): void {
 	const uniqueFiles = collectUniqueFiles(fileListInfo.files);
 	const decoderByPath = buildSelectedDecoderByPath(fileListInfo);
@@ -148,6 +158,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 	refreshOutputForFileListChange();
 
+	selectSoleImportedFile(normalizedFileListInfo);
 	void autoUpdateCoverArtFromFirstValidFile();
 }
 
