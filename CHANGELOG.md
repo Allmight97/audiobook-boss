@@ -4,22 +4,42 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.26] - 2026-05-26
+
+Import ingress and file-list workflow release.
+
 ### Added
+
+- Added recursive folder import so selecting or dropping a folder loads supported
+  audio files from nested directories into the existing flat file list.
+- Added macOS Open With support for supported local audio files, including
+  cold-start and already-running app imports.
+- Added keyboard navigation for the focused file list with Arrow Up/Down,
+  Home/End, and Page Up/Down selection movement.
 
 ### Changed
 
+- Local audio import now flows through one frontend import boundary backed by
+  Rust-owned supported audio metadata and recursive discovery.
+- File-list keyboard handling is owned by the focused file list instead of a
+  window-level listener for file-specific navigation.
 - Replaced the legacy checks script surface with canonical `scripts/proof.sh`
   proof routes for review, package, Rust, media-fixture, frontend, runtime,
   coverage, timing, and dependency validation.
 
 ### Fixed
 
+- Large imported file lists now stay inside the input panel and scroll instead
+  of forcing the ABB window taller.
 - Cleared Svelte/devalue dependency advisories and recorded the preferred
   Bun-first tooling baseline for dependency hygiene work.
 - Removed the temporary Node version gate from build, test, lint, and proof
   routes so dependency warning noise does not become repo policy.
 
 ### Removed
+
+- Removed the frontend supported-audio allowlist mirror so Rust owns local audio
+  importability.
 
 ## [1.0.25] - 2026-05-21
 
