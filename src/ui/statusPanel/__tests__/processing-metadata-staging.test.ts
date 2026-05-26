@@ -39,6 +39,8 @@ vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndex: context.getSelectedFileIndexMock,
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,
+	isOrderLocked: vi.fn(() => false),
+	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
 vi.mock('../processingConfig', () => ({

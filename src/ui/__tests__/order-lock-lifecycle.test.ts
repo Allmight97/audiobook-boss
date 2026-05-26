@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
 import {
 	isOrderLocked,
+	onOrderLockChange,
 	setOrderLocked,
 	setCurrentFileList,
 	getCurrentFileList,
@@ -117,6 +118,21 @@ describe('order lock lifecycle', () => {
 			setFileOrderLocked(false);
 			setFileOrderLocked(false);
 			expect(isOrderLocked()).toBe(false);
+		});
+
+		it('notifies order lock listeners only on lock transitions', () => {
+			const listener = vi.fn();
+			const unlisten = onOrderLockChange(listener);
+
+			setOrderLocked(true);
+			setOrderLocked(true);
+			setOrderLocked(false);
+			unlisten();
+			setOrderLocked(true);
+
+			expect(listener).toHaveBeenCalledTimes(2);
+			expect(listener).toHaveBeenNthCalledWith(1, true);
+			expect(listener).toHaveBeenNthCalledWith(2, false);
 		});
 	});
 

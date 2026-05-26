@@ -12,6 +12,7 @@ const context = vi.hoisted(() => ({
 	appendFileListMock: vi.fn(),
 	persistPendingDraftsMock: vi.fn(),
 	isOrderLockedMock: vi.fn(),
+	onOrderLockChangeMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -34,7 +35,15 @@ vi.mock('../fileList/actions', () => ({
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: vi.fn(() => null),
 	isOrderLocked: context.isOrderLockedMock,
+	onOrderLockChange: context.onOrderLockChangeMock,
 }));
+
+async function flushAsync(): Promise<void> {
+	for (let i = 0; i < 5; i += 1) {
+		await Promise.resolve();
+	}
+	await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe('file import handlers', () => {
 	beforeEach(() => {
@@ -58,6 +67,8 @@ describe('file import handlers', () => {
 		context.persistPendingDraftsMock.mockReset();
 		context.isOrderLockedMock.mockReset();
 		context.isOrderLockedMock.mockReturnValue(false);
+		context.onOrderLockChangeMock.mockReset();
+		context.onOrderLockChangeMock.mockReturnValue(() => undefined);
 		fileImportUiState.errorMessage = '';
 		fileImportUiState.isDragOver = false;
 		fileImportUiState.hasFiles = false;
@@ -129,14 +140,12 @@ describe('file import handlers', () => {
 			getFileManagementContainer: () => null,
 			getVisibleFiles: () => [],
 		});
-		await Promise.resolve();
-		await Promise.resolve();
+		await flushAsync();
 
 		const openedHandler = listeners.get('opened-audio-files');
 		expect(openedHandler).toBeDefined();
 		await openedHandler?.({ payload: {} });
-		await Promise.resolve();
-		await Promise.resolve();
+		await flushAsync();
 
 		expect(context.discoverAudioImportPathsMock).toHaveBeenCalledWith(['/books/opened.m4b']);
 		expect(context.analyzeAudioFilesMock).toHaveBeenCalledWith(['/books/opened.m4b']);
@@ -144,15 +153,41 @@ describe('file import handlers', () => {
 		dispose();
 	});
 
-	it('preserves queued OS-opened files while import order is locked', async () => {
+	it('defers queued OS-opened files until import order unlocks', async () => {
 		const listeners = new Map<string, (event: { payload: unknown }) => Promise<void> | void>();
+		let orderLockListener: ((locked: boolean) => void) | undefined;
 		context.listenMock.mockImplementation(
 			async (event: string, handler: (event: { payload: unknown }) => Promise<void> | void) => {
 				listeners.set(event, handler);
 				return () => listeners.delete(event);
 			},
 		);
+		context.onOrderLockChangeMock.mockImplementation((listener: (locked: boolean) => void) => {
+			orderLockListener = listener;
+			return () => {
+				orderLockListener = undefined;
+			};
+		});
 		context.isOrderLockedMock.mockReturnValue(true);
+		context.takeOpenedAudioFilesMock.mockResolvedValue(['/books/opened-after-unlock.m4b']);
+		context.analyzeAudioFilesMock.mockResolvedValue({
+			files: [
+				{
+					path: '/books/opened-after-unlock.m4b',
+					size: 1,
+					duration: 1,
+					isValid: true,
+					bitrate: 64,
+					sampleRate: 44_100,
+					channels: 2,
+				},
+			],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		context.persistPendingDraftsMock.mockResolvedValue(true);
 
 		const { attachTauriDragHandlers } = await import('../fileImport/handlers');
 		const dispose = attachTauriDragHandlers({
@@ -160,19 +195,28 @@ describe('file import handlers', () => {
 			getFileManagementContainer: () => null,
 			getVisibleFiles: () => [],
 		});
-		await Promise.resolve();
-		await Promise.resolve();
+		await flushAsync();
 
 		const openedHandler = listeners.get('opened-audio-files');
 		expect(openedHandler).toBeDefined();
 		await openedHandler?.({ payload: {} });
-		await Promise.resolve();
-		await Promise.resolve();
+		await flushAsync();
 
 		expect(context.takeOpenedAudioFilesMock).not.toHaveBeenCalled();
 		expect(fileImportUiState.errorMessage).toBe(
 			'Order locked while processing. Wait for completion to add files.',
 		);
+		expect(orderLockListener).toBeDefined();
+
+		context.isOrderLockedMock.mockReturnValue(false);
+		orderLockListener?.(false);
+		await flushAsync();
+
+		expect(context.takeOpenedAudioFilesMock).toHaveBeenCalledTimes(1);
+		expect(context.discoverAudioImportPathsMock).toHaveBeenCalledWith([
+			'/books/opened-after-unlock.m4b',
+		]);
+		expect(context.appendFileListMock).toHaveBeenCalled();
 		dispose();
 	});
 });

@@ -16,6 +16,8 @@ const context = vi.hoisted(() => ({
 
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
+	isOrderLocked: vi.fn(() => false),
+	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
 describe('output panel state-driven contracts', () => {
