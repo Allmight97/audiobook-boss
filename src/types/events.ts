@@ -1,6 +1,7 @@
 import type {
 	EventStage as GeneratedEventStage,
 	OperationKind as GeneratedOperationKind,
+	OpenedAudioFilesEvent as GeneratedOpenedAudioFilesEvent,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 } from '../lib/generated/tauri';
@@ -17,6 +18,7 @@ import type { NullToOptionalDeep } from './ipc';
 export const EVENTS = {
 	PROGRESS: 'processing-progress',
 	QUEUE: 'processing-queue',
+	OPENED_AUDIO_FILES: 'opened-audio-files',
 } as const;
 
 export type EventStage = GeneratedEventStage;
@@ -48,6 +50,7 @@ export const OPERATION_KINDS: { readonly [K in OperationKind]: K } = {
 export type ProcessingProgressEvent = NullToOptionalDeep<GeneratedProgressEvent>;
 export type ProcessingQueueItem = NullToOptionalDeep<GeneratedQueueEvent>['items'][number];
 export type ProcessingQueueEvent = NullToOptionalDeep<GeneratedQueueEvent>;
+export type OpenedAudioFilesEvent = NullToOptionalDeep<GeneratedOpenedAudioFilesEvent>;
 
 export interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };
@@ -59,6 +62,7 @@ export interface TauriFileDropEvents {
 export interface ApplicationEvents extends TauriFileDropEvents {
 	[EVENTS.PROGRESS]: ProcessingProgressEvent;
 	[EVENTS.QUEUE]: ProcessingQueueEvent;
+	[EVENTS.OPENED_AUDIO_FILES]: OpenedAudioFilesEvent;
 }
 
 export type EventName = keyof ApplicationEvents;

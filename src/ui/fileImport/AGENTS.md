@@ -2,21 +2,25 @@
 
 ## Scope
 
-- Applies to file picker, drag/drop, supported-audio filtering, import analysis,
-  duplicate handling, and file-import UI state under `src/ui/fileImport/`.
+- Applies to file picker, recursive folder picker, drag/drop, OS-opened local
+  audio paths, import analysis, duplicate handling, and file-import UI state
+  under `src/ui/fileImport/`.
 - This cluster is the first frontend step in the Product Spine.
 
 ## Preferred Path
 
 - Keep import orchestration in `importAnalysisWorkflow.ts` with injectable
   services from `importAnalysisWorkflowServices.ts`.
-- Keep DOM/Tauri drag event wiring in `handlers.ts`; route file analysis
+- Keep DOM/Tauri event wiring in `handlers.ts`; route all local audio ingress
   through the workflow instead of adding parallel import paths.
 - Use `tauriClient` through the live workflow services. Do not call generated
   Tauri invokers directly.
-- Preserve the current sequence: order-lock check, supported-audio filtering,
-  backend analysis, pending metadata draft staging, append to file list, visible
-  status/error feedback.
+- Preserve the Local Audio Import Boundary sequence: order-lock check,
+  backend-supported import metadata/discovery, backend analysis, pending
+  metadata draft staging, append to file list, visible status/error feedback.
+- Rust owns local-audio importability. Frontend code may render
+  backend-provided support metadata and pass local paths to backend discovery,
+  but must not keep a separate supported-audio allowlist.
 - Keep cover-art drop handling as a distinct path before file-list import.
 - If a future remote acquisition or local-import bridge reuses this behavior,
   extract the shared import path behind a named Public API instead of duplicating
@@ -29,7 +33,8 @@
 - Import must not add files while processing order is locked.
 - Import must stage pending metadata drafts before changing the selected file
   list.
-- Unsupported dropped files should fail visibly without mutating the file list.
+- Unsupported local import paths should fail visibly without mutating the file
+  list.
 
 ## Done Criteria
 

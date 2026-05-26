@@ -26,6 +26,26 @@ function emitTestEvent(event: string, payload: unknown): void {
 vi.mock('@tauri-apps/api/core', () => ({
 	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
 		switch (cmd) {
+			case 'get_supported_audio_import_metadata':
+				return Promise.resolve({
+					formats: [
+						{ extension: 'mp3', label: 'MP3' },
+						{ extension: 'm4a', label: 'M4A/M4B' },
+						{ extension: 'm4b', label: 'M4A/M4B' },
+						{ extension: 'aac', label: 'AAC' },
+						{ extension: 'wav', label: 'WAV' },
+						{ extension: 'flac', label: 'FLAC' },
+					],
+					extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
+					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
+					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
+				});
+			case 'discover_audio_import_paths': {
+				const args = _args as { inputPaths?: string[] } | undefined;
+				return Promise.resolve(args?.inputPaths ?? []);
+			}
+			case 'take_opened_audio_files':
+				return Promise.resolve([]);
 			case 'analyze_audio_files':
 				return Promise.resolve({
 					files: [

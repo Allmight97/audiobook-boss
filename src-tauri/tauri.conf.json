@@ -29,6 +29,39 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "fileAssociations": [
+      {
+        "ext": ["mp3"],
+        "mimeType": "audio/mpeg",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["m4a", "m4b"],
+        "mimeType": "audio/mp4",
+        "contentTypes": ["public.mpeg-4-audio"],
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["aac"],
+        "mimeType": "audio/aac",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["wav"],
+        "mimeType": "audio/wav",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["flac"],
+        "mimeType": "audio/flac",
+        "role": "Editor",
+        "rank": "Alternate"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

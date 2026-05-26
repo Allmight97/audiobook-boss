@@ -57,6 +57,12 @@ export const commands = {
 	 *  Returns comprehensive file information including duration and size
 	 */
 	analyzeAudioFiles: (filePaths: string[]) => typedError<FileListInfo, AppErrorEnvelope>(__TAURI_INVOKE("analyze_audio_files", { filePaths })),
+	// Returns backend-owned supported local audio import metadata for picker UI.
+	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
+	// Recursively discovers supported local audio files from files and directories.
+	discoverAudioImportPaths: (inputPaths: string[]) => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("discover_audio_import_paths", { inputPaths })),
+	// Drains local audio paths opened by the OS before the frontend was ready.
+	takeOpenedAudioFiles: () => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("take_opened_audio_files")),
 	// Validates encoder settings (no side effects)
 	validateEncoderSettings: (settings: EncoderSettings, externalToolchain: {
 	overridePath: string | null,
@@ -129,6 +135,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	processingProgress: makeEvent<ProgressEvent>("processing-progress"),
 	processingQueue: makeEvent<QueueEvent>("processing-queue"),
 };
@@ -377,6 +384,10 @@ export type OnlineMetadataResult = {
 	audibleOnly: boolean | null,
 };
 
+export type OpenedAudioFilesEvent = {
+	paths: string[],
+};
+
 // Backend operation family reported through progress and queue events.
 export type OperationKind =
 // Merge selected inputs into one output artifact.
@@ -540,6 +551,18 @@ export type SampleRateConfig =
 "auto" |
 // Explicit sample rate in Hz
 { explicit: number };
+
+export type SupportedAudioImportFormat = {
+	extension: string,
+	label: string,
+};
+
+export type SupportedAudioImportMetadata = {
+	formats: SupportedAudioImportFormat[],
+	extensions: string[],
+	formatsText: string,
+	supportText: string,
+};
 
 // Threading configuration for encoder
 export type ThreadSetting =

@@ -53,6 +53,35 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
+/// Validate a local import directory and return its canonical absolute path.
+pub(super) fn validate_input_directory_path(path: &Path) -> Result<PathBuf> {
+    validate_path_characters(path)?;
+    reject_symlink(path, "directory")?;
+
+    let metadata = fs::metadata(path).map_err(|e| {
+        AppError::FileValidation(format!(
+            "Cannot read directory metadata for '{}': {}",
+            sanitize_path_for_display(path),
+            e
+        ))
+    })?;
+
+    if !metadata.is_dir() {
+        return Err(AppError::FileValidation(format!(
+            "Path is not a directory: {}",
+            sanitize_path_for_display(path)
+        )));
+    }
+
+    path.canonicalize().map_err(|e| {
+        AppError::FileValidation(format!(
+            "Cannot canonicalize directory '{}': {}",
+            sanitize_path_for_display(path),
+            e
+        ))
+    })
+}
+
 /// Rejects symlink inputs to avoid extension whitelist bypass via symlink targets.
 fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
     let is_symlink = path

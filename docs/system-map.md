@@ -96,7 +96,7 @@ assertions, and contract tests.
 | Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
 | Metadata Outcome Plan | Metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
-| Audio Engine Deep Module | Media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
+| Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
 strip, private cluster, edit rules, and breaking-change triggers.

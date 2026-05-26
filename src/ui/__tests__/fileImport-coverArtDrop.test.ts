@@ -2,7 +2,6 @@ import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../types/events';
 import FileImportIsland from '../fileImport/FileImportIsland.svelte';
-import { SUPPORTED_AUDIO_SUPPORT_TEXT } from '../fileImport/supportedAudio';
 import { clearFileImportError } from '../fileImport/state.svelte';
 import { clearSelectionPanels } from '../fileList/metadataPanel';
 import {
@@ -16,30 +15,41 @@ import { clearMetadataState } from '../metadataState';
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 type DragDropListener = (event: { payload: DragDropPayload }) => void;
+type TauriListener = (event: { payload: unknown }) => void;
 
 const {
 	analyzeAudioFilesMock,
+	discoverAudioImportPathsMock,
+	getSupportedAudioImportMetadataMock,
 	loadCoverArtFileMock,
+	openDirectoryMock,
 	openFilesMock,
 	pushStatusPanelTransientStatusMock,
 	readAudioMetadataMock,
+	takeOpenedAudioFilesMock,
 	listeners,
 } = vi.hoisted(() => ({
 	analyzeAudioFilesMock: vi.fn(),
+	discoverAudioImportPathsMock: vi.fn(),
+	getSupportedAudioImportMetadataMock: vi.fn(),
 	loadCoverArtFileMock: vi.fn(),
+	openDirectoryMock: vi.fn(),
 	openFilesMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	readAudioMetadataMock: vi.fn(),
-	listeners: {} as Record<'tauri://drag-drop', DragDropListener>,
+	takeOpenedAudioFilesMock: vi.fn(),
+	listeners: {} as Record<string, TauriListener>,
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		listen: vi.fn((event: string, cb: DragDropListener) => {
-			if (event === 'tauri://drag-drop') {
-				listeners[event] = cb;
-			}
+		listen: vi.fn((event: string, cb: TauriListener) => {
+			listeners[event] = cb;
 		}),
+		getSupportedAudioImportMetadata: getSupportedAudioImportMetadataMock,
+		discoverAudioImportPaths: discoverAudioImportPathsMock,
+		takeOpenedAudioFiles: takeOpenedAudioFilesMock,
+		openDirectory: openDirectoryMock,
 		openFiles: openFilesMock,
 		analyzeAudioFiles: analyzeAudioFilesMock,
 		loadCoverArtFile: loadCoverArtFileMock,
@@ -52,7 +62,7 @@ vi.mock('../statusPanel', () => ({
 }));
 
 function fireDragDrop(position: { x: number; y: number }, paths: string[]) {
-	const handler = listeners['tauri://drag-drop'];
+	const handler = listeners['tauri://drag-drop'] as DragDropListener | undefined;
 	if (handler) {
 		handler({ payload: { position, paths } });
 	}
@@ -99,12 +109,24 @@ function makeAnalyzedFileList(
 describe('File import drop vs cover art drop isolation', () => {
 	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
+		discoverAudioImportPathsMock.mockReset();
+		discoverAudioImportPathsMock.mockImplementation(async (paths: string[]) => paths);
+		getSupportedAudioImportMetadataMock.mockReset();
+		getSupportedAudioImportMetadataMock.mockResolvedValue({
+			formats: [],
+			extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
+			formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
+			supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
+		});
 		loadCoverArtFileMock.mockReset();
 		loadCoverArtFileMock.mockResolvedValue(null);
+		openDirectoryMock.mockReset();
 		openFilesMock.mockReset();
 		pushStatusPanelTransientStatusMock.mockReset();
 		readAudioMetadataMock.mockReset();
 		readAudioMetadataMock.mockResolvedValue({});
+		takeOpenedAudioFilesMock.mockReset();
+		takeOpenedAudioFilesMock.mockResolvedValue([]);
 		clearMetadataState();
 		clearFileImportError();
 		setCurrentFileList(null);
@@ -180,9 +202,23 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
 	});
 
-	it('filters supported files on drops over the file management container', async () => {
+	it('uses backend-discovered files on drops over the file management container', async () => {
+		discoverAudioImportPathsMock.mockResolvedValueOnce([
+			'/tmp/file1.wav',
+			'/tmp/file2.flac',
+			'/tmp/file4.M4B',
+			'/tmp/file5.Mp3',
+		]);
 		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
 		fireDragDrop({ x: 200, y: 200 }, [
+			'/tmp/file1.wav',
+			'/tmp/file2.flac',
+			'/tmp/file3.txt',
+			'/tmp/file4.M4B',
+			'/tmp/file5.Mp3',
+		]);
+		await flushAsync();
+		expect(discoverAudioImportPathsMock).toHaveBeenCalledWith([
 			'/tmp/file1.wav',
 			'/tmp/file2.flac',
 			'/tmp/file3.txt',
@@ -201,11 +237,15 @@ describe('File import drop vs cover art drop isolation', () => {
 		analyzeAudioFilesMock.mockResolvedValue(makeAnalyzedFileList([]));
 		// Drop on file list content area (when files are present)
 		fireDragDrop({ x: 200, y: 300 }, ['/tmp/file1.mp3']);
+		await flushAsync();
 		expect(analyzeAudioFilesMock).toHaveBeenCalledWith(['/tmp/file1.mp3']);
 	});
 
-	it('renders the supported audio copy from the shared source', () => {
-		expect(document.body.textContent).toContain(SUPPORTED_AUDIO_SUPPORT_TEXT);
+	it('renders the supported audio copy from backend metadata', async () => {
+		await flushAsync();
+		expect(document.body.textContent).toContain(
+			'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
+		);
 	});
 
 	it('ignores drops outside file management container', async () => {

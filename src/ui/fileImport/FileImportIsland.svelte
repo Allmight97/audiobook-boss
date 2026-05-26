@@ -15,9 +15,12 @@
 	} from '../fileList/events';
 	import { fileListViewState } from '../fileList/viewState.svelte';
 	import type { DragDropContext } from './handlers';
-	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
+	import {
+		attachTauriDragHandlers,
+		handleClickToSelect,
+		handleClickToSelectFolder,
+	} from './handlers';
 	import { fileImportUiState } from './state.svelte';
-	import { SUPPORTED_AUDIO_SUPPORT_TEXT } from './supportedAudio';
 
 	let dropZoneHeader: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
@@ -34,6 +37,10 @@
 
 	function handleHeaderClick(): void {
 		void handleClickToSelect([...fileListViewState.files]);
+	}
+
+	function handleFolderClick(): void {
+		void handleClickToSelectFolder([...fileListViewState.files]);
 	}
 
 	function handleHeaderKeydown(event: KeyboardEvent): void {
@@ -80,6 +87,13 @@
         Order locked while processing
       </span>
     </div>
+    <button
+      id="add-folder-btn"
+      class="btn-pill btn-pill-secondary"
+      on:click={handleFolderClick}
+    >
+      Add Folder
+    </button>
     <button
       id="sort-toggle-btn"
       class="btn-pill btn-pill-secondary"
@@ -330,8 +344,8 @@
     on:click={handleHeaderClick}
     on:keydown={handleHeaderKeydown}
   >
-    <p class="text-sm muted-text">Drag & Drop files here or Click to Select</p>
-    <p class="text-xs muted-text mt-1">{SUPPORTED_AUDIO_SUPPORT_TEXT}</p>
+    <p class="text-sm muted-text">Drag & Drop files or folders here or Click to Select</p>
+    <p class="text-xs muted-text mt-1">{fileImportUiState.supportText}</p>
   </div>
 
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->

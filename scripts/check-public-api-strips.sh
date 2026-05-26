@@ -46,6 +46,10 @@ compare_block "Audio Engine Deep Module Public API Strip" "$audio_exports" 'pub 
 pub struct DecoderSelection {
 pub enum SampleRateConfig {
 pub use file_list::{get_file_list_info, FileListInfo};
+pub use imports::{
+discover_audio_import_paths, supported_audio_import_metadata, SupportedAudioImportFormat,
+SupportedAudioImportMetadata,
+};
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub use processor::{
 detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,

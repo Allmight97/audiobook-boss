@@ -36,6 +36,12 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Core helpers: `src-tauri/src/audio/path_validation.rs`, `src-tauri/src/audio/file_list.rs`
   - Frontend callers route through `tauriClient`
 
+- `get_supported_audio_import_metadata`, `discover_audio_import_paths`, `take_opened_audio_files`
+  - Rust: `src-tauri/src/commands/audio.rs`
+  - Core helpers: `src-tauri/src/audio/imports.rs`, `src-tauri/src/audio/path_validation.rs`, `src-tauri/src/opened_audio.rs`
+  - Frontend: `src/ui/fileImport/importAnalysisWorkflow.ts` through `src/lib/tauri/client.ts`
+  - Use: local audio import metadata, recursive folder/file discovery, and OS-opened audio drain for the Local Audio Import Boundary
+
 - `validate_encoder_settings`, `list_available_encoders`, `refresh_external_toolchain`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain.rs`
@@ -70,21 +76,27 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 
 - `processing-progress`
 - `processing-queue`
+- `opened-audio-files`
 
 Source files:
 
 - Rust event export: `src-tauri/src/ipc_contract.rs`
-- Rust event types: `src-tauri/src/processing/progress/mod.rs`
-- Rust event names: `src-tauri/src/processing/progress/mod.rs`
+- Rust event types: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`
+- Rust event names: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`
 - Rust operation vocabulary: `src-tauri/src/processing/lifecycle.rs`
 - Frontend event contract: `src/types/events.ts`
 - Frontend listener boundary: `src/lib/tauri/client.ts`
-- Main UI consumer: `src/ui/statusPanel/events.ts`
+- Main UI consumers: `src/ui/statusPanel/events.ts`, `src/ui/fileImport/handlers.ts`
 
 Lifecycle event payloads carry `operation_kind` so Status Panel can distinguish
 merge processing, batch processing, and metadata save from backend truth instead
 of caller-only choreography. Shared terminal counts use
 `OperationResultSummary` in generated bindings.
+
+`opened-audio-files` is an OS-opened local audio signal. The frontend drains the
+backend queue through `tauriClient.takeOpenedAudioFiles()` and then routes those
+paths through the same Local Audio Import Boundary as picker and drag/drop
+imports.
 
 ## Tauri Plugins Used At Runtime
 
@@ -98,6 +110,9 @@ of caller-only choreography. Shared terminal counts use
 ```text
 UI caller
   -> tauriClient
+     -> getSupportedAudioImportMetadata -> Rust audio import metadata
+     -> discoverAudioImportPaths        -> Rust audio import discovery
+     -> takeOpenedAudioFiles            -> Rust OS-opened audio queue drain
      -> openFile/openFiles/openDirectory -> plugin-dialog open
      -> openPath                       -> plugin-opener open_path
      -> openUrl                        -> plugin-opener open_url (HTTPS only)

@@ -2,11 +2,12 @@ use crate::audio;
 use crate::audio::{
     detect_encoder_availability, validate_encoder_settings as validate_encoder_settings_impl,
     validate_input_audio_path, validate_requested_encoder_available, EncoderAvailability,
-    EncoderSettings, ExternalToolchainPreference, FileListInfo,
+    EncoderSettings, ExternalToolchainPreference, FileListInfo, SupportedAudioImportMetadata,
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::metadata::{MetadataIntentPatch, NamingMetadata};
+use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::{build_output_path_preview, derive_output_artifact_path, OutputKind};
 use crate::processing::job_registry::JobId;
 use crate::processing::run;
@@ -56,6 +57,43 @@ pub fn validate_files(file_paths: Vec<String>) -> CommandResult<String> {
 pub fn analyze_audio_files(file_paths: Vec<String>) -> CommandResult<FileListInfo> {
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
     Ok(audio::get_file_list_info(&paths)?)
+}
+
+/// Returns backend-owned supported local audio import metadata for picker UI.
+#[tauri::command]
+#[specta::specta]
+pub fn get_supported_audio_import_metadata() -> CommandResult<SupportedAudioImportMetadata> {
+    Ok(audio::supported_audio_import_metadata())
+}
+
+/// Recursively discovers supported local audio files from files and directories.
+#[tauri::command]
+#[specta::specta]
+pub async fn discover_audio_import_paths(input_paths: Vec<String>) -> CommandResult<Vec<String>> {
+    let paths = input_paths
+        .into_iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    let discovered =
+        tokio::task::spawn_blocking(move || audio::discover_audio_import_paths(&paths))
+            .await
+            .map_err(|error| {
+                AppError::General(format!("Audio import discovery failed: {error}"))
+            })??;
+
+    Ok(discovered
+        .into_iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect())
+}
+
+/// Drains local audio paths opened by the OS before the frontend was ready.
+#[tauri::command]
+#[specta::specta]
+pub fn take_opened_audio_files(
+    queue: tauri::State<'_, OpenedAudioFileQueue>,
+) -> CommandResult<Vec<String>> {
+    Ok(queue.take_paths()?)
 }
 
 /// Validates encoder settings (no side effects)

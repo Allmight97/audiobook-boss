@@ -5,7 +5,9 @@
 - Applies to audio-domain code under `src-tauri/src/audio/`.
 - Nested `AGENTS.md` files own narrower rules for `processor/`; processing
   lifecycle rules live under `src-tauri/src/processing/`.
-- This file owns audio integrity rules that cross stream probing, decoder setup, resampling, sample buffering, encoder setup, muxing, and output validation.
+- This file owns audio integrity rules that cross local import discovery, stream
+  probing, decoder setup, resampling, sample buffering, encoder setup, muxing,
+  and output validation.
 - Audio is the **Audio Engine Deep Module** Grey-Box Public API owner. Its
   public strip lives at `crate::audio`; processor internals stay private under
   `src-tauri/src/audio/processor/`.
@@ -17,16 +19,19 @@
   `crate::audio::toolchain`, `crate::audio::path_validation`, or
   `crate::audio::cleanup`.
 - Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
+  `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
   `EncoderCapabilitySource`, `ExternalToolchainPreference`.
 - Functions: `get_file_list_info`, `validate_input_audio_path`,
-  `validate_input_image_path`, `validate_output_path`,
+  `validate_input_image_path`, `supported_audio_import_metadata`,
+  `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `validate_requested_encoder_available`, `validate_threads`,
-  `resolve_encoder_type`, `resolve_encoder_name`, `detect_encoder_availability`,
-  `detect_aac_decoder_availability`, `preferred_aac_decoder_order_labels`,
-  `execute_audio_engine`, `validate_audio_engine_inputs`.
+  `resolve_encoder_type`, `resolve_encoder_name`,
+  `detect_encoder_availability`, `detect_aac_decoder_availability`,
+  `preferred_aac_decoder_order_labels`, `execute_audio_engine`,
+  `validate_audio_engine_inputs`.
 - Execution request type: `AudioExecutionRequest`.
 - Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
 - Crate-internal helper: `CleanupGuard`.
@@ -37,12 +42,13 @@
 ## Private Cluster
 
 - Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
-  `constants.rs`, `file_list.rs`, `metrics.rs`, `path_validation.rs`,
-  `processor/`, `settings.rs`, `settings_encoder.rs`, and `toolchain.rs`.
-- The cluster owns decoder/toolchain selection, media inspection,
-  decode/resample/encode/mux internals, staging, cleanup, and media execution
-  facts. Processing owns lifecycle orchestration and terminal normalization;
-  `output_artifact` owns final artifact commit truth.
+  `constants.rs`, `file_list.rs`, `imports.rs`, `metrics.rs`,
+  `path_validation.rs`, `processor/`, `settings.rs`, `settings_encoder.rs`,
+  and `toolchain.rs`.
+- The cluster owns local audio import metadata/discovery, decoder/toolchain
+  selection, media inspection, decode/resample/encode/mux internals, staging,
+  cleanup, and media execution facts. Processing owns lifecycle orchestration
+  and terminal normalization; `output_artifact` owns final artifact commit truth.
 
 ## Test Placement
 
@@ -75,7 +81,10 @@
 
 ## Preferred Path
 
-- Treat audio processing as a boundary chain: validate paths -> inspect inputs -> choose decoder/toolchain -> decode/resample -> accumulate exact encoder frames -> encode/mux -> finalize artifact -> verify output truth.
+- Treat audio processing as a boundary chain: discover supported local paths ->
+  validate paths -> inspect inputs -> choose decoder/toolchain ->
+  decode/resample -> accumulate exact encoder frames -> encode/mux -> finalize
+  artifact -> verify output truth.
 - Keep sample format, channel layout, sample rate, frame size, and encoder selection explicit at the boundary where they are chosen.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.

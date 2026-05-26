@@ -1,9 +1,13 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile } from '../../types/audio';
-import { isFileDropEvent } from '../../types/events';
+import { EVENTS, isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
 import { getCurrentFileList } from '../fileList/state.svelte';
-import { setFileImportDragOver } from './state.svelte';
+import {
+	setFileImportDragOver,
+	setFileImportError,
+	setFileImportSupportText,
+} from './state.svelte';
 import { enterImportAnalysisWorkflow, runImportAnalysisWorkflow } from './importAnalysisWorkflow';
 import {
 	ImportAnalysisWorkflowLive,
@@ -88,6 +92,14 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 			setFileImportDragOver(false);
 		}),
 	);
+	captureUnlistener(
+		tauriClient.listen(EVENTS.OPENED_AUDIO_FILES, async () => {
+			await handleOpenedAudioFiles(getVisibleFiles());
+		}),
+	);
+
+	void refreshSupportedAudioImportMetadata();
+	void handleOpenedAudioFiles(getVisibleFiles());
 
 	return () => {
 		isDisposed = true;
@@ -108,13 +120,52 @@ export async function handleClickToSelect(existingFiles: AudioFile[] = []): Prom
 	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
 }
 
-async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {
+export async function handleClickToSelectFolder(existingFiles: AudioFile[] = []): Promise<void> {
 	const currentFiles =
 		existingFiles.length > 0 ? existingFiles : (getCurrentFileList()?.files ?? []);
-	const action = { type: 'dropFiles' as const, paths, existingFiles: currentFiles };
+	const action = { type: 'clickToSelectFolder' as const, existingFiles: currentFiles };
 	const preparedEntry = enterImportAnalysisWorkflow(liveImportAnalysisWorkflowServices, action);
 	if (!preparedEntry) {
 		return;
 	}
 	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+}
+
+export async function handleImportedAudioPaths(
+	paths: string[],
+	existingFiles: AudioFile[] = [],
+): Promise<void> {
+	const currentFiles =
+		existingFiles.length > 0 ? existingFiles : (getCurrentFileList()?.files ?? []);
+	const action = { type: 'importPaths' as const, paths, existingFiles: currentFiles };
+	const preparedEntry = enterImportAnalysisWorkflow(liveImportAnalysisWorkflowServices, action);
+	if (!preparedEntry) {
+		return;
+	}
+	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+}
+
+async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {
+	await handleImportedAudioPaths(paths, existingFiles);
+}
+
+async function handleOpenedAudioFiles(existingFiles: AudioFile[] = []): Promise<void> {
+	try {
+		const paths = await tauriClient.takeOpenedAudioFiles();
+		if (paths.length > 0) {
+			await handleImportedAudioPaths(paths, existingFiles);
+		}
+	} catch (cause) {
+		console.error('Failed to import OS-opened audio files:', cause);
+		setFileImportError('Failed to import opened audio files. Please try again.');
+	}
+}
+
+async function refreshSupportedAudioImportMetadata(): Promise<void> {
+	try {
+		const metadata = await tauriClient.getSupportedAudioImportMetadata();
+		setFileImportSupportText(metadata.supportText);
+	} catch (cause) {
+		console.error('Failed to load supported audio import metadata:', cause);
+	}
 }

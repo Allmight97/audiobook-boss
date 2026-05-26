@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
-import type { AudioFile, FileListInfo } from '../../../types/audio';
+import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../../types/audio';
 import {
 	importAnalysisWorkflowExecution,
 	makeImportAnalysisWorkflowServicesLayer,
@@ -28,10 +28,27 @@ function fileListInfo(files: AudioFile[] = [audioFile('/books/new.m4b')]): FileL
 	} as FileListInfo;
 }
 
+const supportedAudioMetadata: SupportedAudioImportMetadata = {
+	formats: [
+		{ extension: 'mp3', label: 'MP3' },
+		{ extension: 'm4a', label: 'M4A/M4B' },
+		{ extension: 'm4b', label: 'M4A/M4B' },
+		{ extension: 'aac', label: 'AAC' },
+		{ extension: 'wav', label: 'WAV' },
+		{ extension: 'flac', label: 'FLAC' },
+	],
+	extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
+	formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
+	supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
+};
+
 function makeHarness(overrides: Partial<ImportAnalysisWorkflowServices> = {}) {
 	const services: ImportAnalysisWorkflowServices = {
 		isOrderLocked: vi.fn(() => false),
+		getSupportedAudioImportMetadata: vi.fn(async () => supportedAudioMetadata),
 		openFiles: vi.fn(async () => ['/books/new.m4b']),
+		openDirectory: vi.fn(async () => '/books/series'),
+		discoverAudioImportPaths: vi.fn(async (paths: string[]) => paths),
 		analyzeAudioFiles: vi.fn(async () => fileListInfo()),
 		persistPendingMetadataDraftsForCurrentSelection: vi.fn(async () => true),
 		appendFileList: vi.fn(),
@@ -60,6 +77,7 @@ describe('ImportAnalysisWorkflow', () => {
 		);
 
 		expect(harness.services.openFiles).not.toHaveBeenCalled();
+		expect(harness.services.discoverAudioImportPaths).not.toHaveBeenCalled();
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
 			'Order locked while processing. Wait for completion to add files.',
 		);
@@ -79,35 +97,66 @@ describe('ImportAnalysisWorkflow', () => {
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
 	});
 
-	it('reports unsupported drops before backend analysis', async () => {
-		const harness = makeHarness();
+	it('reports unsupported imports after backend discovery returns no audio files', async () => {
+		const harness = makeHarness({
+			discoverAudioImportPaths: vi.fn(async () => []),
+		});
 
 		await runAppEffect(
 			importAnalysisWorkflowExecution({
-				type: 'dropFiles',
+				type: 'importPaths',
 				paths: ['/tmp/notes.txt', '/tmp/image.png'],
 				existingFiles: [],
 			}).pipe(Effect.provide(harness.layer)),
 		);
 
+		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith([
+			'/tmp/notes.txt',
+			'/tmp/image.png',
+		]);
 		expect(harness.services.analyzeAudioFiles).not.toHaveBeenCalled();
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
-			'No supported audio files dropped. Please use mp3, m4a, m4b, aac, wav, flac files.',
+			'No supported audio files found. Please use MP3, M4A/M4B, AAC, WAV, and FLAC files.',
 		);
 	});
 
-	it('filters supported drop paths before analysis', async () => {
-		const harness = makeHarness();
+	it('uses backend-discovered import paths before analysis', async () => {
+		const harness = makeHarness({
+			discoverAudioImportPaths: vi.fn(async () => ['/tmp/a.wav', '/tmp/c.M4B']),
+		});
 
 		await runAppEffect(
 			importAnalysisWorkflowExecution({
-				type: 'dropFiles',
+				type: 'importPaths',
 				paths: ['/tmp/a.wav', '/tmp/b.txt', '/tmp/c.M4B'],
 				existingFiles: [],
 			}).pipe(Effect.provide(harness.layer)),
 		);
 
+		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith([
+			'/tmp/a.wav',
+			'/tmp/b.txt',
+			'/tmp/c.M4B',
+		]);
 		expect(harness.services.analyzeAudioFiles).toHaveBeenCalledWith(['/tmp/a.wav', '/tmp/c.M4B']);
+	});
+
+	it('opens a folder and recursively discovers audio paths before analysis', async () => {
+		const harness = makeHarness({
+			openDirectory: vi.fn(async () => '/books/author'),
+			discoverAudioImportPaths: vi.fn(async () => ['/books/author/Book 1.m4b']),
+		});
+
+		await runAppEffect(
+			importAnalysisWorkflowExecution({
+				type: 'clickToSelectFolder',
+				existingFiles: [],
+			}).pipe(Effect.provide(harness.layer)),
+		);
+
+		expect(harness.services.openDirectory).toHaveBeenCalledTimes(1);
+		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith(['/books/author']);
+		expect(harness.services.analyzeAudioFiles).toHaveBeenCalledWith(['/books/author/Book 1.m4b']);
 	});
 
 	it('reports analysis failure without appending files', async () => {
@@ -120,7 +169,7 @@ describe('ImportAnalysisWorkflow', () => {
 
 		await runAppEffect(
 			importAnalysisWorkflowExecution({
-				type: 'dropFiles',
+				type: 'importPaths',
 				paths: ['/tmp/a.m4b'],
 				existingFiles: [],
 			}).pipe(Effect.provide(harness.layer)),
@@ -228,7 +277,7 @@ describe('ImportAnalysisWorkflow', () => {
 
 		await runAppEffect(
 			importAnalysisWorkflowExecution({
-				type: 'dropFiles',
+				type: 'importPaths',
 				paths: ['/books/existing.m4b'],
 				existingFiles,
 			}).pipe(Effect.provide(harness.layer)),

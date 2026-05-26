@@ -135,6 +135,12 @@ export const commandSpecs = {
 		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),
+	get_supported_audio_import_metadata: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
+	discover_audio_import_paths: (args: { inputPaths: string[] }) =>
+		runGeneratedCommand(generatedCommands.discoverAudioImportPaths(args.inputPaths)),
+	take_opened_audio_files: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.takeOpenedAudioFiles()),
 	validate_encoder_settings: (args: {
 		settings: EncoderSettings;
 		externalToolchain?: ExternalToolchainPreference | null;
