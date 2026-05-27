@@ -39,7 +39,7 @@
 				id="adv-encoder"
 				data-testid="encoder-select"
 				value={encoderPanelState.flavor}
-				on:change={handleFlavorChange}
+				onchange={handleFlavorChange}
 			>
 				<option value="auto">{encoderPanelState.autoOptionLabel}</option>
 				<option value="fdk_he_aac" disabled={encoderPanelState.disabledEncoderOptions.fdk_he_aac}>
@@ -76,7 +76,7 @@
 				id="adv-bitrate-mode"
 				data-testid="bitrate-mode-select"
 				value={encoderPanelState.bitrateModeSelection}
-				on:change={handleBitrateModeChange}
+				onchange={handleBitrateModeChange}
 			>
 				<option value="vbr" disabled={!encoderPanelState.bitrateModeAvailability.vbr}>VBR</option>
 				<option value="cvbr" disabled={!encoderPanelState.bitrateModeAvailability.cvbr}>CVBR</option>
@@ -90,7 +90,7 @@
 				class:hidden={!encoderPanelState.showQuality}
 				data-testid="quality-select"
 				value={encoderPanelState.qualityValue}
-				on:change={handleQualityValueChange}
+				onchange={handleQualityValueChange}
 			>
 				<option value={1}>1 (Smallest)</option>
 				<option value={2}>2</option>
@@ -103,7 +103,7 @@
 				class:hidden={encoderPanelState.showQuality}
 				data-testid="bitrate-select"
 				value={encoderPanelState.bitrateValue}
-				on:change={handleBitrateValueChange}
+				onchange={handleBitrateValueChange}
 			>
 				<option value={48}>48 kbps</option>
 				<option value={56}>56 kbps</option>
@@ -145,7 +145,7 @@
 					id="adv-fdk-afterburner"
 					data-testid="afterburner-checkbox"
 					checked={encoderPanelState.fdkAfterburner}
-					on:change={handleFdkAfterburnerChange}
+					onchange={handleFdkAfterburnerChange}
 				/>
 				<span class="option-label">Afterburner</span>
 			</label>
@@ -167,7 +167,7 @@
 					id="adv-native-twoloop"
 					data-testid="twoloop-checkbox"
 					checked={encoderPanelState.nativeTwoloop}
-					on:change={handleNativeTwoloopChange}
+					onchange={handleNativeTwoloopChange}
 				/>
 				<span class="option-label">Twoloop</span>
 			</label>
@@ -210,7 +210,7 @@
 					id="toolchain-refresh"
 					type="button"
 					class="secondary-button compact-button"
-					on:click={refreshExternalToolchain}
+					onclick={refreshExternalToolchain}
 					data-testid="toolchain-refresh"
 				>
 					Refresh
@@ -220,7 +220,7 @@
 						id="toolchain-clear-override"
 						type="button"
 						class="secondary-button compact-button"
-						on:click={clearToolchainOverride}
+						onclick={clearToolchainOverride}
 						data-testid="toolchain-clear-override"
 					>
 						Clear Path
@@ -239,9 +239,9 @@
 						placeholder="/opt/homebrew/bin/ffmpeg or /path/to/toolchain"
 						value={encoderPanelState.externalToolchainOverridePath}
 						data-testid="external-toolchain-path"
-						on:input={handleToolchainPathInput}
-						on:change={handleToolchainPathCommit}
-						on:blur={handleToolchainPathCommit}
+						oninput={handleToolchainPathInput}
+						onchange={handleToolchainPathCommit}
+						onblur={handleToolchainPathCommit}
 					/>
 					<p class="text-xs muted-text mt-0.5">
 						Paste an `ffmpeg` executable path or a toolchain directory containing `ffmpeg`.
@@ -252,7 +252,7 @@
 						id="toolchain-browse"
 						type="button"
 						class="secondary-button compact-button"
-						on:click={handleToolchainBrowse}
+						onclick={handleToolchainBrowse}
 						data-testid="toolchain-browse"
 					>
 						Choose…
@@ -269,7 +269,7 @@
 				id="output-samplerate"
 				data-testid="samplerate-select"
 				value={encoderPanelState.sampleRateSelection}
-				on:change={handleSampleRateSelectionChange}
+				onchange={handleSampleRateSelectionChange}
 			>
 				<option value="auto">Auto</option>
 				<option value="22050">22050 Hz</option>
@@ -291,7 +291,7 @@
 				id="output-channels"
 				data-testid="channels-select"
 				value={encoderPanelState.channelsSelection}
-				on:change={handleChannelsSelectionChange}
+				onchange={handleChannelsSelectionChange}
 			>
 				<option value="auto">Auto</option>
 				<option value="mono">Mono</option>

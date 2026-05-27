@@ -11,6 +11,7 @@
 | **Generated Bindings** | The committed generated TypeScript export of the Rust IPC contract used for drift detection and typed integration, not as the main handwritten runtime seam. | primary client, handwritten contract |
 | **tauriClient** | The frontend-owned adapter that wraps generated commands/events and centralizes normalization, denormalization, and error handling. | raw invoke usage, direct generated calls |
 | **IPC Contract** | The Rust-declared set of commands and events exported through `src-tauri/src/ipc_contract.rs` and consumed through generated bindings plus adapters. | ad hoc API, implicit bridge |
+| **App Settings** | The backend-owned Grey-Box Module for durable user preference truth: schema, defaults, validation, private JSON storage, and settings IPC commands. Runtime owners still accept runtime-coupled changes before App Settings persists them. | localStorage settings, UI preference bag, settings plugin surface |
 
 ## Processing And Metadata
 | Term | Definition | Aliases to avoid |
@@ -21,7 +22,7 @@
 | **Local Audio Import Boundary** | The frontend import workflow that all local audio ingress uses after a path exists: file picker, recursive folder picker, drag/drop, and OS Open With all route through backend import discovery, backend analysis, metadata draft staging, duplicate handling, and file-list append. Rust owns importable-audio truth; the frontend does not mirror supported extensions. | file picker helper, drop handler, frontend allowlist |
 | **Product Intent** | What the user believes they asked Audiobook Boss to do with selected files, metadata, output rules, and processing settings. | UI state, backend guess |
 | **UI State** | The frontend-held state for selected files, edits, visible status, and enabled actions before or after backend truth is returned. | product truth, backend state |
-| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a seventh Grey-Box Public API. | processing helper, job loop, status UI owner |
+| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a standalone Grey-Box Public API. | processing helper, job loop, status UI owner |
 | **Operation Kind** | The backend-declared operation identity carried on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | caller mode guess, UI-only work kind |
 | **Operation Result Summary** | Shared terminal counts for long-running backend operations: total, succeeded, skipped, cancelled, and failed. | processing-only summary, UI completion guess |
 | **Artifact Truth** | The final files, tags, paths, and terminal results that exist after processing or metadata operations complete. | expected output, UI summary |
@@ -60,7 +61,7 @@
 | **Public API Strip** | The deliberately small set of public symbols (functions, types, events, commands) a grey-box module allows callers to import. Symbols outside the strip are not public even when the language would allow them to be. | exports list, "everything pub", surface area |
 | **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
 | **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
-| **Six Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module. | "the modules" (ambiguous), deep modules (too broad) |
+| **Seven Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, and App Settings. | "the modules" (ambiguous), deep modules (too broad) |
 | **Audio Engine Deep Module** | The Grey-Box Public API owner for media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. | processor helper, ffmpeg wrapper, generic media manager |
 | **Reach-Through** | An import that crosses a module boundary into another module's Private Cluster. Always a smell; always names a bug, an unowned rule, or an unintentional contract. | shortcut, "just this once" |
 | **Ownership Smear** | A product rule whose implementation is split across two or more modules where each holds a partial answer and no single source of truth exists. | shared concern, "it depends" |
@@ -75,6 +76,9 @@
 - The **IPC Contract** is exported from Rust, materialized as **Generated Bindings**, and consumed through the **tauriClient** **Runtime Boundary**.
 - A **Boundary** owns normalization and validation so **Contract Truth** does not leak into scattered UI callsites.
 - The **Product Spine** moves from **Product Intent** through **UI State**, **IPC Contract**, **Backend Lifecycle**, and **Artifact Truth**.
+- **App Settings** stores accepted durable preferences; runtime owners such as
+  **Job Registry**, audio/toolchain validation, and output planning still accept
+  or reject live runtime changes before those values become preference truth.
 - The **Backend Lifecycle** strip under `processing` names operation identity,
   queue/progress events, cancellation checks, and shared terminal summaries for
   processing and metadata save.
@@ -89,7 +93,7 @@
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
-- Each **Public API Strip** in the **Six Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner/public strip inside `processing`.
+- Each **Public API Strip** in the **Seven Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner/public strip inside `processing`.
 - A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue

@@ -139,6 +139,17 @@ triggerProcessFromStatusPanel,
 export { updateStatusPanelConcurrencyStatus } from '\''./runtimeApi'\'';
 export { default as StatusPanelIsland } from '\''./StatusPanelIsland.svelte'\'';'
 
+app_settings_exports="$(
+  extract_export_blocks src-tauri/src/app_settings/mod.rs
+  rg "^(pub fn get_app_settings|pub fn update_app_settings|pub fn reset_app_settings)" src-tauri/src/app_settings/mod.rs || true
+)"
+compare_block "App Settings Public API Strip" "$app_settings_exports" 'pub use types::{
+AppSettings, AppSettingsPatch, ConcurrencyPreference, EncoderDefaults, OutputDefaults,
+};
+pub fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
+pub fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<AppSettings> {
+pub fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {'
+
 if [[ "$failures" -ne 0 ]]; then
   exit 1
 fi

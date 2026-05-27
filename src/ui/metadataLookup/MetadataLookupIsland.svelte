@@ -61,7 +61,7 @@
 	class:open={metadataLookupState.isOpen}
 	data-testid="metadata-lookup-modal"
 	aria-hidden={!metadataLookupState.isOpen}
-	on:click={handleBackdropClick}
+	onclick={handleBackdropClick}
 >
 	<div
 		class="app-modal-dialog"
@@ -76,7 +76,7 @@
 				class="btn-pill btn-pill-secondary"
 				data-testid="metadata-lookup-close"
 				type="button"
-				on:click={closeMetadataLookup}
+				onclick={closeMetadataLookup}
 			>
 				Close
 			</button>
@@ -91,7 +91,7 @@
 						placeholder="Title, author, or ASIN (e.g., B01234ABCD)"
 						data-testid="metadata-lookup-query"
 						bind:value={metadataLookupState.query}
-						on:keydown={handleQueryKeyDown}
+						onkeydown={handleQueryKeyDown}
 					/>
 				</div>
 				<div class="app-modal-field">
@@ -138,7 +138,7 @@
 						class="btn-pill btn-pill-primary"
 						data-testid="metadata-lookup-search-btn"
 						type="button"
-						on:click={() => void searchMetadataLookup()}
+						onclick={() => void searchMetadataLookup()}
 					>
 						Search
 					</button>
@@ -150,7 +150,7 @@
 						data-testid="metadata-lookup-skip-btn"
 						type="button"
 						disabled={!metadataLookupState.skipEnabled}
-						on:click={() => void skipMetadataLookupQueueItem()}
+						onclick={() => void skipMetadataLookupQueueItem()}
 					>
 						Skip
 					</button>
@@ -185,7 +185,7 @@
 								class="btn-pill btn-pill-secondary mt-2"
 								data-testid="metadata-lookup-manual-entry-btn"
 								type="button"
-								on:click={useManualMetadataEntryFromLookup}
+								onclick={useManualMetadataEntryFromLookup}
 							>
 								Use Manual Entry
 							</button>
@@ -214,7 +214,7 @@
 							</div>
 							<div class="metadata-lookup-meta">{formatSeriesSummary(result)}</div>
 							<div class="metadata-lookup-meta">
-								Publication: {formatPublicationDate(result.publishedDate)} • Length: {formatDurationHours(
+								Publication {formatPublicationDate(result.publishedDate)} • Length: {formatDurationHours(
 									result.durationSeconds,
 								)}
 							</div>
@@ -234,7 +234,7 @@
 								type="button"
 								class="btn-pill btn-pill-secondary"
 								data-index={index}
-								on:click={() => void applyMetadataLookupResult(index)}
+								onclick={() => void applyMetadataLookupResult(index)}
 							>
 								Use Metadata
 							</button>

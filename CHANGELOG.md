@@ -4,6 +4,32 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.27] - 2026-05-27
+
+App Settings control-plane release.
+
+### Added
+
+- Added durable App Settings so encoder defaults, output defaults, remembered
+  output directory, and max-concurrency preference load back into the existing
+  controls after app restart.
+- Added a backend-owned App Settings module with Tauri commands for reading,
+  updating, and resetting persisted preferences.
+
+### Changed
+
+- Existing encoder, output, and concurrency controls now persist accepted
+  settings through the App Settings boundary instead of remaining session-only.
+- Updated the metadata lookup and cover-art HTTP dependency path to `reqwest`
+  0.13.4 after upstream/security review.
+
+### Fixed
+
+- Replaced deprecated Svelte event directives across production components so
+  the production build remains free of `event_directive_deprecated` warnings.
+- Hardened App Settings persistence against concurrent patch loss, temporary
+  settings-file leaks, and max-concurrency drift when persistence fails.
+
 ## [1.0.26] - 2026-05-26
 
 Import ingress and file-list workflow release.

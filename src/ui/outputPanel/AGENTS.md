@@ -1,6 +1,8 @@
 ## Public API Strip
 - Import output panel runtime symbols from `src/ui/outputPanel`.
-- Exports: `initOutputPanel`, `getState`, `readOutputRequestConfig`, `updateOutputPath`, `updateEstimatedSize`, `getCurrentMetadata`, `OutputPanelIsland`.
+- Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`, `getState`,
+  `readOutputDefaultsFromState`, `readOutputRequestConfig`, `updateOutputPath`,
+  `updateEstimatedSize`, `getCurrentMetadata`, `OutputPanelIsland`.
 
 ## Private Cluster
 - Files: `OutputPanelIsland.svelte`, `actions.ts`, `preview.ts`, `state.svelte.ts`, `outputPlanWorkflow.ts`, `outputPlanWorkflowLive.ts`, `outputPlanWorkflowServices.ts`, `__tests__/`.
@@ -11,6 +13,9 @@
   `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
   when public-strip or runtime contract surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
+- Keep App Settings hydration/persistence coordination behind
+  `applyOutputDefaultsFromSettings` and `readOutputDefaultsFromState`; do not
+  let other panels reach into `state.svelte.ts`.
 - Read encoder panel config through its Public API Strip only for derived display, such as estimated size.
 
 ## Breaking-Change Triggers

@@ -129,28 +129,30 @@ function runFallbackPolicy(
 	};
 }
 
+function assertScenario(
+	auditStatus: string,
+	today: string,
+	verify: (repoRoot: string, result: ReturnType<typeof runFallbackPolicy>) => void,
+): void {
+	const repoRoot = createFixtureRepo(auditStatus);
+
+	try {
+		const result = runFallbackPolicy(repoRoot, { today });
+		verify(repoRoot, result);
+	} finally {
+		rmSync(repoRoot, { force: true, recursive: true });
+	}
+}
+
 describe('check-fallback-policy.sh', () => {
-	it('covers invalid dates, renewals, and malformed fallback metadata', () => {
-		const assertScenario = (
-			auditStatus: string,
-			today: string,
-			verify: (repoRoot: string, result: ReturnType<typeof runFallbackPolicy>) => void,
-		): void => {
-			const repoRoot = createFixtureRepo(auditStatus);
-
-			try {
-				const result = runFallbackPolicy(repoRoot, { today });
-				verify(repoRoot, result);
-			} finally {
-				rmSync(repoRoot, { force: true, recursive: true });
-			}
-		};
-
+	it('rejects invalid ABB_TODAY values', () => {
 		assertScenario('OK', '2026-13-01', (_repoRoot, result) => {
 			expect(result.status).toBe(1);
 			expect(result.stderr).toContain("Invalid ABB_TODAY value '2026-13-01'");
 		});
+	});
 
+	it('accepts renewal metadata that extends the fallback sunset', () => {
 		assertScenario(
 			'renewal=2026-04-21; reason=fixture extension',
 			'2026-04-20',
@@ -159,7 +161,9 @@ describe('check-fallback-policy.sh', () => {
 				expect(result.stdout).toContain('[fallback-policy] OK');
 			},
 		);
+	});
 
+	it('rejects malformed fallback-register sunsets', () => {
 		assertScenario('OK', '2026-04-20', (repoRoot, result) => {
 			const docsPath = path.join(repoRoot, 'docs', 'fallbacks.md');
 			writeFileSync(
@@ -172,7 +176,9 @@ describe('check-fallback-policy.sh', () => {
 			expect(updatedResult.stdout).toContain("has malformed sunset '2026-13-01'");
 			expect(result.status).toBe(0);
 		});
+	});
 
+	it('rejects malformed code-marker sunsets', () => {
 		assertScenario('OK', '2026-04-20', (repoRoot, _result) => {
 			const markerPath = path.join(repoRoot, 'src', 'fallback-fixture.sh');
 			writeFileSync(
@@ -184,7 +190,9 @@ describe('check-fallback-policy.sh', () => {
 			expect(updatedResult.status).toBe(1);
 			expect(updatedResult.stdout).toContain("has malformed sunset '2026-13-01'");
 		});
+	});
 
+	it('rejects renewal metadata that does not extend the fallback sunset', () => {
 		assertScenario(
 			'renewal=2026-04-20; reason=fixture extension',
 			'2026-04-20',
@@ -196,7 +204,9 @@ describe('check-fallback-policy.sh', () => {
 				expect(result.stdout).not.toContain('expired on 2026-04-20');
 			},
 		);
+	});
 
+	it('rejects renewal metadata earlier than the fallback sunset', () => {
 		assertScenario(
 			'renewal=2026-04-19; reason=fixture extension',
 			'2026-04-20',
@@ -208,7 +218,9 @@ describe('check-fallback-policy.sh', () => {
 				expect(result.stdout).not.toContain('expired on 2026-04-19');
 			},
 		);
+	});
 
+	it('rejects malformed renewal dates', () => {
 		assertScenario(
 			'renewal=2026-13-01; reason=fixture extension',
 			'2026-04-20',

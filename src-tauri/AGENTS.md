@@ -14,6 +14,9 @@
   terminal summaries through the `crate::processing` lifecycle/progress public
   strip. Audio and metadata may report lifecycle truth there without owning the
   lifecycle model.
+- Route durable app preference schema, defaults, merge, validation, and JSON
+  storage through `crate::app_settings`; commands and UI code must not invent a
+  parallel settings store.
 - Route metadata reads and writes through the public `metadata` boundary; outside callers should request metadata outcomes, not choose private MP4/FFmpeg strategy modules.
 - Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side fallback assumptions.
 - Use `JobRegistry` as the central active-job and cancellation surface.

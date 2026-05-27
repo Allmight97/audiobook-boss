@@ -1,8 +1,10 @@
 import type {
 	EncoderAvailability,
+	EncoderSettings,
 	EncodingRequestConfig,
 	SampleRateConfig,
 } from '../../types/audio';
+import type { EncoderDefaults } from '../../types/appSettings';
 import {
 	type EncoderFlavor,
 	type EncoderSettingsState,
@@ -70,6 +72,34 @@ export function readToolchainSettingsFromState() {
 	return overridePath ? { overridePath } : {};
 }
 
+function bitrateModeSelectionFromSettings(settings: EncoderSettings): BitrateModeSelection {
+	switch (settings.bitrateMode.mode) {
+		case 'cvbr':
+			return 'cvbr';
+		case 'cbr':
+			return 'cbr';
+		default:
+			return 'vbr';
+	}
+}
+
+function qualityValueFromSettings(settings: EncoderSettings): VbrLevel {
+	if (settings.bitrateMode.mode !== 'vbr') {
+		return 3;
+	}
+
+	const value = Number(settings.bitrateMode.value ?? 3);
+	return Math.min(5, Math.max(1, Math.round(value))) as VbrLevel;
+}
+
+function sampleRateSelectionFromConfig(sampleRate: SampleRateConfig): string {
+	if (sampleRate === 'auto') {
+		return 'auto';
+	}
+
+	return String(sampleRate.explicit);
+}
+
 export function readEncoderSettingsFromState(): EncoderSettingsState {
 	return {
 		flavor: encoderPanelState.flavor,
@@ -109,6 +139,27 @@ export function readEncodingRequestConfig(): EncodingRequestConfig {
 		toolchainSettings: readToolchainSettingsFromState(),
 		sampleRate: readSampleRateFromState(),
 	};
+}
+
+export function readEncoderDefaultsFromState(): EncoderDefaults {
+	return {
+		settings: readBoundaryEncoderSettings(),
+		sampleRate: readSampleRateFromState(),
+		externalToolchain: readToolchainSettingsFromState(),
+	};
+}
+
+export function applyEncoderDefaults(defaults: EncoderDefaults): void {
+	const settings = defaults.settings;
+	encoderPanelState.flavor = settings.encoderType;
+	encoderPanelState.bitrateModeSelection = bitrateModeSelectionFromSettings(settings);
+	encoderPanelState.qualityValue = qualityValueFromSettings(settings);
+	encoderPanelState.bitrateValue = settings.bitrateKbps as typeof encoderPanelState.bitrateValue;
+	encoderPanelState.channelsSelection = settings.channels;
+	encoderPanelState.fdkAfterburner = settings.afterburner;
+	encoderPanelState.nativeTwoloop = settings.twoloop ?? true;
+	encoderPanelState.sampleRateSelection = sampleRateSelectionFromConfig(defaults.sampleRate);
+	encoderPanelState.externalToolchainOverridePath = defaults.externalToolchain.overridePath ?? '';
 }
 
 export function setEncoderAvailability(availability: EncoderAvailability | null): void {

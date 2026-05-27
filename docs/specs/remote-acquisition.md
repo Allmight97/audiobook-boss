@@ -46,7 +46,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 
 | Module | Type | Public API Strip | Notes |
 | --- | --- | --- | --- |
-| `RemoteSourceRuntime` | Rust grey-box (new Public API after ABB's six current Public APIs) | `providers()`, `accountStatus(providerId)`, `beginAuth/completeAuth/logout(providerId)`, `scanLibrary(accountRef, cursor)`, `preflightAcquisition(plan)`, `startAcquisition(plan)`, `cancelAcquisition(jobId)`, `acquisitionStatus(jobId)`, `commitMaterializedAssets(jobId)` | Provider registry, vault adapter, library cache, acquisition job ledger, staging root, provenance writer, capability matrix. Audible provider lives inside as a private cluster. |
+| `RemoteSourceRuntime` | Rust grey-box (new Public API after ABB's seven current Public APIs) | `providers()`, `accountStatus(providerId)`, `beginAuth/completeAuth/logout(providerId)`, `scanLibrary(accountRef, cursor)`, `preflightAcquisition(plan)`, `startAcquisition(plan)`, `cancelAcquisition(jobId)`, `acquisitionStatus(jobId)`, `commitMaterializedAssets(jobId)` | Provider registry, vault adapter, library cache, acquisition job ledger, staging root, provenance writer, capability matrix. Audible provider lives inside as a private cluster. |
 | `LocalImportBridge` | TS grey-box | `importLocalAudioFiles(paths)` returning `FileListInfo` | Extracted from `processFilePaths` in `src/ui/fileImport/handlers.ts:153-171`. Used by picker, drop, AND remote-source UI. Enforces "remote import is not a privileged bypass." |
 
 **Why this posture**: Native acquisition with the trait shape ABB owns end-to-end. No sidecar invocation, no bundled .NET worker, no embedded-binary GPL dependency. The boundary that protects processing's purity is the `MaterializedAsset` handoff — a verified local M4B path + provenance manifest, nothing more.
@@ -77,7 +77,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - `src-tauri/src/ipc_contract.rs` — register new command/event families.
 - `src/lib/tauri/client.ts` — adapter additions for new commands/events.
 - `docs/api-map.md` — add Remote Source command/event family.
-- `docs/system-map.md` — add Remote Source row to the current six Public APIs if this spec is implemented.
+- `docs/system-map.md` — add Remote Source row to the current seven Public APIs if this spec is implemented.
 - `docs/ubiquitous-language.md` — add: Remote Acquisition Plane, Materialized Asset, Acquisition Job Ledger, Vault Adapter, Provider Driver, Source Acquisition Format.
 - `docs/fallbacks.md` — register Widevine/AAXC-related compat paths if any emerge during D5/D6 with explicit triggers, signals, and sunsets.
 - File inspector display (existing UI component currently showing Codec/Decoder/Bitrate/etc.) — add "Source" row.
@@ -99,7 +99,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - **A2**. Scaffold `src-tauri/src/remote_source/`: provider trait, `RemoteSourceRuntime` skeleton, `Vault` trait, `AcquisitionJobRegistry` skeleton, `MaterializedAsset` + `ProvenanceManifest` types, phase event enum. Wire empty command stubs through `ipc_contract.rs`.
 - **A3**. Write `src-tauri/src/remote_source/AGENTS.md`: Public API Strip enumeration, Private Cluster enumeration, allowed agent edits, breaking-change triggers, GPL contamination rule, Vault reach-through prohibition with target script.
 - **A4**. Add boundary-assertion script `scripts/check-no-remote-source-reach-through.sh` modeled on `scripts/check-no-bridge-imports.sh` (existing pattern). Blocks: imports of `remote_source::providers::*::*` from outside the provider module; imports of `remote_source::vault::*` from anywhere outside `RemoteSourceRuntime`'s private cluster. Wire into `scripts/proof.sh standard`.
-- **A5**. Update `docs/system-map.md` (seventh Public API row + Boundary section), `docs/api-map.md` (new command family), `docs/ubiquitous-language.md` (new terms).
+- **A5**. Update `docs/system-map.md` (eighth Public API row + Boundary section), `docs/api-map.md` (new command family), `docs/ubiquitous-language.md` (new terms).
 
 ### Phase B — Audible auth
 
@@ -243,7 +243,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **AAX legacy is out of scope** until a real user title hits the unsupported path. Then it becomes a single-PR addition.
 - **No metadata-enrichment seam.** Existing embedded tags + existing `search_online_metadata` lookup cover the metadata need. YAGNI.
 - **No shared `JobRegistry`.** Acquisition lifecycle gets a peer `AcquisitionJobRegistry`. Processing's registry stays single-purpose.
-- **Seventh Public API.** `RemoteSourceRuntime` would join the existing six.
+- **Eighth Public API.** `RemoteSourceRuntime` would join the existing seven.
 - **`LocalImportBridge` extraction** is a prerequisite for the work, not a follow-up. Done in Phase A.
 - **GPL contamination rule** is hard-binding on agents implementing the Audible provider cluster.
 - **Source acquisition format is a provenance label**, not a DRM-state label. Display "Source: Audible Widevine (DASH)" not "DRM: Widevine."
@@ -275,7 +275,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ### Documentation Alignment
 
-- `docs/system-map.md`: seventh Public API row.
+- `docs/system-map.md`: eighth Public API row.
 - `docs/api-map.md`: Remote Source command + event family.
 - `docs/ubiquitous-language.md`: new terms (Remote Acquisition Plane, Materialized Asset, Acquisition Job Ledger, Vault Adapter, Provider Driver, Source Acquisition Format, Capability Matrix).
 - `src-tauri/src/remote_source/AGENTS.md`: Public API Strip, Private Cluster, allowed edits, breaking-change triggers, GPL rule.

@@ -71,7 +71,7 @@ ownership or proof.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.
 - Backend lifecycle vocabulary and event emission live under `processing` as a
-  sub-owner/public strip; it is not a seventh Grey-Box Public API.
+  sub-owner/public strip; it is not a standalone Grey-Box Public API.
 - Audio engine execution owns media inspection, decoder/toolchain selection,
   encode/mux/staging behavior, and media-integrity facts behind a small public
   strip.
@@ -97,11 +97,12 @@ assertions, and contract tests.
 | Metadata Outcome Plan | Metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
 | Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
+| App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
 strip, private cluster, edit rules, and breaking-change triggers.
 
-Backend Lifecycle is a named sub-owner inside `processing`, not a seventh
+Backend Lifecycle is a named sub-owner inside `processing`, not its own
 Grey-Box Public API. It provides operation identity, progress/queue event
 vocabulary, cancellation checks, and shared terminal-summary vocabulary for
 processing, metadata save, audio progress reporting, and Status Panel

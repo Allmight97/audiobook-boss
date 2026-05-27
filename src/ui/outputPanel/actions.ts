@@ -1,5 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
 import {
+	readOutputDefaultsFromState,
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateNamingTemplate,
@@ -7,9 +8,14 @@ import {
 	type OutputNamingPreset,
 } from './state.svelte';
 import { updateOutputPath, updateNamingOptionState, showOutputError } from './preview';
+import { persistOutputDefaults } from '../appSettings/persistence';
 
 const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
 let templatePreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function persistCurrentOutputDefaults(): void {
+	void persistOutputDefaults(readOutputDefaultsFromState());
+}
 
 function scheduleTemplatePreviewUpdate(): void {
 	if (templatePreviewDebounceTimer) {
@@ -18,6 +24,7 @@ function scheduleTemplatePreviewUpdate(): void {
 	templatePreviewDebounceTimer = setTimeout(() => {
 		templatePreviewDebounceTimer = null;
 		updateOutputPath('final');
+		persistCurrentOutputDefaults();
 	}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
 }
 
@@ -37,6 +44,7 @@ export async function browseOutputDirectory(): Promise<void> {
 		if (selectedPath) {
 			updateOutputDirectory(selectedPath);
 			updateOutputPath('final');
+			persistCurrentOutputDefaults();
 		}
 	} catch (error) {
 		console.error('Error selecting directory:', error);
@@ -49,12 +57,14 @@ export function selectNamingPreset(value: string): void {
 	updateNamingPreset(preset);
 	updateNamingOptionState();
 	updateOutputPath('final');
+	persistCurrentOutputDefaults();
 }
 
 export function setAbsIncludeYear(checked: boolean): void {
 	updateAbsIncludeYear(checked);
 	updateNamingOptionState();
 	updateOutputPath('final');
+	persistCurrentOutputDefaults();
 }
 
 export function editNamingTemplate(value: string): void {

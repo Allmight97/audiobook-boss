@@ -24,6 +24,7 @@ import type {
 	ProcessingPreflightPlan,
 	OutputKind,
 } from '../../types/audio';
+import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
@@ -114,6 +115,10 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 export const tauriClient = {
 	ping: (): Promise<CommandResult<'ping'>> => commandSpecs.ping(),
 	echo: (input: string): Promise<CommandResult<'echo'>> => commandSpecs.echo({ input }),
+	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
+	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
+		commandSpecs.update_app_settings({ patch }),
+	resetAppSettings: (): Promise<AppSettings> => commandSpecs.reset_app_settings(),
 	validateFiles: (filePaths: string[]): Promise<CommandResult<'validate_files'>> =>
 		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>

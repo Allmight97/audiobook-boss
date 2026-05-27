@@ -139,7 +139,7 @@
             class="queue-toggle-button"
             aria-expanded={isQueueExpanded}
             aria-controls="job-list"
-            on:click={toggleQueue}
+            onclick={toggleQueue}
           >
             {isQueueExpanded ? 'Hide queue' : 'View queue'}
           </button>
@@ -160,7 +160,7 @@
               disabled={
                 statusPanelViewState.cancelAllPending || !item.canCancel || !item.cancelId || !item.onCancel
               }
-              on:click={() => handleCancelJob(item)}
+              onclick={() => handleCancelJob(item)}
             >
               Cancel
             </button>
@@ -172,7 +172,7 @@
       <button
         id="process-button"
         class="btn-pill btn-pill-primary"
-        on:click={handleProcessClick}
+        onclick={handleProcessClick}
       >
         Process Audiobook
       </button>
@@ -180,7 +180,7 @@
         id="cancel-all-button"
         class="btn-pill btn-pill-secondary"
         disabled={statusPanelViewState.cancelAllPending}
-        on:click={handleCancelAllClick}
+        onclick={handleCancelAllClick}
       >
         Cancel
       </button>

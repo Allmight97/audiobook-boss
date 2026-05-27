@@ -18,6 +18,7 @@ import { tauriClient } from '../../lib/tauri/client';
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		openDirectory: vi.fn(),
+		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
@@ -28,6 +29,10 @@ vi.mock('../outputPanel/preview', () => ({
 }));
 
 vi.mock('../outputPanel/state.svelte', () => ({
+	readOutputDefaultsFromState: vi.fn(() => ({
+		outputDirectory: '/books/out',
+		outputNaming: { preset: 'absDefault', includeYear: false },
+	})),
 	updateOutputDirectory: vi.fn(),
 	updateNamingPreset: vi.fn(),
 	updateNamingTemplate: vi.fn(),

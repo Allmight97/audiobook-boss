@@ -3,6 +3,7 @@
 #![deny(clippy::unwrap_used)]
 #![warn(clippy::too_many_lines)]
 
+pub mod app_settings;
 pub mod commands;
 mod errors;
 mod file_replace;

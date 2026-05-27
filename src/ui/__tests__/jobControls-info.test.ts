@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import JobControlsIsland from '../jobControls/JobControlsIsland.svelte';
 import {
+	applyMaxConcurrentPreference,
 	getJobType,
 	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
@@ -14,7 +15,13 @@ import { tauriClient } from '../../lib/tauri/client';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		setMaxConcurrentJobs: vi.fn().mockResolvedValue(undefined),
+		setMaxConcurrentJobs: vi.fn().mockResolvedValue(4),
+		updateAppSettings: vi.fn().mockResolvedValue({
+			maxConcurrentJobs: { mode: 'auto' },
+			encoderDefaults: {},
+			outputDefaults: {},
+		}),
+		getMaxConcurrentJobs: vi.fn().mockResolvedValue(4),
 	},
 }));
 
@@ -32,6 +39,8 @@ vi.mock('../statusPanel', () => ({
 }));
 
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
+const updateAppSettingsMock = vi.mocked(tauriClient.updateAppSettings);
+const getMaxConcurrentJobsMock = vi.mocked(tauriClient.getMaxConcurrentJobs);
 
 function setupDomRoot() {
 	render(JobControlsIsland, {
@@ -70,10 +79,41 @@ function getMaxConcurrentIndicator(): HTMLElement {
 	return indicator;
 }
 
+function appSettingsFixture() {
+	return {
+		maxConcurrentJobs: { mode: 'auto' as const },
+		encoderDefaults: {
+			settings: {
+				encoderType: 'auto' as const,
+				bitrateKbps: 64,
+				bitrateMode: { mode: 'vbr' as const, value: 3 },
+				channels: 'auto' as const,
+				afterburner: true,
+				threads: { mode: 'auto' as const },
+				twoloop: true,
+			},
+			sampleRate: 'auto' as const,
+			externalToolchain: {},
+		},
+		outputDefaults: {
+			outputNaming: {
+				preset: 'absDefault' as const,
+				includeYear: false,
+				customTemplate: undefined,
+			},
+			outputDirectory: undefined,
+		},
+	};
+}
+
 describe('Job controls merge toggle', () => {
 	beforeEach(() => {
 		setupDomRoot();
 		setMaxConcurrentJobsMock.mockReset();
+		updateAppSettingsMock.mockReset();
+		updateAppSettingsMock.mockResolvedValue(appSettingsFixture());
+		getMaxConcurrentJobsMock.mockReset();
+		getMaxConcurrentJobsMock.mockResolvedValue(4);
 		mockedDependencies.updateOutputPathMock.mockReset();
 		mockedDependencies.updateStatusPanelConcurrencyStatusMock.mockReset();
 		setJobTypeSelection('batch');
@@ -90,7 +130,7 @@ describe('Job controls merge toggle', () => {
 
 		const toggle = getMergeToggle();
 		toggle.checked = true;
-		toggle.dispatchEvent(new Event('change'));
+		toggle.dispatchEvent(new Event('change', { bubbles: true }));
 
 		expect(getJobType()).toBe('merge');
 		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
@@ -106,23 +146,29 @@ describe('Job controls merge toggle', () => {
 
 		const toggle = getMergeToggle();
 		toggle.checked = true;
-		toggle.dispatchEvent(new Event('change'));
+		toggle.dispatchEvent(new Event('change', { bubbles: true }));
 
 		const select = getMaxConcurrentSelect();
 		select.value = '3';
-		select.dispatchEvent(new Event('change'));
+		updateAppSettingsMock.mockResolvedValueOnce({
+			...appSettingsFixture(),
+			maxConcurrentJobs: { mode: 'fixed', value: 3 },
+		});
+		getMaxConcurrentJobsMock.mockResolvedValueOnce(3);
+		select.dispatchEvent(new Event('change', { bubbles: true }));
 		await flushAsync();
 
 		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
-		expect(setMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
-		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
+		expect(setMaxConcurrentJobsMock).not.toHaveBeenCalled();
+		expect(updateAppSettingsMock).toHaveBeenCalledWith({
+			maxConcurrentJobs: { mode: 'fixed', value: 3 },
+		});
 	});
 
-	it('uses the current session max concurrency state on init and updates indicator + status text', async () => {
-		jobControlsState.maxConcurrentSelection = '3';
+	it('applies a hydrated fixed max concurrency preference and updates indicator + status text', async () => {
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
 
-		initJobControls();
+		await applyMaxConcurrentPreference({ mode: 'fixed', value: 3 });
 		await flushAsync();
 
 		expect(getMaxConcurrentSelect().value).toBe('3');
@@ -135,22 +181,67 @@ describe('Job controls merge toggle', () => {
 
 	it('keeps the in-memory selection and pushes the new auto payload', async () => {
 		jobControlsState.maxConcurrentSelection = '2';
-		setMaxConcurrentJobsMock.mockResolvedValueOnce(2).mockResolvedValueOnce(6);
 
 		initJobControls();
 		await flushAsync();
 		setMaxConcurrentJobsMock.mockClear();
+		getMaxConcurrentJobsMock.mockClear();
 
 		const select = getMaxConcurrentSelect();
 		select.value = 'auto';
-		select.dispatchEvent(new Event('change'));
+		getMaxConcurrentJobsMock.mockResolvedValueOnce(6);
+		select.dispatchEvent(new Event('change', { bubbles: true }));
 		await flushAsync();
 
-		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(null);
+		expect(setMaxConcurrentJobsMock).not.toHaveBeenCalled();
+		expect(updateAppSettingsMock).toHaveBeenCalledWith({
+			maxConcurrentJobs: { mode: 'auto' },
+		});
+		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 6');
 		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
 			'Max jobs: 6 (Auto)',
 		);
+	});
+
+	it('rolls back the visible concurrency selection when backend acceptance fails', async () => {
+		jobControlsState.maxConcurrentSelection = 'auto';
+		jobControlsState.effectiveMaxConcurrent = 4;
+		jobControlsState.effectiveLabel = 'Auto → 4';
+		updateAppSettingsMock.mockRejectedValueOnce(new Error('jobs active'));
+		getMaxConcurrentJobsMock.mockResolvedValueOnce(4);
+
+		const select = getMaxConcurrentSelect();
+		select.value = '3';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await flushAsync();
+
+		expect(updateAppSettingsMock).toHaveBeenCalledWith({
+			maxConcurrentJobs: { mode: 'fixed', value: 3 },
+		});
+		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
+		expect(jobControlsState.maxConcurrentSelection).toBe('auto');
+		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 4');
+	});
+
+	it('keeps accepted concurrency selection when accepted follow-up read fails', async () => {
+		updateAppSettingsMock.mockResolvedValueOnce({
+			...appSettingsFixture(),
+			maxConcurrentJobs: { mode: 'fixed', value: 3 },
+		});
+		getMaxConcurrentJobsMock.mockRejectedValueOnce(new Error('read failed'));
+
+		const select = getMaxConcurrentSelect();
+		select.value = '3';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await flushAsync();
+
+		expect(updateAppSettingsMock).toHaveBeenCalledWith({
+			maxConcurrentJobs: { mode: 'fixed', value: 3 },
+		});
+		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
+		expect(jobControlsState.maxConcurrentSelection).toBe('3');
+		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
 	});
 
 	it('toggles disabled state and opacity on both controls', async () => {

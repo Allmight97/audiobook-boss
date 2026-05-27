@@ -7,6 +7,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'cancelProcessing',
 	'discoverAudioImportPaths',
 	'echo',
+	'getAppSettings',
 	'getMaxConcurrentJobs',
 	'getSupportedAudioImportMetadata',
 	'listAvailableEncoders',
@@ -25,11 +26,13 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'processAudiobookFiles',
 	'readAudioMetadata',
 	'refreshExternalToolchain',
+	'resetAppSettings',
 	'saveMetadataBatch',
 	'saveMetadataIntentToFile',
 	'searchOnlineMetadata',
 	'setMaxConcurrentJobs',
 	'takeOpenedAudioFiles',
+	'updateAppSettings',
 	'validateEncoderSettings',
 	'validateFiles',
 	'writeCoverArt',
@@ -43,6 +46,9 @@ describe('Tauri Runtime Boundary public API contract', () => {
 	it('keeps command and app event names exposed through the boundary', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('process_audiobook_files');
 		expect(TAURI_COMMAND_NAMES).toContain('preflight_processing_plan');
+		expect(TAURI_COMMAND_NAMES).toContain('get_app_settings');
+		expect(TAURI_COMMAND_NAMES).toContain('update_app_settings');
+		expect(TAURI_COMMAND_NAMES).toContain('reset_app_settings');
 		expect(TAURI_COMMAND_NAMES).toContain('save_metadata_batch');
 		expect(TAURI_COMMAND_NAMES).toContain('discover_audio_import_paths');
 		expect(TAURI_COMMAND_NAMES).toContain('get_supported_audio_import_metadata');

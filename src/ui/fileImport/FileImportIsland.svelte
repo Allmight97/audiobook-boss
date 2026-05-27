@@ -115,7 +115,7 @@
     <button
       id="add-folder-btn"
       class="btn-pill btn-pill-secondary"
-      on:click={handleFolderClick}
+      onclick={handleFolderClick}
     >
       Add Folder
     </button>
@@ -124,7 +124,7 @@
       class="btn-pill btn-pill-secondary"
       style:display={fileListViewState.showSortButton ? 'block' : 'none'}
       disabled={fileListViewState.sortDisabled}
-      on:click={handleSortClick}
+      onclick={handleSortClick}
     >
       {fileListViewState.sortLabel}
     </button>
@@ -133,7 +133,7 @@
       class="btn-pill btn-pill-secondary"
       style:display={fileListViewState.showClearButton ? 'block' : 'none'}
       disabled={fileListViewState.clearDisabled}
-      on:click={handleClearClick}
+      onclick={handleClearClick}
     >
       Clear
     </button>
@@ -371,8 +371,8 @@
     role="button"
     aria-label="Add audio files"
     tabindex="0"
-    on:click={handleHeaderClick}
-    on:keydown={handleHeaderKeydown}
+    onclick={handleHeaderClick}
+    onkeydown={handleHeaderKeydown}
   >
     <p class="text-sm muted-text">Drag & Drop files or folders here or Click to Select</p>
     <p class="text-xs muted-text mt-1">{fileImportUiState.supportText}</p>
@@ -386,7 +386,7 @@
     aria-label="Audio files"
     aria-multiselectable="true"
     tabindex="0"
-    on:keydown={onFileListKeyDown}
+    onkeydown={onFileListKeyDown}
   >
     {#each fileListViewState.files as file, index (file.path)}
       <div
@@ -400,11 +400,11 @@
         aria-selected={fileListViewState.selectedIndices.includes(index)}
         aria-label={getFileName(file.path)}
         tabindex="-1"
-        on:click={(event) => handleFileListClick(index, event)}
-        on:dragstart={(event) => onFileListDragStart(index, event)}
-        on:dragover={(event) => onFileListDragOver(index, event)}
-        on:drop={(event) => onFileListDrop(index, event)}
-        on:dragend={onFileListDragEnd}
+        onclick={(event) => handleFileListClick(index, event)}
+        ondragstart={(event) => onFileListDragStart(index, event)}
+        ondragover={(event) => onFileListDragOver(index, event)}
+        ondrop={(event) => onFileListDrop(index, event)}
+        ondragend={onFileListDragEnd}
       >
         <div class="file-item-content">
           <div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
@@ -416,14 +416,14 @@
           </div>
           <button
             class="move-up-btn"
-            on:click={(event) => onFileListMoveUp(index, event)}
+            onclick={(event) => onFileListMoveUp(index, event)}
             disabled={index === 0 || fileListViewState.orderLockVisible}
           >
             ▲
           </button>
           <button
             class="move-down-btn"
-            on:click={(event) => onFileListMoveDown(index, event)}
+            onclick={(event) => onFileListMoveDown(index, event)}
             disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
           >
             ▼
@@ -431,7 +431,7 @@
           <button
             class="remove-file-btn"
             disabled={fileListViewState.orderLockVisible}
-            on:click={(event) => onFileListRemove(index, event)}
+            onclick={(event) => onFileListRemove(index, event)}
           >
             ×
           </button>

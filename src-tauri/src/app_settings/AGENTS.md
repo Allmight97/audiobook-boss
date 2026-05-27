@@ -1,0 +1,32 @@
+# App Settings Directives
+
+## Public API Strip
+
+- Import durable settings behavior from `crate::app_settings`, not private child
+  modules.
+- Types: `AppSettings`, `AppSettingsPatch`, `EncoderDefaults`,
+  `OutputDefaults`, `ConcurrencyPreference`.
+- Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`.
+
+## Private Cluster
+
+- Files: `types.rs`, `storage.rs`, `contract_tests.rs`.
+- The cluster owns durable preference schema, defaults, patch merge,
+  validation, and private JSON storage under Tauri's app config directory.
+
+## Allowed Agent Edits Without Escalation
+
+- Change storage or merge internals when App Settings contract tests and runtime
+  binding checks stay green.
+- Store backend/request-shaped settings only; keep UI-only display state out of
+  durable settings.
+- Treat persisted user paths as preference data only. Runtime owners still
+  validate paths before reads or writes.
+
+## Breaking-Change Triggers
+
+- Adding, removing, or renaming any Public API Strip symbol.
+- Moving runtime behavior ownership, output artifact truth, audio toolchain
+  validation, or Status Panel state into App Settings.
+- Introducing a frontend persistence plugin dependency or bypassing
+  `tauriClient` for settings commands.

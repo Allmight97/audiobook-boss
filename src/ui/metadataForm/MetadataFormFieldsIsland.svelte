@@ -40,8 +40,8 @@
 
 <div
 	class="grid grid-cols-4 gap-x-3 gap-y-1.5"
-	on:input={handleMetadataFieldInput}
-	on:change={handleMetadataFieldChange}
+	oninput={handleMetadataFieldInput}
+	onchange={handleMetadataFieldChange}
 >
   <div class="col-span-3">
 	    <div class="meta-field-header">
@@ -334,7 +334,7 @@
     class="btn-pill btn-pill-secondary"
     data-testid="metadata-lookup-btn"
     type="button"
-    on:click={openMetadataLookup}
+    onclick={openMetadataLookup}
   >
     Find Metadata
   </button>
@@ -343,7 +343,7 @@
     class="btn-pill btn-pill-primary"
     data-testid="metadata-save-btn"
     disabled={$metadataSaveInProgressStore}
-    on:click={onSaveMetadata}
+    onclick={onSaveMetadata}
   >
     Save All Changes
   </button>

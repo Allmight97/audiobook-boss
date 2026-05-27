@@ -37,7 +37,7 @@
 				checked={jobControlsState.jobType === 'merge'}
 				disabled={!jobControlsState.controlsEnabled}
 				style:opacity={jobControlsState.controlsEnabled ? 1 : 0.5}
-				on:change={handleMergeModeChange}
+				onchange={handleMergeModeChange}
 			/>
 			<span class="option-label">Merge files into one audiobook</span>
 		</label>
@@ -52,7 +52,7 @@
 			style:opacity={jobControlsState.controlsEnabled ? 1 : 0.5}
 			value={jobControlsState.maxConcurrentSelection}
 			disabled={!jobControlsState.controlsEnabled}
-			on:change={handleMaxConcurrentSelectionChange}
+			onchange={handleMaxConcurrentSelectionChange}
 		>
 			<option value="auto">Auto</option>
 			<option value="1">1</option>

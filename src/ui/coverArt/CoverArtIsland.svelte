@@ -92,7 +92,7 @@
 	}
 </script>
 
-<svelte:window on:paste={handleWindowPaste} />
+<svelte:window onpaste={handleWindowPaste} />
 
 <div class="col-span-1 flex flex-col items-center">
   <span class="text-xs font-medium mb-1">Cover Art</span>
@@ -105,12 +105,12 @@
     data-testid="cover-art-area"
     role="button"
     tabindex="0"
-    on:click={handleAreaClick}
-    on:keydown={handleAreaKeyDown}
-    on:mouseenter={handleMouseEnter}
-    on:mouseleave={handleMouseLeave}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
+    onclick={handleAreaClick}
+    onkeydown={handleAreaKeyDown}
+    onmouseenter={handleMouseEnter}
+    onmouseleave={handleMouseLeave}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
   >
     {#if !coverArtUiState.imageDataUrl}
       <div class="placeholder-text">Click or Drag Image</div>
@@ -122,7 +122,7 @@
       class:hidden={!coverArtUiState.imageDataUrl}
     />
     <div class="cover-art-loading" id="cover-art-loading">Loading...</div>
-    <button class="cover-art-clear-btn" id="cover-art-clear-btn" on:click={handleClearButtonClick}>
+    <button class="cover-art-clear-btn" id="cover-art-clear-btn" onclick={handleClearButtonClick}>
       ✕
     </button>
   </div>
@@ -135,14 +135,14 @@
       placeholder="Paste image URL (https://...)"
       bind:value={coverArtUiState.urlInputValue}
       disabled={coverArtUiState.isLoading}
-      on:keydown={handleUrlInputKeyDown}
+      onkeydown={handleUrlInputKeyDown}
     />
     <button
       id="cover-art-url-load-btn"
       data-testid="cover-art-url-load-btn"
       class="cover-art-url-load-btn"
       disabled={coverArtUiState.isLoading}
-      on:click={handleUrlLoadClick}
+      onclick={handleUrlLoadClick}
     >
       Load
     </button>

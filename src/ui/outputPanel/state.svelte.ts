@@ -1,4 +1,5 @@
 import type { OutputRequestConfig, OutputNamingConfig } from '../../types/audio';
+import type { OutputDefaults } from '../../types/appSettings';
 
 export type OutputNamingPreset = OutputNamingConfig['preset'];
 const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
@@ -73,6 +74,20 @@ export function readOutputRequestConfig(): OutputRequestConfig {
 		outputDirectory: outputPanelState.outputDirectory,
 		outputNaming: getOutputNamingConfig(),
 	};
+}
+
+export function readOutputDefaultsFromState(): OutputDefaults {
+	return {
+		outputDirectory: outputPanelState.outputDirectory || undefined,
+		outputNaming: getOutputNamingConfig(),
+	};
+}
+
+export function applyOutputDefaults(defaults: OutputDefaults): void {
+	outputPanelState.outputDirectory = defaults.outputDirectory ?? '';
+	outputPanelState.namingPreset = defaults.outputNaming.preset;
+	outputPanelState.absIncludeYear = defaults.outputNaming.includeYear;
+	outputPanelState.namingTemplate = defaults.outputNaming.customTemplate ?? '';
 }
 
 export function updateOutputDirectory(path: string): void {
