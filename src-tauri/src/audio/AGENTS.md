@@ -28,11 +28,14 @@
   `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `validate_requested_encoder_available`, `validate_threads`,
+  `encoder_settings_capabilities`,
   `resolve_encoder_type`, `resolve_encoder_name`,
   `detect_encoder_availability`, `detect_aac_decoder_availability`,
   `preferred_aac_decoder_order_labels`, `execute_audio_engine`,
   `validate_audio_engine_inputs`.
 - Execution request type: `AudioExecutionRequest`.
+- Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
+  `BitrateModeKind`.
 - Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use

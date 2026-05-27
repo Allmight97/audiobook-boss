@@ -1,6 +1,7 @@
 import type {
 	EncoderAvailability,
 	EncoderSettings,
+	EncoderSettingsCapabilities,
 	EncodingRequestConfig,
 	SampleRateConfig,
 } from '../../types/audio';
@@ -11,7 +12,7 @@ import {
 	toBoundaryEncoderSettings,
 } from '../../types/encoder';
 
-export type VbrLevel = 1 | 2 | 3 | 4 | 5;
+export type VbrLevel = number;
 export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr';
 export type EncoderModeAvailability = Record<BitrateModeSelection, boolean>;
 
@@ -43,6 +44,13 @@ const createDefaultState = () => ({
 	toolchainDetectedPath: '',
 	toolchainActivePath: '',
 	toolchainOverrideError: '',
+	capabilities: null as EncoderSettingsCapabilities | null,
+	encoderOptions: [] as EncoderFlavor[],
+	bitrateModeOptions: [] as BitrateModeSelection[],
+	qualityOptions: [] as number[],
+	bitrateOptions: [] as number[],
+	sampleRateOptions: [] as string[],
+	channelOptions: [] as NonNullable<EncoderSettingsState['channels']>[],
 	showQuality: true,
 	showInlineOptionRow: false,
 	showFdkOptions: false,
@@ -85,19 +93,37 @@ function bitrateModeSelectionFromSettings(settings: EncoderSettings): BitrateMod
 
 function qualityValueFromSettings(settings: EncoderSettings): VbrLevel {
 	if (settings.bitrateMode.mode !== 'vbr') {
-		return 3;
+		return encoderPanelState.capabilities?.vbrLevelDefault ?? 3;
 	}
 
-	const value = Number(settings.bitrateMode.value ?? 3);
-	return Math.min(5, Math.max(1, Math.round(value))) as VbrLevel;
+	const value = Number(
+		settings.bitrateMode.value ?? encoderPanelState.capabilities?.vbrLevelDefault ?? 3,
+	);
+	const rounded = Math.round(value);
+	if (!encoderPanelState.capabilities) {
+		return rounded;
+	}
+	return Math.min(
+		encoderPanelState.capabilities.vbrLevelMax,
+		Math.max(encoderPanelState.capabilities.vbrLevelMin, rounded),
+	);
 }
 
-function sampleRateSelectionFromConfig(sampleRate: SampleRateConfig): string {
+function sampleRateSelectionFromConfig(
+	sampleRate: SampleRateConfig,
+	capabilities: EncoderSettingsCapabilities | null,
+): string {
 	if (sampleRate === 'auto') {
 		return 'auto';
 	}
 
-	return String(sampleRate.explicit);
+	if (!capabilities) {
+		return String(sampleRate.explicit);
+	}
+
+	return capabilities.explicitSampleRates.includes(sampleRate.explicit)
+		? String(sampleRate.explicit)
+		: 'auto';
 }
 
 export function readEncoderSettingsFromState(): EncoderSettingsState {
@@ -117,7 +143,11 @@ export function readEncoderSettingsFromState(): EncoderSettingsState {
 }
 
 export function readBoundaryEncoderSettings() {
-	return toBoundaryEncoderSettings(readEncoderSettingsFromState());
+	return toBoundaryEncoderSettings(
+		readEncoderSettingsFromState(),
+		undefined,
+		encoderPanelState.capabilities,
+	);
 }
 
 export function readSampleRateFromState(): SampleRateConfig {
@@ -126,7 +156,15 @@ export function readSampleRateFromState(): SampleRateConfig {
 	}
 
 	const parsedRate = Number.parseInt(encoderPanelState.sampleRateSelection, 10);
-	if (Number.isFinite(parsedRate) && parsedRate > 0) {
+	if (!Number.isFinite(parsedRate)) {
+		return 'auto';
+	}
+
+	if (!encoderPanelState.capabilities) {
+		return { explicit: parsedRate };
+	}
+
+	if (encoderPanelState.capabilities.explicitSampleRates.includes(parsedRate)) {
 		return { explicit: parsedRate };
 	}
 
@@ -150,7 +188,11 @@ export function readEncoderDefaultsFromState(): EncoderDefaults {
 }
 
 export function applyEncoderDefaults(defaults: EncoderDefaults): void {
-	const settings = defaults.settings;
+	const settings = toBoundaryEncoderSettings(
+		defaults.settings,
+		undefined,
+		encoderPanelState.capabilities,
+	);
 	encoderPanelState.flavor = settings.encoderType;
 	encoderPanelState.bitrateModeSelection = bitrateModeSelectionFromSettings(settings);
 	encoderPanelState.qualityValue = qualityValueFromSettings(settings);
@@ -158,8 +200,74 @@ export function applyEncoderDefaults(defaults: EncoderDefaults): void {
 	encoderPanelState.channelsSelection = settings.channels;
 	encoderPanelState.fdkAfterburner = settings.afterburner;
 	encoderPanelState.nativeTwoloop = settings.twoloop ?? true;
-	encoderPanelState.sampleRateSelection = sampleRateSelectionFromConfig(defaults.sampleRate);
+	encoderPanelState.sampleRateSelection = sampleRateSelectionFromConfig(
+		defaults.sampleRate,
+		encoderPanelState.capabilities,
+	);
 	encoderPanelState.externalToolchainOverridePath = defaults.externalToolchain.overridePath ?? '';
+}
+
+function rangeOptions(min: number, max: number): number[] {
+	const values: number[] = [];
+	for (let value = min; value <= max; value += 1) {
+		values.push(value);
+	}
+	return values;
+}
+
+function bitrateModeSelectionFromKind(kind: string): BitrateModeSelection {
+	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
+}
+
+export function setEncoderSettingsCapabilities(
+	capabilities: EncoderSettingsCapabilities | null,
+): void {
+	encoderPanelState.capabilities = capabilities;
+	encoderPanelState.encoderOptions = capabilities?.encoderTypes ?? [];
+	encoderPanelState.bitrateModeOptions = [
+		...new Set(
+			(capabilities?.bitrateModesByEncoder ?? []).flatMap((entry) =>
+				entry.allowedModes.map(bitrateModeSelectionFromKind),
+			),
+		),
+	];
+	encoderPanelState.qualityOptions = capabilities
+		? rangeOptions(capabilities.vbrLevelMin, capabilities.vbrLevelMax)
+		: [];
+	encoderPanelState.bitrateOptions = capabilities?.bitrateKbpsOptions ?? [];
+	encoderPanelState.sampleRateOptions = capabilities
+		? [
+				...(capabilities.sampleRateAuto ? ['auto'] : []),
+				...capabilities.explicitSampleRates.map(String),
+			]
+		: [];
+	encoderPanelState.channelOptions = capabilities?.channelOptions ?? [];
+	if (capabilities) {
+		if (!capabilities.bitrateKbpsOptions.includes(encoderPanelState.bitrateValue)) {
+			encoderPanelState.bitrateValue = (capabilities.bitrateKbpsOptions[0] ??
+				encoderPanelState.bitrateValue) as typeof encoderPanelState.bitrateValue;
+		}
+		encoderPanelState.qualityValue = Math.min(
+			capabilities.vbrLevelMax,
+			Math.max(capabilities.vbrLevelMin, encoderPanelState.qualityValue),
+		) as VbrLevel;
+		if (
+			encoderPanelState.sampleRateSelection !== 'auto' &&
+			!capabilities.explicitSampleRates.map(String).includes(encoderPanelState.sampleRateSelection)
+		) {
+			encoderPanelState.sampleRateSelection = capabilities.sampleRateAuto
+				? 'auto'
+				: (encoderPanelState.sampleRateOptions[0] ?? 'auto');
+		}
+		if (
+			encoderPanelState.channelsSelection &&
+			!capabilities.channelOptions.includes(encoderPanelState.channelsSelection)
+		) {
+			encoderPanelState.channelsSelection =
+				capabilities.channelOptions[0] ?? encoderPanelState.channelsSelection;
+		}
+	}
+	setEncoderAvailability(capabilities?.availability ?? null);
 }
 
 export function setEncoderAvailability(availability: EncoderAvailability | null): void {

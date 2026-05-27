@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { defaultEncoderSettings, type EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
+import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 
 // Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
@@ -442,6 +443,27 @@ describe('tauriClient nullish adapters', () => {
 		expect(availability.detectedToolchainPath).toBe('/opt/homebrew/bin/ffmpeg');
 	});
 
+	it('denormalizes toolchain input for runtime settings capabilities', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce(runtimeSettingsCapabilitiesFixture());
+
+		const { tauriClient } = await import('./tauri/client');
+		const capabilities = await tauriClient.getRuntimeSettingsCapabilities({
+			overridePath: '/custom/ffmpeg',
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{ externalToolchain: { overridePath: string | null } },
+		];
+		expect(commandName).toBe('get_runtime_settings_capabilities');
+		expect(args.externalToolchain).toEqual({ overridePath: '/custom/ffmpeg' });
+		expect(capabilities.encoder.bitrateKbpsOptions).toContain(128);
+		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
+	});
+
 	it('compiles metadata intent map for process command payload', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -658,6 +680,64 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.outputNaming.customTemplate).toBeNull();
 		expect(args.sourcePath).toBe('/books/ch01.mp3');
 		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.m4b');
+	});
+
+	it('loads runtime settings capabilities through the Tauri boundary', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			encoder: {
+				availability: {
+					fdkAvailable: true,
+					fdkSource: 'override',
+					aacAtAvailable: true,
+					nativeAacAvailable: true,
+					autoEncoder: 'fdk_he_aac',
+					detectedToolchainPath: null,
+					overrideToolchainPath: '/custom/ffmpeg',
+					activeToolchainPath: '/custom/ffmpeg',
+					overrideInvalid: false,
+					overrideError: null,
+					statusMessage: 'FDK AAC is using the saved override path.',
+				},
+				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
+				autoResolutionOrder: ['fdk_he_aac', 'aac_at', 'native_aac'],
+				bitrateKbpsOptions: [64],
+				bitrateModesByEncoder: [
+					{ encoderType: 'auto', allowedModes: ['vbr'], defaultMode: { mode: 'vbr', value: 3 } },
+				],
+				vbrLevelMin: 1,
+				vbrLevelMax: 5,
+				vbrLevelDefault: 3,
+				threadFixedMin: 1,
+				threadFixedMax: 1024,
+				sampleRateAuto: true,
+				explicitSampleRates: [44100],
+				channelOptions: ['auto', 'mono', 'stereo'],
+			},
+			maxConcurrentJobs: {
+				allowAuto: true,
+				autoEffective: 4,
+				fixedMin: 1,
+				fixedMax: 8,
+				fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
+			},
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const capabilities = await tauriClient.getRuntimeSettingsCapabilities({
+			overridePath: '/custom/ffmpeg',
+		});
+
+		const [commandName, args] = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1] as [
+			string,
+			{ externalToolchain: { overridePath: string } },
+		];
+		expect(commandName).toBe('get_runtime_settings_capabilities');
+		expect(args.externalToolchain.overridePath).toBe('/custom/ffmpeg');
+		expect(capabilities.encoder.availability.overrideToolchainPath).toBe('/custom/ffmpeg');
+		expect(capabilities.encoder.availability.overrideError).toBeUndefined();
+		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 });
 

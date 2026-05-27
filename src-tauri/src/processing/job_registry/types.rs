@@ -1,4 +1,5 @@
 use crate::errors::{AppError, Result};
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -77,4 +78,14 @@ pub struct AggregateJobStatus {
     pub total_jobs: usize,
     /// Maximum concurrent jobs allowed
     pub max_concurrent: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MaxConcurrentJobsCapabilities {
+    pub allow_auto: bool,
+    pub auto_effective: usize,
+    pub fixed_min: usize,
+    pub fixed_max: usize,
+    pub fixed_options: Vec<usize>,
 }

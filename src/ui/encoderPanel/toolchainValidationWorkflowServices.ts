@@ -6,21 +6,21 @@ import {
 } from '../../lib/effect/appEffect';
 import type {
 	readToolchainSettingsFromState,
-	setEncoderAvailability,
+	setEncoderSettingsCapabilities,
 	setExternalToolchainOverridePath,
 } from './state.svelte';
+import type { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 export type ToolchainHydrationMode = 'initial' | 'refresh';
 
 export interface ToolchainValidationWorkflowServices {
 	readToolchainSettingsFromState: typeof readToolchainSettingsFromState;
-	setEncoderAvailability: typeof setEncoderAvailability;
+	setEncoderSettingsCapabilities: typeof setEncoderSettingsCapabilities;
 	setExternalToolchainOverridePath: typeof setExternalToolchainOverridePath;
 	syncAfterAvailabilityChange: () => void;
 	syncAfterToolchainPathChange: () => void;
 	openFile: typeof tauriClient.openFile;
-	listAvailableEncoders: typeof tauriClient.listAvailableEncoders;
-	refreshExternalToolchain: typeof tauriClient.refreshExternalToolchain;
+	hydrateRuntimeSettingsCapabilities: typeof hydrateRuntimeSettingsCapabilities;
 	console: Pick<Console, 'log' | 'warn'>;
 }
 

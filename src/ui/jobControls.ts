@@ -5,9 +5,16 @@ import { flushSync } from 'svelte';
 import { jobControlsState } from './jobControls/state.svelte';
 import { updateOutputPath } from './outputPanel';
 import { updateStatusPanelConcurrencyStatus } from './statusPanel';
+import { hydrateRuntimeSettingsCapabilities } from './runtimeSettingsCapabilities.svelte';
 
 export function initJobControls(): void {
+	void initializeRuntimeCapabilities();
 	initializeMaxConcurrentControl();
+}
+
+async function initializeRuntimeCapabilities(): Promise<void> {
+	const capabilities = await hydrateRuntimeSettingsCapabilities(null);
+	jobControlsState.maxConcurrentCapabilities = capabilities?.maxConcurrentJobs ?? null;
 }
 
 function initializeMaxConcurrentControl(): void {
@@ -53,6 +60,7 @@ export function getMaxConcurrentStatus(): {
 export async function applyMaxConcurrentPreference(
 	preference: ConcurrencyPreference,
 ): Promise<void> {
+	await initializeRuntimeCapabilities();
 	const selection = preference.mode === 'fixed' ? String(preference.value) : 'auto';
 	const previousSelection = jobControlsState.maxConcurrentSelection;
 	jobControlsState.maxConcurrentSelection = selection;
@@ -161,7 +169,7 @@ async function refreshMaxConcurrentIndicatorFromBackend(): Promise<void> {
 
 async function setFixedMax(value: string): Promise<number> {
 	const parsed = parseInt(value, 10);
-	if (!Number.isFinite(parsed)) {
+	if (!isAllowedFixedMaxConcurrent(parsed)) {
 		throw new Error(`Invalid max concurrency selection ignored: ${value}`);
 	}
 	return tauriClient.setMaxConcurrentJobs(parsed);
@@ -186,7 +194,19 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 	}
 
 	const parsed = parseInt(value, 10);
+	if (!isAllowedFixedMaxConcurrent(parsed)) {
+		return { mode: 'fixed', value: Number.NaN };
+	}
 	return { mode: 'fixed', value: parsed };
+}
+
+function isAllowedFixedMaxConcurrent(value: number): boolean {
+	if (!Number.isFinite(value)) {
+		return false;
+	}
+
+	const capabilities = jobControlsState.maxConcurrentCapabilities;
+	return capabilities ? capabilities.fixedOptions.includes(value) : true;
 }
 
 function selectionFromPreference(preference: ConcurrencyPreference): string {

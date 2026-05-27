@@ -16,6 +16,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'echo',
 	'get_app_settings',
 	'get_max_concurrent_jobs',
+	'get_runtime_settings_capabilities',
 	'get_supported_audio_import_metadata',
 	'list_available_encoders',
 	'load_cover_art_file',

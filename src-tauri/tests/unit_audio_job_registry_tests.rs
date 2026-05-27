@@ -1,5 +1,5 @@
 use audiobook_boss_lib::processing::job_registry::{
-    AggregateJobStatus, JobId, JobRegistry, JobState,
+    AggregateJobStatus, JobId, JobRegistry, JobState, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
 };
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -37,6 +37,24 @@ async fn test_registry_auto() {
     // Should be between 1 and 8
     assert!(registry.max_concurrent() >= 1);
     assert!(registry.max_concurrent() <= 8);
+}
+
+#[test]
+fn test_max_concurrent_capabilities_match_registry_bounds() {
+    let capabilities = JobRegistry::max_concurrent_jobs_capabilities();
+
+    assert!(capabilities.allow_auto);
+    assert_eq!(capabilities.fixed_min, MIN_CONCURRENT_JOBS);
+    assert_eq!(capabilities.fixed_max, MAX_CONCURRENT_JOBS);
+    assert_eq!(
+        capabilities.fixed_options,
+        (MIN_CONCURRENT_JOBS..=MAX_CONCURRENT_JOBS).collect::<Vec<_>>()
+    );
+    assert_eq!(JobRegistry::new(0).max_concurrent(), capabilities.fixed_min);
+    assert_eq!(
+        JobRegistry::new(usize::MAX).max_concurrent(),
+        capabilities.fixed_max
+    );
 }
 
 #[tokio::test]

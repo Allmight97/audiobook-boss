@@ -12,6 +12,7 @@
 | **tauriClient** | The frontend-owned adapter that wraps generated commands/events and centralizes normalization, denormalization, and error handling. | raw invoke usage, direct generated calls |
 | **IPC Contract** | The Rust-declared set of commands and events exported through `src-tauri/src/ipc_contract.rs` and consumed through generated bindings plus adapters. | ad hoc API, implicit bridge |
 | **App Settings** | The backend-owned Grey-Box Module for durable user preference truth: schema, defaults, validation, private JSON storage, and settings IPC commands. Runtime owners still accept runtime-coupled changes before App Settings persists them. | localStorage settings, UI preference bag, settings plugin surface |
+| **Runtime Settings Capabilities** | Backend-owned selectable settings facts exposed through the Tauri Runtime Boundary, currently covering encoder options and max-concurrent-job capabilities. The UI uses these facts to render controls and build requests without carrying independent validity tables. | frontend settings matrix, UI capability guess, settings fallback table |
 
 ## Processing And Metadata
 | Term | Definition | Aliases to avoid |
@@ -79,6 +80,8 @@
 - **App Settings** stores accepted durable preferences; runtime owners such as
   **Job Registry**, audio/toolchain validation, and output planning still accept
   or reject live runtime changes before those values become preference truth.
+- **Runtime Settings Capabilities** expose selectable encoder and concurrency
+  facts from those runtime owners; they are not durable preference storage.
 - The **Backend Lifecycle** strip under `processing` names operation identity,
   queue/progress events, cancellation checks, and shared terminal summaries for
   processing and metadata save.

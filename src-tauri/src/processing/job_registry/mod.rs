@@ -16,7 +16,10 @@ use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
-pub use types::{AggregateJobStatus, Job, JobId, JobState};
+pub use types::{AggregateJobStatus, Job, JobId, JobState, MaxConcurrentJobsCapabilities};
+
+pub const MIN_CONCURRENT_JOBS: usize = 1;
+pub const MAX_CONCURRENT_JOBS: usize = 8;
 
 /// Registry for managing concurrent processing jobs
 ///
@@ -163,12 +166,22 @@ impl JobRegistry {
     }
 
     fn normalize_max(max: usize) -> usize {
-        max.clamp(1, 8)
+        max.clamp(MIN_CONCURRENT_JOBS, MAX_CONCURRENT_JOBS)
     }
 
     pub fn default_max() -> usize {
         let cores = num_cpus::get();
         Self::normalize_max(cores / 2)
+    }
+
+    pub fn max_concurrent_jobs_capabilities() -> MaxConcurrentJobsCapabilities {
+        MaxConcurrentJobsCapabilities {
+            allow_auto: true,
+            auto_effective: Self::default_max(),
+            fixed_min: MIN_CONCURRENT_JOBS,
+            fixed_max: MAX_CONCURRENT_JOBS,
+            fixed_options: (MIN_CONCURRENT_JOBS..=MAX_CONCURRENT_JOBS).collect(),
+        }
     }
 
     /// Returns a scheduler facade for bounded batch task orchestration.

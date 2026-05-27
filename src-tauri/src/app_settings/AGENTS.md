@@ -13,6 +13,8 @@
 - Files: `types.rs`, `storage.rs`, `contract_tests.rs`.
 - The cluster owns durable preference schema, defaults, patch merge,
   validation, and private JSON storage under Tauri's app config directory.
+- Durable preferences validate against the owning runtime APIs; App Settings
+  must not duplicate encoder or JobRegistry accept/reject rules.
 
 ## Allowed Agent Edits Without Escalation
 

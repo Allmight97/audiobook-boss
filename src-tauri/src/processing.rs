@@ -46,7 +46,10 @@ pub enum ProcessingStage {
 }
 
 pub use context::{OutputConfig, ProcessingContext, ProcessingContextBuilder};
-pub use job_registry::{AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState};
+pub use job_registry::{
+    AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState,
+    MaxConcurrentJobsCapabilities,
+};
 pub use lifecycle::{OperationKind, OperationResultSummary};
 pub use preview_config::PreviewConfig;
 pub use progress::{

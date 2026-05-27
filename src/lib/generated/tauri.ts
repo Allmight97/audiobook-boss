@@ -78,6 +78,10 @@ export const commands = {
 	refreshExternalToolchain: (externalToolchain: {
 	overridePath: string | null,
 } | null) => __TAURI_INVOKE<EncoderAvailability>("refresh_external_toolchain", { externalToolchain }),
+	// Returns backend-owned runtime settings capabilities for UI controls.
+	getRuntimeSettingsCapabilities: (externalToolchain: {
+	overridePath: string | null,
+} | null) => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities", { externalToolchain })),
 	// Builds an output path preview using backend naming rules without collision suffixing.
 	previewOutputPath: (outputDir: string, metadata: {
 	// Title of the audiobook (©nam)
@@ -247,6 +251,9 @@ export type AudiobookMetadata = {
 // Bitrate/quality control mode per encoder
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number };
 
+// Bitrate mode capability without encoder-specific values.
+export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
+
 // Channel selection strategy
 export type ChannelConfig = "auto" | "mono" | "stereo";
 
@@ -276,6 +283,12 @@ export type EncoderAvailability = {
 	statusMessage: string,
 };
 
+export type EncoderBitrateModeCapability = {
+	encoderType: EncoderType,
+	allowedModes: BitrateModeKind[],
+	defaultMode: BitrateMode,
+};
+
 export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override";
 
 export type EncoderDefaults = {
@@ -295,6 +308,22 @@ export type EncoderSettings = {
 	afterburner: boolean,
 	threads: ThreadSetting,
 	twoloop?: boolean,
+};
+
+export type EncoderSettingsCapabilities = {
+	availability: EncoderAvailability,
+	encoderTypes: EncoderType[],
+	autoResolutionOrder: EncoderType[],
+	bitrateKbpsOptions: number[],
+	bitrateModesByEncoder: EncoderBitrateModeCapability[],
+	vbrLevelMin: number,
+	vbrLevelMax: number,
+	vbrLevelDefault: number,
+	threadFixedMin: number,
+	threadFixedMax: number,
+	sampleRateAuto: boolean,
+	explicitSampleRates: number[],
+	channelOptions: ChannelConfig[],
 };
 
 // Supported encoder types for audiobooks
@@ -340,6 +369,14 @@ export type FileListInfo = {
 };
 
 export type JobType = "merge" | "batch";
+
+export type MaxConcurrentJobsCapabilities = {
+	allowAuto: boolean,
+	autoEffective: number,
+	fixedMin: number,
+	fixedMax: number,
+	fixedOptions: number[],
+};
 
 /**
  *  Writable metadata-intent contract for ABB.
@@ -569,6 +606,11 @@ export type QueueEvent = {
 export type QueueItem = {
 	input_index: number,
 	file_path: string,
+};
+
+export type RuntimeSettingsCapabilities = {
+	encoder: EncoderSettingsCapabilities,
+	maxConcurrentJobs: MaxConcurrentJobsCapabilities,
 };
 
 // Sample rate configuration options

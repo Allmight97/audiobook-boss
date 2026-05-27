@@ -1,8 +1,10 @@
 use crate::audio;
 use crate::audio::{
-    detect_encoder_availability, validate_encoder_settings as validate_encoder_settings_impl,
-    validate_input_audio_path, validate_requested_encoder_available, EncoderAvailability,
-    EncoderSettings, ExternalToolchainPreference, FileListInfo, SupportedAudioImportMetadata,
+    detect_encoder_availability, encoder_settings_capabilities,
+    validate_encoder_settings as validate_encoder_settings_impl, validate_input_audio_path,
+    validate_requested_encoder_available, EncoderAvailability, EncoderSettings,
+    EncoderSettingsCapabilities, ExternalToolchainPreference, FileListInfo,
+    SupportedAudioImportMetadata,
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
@@ -11,12 +13,21 @@ use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::{build_output_path_preview, derive_output_artifact_path, OutputKind};
 use crate::processing::job_registry::JobId;
 use crate::processing::run;
+use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 pub use crate::processing::{
     JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
     ProcessResultStatus, ProcessResultSummary, ProcessingPreflightPlan,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeSettingsCapabilities {
+    pub encoder: EncoderSettingsCapabilities,
+    pub max_concurrent_jobs: MaxConcurrentJobsCapabilities,
+}
 
 /// Validates that all provided file paths exist and are files
 /// Accepts an array of file paths and checks file existence
@@ -130,6 +141,18 @@ pub fn refresh_external_toolchain(
     external_toolchain: Option<ExternalToolchainPreference>,
 ) -> EncoderAvailability {
     detect_encoder_availability(external_toolchain.as_ref())
+}
+
+/// Returns backend-owned runtime settings capabilities for UI controls.
+#[tauri::command]
+#[specta::specta]
+pub fn get_runtime_settings_capabilities(
+    external_toolchain: Option<ExternalToolchainPreference>,
+) -> CommandResult<RuntimeSettingsCapabilities> {
+    Ok(RuntimeSettingsCapabilities {
+        encoder: encoder_settings_capabilities(external_toolchain.as_ref()),
+        max_concurrent_jobs: JobRegistry::max_concurrent_jobs_capabilities(),
+    })
 }
 
 /// Builds an output path preview using backend naming rules without collision suffixing.

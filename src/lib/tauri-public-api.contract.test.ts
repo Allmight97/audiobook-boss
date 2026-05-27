@@ -9,6 +9,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'echo',
 	'getAppSettings',
 	'getMaxConcurrentJobs',
+	'getRuntimeSettingsCapabilities',
 	'getSupportedAudioImportMetadata',
 	'listAvailableEncoders',
 	'listen',
@@ -49,6 +50,7 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('get_app_settings');
 		expect(TAURI_COMMAND_NAMES).toContain('update_app_settings');
 		expect(TAURI_COMMAND_NAMES).toContain('reset_app_settings');
+		expect(TAURI_COMMAND_NAMES).toContain('get_runtime_settings_capabilities');
 		expect(TAURI_COMMAND_NAMES).toContain('save_metadata_batch');
 		expect(TAURI_COMMAND_NAMES).toContain('discover_audio_import_paths');
 		expect(TAURI_COMMAND_NAMES).toContain('get_supported_audio_import_metadata');

@@ -22,6 +22,58 @@
 	onMount(() => {
 		initializeEncoderPanelLogic();
 	});
+
+	function encoderLabel(value: string): string {
+		switch (value) {
+			case 'auto':
+				return encoderPanelState.autoOptionLabel;
+			case 'fdk_he_aac':
+				return 'FDK AAC';
+			case 'aac_at':
+				return 'Apple AAC';
+			case 'native_aac':
+				return 'Native AAC (FFmpeg)';
+			default:
+				return value;
+		}
+	}
+
+	function bitrateModeLabel(value: string): string {
+		return value.toUpperCase();
+	}
+
+	function qualityLabel(value: number): string {
+		if (value === encoderPanelState.capabilities?.vbrLevelMin) return `${value} (Smallest)`;
+		if (value === encoderPanelState.capabilities?.vbrLevelDefault) return `${value} (Recommended)`;
+		if (value === encoderPanelState.capabilities?.vbrLevelMax) return `${value} (Largest)`;
+		return String(value);
+	}
+
+	function sampleRateLabel(value: string): string {
+		return value === 'auto' ? 'Auto' : `${value} Hz`;
+	}
+
+	function channelLabel(value: string): string {
+		switch (value) {
+			case 'auto':
+				return 'Auto';
+			case 'mono':
+				return 'Mono';
+			case 'stereo':
+				return 'Stereo';
+			default:
+				return value;
+		}
+	}
+
+	function encoderOptionDisabled(value: string): boolean {
+		if (value === 'auto') return false;
+		return Boolean(
+			encoderPanelState.disabledEncoderOptions[
+				value as keyof typeof encoderPanelState.disabledEncoderOptions
+			],
+		);
+	}
 </script>
 
 <div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
@@ -39,21 +91,18 @@
 				id="adv-encoder"
 				data-testid="encoder-select"
 				value={encoderPanelState.flavor}
+				disabled={encoderPanelState.encoderOptions.length === 0}
 				onchange={handleFlavorChange}
 			>
-				<option value="auto">{encoderPanelState.autoOptionLabel}</option>
-				<option value="fdk_he_aac" disabled={encoderPanelState.disabledEncoderOptions.fdk_he_aac}>
-					FDK AAC
-				</option>
-				<option value="aac_at" disabled={encoderPanelState.disabledEncoderOptions.aac_at}>
-					Apple AAC
-				</option>
-				<option
-					value="native_aac"
-					disabled={encoderPanelState.disabledEncoderOptions.native_aac}
-				>
-					Native AAC (FFmpeg)
-				</option>
+				{#if encoderPanelState.encoderOptions.length === 0}
+					<option value="auto">Loading…</option>
+				{:else}
+					{#each encoderPanelState.encoderOptions as encoderOption}
+						<option value={encoderOption} disabled={encoderOptionDisabled(encoderOption)}>
+							{encoderLabel(encoderOption)}
+						</option>
+					{/each}
+				{/if}
 			</select>
 			<p
 				id="encoder-availability-hint"
@@ -76,11 +125,17 @@
 				id="adv-bitrate-mode"
 				data-testid="bitrate-mode-select"
 				value={encoderPanelState.bitrateModeSelection}
+				disabled={encoderPanelState.bitrateModeOptions.length === 0}
 				onchange={handleBitrateModeChange}
 			>
-				<option value="vbr" disabled={!encoderPanelState.bitrateModeAvailability.vbr}>VBR</option>
-				<option value="cvbr" disabled={!encoderPanelState.bitrateModeAvailability.cvbr}>CVBR</option>
-				<option value="cbr" disabled={!encoderPanelState.bitrateModeAvailability.cbr}>CBR</option>
+				{#each encoderPanelState.bitrateModeOptions as bitrateModeOption}
+					<option
+						value={bitrateModeOption}
+						disabled={!encoderPanelState.bitrateModeAvailability[bitrateModeOption]}
+					>
+						{bitrateModeLabel(bitrateModeOption)}
+					</option>
+				{/each}
 			</select>
 		</div>
 		<div>
@@ -92,11 +147,9 @@
 				value={encoderPanelState.qualityValue}
 				onchange={handleQualityValueChange}
 			>
-				<option value={1}>1 (Smallest)</option>
-				<option value={2}>2</option>
-				<option value={3}>3 (Recommended)</option>
-				<option value={4}>4</option>
-				<option value={5}>5 (Largest)</option>
+				{#each encoderPanelState.qualityOptions as qualityOption}
+					<option value={qualityOption}>{qualityLabel(qualityOption)}</option>
+				{/each}
 			</select>
 			<select
 				id="output-bitrate"
@@ -105,17 +158,9 @@
 				value={encoderPanelState.bitrateValue}
 				onchange={handleBitrateValueChange}
 			>
-				<option value={48}>48 kbps</option>
-				<option value={56}>56 kbps</option>
-				<option value={64}>64 kbps</option>
-				<option value={72}>72 kbps</option>
-				<option value={80}>80 kbps</option>
-				<option value={88}>88 kbps</option>
-				<option value={96}>96 kbps</option>
-				<option value={104}>104 kbps</option>
-				<option value={112}>112 kbps</option>
-				<option value={120}>120 kbps</option>
-				<option value={128}>128 kbps</option>
+				{#each encoderPanelState.bitrateOptions as bitrateOption}
+					<option value={bitrateOption}>{bitrateOption} kbps</option>
+				{/each}
 			</select>
 			<p id="estimated-bitrate" class="text-xs muted-text mt-0.5" data-testid="estimated-bitrate">
 				{encoderPanelState.estimatedBitrateText}
@@ -269,13 +314,12 @@
 				id="output-samplerate"
 				data-testid="samplerate-select"
 				value={encoderPanelState.sampleRateSelection}
+				disabled={encoderPanelState.sampleRateOptions.length === 0}
 				onchange={handleSampleRateSelectionChange}
 			>
-				<option value="auto">Auto</option>
-				<option value="22050">22050 Hz</option>
-				<option value="32000">32000 Hz</option>
-				<option value="44100">44100 Hz</option>
-				<option value="48000">48000 Hz</option>
+				{#each encoderPanelState.sampleRateOptions as sampleRateOption}
+					<option value={sampleRateOption}>{sampleRateLabel(sampleRateOption)}</option>
+				{/each}
 			</select>
 			<p
 				id="output-samplerate-effective"
@@ -291,11 +335,12 @@
 				id="output-channels"
 				data-testid="channels-select"
 				value={encoderPanelState.channelsSelection}
+				disabled={encoderPanelState.channelOptions.length === 0}
 				onchange={handleChannelsSelectionChange}
 			>
-				<option value="auto">Auto</option>
-				<option value="mono">Mono</option>
-				<option value="stereo">Stereo</option>
+				{#each encoderPanelState.channelOptions as channelOption}
+					<option value={channelOption}>{channelLabel(channelOption)}</option>
+				{/each}
 			</select>
 			<p
 				id="output-channels-effective"

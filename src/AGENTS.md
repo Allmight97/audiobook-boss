@@ -11,6 +11,9 @@
 - Route durable preference hydration and persistence through
   `src/ui/appSettings`; existing control owners keep their runtime request
   truth and expose public-strip helpers for App Settings to call.
+- Runtime settings controls consume backend capability facts for selectable
+  accept/reject rules; do not add frontend-owned encoder/concurrency option
+  matrices when a Rust owner validates the setting.
 - Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
 - Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.

@@ -13,6 +13,7 @@ import type {
 	OutputKind,
 	ProcessPayload,
 	ProcessingPreflightPlan,
+	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
@@ -29,6 +30,7 @@ import {
 	normalizeMetadataSaveBatchResult,
 	normalizeNullish,
 	normalizeProcessResult,
+	normalizeRuntimeSettingsCapabilities,
 } from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -215,6 +217,15 @@ export const commandSpecs = {
 				toGeneratedExternalToolchain(args?.externalToolchain),
 			),
 			normalizeEncoderAvailability,
+		),
+	get_runtime_settings_capabilities: (args: {
+		externalToolchain: ExternalToolchainPreference | null;
+	}): Promise<RuntimeSettingsCapabilities> =>
+		runGeneratedCommand(
+			generatedCommands.getRuntimeSettingsCapabilities(
+				toGeneratedExternalToolchain(args.externalToolchain),
+			),
+			normalizeRuntimeSettingsCapabilities,
 		),
 	preview_output_path: (args: {
 		outputDir: string;

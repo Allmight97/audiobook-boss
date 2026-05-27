@@ -27,27 +27,12 @@ Repo-grounded audit of first-party code (`src/`, `src-tauri/src/`). Ordered by i
 
 Parent issue: UI preflight and backend execution each re-implement the same constraints with separate tests and no cross-layer parity contract (except one bitrate whitelist test).
 
-### 2a. Encoder type ↔ bitrate mode matrix
+### Resolved 2026-05-27: encoder runtime capabilities (`2a`-`2b`)
 
-**Impact:** Highest among rule duplicates — invalid combos fail at process time after UI appeared to accept them.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/encoderPanel/logic.ts` (`enforceBitrateModeCompatibility`), `src/types/encoder.ts` (`DEFAULT_BITRATE_MODE_BY_ENCODER`) |
-| Backend | `src-tauri/src/audio/settings_encoder.rs` (`validate_encoder_mode_combo`) |
-
-**Drift risk:** Auto/FDK→VBR, AAC-AT→CVBR, Native→CBR must stay aligned when encoder UX changes.
-
-### 2b. Auto encoder resolution order
-
-**Impact:** UI labels and availability hints can misrepresent what the backend will actually run.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/encoderPanel/logic.ts` (`resolveEffectiveEncoder`: FDK → AAC-AT → Native) |
-| Backend | `src-tauri/src/audio/settings_encoder.rs` (`resolve_encoder_type`) |
-
-**Drift risk:** Stale frontend availability vs fresh backend availability at process start.
+Encoder type ↔ bitrate-mode compatibility and Auto encoder display now use
+backend-owned capability/availability payloads. The frontend still applies UI
+state transitions, labels, and disabled states, but it no longer owns the
+encoder-mode matrix or Auto resolution order.
 
 ### 2c. Publication date normalization
 
@@ -71,68 +56,15 @@ Parent issue: UI preflight and backend execution each re-implement the same cons
 
 **Drift risk:** Error message wording already differs slightly between layers.
 
-### 2e. Max concurrent jobs allowed range
+### Resolved 2026-05-27: runtime settings capability contract (`2e`-`2j`)
 
-**Impact:** Settings/backend accept fixed values **1–8**; UI select exposes only **1–4**.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/jobControls/JobControlsIsland.svelte` (options 1–4 + auto) |
-| Backend | `src-tauri/src/app_settings/types.rs` (`ConcurrencyPreference::validate`: 1..=8) |
-
-**Drift risk:** Hydrated settings or patches with 5–8 have no matching UI option; `preferenceFromSelection` does not clamp before IPC.
-
-### 2f. Explicit sample rate allowlist
-
-**Impact:** Invalid rate can be typed/sent if UI options expand without backend sync.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/encoderPanel/EncoderPanelIsland.svelte` (22050, 32000, 44100, 48000) |
-| Backend | `src-tauri/src/audio/settings.rs` (`validate_explicit_sample_rate`) |
-
-**Drift risk:** No parity test (unlike bitrates).
-
-### 2g. Thread count range (1–1024)
-
-**Impact:** Frontend may sanitize to values backend rejects, or vice versa after rule change.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/types/encoder.ts` (`sanitizeThreads`) |
-| Backend | `src-tauri/src/audio/settings_encoder.rs` (`VALID_THREAD_COUNT_RANGE`, `validate_threads`) |
-
-**Drift risk:** No cross-layer parity test.
-
-### 2h. Encoder bitrate whitelist
-
-**Impact:** Medium — mitigated but still a manual mirror.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/types/audio.ts` (`VALID_ENCODER_BITRATES`, comment: "Frontend mirror of Rust") |
-| Backend | `src-tauri/src/audio/settings_encoder.rs` |
-| Mitigation | `src/types/audio-defaults.test.ts` parses Rust source for parity |
-
-**Drift risk:** Lower than other items because of existing parity test; still not generated from one source.
-
-### 2i. VBR quality level clamp (1–5)
-
-**Impact:** Invalid VBR levels clamped in UI but validated strictly on backend.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/types/encoder.ts` (`sanitizeBitrateMode`), `src/ui/encoderPanel/state.svelte.ts` |
-| Backend | `src-tauri/src/audio/settings_encoder.rs` (`validate_bitrate_mode`) |
-
-### 2j. Default bitrate mode per encoder
-
-**Impact:** UI defaults and coercions can diverge from backend combo rules.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/types/encoder.ts` (`DEFAULT_BITRATE_MODE_BY_ENCODER`), `logic.ts` coercion |
-| Backend | `validate_encoder_mode_combo` + `src-tauri/src/app_settings/types.rs` defaults |
+Max-concurrent-job options, explicit sample rates, thread range, encoder bitrate
+options, VBR range/default, and default bitrate mode per encoder now flow
+through `get_runtime_settings_capabilities`. Audio owns encoder capability
+facts; JobRegistry owns concurrency capability facts; App Settings validates
+durable preferences against the runtime owner instead of keeping its own range
+table; frontend controls render capability payloads instead of local
+accept/reject matrices.
 
 ### 2k. Cover art file extension allowlist
 

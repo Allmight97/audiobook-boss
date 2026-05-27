@@ -6,12 +6,16 @@ import type {
 	CollisionPolicy as GeneratedCollisionPolicy,
 	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
+	EncoderBitrateModeCapability as GeneratedEncoderBitrateModeCapability,
 	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
+	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
+	BitrateModeKind as GeneratedBitrateModeKind,
 	ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
+	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
 	OutputCollisionInfo as GeneratedOutputCollisionInfo,
 	OutputCollisionKind as GeneratedOutputCollisionKind,
 	OutputKind as GeneratedOutputKind,
@@ -24,6 +28,7 @@ import type {
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	ProcessPayload as GeneratedProcessPayload,
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
+	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	SampleRateConfig as GeneratedSampleRateConfig,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 	ThreadSetting as GeneratedThreadSetting,
@@ -50,12 +55,18 @@ export type ProcessingPreflightPlan = Omit<
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
+export type EncoderBitrateModeCapability = GeneratedEncoderBitrateModeCapability;
 export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
 export type BitrateMode = GeneratedBitrateMode;
+export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
 export type ThreadSetting = GeneratedThreadSetting;
 export type EncoderSettings = GeneratedEncoderSettings;
+export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
+export type MaxConcurrentJobsCapabilities =
+	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
+export type RuntimeSettingsCapabilities = NullToOptionalDeep<GeneratedRuntimeSettingsCapabilities>;
 export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalToolchainPreference>;
 export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
@@ -97,10 +108,7 @@ export type ProcessCommandResult = Omit<
 	results: ProcessCommandJobResult[];
 };
 
-// Frontend mirror of Rust VALID_ENCODER_BITRATES in settings_encoder.rs.
-// Keep this aligned via audio-defaults.test.ts.
-export const VALID_ENCODER_BITRATES = [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128] as const;
-export type BitrateKbps = (typeof VALID_ENCODER_BITRATES)[number];
+export type BitrateKbps = EncoderSettings['bitrateKbps'];
 
 // Job Type for batch processing (Issue #81)
 export type JobType = GeneratedJobType;

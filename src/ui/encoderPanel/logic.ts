@@ -4,13 +4,14 @@ import {
 	encoderPanelState,
 	readEncoderDefaultsFromState,
 	setChannelsAutoHint,
+	setEncoderSettingsCapabilities,
 	setExternalToolchainOverridePath,
 	setSampleRateAutoHint,
 	type BitrateModeSelection,
 	type VbrLevel,
 } from './state.svelte';
 import type { EncoderFlavor } from '../../types/encoder';
-import type { EncoderAvailability } from '../../types/audio';
+import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 import { runToolchainValidationWorkflow } from './toolchainValidationWorkflow';
@@ -27,7 +28,7 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
 };
-const VBR_BITRATE_ESTIMATES: Record<VbrLevel, number> = {
+const VBR_BITRATE_ESTIMATES: Record<number, number> = {
 	1: 32,
 	2: 48,
 	3: 60,
@@ -41,11 +42,15 @@ const AUTO_LABEL_BASE = 'Auto';
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
 
+const selectTarget = (event: Event): HTMLSelectElement | null =>
+	(event.currentTarget ?? event.target) as HTMLSelectElement | null;
+
+const inputTarget = (event: Event): HTMLInputElement | null =>
+	(event.currentTarget ?? event.target) as HTMLInputElement | null;
+
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (flavor !== 'auto') return flavor;
-	if (encoderPanelState.availability?.fdkAvailable) return 'fdk_he_aac';
-	if (encoderPanelState.availability?.aacAtAvailable) return 'aac_at';
-	return 'native_aac';
+	return encoderPanelState.availability?.autoEncoder ?? 'auto';
 };
 
 const encoderFlavorLabel = (flavor: EncoderFlavor): string => {
@@ -136,20 +141,35 @@ const updateProfileDisplay = (encoder: EncoderFlavor): void => {
 	encoderPanelState.profileDisplay = ENCODER_PROFILES[encoder] ?? 'AAC-LC';
 };
 
+function bitrateModeSelectionFromKind(kind: string): BitrateModeSelection {
+	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
+}
+
+function bitrateModeSelectionFromMode(mode: { mode: string }): BitrateModeSelection {
+	return bitrateModeSelectionFromKind(mode.mode);
+}
+
+function capabilityForEncoder(
+	encoder: EncoderFlavor,
+	capabilities: EncoderSettingsCapabilities | null,
+) {
+	return capabilities?.bitrateModesByEncoder.find((entry) => entry.encoderType === encoder) ?? null;
+}
+
 const enforceBitrateModeCompatibility = (encoder: EncoderFlavor): void => {
-	const allowedModes: Record<EncoderFlavor, BitrateModeSelection> = {
-		auto: 'vbr',
-		fdk_he_aac: 'vbr',
-		aac_at: 'cvbr',
-		native_aac: 'cbr',
-	};
-	const allowedMode = allowedModes[encoder];
+	const capability = capabilityForEncoder(encoder, encoderPanelState.capabilities);
+	const allowedModes = capability?.allowedModes.map(bitrateModeSelectionFromKind) ?? [];
+	const defaultMode = capability
+		? bitrateModeSelectionFromMode(capability.defaultMode)
+		: encoderPanelState.bitrateModeSelection;
 	encoderPanelState.bitrateModeAvailability = {
-		vbr: allowedMode === 'vbr',
-		cvbr: allowedMode === 'cvbr',
-		cbr: allowedMode === 'cbr',
+		vbr: allowedModes.includes('vbr'),
+		cvbr: allowedModes.includes('cvbr'),
+		cbr: allowedModes.includes('cbr'),
 	};
-	encoderPanelState.bitrateModeSelection = allowedMode;
+	if (!allowedModes.includes(encoderPanelState.bitrateModeSelection)) {
+		encoderPanelState.bitrateModeSelection = defaultMode;
+	}
 };
 
 const updateQualityVisibility = (): void => {
@@ -166,7 +186,10 @@ const updateInlineOptions = (): void => {
 
 const updateEstimatedBitrate = (): void => {
 	if (encoderPanelState.bitrateModeSelection === 'vbr') {
-		const estimate = VBR_BITRATE_ESTIMATES[encoderPanelState.qualityValue];
+		const estimate =
+			VBR_BITRATE_ESTIMATES[encoderPanelState.qualityValue] ??
+			VBR_BITRATE_ESTIMATES[encoderPanelState.capabilities?.vbrLevelDefault ?? 3] ??
+			encoderPanelState.bitrateValue;
 		encoderPanelState.estimatedBitrateText = `Est: ~${estimate} kbps`;
 		return;
 	}
@@ -249,6 +272,13 @@ export const syncEncoderPanelAfterAvailabilityChange = (): void => {
 	debugLog('Encoder panel ready');
 };
 
+export const setRuntimeEncoderSettingsCapabilities = (
+	capabilities: EncoderSettingsCapabilities | null,
+): void => {
+	setEncoderSettingsCapabilities(capabilities);
+	syncEncoderPanelAfterAvailabilityChange();
+};
+
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 	resetAutoResolutionHints();
@@ -265,14 +295,14 @@ export const applyEncodingDefaults = (defaults: EncoderDefaults): void => {
 };
 
 export const handleFlavorChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
+	const target = selectTarget(event);
 	encoderPanelState.flavor = (target?.value as EncoderFlavor | undefined) ?? 'auto';
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };
 
 export const handleBitrateModeChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
+	const target = selectTarget(event);
 	const value = target?.value;
 	if (value === 'vbr' || value === 'cvbr' || value === 'cbr') {
 		encoderPanelState.bitrateModeSelection = value;
@@ -282,27 +312,40 @@ export const handleBitrateModeChange = (event: Event): void => {
 };
 
 export const handleChannelsSelectionChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
+	const target = selectTarget(event);
 	const value = target?.value;
-	if (value === 'auto' || value === 'mono' || value === 'stereo') {
-		encoderPanelState.channelsSelection = value;
+	if (
+		value &&
+		encoderPanelState.channelOptions.includes(
+			value as NonNullable<typeof encoderPanelState.channelsSelection>,
+		)
+	) {
+		encoderPanelState.channelsSelection = value as typeof encoderPanelState.channelsSelection;
 	}
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };
 
 export const handleQualityValueChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
-	const value = Number.parseInt(target?.value ?? '3', 10);
-	encoderPanelState.qualityValue = clamp(value, 1, 5) as VbrLevel;
+	const target = selectTarget(event);
+	const value = Number.parseInt(
+		target?.value ?? String(encoderPanelState.capabilities?.vbrLevelDefault ?? 3),
+		10,
+	);
+	const min = encoderPanelState.capabilities?.vbrLevelMin ?? value;
+	const max = encoderPanelState.capabilities?.vbrLevelMax ?? value;
+	encoderPanelState.qualityValue = clamp(value, min, max) as VbrLevel;
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };
 
 export const handleBitrateValueChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
+	const target = selectTarget(event);
 	const value = Number.parseInt(target?.value ?? '64', 10);
-	if (Number.isFinite(value)) {
+	if (
+		Number.isFinite(value) &&
+		encoderPanelState.capabilities?.bitrateKbpsOptions.includes(value)
+	) {
 		encoderPanelState.bitrateValue = value as typeof encoderPanelState.bitrateValue;
 	}
 	syncAfterStateChange();
@@ -310,19 +353,19 @@ export const handleBitrateValueChange = (event: Event): void => {
 };
 
 export const handleFdkAfterburnerChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLInputElement | null;
+	const target = inputTarget(event);
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
 	persistCurrentEncoderDefaults();
 };
 
 export const handleNativeTwoloopChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLInputElement | null;
+	const target = inputTarget(event);
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
 	persistCurrentEncoderDefaults();
 };
 
 export const handleToolchainPathInput = (event: Event): void => {
-	const target = event.currentTarget as HTMLInputElement | null;
+	const target = inputTarget(event);
 	setExternalToolchainOverridePath(target?.value ?? '');
 };
 
@@ -349,8 +392,11 @@ export const refreshExternalToolchain = (): void => {
 };
 
 export const handleSampleRateSelectionChange = (event: Event): void => {
-	const target = event.currentTarget as HTMLSelectElement | null;
-	encoderPanelState.sampleRateSelection = target?.value ?? 'auto';
+	const target = selectTarget(event);
+	const value = target?.value ?? 'auto';
+	encoderPanelState.sampleRateSelection = encoderPanelState.sampleRateOptions.includes(value)
+		? value
+		: 'auto';
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };

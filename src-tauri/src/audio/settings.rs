@@ -4,6 +4,8 @@ use super::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
+const SUPPORTED_SAMPLE_RATES: &[u32] = &[22050, 32000, 44100, 48000];
+
 /// Validates sample rate configuration
 pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
     match config {
@@ -14,13 +16,16 @@ pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
 
 /// Validates explicit sample rate is supported
 fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
-    let valid_rates = [22050, 32000, 44100, 48000];
-    if !valid_rates.contains(&sample_rate) {
+    if !SUPPORTED_SAMPLE_RATES.contains(&sample_rate) {
         return Err(AppError::InvalidInput(format!(
-            "Unsupported sample rate: {sample_rate}. Valid rates: {valid_rates:?}"
+            "Unsupported sample rate: {sample_rate}. Valid rates: {SUPPORTED_SAMPLE_RATES:?}"
         )));
     }
     Ok(())
+}
+
+pub fn supported_sample_rates() -> &'static [u32] {
+    SUPPORTED_SAMPLE_RATES
 }
 
 /// Validates output directory is writable by creating and removing a temp file

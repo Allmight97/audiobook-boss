@@ -42,6 +42,25 @@ pub enum BitrateMode {
     Vbr(u8),
 }
 
+/// Bitrate mode capability without encoder-specific values.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum BitrateModeKind {
+    Cbr,
+    Cvbr,
+    Vbr,
+}
+
+impl BitrateModeKind {
+    fn from_mode(mode: BitrateMode) -> Self {
+        match mode {
+            BitrateMode::Cbr => Self::Cbr,
+            BitrateMode::Cvbr => Self::Cvbr,
+            BitrateMode::Vbr(_) => Self::Vbr,
+        }
+    }
+}
+
 /// Channel selection strategy
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -99,6 +118,51 @@ pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 104, 11
 /// Valid range for thread count when using Fixed thread setting
 pub const VALID_THREAD_COUNT_RANGE: std::ops::RangeInclusive<u16> = 1..=1024;
 
+/// Valid VBR level range for encoders that support VBR.
+pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u8> = 1..=5;
+
+/// Default VBR level for audiobook speech output.
+pub const DEFAULT_VBR_LEVEL: u8 = 3;
+
+const ALL_ENCODER_TYPES: [EncoderType; 4] = [
+    EncoderType::Auto,
+    EncoderType::FdkHeAac,
+    EncoderType::AacAt,
+    EncoderType::NativeAac,
+];
+const AUTO_ENCODER_RESOLUTION_ORDER: [EncoderType; 3] = [
+    EncoderType::FdkHeAac,
+    EncoderType::AacAt,
+    EncoderType::NativeAac,
+];
+const VBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Vbr];
+const CVBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cvbr];
+const CBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cbr];
+
+pub fn all_encoder_types() -> [EncoderType; 4] {
+    ALL_ENCODER_TYPES
+}
+
+pub fn auto_encoder_resolution_order() -> [EncoderType; 3] {
+    AUTO_ENCODER_RESOLUTION_ORDER
+}
+
+pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [BitrateModeKind] {
+    match encoder_type {
+        EncoderType::Auto | EncoderType::FdkHeAac => &VBR_ONLY,
+        EncoderType::AacAt => &CVBR_ONLY,
+        EncoderType::NativeAac => &CBR_ONLY,
+    }
+}
+
+pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
+    match encoder_type {
+        EncoderType::Auto | EncoderType::FdkHeAac => BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
+        EncoderType::AacAt => BitrateMode::Cvbr,
+        EncoderType::NativeAac => BitrateMode::Cbr,
+    }
+}
+
 /// Validates encoder settings (no engine side-effects)
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     validate_bitrate(settings.bitrate_kbps)?;
@@ -123,7 +187,7 @@ fn validate_bitrate(bitrate_kbps: u16) -> Result<()> {
 fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
     match mode {
         BitrateMode::Cbr | BitrateMode::Cvbr => Ok(()),
-        BitrateMode::Vbr(level) if (1..=5).contains(&level) => Ok(()),
+        BitrateMode::Vbr(level) if VALID_VBR_LEVEL_RANGE.contains(&level) => Ok(()),
         BitrateMode::Vbr(level) => Err(AppError::InvalidInput(format!(
             "Unsupported VBR level: {} (allowed 1..=5)",
             level
@@ -132,12 +196,8 @@ fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
 }
 
 fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> Result<()> {
-    let allowed = match encoder_type {
-        EncoderType::Auto => matches!(mode, BitrateMode::Vbr(_)),
-        EncoderType::FdkHeAac => matches!(mode, BitrateMode::Vbr(_)),
-        EncoderType::AacAt => matches!(mode, BitrateMode::Cvbr),
-        EncoderType::NativeAac => matches!(mode, BitrateMode::Cbr),
-    };
+    let allowed =
+        allowed_bitrate_mode_kinds_for(encoder_type).contains(&BitrateModeKind::from_mode(mode));
     if allowed {
         Ok(())
     } else {

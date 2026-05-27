@@ -11,10 +11,13 @@ import {
 	setJobTypeSelection,
 } from '../jobControls';
 import { jobControlsState } from '../jobControls/state.svelte';
+import { runtimeSettingsCapabilitiesState } from '../runtimeSettingsCapabilities.svelte';
 import { tauriClient } from '../../lib/tauri/client';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
+		getRuntimeSettingsCapabilities: vi.fn(),
 		setMaxConcurrentJobs: vi.fn().mockResolvedValue(4),
 		updateAppSettings: vi.fn().mockResolvedValue({
 			maxConcurrentJobs: { mode: 'auto' },
@@ -41,6 +44,7 @@ vi.mock('../statusPanel', () => ({
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
 const updateAppSettingsMock = vi.mocked(tauriClient.updateAppSettings);
 const getMaxConcurrentJobsMock = vi.mocked(tauriClient.getMaxConcurrentJobs);
+const getRuntimeSettingsCapabilitiesMock = vi.mocked(tauriClient.getRuntimeSettingsCapabilities);
 
 function setupDomRoot() {
 	render(JobControlsIsland, {
@@ -108,8 +112,9 @@ function appSettingsFixture() {
 
 describe('Job controls merge toggle', () => {
 	beforeEach(() => {
-		setupDomRoot();
 		setMaxConcurrentJobsMock.mockReset();
+		getRuntimeSettingsCapabilitiesMock.mockReset();
+		getRuntimeSettingsCapabilitiesMock.mockResolvedValue(runtimeSettingsCapabilitiesFixture());
 		updateAppSettingsMock.mockReset();
 		updateAppSettingsMock.mockResolvedValue(appSettingsFixture());
 		getMaxConcurrentJobsMock.mockReset();
@@ -119,8 +124,22 @@ describe('Job controls merge toggle', () => {
 		setJobTypeSelection('batch');
 		setJobControlsEnabled(true);
 		jobControlsState.maxConcurrentSelection = 'auto';
+		jobControlsState.maxConcurrentCapabilities = null;
 		jobControlsState.effectiveMaxConcurrent = null;
 		jobControlsState.effectiveLabel = '';
+		runtimeSettingsCapabilitiesState.capabilities = null;
+		runtimeSettingsCapabilitiesState.loadError = null;
+		runtimeSettingsCapabilitiesState.loading = false;
+		setupDomRoot();
+	});
+
+	it('renders backend-owned fixed concurrency options', async () => {
+		initJobControls();
+		await flushAsync();
+
+		const values = Array.from(getMaxConcurrentSelect().options).map((option) => option.value);
+
+		expect(values).toEqual(['auto', '1', '2', '3', '4', '5', '6', '7', '8']);
 	});
 
 	it('updates job type and refreshes output preview when merge mode changes', async () => {
@@ -210,6 +229,7 @@ describe('Job controls merge toggle', () => {
 		jobControlsState.effectiveLabel = 'Auto → 4';
 		updateAppSettingsMock.mockRejectedValueOnce(new Error('jobs active'));
 		getMaxConcurrentJobsMock.mockResolvedValueOnce(4);
+		getMaxConcurrentJobsMock.mockClear();
 
 		const select = getMaxConcurrentSelect();
 		select.value = '3';
@@ -230,6 +250,7 @@ describe('Job controls merge toggle', () => {
 			maxConcurrentJobs: { mode: 'fixed', value: 3 },
 		});
 		getMaxConcurrentJobsMock.mockRejectedValueOnce(new Error('read failed'));
+		getMaxConcurrentJobsMock.mockClear();
 
 		const select = getMaxConcurrentSelect();
 		select.value = '3';

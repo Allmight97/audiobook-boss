@@ -23,6 +23,7 @@ import type {
 	ProcessCommandResult,
 	ProcessingPreflightPlan,
 	OutputKind,
+	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
@@ -174,6 +175,12 @@ export const tauriClient = {
 		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'refresh_external_toolchain'>> =>
 		commandSpecs.refresh_external_toolchain({
+			externalToolchain: externalToolchain ?? null,
+		}),
+	getRuntimeSettingsCapabilities: (
+		externalToolchain?: ExternalToolchainPreference | null,
+	): Promise<RuntimeSettingsCapabilities> =>
+		commandSpecs.get_runtime_settings_capabilities({
 			externalToolchain: externalToolchain ?? null,
 		}),
 	previewOutputPath: (args: {
