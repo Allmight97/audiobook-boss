@@ -1,6 +1,6 @@
 [package]
 name = "audiobook-boss"
-version = "1.0.26"
+version = "1.0.27"
 description = "AudioBook Boss™ — Batch audiobook processing and metadata management"
 authors = ["JStar"]
 edition = "2021"
@@ -38,7 +38,7 @@ num_cpus = "1.17.0"
 ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
-reqwest = { version = "0.13.3", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
