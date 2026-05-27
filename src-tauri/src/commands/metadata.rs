@@ -1,7 +1,10 @@
 use crate::audio::{validate_input_audio_path, validate_input_image_path};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
-use crate::metadata::{plan_metadata_write, read_metadata, AudiobookMetadata, MetadataIntentPatch};
+use crate::metadata::{
+    plan_metadata_write, read_metadata, AudiobookMetadata, MetadataIntentPatch,
+    MetadataIntentValidationResult,
+};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
 use std::io;
@@ -58,6 +61,17 @@ pub async fn save_metadata_to_file(
     .map_err(|e| AppError::General(format!("Metadata write task failed: {e}")))?;
 
     Ok(result?)
+}
+
+/// Validates and normalizes metadata intent without writing files.
+#[tauri::command]
+#[specta::specta]
+pub fn validate_metadata_intent_patch(
+    metadata_patch: MetadataIntentPatch,
+) -> CommandResult<MetadataIntentValidationResult> {
+    Ok(crate::metadata::validate_metadata_intent_patch(
+        &metadata_patch,
+    ))
 }
 
 /// Writes cover art to an M4B file

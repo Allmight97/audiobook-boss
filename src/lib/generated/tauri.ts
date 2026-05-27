@@ -44,6 +44,8 @@ export const commands = {
 	 *  Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 	 */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
+	// Validates and normalizes metadata intent without writing files.
+	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
 	/**
 	 *  Saves metadata to an audio file using explicit write intent (metadata-only editing)
 	 *
@@ -378,6 +380,12 @@ export type MaxConcurrentJobsCapabilities = {
 	fixedOptions: number[],
 };
 
+export type MetadataIntentFieldError = {
+	field: MetadataIntentValidationField,
+	code: MetadataIntentValidationCode,
+	message: string,
+};
+
 /**
  *  Writable metadata-intent contract for ABB.
  *
@@ -401,6 +409,16 @@ export type MetadataIntentPatch = {
 	subseries_part?: PatchOp<string>,
 	album_sort?: AlbumSortPatchOp,
 	cover_art?: PatchOp<number[]>,
+};
+
+export type MetadataIntentValidationCode = "publication_date_syntax" | "series_part_contains_slash" | "subseries_part_contains_slash";
+
+export type MetadataIntentValidationField = "date" | "series_part" | "subseries_part";
+
+export type MetadataIntentValidationResult = {
+	isValid: boolean,
+	metadataPatch: MetadataIntentPatch,
+	fieldErrors: MetadataIntentFieldError[],
 };
 
 export type MetadataSaveBatchResult = {

@@ -38,6 +38,12 @@ const context = vi.hoisted(() => ({
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	renderAutoResolutionHintsMock: vi.fn(),
 	resetAutoResolutionHintsMock: vi.fn(),
+	validateMetadataDraftIntentMock: vi.fn(async (metadata: Record<string, unknown>) => ({
+		intentPatch: Object.fromEntries(
+			Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+		),
+		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+	})),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -82,8 +88,8 @@ vi.mock('../statusPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: vi.fn(() => null),
-	getSubseriesPartValidationError: vi.fn(() => null),
+	firstMetadataIntentValidationError: vi.fn(() => null),
+	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
 vi.mock('../fileList/dom', () => ({
@@ -141,6 +147,7 @@ describe('file list reorder behavior', () => {
 		context.updateEstimatedSizeMock.mockReset();
 		context.updateOutputPathMock.mockReset();
 		context.updateTagPreviewMock.mockReset();
+		context.validateMetadataDraftIntentMock.mockClear();
 		context.clearCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);

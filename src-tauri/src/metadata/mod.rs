@@ -22,7 +22,10 @@ pub mod mp4ameta_bridge;
 pub mod passthrough;
 mod remux;
 
-pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+pub use intent::{
+    validate_metadata_intent_patch, AlbumSortPatchOp, MetadataIntentPatch,
+    MetadataIntentValidationResult, PatchOp,
+};
 pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,
@@ -391,7 +394,7 @@ mod tests {
         match err {
             AppError::InvalidInput(message) => {
                 assert!(
-                    message.contains("must not include '/'"),
+                    message.contains("Series sequence (#) cannot include '/'"),
                     "unexpected message: {message}"
                 );
             }

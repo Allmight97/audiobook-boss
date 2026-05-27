@@ -91,7 +91,9 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - Greenfield posture: optimize for the best forward path; skip blanket internal backward-compat defaults.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.
 - Do not assume internal legacy users, legacy payloads, or compatibility shims unless evidence exists in code/contracts or the user requests it.
-- Keep runtime IPC centralized in `src/lib/tauri/*`; keep metadata intent compile/normalization at that boundary.
+- Keep runtime IPC centralized in `src/lib/tauri/*`; keep metadata intent
+  compile/adaptation at that boundary and route canonical metadata validation
+  or normalization through the Rust Metadata Outcome boundary.
 - Fallback/shim policy: explicit trigger, observable signal, and time-bounded removal condition.
 - Every intentional fallback must include register + marker metadata and satisfy `scripts/check-fallback-policy.sh`.
 

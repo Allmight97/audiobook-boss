@@ -77,11 +77,11 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 
 ### Metadata
 
-- `read_audio_metadata`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
+- `read_audio_metadata`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
   - Rust: `src-tauri/src/commands/metadata.rs`
   - Core helpers: `src-tauri/src/metadata/`, `src-tauri/src/audio/path_validation.rs`
   - Lifecycle reporting: metadata batch save emits processing-owned queue/progress events with `operation_kind: metadataSave`
-  - Note: metadata writes use intent patches at the boundary, not raw ad hoc object mutation; `track`/`disk` stay read-compatible only
+  - Note: metadata validation/normalization is Rust-owned. Frontend code compiles explicit intent patches and asks this command for field errors/normalized intent instead of owning publication-date or series-sequence rule tables. Metadata writes use intent patches at the boundary, not raw ad hoc object mutation; `track`/`disk` stay read-compatible only
 
 - `search_online_metadata`
   - Rust: `src-tauri/src/commands/metadata_lookup/`

@@ -77,8 +77,8 @@ shared result path, and existing reorder/stage/select behavior remains stable.
   - Rust owns local-audio importability.
   - Frontend import workflows coordinate UI state and status, not backend file
     validity.
-  - Metadata validation owner changes belong to
-    `metadata-intent-validation-contract.md`.
+  - Metadata validation/normalization belongs to the Rust Metadata Outcome
+    boundary and its `validate_metadata_intent_patch` public strip.
 
 ## Scope And Constraints
 

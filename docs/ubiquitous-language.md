@@ -31,7 +31,7 @@
 | **Terminal Truth** | The backend-owned final report of what happened to a job or batch, used by the UI for user-visible completion state. | optimistic status, frontend truth |
 | **Metadata Intent Patch** | An explicit patch-op payload that preserves whether a metadata field is being set, cleared, or left alone. | raw metadata object, sentinel mutation |
 | **Patch Op** | A single explicit metadata action such as `set`, `clear`, or `noop` used to preserve user intent across the boundary. | magic empty value, implicit clear |
-| **Metadata Outcome Plan** | The metadata boundary's backend plan that turns source metadata plus intent into effective metadata, naming metadata, write instructions, and cover-art passthrough policy. | metadata helper chain, raw metadata object |
+| **Metadata Outcome Plan** | The metadata boundary's backend plan that validates/normalizes metadata intent, then turns source metadata plus intent into effective metadata, naming metadata, write instructions, and cover-art passthrough policy. | metadata helper chain, raw metadata object |
 | **Processing Preflight Plan** | A backend-generated preview of how a processing request will execute before the actual long-running job begins. | dry guess, UI-only estimate |
 | **Output Path Preview** | The backend-owned computation of the intended output path before collision suffixing or final processing writes. | frontend filename guess, audio preview |
 | **Fallback** | A deliberately registered temporary compatibility or integrity path with a concrete trigger, observable signal, and sunset condition. | convenience workaround, silent compatibility shim |
@@ -88,7 +88,7 @@
 - The **Job Registry** is the authority for active **Processing Flow** jobs,
   queue state, permits, and cancellation.
 - A **Terminal Outcome** contributes to **Terminal Truth** only after backend processing resolves the job's final state.
-- A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values.
+- A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values; canonical metadata validation and normalization happen in the Rust metadata boundary.
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.

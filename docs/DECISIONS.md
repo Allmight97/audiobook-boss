@@ -1,5 +1,22 @@
 # Decisions
 
+## 2026-05-27 - Metadata Intent Validation Contract
+
+Basis: Metadata Outcome Plan ownership in `docs/system-map.md`, Tauri runtime
+boundary guidance in `src/lib/tauri/AGENTS.md`, and the existing save/process
+paths that already enforce Rust metadata intent validation.
+
+- Added a Rust-owned metadata intent validation command that returns field
+  errors as data for UI preflight while preserving hard backend failures for
+  save/process calls that bypass preflight.
+- Kept TypeScript responsible for compiling explicit `set | clear | noop`
+  intent, but removed TypeScript-owned publication-date normalization and
+  series/subseries slash rejection.
+- Treated output-preview warning validation as non-blocking. If that warning
+  check cannot run, the workflow logs the validation failure and still asks the
+  backend output-preview command for artifact truth; save and process workflows
+  still block on validation before persisting or executing metadata intent.
+
 ## 2026-05-26 - PR #332 Review-Fix Decisions
 
 Basis: ABB's App Settings, JobRegistry, frontend owner, and Public API Strip ownership rules; Rust read-modify-write critical-section practice; and the existing idle-only concurrency reconfiguration invariant.

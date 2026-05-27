@@ -15,6 +15,19 @@ import type { AudiobookMetadata } from '../../types/metadata';
 
 const context = vi.hoisted(() => ({
 	validationErrorMock: vi.fn<() => string | null>(() => null),
+	validateMetadataDraftIntentMock: vi.fn(async (metadata: Partial<AudiobookMetadata>) => ({
+		intentPatch: Object.fromEntries(
+			Object.entries(metadata).map(([key, value]) => [
+				key,
+				value === '' || value === undefined ? { op: 'clear' } : { op: 'set', value },
+			]),
+		),
+		result: {
+			isValid: true,
+			metadataPatch: {},
+			fieldErrors: [],
+		},
+	})),
 	selectedFilesMock: vi.fn(() => [
 		{ path: '/a.mp3', isValid: true },
 		{ path: '/b.mp3', isValid: true },
@@ -34,8 +47,8 @@ vi.mock('../outputPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: context.validationErrorMock,
-	getSubseriesPartValidationError: () => null,
+	firstMetadataIntentValidationError: context.validationErrorMock,
+	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
 vi.mock('../metadataForm', () => ({
@@ -49,6 +62,7 @@ describe('stageMetadataToSelection', () => {
 		document.body.innerHTML = '';
 		clearMetadataState();
 		context.validationErrorMock.mockReset();
+		context.validateMetadataDraftIntentMock.mockClear();
 		context.selectedFilesMock.mockReset();
 		context.readMetadataFormMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();

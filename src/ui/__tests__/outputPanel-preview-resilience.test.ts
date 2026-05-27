@@ -17,12 +17,18 @@ import {
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		previewOutputPath: vi.fn(),
+		validateMetadataIntentPatch: vi.fn(async (metadataPatch) => ({
+			isValid: true,
+			metadataPatch,
+			fieldErrors: [],
+		})),
 	},
 }));
 
 describe('output panel preview resilience', () => {
 	beforeEach(async () => {
 		vi.mocked(tauriClient.previewOutputPath).mockReset();
+		vi.mocked(tauriClient.validateMetadataIntentPatch).mockClear();
 		updateOutputDirectory('');
 		setOutputPreview('Select output directory...', 'No directory selected');
 		render(OutputPanelIsland);

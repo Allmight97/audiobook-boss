@@ -4,8 +4,8 @@
  * Field mapping for Plex/Audiobookshelf compatibility:
  * - artist = Author (©ART, also written to aART/AlbumArtist)
  * - composer = Narrator (©wrt/Composer)
- * - series = Series name (©mvn/MVNM)
- * - series_part = Series sequence / book # within a series (©mvi/MVIN)
+ * - series = Series name (series/series-part tags plus mirrored iTunes freeform atoms)
+ * - series_part = Series sequence / book # within a series (series-part/freeform SERIES-PART)
  * - subseries = Secondary series name (2nd entry in SERIES list)
  * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
  * - album_sort = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent

@@ -1,5 +1,6 @@
 import { formatFileSize } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
+import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList } from '../fileList/state.svelte';
 import { getSelectedFileIndices } from '../fileList/state.svelte';
 import { getCurrentCoverArt } from '../coverArt';
@@ -19,8 +20,10 @@ import { readEncodingRequestConfig } from '../encoderPanel';
 import {
 	getSeriesPartValidationError,
 	getSubseriesPartValidationError,
+	validateMetadataDraftIntent,
 } from '../metadataValidation';
 import type { OutputKind } from '../../types/audio';
+import type { MetadataIntentValidationResult } from '../../types/metadataIntent';
 import { runOutputPathPreviewWorkflow } from './outputPlanWorkflow';
 
 export type OutputPathPreviewMetadataDraft = AudiobookMetadata;
@@ -56,12 +59,15 @@ export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataD
 
 export const getCurrentMetadata = readOutputPathPreviewMetadataDraft;
 
-export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
+function updateSeriesPartWarning(
+	metadata: AudiobookMetadata,
+	validationResult: MetadataIntentValidationResult,
+): void {
 	const seriesValue = metadata.series?.trim() ?? '';
 	const seriesPartValue = metadata.series_part?.trim() ?? '';
 	const subseriesValue = metadata.subseries?.trim() ?? '';
 	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
-	const seriesPartError = getSeriesPartValidationError(seriesPartValue);
+	const seriesPartError = getSeriesPartValidationError(validationResult);
 
 	if (seriesPartError) {
 		setSeriesPartWarning(seriesPartError, true);
@@ -87,10 +93,13 @@ export function updateSeriesPartWarning(metadata: AudiobookMetadata): void {
 	setSeriesPartWarning(message, visible);
 }
 
-export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
+function updateSubseriesPartWarning(
+	metadata: AudiobookMetadata,
+	validationResult: MetadataIntentValidationResult,
+): void {
 	const subseriesValue = metadata.subseries?.trim() ?? '';
 	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
-	const subseriesPartError = getSubseriesPartValidationError(subseriesPartValue);
+	const subseriesPartError = getSubseriesPartValidationError(validationResult);
 
 	if (subseriesPartError) {
 		setSubseriesPartWarning(subseriesPartError, true);
@@ -100,6 +109,15 @@ export function updateSubseriesPartWarning(metadata: AudiobookMetadata): void {
 	const message = 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
 	const visible = subseriesValue.length > 0 && subseriesPartValue.length === 0;
 	setSubseriesPartWarning(message, visible);
+}
+
+export async function updateMetadataIntentWarnings(metadata: AudiobookMetadata): Promise<void> {
+	const validation = await validateMetadataDraftIntent(
+		metadata,
+		tauriClient.validateMetadataIntentPatch,
+	);
+	updateSeriesPartWarning(metadata, validation.result);
+	updateSubseriesPartWarning(metadata, validation.result);
 }
 
 export function updateOutputPath(outputKind: OutputKind): void {

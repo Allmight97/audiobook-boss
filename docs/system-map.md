@@ -97,7 +97,7 @@ assertions, and contract tests.
 | Tauri Runtime Boundary | Frontend runtime calls, payload normalization, generated-binding adaptation, and event listener setup. |
 | Processing Plan | Preflight and execution planning before jobs run. |
 | Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
-| Metadata Outcome Plan | Metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
+| Metadata Outcome Plan | Metadata intent validation/normalization, metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
 | Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 | App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |

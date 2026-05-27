@@ -13,10 +13,6 @@ import {
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
 } from '../metadataState';
-import {
-	getSeriesPartValidationError,
-	getSubseriesPartValidationError,
-} from '../metadataValidation';
 import { updateOutputPath } from '../outputPanel';
 import { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import * as feedback from './feedback';
@@ -41,10 +37,9 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
 	stageMetadataToSelection,
-	getSeriesPartValidationError,
-	getSubseriesPartValidationError,
 	setJobControlsEnabled,
 	setFileOrderLocked,
+	validateMetadataIntentPatch: tauriClient.validateMetadataIntentPatch,
 	readAudioMetadata: tauriClient.readAudioMetadata,
 	processAudiobookFiles: tauriClient.processAudiobookFiles,
 	runOutputPlanReviewWorkflow,

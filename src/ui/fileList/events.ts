@@ -75,7 +75,7 @@ export function onFileListRemove(index: number, event: MouseEvent): void {
 	if (!hasValidIndex(index)) return;
 
 	stopInteraction(event);
-	removeFile(index);
+	void removeFile(index);
 }
 
 function isCurrentSingleSelection(index: number): boolean {
@@ -118,7 +118,7 @@ export function onFileListKeyDown(e: KeyboardEvent): void {
 	const key = e.key.toLowerCase();
 	if ((e.metaKey || e.ctrlKey) && key === 'a') {
 		e.preventDefault();
-		selectAll();
+		void selectAll();
 		return;
 	}
 

@@ -155,6 +155,37 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadataPatch.artist).toBeUndefined();
 	});
 
+	it('compiles metadata intent patch for validation', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			isValid: false,
+			metadataPatch: {
+				date: { op: 'set', value: 'not a date' },
+			},
+			fieldErrors: [
+				{
+					field: 'date',
+					code: 'publication_date_syntax',
+					message: 'Publication date must be YYYY or YYYY-MM with month 01-12.',
+				},
+			],
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const result = await tauriClient.validateMetadataIntentPatch({
+			date: { op: 'set', value: 'not a date' },
+			title: { op: 'noop' },
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [string, { metadataPatch: Record<string, unknown> }];
+		expect(commandName).toBe('validate_metadata_intent_patch');
+		expect(args.metadataPatch.date).toEqual({ op: 'set', value: 'not a date' });
+		expect(args.metadataPatch.title).toBeUndefined();
+		expect(result.fieldErrors[0]?.field).toBe('date');
+	});
+
 	it('compiles every metadata intent patch in a batch save', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);

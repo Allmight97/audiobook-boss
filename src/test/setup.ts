@@ -204,6 +204,18 @@ vi.mock('@tauri-apps/api/core', () => ({
 					})),
 				});
 			}
+			case 'validate_metadata_intent_patch': {
+				const args = _args as
+					| {
+							metadataPatch?: Record<string, unknown>;
+					  }
+					| undefined;
+				return Promise.resolve({
+					isValid: true,
+					metadataPatch: args?.metadataPatch ?? {},
+					fieldErrors: [],
+				});
+			}
 			case 'cancel_processing': {
 				const args = _args as { jobId?: string | null } | undefined;
 				emitTestEvent('processing-progress', {

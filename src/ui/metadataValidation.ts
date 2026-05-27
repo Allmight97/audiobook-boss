@@ -1,27 +1,57 @@
 /**
- * Metadata validation helpers for UI workflows.
+ * Metadata validation adapters for UI workflows.
  */
 
-const SERIES_PART_INVALID_MESSAGE =
-	"Series sequence (#) cannot include '/'. Use a plain number like 24.";
+import type { AudiobookMetadata } from '../types/metadata';
+import type {
+	MetadataIntentPatch,
+	MetadataIntentValidationField,
+	MetadataIntentValidationResult,
+} from '../types/metadataIntent';
+import { buildMetadataDraftIntent } from './metadataDraft';
 
-const SUBSERIES_PART_INVALID_MESSAGE =
-	"Sub-series sequence (#) cannot include '/'. Use a plain number like 24.";
+export type ValidateMetadataIntentPatch = (
+	patch: MetadataIntentPatch,
+) => Promise<MetadataIntentValidationResult>;
 
-function getSequenceValidationError(value: string | undefined, message: string): string | null {
-	if (!value) return null;
-	const trimmed = value.trim();
-	if (!trimmed) return null;
-	if (trimmed.includes('/')) {
-		return message;
-	}
-	return null;
+export interface MetadataDraftIntentValidation {
+	intentPatch: MetadataIntentPatch;
+	result: MetadataIntentValidationResult;
 }
 
-export function getSeriesPartValidationError(value: string | undefined): string | null {
-	return getSequenceValidationError(value, SERIES_PART_INVALID_MESSAGE);
+export function getMetadataIntentFieldError(
+	result: MetadataIntentValidationResult,
+	field: MetadataIntentValidationField,
+): string | null {
+	return result.fieldErrors.find((error) => error.field === field)?.message ?? null;
 }
 
-export function getSubseriesPartValidationError(value: string | undefined): string | null {
-	return getSequenceValidationError(value, SUBSERIES_PART_INVALID_MESSAGE);
+export function getSeriesPartValidationError(
+	result: MetadataIntentValidationResult,
+): string | null {
+	return getMetadataIntentFieldError(result, 'series_part');
+}
+
+export function getSubseriesPartValidationError(
+	result: MetadataIntentValidationResult,
+): string | null {
+	return getMetadataIntentFieldError(result, 'subseries_part');
+}
+
+export function firstMetadataIntentValidationError(
+	result: MetadataIntentValidationResult,
+): string | null {
+	return result.fieldErrors[0]?.message ?? null;
+}
+
+export async function validateMetadataDraftIntent(
+	metadata: Partial<AudiobookMetadata>,
+	validateMetadataIntentPatch: ValidateMetadataIntentPatch,
+): Promise<MetadataDraftIntentValidation> {
+	const intentPatch = buildMetadataDraftIntent(metadata);
+	const result = await validateMetadataIntentPatch(intentPatch);
+	return {
+		intentPatch: result.metadataPatch,
+		result,
+	};
 }

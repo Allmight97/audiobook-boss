@@ -27,7 +27,10 @@ import type {
 } from '../../types/audio';
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import type {
+	MetadataIntentPatch,
+	MetadataIntentValidationResult,
+} from '../../types/metadataIntent';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import { normalizeProgressEvent, normalizeQueueEvent } from './normalizers';
 
@@ -133,6 +136,10 @@ export const tauriClient = {
 		commandSpecs.load_cover_art_file({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
 		commandSpecs.load_cover_art_from_url({ url }),
+	validateMetadataIntentPatch: (
+		metadataIntent: MetadataIntentPatch,
+	): Promise<MetadataIntentValidationResult> =>
+		commandSpecs.validate_metadata_intent_patch({ metadataIntent }),
 	saveMetadataIntentToFile: (
 		filePath: string,
 		metadataIntent: MetadataIntentPatch,

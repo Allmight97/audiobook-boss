@@ -10,7 +10,10 @@
 ## Allowed Agent Edits Without Escalation
 - Change private adapters when `scripts/proof.sh runtime` stays green.
 - Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
-- Keep metadata intent operations explicit as `set | clear | noop`; compile patch intent here, not in scattered UI callsites.
+- Keep metadata intent operations explicit as `set | clear | noop`; compile
+  patch intent here, not in scattered UI callsites. Canonical metadata
+  validation and normalization come from Rust metadata commands, not local TS
+  rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.
 
 ## Breaking-Change Triggers

@@ -1,4 +1,9 @@
-import type { MetadataIntentPatch as GeneratedMetadataIntentPatch } from '../lib/generated/tauri';
+import type {
+	MetadataIntentFieldError as GeneratedMetadataIntentFieldError,
+	MetadataIntentPatch as GeneratedMetadataIntentPatch,
+	MetadataIntentValidationField as GeneratedMetadataIntentValidationField,
+	MetadataIntentValidationResult as GeneratedMetadataIntentValidationResult,
+} from '../lib/generated/tauri';
 import type { AudiobookMetadata } from './metadata';
 
 export const METADATA_INTENT_FIELDS = [
@@ -45,6 +50,10 @@ export type MetadataIntentPatch = Partial<{
 	[K in MetadataIntentField]: MetadataFieldIntent<K>;
 }>;
 
+export type MetadataIntentValidationField = GeneratedMetadataIntentValidationField;
+export type MetadataIntentFieldError = GeneratedMetadataIntentFieldError;
+export type MetadataIntentValidationResult = GeneratedMetadataIntentValidationResult;
+
 type MetadataIntentPatchRecord = Partial<Record<MetadataIntentField, MetadataFieldIntent>>;
 
 function setMetadataIntent(
@@ -65,22 +74,6 @@ function normalizeStringInput(value: string): string {
 
 function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
-}
-
-export function normalizePublicationDate(value: string): string | null {
-	const trimmed = value.trim();
-	if (/^\d{4}$/.test(trimmed)) {
-		return trimmed;
-	}
-	const match = trimmed.match(/^(\d{4})-(\d{2})(?:[-T ].*)?$/);
-	if (!match) {
-		return null;
-	}
-	const month = Number.parseInt(match[2], 10);
-	if (!Number.isInteger(month) || month < 1 || month > 12) {
-		return null;
-	}
-	return `${match[1]}-${match[2]}`;
 }
 
 export function hasActionableMetadataIntentPatch(
@@ -175,10 +168,7 @@ export function buildMetadataIntentPatchFromMetadata(
 				setMetadataIntent(patch, key, { op: 'clear' });
 				continue;
 			}
-			const normalized = normalizePublicationDate(trimmed);
-			if (normalized) {
-				setMetadataIntent(patch, key, { op: 'set', value: normalized });
-			}
+			setMetadataIntent(patch, key, { op: 'set', value: trimmed });
 			continue;
 		}
 		if (key === 'cover_art') {
