@@ -12,7 +12,7 @@
   the owning backend module, and return `CommandResult<T>`.
 - Route product behavior through the owning Public API Strip:
   `crate::audio`, `crate::metadata`, `crate::processing`,
-  `crate::output_artifact`, or a future grey-box module.
+  `crate::output_artifact`, `crate::app_settings`, or a future grey-box module.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep
   generated TypeScript bindings in sync.
 - Use `tokio::task::spawn_blocking` for synchronous file/media work reached from

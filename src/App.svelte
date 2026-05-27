@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
 	import { fileListViewState } from './ui/fileList/viewState.svelte';
 	import EncoderPanelIsland from './ui/encoderPanel/EncoderPanelIsland.svelte';
@@ -27,6 +28,7 @@
 	import { saveMetadataFromUI } from './ui/core/actions';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
 	import PreviewAudioControls from './ui/previewAudio/PreviewAudioControls.svelte';
+	import { initializeAppSettingsControlPlane } from './ui/appSettings';
 
 	function handleGlobalKeyDown(event: KeyboardEvent): void {
 		if ((event.metaKey || event.ctrlKey) && event.key === 's') {
@@ -34,9 +36,13 @@
 			void saveMetadataFromUI();
 		}
 	}
+
+	onMount(() => {
+		void initializeAppSettingsControlPlane();
+	});
 </script>
 
-<svelte:window on:keydown={handleGlobalKeyDown} />
+<svelte:window onkeydown={handleGlobalKeyDown} />
 
 <div class="main-container">
 	<div class="panel input-panel">

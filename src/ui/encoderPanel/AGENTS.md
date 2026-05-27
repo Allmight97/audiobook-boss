@@ -1,6 +1,7 @@
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
-- Exports: `readEncodingRequestConfig`.
+- Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,
+  `readEncodingRequestConfig`.
 
 ## Private Cluster
 - Files: `EncoderPanelIsland.svelte`, `autoResolutionHints.ts`, `logic.ts`, `state.svelte.ts`, `toolchainValidationWorkflow.ts`, `toolchainValidationWorkflowLive.ts`, `toolchainValidationWorkflowServices.ts`, `__tests__/`.
@@ -11,6 +12,9 @@
   `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
   when public-strip or runtime contract surfaces change.
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
+- Keep App Settings hydration/persistence coordination behind
+  `applyEncodingDefaults` and `readEncoderDefaultsFromState`; do not let other
+  panels reach into `state.svelte.ts`.
 - Keep estimated-size updates derived from encoder state; do not mirror encoder/toolchain/sample-rate state into output or status panels.
 
 ## Breaking-Change Triggers

@@ -15,6 +15,9 @@ export const commands = {
 	 *  Demonstrates parameter passing in Tauri commands
 	 */
 	echo: (input: string) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("echo", { input })),
+	getAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings")),
+	updateAppSettings: (patch: AppSettingsPatch) => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("update_app_settings", { patch })),
+	resetAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("reset_app_settings")),
 	/**
 	 *  Validates that all provided file paths exist and are files
 	 *  Accepts an array of file paths and checks file existence
@@ -154,6 +157,18 @@ export type AppErrorEnvelope = {
 	detail: string | null,
 };
 
+export type AppSettings = {
+	maxConcurrentJobs: ConcurrencyPreference,
+	encoderDefaults: EncoderDefaults,
+	outputDefaults: OutputDefaults,
+};
+
+export type AppSettingsPatch = {
+	maxConcurrentJobs: ConcurrencyPreference | null,
+	encoderDefaults: EncoderDefaults | null,
+	outputDefaults: OutputDefaults | null,
+};
+
 // Represents an audio file with metadata
 export type AudioFile = {
 	// File path
@@ -237,6 +252,8 @@ export type ChannelConfig = "auto" | "mono" | "stereo";
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
+export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
+
 // Machine-readable decoder identity paired with the friendly display label.
 export type DecoderSelection = {
 	// Stable decoder identifier used for routing and comparisons.
@@ -260,6 +277,12 @@ export type EncoderAvailability = {
 };
 
 export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override";
+
+export type EncoderDefaults = {
+	settings: EncoderSettings,
+	sampleRate: SampleRateConfig,
+	externalToolchain: ExternalToolchainPreference,
+};
 
 // Advanced encoder settings payload
 export type EncoderSettings = {
@@ -411,6 +434,11 @@ export type OutputCollisionInfo = {
 };
 
 export type OutputCollisionKind = "existing_file" | "batch_duplicate" | "source_destination_overlap" | "canonical_path_overlap" | "case_insensitive_match";
+
+export type OutputDefaults = {
+	outputDirectory: string | null,
+	outputNaming: OutputNamingConfig,
+};
 
 export type OutputKind = "final" | "preview";
 

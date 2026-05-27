@@ -29,6 +29,16 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Frontend: `src/lib/tauri/client.ts`
   - Use: smoke/debug wiring
 
+### App Settings
+
+- `get_app_settings`, `update_app_settings`, `reset_app_settings`
+  - Rust: `src-tauri/src/commands/app_settings.rs`
+  - Core owner: `src-tauri/src/app_settings/`
+  - Frontend: `src/ui/appSettings/` through `src/lib/tauri/client.ts`
+  - Use: durable preference hydration and persistence for existing controls.
+    Runtime-coupled values, such as max concurrency, are accepted by their
+    runtime owner first and then persisted as settings truth.
+
 ### Audio Analysis And Processing
 
 - `validate_files`, `analyze_audio_files`

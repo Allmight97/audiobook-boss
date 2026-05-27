@@ -1,6 +1,8 @@
 import { updateEstimatedSize } from '../outputPanel/preview';
 import {
+	applyEncoderDefaults,
 	encoderPanelState,
+	readEncoderDefaultsFromState,
 	setChannelsAutoHint,
 	setExternalToolchainOverridePath,
 	setSampleRateAutoHint,
@@ -9,8 +11,10 @@ import {
 } from './state.svelte';
 import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability } from '../../types/audio';
+import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 import { runToolchainValidationWorkflow } from './toolchainValidationWorkflow';
+import { persistEncoderDefaults } from '../appSettings/persistence';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -221,6 +225,24 @@ export const syncAfterStateChange = (): void => {
 	syncOutputSizingFromEncoderState();
 };
 
+const readAcceptedEncoderDefaultsFromState = (): EncoderDefaults => {
+	const defaults = readEncoderDefaultsFromState();
+	if (
+		encoderPanelState.externalToolchainOverridePath.trim() &&
+		encoderPanelState.availability?.overrideInvalid
+	) {
+		return {
+			...defaults,
+			externalToolchain: {},
+		};
+	}
+	return defaults;
+};
+
+const persistCurrentEncoderDefaults = (): void => {
+	void persistEncoderDefaults(readAcceptedEncoderDefaultsFromState());
+};
+
 export const syncEncoderPanelAfterAvailabilityChange = (): void => {
 	syncEncoderState();
 	syncOutputSizingFromEncoderState();
@@ -236,10 +258,17 @@ export const initializeEncoderPanelLogic = (): void => {
 	void runToolchainValidationWorkflow({ type: 'hydrateAvailability' });
 };
 
+export const applyEncodingDefaults = (defaults: EncoderDefaults): void => {
+	applyEncoderDefaults(defaults);
+	syncAfterStateChange();
+	void runToolchainValidationWorkflow({ type: 'hydrateAvailability' });
+};
+
 export const handleFlavorChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLSelectElement | null;
 	encoderPanelState.flavor = (target?.value as EncoderFlavor | undefined) ?? 'auto';
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };
 
 export const handleBitrateModeChange = (event: Event): void => {
@@ -249,6 +278,7 @@ export const handleBitrateModeChange = (event: Event): void => {
 		encoderPanelState.bitrateModeSelection = value;
 	}
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };
 
 export const handleChannelsSelectionChange = (event: Event): void => {
@@ -258,6 +288,7 @@ export const handleChannelsSelectionChange = (event: Event): void => {
 		encoderPanelState.channelsSelection = value;
 	}
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };
 
 export const handleQualityValueChange = (event: Event): void => {
@@ -265,6 +296,7 @@ export const handleQualityValueChange = (event: Event): void => {
 	const value = Number.parseInt(target?.value ?? '3', 10);
 	encoderPanelState.qualityValue = clamp(value, 1, 5) as VbrLevel;
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };
 
 export const handleBitrateValueChange = (event: Event): void => {
@@ -274,16 +306,19 @@ export const handleBitrateValueChange = (event: Event): void => {
 		encoderPanelState.bitrateValue = value as typeof encoderPanelState.bitrateValue;
 	}
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };
 
 export const handleFdkAfterburnerChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
+	persistCurrentEncoderDefaults();
 };
 
 export const handleNativeTwoloopChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLInputElement | null;
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
+	persistCurrentEncoderDefaults();
 };
 
 export const handleToolchainPathInput = (event: Event): void => {
@@ -293,15 +328,20 @@ export const handleToolchainPathInput = (event: Event): void => {
 
 export const handleToolchainPathCommit = (): void => {
 	syncAfterStateChange();
-	void runToolchainValidationWorkflow({ type: 'commitOverride' });
+	void runToolchainValidationWorkflow({ type: 'commitOverride' }).then(() => {
+		persistCurrentEncoderDefaults();
+	});
 };
 
 export const handleToolchainBrowse = async (): Promise<void> => {
 	await runToolchainValidationWorkflow({ type: 'browseToolchain' });
+	persistCurrentEncoderDefaults();
 };
 
 export const clearToolchainOverride = (): void => {
-	void runToolchainValidationWorkflow({ type: 'clearOverride' });
+	void runToolchainValidationWorkflow({ type: 'clearOverride' }).then(() => {
+		persistCurrentEncoderDefaults();
+	});
 };
 
 export const refreshExternalToolchain = (): void => {
@@ -312,4 +352,5 @@ export const handleSampleRateSelectionChange = (event: Event): void => {
 	const target = event.currentTarget as HTMLSelectElement | null;
 	encoderPanelState.sampleRateSelection = target?.value ?? 'auto';
 	syncAfterStateChange();
+	persistCurrentEncoderDefaults();
 };

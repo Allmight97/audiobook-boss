@@ -54,7 +54,7 @@
 	class:open={collisionDialogState.isOpen}
 	data-testid="collision-dialog-modal"
 	aria-hidden={!collisionDialogState.isOpen}
-	on:click={handleBackdropClick}
+	onclick={handleBackdropClick}
 >
 	<div class="app-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="collision-dialog-title">
 		<div class="app-modal-header">
@@ -64,7 +64,7 @@
 				class="btn-pill btn-pill-secondary"
 				data-testid="collision-dialog-close"
 				type="button"
-				on:click={cancelCollisionDialog}
+				onclick={cancelCollisionDialog}
 			>
 				Cancel
 			</button>
@@ -106,7 +106,7 @@
 						class="btn-pill btn-pill-primary"
 						data-testid="collision-dialog-replace"
 						type="button"
-						on:click={() => chooseCollisionPolicy('replace_existing')}
+						onclick={() => chooseCollisionPolicy('replace_existing')}
 					>
 						Overwrite Existing
 					</button>
@@ -117,7 +117,7 @@
 						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-skip"
 						type="button"
-						on:click={() => chooseCollisionPolicy('skip_existing')}
+						onclick={() => chooseCollisionPolicy('skip_existing')}
 					>
 						Skip Existing
 					</button>
@@ -128,7 +128,7 @@
 						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-rename"
 						type="button"
-						on:click={() => chooseCollisionPolicy('rename_new')}
+						onclick={() => chooseCollisionPolicy('rename_new')}
 					>
 						Keep Existing
 					</button>
@@ -139,7 +139,7 @@
 						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-cancel"
 						type="button"
-						on:click={cancelCollisionDialog}
+						onclick={cancelCollisionDialog}
 					>
 						Cancel
 					</button>

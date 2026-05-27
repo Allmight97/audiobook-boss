@@ -35,17 +35,17 @@
 	}
 </script>
 
-<svelte:window on:click={handleWindowClick} />
+<svelte:window onclick={handleWindowClick} />
 
 <div class="split-button">
-	<button id="preview-button" class="btn-pill btn-pill-primary split-main" on:click={handlePreviewButtonClick}>
+	<button id="preview-button" class="btn-pill btn-pill-primary split-main" onclick={handlePreviewButtonClick}>
 		Preview Audio
 	</button>
 	<button
 		id="preview-dropdown-toggle"
 		class="btn-pill btn-pill-primary split-caret"
 		bind:this={previewDropdownToggleElement}
-		on:click={handlePreviewDropdownToggle}
+		onclick={handlePreviewDropdownToggle}
 	>
 		▼
 	</button>
@@ -55,16 +55,16 @@
 		class:open={previewDropdownOpen}
 		bind:this={previewDropdownElement}
 	>
-		<button class="split-option" data-duration="15" on:click={() => handlePreviewDurationSelect(15)}>
+		<button class="split-option" data-duration="15" onclick={() => handlePreviewDurationSelect(15)}>
 			15 seconds
 		</button>
-		<button class="split-option" data-duration="30" on:click={() => handlePreviewDurationSelect(30)}>
+		<button class="split-option" data-duration="30" onclick={() => handlePreviewDurationSelect(30)}>
 			30 seconds
 		</button>
-		<button class="split-option" data-duration="45" on:click={() => handlePreviewDurationSelect(45)}>
+		<button class="split-option" data-duration="45" onclick={() => handlePreviewDurationSelect(45)}>
 			45 seconds
 		</button>
-		<button class="split-option" data-duration="60" on:click={() => handlePreviewDurationSelect(60)}>
+		<button class="split-option" data-duration="60" onclick={() => handlePreviewDurationSelect(60)}>
 			60 seconds
 		</button>
 	</div>

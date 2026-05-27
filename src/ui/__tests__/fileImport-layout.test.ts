@@ -37,8 +37,8 @@ describe('file import layout', () => {
 	});
 
 	it('keeps file-list keyboard handling local to the file-management region', () => {
-		expect(importIslandSource).not.toContain('<svelte:window on:keydown={onFileListKeyDown}');
+		expect(importIslandSource).not.toContain('<svelte:window onkeydown={onFileListKeyDown}');
 		expect(importIslandSource).toContain('tabindex="0"');
-		expect(importIslandSource).toContain('on:keydown={onFileListKeyDown}');
+		expect(importIslandSource).toContain('onkeydown={onFileListKeyDown}');
 	});
 });

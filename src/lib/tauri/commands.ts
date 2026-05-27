@@ -1,14 +1,20 @@
 import {
 	commands as generatedCommands,
+	type AppSettingsPatch as GeneratedAppSettingsPatch,
+	type EncoderDefaults as GeneratedEncoderDefaults,
+	type ExternalToolchainPreference as GeneratedExternalToolchainPreference,
+	type OutputDefaults as GeneratedOutputDefaults,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 } from '../generated/tauri';
 import type {
 	EncoderSettings,
 	ExternalToolchainPreference,
+	OutputNamingConfig,
 	OutputKind,
 	ProcessPayload,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
+import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
@@ -26,7 +32,6 @@ import {
 } from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
-type GeneratedExternalToolchain = { overridePath: string | null };
 
 type UnwrapGeneratedResult<T> = T extends { status: 'error' }
 	? never
@@ -54,7 +59,7 @@ async function runGeneratedCommand<T, R>(
 
 function toGeneratedExternalToolchain(
 	externalToolchain?: ExternalToolchainPreference | null,
-): GeneratedExternalToolchain | null {
+): GeneratedExternalToolchainPreference | null {
 	return externalToolchain
 		? {
 				overridePath: externalToolchain.overridePath ?? null,
@@ -62,18 +67,51 @@ function toGeneratedExternalToolchain(
 		: null;
 }
 
-function toGeneratedOutputNamingConfig(
-	outputNaming?: ProcessPayload['outputNaming'] | null,
-): GeneratedOutputNamingConfig | null {
-	if (!outputNaming) {
-		return null;
-	}
-
+function toGeneratedRequiredOutputNamingConfig(
+	outputNaming: OutputNamingConfig,
+): GeneratedOutputNamingConfig {
 	const denormalized = denormalizeNullish(outputNaming);
 	return {
 		preset: denormalized.preset,
 		includeYear: denormalized.includeYear,
 		customTemplate: denormalized.customTemplate ?? null,
+	};
+}
+
+function toGeneratedOutputNamingConfig(
+	outputNaming?: ProcessPayload['outputNaming'] | null,
+): GeneratedOutputNamingConfig | null {
+	return outputNaming ? toGeneratedRequiredOutputNamingConfig(outputNaming) : null;
+}
+
+function toGeneratedEncoderDefaults(
+	defaults: AppSettings['encoderDefaults'],
+): GeneratedEncoderDefaults {
+	return {
+		settings: defaults.settings,
+		sampleRate: defaults.sampleRate,
+		externalToolchain: toGeneratedExternalToolchain(defaults.externalToolchain) ?? {
+			overridePath: null,
+		},
+	};
+}
+
+function toGeneratedOutputDefaults(
+	defaults: AppSettings['outputDefaults'],
+): GeneratedOutputDefaults {
+	return {
+		outputDirectory: defaults.outputDirectory ?? null,
+		outputNaming: toGeneratedRequiredOutputNamingConfig(defaults.outputNaming),
+	};
+}
+
+function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSettingsPatch {
+	return {
+		maxConcurrentJobs: patch.maxConcurrentJobs ?? null,
+		encoderDefaults: patch.encoderDefaults
+			? toGeneratedEncoderDefaults(patch.encoderDefaults)
+			: null,
+		outputDefaults: patch.outputDefaults ? toGeneratedOutputDefaults(patch.outputDefaults) : null,
 	};
 }
 
@@ -102,6 +140,19 @@ function compileMetadataSaveRequests(items: MetadataSaveRequest[]): MetadataSave
 export const commandSpecs = {
 	ping: (_args?: undefined) => runGeneratedCommand(generatedCommands.ping()),
 	echo: (args: { input: string }) => runGeneratedCommand(generatedCommands.echo(args.input)),
+	get_app_settings: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.getAppSettings(), (settings) =>
+			normalizeNullish(settings),
+		),
+	update_app_settings: (args: { patch: AppSettingsPatch }) =>
+		runGeneratedCommand(
+			generatedCommands.updateAppSettings(toGeneratedAppSettingsPatch(args.patch)),
+			(settings) => normalizeNullish(settings),
+		),
+	reset_app_settings: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.resetAppSettings(), (settings) =>
+			normalizeNullish(settings),
+		),
 	validate_files: (args: { filePaths: string[] }) =>
 		runGeneratedCommand(generatedCommands.validateFiles(args.filePaths)),
 	read_audio_metadata: (args: { filePath: string }) =>

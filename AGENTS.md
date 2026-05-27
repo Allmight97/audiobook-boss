@@ -1,10 +1,5 @@
 # General Project Guidelines
 
-## Scope
-
-- This file defines repo-wide agent policy.
-- Directory-level invariants belong in the nearest nested `AGENTS.md`.
-
 ## Long-Horizon Planning
 
 Use `.agents/skills/decision-alignment` for repo-specific alignment work that
@@ -44,7 +39,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 
 - Use `docs/system-map.md` for product spine, layer ownership, and core truth boundaries before changing architecture.
 - Use `docs/ubiquitous-language.md` for canonical terms such as Grey-Box Module, Public API Strip, Private Cluster, Reach-Through, and Boundary Assertion.
-- The current grey-box Public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, and Audio Engine Deep Module.
+- The current grey-box Public APIs are Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, and App Settings.
 - Nearest nested `AGENTS.md` files own their local Public API Strip, Private Cluster, allowed-edit, and breaking-change rules.
 - Use `docs/api-map.md` only as the runtime command/event index; do not treat it as an architecture spec.
 
@@ -161,3 +156,5 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
   - app behavior, contracts, dependency resolution, build/test semantics,
     release artifacts, or broad config semantics: `scripts/proof.sh standard`
 - Final delivery includes changes made, validation performed, and residual risk notes.
+
+Concisely Log each architectural, design, or organizational decision (outside of any explicit direction) you and repo owner make to a `docs/DECISIONS.md` markdown file within this project. Justify those decisions with standards backed evidence and explain why you chose to make that decision independent of any prompt.

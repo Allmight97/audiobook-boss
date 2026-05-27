@@ -51,7 +51,7 @@
       <button
         id="output-dir-browse"
         class="btn-pill btn-pill-primary-soft"
-        on:click={handleBrowseClick}
+        onclick={handleBrowseClick}
       >
         Browse…
       </button>
@@ -64,7 +64,7 @@
           id="output-naming-preset"
           class="w-auto min-w-40"
           value={outputPanelState.namingPreset}
-          on:change={handleNamingPresetChange}
+          onchange={handleNamingPresetChange}
         >
           <option value="absDefault">ABS Default</option>
           <option value="customTemplate">Custom Template</option>
@@ -88,7 +88,7 @@
 	          class="w-full"
 	          value={outputPanelState.namingTemplate}
 	          placeholder={customTemplatePlaceholder}
-	          on:input={handleNamingTemplateInput}
+	          oninput={handleNamingTemplateInput}
 	          autocomplete="off"
 	          spellcheck="false"
 	        />
@@ -99,7 +99,7 @@
             type="checkbox"
             id="output-abs-include-year"
             checked={outputPanelState.absIncludeYear}
-            on:change={handleAbsIncludeYearChange}
+            onchange={handleAbsIncludeYearChange}
           />
           Include year segment (YYYY)
         </label>

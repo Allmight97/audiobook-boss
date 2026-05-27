@@ -8,6 +8,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             crate::commands::ping,
             crate::commands::echo,
+            crate::commands::get_app_settings,
+            crate::commands::update_app_settings,
+            crate::commands::reset_app_settings,
             crate::commands::validate_files,
             crate::commands::read_audio_metadata,
             crate::commands::write_cover_art,
