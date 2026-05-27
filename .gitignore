@@ -82,3 +82,8 @@ opencode.json
 
 # Generated human-facing artifacts belong under .artifacts, not docs canon
 /docs/artifacts/
+
+# Proof A/B experiment build outputs (harness under experiments/)
+/experiments/**/target/
+/experiments/**/results/
+/experiments/**/results-real/
