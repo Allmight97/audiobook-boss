@@ -17,3 +17,11 @@ Basis: direct dependency inventory, RustSec audit, crates.io/docs.rs version dat
 - Updated only `reqwest` in this release because it was the only direct Rust dependency in ABB's metadata lookup and cover-art fetch path with a newer available crate release.
 - Left `ffmpeg-next`, `ffmpeg-sys-next`, `mp4ameta`, `image`, `chrono`, and `urlencoding` unchanged because the direct crates are already at their latest available versions. The vendored `ffmpeg-sys-next` build remains on the 8.1 wrapper line and builds from FFmpeg's `release/8.1` branch when the bundled feature compiles FFmpeg.
 - Did not widen this release into Tauri, frontend, or unrelated Cargo lockfile updates. That would mix a focused media/metadata dependency release with broader runtime/tooling churn and increase release proof scope without a specific security trigger.
+
+## 2026-05-27 - Runtime Settings Capability Contract
+
+Basis: `docs/system-map.md` ownership boundaries, the Audio Engine public strip, JobRegistry concurrency invariants, and Specta-generated TS/Rust contract parity.
+
+- Added one runtime settings capability command that aggregates Audio Engine encoder settings facts and JobRegistry concurrency facts instead of letting UI controls carry independent accept/reject tables.
+- Kept App Settings as durable preference storage only. Encoder mode/range validity remains owned by Audio, and max-concurrency bounds remain owned by JobRegistry.
+- Kept the capability command as a Tauri boundary adapter rather than a new settings store or frontend fallback layer, so generated bindings and runtime tests can catch drift in the same proof route as other IPC contracts.

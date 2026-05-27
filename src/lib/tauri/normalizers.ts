@@ -23,12 +23,14 @@ import type {
 	ProcessPayload as GeneratedProcessPayload,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
+	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 } from '../generated/tauri';
 import type {
 	EncoderAvailability,
 	FileListInfo,
 	ProcessCommandResult,
 	ProcessPayload,
+	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type {
 	AudiobookMetadata,
@@ -175,6 +177,12 @@ export function normalizeEncoderAvailability(
 	availability: GeneratedEncoderAvailability,
 ): EncoderAvailability {
 	return normalizeNullish(availability);
+}
+
+export function normalizeRuntimeSettingsCapabilities(
+	capabilities: GeneratedRuntimeSettingsCapabilities,
+): RuntimeSettingsCapabilities {
+	return normalizeNullish(capabilities);
 }
 
 export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {

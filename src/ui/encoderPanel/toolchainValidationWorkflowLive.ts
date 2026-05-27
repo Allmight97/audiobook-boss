@@ -1,9 +1,10 @@
-import { tauriClient } from '../../lib/tauri/client';
 import {
 	readToolchainSettingsFromState,
-	setEncoderAvailability,
+	setEncoderSettingsCapabilities,
 	setExternalToolchainOverridePath,
 } from './state.svelte';
+import { tauriClient } from '../../lib/tauri/client';
+import { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 import { syncAfterStateChange, syncEncoderPanelAfterAvailabilityChange } from './logic';
 import {
 	makeToolchainValidationWorkflowServicesLayer,
@@ -12,13 +13,12 @@ import {
 
 export const liveToolchainValidationWorkflowServices: ToolchainValidationWorkflowServices = {
 	readToolchainSettingsFromState,
-	setEncoderAvailability,
+	setEncoderSettingsCapabilities,
 	setExternalToolchainOverridePath,
 	syncAfterAvailabilityChange: syncEncoderPanelAfterAvailabilityChange,
 	syncAfterToolchainPathChange: syncAfterStateChange,
 	openFile: tauriClient.openFile,
-	listAvailableEncoders: tauriClient.listAvailableEncoders,
-	refreshExternalToolchain: tauriClient.refreshExternalToolchain,
+	hydrateRuntimeSettingsCapabilities,
 	console,
 };
 

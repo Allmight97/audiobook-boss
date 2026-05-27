@@ -51,14 +51,15 @@
 			style:height={'24px'}
 			style:opacity={jobControlsState.controlsEnabled ? 1 : 0.5}
 			value={jobControlsState.maxConcurrentSelection}
-			disabled={!jobControlsState.controlsEnabled}
+			disabled={!jobControlsState.controlsEnabled || !jobControlsState.maxConcurrentCapabilities}
 			onchange={handleMaxConcurrentSelectionChange}
 		>
-			<option value="auto">Auto</option>
-			<option value="1">1</option>
-			<option value="2">2</option>
-			<option value="3">3</option>
-			<option value="4">4</option>
+			{#if jobControlsState.maxConcurrentCapabilities?.allowAuto}
+				<option value="auto">Auto</option>
+			{/if}
+			{#each jobControlsState.maxConcurrentCapabilities?.fixedOptions ?? [] as option}
+				<option value={String(option)}>{option}</option>
+			{/each}
 		</select>
 		<span
 			id="max-concurrent-effective"

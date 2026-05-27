@@ -5,17 +5,20 @@ import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
 import { outputPanelState } from '../outputPanel/state.svelte';
+import {
+	encoderAvailabilityFixture,
+	runtimeSettingsCapabilitiesFixture,
+} from '../../test/fixtures/runtimeSettingsCapabilities';
+import { runtimeSettingsCapabilitiesState } from '../runtimeSettingsCapabilities.svelte';
 
 const context = vi.hoisted(() => ({
-	listAvailableEncodersMock: vi.fn(),
-	refreshExternalToolchainMock: vi.fn(),
+	getRuntimeSettingsCapabilitiesMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		listAvailableEncoders: context.listAvailableEncodersMock,
-		refreshExternalToolchain: context.refreshExternalToolchainMock,
+		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
 		openFile: vi.fn(),
 		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
@@ -27,43 +30,30 @@ vi.mock('../fileList/state.svelte', () => ({
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
-const availabilityFixture = (overrides: {
-	fdkAvailable: boolean;
-	aacAtAvailable: boolean;
-	nativeAacAvailable: boolean;
-}) => ({
-	...overrides,
-	fdkSource: overrides.fdkAvailable ? 'detected' : 'none',
-	autoEncoder: overrides.fdkAvailable
-		? 'fdk_he_aac'
-		: overrides.aacAtAvailable
-			? 'aac_at'
-			: 'native_aac',
-	detectedToolchainPath: overrides.fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
-	overrideToolchainPath: undefined,
-	activeToolchainPath: overrides.fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
-	overrideInvalid: false,
-	overrideError: undefined,
-	statusMessage: overrides.fdkAvailable
-		? 'FDK AAC detected and ready.'
-		: 'No external FFmpeg toolchain with libfdk_aac was detected.',
-});
-
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+const waitForEncoderOptions = async (): Promise<void> => {
+	await vi.waitFor(() => {
+		const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
+		expect(select?.options.length).toBeGreaterThan(1);
+	});
+};
+
 describe('encoder panel behavior controls', () => {
 	beforeEach(() => {
-		context.listAvailableEncodersMock.mockReset();
-		context.refreshExternalToolchainMock.mockReset();
+		context.getRuntimeSettingsCapabilitiesMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [{ path: '/books/a.m4b', isValid: true }],
 			totalDuration: 3600,
 		});
 		resetEncoderPanelState();
+		runtimeSettingsCapabilitiesState.capabilities = null;
+		runtimeSettingsCapabilitiesState.loadError = null;
+		runtimeSettingsCapabilitiesState.loading = false;
 		outputPanelState.estimatedSizeText = '~ --- MB';
 	});
 
@@ -75,17 +65,22 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('shows afterburner for FDK and collapses the spacerless layout into behavior controls', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
 		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
 			const behaviorRow = document.getElementById('encoder-inline-option-row');
@@ -108,17 +103,22 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('keeps afterburner enabled in encoding config when auto resolves to FDK', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
 		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
 			const config = readEncodingRequestConfig();
@@ -127,18 +127,61 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('shows twoloop only for manual Native AAC and hides all behavior controls for Apple AAC', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+	it('renders encoder option ranges from runtime capabilities', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+					bitrateKbpsOptions: [64, 96],
+					explicitSampleRates: [44100],
+					channelOptions: ['auto', 'mono'],
+				},
 			}),
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
 		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
+
+		await vi.waitFor(() => {
+			const bitrateValues = Array.from(
+				(document.getElementById('output-bitrate') as HTMLSelectElement).options,
+			).map((option) => option.value);
+			const sampleRateValues = Array.from(
+				(document.getElementById('output-samplerate') as HTMLSelectElement).options,
+			).map((option) => option.value);
+			const channelValues = Array.from(
+				(document.getElementById('output-channels') as HTMLSelectElement).options,
+			).map((option) => option.value);
+
+			expect(bitrateValues).toEqual(['64', '96']);
+			expect(sampleRateValues).toEqual(['auto', '44100']);
+			expect(channelValues).toEqual(['auto', 'mono']);
+		});
+	});
+
+	it('shows twoloop only for manual Native AAC and hides all behavior controls for Apple AAC', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
+		render(EncoderPanelIsland);
+		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
 			expect(
@@ -171,11 +214,15 @@ describe('encoder panel behavior controls', () => {
 		encoderPanelState.flavor = 'native_aac';
 		encoderPanelState.fdkAfterburner = false;
 		encoderPanelState.nativeTwoloop = false;
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
@@ -199,17 +246,22 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('updates estimated size when encoder bitrate and channel choices change', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
 		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
 
 		const encoderSelect = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(encoderSelect, 'native_aac');
@@ -237,19 +289,51 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
+	it('uses the capability VBR range without underestimating higher quality levels', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
+		render(EncoderPanelIsland);
+		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
+
+		const qualitySelect = document.getElementById('output-quality') as HTMLSelectElement;
+		changeSelectValue(qualitySelect, '5');
+
+		await vi.waitFor(() => {
+			expect(document.getElementById('estimated-bitrate')?.textContent).toBe('Est: ~96 kbps');
+		});
+	});
+
 	it('keeps the current session toolchain override path on init', async () => {
 		encoderPanelState.externalToolchainOverridePath = '/custom/ffmpeg';
-		context.listAvailableEncodersMock.mockResolvedValue({
-			...availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: {
+						...encoderAvailabilityFixture({
+							fdkAvailable: true,
+							aacAtAvailable: true,
+							nativeAacAvailable: true,
+						}),
+						fdkSource: 'override',
+						overrideToolchainPath: '/custom/ffmpeg',
+						activeToolchainPath: '/custom/ffmpeg',
+						statusMessage: 'FDK AAC is using the saved override path.',
+					},
+				},
 			}),
-			fdkSource: 'override',
-			overrideToolchainPath: '/custom/ffmpeg',
-			activeToolchainPath: '/custom/ffmpeg',
-			statusMessage: 'FDK AAC is using the saved override path.',
-		});
+		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
@@ -264,11 +348,15 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('shows a compact missing-FDK state with the override input when detection fails', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: false,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: false,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
@@ -286,20 +374,29 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('refreshes FDK availability without requiring restart', async () => {
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: false,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
-			}),
-		);
-		context.refreshExternalToolchainMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
-			}),
-		);
+		context.getRuntimeSettingsCapabilitiesMock
+			.mockResolvedValueOnce(
+				runtimeSettingsCapabilitiesFixture({
+					encoder: {
+						availability: encoderAvailabilityFixture({
+							fdkAvailable: false,
+							aacAtAvailable: true,
+							nativeAacAvailable: true,
+						}),
+					},
+				}),
+			)
+			.mockResolvedValueOnce(
+				runtimeSettingsCapabilitiesFixture({
+					encoder: {
+						availability: encoderAvailabilityFixture({
+							fdkAvailable: true,
+							aacAtAvailable: true,
+							nativeAacAvailable: true,
+						}),
+					},
+				}),
+			);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
@@ -323,17 +420,23 @@ describe('encoder panel behavior controls', () => {
 
 	it('keeps the override input visible when the current session path is invalid', async () => {
 		encoderPanelState.externalToolchainOverridePath = '/broken/ffmpeg';
-		context.listAvailableEncodersMock.mockResolvedValue({
-			...availabilityFixture({
-				fdkAvailable: true,
-				aacAtAvailable: true,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: {
+						...encoderAvailabilityFixture({
+							fdkAvailable: true,
+							aacAtAvailable: true,
+							nativeAacAvailable: true,
+						}),
+						overrideToolchainPath: '/broken/ffmpeg',
+						overrideInvalid: true,
+						overrideError: "FFmpeg executable not found at 'ffmpeg'.",
+						statusMessage: 'Saved override path is invalid. Auto-detected FDK AAC is active.',
+					},
+				},
 			}),
-			overrideToolchainPath: '/broken/ffmpeg',
-			overrideInvalid: true,
-			overrideError: "FFmpeg executable not found at 'ffmpeg'.",
-			statusMessage: 'Saved override path is invalid. Auto-detected FDK AAC is active.',
-		});
+		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
@@ -354,11 +457,15 @@ describe('encoder panel behavior controls', () => {
 
 	it('normalizes a session-selected unavailable Apple AAC flavor back to auto', async () => {
 		encoderPanelState.flavor = 'aac_at';
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: false,
-				aacAtAvailable: false,
-				nativeAacAvailable: true,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: false,
+						aacAtAvailable: false,
+						nativeAacAvailable: true,
+					}),
+				},
 			}),
 		);
 
@@ -379,11 +486,15 @@ describe('encoder panel behavior controls', () => {
 
 	it('normalizes a session-selected unavailable native AAC flavor back to auto', async () => {
 		encoderPanelState.flavor = 'native_aac';
-		context.listAvailableEncodersMock.mockResolvedValue(
-			availabilityFixture({
-				fdkAvailable: false,
-				aacAtAvailable: true,
-				nativeAacAvailable: false,
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: false,
+						aacAtAvailable: true,
+						nativeAacAvailable: false,
+					}),
+				},
 			}),
 		);
 

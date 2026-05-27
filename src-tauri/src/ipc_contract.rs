@@ -26,6 +26,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::validate_encoder_settings,
             crate::commands::list_available_encoders,
             crate::commands::refresh_external_toolchain,
+            crate::commands::get_runtime_settings_capabilities,
             crate::commands::preview_output_path,
             crate::commands::preflight_processing_plan,
             crate::commands::get_max_concurrent_jobs,

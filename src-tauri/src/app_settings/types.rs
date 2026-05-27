@@ -112,12 +112,14 @@ impl ConcurrencyPreference {
     }
 
     fn validate(self) -> Result<()> {
+        let capabilities = crate::processing::JobRegistry::max_concurrent_jobs_capabilities();
         match self {
             Self::Auto => Ok(()),
-            Self::Fixed(value) if (1..=8).contains(&value) => Ok(()),
-            Self::Fixed(_) => Err(AppError::InvalidInput(
-                "Max concurrent jobs must be auto or a fixed value from 1 to 8.".to_string(),
-            )),
+            Self::Fixed(value) if capabilities.fixed_options.contains(&value) => Ok(()),
+            Self::Fixed(_) => Err(AppError::InvalidInput(format!(
+                "Max concurrent jobs must be auto or a fixed value from {} to {}.",
+                capabilities.fixed_min, capabilities.fixed_max
+            ))),
         }
     }
 }

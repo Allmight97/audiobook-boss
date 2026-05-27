@@ -57,6 +57,12 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain.rs`
   - Frontend: encoder and toolchain status flows via `src/lib/tauri/client.ts`
 
+- `get_runtime_settings_capabilities`
+  - Rust: `src-tauri/src/commands/audio.rs`
+  - Core helpers: `src-tauri/src/audio/settings_capabilities.rs`, `src-tauri/src/processing/job_registry/`
+  - Frontend: runtime settings controls via `src/lib/tauri/client.ts`
+  - Use: backend-owned selectable encoder and concurrency capability facts for UI controls
+
 - `preview_output_path`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helper: `src-tauri/src/output_artifact/`

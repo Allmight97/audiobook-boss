@@ -170,6 +170,26 @@ fn invalid_fixed_concurrency_is_rejected() {
 }
 
 #[test]
+fn fixed_concurrency_uses_job_registry_capability_bounds() {
+    let temp = TempDir::new().expect("temp dir");
+    let capabilities = crate::processing::JobRegistry::max_concurrent_jobs_capabilities();
+
+    let settings = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(capabilities.fixed_max)),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("max supported fixed concurrency should persist");
+
+    assert_eq!(
+        settings.max_concurrent_jobs,
+        ConcurrencyPreference::Fixed(capabilities.fixed_max)
+    );
+}
+
+#[test]
 fn blank_user_paths_normalize_to_empty_preferences() {
     let temp = TempDir::new().expect("temp dir");
     let mut encoder_defaults = AppSettings::default().encoder_defaults;

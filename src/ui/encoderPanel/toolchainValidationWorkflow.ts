@@ -42,28 +42,25 @@ function workflowPromise<A>(
 }
 
 function hydrateAvailability(
-	mode: ToolchainHydrationMode,
+	_mode: ToolchainHydrationMode,
 ): AppEffect<void, never, ToolchainValidationWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ToolchainValidationWorkflowServicesTag;
 		const settings = services.readToolchainSettingsFromState();
-		const availability = yield* workflowPromise(
-			() =>
-				mode === 'refresh'
-					? services.refreshExternalToolchain(settings)
-					: services.listAvailableEncoders(settings),
-			'Failed to load encoder availability.',
+		const capabilities = yield* workflowPromise(
+			() => services.hydrateRuntimeSettingsCapabilities(settings),
+			'Failed to load runtime settings capabilities.',
 		).pipe(
 			Effect.catchAll((error) =>
 				Effect.sync(() => {
-					services.console.warn('Failed to load encoder availability', error.cause);
+					services.console.warn('Failed to load runtime settings capabilities', error.cause);
 					return null;
 				}),
 			),
 		);
 
-		services.console.log('Encoder availability:', availability);
-		services.setEncoderAvailability(availability);
+		services.console.log('Runtime settings capabilities:', capabilities);
+		services.setEncoderSettingsCapabilities(capabilities?.encoder ?? null);
 		services.syncAfterAvailabilityChange();
 		services.console.log('Encoder panel ready');
 	});

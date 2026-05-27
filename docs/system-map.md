@@ -75,6 +75,9 @@ ownership or proof.
 - Audio engine execution owns media inspection, decoder/toolchain selection,
   encode/mux/staging behavior, and media-integrity facts behind a small public
   strip.
+- Runtime settings controls render backend-owned capability facts for selectable
+  encoder and concurrency settings; UI labels stay frontend-owned, but
+  accept/reject facts stay with Audio Engine and Job Registry.
 - Run orchestration owns dispatch and side effects; terminal outcome helpers own final status normalization.
 - Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
 - Processing adapters produce media artifacts; final results report what actually happened.

@@ -9,6 +9,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -46,6 +47,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 			}
 			case 'take_opened_audio_files':
 				return Promise.resolve([]);
+			case 'get_runtime_settings_capabilities':
+				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
 			case 'analyze_audio_files':
 				return Promise.resolve({
 					files: [
