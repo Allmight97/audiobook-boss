@@ -19,7 +19,7 @@
   normalization, and their behavior tests.
 
 ## Allowed Agent Edits Without Escalation
-- Change planner or runner internals when `scripts/proof.sh rust-contract` stays green.
+- Change planner or runner internals when `bun scripts/proof/runner.ts focus rust contract` stays green.
 - Keep preflight side-effect-free; execution may create output dirs only after review enforcement.
 - Keep runner responsibilities to encoder/toolchain validation, events, job registration, scheduler dispatch, audio execution requests through `crate::audio`, and terminal normalization.
 - Keep metadata save reporting lifecycle truth through this strip while leaving

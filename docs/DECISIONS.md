@@ -1,5 +1,29 @@
 # Decisions
 
+## 2026-05-27 - Proof Infrastructure Target Selection
+
+Basis: Cargo's documented test-target selection semantics, ABB A/B logs showing
+package-wide filters launching 29 binaries with 28 zero-test runs,
+`bun scripts/proof/runner.ts focus rust contract`, and ABB's agent-first proof
+feedback goal in `AGENTS.md`.
+
+- Made proof infrastructure responsible for rendering Cargo target selectors for
+  focused Rust proof. Agents and humans should ask for proof intent; the proof
+  surface should hide Cargo/libtest fan-out traps such as package-wide filtered
+  runs.
+- Replaced the shell-route API with `focus`, `review`, `release`, and
+  `diagnose` proof categories. The Bun runner is the executable entrypoint; the
+  route catalog, command rendering, events, logs, and summaries live under
+  `scripts/proof/`.
+- Store proof artifacts in immutable `.proof/runs/<run-id>/` directories with
+  `.proof/latest` pointing at the newest run, so focused follow-up checks do not
+  erase the broad review evidence agents need to cite.
+- Repaired the live contract proof path with `--lib` because its contract filter
+  is library-owned and the prior route emitted unrelated zero-test binaries.
+- Kept Cargo as the phase-1 Rust executor. Nextest remains a candidate for
+  later structured reporting, but ABB measurements show it is not the first
+  speed fix for focused library proof.
+
 ## 2026-05-27 - Metadata Intent Validation Contract
 
 Basis: Metadata Outcome Plan ownership in `docs/system-map.md`, Tauri runtime

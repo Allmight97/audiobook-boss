@@ -23,7 +23,7 @@
 			"Bash(git checkout:*)",
 			"Bash(git add:*)",
 			"Bash(git commit:*)",
-			"Bash(scripts/proof.sh:*)",
+			"Bash(bun scripts/proof/runner.ts:*)",
 			"Bash(bun test:*)",
 			"mcp__acp__Write",
 			"Bash(git push:*)",

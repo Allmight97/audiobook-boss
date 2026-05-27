@@ -144,4 +144,4 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 
 Read `references/subtree-management.md`, use the recorded subtree command, then
 verify subtree metadata, expected source directories, and `git status`. Do not
-run `scripts/proof.sh standard` for pure reference-source refreshes.
+run `bun scripts/proof/runner.ts review` for pure reference-source refreshes.

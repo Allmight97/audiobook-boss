@@ -55,7 +55,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
 - For docs, guidance, and reference-source changes, use focused coherence,
   source-presence verification, and targeted validators for the touched surface.
 - For behavior/runtime, IPC, dependency/toolchain, build/test semantics, or
-  release-surface changes, run `scripts/proof.sh standard` before sharing
+  release-surface changes, run `bun scripts/proof/runner.ts review` before sharing
   changes for review.
 - For release work, use `.agents/skills/release`; use `bun run app:install-local` for a launcher-visible local `/Applications` app, use `bun run app:build` only for repo-local `.app` artifact validation, and prove the DMG/GitHub Release surface before calling a release complete.
 - When instructions overlap, follow precedence from `Hard Invariants` before optimizing for style.
@@ -148,7 +148,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
     review is enough
   - UI-affecting behavior: targeted tests plus explicit visual/UX review
     evidence when static assertions cannot prove the outcome
-  - boundary/backend/runtime behavior: `scripts/proof.sh standard` plus any
+  - boundary/backend/runtime behavior: `bun scripts/proof/runner.ts review` plus any
     targeted contract/regression coverage for the touched surface
 - Verification matches scope:
   - docs/guidance changes that affect public-strip rules:
@@ -156,7 +156,7 @@ Do not introduce a separate repo-local ticket ledger or scratch task database.
   - tool/subsystem-local changes: targeted commands for the changed surface
     first
   - app behavior, contracts, dependency resolution, build/test semantics,
-    release artifacts, or broad config semantics: `scripts/proof.sh standard`
+    release artifacts, or broad config semantics: `bun scripts/proof/runner.ts review`
 - Final delivery includes changes made, validation performed, and residual risk notes.
 
 Concisely Log each architectural, design, or organizational decision (outside of any explicit direction) you and repo owner make to a `docs/DECISIONS.md` markdown file within this project. Justify those decisions with standards backed evidence and explain why you chose to make that decision independent of any prompt.

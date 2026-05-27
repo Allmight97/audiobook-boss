@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the shell proof router with the agent-facing Bun proof runner, using
+  `focus`, `review`, `release`, and `diagnose` proof intents.
+- Proof runs now write immutable `.proof/runs/<run-id>/` artifacts with
+  `summary.json`, `summary.md`, `events.ndjson`, and per-step logs.
+
+### Removed
+
+- Removed `scripts/proof.sh`; use `bun scripts/proof/runner.ts ...` or the
+  existing `bun run proof*` package scripts.
+
 ## [1.0.27] - 2026-05-27
 
 App Settings control-plane release.

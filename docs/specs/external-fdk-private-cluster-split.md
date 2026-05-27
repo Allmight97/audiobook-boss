@@ -117,7 +117,7 @@ Constraints:
 - Proof steps:
   - Focused Rust audio processor tests.
   - Cancellation/cleanup tests where deterministic without real media.
-  - `scripts/proof.sh standard`.
+  - `bun scripts/proof/runner.ts review`.
 - Expected repo-visible outcome:
   - External FDK work is reviewable by mechanism without changing user-visible
     encoding behavior.
@@ -143,7 +143,7 @@ Constraints:
   - Rust tests for progress parsing.
   - Rust tests for cancellation/error cleanup semantics where deterministic.
 - Full gate:
-  - `scripts/proof.sh standard`.
+  - `bun scripts/proof/runner.ts review`.
 - Manual or visual evidence:
   - Not required unless implementation changes actual encoder behavior.
 
