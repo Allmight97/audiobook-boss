@@ -3,7 +3,9 @@
 ## Scope
 
 - Applies to frontend runtime and UI work under `src/`.
-- IPC and metadata intent source-of-truth lives in `src/lib/tauri/AGENTS.md`.
+- IPC adapters live under `src/lib/tauri/AGENTS.md`; canonical metadata
+  intent validation and normalization live in the Rust Metadata Outcome
+  boundary.
 
 ## Preferred Path
 

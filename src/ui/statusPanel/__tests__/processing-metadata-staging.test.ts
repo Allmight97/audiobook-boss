@@ -7,6 +7,11 @@ import * as feedback from '../feedback';
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
 	processAudiobookFilesMock: vi.fn(),
+	validateMetadataIntentPatchMock: vi.fn(async () => ({
+		isValid: true,
+		metadataPatch: {},
+		fieldErrors: [],
+	})),
 	readAudioMetadataMock: vi.fn(),
 	openPathMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
@@ -30,6 +35,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		preflightProcessingPlan: context.preflightProcessingPlanMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
+		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
 		readAudioMetadata: context.readAudioMetadataMock,
 		openPath: context.openPathMock,
 	},
@@ -74,8 +80,19 @@ vi.mock('../../fileList/actions', () => ({
 }));
 
 vi.mock('../../metadataValidation', () => ({
-	getSeriesPartValidationError: context.seriesPartValidationErrorMock,
-	getSubseriesPartValidationError: context.subseriesPartValidationErrorMock,
+	firstMetadataIntentValidationError: context.seriesPartValidationErrorMock,
+	validateMetadataDraftIntent: vi.fn(async (metadata: Record<string, unknown>) => ({
+		intentPatch: Object.fromEntries(
+			Object.entries(metadata).map(([key, value]) => [
+				key,
+				(typeof value === 'string' && value.trim().length === 0) ||
+				(Array.isArray(value) && value.length === 0)
+					? { op: 'clear' }
+					: { op: 'set', value },
+			]),
+		),
+		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+	})),
 }));
 
 vi.mock('../feedback', () => ({
@@ -99,6 +116,7 @@ describe('startProcessing metadata staging', () => {
 	beforeEach(() => {
 		context.preflightProcessingPlanMock.mockReset();
 		context.processAudiobookFilesMock.mockReset();
+		context.validateMetadataIntentPatchMock.mockClear();
 		context.readAudioMetadataMock.mockReset();
 		context.openPathMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
@@ -230,7 +248,9 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.seriesPartValidationErrorMock).toHaveBeenCalledWith('1/2');
+		expect(context.seriesPartValidationErrorMock).toHaveBeenCalledWith(
+			expect.objectContaining({ isValid: true }),
+		);
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
 		expect(feedback.showError).toHaveBeenCalledWith('Series part must be a number');

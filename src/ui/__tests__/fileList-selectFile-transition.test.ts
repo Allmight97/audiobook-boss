@@ -10,6 +10,12 @@ const context = vi.hoisted(() => ({
 	showSingleSelectionMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
+	validateMetadataDraftIntentMock: vi.fn(async (metadata: Record<string, unknown>) => ({
+		intentPatch: Object.fromEntries(
+			Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+		),
+		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+	})),
 	clearSelectionMock: vi.fn(() => true),
 }));
 
@@ -33,8 +39,8 @@ vi.mock('../outputPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: context.validationErrorMock,
-	getSubseriesPartValidationError: vi.fn(() => null),
+	firstMetadataIntentValidationError: context.validationErrorMock,
+	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
 vi.mock('../fileList/dom', () => ({
@@ -120,6 +126,7 @@ describe('selectFile transition options', () => {
 		context.showSingleSelectionMock.mockClear();
 		context.pushStatusPanelTransientStatusMock.mockClear();
 		context.validationErrorMock.mockReset();
+		context.validateMetadataDraftIntentMock.mockClear();
 		context.validationErrorMock.mockReturnValue(null);
 		context.clearSelectionMock.mockClear();
 		context.getSelectedFilesMock.mockReset();

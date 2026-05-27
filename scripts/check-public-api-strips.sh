@@ -116,7 +116,10 @@ metadata_intent_exports="$(extract_export_blocks src-tauri/src/metadata/mod.rs |
     }
   }
 ')"
-compare_block "Metadata Outcome Plan Public API Strip" "$metadata_intent_exports" 'pub use intent::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+compare_block "Metadata Outcome Plan Public API Strip" "$metadata_intent_exports" 'pub use intent::{
+validate_metadata_intent_patch, AlbumSortPatchOp, MetadataIntentPatch,
+MetadataIntentValidationResult, PatchOp,
+};
 pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};
 pub(crate) use intent_plan::{
 plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,

@@ -1,6 +1,7 @@
 ## Public API Strip
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
-- Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`.
+- Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
+  `MetadataIntentValidationResult`, `validate_metadata_intent_patch`.
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   `plan_metadata_write`.
@@ -12,11 +13,15 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change intent internals when `scripts/proof.sh rust-contract` stays green.
-- Preserve `set | clear | noop` semantics across save, processing projection, naming projection, write plans, and cover-art handling.
+- Preserve `set | clear | noop` semantics across save, processing projection,
+  naming projection, write plans, validation/normalization, and cover-art
+  handling.
 - Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.
 - Making clear intent partial, lossy, or dependent on sentinel frontend values.
+- Moving publication-date or series/subseries sequence validation out of the
+  metadata boundary.
 - Changing canonical/mirrored/compatibility tag precedence, fallback behavior, or container routing without explicit evidence and doc updates.

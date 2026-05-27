@@ -64,8 +64,17 @@ function outputPathPreviewBody(
 		const state = services.getState();
 		const previewMetadataDraft = services.readOutputPathPreviewMetadataDraft();
 
-		services.updateSeriesPartWarning(previewMetadataDraft);
-		services.updateSubseriesPartWarning(previewMetadataDraft);
+		yield* workflowPromise(
+			() => services.updateMetadataIntentWarnings(previewMetadataDraft),
+			'Failed to validate metadata intent for output preview.',
+		).pipe(
+			Effect.catchAll((error) =>
+				Effect.sync(() => {
+					services.console.error('Metadata preview validation failed:', error.cause);
+					services.showOutputError('Failed to validate metadata preview.');
+				}),
+			),
+		);
 
 		if (!state.outputDirectory) {
 			services.setOutputPreview('Select output directory...', 'No directory selected');

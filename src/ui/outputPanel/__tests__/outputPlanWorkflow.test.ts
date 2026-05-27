@@ -67,8 +67,7 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 			series: '',
 			subseries: '',
 		})),
-		updateSeriesPartWarning: vi.fn(),
-		updateSubseriesPartWarning: vi.fn(),
+		updateMetadataIntentWarnings: vi.fn(async () => undefined),
 		buildOutputPathPreviewContext: vi.fn(() => ({
 			outputDirectory: state.outputDirectory,
 			sourcePath: '/books/a.m4b',
@@ -144,6 +143,29 @@ describe('OutputPlanWorkflow', () => {
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
 		expect(harness.services.setOutputPreview).not.toHaveBeenCalled();
+	});
+
+	it('logs metadata warning validation failures without blocking preview', async () => {
+		const cause = new Error('validation transport failed');
+		const harness = makeHarness({
+			updateMetadataIntentWarnings: vi.fn(async () => {
+				throw cause;
+			}),
+		});
+
+		await runAppEffect(
+			outputPathPreviewWorkflowExecution('preview').pipe(Effect.provide(harness.layer)),
+		);
+
+		expect(harness.services.console.error).toHaveBeenCalledWith(
+			'Metadata preview validation failed:',
+			cause,
+		);
+		expect(harness.services.showOutputError).toHaveBeenCalledWith(
+			'Failed to validate metadata preview.',
+		);
+		expect(harness.services.previewOutputPath).toHaveBeenCalled();
+		expect(harness.state.previewText).toBe('/tmp/out/a.m4b');
 	});
 
 	it('surfaces preview failures without throwing to UI callers', async () => {

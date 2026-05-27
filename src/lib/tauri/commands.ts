@@ -165,6 +165,12 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
 		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
+	validate_metadata_intent_patch: (args: { metadataIntent: MetadataIntentPatch }) =>
+		runGeneratedCommand(
+			generatedCommands.validateMetadataIntentPatch(
+				compileMetadataIntentPatch(args.metadataIntent),
+			),
+		),
 	save_metadata_to_file: (args: { filePath: string; metadataIntent: MetadataIntentPatch }) =>
 		runGeneratedCommand(
 			generatedCommands.saveMetadataToFile(

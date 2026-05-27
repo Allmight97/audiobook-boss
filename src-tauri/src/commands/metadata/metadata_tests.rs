@@ -1,6 +1,7 @@
 // EXCEPTION: requires private API access (URL validation + resolver internals)
 
 use super::{is_supported_image_content_type, validate_cover_art_url, BogonFilteringResolver};
+use crate::metadata::{MetadataIntentPatch, PatchOp};
 use reqwest::dns::Name;
 use reqwest::dns::Resolve;
 
@@ -30,6 +31,25 @@ fn supported_image_content_types() {
     assert!(is_supported_image_content_type("image/webp"));
     assert!(!is_supported_image_content_type("image/gif"));
     assert!(!is_supported_image_content_type("text/plain"));
+}
+
+#[test]
+fn validate_metadata_intent_patch_command_returns_field_errors_as_data() {
+    let result = super::validate_metadata_intent_patch(MetadataIntentPatch {
+        date: PatchOp::Set("not a date".to_string()),
+        ..Default::default()
+    })
+    .expect("validation command should not fail for field errors");
+
+    assert!(!result.is_valid);
+    assert_eq!(
+        result
+            .field_errors
+            .first()
+            .map(|error| format!("{:?}", error.field))
+            .as_deref(),
+        Some("Date")
+    );
 }
 
 // SSRF Protection Tests

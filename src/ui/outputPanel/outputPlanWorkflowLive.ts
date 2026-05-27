@@ -11,8 +11,7 @@ import {
 	buildOutputPathPreviewContext,
 	readOutputPathPreviewMetadataDraft,
 	showOutputError,
-	updateSeriesPartWarning,
-	updateSubseriesPartWarning,
+	updateMetadataIntentWarnings,
 } from './preview';
 import {
 	makeOutputPlanWorkflowServicesLayer,
@@ -22,8 +21,7 @@ import {
 export const liveOutputPlanWorkflowServices: OutputPlanWorkflowServices = {
 	getState,
 	readOutputPathPreviewMetadataDraft,
-	updateSeriesPartWarning,
-	updateSubseriesPartWarning,
+	updateMetadataIntentWarnings,
 	buildOutputPathPreviewContext,
 	beginOutputPreviewRequest,
 	isLatestOutputPreviewRequest,

@@ -10,12 +10,12 @@ import type {
 	ProcessPayload,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
 	buildOutputPathPreviewContext,
 	OutputPathPreviewMetadataDraft,
 	showOutputError,
+	updateMetadataIntentWarnings,
 } from './preview';
 import type {
 	beginOutputPreviewRequest,
@@ -28,8 +28,7 @@ import type {
 export interface OutputPlanWorkflowServices {
 	getState: typeof getState;
 	readOutputPathPreviewMetadataDraft: () => OutputPathPreviewMetadataDraft;
-	updateSeriesPartWarning: (metadata: AudiobookMetadata) => void;
-	updateSubseriesPartWarning: (metadata: AudiobookMetadata) => void;
+	updateMetadataIntentWarnings: typeof updateMetadataIntentWarnings;
 	buildOutputPathPreviewContext: typeof buildOutputPathPreviewContext;
 	beginOutputPreviewRequest: typeof beginOutputPreviewRequest;
 	isLatestOutputPreviewRequest: typeof isLatestOutputPreviewRequest;

@@ -18,10 +18,6 @@ import type {
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
 } from '../metadataState';
-import type {
-	getSeriesPartValidationError,
-	getSubseriesPartValidationError,
-} from '../metadataValidation';
 import type { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
 import type { updateOutputPath } from '../outputPanel';
 import type * as feedback from './feedback';
@@ -42,10 +38,9 @@ export interface ProcessingWorkflowServices {
 	getMetadataIntentPatchForFile: typeof getMetadataIntentPatchForFile;
 	setMetadataForFile: typeof setMetadataForFile;
 	stageMetadataToSelection: typeof stageMetadataToSelection;
-	getSeriesPartValidationError: typeof getSeriesPartValidationError;
-	getSubseriesPartValidationError: typeof getSubseriesPartValidationError;
 	setJobControlsEnabled: typeof setJobControlsEnabled;
 	setFileOrderLocked: typeof setFileOrderLocked;
+	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
 	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;

@@ -36,6 +36,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'update_app_settings',
 	'validate_encoder_settings',
 	'validate_files',
+	'validate_metadata_intent_patch',
 	'write_cover_art',
 ] as const;
 

@@ -3,7 +3,6 @@ import type {
 	ProcessPayload,
 	ProcessingRequestConfig,
 } from '../../types/audio';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError';
 import {
@@ -13,11 +12,11 @@ import {
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
+import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
 import {
-	applyMetadataDraftIntent,
-	buildMetadataDraftIntent,
-	hasActionableMetadataDraftIntent,
-} from '../metadataDraft';
+	firstMetadataIntentValidationError,
+	validateMetadataDraftIntent,
+} from '../metadataValidation';
 import {
 	ProcessingWorkflowServicesTag,
 	type ProcessingWorkflowLayer,
@@ -127,19 +126,6 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 	}
 
 	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
-}
-
-function validateSeriesFields(
-	services: ProcessingWorkflowServices,
-	changes: Partial<AudiobookMetadata>,
-): string | null {
-	const seriesPartError = services.getSeriesPartValidationError(
-		typeof changes.series_part === 'string' ? changes.series_part : undefined,
-	);
-	const subseriesPartError = services.getSubseriesPartValidationError(
-		typeof changes.subseries_part === 'string' ? changes.subseries_part : undefined,
-	);
-	return seriesPartError ?? subseriesPartError;
 }
 
 function workflowFailure(message: string, cause: unknown): ProcessingWorkflowFailed {
@@ -295,12 +281,16 @@ export function processingWorkflowProgram(
 		if (selectionCount <= 1 && services.hasDirtyMetadataFields()) {
 			const selectedFileIndex = services.getSelectedFileIndex();
 			const formMetadata = services.readMetadataForm({ mode: 'single' });
-			const validationError = validateSeriesFields(services, formMetadata);
+			const validation = yield* workflowPromise(
+				() => validateMetadataDraftIntent(formMetadata, services.validateMetadataIntentPatch),
+				'Failed to validate metadata intent for processing.',
+			);
+			const validationError = firstMetadataIntentValidationError(validation.result);
 			if (validationError) {
 				yield* Effect.sync(() => services.feedback.showError(validationError));
 				return;
 			}
-			const intentPatch = buildMetadataDraftIntent(formMetadata);
+			const intentPatch = validation.intentPatch;
 			const activeFile =
 				selectedFileIndex >= 0
 					? fileList.files[selectedFileIndex]

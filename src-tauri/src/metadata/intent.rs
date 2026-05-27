@@ -4,7 +4,14 @@ use super::{
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+const PUBLICATION_DATE_INVALID_MESSAGE: &str =
+    "Publication date must be YYYY or YYYY-MM with month 01-12.";
+const SERIES_PART_INVALID_MESSAGE: &str =
+    "Series sequence (#) cannot include '/'. Use a plain number like 24.";
+const SUBSERIES_PART_INVALID_MESSAGE: &str =
+    "Sub-series sequence (#) cannot include '/'. Use a plain number like 24.";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
 #[serde(tag = "op", rename_all = "snake_case", content = "value")]
 pub enum PatchOp<T> {
     Set(T),
@@ -13,7 +20,7 @@ pub enum PatchOp<T> {
     Noop,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
 #[serde(tag = "op", rename_all = "snake_case", content = "value")]
 pub enum AlbumSortPatchOp {
     Set(String),
@@ -35,6 +42,38 @@ pub(crate) enum AlbumSortWriteAction {
 pub(crate) struct MetadataWritePlan {
     pub(crate) metadata: AudiobookMetadata,
     pub(crate) album_sort: AlbumSortWriteAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum MetadataIntentValidationField {
+    Date,
+    SeriesPart,
+    SubseriesPart,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum MetadataIntentValidationCode {
+    PublicationDateSyntax,
+    SeriesPartContainsSlash,
+    SubseriesPartContainsSlash,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataIntentFieldError {
+    pub field: MetadataIntentValidationField,
+    pub code: MetadataIntentValidationCode,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataIntentValidationResult {
+    pub is_valid: bool,
+    pub metadata_patch: MetadataIntentPatch,
+    pub field_errors: Vec<MetadataIntentFieldError>,
 }
 
 impl MetadataWritePlan {
@@ -59,7 +98,7 @@ impl MetadataWritePlan {
 /// as an explicit backend operation for set, clear, preserve, or recompute.
 /// Read-compatible `track`, `disk`, and `comment` fields remain outside this
 /// write-intent contract.
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
 pub struct MetadataIntentPatch {
     #[serde(default)]
     pub title: PatchOp<String>,
@@ -94,24 +133,34 @@ impl MetadataIntentPatch {
         matches!(self.cover_art, PatchOp::Clear)
     }
 
+    pub fn validate_and_normalize(&self) -> MetadataIntentValidationResult {
+        validate_metadata_intent_patch(self)
+    }
+
+    fn normalized_or_error(&self) -> Result<Self> {
+        self.validate_and_normalize().into_result()
+    }
+
     pub(crate) fn apply_to_metadata(
         &self,
         mut base: AudiobookMetadata,
     ) -> Result<AudiobookMetadata> {
-        apply_processing_string_patch(&self.title, &mut base.title);
-        apply_processing_string_patch(&self.artist, &mut base.artist);
-        apply_processing_string_patch(&self.album, &mut base.album);
-        apply_processing_string_patch(&self.composer, &mut base.composer);
-        apply_processing_string_patch(&self.genre, &mut base.genre);
-        apply_processing_string_patch(&self.description, &mut base.description);
-        apply_processing_string_patch(&self.series, &mut base.series);
-        apply_processing_string_patch(&self.series_part, &mut base.series_part);
-        apply_processing_string_patch(&self.subseries, &mut base.subseries);
-        apply_processing_string_patch(&self.subseries_part, &mut base.subseries_part);
+        let patch = self.normalized_or_error()?;
 
-        match &self.date {
+        apply_processing_string_patch(&patch.title, &mut base.title);
+        apply_processing_string_patch(&patch.artist, &mut base.artist);
+        apply_processing_string_patch(&patch.album, &mut base.album);
+        apply_processing_string_patch(&patch.composer, &mut base.composer);
+        apply_processing_string_patch(&patch.genre, &mut base.genre);
+        apply_processing_string_patch(&patch.description, &mut base.description);
+        apply_processing_string_patch(&patch.series, &mut base.series);
+        apply_processing_string_patch(&patch.series_part, &mut base.series_part);
+        apply_processing_string_patch(&patch.subseries, &mut base.subseries);
+        apply_processing_string_patch(&patch.subseries_part, &mut base.subseries_part);
+
+        match &patch.date {
             PatchOp::Set(date) => {
-                base.date = Some(validate_publication_date(date)?);
+                base.date = Some(date.clone());
             }
             PatchOp::Clear => {
                 base.date = None;
@@ -119,7 +168,7 @@ impl MetadataIntentPatch {
             PatchOp::Noop => {}
         }
 
-        match &self.cover_art {
+        match &patch.cover_art {
             PatchOp::Set(bytes) => {
                 base.cover_art = Some(bytes.clone());
             }
@@ -143,7 +192,7 @@ impl MetadataIntentPatch {
             }
         }
 
-        apply_album_sort_patch(&self.album_sort, &mut base);
+        apply_album_sort_patch(&patch.album_sort, &mut base);
 
         Ok(base)
     }
@@ -153,22 +202,23 @@ impl MetadataIntentPatch {
     }
 
     pub(crate) fn to_write_plan(&self) -> Result<MetadataWritePlan> {
+        let patch = self.normalized_or_error()?;
         let mut metadata = AudiobookMetadata::new();
 
-        apply_string_patch(&self.title, &mut metadata.title);
-        apply_string_patch(&self.artist, &mut metadata.artist);
-        apply_string_patch(&self.album, &mut metadata.album);
-        apply_string_patch(&self.composer, &mut metadata.composer);
-        apply_string_patch(&self.genre, &mut metadata.genre);
-        apply_string_patch(&self.description, &mut metadata.description);
-        apply_string_patch(&self.series, &mut metadata.series);
-        apply_string_patch(&self.series_part, &mut metadata.series_part);
-        apply_string_patch(&self.subseries, &mut metadata.subseries);
-        apply_string_patch(&self.subseries_part, &mut metadata.subseries_part);
+        apply_string_patch(&patch.title, &mut metadata.title);
+        apply_string_patch(&patch.artist, &mut metadata.artist);
+        apply_string_patch(&patch.album, &mut metadata.album);
+        apply_string_patch(&patch.composer, &mut metadata.composer);
+        apply_string_patch(&patch.genre, &mut metadata.genre);
+        apply_string_patch(&patch.description, &mut metadata.description);
+        apply_string_patch(&patch.series, &mut metadata.series);
+        apply_string_patch(&patch.series_part, &mut metadata.series_part);
+        apply_string_patch(&patch.subseries, &mut metadata.subseries);
+        apply_string_patch(&patch.subseries_part, &mut metadata.subseries_part);
 
-        match &self.date {
+        match &patch.date {
             PatchOp::Set(date) => {
-                metadata.date = Some(validate_publication_date(date)?);
+                metadata.date = Some(date.clone());
             }
             PatchOp::Clear => {
                 // Metadata backends clear year/date tags when date is empty.
@@ -177,7 +227,7 @@ impl MetadataIntentPatch {
             PatchOp::Noop => {}
         }
 
-        match &self.cover_art {
+        match &patch.cover_art {
             PatchOp::Set(bytes) => {
                 metadata.cover_art = Some(bytes.clone());
             }
@@ -201,7 +251,7 @@ impl MetadataIntentPatch {
             }
         }
 
-        let album_sort = match &self.album_sort {
+        let album_sort = match &patch.album_sort {
             AlbumSortPatchOp::Set(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
             AlbumSortPatchOp::Set(value) => {
                 metadata.album_sort = Some(value.clone());
@@ -242,7 +292,7 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
                 } else if let Some(normalized) = normalize_publication_date(trimmed) {
                     PatchOp::Set(normalized)
                 } else {
-                    PatchOp::Noop
+                    PatchOp::Set(trimmed.to_string())
                 }
             }
             None => PatchOp::Noop,
@@ -274,6 +324,106 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
             album_sort,
             cover_art,
         }
+    }
+}
+
+impl MetadataIntentValidationResult {
+    fn new(
+        metadata_patch: MetadataIntentPatch,
+        field_errors: Vec<MetadataIntentFieldError>,
+    ) -> Self {
+        Self {
+            is_valid: field_errors.is_empty(),
+            metadata_patch,
+            field_errors,
+        }
+    }
+
+    fn into_result(self) -> Result<MetadataIntentPatch> {
+        if self.field_errors.is_empty() {
+            return Ok(self.metadata_patch);
+        }
+
+        let message = self
+            .field_errors
+            .iter()
+            .map(|error| error.message.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        Err(AppError::InvalidInput(message))
+    }
+}
+
+pub fn validate_metadata_intent_patch(
+    patch: &MetadataIntentPatch,
+) -> MetadataIntentValidationResult {
+    let mut normalized = patch.clone();
+    let mut field_errors = Vec::new();
+
+    validate_date_patch(&patch.date, &mut normalized.date, &mut field_errors);
+    validate_sequence_patch(
+        &patch.series_part,
+        MetadataIntentValidationField::SeriesPart,
+        MetadataIntentValidationCode::SeriesPartContainsSlash,
+        SERIES_PART_INVALID_MESSAGE,
+        &mut field_errors,
+    );
+    validate_sequence_patch(
+        &patch.subseries_part,
+        MetadataIntentValidationField::SubseriesPart,
+        MetadataIntentValidationCode::SubseriesPartContainsSlash,
+        SUBSERIES_PART_INVALID_MESSAGE,
+        &mut field_errors,
+    );
+
+    MetadataIntentValidationResult::new(normalized, field_errors)
+}
+
+fn validate_date_patch(
+    patch: &PatchOp<String>,
+    normalized: &mut PatchOp<String>,
+    field_errors: &mut Vec<MetadataIntentFieldError>,
+) {
+    let PatchOp::Set(value) = patch else {
+        return;
+    };
+
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        *normalized = PatchOp::Clear;
+        return;
+    }
+
+    if let Some(normalized_date) = normalize_publication_date(trimmed) {
+        *normalized = PatchOp::Set(normalized_date);
+        return;
+    }
+
+    field_errors.push(MetadataIntentFieldError {
+        field: MetadataIntentValidationField::Date,
+        code: MetadataIntentValidationCode::PublicationDateSyntax,
+        message: PUBLICATION_DATE_INVALID_MESSAGE.to_string(),
+    });
+}
+
+fn validate_sequence_patch(
+    patch: &PatchOp<String>,
+    field: MetadataIntentValidationField,
+    code: MetadataIntentValidationCode,
+    message: &str,
+    field_errors: &mut Vec<MetadataIntentFieldError>,
+) {
+    let PatchOp::Set(value) = patch else {
+        return;
+    };
+
+    let trimmed = value.trim();
+    if !trimmed.is_empty() && trimmed.contains('/') {
+        field_errors.push(MetadataIntentFieldError {
+            field,
+            code,
+            message: message.to_string(),
+        });
     }
 }
 
@@ -326,12 +476,4 @@ fn recompute_album_sort(metadata: &AudiobookMetadata) -> Option<String> {
         metadata.series_part.as_deref(),
         metadata.title.as_deref()?,
     )
-}
-
-fn validate_publication_date(value: &str) -> Result<String> {
-    normalize_publication_date(value).ok_or_else(|| {
-        AppError::InvalidInput(
-            "Publication date must be YYYY or YYYY-MM with month 01-12.".to_string(),
-        )
-    })
 }

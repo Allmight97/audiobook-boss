@@ -1,4 +1,5 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { tauriClient } from '../../lib/tauri/client';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import {
@@ -8,17 +9,12 @@ import {
 	removeMetadataForFile,
 	setMetadataForFile,
 } from '../metadataState';
+import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
 import {
-	applyMetadataDraftIntent,
-	buildMetadataDraftIntent,
-	hasActionableMetadataDraftIntent,
-} from '../metadataDraft';
-import {
-	getSeriesPartValidationError,
-	getSubseriesPartValidationError,
+	firstMetadataIntentValidationError,
+	validateMetadataDraftIntent,
 } from '../metadataValidation';
 import { hasDirtyMetadataFields, readMetadataForm, resetDirtyState } from '../metadataForm';
-import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -212,29 +208,23 @@ export function appendFileList(
 	refreshOutputForFileListChange();
 }
 
-function validateSeriesFields(changes: Partial<AudiobookMetadata>): string | null {
-	const seriesPartError = getSeriesPartValidationError(
-		typeof changes.series_part === 'string' ? changes.series_part : undefined,
-	);
-	const subseriesPartError = getSubseriesPartValidationError(
-		typeof changes.subseries_part === 'string' ? changes.subseries_part : undefined,
-	);
-	return seriesPartError ?? subseriesPartError;
-}
-
-function persistSingleSelectionMetadata(file: AudioFile | null): boolean {
+async function persistSingleSelectionMetadata(file: AudioFile | null): Promise<boolean> {
 	if (!file?.isValid) return true;
 	if (!hasDirtyMetadataFields()) return true;
 
 	const metadata = readMetadataForm({ mode: 'single' });
-	const validationError = validateSeriesFields(metadata);
+	const validation = await validateMetadataDraftIntent(
+		metadata,
+		tauriClient.validateMetadataIntentPatch,
+	);
+	const validationError = firstMetadataIntentValidationError(validation.result);
 	if (validationError) {
 		setStatusMessage(validationError);
 		return false;
 	}
 
 	const existing = getMetadataForFile(file.path) ?? {};
-	const intentPatch = buildMetadataDraftIntent(metadata);
+	const intentPatch = validation.intentPatch;
 	if (!hasActionableMetadataDraftIntent(intentPatch)) {
 		return true;
 	}
@@ -269,7 +259,7 @@ export async function selectFile(
 		previousSelectionCount === 1 ? (fileList.files[previousIndex] ?? null) : null;
 
 	if (previousSelectionCount === 1 && previousIndex >= 0 && !options?.skipPersistPrevious) {
-		if (!persistSingleSelectionMetadata(previousFile)) {
+		if (!(await persistSingleSelectionMetadata(previousFile))) {
 			return;
 		}
 	}
@@ -307,7 +297,7 @@ export async function selectFile(
 	void showMultiSelection(selectedFiles);
 }
 
-export function selectAll(): void {
+export async function selectAll(): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
 	const selectedIndex = getSelectedFileIndex();
@@ -315,7 +305,7 @@ export function selectAll(): void {
 		getSelectedFiles().length === 1 && selectedIndex >= 0
 			? (fileList.files[selectedIndex] ?? null)
 			: null;
-	if (!persistSingleSelectionMetadata(previousFile)) {
+	if (!(await persistSingleSelectionMetadata(previousFile))) {
 		return;
 	}
 
@@ -339,7 +329,7 @@ export async function clearSelectionAction(): Promise<void> {
 		fileList && previousSelectionCount === 1 && selectedIndex >= 0
 			? (fileList.files[selectedIndex] ?? null)
 			: null;
-	if (!persistSingleSelectionMetadata(previousFile)) {
+	if (!(await persistSingleSelectionMetadata(previousFile))) {
 		return;
 	}
 
@@ -380,7 +370,11 @@ export async function stageMetadataToSelection(options?: {
 		return true;
 	}
 
-	const validationError = validateSeriesFields(changes);
+	const validation = await validateMetadataDraftIntent(
+		changes,
+		tauriClient.validateMetadataIntentPatch,
+	);
+	const validationError = firstMetadataIntentValidationError(validation.result);
 	if (validationError) {
 		if (options?.showStatus) {
 			setStatusMessage(validationError);
@@ -389,7 +383,7 @@ export async function stageMetadataToSelection(options?: {
 	}
 
 	await ensureMetadataForFiles(selectedFiles);
-	const intentPatch = buildMetadataDraftIntent(changes);
+	const intentPatch = validation.intentPatch;
 	if (!hasActionableMetadataDraftIntent(intentPatch)) {
 		return true;
 	}
@@ -424,7 +418,7 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 	}
 	if (selectedFiles.length === 1) {
 		const hadDirtyMetadata = hasDirtyMetadataFields();
-		const persisted = persistSingleSelectionMetadata(selectedFiles[0]);
+		const persisted = await persistSingleSelectionMetadata(selectedFiles[0]);
 		if (persisted && hadDirtyMetadata && options?.showStatus) {
 			setStatusMessage('Draft saved');
 		}
@@ -434,7 +428,7 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 	return stageMetadataToSelection({ showStatus: options?.showStatus });
 }
 
-export function removeFile(index: number): void {
+export async function removeFile(index: number): Promise<void> {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList || index < 0 || index >= fileList.files.length) {

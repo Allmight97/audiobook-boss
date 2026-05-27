@@ -1,5 +1,4 @@
 import type { AudiobookMetadata } from '../types/metadata';
-import { normalizePublicationDate } from '../types/metadataIntent';
 import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
@@ -263,10 +262,7 @@ export function readMetadataForm(options?: {
 					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 					continue;
 				}
-				const parsed = normalizePublicationDate(raw);
-				if (parsed !== null) {
-					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
-				}
+				setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
 				continue;
 			}
 
@@ -281,10 +277,7 @@ export function readMetadataForm(options?: {
 
 		if (field.key === 'date') {
 			if (raw) {
-				const parsed = normalizePublicationDate(raw);
-				if (parsed !== null) {
-					setMetadataValue(field.key, parsed as AudiobookMetadata[typeof field.key]);
-				}
+				setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
 			} else if (dirty) {
 				setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
 			}

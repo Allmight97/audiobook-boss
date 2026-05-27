@@ -28,8 +28,11 @@ vi.mock('../outputPanel', () => ({
 }));
 
 vi.mock('../metadataValidation', () => ({
-	getSeriesPartValidationError: vi.fn(() => null),
-	getSubseriesPartValidationError: vi.fn(() => null),
+	firstMetadataIntentValidationError: vi.fn(() => null),
+	validateMetadataDraftIntent: vi.fn(async () => ({
+		intentPatch: {},
+		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+	})),
 }));
 
 vi.mock('../fileList/events', () => ({
