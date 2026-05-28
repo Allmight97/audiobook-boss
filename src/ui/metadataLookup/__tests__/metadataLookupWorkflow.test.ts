@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
-import type { AudiobookMetadata, OnlineMetadataResult } from '../../../types/metadata';
+import type {
+	AudiobookMetadata,
+	MetadataLookupResponse,
+	OnlineMetadataResult,
+} from '../../../types/metadata';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
 	MetadataLookupWorkflowFailed,
@@ -48,6 +52,17 @@ function lookupResult(overrides: Partial<OnlineMetadataResult> = {}): OnlineMeta
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
+		...overrides,
+	};
+}
+
+function lookupResponse(
+	results: OnlineMetadataResult[] = [lookupResult()],
+	overrides: Partial<MetadataLookupResponse> = {},
+): MetadataLookupResponse {
+	return {
+		results,
+		diagnostics: [],
 		...overrides,
 	};
 }
@@ -129,7 +144,7 @@ function makeHarness(options?: {
 	const setCoverArt = vi.fn();
 	const setCustomCoverArt = vi.fn();
 	const searchOnlineMetadata = vi.fn(
-		options?.searchOnlineMetadata ?? (async () => [lookupResult()]),
+		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
 	const loadCoverArtFromUrl = vi.fn(options?.loadCoverArtFromUrl ?? (async () => [9, 9, 9]));
 	const focusElementById = vi.fn();
@@ -209,9 +224,10 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusMessage).toBe('Select a valid file to search metadata.');
 		expect(harness.lookupState.statusVariant).toBe('error');
 		expect(harness.lookupState.isOpen).toBe(true);
+		expect(harness.mocks.searchOnlineMetadata).not.toHaveBeenCalled();
 	});
 
-	it('opens a selected-file queue and derives the first query from stored metadata', async () => {
+	it('opens a selected-file queue and immediately searches the first item', async () => {
 		const harness = makeHarness();
 
 		await runMetadataLookupWorkflow(harness.layer, { type: 'open' });
@@ -224,6 +240,13 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.queueContext).toBe('1 of 2 • alpha.m4b');
 		expect(harness.lookupState.applyMode).toBe('queue');
 		expect(harness.lookupState.skipEnabled).toBe(true);
+		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
+			query: 'Alpha Existing',
+			sources: ['audnexus', 'openlibrary'],
+			limit: 8,
+		});
+		expect(harness.lookupState.hasSearched).toBe(true);
+		expect(harness.lookupState.statusMessage).toBe('Found 1 results.');
 	});
 
 	it('rejects empty searches without calling the backend', async () => {
@@ -240,7 +263,7 @@ describe('MetadataLookupWorkflow', () => {
 		const result = lookupResult({ title: 'Found Title' });
 		const harness = makeHarness({
 			lookupState: { query: 'alpha', source: 'auto' },
-			searchOnlineMetadata: async () => [result],
+			searchOnlineMetadata: async () => lookupResponse([result]),
 		});
 
 		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
@@ -253,6 +276,32 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.results).toEqual([result]);
 		expect(harness.lookupState.hasSearched).toBe(true);
 		expect(harness.lookupState.statusMessage).toBe('Found 1 results.');
+	});
+
+	it('surfaces degraded lookup diagnostics while keeping available results', async () => {
+		const result = lookupResult({ title: 'Partial Title' });
+		const harness = makeHarness({
+			lookupState: { query: 'alpha', source: 'auto' },
+			searchOnlineMetadata: async () =>
+				lookupResponse([result], {
+					diagnostics: [
+						{
+							kind: 'sourceFailedPartialResults',
+							source: 'openlibrary',
+							message: 'One selected metadata source failed; ABB is showing available results.',
+						},
+					],
+				}),
+		});
+
+		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
+
+		expect(harness.lookupState.results).toEqual([result]);
+		expect(harness.lookupState.hasSearched).toBe(true);
+		expect(harness.lookupState.statusMessage).toBe(
+			'Found 1 results. Some lookup data was unavailable; showing available results.',
+		);
+		expect(harness.lookupState.statusVariant).toBe('info');
 	});
 
 	it('surfaces search failures without treating them as no-result matches', async () => {
@@ -297,7 +346,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusMessage).toBe('Metadata applied to form.');
 	});
 
-	it('persists queue metadata and advances to the next selected file', async () => {
+	it('persists queue metadata, advances to the next selected file, and searches it', async () => {
 		const harness = makeHarness({
 			lookupState: { results: [lookupResult()], applyMode: 'queue' },
 			queueState: {
@@ -320,7 +369,12 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.queueState.index).toBe(1);
 		expect(harness.lookupState.query).toBe('Beta Existing');
 		expect(harness.lookupState.queueContext).toBe('2 of 2 • beta.m4b');
-		expect(harness.lookupState.statusMessage).toBe('Metadata applied. Ready for next search.');
+		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
+			query: 'Beta Existing',
+			sources: ['audnexus', 'openlibrary'],
+			limit: 8,
+		});
+		expect(harness.lookupState.statusMessage).toBe('Metadata applied. Found 1 results.');
 	});
 
 	it('stores lookup-result cover art as explicit queue intent when replacement succeeds', async () => {
@@ -386,7 +440,7 @@ describe('MetadataLookupWorkflow', () => {
 			}),
 		);
 		expect(harness.lookupState.statusMessage).toBe(
-			'Metadata applied, but cover art failed to load. Ready for next search.',
+			'Metadata applied, but cover art failed to load. Found 1 results.',
 		);
 		expect(harness.lookupState.statusVariant).toBe('error');
 	});
@@ -415,7 +469,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusVariant).toBe('error');
 	});
 
-	it('skips queue items without mutating metadata', async () => {
+	it('skips queue items without mutating metadata and searches the next item', async () => {
 		const harness = makeHarness({
 			queueState: {
 				queue: [
@@ -435,7 +489,12 @@ describe('MetadataLookupWorkflow', () => {
 			{ multi: false, range: false },
 			{ skipPersistPrevious: true },
 		);
-		expect(harness.lookupState.statusMessage).toBe('Skipped. Ready for next search.');
+		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
+			query: 'Beta Existing',
+			sources: ['audnexus', 'openlibrary'],
+			limit: 8,
+		});
+		expect(harness.lookupState.statusMessage).toBe('Skipped. Found 1 results.');
 	});
 
 	it('restores current cover art at queue completion', async () => {

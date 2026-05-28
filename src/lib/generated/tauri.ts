@@ -56,7 +56,7 @@ export const commands = {
 	 */
 	saveMetadataToFile: (filePath: string, metadataPatch: MetadataIntentPatch) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch })),
 	saveMetadataBatch: (items: MetadataSaveRequest[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
-	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<OnlineMetadataResult[], AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
+	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<MetadataLookupResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
 	/**
 	 *  Validates and analyzes a list of audio files
 	 *  Returns comprehensive file information including duration and size
@@ -419,6 +419,19 @@ export type MetadataIntentValidationResult = {
 	isValid: boolean,
 	metadataPatch: MetadataIntentPatch,
 	fieldErrors: MetadataIntentFieldError[],
+};
+
+export type MetadataLookupDiagnostic = {
+	kind: MetadataLookupDiagnosticKind,
+	source: MetadataSource | null,
+	message: string,
+};
+
+export type MetadataLookupDiagnosticKind = "asinDirectLookupFallbackToTextSearch" | "sourceFailedPartialResults" | "audnexusDetailFallbackToAudibleOnly";
+
+export type MetadataLookupResponse = {
+	results: OnlineMetadataResult[],
+	diagnostics: MetadataLookupDiagnostic[],
 };
 
 export type MetadataSaveBatchResult = {

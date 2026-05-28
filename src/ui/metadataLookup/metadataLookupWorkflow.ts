@@ -45,6 +45,12 @@ type QueueAdvanceOptions = {
 	readonly coverArtFailed?: boolean;
 };
 
+type SearchStatusOptions = {
+	readonly successPrefix?: string;
+	readonly successVariant?: 'error' | 'success' | 'info';
+	readonly failurePrefix?: string;
+};
+
 type CoverArtApplyResult =
 	| { readonly status: 'applied'; readonly bytes: number[] }
 	| { readonly status: 'failed' }
@@ -140,18 +146,17 @@ async function advanceQueue(
 	}
 
 	resetResults(services);
-	if (reason === 'applied') {
-		setStatus(
-			services,
-			options.coverArtFailed
-				? 'Metadata applied, but cover art failed to load. Ready for next search.'
-				: 'Metadata applied. Ready for next search.',
-			options.coverArtFailed ? 'error' : 'success',
-		);
-		return;
-	}
-
-	setStatus(services, 'Skipped. Ready for next search.', 'info');
+	const prefix =
+		reason === 'applied'
+			? options.coverArtFailed
+				? 'Metadata applied, but cover art failed to load. '
+				: 'Metadata applied. '
+			: 'Skipped. ';
+	await runSearch(services, {
+		successPrefix: prefix,
+		successVariant: options.coverArtFailed ? 'error' : undefined,
+		failurePrefix: prefix,
+	});
 }
 
 async function applyCoverArt(
@@ -226,7 +231,10 @@ async function applyResult(
 	);
 }
 
-async function runSearch(services: MetadataLookupWorkflowServices): Promise<void> {
+async function runSearch(
+	services: MetadataLookupWorkflowServices,
+	options: SearchStatusOptions = {},
+): Promise<void> {
 	const state = services.getLookupState();
 	const query = state.query.trim();
 	if (!query) {
@@ -237,23 +245,36 @@ async function runSearch(services: MetadataLookupWorkflowServices): Promise<void
 	setStatus(services, 'Searching metadata sources…', 'info');
 
 	try {
-		const results = await services.searchOnlineMetadata({
+		const response = await services.searchOnlineMetadata({
 			query,
 			sources: selectedSources(services),
 			limit: 8,
 		});
+		const { results, diagnostics } = response;
 		state.results = results;
 		state.hasSearched = true;
-		setStatus(services, `Found ${results.length} results.`, 'success');
+		const resultStatus =
+			diagnostics.length > 0
+				? `Found ${results.length} results. Some lookup data was unavailable; showing available results.`
+				: `Found ${results.length} results.`;
+		setStatus(
+			services,
+			`${options.successPrefix ?? ''}${resultStatus}`,
+			options.successVariant ?? (diagnostics.length > 0 ? 'info' : 'success'),
+		);
 	} catch (error) {
 		services.console.error('Metadata lookup failed:', error);
 		state.results = [];
 		state.hasSearched = false;
-		setStatus(services, 'Search failed. Check your query and try again.', 'error');
+		setStatus(
+			services,
+			`${options.failurePrefix ?? ''}Search failed. Check your query and try again.`,
+			'error',
+		);
 	}
 }
 
-function openWorkflow(services: MetadataLookupWorkflowServices): void {
+async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<void> {
 	const selectedIndices = Array.from(services.getSelectedFileIndices()).sort((a, b) => a - b);
 	const fileList = services.getCurrentFileList();
 	const queue = selectedIndices
@@ -280,6 +301,9 @@ function openWorkflow(services: MetadataLookupWorkflowServices): void {
 	state.replaceCoverArt = false;
 
 	showModal(services);
+	if (services.getQueueState().queue.length > 0) {
+		await runSearch(services);
+	}
 }
 
 function initWorkflow(services: MetadataLookupWorkflowServices): void {
@@ -335,7 +359,7 @@ function metadataLookupWorkflowBody(
 				);
 				return;
 			case 'open':
-				yield* workflowSync(() => openWorkflow(services), 'Failed to open metadata lookup.');
+				yield* workflowPromise(() => openWorkflow(services), 'Failed to open metadata lookup.');
 				return;
 			case 'search':
 				yield* workflowPromise(

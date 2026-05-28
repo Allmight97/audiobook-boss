@@ -18,6 +18,7 @@ import type {
 	EncoderAvailability as GeneratedEncoderAvailability,
 	FileListInfo as GeneratedFileListInfo,
 	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
+	MetadataLookupResponse as GeneratedMetadataLookupResponse,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
@@ -34,6 +35,7 @@ import type {
 } from '../../types/audio';
 import type {
 	AudiobookMetadata,
+	MetadataLookupResponse,
 	MetadataSaveBatchResult,
 	OnlineMetadataResult,
 } from '../../types/metadata';
@@ -187,6 +189,15 @@ export function normalizeRuntimeSettingsCapabilities(
 
 export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
 	return normalizeNullish(result);
+}
+
+export function normalizeLookupResponse(
+	response: GeneratedMetadataLookupResponse,
+): MetadataLookupResponse {
+	return {
+		results: response.results.map(normalizeLookupResult),
+		diagnostics: response.diagnostics.map(normalizeNullish),
+	};
 }
 
 export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedProcessPayload {

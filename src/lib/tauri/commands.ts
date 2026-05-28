@@ -25,7 +25,7 @@ import {
 	denormalizeProcessPayload,
 	normalizeEncoderAvailability,
 	normalizeFileList,
-	normalizeLookupResult,
+	normalizeLookupResponse,
 	normalizeMetadata,
 	normalizeMetadataSaveBatchResult,
 	normalizeNullish,
@@ -190,7 +190,7 @@ export const commandSpecs = {
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.searchOnlineMetadata(args.query, args.sources, args.limit ?? null),
-			(results) => results.map(normalizeLookupResult),
+			normalizeLookupResponse,
 		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),

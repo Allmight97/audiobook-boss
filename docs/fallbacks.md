@@ -9,5 +9,8 @@ Boundary smells, design smells, and implementation smells belong in active specs
 | ID | Location | Trigger | Observe | Sunset | Issue | Audit Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | FB-018 | `scripts/proof/steps.ts` | `.svelte` formatting still depends on Prettier | `bun run fmt:check` output and pre-commit signal | 2026-06-30 | #219 | RETAIN FOR NOW — main Svelte format gate still depends on Prettier |
+| FB-019 | `src-tauri/src/commands/metadata_lookup/service.rs` | Failed Audnexus ASIN detail lookup may continue as text search | `MetadataLookupDiagnosticKind::AsinDirectLookupFallbackToTextSearch` in lookup response diagnostics | 2026-08-31 | #338 | RETAIN FOR NOW — preserves useful lookup when provider detail endpoint fails |
+| FB-020 | `src-tauri/src/commands/metadata_lookup/service.rs` | One selected metadata source may fail while ABB returns available results from another selected source | `MetadataLookupDiagnosticKind::SourceFailedPartialResults` in lookup response diagnostics | 2026-08-31 | #338 | RETAIN FOR NOW — avoids discarding valid partial provider results |
+| FB-021 | `src-tauri/src/commands/metadata_lookup/service.rs` | Failed Audnexus detail enrichment may return an Audible-only degraded result | `audible_only: true` result marker plus `MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly` diagnostics | 2026-08-31 | #338 | RETAIN FOR NOW — preserves useful Audible search hits while marking degraded provenance |
 
 Renewals, when needed, stay compact: append `renewal=YYYY-MM-DD; reason=...` to the Audit Status cell and make sure the renewal date is a valid calendar date that extends the sunset.

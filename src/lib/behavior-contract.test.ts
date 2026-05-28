@@ -82,13 +82,15 @@ describe('behavior-first IPC smoke', () => {
 	});
 
 	it('preserves metadata lookup outcome contract', async () => {
-		const results = await tauriClient.searchOnlineMetadata({
+		const response = await tauriClient.searchOnlineMetadata({
 			query: 'mock search',
 			sources: ['audnexus'],
 			limit: 8,
 		});
 
+		const { results, diagnostics } = response;
 		expect(results.length).toBeGreaterThan(0);
+		expect(diagnostics).toEqual(expect.any(Array));
 		expect(results[0]?.source).toBe('audnexus');
 		expect(typeof results[0]?.title).toBe('string');
 	});
