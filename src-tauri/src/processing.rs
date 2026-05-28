@@ -8,7 +8,7 @@ pub mod preview_config;
 pub mod progress;
 pub(crate) mod run;
 pub mod session;
-pub(crate) mod terminal_outcomes;
+mod terminal_outcomes;
 pub mod types;
 
 use serde::{Deserialize, Serialize};

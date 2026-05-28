@@ -7,10 +7,9 @@ Repo-grounded audit of first-party code (`src/`, `src-tauri/src/`). Ordered by i
 | # | Item | Why first |
 | --- | --- | --- |
 | 1 | Duplicate TS↔Rust domain rules | Two-source-of-truth trap across Decide/Preflight/Process (expanded below) |
-| 2 | Processing terminal-outcome concentration | False success/failure in Status Panel |
-| 3 | `external_fdk.rs` monolith | Highest-risk encode path; change blast radius |
-| 4 | Adaptive preview chapter markers | Known incomplete preview behavior |
-| 5 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
+| 2 | `external_fdk.rs` monolith | Highest-risk encode path; change blast radius |
+| 3 | Adaptive preview chapter markers | Known incomplete preview behavior |
+| 4 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
 
 ---
 
@@ -20,6 +19,13 @@ Metadata lookup fallbacks are now explicit through typed diagnostics, source
 markers, focused tests, and `docs/fallbacks.md` rows `FB-019` through `FB-021`.
 Cover-art picker/drop checks are centralized as frontend hints while backend
 path and URL validation remains authoritative.
+
+## Resolved 2026-05-28: processing terminal-outcome concentration
+
+Processing terminal truth is split behind the private `terminal_outcomes/`
+module family. `run.rs` keeps orchestration while classification, skip/no-write
+entry construction, batch aggregation/repair, and terminal event helpers are
+owned by named private modules with focused tests.
 
 ---
 
@@ -110,14 +116,6 @@ enforces HTTPS-only, redirect, host, bogon-IP, content-type, and size rules.
 | Backend | No equivalent estimate |
 
 **Drift risk:** Misleading size preview vs actual encoded output; acceptable if labeled advisory, problematic if treated as preflight truth.
-
----
-
-## 3. Processing terminal-outcome concentration
-
-**Evidence:** `terminal_outcomes.rs` (823 LOC) + `run.rs` (760 LOC) own batch skip, cancel vs fail classification, and Status Panel terminal truth.
-
-**Done looks like:** Split classification modules; integration tests for merge/batch/cancel edge cases.
 
 ---
 
