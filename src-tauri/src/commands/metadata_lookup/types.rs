@@ -7,7 +7,30 @@ pub enum MetadataSource {
     Openlibrary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum MetadataLookupDiagnosticKind {
+    AsinDirectLookupFallbackToTextSearch,
+    SourceFailedPartialResults,
+    AudnexusDetailFallbackToAudibleOnly,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataLookupDiagnostic {
+    pub kind: MetadataLookupDiagnosticKind,
+    pub source: Option<MetadataSource>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataLookupResponse {
+    pub results: Vec<OnlineMetadataResult>,
+    pub diagnostics: Vec<MetadataLookupDiagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OnlineMetadataResult {
     pub source: MetadataSource,

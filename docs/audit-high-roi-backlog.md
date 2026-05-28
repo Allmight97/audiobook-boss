@@ -2,24 +2,24 @@
 
 Repo-grounded audit of first-party code (`src/`, `src-tauri/src/`). Ordered by impact if resolved before new features or UI redesign. Generated 2026-05-26.
 
-## Priority stack (top 6)
+## Priority stack (open)
 
 | # | Item | Why first |
 | --- | --- | --- |
-| 1 | Metadata lookup unregistered fallbacks | Silent product-truth degradation; violates fallback hard invariant |
-| 2 | Duplicate TS↔Rust domain rules | Two-source-of-truth trap across Decide/Preflight/Process (expanded below) |
-| 3 | Processing terminal-outcome concentration | False success/failure in Status Panel |
-| 4 | `external_fdk.rs` monolith | Highest-risk encode path; change blast radius |
-| 5 | Adaptive preview chapter markers | Known incomplete preview behavior |
-| 6 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
+| 1 | Duplicate TS↔Rust domain rules | Two-source-of-truth trap across Decide/Preflight/Process (expanded below) |
+| 2 | Processing terminal-outcome concentration | False success/failure in Status Panel |
+| 3 | `external_fdk.rs` monolith | Highest-risk encode path; change blast radius |
+| 4 | Adaptive preview chapter markers | Known incomplete preview behavior |
+| 5 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
 
 ---
 
-## 1. Metadata lookup unregistered fallbacks
+## Resolved 2026-05-28: metadata ingress trust policy
 
-**Evidence:** `src-tauri/src/commands/metadata_lookup/service.rs` silently falls through on ASIN failure and substitutes Audible scrape data when Audnexus fails. `docs/fallbacks.md` has no entries for these paths. No Rust tests for `search_online_metadata`.
-
-**Done looks like:** Register with trigger/observe/sunset or fail visibly; add backend tests for ASIN, provider failure, and merge ordering.
+Metadata lookup fallbacks are now explicit through typed diagnostics, source
+markers, focused tests, and `docs/fallbacks.md` rows `FB-019` through `FB-021`.
+Cover-art picker/drop checks are centralized as frontend hints while backend
+path and URL validation remains authoritative.
 
 ---
 
@@ -66,25 +66,16 @@ durable preferences against the runtime owner instead of keeping its own range
 table; frontend controls render capability payloads instead of local
 accept/reject matrices.
 
-### 2k. Cover art file extension allowlist
+### Resolved 2026-05-28: cover art file extension allowlist
 
-**Impact:** User can pass picker/drag paths frontend accepts but backend image loader rejects.
+Frontend picker/drop extensions are centralized as non-authoritative hints in
+`src/ui/coverArt.ts`; backend image path and HTTP content-type validation remain
+the authority.
 
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/coverArt.ts` (picker extensions + `/\.(jpg|jpeg|png|webp)$/i`) |
-| Backend | `src-tauri/src/audio/constants.rs` (`ALLOWED_IMAGE_EXTENSIONS`), `path_validation.rs`, `commands/metadata.rs` (content-type check) |
+### Resolved 2026-05-28: cover art URL HTTPS-only policy
 
-**Drift risk:** Three surfaces (picker, drag regex, Rust path + HTTP content-type).
-
-### 2l. Cover art URL HTTPS-only policy
-
-**Impact:** Lower — defense in depth, but duplicated UX/error strings.
-
-| Layer | Location |
-| --- | --- |
-| Frontend | `src/ui/coverArt.ts` (`parsed.protocol !== 'https:'`) |
-| Backend | `src-tauri/src/commands/metadata.rs` (`load_cover_art_from_url`) |
+Frontend HTTPS checks remain user-facing hints; backend URL validation still
+enforces HTTPS-only, redirect, host, bogon-IP, content-type, and size rules.
 
 ### 2m. Metadata intent enriched type + compile adapter
 
@@ -157,12 +148,9 @@ accept/reject matrices.
 ## Recommended sequencing
 
 ```text
-1 → metadata lookup fallbacks + tests
-2a–2d → core Decide/Process rule parity (encoder matrix, auto resolve, dates, series parts)
-2e–2g → settings-range parity (concurrency UI, sample rates, threads)
+2c–2d → remaining metadata rule parity
 3 → terminal outcome split
 4 → external_fdk decomposition
-2h–2m → remaining mirrors as part of contract-hardening pass
 5–6 → preview chapters + fileList split
 ```
 

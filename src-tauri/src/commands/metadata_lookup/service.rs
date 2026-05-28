@@ -8,7 +8,10 @@ use super::parse::{extract_asin, extract_region_override, strip_region_overrides
 use super::providers::audible::fetch_audible_search;
 use super::providers::audnexus::fetch_audnexus_book;
 use super::providers::openlibrary::fetch_openlibrary_search;
-use super::types::{MetadataSource, OnlineMetadataResult};
+use super::types::{
+    MetadataLookupDiagnostic, MetadataLookupDiagnosticKind, MetadataLookupResponse, MetadataSource,
+    OnlineMetadataResult,
+};
 
 const AUDNEXUS_DEFAULT_REGION: &str = "us";
 const AUDNEXUS_USER_AGENT: &str = "audiobook-boss/metadata-lookup";
@@ -18,7 +21,7 @@ pub(super) async fn search_online_metadata(
     query: String,
     sources: Option<Vec<MetadataSource>>,
     limit: Option<u8>,
-) -> Result<Vec<OnlineMetadataResult>> {
+) -> Result<MetadataLookupResponse> {
     let trimmed = query.trim();
     if trimmed.len() < 3 {
         return Err(AppError::InvalidInput(
@@ -44,16 +47,26 @@ pub(super) async fn search_online_metadata(
             AppError::General("Failed to configure metadata lookup client".to_string())
         })?;
 
+    let mut diagnostics = Vec::new();
+
     if let Some(asin) = extract_valid_audnexus_asin(trimmed, include_audnexus) {
         match fetch_audnexus_book(&client, &asin, &region).await {
-            Ok(result) => return Ok(vec![result]),
+            Ok(result) => {
+                return Ok(MetadataLookupResponse {
+                    results: vec![result],
+                    diagnostics,
+                });
+            }
             Err(e) => {
                 log::warn!(
                     "ASIN lookup failed for {}: {}. Continuing with text search.",
                     asin,
                     e
                 );
-                // Continue to text search instead of returning error
+                // FALLBACK[FB-019]: Retain useful lookup when provider ASIN detail is unavailable.
+                // issue=#338
+                // sunset=2026-08-31
+                diagnostics.push(asin_text_search_diagnostic());
             }
         }
     }
@@ -65,11 +78,60 @@ pub(super) async fn search_online_metadata(
         ));
     }
 
-    // Concurrent searches
+    let provider_output = collect_provider_searches(
+        &client,
+        &search_query,
+        &region,
+        include_audnexus,
+        include_openlibrary,
+        limit,
+    )
+    .await;
+    diagnostics.extend(provider_output.diagnostics);
+
+    if all_selected_sources_failed(
+        provider_output.selected_source_count,
+        provider_output.failed_source_count,
+    ) {
+        return Err(AppError::General(
+            "All selected metadata sources failed. Please try again.".to_string(),
+        ));
+    }
+
+    // Merge results: Audnexus first (higher priority), then OpenLibrary fills gaps
+    let merged = merge_search_results(
+        provider_output.audnexus_results,
+        provider_output.openlibrary_results,
+        limit,
+    );
+
+    Ok(MetadataLookupResponse {
+        results: merged,
+        diagnostics,
+    })
+}
+
+#[derive(Debug, Default)]
+struct ProviderSearchOutput {
+    audnexus_results: Vec<OnlineMetadataResult>,
+    openlibrary_results: Vec<OnlineMetadataResult>,
+    selected_source_count: usize,
+    failed_source_count: usize,
+    diagnostics: Vec<MetadataLookupDiagnostic>,
+}
+
+async fn collect_provider_searches(
+    client: &Client,
+    search_query: &str,
+    region: &str,
+    include_audnexus: bool,
+    include_openlibrary: bool,
+    limit: u8,
+) -> ProviderSearchOutput {
     let audnexus_handle = if include_audnexus {
         let client = client.clone();
-        let search_query = search_query.clone();
-        let region = region.clone();
+        let search_query = search_query.to_string();
+        let region = region.to_string();
         Some(tokio::spawn(async move {
             fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
         }))
@@ -79,7 +141,7 @@ pub(super) async fn search_online_metadata(
 
     let openlibrary_handle = if include_openlibrary {
         let client = client.clone();
-        let search_query = search_query.clone();
+        let search_query = search_query.to_string();
         Some(tokio::spawn(async move {
             fetch_openlibrary_search(&client, &search_query, limit).await
         }))
@@ -87,52 +149,60 @@ pub(super) async fn search_online_metadata(
         None
     };
 
-    // Collect results
-    let mut audnexus_results: Vec<OnlineMetadataResult> = Vec::new();
-    let mut openlibrary_results: Vec<OnlineMetadataResult> = Vec::new();
-    let mut selected_source_count = 0usize;
-    let mut failed_source_count = 0usize;
+    let mut output = ProviderSearchOutput::default();
 
     if let Some(handle) = audnexus_handle {
-        selected_source_count += 1;
+        output.selected_source_count += 1;
         match handle.await {
-            Ok(Ok(results)) => audnexus_results = results,
-            Ok(Err(e)) => {
-                failed_source_count += 1;
-                log::warn!("Audnexus search failed: {}", e);
+            Ok(Ok(audnexus_output)) => {
+                output.audnexus_results = audnexus_output.results;
+                output.diagnostics.extend(audnexus_output.diagnostics);
             }
-            Err(e) => {
-                failed_source_count += 1;
-                log::error!("Audnexus task panicked: {}", e);
+            Ok(Err(error)) => {
+                output.failed_source_count += 1;
+                log::warn!("Audnexus search failed: {}", error);
+                output
+                    .diagnostics
+                    .push(source_failed_diagnostic(MetadataSource::Audnexus));
+            }
+            Err(error) => {
+                output.failed_source_count += 1;
+                log::error!("Audnexus task panicked: {}", error);
+                output
+                    .diagnostics
+                    .push(source_failed_diagnostic(MetadataSource::Audnexus));
             }
         }
     }
 
     if let Some(handle) = openlibrary_handle {
-        selected_source_count += 1;
+        output.selected_source_count += 1;
         match handle.await {
-            Ok(Ok(results)) => openlibrary_results = results,
-            Ok(Err(e)) => {
-                failed_source_count += 1;
-                log::warn!("OpenLibrary search failed: {}", e);
+            Ok(Ok(results)) => output.openlibrary_results = results,
+            Ok(Err(error)) => {
+                output.failed_source_count += 1;
+                log::warn!("OpenLibrary search failed: {}", error);
+                output
+                    .diagnostics
+                    .push(source_failed_diagnostic(MetadataSource::Openlibrary));
             }
-            Err(e) => {
-                failed_source_count += 1;
-                log::error!("OpenLibrary task panicked: {}", e);
+            Err(error) => {
+                output.failed_source_count += 1;
+                log::error!("OpenLibrary task panicked: {}", error);
+                output
+                    .diagnostics
+                    .push(source_failed_diagnostic(MetadataSource::Openlibrary));
             }
         }
     }
 
-    if all_selected_sources_failed(selected_source_count, failed_source_count) {
-        return Err(AppError::General(
-            "All selected metadata sources failed. Please try again.".to_string(),
-        ));
-    }
+    output
+}
 
-    // Merge results: Audnexus first (higher priority), then OpenLibrary fills gaps
-    let merged = merge_search_results(audnexus_results, openlibrary_results, limit);
-
-    Ok(merged)
+#[derive(Debug, Default)]
+struct AudnexusSearchOutput {
+    results: Vec<OnlineMetadataResult>,
+    diagnostics: Vec<MetadataLookupDiagnostic>,
 }
 
 async fn fetch_audnexus_with_audible(
@@ -140,13 +210,14 @@ async fn fetch_audnexus_with_audible(
     search_query: &str,
     region: &str,
     limit: u8,
-) -> Result<Vec<OnlineMetadataResult>> {
+) -> Result<AudnexusSearchOutput> {
     let audible_items = fetch_audible_search(client, search_query, region, limit).await?;
     if audible_items.is_empty() {
-        return Ok(Vec::new());
+        return Ok(AudnexusSearchOutput::default());
     }
 
     let mut combined = Vec::new();
+    let mut diagnostics = Vec::new();
     for chunk in audible_items.chunks(AUDIBLE_MAX_CONCURRENCY) {
         let mut handles = Vec::new();
         for item in chunk {
@@ -155,10 +226,13 @@ async fn fetch_audnexus_with_audible(
             let item = item.clone();
             let handle = tokio::spawn(async move {
                 match fetch_audnexus_book(&client, &item.asin, &region).await {
-                    Ok(result) => result,
+                    Ok(result) => (result, false),
                     Err(err) => {
                         log::warn!("Audnexus lookup failed for {}: {}", item.asin, err);
-                        map_audible_item(item)
+                        // FALLBACK[FB-021]: Preserve an Audible search hit when Audnexus detail enrichment fails.
+                        // issue=#338
+                        // sunset=2026-08-31
+                        (map_audible_item(item), true)
                     }
                 }
             });
@@ -167,7 +241,12 @@ async fn fetch_audnexus_with_audible(
 
         for handle in handles {
             match handle.await {
-                Ok(result) => combined.push(result),
+                Ok((result, used_audible_only_fallback)) => {
+                    if used_audible_only_fallback {
+                        push_audible_only_diagnostic_once(&mut diagnostics);
+                    }
+                    combined.push(result);
+                }
                 Err(err) => {
                     log::error!("Audnexus lookup task failed: {}", err);
                 }
@@ -175,7 +254,51 @@ async fn fetch_audnexus_with_audible(
         }
     }
 
-    Ok(combined)
+    Ok(AudnexusSearchOutput {
+        results: combined,
+        diagnostics,
+    })
+}
+
+fn asin_text_search_diagnostic() -> MetadataLookupDiagnostic {
+    MetadataLookupDiagnostic {
+        kind: MetadataLookupDiagnosticKind::AsinDirectLookupFallbackToTextSearch,
+        source: Some(MetadataSource::Audnexus),
+        message: "Audnexus ASIN lookup failed, so ABB searched by title/author text instead."
+            .to_string(),
+    }
+}
+
+fn source_failed_diagnostic(source: MetadataSource) -> MetadataLookupDiagnostic {
+    // FALLBACK[FB-020]: Return available provider results when another selected source fails.
+    // issue=#338
+    // sunset=2026-08-31
+    MetadataLookupDiagnostic {
+        kind: MetadataLookupDiagnosticKind::SourceFailedPartialResults,
+        source: Some(source),
+        message: "One selected metadata source failed; ABB is showing available results."
+            .to_string(),
+    }
+}
+
+fn audible_only_diagnostic() -> MetadataLookupDiagnostic {
+    MetadataLookupDiagnostic {
+        kind: MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly,
+        source: Some(MetadataSource::Audnexus),
+        message:
+            "Some Audible results could not be enriched by Audnexus and are marked Audible-only."
+                .to_string(),
+    }
+}
+
+fn push_audible_only_diagnostic_once(diagnostics: &mut Vec<MetadataLookupDiagnostic>) {
+    if diagnostics.iter().any(|diagnostic| {
+        diagnostic.kind == MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+    }) {
+        return;
+    }
+
+    diagnostics.push(audible_only_diagnostic());
 }
 
 fn merge_search_results(
@@ -326,6 +449,36 @@ mod tests {
         assert!(!all_selected_sources_failed(2, 1));
         assert!(!all_selected_sources_failed(1, 0));
         assert!(!all_selected_sources_failed(0, 0));
+    }
+
+    #[test]
+    fn diagnostics_name_explicit_lookup_degradation_paths() {
+        assert_eq!(
+            asin_text_search_diagnostic().kind,
+            MetadataLookupDiagnosticKind::AsinDirectLookupFallbackToTextSearch
+        );
+        assert_eq!(
+            source_failed_diagnostic(MetadataSource::Openlibrary).kind,
+            MetadataLookupDiagnosticKind::SourceFailedPartialResults
+        );
+        assert_eq!(
+            audible_only_diagnostic().kind,
+            MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+        );
+    }
+
+    #[test]
+    fn audible_only_diagnostic_is_reported_once_per_search() {
+        let mut diagnostics = Vec::new();
+
+        push_audible_only_diagnostic_once(&mut diagnostics);
+        push_audible_only_diagnostic_once(&mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].kind,
+            MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+        );
     }
 
     #[test]

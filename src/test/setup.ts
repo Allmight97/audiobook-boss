@@ -77,24 +77,27 @@ vi.mock('@tauri-apps/api/core', () => ({
 					invalidCount: 0,
 				});
 			case 'search_online_metadata':
-				return Promise.resolve([
-					{
-						source: 'audnexus',
-						sourceId: 'OL12345W',
-						title: 'Mock Lookup Title',
-						authors: ['Mock Author'],
-						narrators: ['Mock Narrator'],
-						series: 'Mock Series',
-						seriesPart: '1',
-						subseries: 'Mock Sub-series',
-						subseriesPart: '1',
-						description: 'Mock description from lookup source.',
-						publishedDate: '2021',
-						durationSeconds: 36000,
-						coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
-						audibleOnly: false,
-					},
-				]);
+				return Promise.resolve({
+					results: [
+						{
+							source: 'audnexus',
+							sourceId: 'OL12345W',
+							title: 'Mock Lookup Title',
+							authors: ['Mock Author'],
+							narrators: ['Mock Narrator'],
+							series: 'Mock Series',
+							seriesPart: '1',
+							subseries: 'Mock Sub-series',
+							subseriesPart: '1',
+							description: 'Mock description from lookup source.',
+							publishedDate: '2021',
+							durationSeconds: 36000,
+							coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
+							audibleOnly: false,
+						},
+					],
+					diagnostics: [],
+				});
 			case 'process_audiobook_files': {
 				mockJobCounter += 1;
 				const jobId = `mock-job-${mockJobCounter}`;

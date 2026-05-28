@@ -1,4 +1,5 @@
 import { tauriClient } from '../lib/tauri/client';
+import { normalizeAppError } from '../lib/tauri/appError';
 import {
 	clearCoverArtMessageState,
 	clearCoverArtSession,
@@ -15,6 +16,12 @@ import {
 } from './coverArt/state.svelte';
 
 let coverArtMessageTimeoutId: number | null = null;
+
+export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;
+const COVER_ART_IMAGE_EXTENSION_HINT_PATTERN = new RegExp(
+	`\\.(${COVER_ART_IMAGE_EXTENSION_HINTS.join('|')})$`,
+	'i',
+);
 
 /**
  * Handles the Clear Cover Art action
@@ -34,7 +41,7 @@ export async function onLoadCoverArtFromFilePicker(): Promise<void> {
 			filters: [
 				{
 					name: 'Image Files',
-					extensions: ['jpg', 'jpeg', 'png', 'webp'],
+					extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS],
 				},
 			],
 		});
@@ -186,7 +193,7 @@ export function clearCoverArtMessage(): void {
  * Returns true if an image file was consumed.
  */
 export async function applyCoverArtDrop(paths: string[]): Promise<boolean> {
-	const imageFile = paths.find((path) => /\.(jpg|jpeg|png|webp)$/i.test(path));
+	const imageFile = paths.find((path) => COVER_ART_IMAGE_EXTENSION_HINT_PATTERN.test(path));
 	if (!imageFile) {
 		return false;
 	}
@@ -196,9 +203,18 @@ export async function applyCoverArtDrop(paths: string[]): Promise<boolean> {
 }
 
 function formatCoverArtError(error: unknown, fallback: string): string {
-	const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
+	const raw = normalizeAppError(error, fallback).message;
 	if (/status 403/i.test(raw) || /403 Forbidden/i.test(raw)) {
 		return 'That URL blocked the image request (Error 403) - download the image and Load Cover Art from file.';
+	}
+	if (/unsupported image format|file has no extension/i.test(raw)) {
+		return 'Unsupported image format. Use JPEG, PNG, or WebP.';
+	}
+	if (/only https urls? are supported/i.test(raw)) {
+		return 'Only HTTPS URLs are supported.';
+	}
+	if (/invalid url|url must include a host/i.test(raw)) {
+		return 'Invalid image URL.';
 	}
 	return raw;
 }

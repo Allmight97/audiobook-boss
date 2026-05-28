@@ -84,7 +84,10 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 - `search_online_metadata`
   - Rust: `src-tauri/src/commands/metadata_lookup/`
   - Frontend: `src/lib/tauri/client.ts`
-  - Use: external metadata lookup and normalization before UI application
+  - Use: external metadata lookup and normalization before UI application.
+    Returns results plus typed diagnostics for retained/degraded provider
+    behavior, such as ASIN-to-text-search fallback, partial provider failure,
+    or Audible-only result enrichment.
 
 ## Events
 

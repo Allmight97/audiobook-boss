@@ -126,7 +126,6 @@ async function initLookup(): Promise<void> {
 }
 
 async function runSearchAndApply(): Promise<void> {
-	click('metadata-lookup-search-btn');
 	const applyButton = await waitFor(() => {
 		const button = document.querySelector<HTMLButtonElement>(
 			"#metadata-lookup-results button[data-index='0']",
@@ -180,22 +179,27 @@ describe('metadata lookup queue cover art isolation', () => {
 		context.updateTagPreviewMock.mockReset();
 
 		context.searchOnlineMetadataMock.mockReset();
-		context.searchOnlineMetadataMock.mockResolvedValue([
-			{
-				title: 'Lookup Title',
-				authors: ['Author One'],
-				narrators: ['Narrator One'],
-				series: null,
-				seriesPart: null,
-				subseries: null,
-				subseriesPart: null,
-				description: 'Description',
-				publishedDate: '2020-07',
-				durationSeconds: 3600,
-				audibleOnly: false,
-				coverUrl: 'https://example.com/cover.jpg',
-			},
-		]);
+		context.searchOnlineMetadataMock.mockResolvedValue({
+			results: [
+				{
+					source: 'audnexus',
+					sourceId: 'audnexus:1',
+					title: 'Lookup Title',
+					authors: ['Author One'],
+					narrators: ['Narrator One'],
+					series: null,
+					seriesPart: null,
+					subseries: null,
+					subseriesPart: null,
+					description: 'Description',
+					publishedDate: '2020-07',
+					durationSeconds: 3600,
+					audibleOnly: false,
+					coverUrl: 'https://example.com/cover.jpg',
+				},
+			],
+			diagnostics: [],
+		});
 		context.loadCoverArtFromUrlMock.mockReset();
 		context.loadCoverArtFromUrlMock.mockResolvedValue([9, 9, 9]);
 	});
@@ -209,7 +213,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
-		await waitForStatus('Metadata applied. Ready for next search.');
+		await waitForStatus('Metadata applied. Found 1 results.');
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(getQueryValue()).toBe('Beta Existing');
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
@@ -239,7 +243,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await runSearchAndApply();
 
-		await waitForStatus('Metadata applied. Ready for next search.');
+		await waitForStatus('Metadata applied. Found 1 results.');
 		expect(context.loadCoverArtFromUrlMock).not.toHaveBeenCalled();
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
@@ -255,7 +259,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		toggle.checked = true;
 		toggle.dispatchEvent(new Event('change'));
 		await runSearchAndApply();
-		await waitForStatus('Metadata applied. Ready for next search.');
+		await waitForStatus('Metadata applied. Found 1 results.');
 
 		toggle.checked = false;
 		toggle.dispatchEvent(new Event('change'));
@@ -281,7 +285,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		await initLookup();
 
 		click('metadata-lookup-skip-btn');
-		await waitForStatus('Skipped. Ready for next search.');
+		await waitForStatus('Skipped. Found 1 results.');
 
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
@@ -293,10 +297,9 @@ describe('metadata lookup queue cover art isolation', () => {
 	});
 
 	it('shows manual-entry CTA when search returns no results and focuses metadata title', async () => {
-		context.searchOnlineMetadataMock.mockResolvedValueOnce([]);
+		context.searchOnlineMetadataMock.mockResolvedValueOnce({ results: [], diagnostics: [] });
 		await initLookup();
 
-		click('metadata-lookup-search-btn');
 		await waitFor(() => {
 			expect(document.querySelector('.metadata-lookup-empty')?.textContent ?? '').toContain(
 				'Older CD-era or rare audiobook editions may not be indexed.',
@@ -325,7 +328,6 @@ describe('metadata lookup queue cover art isolation', () => {
 		context.searchOnlineMetadataMock.mockRejectedValueOnce(new Error('all sources failed'));
 		await initLookup();
 
-		click('metadata-lookup-search-btn');
 		await waitForStatus('Search failed. Check your query and try again.');
 
 		expect(document.querySelector('.metadata-lookup-empty')).toBeNull();
