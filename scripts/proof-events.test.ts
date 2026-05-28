@@ -43,4 +43,23 @@ describe('proof artifact writer', () => {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
 	});
+
+	it('keeps same-plan runs distinct even with the same timestamp prefix', () => {
+		const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'abb-proof-events-'));
+		try {
+			const timestamp = '2026-05-28T00:00:00.000Z';
+			const first = createArtifactWriter(repoRoot, 'review.main', { timestamp });
+			first.writeSummary(summary(first.artifactDir, 'review.main'));
+
+			const second = createArtifactWriter(repoRoot, 'review.main', { timestamp });
+			second.writeSummary(summary(second.artifactDir, 'review.main'));
+
+			expect(first.artifactDir).not.toBe(second.artifactDir);
+			expect(readlinkSync(path.join(repoRoot, '.proof', 'latest'))).toBe(
+				path.relative(path.join(repoRoot, '.proof'), second.artifactDir),
+			);
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
 });

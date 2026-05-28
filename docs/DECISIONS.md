@@ -60,6 +60,7 @@ delegate on macOS with warm/cold timings and Cargo fan-out counts.
   `proof:contract` / `proof:rust-private` / `proof:clean` shortcuts, README
   note for `.proof/` cleanup.
 
+## 2026-05-27 - Metadata Intent Validation Contract
 
 Basis: Metadata Outcome Plan ownership in `docs/system-map.md`, Tauri runtime
 boundary guidance in `src/lib/tauri/AGENTS.md`, and the existing save/process

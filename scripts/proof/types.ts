@@ -6,6 +6,7 @@ export type ProofStep = {
 	tool: 'bash' | 'bun' | 'cargo';
 	command: string;
 	args: string[];
+	requiredEnv?: string[];
 };
 
 export type ProofPlan = {
@@ -47,6 +48,7 @@ export type ProofEvent =
 	| {
 			command: string[];
 			kind: 'step_started';
+			requiredEnv?: string[];
 			stepId: string;
 			timestamp: string;
 	  }

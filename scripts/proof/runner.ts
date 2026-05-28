@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
-import { createWriteStream, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { buildPlan, formatCommand, ProofUsageError } from './catalog';
+import { buildPlan, ProofUsageError } from './catalog';
 import { createArtifactWriter, eventTimestamp } from './events';
+import { runStep } from './executor';
+import { formatCommand } from './format';
 import type { ProofPlan, ProofStep, ProofStepResult, ProofSummary } from './types';
 
 const repoRoot = path.resolve(import.meta.dir, '..', '..');
@@ -47,29 +48,15 @@ function commandVector(step: ProofStep): string[] {
 	return [step.command, ...step.args];
 }
 
-async function runStep(step: ProofStep, logPath: string): Promise<ProofStepResult> {
-	const startedAt = Date.now();
-	const logStream = createWriteStream(logPath);
-	logStream.write(`$ ${formatCommand(step)}\n\n`);
-
-	const exitCode = await new Promise<number | null>((resolve, reject) => {
-		const child = spawn(step.command, step.args, {
-			cwd: repoRoot,
-			env: process.env,
-			stdio: ['ignore', 'pipe', 'pipe'],
-		});
-
-		child.stdout.on('data', (chunk) => logStream.write(chunk));
-		child.stderr.on('data', (chunk) => logStream.write(chunk));
-		child.on('error', reject);
-		child.on('close', resolve);
-	});
-
-	await new Promise<void>((resolve) => logStream.end(resolve));
-
-	const durationMs = Date.now() - startedAt;
-	const status = exitCode === 0 ? 'passed' : 'failed';
-	return { ...step, durationMs, exitCode, logPath, status };
+function stepStartedEvent(step: ProofStep) {
+	const requiredEnv = step.requiredEnv?.length ? step.requiredEnv : undefined;
+	return {
+		command: commandVector(step),
+		kind: 'step_started' as const,
+		...(requiredEnv ? { requiredEnv } : {}),
+		stepId: step.id,
+		timestamp: eventTimestamp(),
+	};
 }
 
 function printPlanStart(plan: ProofPlan, artifactDir: string): void {
@@ -149,14 +136,9 @@ async function runPlan(plan: ProofPlan): Promise<number> {
 	for (const step of plan.steps) {
 		const logPath = path.join(artifacts.logsDir, `${step.id}.log`);
 		printStepStart(plan, step);
-		artifacts.record({
-			command: commandVector(step),
-			kind: 'step_started',
-			stepId: step.id,
-			timestamp: eventTimestamp(),
-		});
+		artifacts.record(stepStartedEvent(step));
 
-		const result = await runStep(step, logPath);
+		const result = await runStep(step, { logPath, repoRoot });
 		stepResults.push(result);
 		printStepResult(plan, result);
 		artifacts.record({

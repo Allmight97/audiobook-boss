@@ -41,6 +41,10 @@ export function cargoStep(id: string, label: string, ...args: string[]): ProofSt
 	});
 }
 
+export function withRequiredEnv(stepToWrap: ProofStep, ...requiredEnv: string[]): ProofStep {
+	return { ...stepToWrap, requiredEnv };
+}
+
 export function generatedBindingsStep(): ProofStep {
 	if (process.env.CHECK_BINDINGS_STRICT === '1') {
 		return bashStep(
@@ -119,6 +123,7 @@ export function scriptTestStep(): ProofStep {
 		'scripts/check-fallback-policy.test.ts',
 		'scripts/check-no-bridge-imports.test.ts',
 		'scripts/proof-events.test.ts',
+		'scripts/proof-executor.test.ts',
 		'scripts/proof-routes.test.ts',
 		'scripts/resolve-release-dmg.test.ts',
 	);

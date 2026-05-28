@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlan, formatCommand, ProofUsageError } from './proof/catalog';
+import { buildPlan, ProofUsageError } from './proof/catalog';
+import { formatCommand } from './proof/format';
 import type { ProofPlan, ProofStep } from './proof/types';
 
 function firstCommand(args: string[]): string {
@@ -41,6 +42,18 @@ describe('proof route catalog', () => {
 		expect(
 			firstCommand(['focus', 'rust', 'integration', 'integration_metadata_tests', 'reads_track']),
 		).toBe('cargo test -p audiobook-boss --test integration_metadata_tests reads_track');
+	});
+
+	it('renders manual xHE-AAC proof as direct cargo with truthful required env', () => {
+		const plan = buildPlan(['focus', 'rust', 'media-manual', 'xhe-aac']);
+		const [step] = plan.steps;
+
+		expect(step.command).toBe('cargo');
+		expect(step.requiredEnv).toEqual(['ABB_XHE_AAC_FIXTURE']);
+		expect(formatCommand(step, {})).toBe(
+			'ABB_XHE_AAC_FIXTURE=<required> cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored',
+		);
+		expect(formatCommand(step, {})).not.toContain('bash -c');
 	});
 
 	it('rejects old route names instead of preserving compatibility aliases', () => {

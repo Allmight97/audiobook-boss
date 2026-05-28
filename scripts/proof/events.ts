@@ -1,4 +1,11 @@
-import { appendFileSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	appendFileSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import type { ProofEvent, ProofSummary } from './types';
 
@@ -14,19 +21,24 @@ function nowIso(): string {
 	return new Date().toISOString();
 }
 
-function runId(planId: string): string {
-	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+function runIdPrefix(planId: string, timestamp = nowIso()): string {
 	const safePlanId = planId.replace(/[^a-zA-Z0-9._-]/g, '-');
 	return `${timestamp}-${safePlanId}`;
 }
 
-export function createArtifactWriter(repoRoot: string, planId: string): ProofArtifactWriter {
+export function createArtifactWriter(
+	repoRoot: string,
+	planId: string,
+	options: { timestamp?: string } = {},
+): ProofArtifactWriter {
 	const proofRoot = path.join(repoRoot, '.proof');
-	const artifactDir = path.join(proofRoot, 'runs', runId(planId));
+	const runsRoot = path.join(proofRoot, 'runs');
+	const runPrefix = runIdPrefix(planId, options.timestamp).replace(/[:.]/g, '-');
+	mkdirSync(runsRoot, { recursive: true });
+	const artifactDir = mkdtempSync(path.join(runsRoot, `${runPrefix}-`));
 	const logsDir = path.join(artifactDir, 'logs');
 	const eventsPath = path.join(artifactDir, 'events.ndjson');
 
-	mkdirSync(path.join(proofRoot, 'runs'), { recursive: true });
 	mkdirSync(logsDir, { recursive: true });
 	writeFileSync(eventsPath, '');
 	refreshLatestPointer(proofRoot, artifactDir);
