@@ -1,7 +1,8 @@
 use super::plan::{prepare_execution_plan, resolve_preflight_plan, ResolvedProcessingPlan};
 use super::terminal_outcomes::{
     build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
-    no_write_skipped_result, terminal_failure_result, ProcessingJobTerminalOutcome,
+    emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
+    terminal_failure_result, ProcessingJobTerminalOutcome,
 };
 use crate::audio;
 use crate::audio::{
@@ -14,7 +15,7 @@ use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
     emit_queue_event, OperationKind, OutputConfig, PreviewConfig, ProcessingContext,
-    ProcessingSession, ProgressEmitter, QueueEvent, QueueItem,
+    ProcessingSession, QueueEvent, QueueItem,
 };
 use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
@@ -435,38 +436,6 @@ async fn execute_processing_job(
         external_toolchain,
     ))
     .await
-}
-
-fn emit_terminal_failed_event(
-    window: &tauri::Window,
-    operation_kind: OperationKind,
-    input_index: Option<usize>,
-    job_id: Option<&str>,
-    message: &str,
-) {
-    let emitter = ProgressEmitter::with_context(
-        window.clone(),
-        operation_kind,
-        job_id.map(|value| value.to_string()),
-        input_index,
-    );
-    emitter.emit_terminal_failed(message);
-}
-
-fn emit_terminal_skipped_event(
-    window: &tauri::Window,
-    operation_kind: OperationKind,
-    input_index: Option<usize>,
-    job_id: Option<&str>,
-    message: &str,
-) {
-    let emitter = ProgressEmitter::with_context(
-        window.clone(),
-        operation_kind,
-        job_id.map(|value| value.to_string()),
-        input_index,
-    );
-    emitter.emit_terminal_skipped(message);
 }
 
 #[cfg(test)]
