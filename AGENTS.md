@@ -45,20 +45,22 @@
 | UI behavior | Targeted deterministic tests plus visual/human review when static tests cannot prove UX |
 | Release/version/changelog/tag/DMG | Use `.agents/skills/release`; prove launcher-visible install/DMG/GitHub Release surface as applicable |
 
-## Skills
+## Skill Routing
 
-| Trigger | Skill |
+This table is dispatch only. Skill files own procedure, examples, and validation details.
+
+| Trigger | Load |
 | --- | --- |
-| Multi-session alignment, roadmap, architecture, substantial planning, issue/spec/doc route | `decision-alignment` |
-| Bun, JS packages, Rust/Cargo deps, toolchains, Homebrew build tools, GitHub Actions pins, supply-chain guardrails | `dependency-maintenance` |
-| Tauri commands/events/plugin adapters/`tauriClient`/generated bindings/TS↔Rust shapes | `contract-guardrails` |
-| User paths, file inputs, file outputs, path validation, or write locations | `path-security-validation` |
-| Queueing, jobs, progress, cancellation, status semantics | `job-registry-and-progress` |
-| M4B/MP4 metadata, audiobook tags, external audiobook file compatibility | `audiobook-metadata` |
-| External library/API behavior, vendored `repos/*`, route cards, subtree refreshes, reference patterns | `abb-library-research` |
-| Broad architecture/refactor audit, wrapper-heavy boundaries, false seams, duplicate rules, mirror mappings, deep-module candidates | `improve-codebase-architecture` |
-| File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `resource-lifetime-audit` |
-| Release, version, changelog, tag, DMG, install proof | `release` |
+| Multi-session alignment, roadmap, architecture, substantial planning, issue/spec/doc route | `.agents/skills/decision-alignment` |
+| Bun, JS packages, Rust/Cargo deps, toolchains, Homebrew build tools, GitHub Actions pins, supply-chain guardrails | `.agents/skills/dependency-maintenance` |
+| Tauri commands/events/plugin adapters/`tauriClient`/generated bindings/TS↔Rust shapes | `.agents/skills/contract-guardrails` |
+| User paths, file inputs, file outputs, path validation, or write locations | `.agents/skills/path-security-validation` |
+| Queueing, jobs, progress, cancellation, status semantics | `.agents/skills/job-registry-and-progress` |
+| M4B/MP4 metadata, audiobook tags, external audiobook file compatibility | `.agents/skills/audiobook-metadata` |
+| External library/API behavior, vendored `repos/*`, route cards, subtree refreshes, reference patterns | `.agents/skills/abb-library-research` |
+| Broad architecture/refactor audit, wrapper-heavy boundaries, false seams, duplicate rules, mirror mappings, deep-module candidates | `.agents/skills/improve-codebase-architecture` |
+| File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `.agents/skills/resource-lifetime-audit` |
+| Release, version, changelog, tag, DMG, install proof | `.agents/skills/release` |
 
 ## Planning And Specs
 
@@ -91,7 +93,7 @@
 
 - Log only durable, non-obvious architecture, design, or organizational choices that change future behavior.
 - Use `docs/DECISIONS.md`.
-- Prefer title + outcome + evidence + at most one guardrail line.
+- Prefer title + outcome + evidence path, command, or concrete repo fact + at most one guardrail line.
 - Do not write Basis essays, PR recaps, experiment narratives, chat-history summaries, or process logs.
 
 ## Tooling
