@@ -10,7 +10,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused output panel tests stay green; run
-  `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
+  `mise run test:frontend` before handoff and `mise run runtime:contract`
   when public-strip or runtime contract surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind

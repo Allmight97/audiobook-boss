@@ -112,7 +112,7 @@ Constraints:
 - Proof steps:
   - Focused Rust processing tests.
   - Binding check if event types are touched.
-  - `scripts/proof.sh standard`.
+  - `mise run proof`.
 - Expected repo-visible outcome:
   - Terminal outcome behavior is easier to review without weakening backend
     truth guarantees.
@@ -136,7 +136,7 @@ Constraints:
   - Rust tests covering batch aggregation and skip/cancel/failure behavior.
   - Generated binding drift check if event shapes change.
 - Full gate:
-  - `scripts/proof.sh standard`.
+  - `mise run proof`.
 - Manual or visual evidence:
   - Not required unless Status Panel presentation changes.
 

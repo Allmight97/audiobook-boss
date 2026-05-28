@@ -129,7 +129,7 @@ For meaningful work, identify:
 - owned truth
 - boundaries involved
 - invariants protected
-- proof of done
+- proof of done ([`docs/greenproof.md`](greenproof.md) for repo proof routes)
 
 Use [docs/api-map.md](api-map.md) for the runtime command/event index and
 [docs/ubiquitous-language.md](ubiquitous-language.md) for canonical terms.

@@ -4,6 +4,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced `scripts/proof.sh` with **GreenProof**: root [`mise.toml`](mise.toml),
+  native Vitest/cargo-nextest/cargo runners, and [`scripts/greenproof/`](scripts/greenproof/).
+- Proof artifacts live under `.proof/latest/` (step logs, native reports,
+  `summary.json` / `summary.md`).
+
+### Removed
+
+- Removed `scripts/proof.sh`.
+
 ## [1.0.27] - 2026-05-27
 
 App Settings control-plane release.

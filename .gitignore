@@ -82,3 +82,6 @@ opencode.json
 
 # Generated human-facing artifacts belong under .artifacts, not docs canon
 /docs/artifacts/
+
+# GreenProof local evidence (logs, reports, summaries)
+/.proof/

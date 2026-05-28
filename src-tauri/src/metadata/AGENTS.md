@@ -12,7 +12,7 @@
 - The broader metadata boundary owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, remux helpers, and container routing.
 
 ## Allowed Agent Edits Without Escalation
-- Change intent internals when `scripts/proof.sh rust-contract` stays green.
+- Change intent internals when `mise run rust:contract` stays green.
 - Preserve `set | clear | noop` semantics across save, processing projection,
   naming projection, write plans, validation/normalization, and cover-art
   handling.

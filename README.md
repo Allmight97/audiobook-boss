@@ -34,29 +34,34 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 
 ```bash
 bun install
+mise trust mise.toml
+mise install
 bun run tauri dev
-scripts/proof.sh standard
+mise run proof
 bun run test
 ```
 
+Proof routing lives in [`mise.toml`](mise.toml) and [`docs/greenproof.md`](docs/greenproof.md).
+
 ## Script Guide
 
-Use this section as the human-facing index. `scripts/proof.sh --help` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
+Use this section as the human-facing index. `mise tasks` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Main quality gate: `scripts/proof.sh standard`
-  Use `quick` for static/boundary proof, `package` for the full Tauri packaging path, and `runtime`, `frontend`, `rust-contract`, `rust-private`, or `rust-media` for focused owner proof.
+- Main quality gate: `mise run proof` (alias: `bun run proof`)
+  Use `mise run proof:quick` for static/boundary proof, `mise run proof:release` for packaging, and `mise run runtime:contract`, `mise run test:frontend`, `mise run rust:contract`, `mise run rust:private`, or `mise run rust:media` for focused owner proof.
+  See [`docs/greenproof.md`](docs/greenproof.md). Clear proof artifacts: `bun run proof:clean`.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
-  Run explicitly, or use `scripts/proof.sh deps`; it is not part of the normal standard gate.
+  Run explicitly, or use `mise run diagnose:deps`; it is not part of the normal review gate.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a proof-backed tooling
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b scripts/proof.sh rust-media-manual xhe-aac`
+- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b mise run 'rust:media-manual:xhe-aac'`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
-- Build timing: `scripts/proof.sh timing`
+- Build timing: `mise run diagnose:timing`
   Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces.

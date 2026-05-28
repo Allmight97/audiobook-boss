@@ -10,8 +10,8 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 - Frontend runtime boundary: `src/lib/tauri/client.ts`
 - Generated TypeScript bindings: `src/lib/generated/tauri.ts`
 - Event types and names: `src/types/events.ts`
-- Proof routing: `scripts/proof.sh --help`
-- Main review proof: `scripts/proof.sh standard`
+- Proof routing: `mise tasks`
+- Main review proof: `mise run proof`
 
 ## Boundary Model
 
@@ -138,8 +138,8 @@ UI caller
 
 - Contract and boundary regressions: `src/lib/behavior-contract.test.ts`, `src/lib/tauri-client.test.ts`
 - UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`
-- Runtime boundary proof: `scripts/proof.sh runtime`
-- Full review proof: `scripts/proof.sh standard`
+- Runtime boundary proof: `mise run runtime:contract`
+- Full review proof: `mise run proof`
 
 ## Maintenance Rule
 

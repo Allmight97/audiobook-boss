@@ -51,7 +51,7 @@ Prefer explicit ownership transitions:
 - Remove cleanup ownership only after the durable artifact is committed.
 - Map file/path errors through existing `AppError` patterns.
 
-Add focused tests when behavior is deterministic without real media. Use `scripts/proof.sh standard` for code changes.
+Add focused tests when behavior is deterministic without real media. Use `mise run proof` for code changes.
 
 ## Report Shape
 

@@ -42,16 +42,16 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
 2. For command/event, payload, or TS adapter changes, verify contract parity with focused
    boundary checks first:
 ```bash
-scripts/proof.sh runtime
+mise run runtime:contract
 ```
-3. Run `scripts/proof.sh standard` when the change affects Rust command/event
+3. Run `mise run proof` when the change affects Rust command/event
    signatures, generated bindings, runtime behavior, dependency/build/test
    semantics, or release-critical merge confidence.
 4. For release-critical binding drift checks:
 ```bash
 bun run bindings:check
 # or
-CHECK_BINDINGS_STRICT=1 scripts/proof.sh standard
+CHECK_BINDINGS_STRICT=1 mise run proof
 ```
 
 ## Command Pointers
@@ -72,7 +72,7 @@ CHECK_BINDINGS_STRICT=1 scripts/proof.sh standard
 - Progress-stage authority is not duplicated here; use
   `job-registry-and-progress` and `src/types/events.ts` for lifecycle state.
 - Verification follows root `AGENTS.md` risk-based scope: focused boundary
-  checks for local adapter changes; `scripts/proof.sh standard` for contract,
+  checks for local adapter changes; `mise run proof` for contract,
   runtime, build/test, dependency, or release-critical risk.
 
 ## Alignment

@@ -108,7 +108,7 @@ Constraints:
   - Rust processor tests for preview mode marker behavior.
   - Media fixture/probe test if needed to prove chapter metadata exists or is
     intentionally absent.
-  - `scripts/proof.sh standard` for runtime behavior changes.
+  - `mise run proof` for runtime behavior changes.
 - Expected repo-visible outcome:
   - No dead marker collection path remains, and preview artifact truth is
     testable.
@@ -132,7 +132,7 @@ Constraints:
   - Rust audio processor tests around preview mode.
   - Fixture/probe verification if writing preview chapter markers.
 - Full gate:
-  - `scripts/proof.sh standard`.
+  - `mise run proof`.
 - Manual or visual evidence:
   - Not required unless UI preview display changes.
 

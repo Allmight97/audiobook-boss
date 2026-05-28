@@ -72,11 +72,11 @@ tmp_register="$(mktemp)"
 trap 'rm -f "$tmp_markers" "$tmp_register"' EXIT
 
 marker_pattern="^[[:space:]]*(///|//|#|\\*|/\\*)[[:space:]]*FALLBACK\\[FB-[0-9]{3}\\]"
-rg -n "$marker_pattern" src src-tauri scripts >"$tmp_markers" || true
+rg -n "$marker_pattern" src src-tauri scripts mise.toml >"$tmp_markers" || true
 rg -o "FB-[0-9]{3}" "$register_path" | sort -u >"$tmp_register"
 
 if [[ ! -s "$tmp_markers" ]]; then
-  echo "[fallback-policy] No FALLBACK markers found in src/src-tauri/scripts." >&2
+  echo "[fallback-policy] No FALLBACK markers found in src/src-tauri/scripts/mise.toml." >&2
   exit 1
 fi
 
@@ -185,7 +185,7 @@ done <"$tmp_markers"
 
 missing_code=0
 while IFS= read -r id; do
-  if ! rg -q "^[[:space:]]*(///|//|#|\\*|/\\*)[[:space:]]*FALLBACK\\[$id\\]" src src-tauri scripts; then
+  if ! rg -q "^[[:space:]]*(///|//|#|\\*|/\\*)[[:space:]]*FALLBACK\\[$id\\]" src src-tauri scripts mise.toml; then
     echo "[fallback-policy] Register entry $id has no matching code marker."
     missing_code=1
   fi

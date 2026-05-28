@@ -13,7 +13,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused encoder panel tests stay green; run
-  `scripts/proof.sh frontend` before handoff and `scripts/proof.sh runtime`
+  `mise run test:frontend` before handoff and `mise run runtime:contract`
   when public-strip or runtime contract surfaces change.
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind

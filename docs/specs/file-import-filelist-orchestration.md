@@ -119,8 +119,8 @@ Constraints:
     callers are numerous.
 - Proof steps:
   - Focused Bun/Vitest tests for file import analysis and fileList behavior.
-  - `scripts/proof.sh frontend` if UI-only.
-  - `scripts/proof.sh standard` only if runtime contract behavior changes.
+  - `mise run test:frontend` if UI-only.
+  - `mise run proof` only if runtime contract behavior changes.
 - Expected repo-visible outcome:
   - The file import/FileList workflow is easier to modify without duplicating
     duplicate-file status rules.
@@ -143,8 +143,8 @@ Constraints:
   - File import workflow tests.
   - FileList reorder/staging/selection tests.
 - Full gate:
-  - `scripts/proof.sh frontend` for UI-only changes.
-  - `scripts/proof.sh standard` if runtime behavior is touched.
+  - `mise run test:frontend` for UI-only changes.
+  - `mise run proof` if runtime behavior is touched.
 - Manual or visual evidence:
   - Not required unless visible status copy/control flow changes materially.
 

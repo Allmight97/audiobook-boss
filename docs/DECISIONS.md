@@ -1,5 +1,16 @@
 # Decisions
 
+## 2026-05-27 - GreenProof
+
+Basis: Cargo `--lib` / `--test` trap validation and [`docs/greenproof.md`](docs/greenproof.md).
+
+- **GreenProof** is the repo proof surface: [`mise.toml`](mise.toml) tasks, native
+  Vitest/cargo-nextest/cargo runners, policy scripts, and
+  [`scripts/greenproof/`](scripts/greenproof/) evidence capture.
+- Focused Rust routes require explicit `--lib` or `--test` selectors.
+- Evidence contract: `.proof/latest/` step logs, native reports, and minimal
+  step summaries only.
+
 ## 2026-05-27 - Metadata Intent Validation Contract
 
 Basis: Metadata Outcome Plan ownership in `docs/system-map.md`, Tauri runtime

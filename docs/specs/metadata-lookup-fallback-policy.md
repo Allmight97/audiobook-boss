@@ -121,7 +121,7 @@ Constraints:
   - Focused Rust tests for metadata lookup fallback paths.
   - `scripts/check-fallback-policy.sh`.
   - Binding generation/check gate if result types change.
-  - `scripts/proof.sh standard` for runtime contract changes.
+  - `mise run proof` for runtime contract changes.
 - Expected repo-visible outcome:
   - Users and future agents can tell when metadata came from canonical provider
     data versus a deliberate degraded fallback.
@@ -146,7 +146,7 @@ Constraints:
   - Fallback policy checker.
   - Generated binding drift check if payloads change.
 - Full gate:
-  - `scripts/proof.sh standard` for command/result changes.
+  - `mise run proof` for command/result changes.
 - Manual or visual evidence:
   - Needed only if UI degraded-result presentation changes.
 

@@ -1,0 +1,138 @@
+min_version = "2024.1.0"
+
+[tools]
+bun = "1.3.14"
+rust = "stable"
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.137"
+
+[task_config]
+dir = "{{config_root}}"
+
+# --- Static / boundary checks (proof:quick:steps runs in parallel) ---
+
+[tasks."proof:check:rust-fmt"]
+run = "cargo fmt --all -- --check"
+
+[tasks."proof:check:frontend-format"]
+# FALLBACK[FB-018]: Prettier for .svelte until Biome Svelte migration. issue=#219 sunset=2026-06-30
+run = "bun run fmt:check"
+
+[tasks."proof:check:frontend-lint"]
+run = "bun run lint:check"
+
+[tasks."proof:check:rust-clippy"]
+run = "cargo clippy --workspace --all-targets -- -D warnings"
+
+[tasks."proof:check:generated-bindings"]
+run = "bash scripts/check-generated-bindings.sh --mode local"
+
+[tasks."proof:check:public-api-strips"]
+run = "bash scripts/check-public-api-strips.sh"
+
+[tasks."proof:check:no-bridge-imports"]
+run = "bash scripts/check-no-bridge-imports.sh"
+
+[tasks."proof:check:no-imperative-dom-runtime"]
+run = "bash scripts/check-no-imperative-dom-runtime.sh"
+
+[tasks."proof:check:no-legacy-test-contracts"]
+run = "bash scripts/check-no-legacy-test-contracts.sh"
+
+[tasks."proof:check:fallback-policy"]
+run = "bash scripts/check-fallback-policy.sh"
+
+[tasks."proof:quick:steps"]
+description = "Parallel static and boundary checks"
+depends = [
+  "proof:check:rust-fmt",
+  "proof:check:frontend-format",
+  "proof:check:frontend-lint",
+  "proof:check:rust-clippy",
+  "proof:check:generated-bindings",
+  "proof:check:public-api-strips",
+  "proof:check:no-bridge-imports",
+  "proof:check:no-imperative-dom-runtime",
+  "proof:check:no-legacy-test-contracts",
+  "proof:check:fallback-policy",
+]
+run = "echo '[greenproof] proof:quick complete'"
+
+[tasks."proof:quick"]
+description = "Fast static/boundary proof for agent loops"
+alias = "check"
+run = { task = "proof:quick:steps" }
+
+# --- Native test runners ---
+
+[tasks."test:frontend"]
+run = "bun run test"
+
+[tasks."test:scripts"]
+run = "bun test scripts/build-app.test.ts scripts/check-fallback-policy.test.ts scripts/check-no-bridge-imports.test.ts scripts/greenproof/mise-rust-tasks.test.ts scripts/resolve-release-dmg.test.ts"
+
+[tasks."test:rust"]
+description = "Broad Rust proof via nextest"
+run = "mkdir -p .proof/latest/reports && cargo nextest run --workspace --profile ci && cp target/nextest/ci/nextest-junit.xml .proof/latest/reports/nextest-junit.xml"
+
+# --- Review / release gates (evidence capture) ---
+
+[tasks.proof]
+description = "Review proof gate with evidence artifacts"
+alias = "test"
+run = "bash scripts/greenproof/run-route-with-evidence.sh proof"
+
+[tasks."proof:release"]
+description = "Release proof gate with evidence artifacts"
+run = "bash scripts/greenproof/run-route-with-evidence.sh proof:release"
+
+# --- Focused Rust safety rails ---
+
+[tasks."rust:lib"]
+description = "Filtered Rust library tests (--lib); pass filter as args"
+run = "cargo test -p audiobook-boss --lib"
+
+[tasks."rust:integration"]
+description = "Single integration test binary; args: <target> [filter]"
+run = "bash scripts/greenproof/rust-integration.sh"
+
+[tasks."rust:contract"]
+description = "Rust contract tests + public API strips (with evidence)"
+run = "bash scripts/greenproof/run-route-with-evidence.sh rust:contract"
+
+[tasks."runtime:contract"]
+description = "Runtime boundary contract proof"
+depends = [
+  "proof:check:generated-bindings",
+  "proof:check:public-api-strips",
+  "runtime:contract:vitest",
+]
+run = "echo '[greenproof] runtime:contract complete'"
+
+[tasks."runtime:contract:vitest"]
+run = "bun run test -- src/lib/behavior-contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts src/lib/tauri-public-api.contract.test.ts"
+
+[tasks."rust:media-manual:xhe-aac"]
+description = "Manual xHE-AAC fixture (requires ABB_XHE_AAC_FIXTURE)"
+run = '''
+: "${ABB_XHE_AAC_FIXTURE:?set ABB_XHE_AAC_FIXTURE to a local xHE-AAC/USAC audiobook fixture}"
+cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored
+'''
+
+[tasks."rust:media"]
+description = "Committed-fixture Rust media integration targets"
+run = "cargo test -p audiobook-boss --test integration_file_list_tests --test integration_metadata_tests --test integration_metadata_reader_matrix_tests --test integration_native_aac_regression_tests --test integration_processing_flow_tests"
+
+[tasks."rust:private"]
+description = "Full Rust library test suite"
+run = "cargo test -p audiobook-boss --lib"
+
+# --- Diagnostics (exploratory, not merge gates) ---
+
+[tasks."diagnose:deps"]
+run = "bun run check:deps"
+
+[tasks."diagnose:timing"]
+run = "cargo build --timings"
+
+[tasks."diagnose:coverage"]
+run = "bash scripts/coverage.sh all"

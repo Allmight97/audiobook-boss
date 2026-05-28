@@ -59,7 +59,7 @@ Omit empty categories in a release section. Keep `[Unreleased]` as the staging a
 1. Confirm the intended version and impact category.
 2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
 3. Run `scripts/bump-version.sh <x.y.z>`.
-4. Run `scripts/proof.sh standard`.
+4. Run `mise run proof`.
 5. For a local launcher-visible app smoke build, run:
 ```bash
 bun run app:install-local
