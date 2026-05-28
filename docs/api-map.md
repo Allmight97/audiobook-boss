@@ -10,8 +10,6 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 - Frontend runtime boundary: `src/lib/tauri/client.ts`
 - Generated TypeScript bindings: `src/lib/generated/tauri.ts`
 - Event types and names: `src/types/events.ts`
-- Proof routing: `bun scripts/proof/runner.ts --help`
-- Main review proof: `bun scripts/proof/runner.ts review`
 
 ## Boundary Model
 

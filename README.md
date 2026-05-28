@@ -47,12 +47,15 @@ bun run test
 
 ## Script Guide
 
-Use this section as the human-facing index. `bun scripts/proof/runner.ts --help` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
+Human index for common commands. `package.json` owns shortcuts,
+`bun scripts/proof/runner.ts --help` owns proof routes, and
+`scripts/AGENTS.md` maps script internals.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
 - Main quality gate: `bun scripts/proof/runner.ts review`
-  Use `review quick` for static/boundary proof, `release` for the full Tauri packaging path, and `focus runtime`, `focus frontend`, `focus rust contract`, `focus rust private`, or `focus rust media` for focused owner proof.
-  Shortcuts: `bun run proof:contract`, `bun run proof:rust-private`. Proof run logs live under `.proof/runs/` (gitignored); clear with `bun run proof:clean`.
+  Use `review quick` for static/boundary proof, `release` for packaging, and
+  `focus ...` routes for owner-local proof. Logs live under `.proof/runs/`;
+  clear with `bun run proof:clean`.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
@@ -66,10 +69,9 @@ Use this section as the human-facing index. `bun scripts/proof/runner.ts --help`
 - Build timing: `bun scripts/proof/runner.ts diagnose timing`
   Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.
-  `scripts/bump-version.sh <version>` updates version surfaces.
-  `bun run app:build` builds the repo-local `.app` artifact only.
-  `bun run app:install-local` builds, installs, signs, registers, and indexes a real `/Applications/AudioBook Boss.app` for local Raycast/Finder testing, then removes the repo-local `.app` install artifact.
-  `bun run app:build:dmg` builds a DMG.
+  `scripts/bump-version.sh <version>` updates version surfaces;
+  `bun run app:build` builds a repo-local `.app`; `bun run app:install-local`
+  installs `/Applications/AudioBook Boss.app`; `bun run app:build:dmg` builds a DMG.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.
 
 ## Project Operation
