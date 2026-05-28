@@ -79,6 +79,8 @@ opencode.json
 /.artifacts/*
 !/.artifacts/harness/
 !/.artifacts/harness/.gitkeep
+/.proof/
+scripts/.legacy-proof-from-main.sh
 
 # Generated human-facing artifacts belong under .artifacts, not docs canon
 /docs/artifacts/

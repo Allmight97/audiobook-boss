@@ -9,7 +9,8 @@ export default defineConfig({
 		environment: 'jsdom',
 
 		// Include source files for coverage
-		include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
+		include: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'scripts/**/*.test.ts'],
+		environmentMatchGlobs: [['scripts/**', 'node']],
 
 		// Coverage configuration
 		coverage: {

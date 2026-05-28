@@ -41,6 +41,6 @@
 - Behavior changes have focused file-import workflow or handler tests.
 - UI-facing changes prove visible error/status behavior, not only private helper
   calls.
-- Run `scripts/proof.sh frontend` before handoff for import UI/workflow changes.
-- Run `scripts/proof.sh runtime` when shared import surfaces or runtime
+- Run `bun scripts/proof/runner.ts focus frontend` before handoff for import UI/workflow changes.
+- Run `bun scripts/proof/runner.ts focus runtime` when shared import surfaces or runtime
   contracts are added or changed.

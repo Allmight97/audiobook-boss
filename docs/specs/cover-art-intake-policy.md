@@ -107,7 +107,7 @@ Constraints:
 - Proof steps:
   - Rust tests for `validate_input_image_path` and cover-art URL validation.
   - TS tests for cover-art frontend affordance behavior.
-  - `scripts/proof.sh standard` if runtime IPC changes.
+  - `bun scripts/proof/runner.ts review` if runtime IPC changes.
 - Expected repo-visible outcome:
   - UI and backend agree on supported cover-art intake behavior without making
     frontend security-authoritative.
@@ -131,7 +131,7 @@ Constraints:
   - Rust audio path-validation tests.
   - TS cover-art workflow tests.
 - Full gate:
-  - `scripts/proof.sh standard` if commands/types change.
+  - `bun scripts/proof/runner.ts review` if commands/types change.
   - Otherwise run focused Rust/TS checks plus `git diff --check`.
 - Manual or visual evidence:
   - Only needed if cover-art UI text/control layout changes materially.

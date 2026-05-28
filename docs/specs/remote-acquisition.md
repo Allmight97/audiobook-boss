@@ -98,7 +98,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - **A1**. Extract `LocalImportBridge` from `handlers.ts:processFilePaths` into `src/lib/import/localImport.ts`. Update picker + drop callers. Add behavior test that proves identical output for the same inputs.
 - **A2**. Scaffold `src-tauri/src/remote_source/`: provider trait, `RemoteSourceRuntime` skeleton, `Vault` trait, `AcquisitionJobRegistry` skeleton, `MaterializedAsset` + `ProvenanceManifest` types, phase event enum. Wire empty command stubs through `ipc_contract.rs`.
 - **A3**. Write `src-tauri/src/remote_source/AGENTS.md`: Public API Strip enumeration, Private Cluster enumeration, allowed agent edits, breaking-change triggers, GPL contamination rule, Vault reach-through prohibition with target script.
-- **A4**. Add boundary-assertion script `scripts/check-no-remote-source-reach-through.sh` modeled on `scripts/check-no-bridge-imports.sh` (existing pattern). Blocks: imports of `remote_source::providers::*::*` from outside the provider module; imports of `remote_source::vault::*` from anywhere outside `RemoteSourceRuntime`'s private cluster. Wire into `scripts/proof.sh standard`.
+- **A4**. Add boundary-assertion script `scripts/check-no-remote-source-reach-through.sh` modeled on `scripts/check-no-bridge-imports.sh` (existing pattern). Blocks: imports of `remote_source::providers::*::*` from outside the provider module; imports of `remote_source::vault::*` from anywhere outside `RemoteSourceRuntime`'s private cluster. Wire into `bun scripts/proof/runner.ts review`.
 - **A5**. Update `docs/system-map.md` (eighth Public API row + Boundary section), `docs/api-map.md` (new command family), `docs/ubiquitous-language.md` (new terms).
 
 ### Phase B — Audible auth
@@ -147,11 +147,11 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 ### Phase F — Validation and docs
 
 - **F1**. Contract tests for `RemoteSourceRuntime` Public API Strip behavior. Lock the strip; internal cluster changes must keep them green.
-- **F2**. Boundary-assertion CI: `scripts/check-no-remote-source-reach-through.sh` must be green in `scripts/proof.sh standard`.
+- **F2**. Boundary-assertion CI: `scripts/check-no-remote-source-reach-through.sh` must be green in `bun scripts/proof/runner.ts review`.
 - **F3**. Drift fixture corpus committed under `src-tauri/tests/fixtures/audible/`: sanitized library response, AAXC license response, Widevine license response, MPD manifest, ADRM activation response (for future AAX), at least one failure-class fixture per phase. Provider tests run from fixtures, not live network.
 - **F4**. Real-account smoke test runbook: documented manual procedure to acquire one AAXC title (if available) and one Widevine title against jstar's account; recorded in the spec progress section.
 - **F5**. `docs/system-map.md`, `docs/api-map.md`, `docs/ubiquitous-language.md` reflect committed state.
-- **F6**. `scripts/proof.sh standard` green.
+- **F6**. `bun scripts/proof/runner.ts review` green.
 - **F7**. Delete this active spec or distill enduring truths into canon once
   implementation, review, validation, docs alignment, and sync are complete.
 
@@ -257,7 +257,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ### Required to Claim Done
 
-- `scripts/proof.sh standard` green.
+- `bun scripts/proof/runner.ts review` green.
 - `scripts/check-no-remote-source-reach-through.sh` green (added in A4).
 - `cargo test` in `src-tauri/` passes including new contract tests for `RemoteSourceRuntime` Public API Strip.
 - Fixture-driven provider tests pass against committed fixtures under `src-tauri/tests/fixtures/audible/` covering: library response, AAXC license response, Widevine license response, MPD manifest, at least one failure-class fixture per acquisition phase.

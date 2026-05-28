@@ -12,8 +12,8 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused status-panel tests stay green; run
-  `scripts/proof.sh frontend` before handoff for UI behavior changes and
-  `scripts/proof.sh runtime` when runtime contracts or generated event shapes
+  `bun scripts/proof/runner.ts focus frontend` before handoff for UI behavior changes and
+  `bun scripts/proof/runner.ts focus runtime` when runtime contracts or generated event shapes
   are touched.
 - Test visible status outcomes rather than private reducer shape when behavior is user-facing.
 - Keep direct view-state/controller/runtimeApi imports inside this cluster or tests.

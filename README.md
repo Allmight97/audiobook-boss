@@ -30,33 +30,40 @@ bun run tauri dev
 
 Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
+## Toolchain
+
+- **Bun 1.4** (Rust runtime line) via `packageManager` in `package.json`.
+- Install or refresh the canary binary: `bun upgrade --canary` (not `bun upgrade --stable`).
+- Re-run `bun upgrade --canary` periodically—before merge/release work or after long gaps—then `bun scripts/proof/runner.ts release` if Bun changed.
+
 ## Development
 
 ```bash
 bun install
 bun run tauri dev
-scripts/proof.sh standard
+bun scripts/proof/runner.ts review
 bun run test
 ```
 
 ## Script Guide
 
-Use this section as the human-facing index. `scripts/proof.sh --help` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
+Use this section as the human-facing index. `bun scripts/proof/runner.ts --help` is the canonical proof-routing surface for humans and agents. `package.json` remains the source of truth for `bun run ...` convenience entrypoints, and scripts under `scripts/` own their implementation details.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Main quality gate: `scripts/proof.sh standard`
-  Use `quick` for static/boundary proof, `package` for the full Tauri packaging path, and `runtime`, `frontend`, `rust-contract`, `rust-private`, or `rust-media` for focused owner proof.
+- Main quality gate: `bun scripts/proof/runner.ts review`
+  Use `review quick` for static/boundary proof, `release` for the full Tauri packaging path, and `focus runtime`, `focus frontend`, `focus rust contract`, `focus rust private`, or `focus rust media` for focused owner proof.
+  Shortcuts: `bun run proof:contract`, `bun run proof:rust-private`. Proof run logs live under `.proof/runs/` (gitignored); clear with `bun run proof:clean`.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
-  Run explicitly, or use `scripts/proof.sh deps`; it is not part of the normal standard gate.
+  Run explicitly, or use `bun scripts/proof/runner.ts diagnose deps`; it is not part of the normal review gate.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a proof-backed tooling
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b scripts/proof.sh rust-media-manual xhe-aac`
+- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b bun scripts/proof/runner.ts focus rust media-manual xhe-aac`
   Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
-- Build timing: `scripts/proof.sh timing`
+- Build timing: `bun scripts/proof/runner.ts diagnose timing`
   Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces.

@@ -10,7 +10,10 @@ import {
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'bun:test';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 const SYSTEM_BASH = '/bin/bash';
 const TEST_PATH = process.env.PATH ?? '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
@@ -39,7 +42,7 @@ function createFixtureRepo(): string {
 	}
 
 	for (const scriptName of ['check-no-bridge-imports.sh', 'check-generated-tauri-imports.ts']) {
-		const sourcePath = path.join(import.meta.dir, scriptName);
+		const sourcePath = path.join(scriptDir, scriptName);
 		const targetPath = path.join(repoRoot, 'scripts', scriptName);
 		writeFileSync(targetPath, readFileSync(sourcePath, 'utf8'));
 		if (scriptName.endsWith('.sh')) {

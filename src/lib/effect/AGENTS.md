@@ -55,7 +55,7 @@ Workflow tests should run the Effect program directly with fake services:
 
 ## Workflow Service Catalog
 
-Current owners and focused proof examples. Use `scripts/proof.sh frontend` as
+Current owners and focused proof examples. Use `bun scripts/proof/runner.ts focus frontend` as
 the canonical frontend proof route before handoff; the table names focused
 Vitest selections for local diagnosis.
 

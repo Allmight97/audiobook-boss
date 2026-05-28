@@ -12,7 +12,7 @@ import {
 import type { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, describe, expect, it } from 'bun:test';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
 	assertSupportedMacOsHost,

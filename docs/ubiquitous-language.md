@@ -40,8 +40,8 @@
 ## Verification And Planning
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Proof Route** | A named route under `scripts/proof.sh` that chooses the cheapest meaningful proof for the touched owner surface. | random command, local incantation |
-| **Standard Gate** | The main non-doc review proof route run via `scripts/proof.sh standard` to validate code, contracts, and repo health. | test pass, quick smoke check |
+| **Proof Route** | A named route under `bun scripts/proof/runner.ts` that chooses the cheapest meaningful proof for the touched owner surface. | random command, local incantation |
+| **Review Gate** | The main non-doc review proof route run via `bun scripts/proof/runner.ts review` to validate code, contracts, and repo health. | test pass, quick smoke check |
 | **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
 | **Active Spec** | A temporary `docs/specs/<task>.md` work packet for substantial planning, roadmap, architecture, or implementation work. It is self-contained while active and must be deleted or distilled into canon when done. | permanent feature doc, transcript, generated report |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
@@ -91,7 +91,7 @@
 - A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values; canonical metadata validation and normalization happen in the Rust metadata boundary.
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
-- The **Standard Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
+- The **Review Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
 - An **Active Spec** is a temporary **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
@@ -111,7 +111,7 @@
 - "preview" can mean different things. Prefer **Output Path Preview** for path derivation, **Processing Preflight Plan** for pre-run backend review, **audio preview** for a short media render, and **preview artifact** for the file created by that render.
 - "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a compatibility path, recovery default, bug, or design decision.
 - "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use **Metadata Outcome Plan**, metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
-- "proof route", "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Proof Route** for named `scripts/proof.sh` paths, **Standard Gate** for `scripts/proof.sh standard`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
+- "proof route", "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Proof Route** for named `bun scripts/proof/runner.ts` paths, **Review Gate** for `bun scripts/proof/runner.ts review`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
 - Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.

@@ -4,6 +4,22 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Adopted **Bun 1.4 canary** (`bun@1.4.0`, Rust runtime line). Refresh with
+  `bun upgrade --canary` and re-run release proof after Bun bumps.
+- Routed `scripts/**/*.test.ts` through Vitest instead of `bun:test` after Bun
+  1.4 canary panicked on `bun test` in this repo.
+- Replaced the shell proof router with the agent-facing Bun proof runner, using
+  `focus`, `review`, `release`, and `diagnose` proof intents.
+- Proof runs now write immutable `.proof/runs/<run-id>/` artifacts with
+  `summary.json`, `summary.md`, `events.ndjson`, and per-step logs.
+
+### Removed
+
+- Removed `scripts/proof.sh`; use `bun scripts/proof/runner.ts ...` or the
+  existing `bun run proof*` package scripts.
+
 ## [1.0.27] - 2026-05-27
 
 App Settings control-plane release.
