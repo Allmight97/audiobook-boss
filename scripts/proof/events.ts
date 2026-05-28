@@ -2,6 +2,7 @@ import {
 	appendFileSync,
 	mkdirSync,
 	mkdtempSync,
+	renameSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -68,10 +69,16 @@ export function eventTimestamp(): string {
 
 function refreshLatestPointer(proofRoot: string, artifactDir: string): void {
 	const latestPath = path.join(proofRoot, 'latest');
+	const tempLatestPath = path.join(
+		proofRoot,
+		`.latest-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+	);
+
 	try {
-		rmSync(latestPath, { force: true, recursive: true });
-		symlinkSync(path.relative(proofRoot, artifactDir), latestPath, 'dir');
+		symlinkSync(path.relative(proofRoot, artifactDir), tempLatestPath, 'dir');
+		renameSync(tempLatestPath, latestPath);
 	} catch (error) {
+		rmSync(tempLatestPath, { force: true, recursive: true });
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[proof] Warning: failed to update .proof/latest pointer: ${message}`);
 	}
