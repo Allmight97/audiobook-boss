@@ -68,8 +68,13 @@ export function eventTimestamp(): string {
 
 function refreshLatestPointer(proofRoot: string, artifactDir: string): void {
 	const latestPath = path.join(proofRoot, 'latest');
-	rmSync(latestPath, { force: true, recursive: true });
-	symlinkSync(path.relative(proofRoot, artifactDir), latestPath, 'dir');
+	try {
+		rmSync(latestPath, { force: true, recursive: true });
+		symlinkSync(path.relative(proofRoot, artifactDir), latestPath, 'dir');
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`[proof] Warning: failed to update .proof/latest pointer: ${message}`);
+	}
 }
 
 function renderSummaryMarkdown(summary: ProofSummary): string {
