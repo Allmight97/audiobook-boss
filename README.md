@@ -30,6 +30,12 @@ bun run tauri dev
 
 Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
+## Toolchain
+
+- **Bun 1.4** (Rust runtime line) via `packageManager` in `package.json`.
+- Install or refresh the canary binary: `bun upgrade --canary` (not `bun upgrade --stable`).
+- Re-run `bun upgrade --canary` periodically—before merge/release work or after long gaps—then `bun scripts/proof/runner.ts release` if Bun changed.
+
 ## Development
 
 ```bash
@@ -46,6 +52,7 @@ Use this section as the human-facing index. `bun scripts/proof/runner.ts --help`
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
 - Main quality gate: `bun scripts/proof/runner.ts review`
   Use `review quick` for static/boundary proof, `release` for the full Tauri packaging path, and `focus runtime`, `focus frontend`, `focus rust contract`, `focus rust private`, or `focus rust media` for focused owner proof.
+  Shortcuts: `bun run proof:contract`, `bun run proof:rust-private`. Proof run logs live under `.proof/runs/` (gitignored); clear with `bun run proof:clean`.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`

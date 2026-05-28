@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, readlinkSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { createArtifactWriter } from './proof/events';
 import type { ProofSummary } from './proof/types';
 

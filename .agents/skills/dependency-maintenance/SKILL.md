@@ -56,7 +56,8 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 ## Bun And JS Rules
 
 - Treat Bun as the project package manager, script runner, and test runner.
-- Treat `package.json` `packageManager` as the intended stable Bun baseline.
+- Treat `package.json` `packageManager` as the intended Bun baseline (currently
+  **1.4 canary**, Rust runtime line).
 - Respect `bunfig.toml` `minimumReleaseAge = 604800`. Do not bypass it without explicit user approval.
 - If an active security advisory requires bypassing the age gate, keep the
   update narrowly scoped, record the advisory reason, and rerun supply-chain
@@ -65,9 +66,12 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 - Use `bun ci` to prove the committed lockfile still installs cleanly.
 - Use `bun audit` and `bun pm untrusted` as standard supply-chain preflights.
 - Do not use `npm audit` here; the repo intentionally has no npm lockfile, so it fails with `ENOLOCK` and adds noise.
-- Do not adopt Tailwind insiders, Bun canary, Vite-under-Bun, or a package-manager
-  swap as routine warning cleanup. Track the stable dependency lane unless the
-  user explicitly opens a separate tooling decision.
+- Refresh Bun with `bun upgrade --canary` (not `--stable`). After a Bun bump,
+  rerun `bun scripts/proof/runner.ts release` before merge/release work; use
+  `review` only for narrow follow-ups.
+- Do not adopt Tailwind insiders, Vite-under-Bun, or a package-manager swap as
+  routine warning cleanup. Do not downgrade to Bun 1.3 stable without an explicit
+  tooling decision.
 
 ## Rust Rules
 

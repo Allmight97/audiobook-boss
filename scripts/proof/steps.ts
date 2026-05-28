@@ -112,7 +112,9 @@ export function scriptTestStep(): ProofStep {
 	return bunStep(
 		'script-tests',
 		'script test subset',
+		'run',
 		'test',
+		'--',
 		'scripts/build-app.test.ts',
 		'scripts/check-fallback-policy.test.ts',
 		'scripts/check-no-bridge-imports.test.ts',

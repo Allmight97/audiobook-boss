@@ -1,5 +1,21 @@
 # Decisions
 
+## 2026-05-28 - Bun 1.4 Canary Adoption
+
+Basis: full `bun scripts/proof/runner.ts release` green on Bun `1.4.0-canary.1`
+(Rust runtime line) vs `1.3.14` stable in an isolated worktree experiment;
+solo maintainer + agent workflow on `arch/proof-system-redesign`.
+
+- Bumped `packageManager` to `bun@1.4.0` and documented refresh via
+  `bun upgrade --canary` in README (not `bun upgrade --stable`).
+- Removed temporary `experiments/bun-canary/` harness and experiment worktree;
+  kept `.experiments-bun/**` off Biome's format/lint surface as a defensive guard.
+- Re-run `bun scripts/proof/runner.ts release` after Bun canary bumps before merge
+  or release work.
+- Moved script proof tests from `bun:test` to Vitest (`bun run test -- scripts/…`)
+  because `bun test` on `1.4.0-canary.1+b69085e59` panics in this workspace;
+  package/install still uses Bun canary.
+
 ## 2026-05-27 - Proof Infrastructure Target Selection
 
 Basis: Cargo's documented test-target selection semantics, ABB A/B logs showing
@@ -24,7 +40,26 @@ feedback goal in `AGENTS.md`.
   later structured reporting, but ABB measurements show it is not the first
   speed fix for focused library proof.
 
-## 2026-05-27 - Metadata Intent Validation Contract
+## 2026-05-27 - Mise Proof Orchestration Experiment
+
+Basis: local worktree comparison (`experiments/mise-proof/FINDINGS.md`) of legacy
+`proof.sh`, PR #336 Bun runner, mise orchestration/toolchain arms, and hybrid
+delegate on macOS with warm/cold timings and Cargo fan-out counts.
+
+- Kept the Bun proof runner as canonical after the experiment. It ties hybrid on
+  rubric score and wins agent ergonomics (`.proof/` artifacts, step logs,
+  failure excerpts) while mise wins live terminal output and lower orchestration
+  LOC.
+- Deferred root `.mise.toml` adoption. Mise remains a credible future human entry
+  layer if it delegates `review`/`release` to the Bun runner rather than
+  replacing it.
+- Noted mise `depends` parallelizes sibling review steps by default, unlike the
+  sequential Bun runner — not equivalent for CI gates without `--jobs 1` or
+  chained depends.
+- Applied prune items independent of mise outcome: xHE-AAC env preflight,
+  `proof:contract` / `proof:rust-private` / `proof:clean` shortcuts, README
+  note for `.proof/` cleanup.
+
 
 Basis: Metadata Outcome Plan ownership in `docs/system-map.md`, Tauri runtime
 boundary guidance in `src/lib/tauri/AGENTS.md`, and the existing save/process

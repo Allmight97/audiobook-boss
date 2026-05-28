@@ -9,8 +9,11 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 const SYSTEM_BASH = '/bin/bash';
 const SYSTEM_GIT = '/usr/bin/git';
@@ -52,10 +55,7 @@ function createFixtureRepo(auditStatus = 'OK'): string {
 	mkdirSync(path.join(repoRoot, 'src-tauri'), { recursive: true });
 
 	const scriptPath = path.join(repoRoot, 'scripts', 'check-fallback-policy.sh');
-	writeFileSync(
-		scriptPath,
-		readFileSync(path.join(import.meta.dir, 'check-fallback-policy.sh'), 'utf8'),
-	);
+	writeFileSync(scriptPath, readFileSync(path.join(scriptDir, 'check-fallback-policy.sh'), 'utf8'));
 	chmodSync(scriptPath, 0o755);
 
 	writeFileSync(

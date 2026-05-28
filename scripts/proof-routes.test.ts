@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { buildPlan, formatCommand, ProofUsageError } from './proof/catalog';
 import type { ProofPlan, ProofStep } from './proof/types';
 

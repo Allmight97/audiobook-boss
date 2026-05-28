@@ -29,16 +29,11 @@ function manualMediaSteps(target: string): ProofStep[] {
 			return [manualMediaSteps('xhe-aac')[0], manualMediaSteps('native-fastpath')[0]];
 		case 'xhe-aac':
 			return [
-				cargoStep(
+				bashStep(
 					'rust-media-manual-xhe-aac',
 					'manual xHE-AAC fixture proof',
-					'test',
-					'-p',
-					'audiobook-boss',
-					'--test',
-					'integration_xhe_aac_fixture_tests',
-					'--',
-					'--ignored',
+					'-c',
+					': "${ABB_XHE_AAC_FIXTURE:?set ABB_XHE_AAC_FIXTURE to a local xHE-AAC/USAC audiobook fixture}"; cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored',
 				),
 			];
 		case 'native-fastpath':
