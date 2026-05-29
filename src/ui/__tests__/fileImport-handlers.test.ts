@@ -29,6 +29,9 @@ vi.mock('../../lib/tauri/client', () => ({
 
 vi.mock('../fileList/actions', () => ({
 	appendFileList: context.appendFileListMock,
+}));
+
+vi.mock('../fileList/metadataStaging', () => ({
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 
@@ -64,6 +67,13 @@ describe('file import handlers', () => {
 		context.takeOpenedAudioFilesMock.mockResolvedValue([]);
 		context.analyzeAudioFilesMock.mockReset();
 		context.appendFileListMock.mockReset();
+		context.appendFileListMock.mockReturnValue({
+			outcome: 'append',
+			fileList: null,
+			incomingFiles: [],
+			appendedFiles: [],
+			existingFiles: [],
+		});
 		context.persistPendingDraftsMock.mockReset();
 		context.isOrderLockedMock.mockReset();
 		context.isOrderLockedMock.mockReturnValue(false);

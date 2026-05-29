@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../../types/audio';
+import type { FileListAppendResult } from '../../fileList/appendResult';
 import {
 	importAnalysisWorkflowExecution,
 	makeImportAnalysisWorkflowServicesLayer,
@@ -28,6 +29,28 @@ function fileListInfo(files: AudioFile[] = [audioFile('/books/new.m4b')]): FileL
 	} as FileListInfo;
 }
 
+function appendResult(
+	outcome: FileListAppendResult['outcome'] = 'append',
+	files: AudioFile[] = [audioFile('/books/new.m4b')],
+): FileListAppendResult {
+	if (outcome === 'duplicateOnly') {
+		return {
+			outcome,
+			fileList: null,
+			incomingFiles: files,
+			appendedFiles: [],
+			existingFiles: [],
+		};
+	}
+	return {
+		outcome,
+		fileList: fileListInfo(files),
+		incomingFiles: files,
+		appendedFiles: files,
+		existingFiles: [],
+	};
+}
+
 const supportedAudioMetadata: SupportedAudioImportMetadata = {
 	formats: [
 		{ extension: 'mp3', label: 'MP3' },
@@ -51,7 +74,7 @@ function makeHarness(overrides: Partial<ImportAnalysisWorkflowServices> = {}) {
 		discoverAudioImportPaths: vi.fn(async (paths: string[]) => paths),
 		analyzeAudioFiles: vi.fn(async () => fileListInfo()),
 		persistPendingMetadataDraftsForCurrentSelection: vi.fn(async () => true),
-		appendFileList: vi.fn(),
+		appendFileList: vi.fn(() => appendResult()),
 		pushStatusPanelTransientStatus: vi.fn(),
 		setFileImportError: vi.fn(),
 		clearFileImportError: vi.fn(),
@@ -264,15 +287,19 @@ describe('ImportAnalysisWorkflow', () => {
 			}).pipe(Effect.provide(harness.layer)),
 		);
 
-		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, { existingFiles });
+		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
+			existingFiles,
+			showDuplicateStatus: false,
+		});
 		expect(harness.services.clearFileImportError).toHaveBeenCalledTimes(1);
 	});
 
-	it('reports duplicate-only imports without asking file list to emit duplicate status', async () => {
+	it('reports duplicate-only imports from the file list append result', async () => {
 		const existingFiles = [audioFile('/books/existing.m4b')];
 		const analyzed = fileListInfo([audioFile('/books/existing.m4b')]);
 		const harness = makeHarness({
 			analyzeAudioFiles: vi.fn(async () => analyzed),
+			appendFileList: vi.fn(() => appendResult('duplicateOnly', analyzed.files)),
 		});
 
 		await runAppEffect(
@@ -291,6 +318,9 @@ describe('ImportAnalysisWorkflow', () => {
 			'No new files added. All analyzed files were already in the list.',
 			{ ttlMs: 2000 },
 		);
-		expect(harness.services.clearFileImportError).toHaveBeenCalledTimes(1);
+		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
+			'No new files added. All analyzed files were already in the list.',
+		);
+		expect(harness.services.clearFileImportError).not.toHaveBeenCalled();
 	});
 });

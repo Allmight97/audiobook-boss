@@ -18,6 +18,8 @@
 - Preserve the Local Audio Import Boundary sequence: order-lock check,
   backend-supported import metadata/discovery, backend analysis, pending
   metadata draft staging, append to file list, visible status/error feedback.
+- Consume FileList append results for duplicate-only status. Do not duplicate
+  FileList append/dedupe rules inside the import workflow.
 - Rust owns local-audio importability. Frontend code may render
   backend-provided support metadata and pass local paths to backend discovery,
   but must not keep a separate supported-audio allowlist.

@@ -18,7 +18,6 @@ import {
 export {
 	ImportAnalysisWorkflowServicesTag,
 	makeImportAnalysisWorkflowServicesLayer,
-	type ImportAnalysisFileListResult,
 	type ImportAnalysisWorkflowAction,
 	type ImportAnalysisWorkflowLayer,
 	type ImportAnalysisWorkflowServices,
@@ -129,32 +128,25 @@ function reportImportMetadataFailure(
 	return null;
 }
 
-function hasOnlyDuplicateFiles(fileListInfo: FileListInfo, existingFiles: AudioFile[]): boolean {
-	if (existingFiles.length === 0 || fileListInfo.files.length === 0) {
-		return false;
-	}
-	const existingPaths = new Set(existingFiles.map((file) => file.path));
-	return fileListInfo.files.every((file) => existingPaths.has(file.path));
+function duplicateOnlyImportMessage(): string {
+	return 'No new files added. All analyzed files were already in the list.';
 }
 
 function appendAnalyzedFiles(
 	services: ImportAnalysisWorkflowServices,
 	fileListInfo: FileListInfo,
 	existingFiles: AudioFile[],
-): void {
-	if (hasOnlyDuplicateFiles(fileListInfo, existingFiles)) {
-		services.appendFileList(fileListInfo, {
-			existingFiles,
-			showDuplicateStatus: false,
-		});
-		services.pushStatusPanelTransientStatus(
-			'No new files added. All analyzed files were already in the list.',
-			{ ttlMs: 2000 },
-		);
-		return;
+): ReturnType<ImportAnalysisWorkflowServices['appendFileList']>['outcome'] {
+	const appendResult = services.appendFileList(fileListInfo, {
+		existingFiles,
+		showDuplicateStatus: false,
+	});
+	if (appendResult.outcome === 'duplicateOnly') {
+		const message = duplicateOnlyImportMessage();
+		services.setFileImportError(message);
+		services.pushStatusPanelTransientStatus(message, { ttlMs: 2000 });
 	}
-
-	services.appendFileList(fileListInfo, { existingFiles });
+	return appendResult.outcome;
 }
 
 function processFilePaths(
@@ -196,8 +188,10 @@ function processFilePaths(
 			return;
 		}
 
-		appendAnalyzedFiles(services, fileListInfo, existingFiles);
-		services.clearFileImportError();
+		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
+		if (appendOutcome !== 'duplicateOnly') {
+			services.clearFileImportError();
+		}
 	});
 }
 
@@ -298,8 +292,10 @@ function processPreparedFileList(
 			return;
 		}
 
-		appendAnalyzedFiles(services, fileListInfo, existingFiles);
-		services.clearFileImportError();
+		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
+		if (appendOutcome !== 'duplicateOnly') {
+			services.clearFileImportError();
+		}
 	});
 }
 

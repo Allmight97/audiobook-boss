@@ -1,5 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { setFileOrderLocked, stageMetadataToSelection } from '../fileList/actions';
+import { setFileOrderLocked } from '../fileList/actions';
+import { stageMetadataToSelection } from '../fileList/metadataStaging';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,

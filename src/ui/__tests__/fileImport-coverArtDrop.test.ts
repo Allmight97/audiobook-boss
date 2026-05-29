@@ -347,7 +347,9 @@ describe('File import drop vs cover art drop isolation', () => {
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
 		);
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
-		await flushAsync();
+		await waitFor(() => {
+			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+		});
 
 		analyzeAudioFilesMock.mockResolvedValueOnce(
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
@@ -364,5 +366,14 @@ describe('File import drop vs cover art drop isolation', () => {
 			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 		});
 		expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+		await waitFor(() => {
+			expect(document.querySelector('#file-import-error')?.textContent).toContain(
+				'No new files added. All analyzed files were already in the list.',
+			);
+		});
+		expect(pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
+			'No new files added. All analyzed files were already in the list.',
+			{ ttlMs: 2000 },
+		);
 	});
 });

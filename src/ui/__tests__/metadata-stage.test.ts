@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	persistPendingMetadataDraftsForCurrentSelection,
 	stageMetadataToSelection,
-} from '../fileList/actions';
+} from '../fileList/metadataStaging';
 import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state.svelte';
 import {
 	clearMetadataState,

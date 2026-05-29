@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import {
-	appendFileList,
-	displayFileList,
-	moveFileUp,
-	persistPendingMetadataDraftsForCurrentSelection,
-} from '../fileList/actions';
+import { appendFileList, displayFileList, moveFileUp } from '../fileList/actions';
+import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 import { showSingleSelection } from '../fileList/metadataPanel';
 import {

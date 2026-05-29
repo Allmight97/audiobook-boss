@@ -1,8 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
-import {
-	appendFileList,
-	persistPendingMetadataDraftsForCurrentSelection,
-} from '../fileList/actions';
+import { appendFileList } from '../fileList/actions';
+import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
 import { isOrderLocked } from '../fileList/state.svelte';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { clearFileImportError, setFileImportError } from './state.svelte';

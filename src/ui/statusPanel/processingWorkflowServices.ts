@@ -4,7 +4,8 @@ import {
 	makeWorkflowLayer,
 	makeWorkflowServiceTag,
 } from '../../lib/effect/appEffect';
-import type { setFileOrderLocked, stageMetadataToSelection } from '../fileList/actions';
+import type { setFileOrderLocked } from '../fileList/actions';
+import type { stageMetadataToSelection } from '../fileList/metadataStaging';
 import type {
 	getCurrentFileList,
 	getSelectedFileIndex,
