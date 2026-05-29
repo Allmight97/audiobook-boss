@@ -1,20 +1,7 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { tauriClient } from '../../lib/tauri/client';
-import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
+import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
-import {
-	clearMetadataState,
-	getMetadataForFile,
-	metadataEqualsNullish,
-	removeMetadataForFile,
-	setMetadataForFile,
-} from '../metadataState';
-import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
-import {
-	firstMetadataIntentValidationError,
-	validateMetadataDraftIntent,
-} from '../metadataValidation';
-import { hasDirtyMetadataFields, readMetadataForm, resetDirtyState } from '../metadataForm';
+import { clearMetadataState, removeMetadataForFile } from '../metadataState';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -47,76 +34,27 @@ import {
 import {
 	autoUpdateCoverArtFromFirstValidFile,
 	clearSelectionPanels,
-	ensureMetadataForFiles,
 	getSelectedFiles,
 	showMultiSelection,
 	showSingleSelection,
 } from './metadataPanel';
+import {
+	buildFileListAppendResult,
+	normalizeFileListInfo,
+	type FileListAppendResult,
+} from './appendResult';
+import { persistSingleSelectionMetadata, stageMetadataToSelection } from './metadataStaging';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
 }
 
-function refreshOutputForMetadataChange(): void {
-	updateOutputPath('final');
-	updateEstimatedSize();
-}
-
-function collectUniqueFiles(files: AudioFile[], seenPaths: Set<string> = new Set()): AudioFile[] {
-	const uniqueFiles: AudioFile[] = [];
-	for (const file of files) {
-		if (seenPaths.has(file.path)) {
-			continue;
-		}
-		seenPaths.add(file.path);
-		uniqueFiles.push(file);
-	}
-	return uniqueFiles;
-}
-
-function buildSelectedDecoderByPath(
-	fileList: Pick<FileListInfo, 'files' | 'selectedDecoders'>,
-): Map<string, FileListInfo['selectedDecoders'][number]> {
-	const byPath = new Map<string, FileListInfo['selectedDecoders'][number]>();
-	for (const [index, file] of fileList.files.entries()) {
-		byPath.set(file.path, fileList.selectedDecoders[index] ?? null);
-	}
-	return byPath;
-}
-
-function refreshDerivedFileListState(fileList: FileListInfo): void {
-	if (fileList.selectedDecoders.length !== fileList.files.length) {
-		const decoderByPath = buildSelectedDecoderByPath(fileList);
-		fileList.selectedDecoders = fileList.files.map((file) => decoderByPath.get(file.path) ?? null);
-	}
-	fileList.validCount = fileList.files.filter((file) => file.isValid).length;
-	fileList.invalidCount = fileList.files.length - fileList.validCount;
-	recalculateTotals();
-}
-
-function buildFileListInfoFromFiles(
-	files: AudioFile[],
-	decoderByPath: Map<string, FileListInfo['selectedDecoders'][number]> = new Map(),
-): FileListInfo {
-	const uniqueFiles = collectUniqueFiles(files);
-	const fileList = {
-		files: uniqueFiles,
-		selectedDecoders: uniqueFiles.map((file) => decoderByPath.get(file.path) ?? null),
-		totalDuration: 0,
-		totalSize: 0,
-		validCount: 0,
-		invalidCount: 0,
-	};
-	refreshDerivedFileListState(fileList);
-	return fileList;
+function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
+	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
 
 function setStatusMessage(message: string): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
-}
-
-function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
-	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -130,17 +68,7 @@ function selectSoleImportedFile(fileList: FileListInfo): void {
 }
 
 export function displayFileList(fileListInfo: FileListInfo): void {
-	const uniqueFiles = collectUniqueFiles(fileListInfo.files);
-	const decoderByPath = buildSelectedDecoderByPath(fileListInfo);
-	const normalizedFileListInfo =
-		uniqueFiles.length === fileListInfo.files.length
-			? fileListInfo
-			: {
-					...fileListInfo,
-					files: uniqueFiles,
-					selectedDecoders: uniqueFiles.map((file) => decoderByPath.get(file.path) ?? null),
-				};
-	refreshDerivedFileListState(normalizedFileListInfo);
+	const normalizedFileListInfo = normalizeFileListInfo(fileListInfo);
 
 	clearMetadataState();
 	setCurrentFileList(normalizedFileListInfo);
@@ -161,42 +89,25 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 export function appendFileList(
 	fileListInfo: FileListInfo,
 	options?: { existingFiles?: AudioFile[]; showDuplicateStatus?: boolean },
-): void {
+): FileListAppendResult {
 	const currentFileList = getCurrentFileList();
 	const existingFiles = options?.existingFiles ?? currentFileList?.files ?? [];
-	if (existingFiles.length === 0) {
+	const appendResult = buildFileListAppendResult(fileListInfo, { existingFiles, currentFileList });
+
+	if (appendResult.outcome === 'replace') {
 		displayFileList(fileListInfo);
-		return;
+		return appendResult;
 	}
-
-	const appendedFiles = collectUniqueFiles(
-		fileListInfo.files,
-		new Set(existingFiles.map((file) => file.path)),
-	);
-
-	if (appendedFiles.length === 0) {
+	if (appendResult.outcome === 'duplicateOnly') {
 		if (options?.showDuplicateStatus ?? true) {
 			setTransientStatusMessage('No new files added. All analyzed files were already in the list.');
 		}
-		return;
+		return appendResult;
 	}
 
 	const selectedIndex = getSelectedFileIndex();
 	const selectedIndices = getSelectedFileIndices();
-	const decoderByPath = new Map<string, FileListInfo['selectedDecoders'][number]>();
-	if (currentFileList) {
-		for (const [path, selection] of buildSelectedDecoderByPath(currentFileList)) {
-			decoderByPath.set(path, selection);
-		}
-	}
-	for (const [path, selection] of buildSelectedDecoderByPath(fileListInfo)) {
-		decoderByPath.set(path, selection);
-	}
-	const mergedFileList = buildFileListInfoFromFiles(
-		[...existingFiles, ...appendedFiles],
-		decoderByPath,
-	);
-	setCurrentFileList(mergedFileList);
+	setCurrentFileList(appendResult.fileList);
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
@@ -206,40 +117,7 @@ export function appendFileList(
 	updateSortButtonText(getSortAscending());
 
 	refreshOutputForFileListChange();
-}
-
-async function persistSingleSelectionMetadata(file: AudioFile | null): Promise<boolean> {
-	if (!file?.isValid) return true;
-	if (!hasDirtyMetadataFields()) return true;
-
-	const metadata = readMetadataForm({ mode: 'single' });
-	const validation = await validateMetadataDraftIntent(
-		metadata,
-		tauriClient.validateMetadataIntentPatch,
-	);
-	const validationError = firstMetadataIntentValidationError(validation.result);
-	if (validationError) {
-		setStatusMessage(validationError);
-		return false;
-	}
-
-	const existing = getMetadataForFile(file.path) ?? {};
-	const intentPatch = validation.intentPatch;
-	if (!hasActionableMetadataDraftIntent(intentPatch)) {
-		return true;
-	}
-	const merged = applyMetadataDraftIntent(existing, intentPatch);
-	if (metadataEqualsNullish(existing, merged)) {
-		return true;
-	}
-
-	setMetadataForFile(file.path, merged, {
-		markPending: true,
-		intentPatch,
-	});
-	resetDirtyState();
-	refreshOutputForMetadataChange();
-	return true;
+	return appendResult;
 }
 
 export async function selectFile(
@@ -349,83 +227,6 @@ export async function clearSelectionAction(): Promise<void> {
 
 	updateSelection();
 	clearSelectionPanels();
-}
-
-export async function stageMetadataToSelection(options?: {
-	showStatus?: boolean;
-	selectedFilesOverride?: AudioFile[];
-}): Promise<boolean> {
-	if (!getCurrentFileList()) return true;
-
-	const selectedFiles = (options?.selectedFilesOverride ?? getSelectedFiles()).filter(
-		(file) => file.isValid,
-	);
-	if (selectedFiles.length === 0) return true;
-
-	const changes = readMetadataForm({ mode: 'multi', onlyDirty: true });
-	if (Object.keys(changes).length === 0) {
-		if (options?.showStatus) {
-			setStatusMessage('No metadata changes to apply');
-		}
-		return true;
-	}
-
-	const validation = await validateMetadataDraftIntent(
-		changes,
-		tauriClient.validateMetadataIntentPatch,
-	);
-	const validationError = firstMetadataIntentValidationError(validation.result);
-	if (validationError) {
-		if (options?.showStatus) {
-			setStatusMessage(validationError);
-		}
-		return false;
-	}
-
-	await ensureMetadataForFiles(selectedFiles);
-	const intentPatch = validation.intentPatch;
-	if (!hasActionableMetadataDraftIntent(intentPatch)) {
-		return true;
-	}
-
-	selectedFiles.forEach((file) => {
-		const existing = getMetadataForFile(file.path) ?? {};
-		const merged = applyMetadataDraftIntent(existing, intentPatch);
-		if (!metadataEqualsNullish(existing, merged)) {
-			setMetadataForFile(file.path, merged, {
-				markPending: true,
-				intentPatch,
-			});
-		}
-	});
-
-	resetDirtyState();
-	refreshOutputForMetadataChange();
-
-	if (options?.showStatus) {
-		setTransientStatusMessage(`Draft saved for ${selectedFiles.length} files`);
-	}
-
-	return true;
-}
-
-export async function persistPendingMetadataDraftsForCurrentSelection(options?: {
-	showStatus?: boolean;
-}): Promise<boolean> {
-	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
-	if (selectedFiles.length === 0) {
-		return true;
-	}
-	if (selectedFiles.length === 1) {
-		const hadDirtyMetadata = hasDirtyMetadataFields();
-		const persisted = await persistSingleSelectionMetadata(selectedFiles[0]);
-		if (persisted && hadDirtyMetadata && options?.showStatus) {
-			setStatusMessage('Draft saved');
-		}
-		return persisted;
-	}
-
-	return stageMetadataToSelection({ showStatus: options?.showStatus });
 }
 
 export async function removeFile(index: number): Promise<void> {

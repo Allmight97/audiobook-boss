@@ -76,6 +76,9 @@ vi.mock('../../metadataState', () => ({
 
 vi.mock('../../fileList/actions', () => ({
 	setFileOrderLocked: vi.fn(),
+}));
+
+vi.mock('../../fileList/metadataStaging', () => ({
 	stageMetadataToSelection: context.stageMetadataToSelectionMock,
 }));
 

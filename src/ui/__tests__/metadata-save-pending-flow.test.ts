@@ -82,6 +82,9 @@ vi.mock('../fileList/state.svelte', () => ({
 
 vi.mock('../fileList/actions', () => ({
 	appendFileList: vi.fn(),
+}));
+
+vi.mock('../fileList/metadataStaging', () => ({
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 

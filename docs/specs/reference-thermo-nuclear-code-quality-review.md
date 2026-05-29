@@ -6,10 +6,9 @@ routes were run.
 ## Verdict
 
 This reference review was used to create the cleanup specs. Audio Engine private
-cluster and preview truth has since been resolved; File Import/FileList remains
-the active cleanup workblock plus out-of-band Remote Acquisition:
-
-1. File Import/FileList orchestration.
+cluster and preview truth has since been resolved. File Import/FileList
+orchestration has been split into explicit append/dedupe and metadata-staging
+surfaces; Remote Acquisition remains out-of-band.
 
 The Audio Engine workblock split external FDK internals by private mechanism and
 removed dead preview-marker collection; preview artifacts intentionally omit
@@ -20,7 +19,7 @@ artifact metadata.
 
 | Finding | Evidence | Structural Risk | Suggested Workblock | Confidence |
 | --- | --- | --- | --- | --- |
-| FileList still owns too many workflows, and import duplicate status is split. | `src/ui/fileList/actions.ts:65`, `:161`, `:211`, `:354`, `:431`; `src/ui/fileImport/importAnalysisWorkflow.ts:132`, `:140`, `:160`, `:266`. | Import append/dedupe, metadata staging, selection transitions, order mutation, totals, and output refresh require one reader to hold unrelated user workflows at once. Duplicate status has parallel policy points. | File Import/FileList orchestration. | High |
+| File Import/FileList orchestration has been addressed. | `src/ui/fileList/appendResult.ts`, `src/ui/fileList/metadataStaging.ts`, `src/ui/fileList/actions.ts`, `src/ui/fileImport/importAnalysisWorkflow.ts`. | Append/dedupe result truth is now FileList-owned, metadata staging is split from visible FileList mutations, and File Import consumes append outcomes for duplicate-only status. | Completed. | High |
 
 ## Not Worth Roadmapping Now
 
@@ -29,9 +28,9 @@ artifact metadata.
 - Giant integration test files are not a roadmap by themselves. Keep proof/test
   portfolio work separate unless a workblock needs test decomposition to keep
   private module tests readable.
-- Metadata intent/date/series validation should not be reopened here. The active
-  metadata work is ingress trust before intent writing, not another intent
-  validation roadmap.
+- Metadata intent/date/series validation should not be reopened here. Metadata
+  ingress trust has landed, and no remaining item in this reference review
+  reopens intent validation.
 - App Settings is not part of this cleanup. It is already in the current system
   map as a Grey-Box Public API.
 - Metadata ingress trust and Processing terminal truth have landed. Do not
@@ -41,9 +40,6 @@ artifact metadata.
 
 ## Spec Cross-Reference
 
-- `docs/specs/04-file-import-filelist-orchestration.md`
-  covers frontend import/FileList workflow ownership and duplicate status. It
-  should not absorb backend importability or processing lifecycle work.
 - `docs/specs/feat/remote-acquisition.md`
   remains out-of-band. Its eventual LocalImportBridge dependency should benefit
   from the File Import/FileList workblock, but Remote Acquisition should not be
