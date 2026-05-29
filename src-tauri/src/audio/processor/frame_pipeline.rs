@@ -76,13 +76,10 @@ fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
         preview_state.current_file_elapsed_samples as f64 / ctx.target_sample_rate as f64;
 
     if elapsed_seconds >= preview_state.per_file_seconds {
-        // Record chapter marker for this file excerpt
-        preview_state.record_chapter(*ctx.running_pts, ctx.target_sample_rate);
-
         if preview_state.all_files_complete() {
             log::info!(
-                "adaptive preview complete: {} chapters, total_pts={}",
-                preview_state.chapter_markers.len(),
+                "adaptive preview complete: {} file excerpts, total_pts={}",
+                preview_state.file_count,
                 *ctx.running_pts
             );
             *ctx.early_stop = true;

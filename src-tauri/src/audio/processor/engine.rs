@@ -52,7 +52,7 @@ impl FfmpegNextProcessor {
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
         if let Some(ref mut ps) = ctx.preview_state {
-            ps.start_new_file(file_index, file_name, *ctx.running_pts);
+            ps.start_new_file(file_index);
             log::info!(
                 "Adaptive preview: starting file {} '{}' at pts={}",
                 file_index + 1,
@@ -260,16 +260,6 @@ impl MediaProcessor for FfmpegNextProcessor {
 
             if flush_accumulator_tail(&mut enc_ctx, &mut octx, &mut ctx, &mut accumulator)? {
                 log::info!("✓ Flushed final accumulator tail frame");
-            }
-
-            // Log preview chapter count for diagnostics
-            if let Some(ref ps) = preview_state_storage {
-                if !ps.chapter_markers.is_empty() {
-                    log::info!(
-                        "Adaptive preview: processed {} file excerpts",
-                        ps.chapter_markers.len()
-                    );
-                }
             }
 
             // Finalize encoding (same path for full encode or preview early-stop)

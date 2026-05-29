@@ -7,9 +7,7 @@ Repo-grounded audit of first-party code (`src/`, `src-tauri/src/`). Ordered by i
 | # | Item | Why first |
 | --- | --- | --- |
 | 1 | Duplicate TS↔Rust domain rules | Two-source-of-truth trap across Decide/Preflight/Process (expanded below) |
-| 2 | `external_fdk.rs` monolith | Highest-risk encode path; change blast radius |
-| 3 | Adaptive preview chapter markers | Known incomplete preview behavior |
-| 4 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
+| 2 | `fileList/actions.ts` orchestration hub | File-list + metadata coupling blocks safe UI iteration |
 
 ---
 
@@ -26,6 +24,15 @@ Processing terminal truth is split behind the private `terminal_outcomes/`
 module family. `run.rs` keeps orchestration while classification, skip/no-write
 entry construction, batch aggregation/repair, and terminal event helpers are
 owned by named private modules with focused tests.
+
+## Resolved 2026-05-28: Audio Engine private cluster and preview truth
+
+External FDK internals are split by private mechanism under
+`src-tauri/src/audio/processor/external_fdk/`, keeping the adapter entrypoint
+stable while separating args, process lifecycle, progress parsing, passthrough,
+and fixtures/tests. Adaptive preview marker collection was removed; preview
+artifacts intentionally omit chapters while full-output passthrough remains
+tested.
 
 ---
 
@@ -119,22 +126,6 @@ enforces HTTPS-only, redirect, host, bogon-IP, content-type, and size rules.
 
 ---
 
-## 4. `external_fdk.rs` monolith
-
-**Evidence:** 1,310 LOC (~2.7× backend threshold). Combines spawn/monitor/kill, args, progress, cancellation, metadata passthrough, and large inline tests.
-
-**Done looks like:** Extract spawn/monitor, arg builder, and test fixtures before next encoder/toolchain change.
-
----
-
-## 5. Adaptive preview chapter markers
-
-**Evidence:** `src-tauri/src/audio/processor/preview_state.rs` TODO; markers collected in pipeline but only logged, not emitted.
-
-**Done looks like:** Wire FFMETADATA chapter emission or remove dead collection.
-
----
-
 ## 6. `fileList/actions.ts` orchestration hub
 
 **Evidence:** 601 LOC; couples metadata drafts, output refresh, selection, order lock; no dedicated unit test file.
@@ -147,9 +138,7 @@ enforces HTTPS-only, redirect, host, bogon-IP, content-type, and size rules.
 
 ```text
 2c–2d → remaining metadata rule parity
-3 → terminal outcome split
-4 → external_fdk decomposition
-5–6 → preview chapters + fileList split
+6 → fileList split
 ```
 
 ## Clean areas (not backlog)
