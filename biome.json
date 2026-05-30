@@ -88,8 +88,7 @@
 				"dist/**",
 				"coverage/**",
 				"site/**",
-				"repos/**",
-				".experiments-bun/**"
+				"repos/**"
 			],
 			"formatter": {
 				"enabled": false

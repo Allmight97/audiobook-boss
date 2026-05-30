@@ -1,11 +1,11 @@
 # Decisions
 
-## 2026-05-28 - Bun Canary Runtime
+## 2026-05-28 - Bun Stable Runtime
 
-- Use Bun `1.4` canary via `packageManager`.
-- Refresh with `bun upgrade --canary`, not `bun upgrade --stable`.
-- Run `bun scripts/proof/runner.ts release` after Bun canary bumps before merge or release work.
-- Script proof tests run through Vitest because `bun test` panicked in this workspace on the adopted canary.
+- Use Bun `1.3.14` stable via `packageManager`.
+- Refresh: `bun upgrade --stable`.
+- Bun-change proof: `bun scripts/proof/runner.ts review`; use `release` for packaging/release work.
+- Script proof tests: Vitest via `bun run test`.
 
 ## 2026-05-27 - Proof Entrypoint
 

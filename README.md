@@ -32,9 +32,10 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 
 ## Toolchain
 
-- **Bun 1.4** (Rust runtime line) via `packageManager` in `package.json`.
-- Install or refresh the canary binary: `bun upgrade --canary` (not `bun upgrade --stable`).
-- Re-run `bun upgrade --canary` periodically—before merge/release work or after long gaps—then `bun scripts/proof/runner.ts release` if Bun changed.
+- Package manager: **Bun 1.3.14 stable**.
+- Refresh: `bun upgrade --stable`.
+- Verify Bun changes with `bun scripts/proof/runner.ts review`;
+  use `release` for packaging/release work.
 
 ## Development
 
