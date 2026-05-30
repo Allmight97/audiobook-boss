@@ -97,7 +97,6 @@ function appSettingsFixture() {
 				twoloop: true,
 			},
 			sampleRate: 'auto' as const,
-			externalToolchain: {},
 		},
 		outputDefaults: {
 			outputNaming: {

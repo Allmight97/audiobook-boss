@@ -23,41 +23,26 @@ describe('runtime settings capability hydration', () => {
 		runtimeSettingsCapabilitiesState.loading = false;
 	});
 
-	it('deduplicates concurrent loads for the same explicit toolchain key', async () => {
+	it('deduplicates concurrent auto-detection loads', async () => {
 		const capabilities = runtimeSettingsCapabilitiesFixture();
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(capabilities);
 
-		const first = hydrateRuntimeSettingsCapabilities(null);
-		const second = hydrateRuntimeSettingsCapabilities(null);
+		const first = hydrateRuntimeSettingsCapabilities();
+		const second = hydrateRuntimeSettingsCapabilities();
 
 		await expect(first).resolves.toBe(capabilities);
 		await expect(second).resolves.toBe(capabilities);
 		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
-		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledWith(null);
+		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledWith();
 	});
 
-	it('keeps separate pending loads for distinct explicit toolchain keys', async () => {
+	it('uses auto-detect as the only runtime capability ingress', async () => {
 		const automatic = runtimeSettingsCapabilitiesFixture();
-		const override = runtimeSettingsCapabilitiesFixture({
-			encoder: {
-				availability: {
-					...runtimeSettingsCapabilitiesFixture().encoder.availability,
-					overrideToolchainPath: '/custom/ffmpeg',
-					activeToolchainPath: '/custom/ffmpeg',
-				},
-			},
-		});
-		context.getRuntimeSettingsCapabilitiesMock
-			.mockResolvedValueOnce(automatic)
-			.mockResolvedValueOnce(override);
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValueOnce(automatic);
 
-		await hydrateRuntimeSettingsCapabilities(null);
-		await hydrateRuntimeSettingsCapabilities({ overridePath: '/custom/ffmpeg' });
+		await hydrateRuntimeSettingsCapabilities();
 
-		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(2);
-		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenNthCalledWith(1, null);
-		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenNthCalledWith(2, {
-			overridePath: '/custom/ffmpeg',
-		});
+		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
+		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledWith();
 	});
 });

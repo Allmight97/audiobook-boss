@@ -1,6 +1,6 @@
 use super::lifecycle::{OperationKind, OperationResultSummary};
 use crate::audio;
-use crate::audio::{EncoderSettings, ExternalToolchainPreference};
+use crate::audio::EncoderSettings;
 use crate::errors::AppErrorEnvelope;
 pub use crate::output_artifact::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
@@ -29,7 +29,6 @@ pub struct ProcessPayload {
     pub input_files: Vec<String>,
     pub output_dir: String,
     pub settings: EncoderSettings,
-    pub external_toolchain: Option<ExternalToolchainPreference>,
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
     pub job_type: Option<JobType>,

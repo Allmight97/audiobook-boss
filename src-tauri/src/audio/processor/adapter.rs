@@ -4,7 +4,7 @@ use crate::audio::settings_encoder::{
 };
 use crate::audio::toolchain::{
     detect_encoder_availability_with_resolution, validate_external_input_decoders,
-    EncoderAvailability, ExternalToolchainPreference, ValidatedExternalToolchain,
+    EncoderAvailability, ValidatedExternalToolchain,
 };
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
@@ -79,10 +79,8 @@ impl ResolvedProcessorAdapter {
 
 pub fn resolve_processor_adapter(
     encoder_settings: &EncoderSettings,
-    external_toolchain: Option<&ExternalToolchainPreference>,
 ) -> Result<ResolvedProcessorAdapter> {
-    let (availability, resolution) =
-        detect_encoder_availability_with_resolution(external_toolchain);
+    let (availability, resolution) = detect_encoder_availability_with_resolution();
     resolve_processor_adapter_from_parts(encoder_settings, &availability, resolution.validated)
 }
 
@@ -232,10 +230,6 @@ mod tests {
             native_aac_available: true,
             auto_encoder,
             detected_toolchain_path: None,
-            override_toolchain_path: None,
-            active_toolchain_path: None,
-            override_invalid: false,
-            override_error: None,
             status_message: String::new(),
         }
     }

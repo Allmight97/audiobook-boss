@@ -78,7 +78,6 @@ async fn native_aac_regression_encodes_valid_output() {
         None,
         CoverArtPassthroughPolicy::Preserve,
         native_aac_settings(),
-        None,
     ))
     .await;
     assert!(
@@ -130,7 +129,6 @@ async fn native_aac_preview_stops_near_requested_boundary() {
         None,
         CoverArtPassthroughPolicy::Preserve,
         native_aac_settings(),
-        None,
     ))
     .await;
     assert!(
@@ -207,7 +205,6 @@ async fn native_aac_removes_destination_staging_when_execute_fails() {
         None,
         CoverArtPassthroughPolicy::Preserve,
         native_aac_settings(),
-        None,
     ))
     .await;
 

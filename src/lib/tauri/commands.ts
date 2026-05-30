@@ -2,13 +2,11 @@ import {
 	commands as generatedCommands,
 	type AppSettingsPatch as GeneratedAppSettingsPatch,
 	type EncoderDefaults as GeneratedEncoderDefaults,
-	type ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	type OutputDefaults as GeneratedOutputDefaults,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 } from '../generated/tauri';
 import type {
 	EncoderSettings,
-	ExternalToolchainPreference,
 	OutputNamingConfig,
 	OutputKind,
 	ProcessPayload,
@@ -23,7 +21,6 @@ import {
 	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
-	normalizeEncoderAvailability,
 	normalizeFileList,
 	normalizeLookupResponse,
 	normalizeMetadata,
@@ -59,16 +56,6 @@ async function runGeneratedCommand<T, R>(
 	}
 }
 
-function toGeneratedExternalToolchain(
-	externalToolchain?: ExternalToolchainPreference | null,
-): GeneratedExternalToolchainPreference | null {
-	return externalToolchain
-		? {
-				overridePath: externalToolchain.overridePath ?? null,
-			}
-		: null;
-}
-
 function toGeneratedRequiredOutputNamingConfig(
 	outputNaming: OutputNamingConfig,
 ): GeneratedOutputNamingConfig {
@@ -92,9 +79,6 @@ function toGeneratedEncoderDefaults(
 	return {
 		settings: defaults.settings,
 		sampleRate: defaults.sampleRate,
-		externalToolchain: toGeneratedExternalToolchain(defaults.externalToolchain) ?? {
-			overridePath: null,
-		},
 	};
 }
 
@@ -200,37 +184,11 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.discoverAudioImportPaths(args.inputPaths)),
 	take_opened_audio_files: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.takeOpenedAudioFiles()),
-	validate_encoder_settings: (args: {
-		settings: EncoderSettings;
-		externalToolchain?: ExternalToolchainPreference | null;
-	}) =>
+	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
+		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
+	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>
 		runGeneratedCommand(
-			generatedCommands.validateEncoderSettings(
-				args.settings,
-				toGeneratedExternalToolchain(args.externalToolchain),
-			),
-		),
-	list_available_encoders: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
-		runGeneratedCommand(
-			generatedCommands.listAvailableEncoders(
-				toGeneratedExternalToolchain(args?.externalToolchain),
-			),
-			normalizeEncoderAvailability,
-		),
-	refresh_external_toolchain: (args?: { externalToolchain?: ExternalToolchainPreference | null }) =>
-		runGeneratedCommand(
-			generatedCommands.refreshExternalToolchain(
-				toGeneratedExternalToolchain(args?.externalToolchain),
-			),
-			normalizeEncoderAvailability,
-		),
-	get_runtime_settings_capabilities: (args: {
-		externalToolchain: ExternalToolchainPreference | null;
-	}): Promise<RuntimeSettingsCapabilities> =>
-		runGeneratedCommand(
-			generatedCommands.getRuntimeSettingsCapabilities(
-				toGeneratedExternalToolchain(args.externalToolchain),
-			),
+			generatedCommands.getRuntimeSettingsCapabilities(),
 			normalizeRuntimeSettingsCapabilities,
 		),
 	preview_output_path: (args: {

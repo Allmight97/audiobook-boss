@@ -18,10 +18,6 @@ export function encoderAvailabilityFixture(
 		fdkSource: fdkAvailable ? 'detected' : 'none',
 		autoEncoder: fdkAvailable ? 'fdk_he_aac' : aacAtAvailable ? 'aac_at' : 'native_aac',
 		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
-		overrideToolchainPath: undefined,
-		activeToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
-		overrideInvalid: false,
-		overrideError: undefined,
 		statusMessage: fdkAvailable
 			? 'FDK AAC detected and ready.'
 			: 'No external FFmpeg toolchain with libfdk_aac was detected.',

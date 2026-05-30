@@ -18,7 +18,6 @@ function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 		inputFiles: ['/books/a.m4b'],
 		outputDir: '/tmp/out',
 		settings: defaultEncoderSettings(),
-		externalToolchain: {},
 		sampleRate: 'auto',
 		jobType: 'merge',
 		outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },

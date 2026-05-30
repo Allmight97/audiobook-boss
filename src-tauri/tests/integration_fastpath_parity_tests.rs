@@ -62,7 +62,6 @@ async fn encode_with_fastpath_mode(
         None,
         CoverArtPassthroughPolicy::Preserve,
         native_encoder_settings(),
-        None,
     ))
     .await
     .expect("native AAC processing should complete")

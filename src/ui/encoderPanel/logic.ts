@@ -3,10 +3,7 @@ import {
 	applyEncoderDefaults,
 	encoderPanelState,
 	readEncoderDefaultsFromState,
-	setChannelsAutoHint,
 	setEncoderSettingsCapabilities,
-	setExternalToolchainOverridePath,
-	setSampleRateAutoHint,
 	type BitrateModeSelection,
 	type VbrLevel,
 } from './state.svelte';
@@ -14,8 +11,8 @@ import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
-import { runToolchainValidationWorkflow } from './toolchainValidationWorkflow';
 import { persistEncoderDefaults } from '../appSettings/persistence';
+import { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -69,6 +66,36 @@ const encoderFlavorLabel = (flavor: EncoderFlavor): string => {
 const autoOptionLabel = (effectiveEncoder: EncoderFlavor): string =>
 	`${AUTO_LABEL_BASE} (${encoderFlavorLabel(effectiveEncoder)})`;
 
+const compactToolchainPath = (path: string | null | undefined): string | null => {
+	if (!path) return null;
+	if (path.length <= 38) return path;
+
+	const normalized = path.replaceAll('\\', '/');
+	const parts = normalized.split('/').filter(Boolean);
+	const parent = parts.at(-2);
+	const filename = parts.at(-1);
+	if (!parent || !filename) return path;
+
+	if (normalized.startsWith('/opt/homebrew/')) {
+		return `/opt/homebrew/.../${parent}/${filename}`;
+	}
+	if (normalized.startsWith('/usr/local/')) {
+		return `/usr/local/.../${parent}/${filename}`;
+	}
+
+	const root = normalized.startsWith('/') ? `/${parts[0]}` : (parts[0] ?? '');
+	return root ? `${root}/.../${parent}/${filename}` : `.../${parent}/${filename}`;
+};
+
+const fdkAvailabilityHint = (): string => {
+	const path = compactToolchainPath(encoderPanelState.availability?.detectedToolchainPath);
+	const pathSegment = path ? ` via ${path}` : '';
+	const afterburnerSegment = encoderPanelState.fdkAfterburner
+		? 'Afterburner on.'
+		: 'Afterburner off.';
+	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
+};
+
 const syncOutputSizingFromEncoderState = (): void => {
 	updateEstimatedSize();
 };
@@ -93,10 +120,7 @@ const updateAvailabilityHint = (): void => {
 
 	if (selectedFlavor === 'auto') {
 		if (effectiveEncoder === 'fdk_he_aac') {
-			const pathSuffix = encoderPanelState.toolchainActivePath
-				? ` at ${encoderPanelState.toolchainActivePath}.`
-				: '.';
-			encoderPanelState.availabilityHint = `Auto will use external FDK AAC${pathSuffix}`;
+			encoderPanelState.availabilityHint = fdkAvailabilityHint();
 			return;
 		}
 		if (effectiveEncoder === 'aac_at') {
@@ -119,13 +143,10 @@ const updateAvailabilityHint = (): void => {
 	if (effectiveEncoder === 'fdk_he_aac') {
 		if (!encoderPanelState.availability.fdkAvailable) {
 			encoderPanelState.availabilityHint =
-				'FDK AAC requires a validated external FFmpeg toolchain.';
+				'FDK AAC needs an auto-detectable FFmpeg with libfdk_aac.';
 			return;
 		}
-		encoderPanelState.availabilityHint =
-			encoderPanelState.availability.fdkSource === 'override'
-				? 'FDK AAC is using the saved override path.'
-				: 'External FDK toolchain detected and ready.';
+		encoderPanelState.availabilityHint = fdkAvailabilityHint();
 		return;
 	}
 
@@ -177,11 +198,11 @@ const updateQualityVisibility = (): void => {
 	encoderPanelState.qualityBitrateLabel = encoderPanelState.showQuality ? 'Quality' : 'Bitrate';
 };
 
-const updateInlineOptions = (): void => {
+const updateInlineOptions = (effectiveEncoder: EncoderFlavor): void => {
+	encoderPanelState.showFdkOptions = effectiveEncoder === 'fdk_he_aac';
+	encoderPanelState.showNativeOptions = effectiveEncoder === 'native_aac';
 	encoderPanelState.showInlineOptionRow =
-		encoderPanelState.flavor === 'fdk_he_aac' || encoderPanelState.flavor === 'native_aac';
-	encoderPanelState.showFdkOptions = encoderPanelState.flavor === 'fdk_he_aac';
-	encoderPanelState.showNativeOptions = encoderPanelState.flavor === 'native_aac';
+		encoderPanelState.showFdkOptions || encoderPanelState.showNativeOptions;
 };
 
 const updateEstimatedBitrate = (): void => {
@@ -236,7 +257,7 @@ const syncEncoderState = (): void => {
 	const effectiveEncoder = resolveEffectiveEncoder(encoderPanelState.flavor);
 	enforceBitrateModeCompatibility(effectiveEncoder);
 	updateQualityVisibility();
-	updateInlineOptions();
+	updateInlineOptions(effectiveEncoder);
 	updateProfileDisplay(effectiveEncoder);
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
@@ -248,22 +269,8 @@ export const syncAfterStateChange = (): void => {
 	syncOutputSizingFromEncoderState();
 };
 
-const readAcceptedEncoderDefaultsFromState = (): EncoderDefaults => {
-	const defaults = readEncoderDefaultsFromState();
-	if (
-		encoderPanelState.externalToolchainOverridePath.trim() &&
-		encoderPanelState.availability?.overrideInvalid
-	) {
-		return {
-			...defaults,
-			externalToolchain: {},
-		};
-	}
-	return defaults;
-};
-
 const persistCurrentEncoderDefaults = (): void => {
-	void persistEncoderDefaults(readAcceptedEncoderDefaultsFromState());
+	void persistEncoderDefaults(readEncoderDefaultsFromState());
 };
 
 export const syncEncoderPanelAfterAvailabilityChange = (): void => {
@@ -279,19 +286,22 @@ export const setRuntimeEncoderSettingsCapabilities = (
 	syncEncoderPanelAfterAvailabilityChange();
 };
 
+const hydrateEncoderAvailability = async (): Promise<void> => {
+	const capabilities = await hydrateRuntimeSettingsCapabilities();
+	setRuntimeEncoderSettingsCapabilities(capabilities?.encoder ?? null);
+};
+
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 	resetAutoResolutionHints();
-	setSampleRateAutoHint('Auto resolves from source audio.');
-	setChannelsAutoHint('Auto resolves from source audio.');
 	syncOutputSizingFromEncoderState();
-	void runToolchainValidationWorkflow({ type: 'hydrateAvailability' });
+	void hydrateEncoderAvailability();
 };
 
 export const applyEncodingDefaults = (defaults: EncoderDefaults): void => {
 	applyEncoderDefaults(defaults);
 	syncAfterStateChange();
-	void runToolchainValidationWorkflow({ type: 'hydrateAvailability' });
+	void hydrateEncoderAvailability();
 };
 
 export const handleFlavorChange = (event: Event): void => {
@@ -355,40 +365,15 @@ export const handleBitrateValueChange = (event: Event): void => {
 export const handleFdkAfterburnerChange = (event: Event): void => {
 	const target = inputTarget(event);
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
+	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };
 
 export const handleNativeTwoloopChange = (event: Event): void => {
 	const target = inputTarget(event);
 	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
-	persistCurrentEncoderDefaults();
-};
-
-export const handleToolchainPathInput = (event: Event): void => {
-	const target = inputTarget(event);
-	setExternalToolchainOverridePath(target?.value ?? '');
-};
-
-export const handleToolchainPathCommit = (): void => {
 	syncAfterStateChange();
-	void runToolchainValidationWorkflow({ type: 'commitOverride' }).then(() => {
-		persistCurrentEncoderDefaults();
-	});
-};
-
-export const handleToolchainBrowse = async (): Promise<void> => {
-	await runToolchainValidationWorkflow({ type: 'browseToolchain' });
 	persistCurrentEncoderDefaults();
-};
-
-export const clearToolchainOverride = (): void => {
-	void runToolchainValidationWorkflow({ type: 'clearOverride' }).then(() => {
-		persistCurrentEncoderDefaults();
-	});
-};
-
-export const refreshExternalToolchain = (): void => {
-	void runToolchainValidationWorkflow({ type: 'refresh' });
 };
 
 export const handleSampleRateSelectionChange = (event: Event): void => {

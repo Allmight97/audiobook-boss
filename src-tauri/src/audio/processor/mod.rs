@@ -15,7 +15,6 @@ use crate::audio::cleanup::CleanupGuard;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::toolchain::ExternalToolchainPreference;
 use crate::audio::AudioFile;
 use crate::errors::Result;
 use crate::metadata::passthrough::merge_passthrough_cover_art;
@@ -49,7 +48,6 @@ pub struct AudioExecutionRequest {
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
     encoder_settings: EncoderSettings,
-    external_toolchain: Option<ExternalToolchainPreference>,
 }
 
 impl AudioExecutionRequest {
@@ -59,7 +57,6 @@ impl AudioExecutionRequest {
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
         encoder_settings: EncoderSettings,
-        external_toolchain: Option<ExternalToolchainPreference>,
     ) -> Self {
         Self {
             context,
@@ -67,17 +64,15 @@ impl AudioExecutionRequest {
             metadata,
             cover_art_passthrough,
             encoder_settings,
-            external_toolchain,
         }
     }
 }
 
 pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
-    external_toolchain: Option<&ExternalToolchainPreference>,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    let adapter = adapter::resolve_processor_adapter(encoder_settings, external_toolchain)?;
+    let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)
 }
 
@@ -87,19 +82,11 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Stri
         selected_decoders,
         ..
     } = request.file_info;
-    let adapter = adapter::resolve_processor_adapter(
-        &request.encoder_settings,
-        request.external_toolchain.as_ref(),
-    )?;
+    let adapter = adapter::resolve_processor_adapter(&request.encoder_settings)?;
     log::info!(
-        "audio engine adapter: kind={:?} requested_encoder={:?} external_toolchain_override={}",
+        "audio engine adapter: kind={:?} requested_encoder={:?}",
         adapter.kind(),
         request.encoder_settings.encoder_type,
-        request
-            .external_toolchain
-            .as_ref()
-            .and_then(|preference| preference.override_path.as_deref())
-            .unwrap_or("(auto-detect)")
     );
     adapter
         .execute(

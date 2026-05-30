@@ -20,5 +20,5 @@
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming a Public API Strip export.
-- Reintroducing encoder/toolchain/sample-rate process truth into this cluster.
+- Reintroducing encoder/sample-rate process truth into this cluster.
 - Letting another panel import `state.svelte.ts`, `preview.ts`, or workflow internals to build process payloads.

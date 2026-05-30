@@ -16,7 +16,6 @@ import {
 	type ProcessingQueueEvent,
 } from '../../types/events';
 import type {
-	ExternalToolchainPreference,
 	EncoderSettings,
 	ProcessPayload,
 	FileListInfo,
@@ -166,30 +165,12 @@ export const tauriClient = {
 		commandSpecs.take_opened_audio_files(),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
-		externalToolchain?: ExternalToolchainPreference | null,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>
 		commandSpecs.validate_encoder_settings({
 			settings,
-			externalToolchain: externalToolchain ?? null,
 		}),
-	listAvailableEncoders: (
-		externalToolchain?: ExternalToolchainPreference | null,
-	): Promise<CommandResult<'list_available_encoders'>> =>
-		commandSpecs.list_available_encoders({
-			externalToolchain: externalToolchain ?? null,
-		}),
-	refreshExternalToolchain: (
-		externalToolchain?: ExternalToolchainPreference | null,
-	): Promise<CommandResult<'refresh_external_toolchain'>> =>
-		commandSpecs.refresh_external_toolchain({
-			externalToolchain: externalToolchain ?? null,
-		}),
-	getRuntimeSettingsCapabilities: (
-		externalToolchain?: ExternalToolchainPreference | null,
-	): Promise<RuntimeSettingsCapabilities> =>
-		commandSpecs.get_runtime_settings_capabilities({
-			externalToolchain: externalToolchain ?? null,
-		}),
+	getRuntimeSettingsCapabilities: (): Promise<RuntimeSettingsCapabilities> =>
+		commandSpecs.get_runtime_settings_capabilities(),
 	previewOutputPath: (args: {
 		outputDir: string;
 		metadata?: Partial<AudiobookMetadata> | null;

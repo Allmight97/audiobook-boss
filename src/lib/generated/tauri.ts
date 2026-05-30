@@ -69,21 +69,9 @@ export const commands = {
 	// Drains local audio paths opened by the OS before the frontend was ready.
 	takeOpenedAudioFiles: () => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("take_opened_audio_files")),
 	// Validates encoder settings (no side effects)
-	validateEncoderSettings: (settings: EncoderSettings, externalToolchain: {
-	overridePath: string | null,
-} | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings, externalToolchain })),
-	// Lists runtime encoder availability so the UI can surface guidance.
-	listAvailableEncoders: (externalToolchain: {
-	overridePath: string | null,
-} | null) => __TAURI_INVOKE<EncoderAvailability>("list_available_encoders", { externalToolchain }),
-	// Re-runs external toolchain detection so the UI can refresh FDK status without restart.
-	refreshExternalToolchain: (externalToolchain: {
-	overridePath: string | null,
-} | null) => __TAURI_INVOKE<EncoderAvailability>("refresh_external_toolchain", { externalToolchain }),
+	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	// Returns backend-owned runtime settings capabilities for UI controls.
-	getRuntimeSettingsCapabilities: (externalToolchain: {
-	overridePath: string | null,
-} | null) => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities", { externalToolchain })),
+	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
 	// Builds an output path preview using backend naming rules without collision suffixing.
 	previewOutputPath: (outputDir: string, metadata: {
 	// Title of the audiobook (©nam)
@@ -278,10 +266,6 @@ export type EncoderAvailability = {
 	nativeAacAvailable: boolean,
 	autoEncoder: EncoderType,
 	detectedToolchainPath: string | null,
-	overrideToolchainPath: string | null,
-	activeToolchainPath: string | null,
-	overrideInvalid: boolean,
-	overrideError: string | null,
 	statusMessage: string,
 };
 
@@ -291,12 +275,11 @@ export type EncoderBitrateModeCapability = {
 	defaultMode: BitrateMode,
 };
 
-export type EncoderCapabilitySource = "none" | "bundled" | "detected" | "override";
+export type EncoderCapabilitySource = "none" | "bundled" | "detected";
 
 export type EncoderDefaults = {
 	settings: EncoderSettings,
 	sampleRate: SampleRateConfig,
-	externalToolchain: ExternalToolchainPreference,
 };
 
 // Advanced encoder settings payload
@@ -349,10 +332,6 @@ export type EncoderType =
  *  pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
  */
 export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled";
-
-export type ExternalToolchainPreference = {
-	overridePath: string | null,
-};
 
 // Summary information for a file list
 export type FileListInfo = {
@@ -547,7 +526,6 @@ export type ProcessPayload = {
 	inputFiles: string[],
 	outputDir: string,
 	settings: EncoderSettings,
-	externalToolchain: ExternalToolchainPreference | null,
 	// Sample rate from frontend (optional, defaults to Auto)
 	sampleRate: SampleRateConfig | null,
 	jobType: JobType | null,

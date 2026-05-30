@@ -4,6 +4,7 @@ import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
 import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
+import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
 import { outputPanelState } from '../outputPanel/state.svelte';
 import {
 	encoderAvailabilityFixture,
@@ -35,6 +36,11 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+const changeCheckboxValue = (input: HTMLInputElement, checked: boolean): void => {
+	input.checked = checked;
+	input.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
 const waitForEncoderOptions = async (): Promise<void> => {
 	await vi.waitFor(() => {
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -64,7 +70,7 @@ describe('encoder panel behavior controls', () => {
 		expect(defaults.twoloop).toBe(true);
 	});
 
-	it('shows afterburner for FDK and collapses the spacerless layout into behavior controls', async () => {
+	it('shows afterburner for effective FDK and keeps it visible under Auto', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -86,8 +92,8 @@ describe('encoder panel behavior controls', () => {
 			const behaviorRow = document.getElementById('encoder-inline-option-row');
 			const fdkOptions = document.getElementById('fdk-options');
 			const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null;
-			expect(behaviorRow?.classList.contains('hidden')).toBe(true);
-			expect(fdkOptions?.classList.contains('hidden')).toBe(true);
+			expect(behaviorRow?.classList.contains('hidden')).toBe(false);
+			expect(fdkOptions?.classList.contains('hidden')).toBe(false);
 			expect(afterburner?.checked).toBe(true);
 		});
 
@@ -102,7 +108,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('keeps afterburner enabled in encoding config when auto resolves to FDK', async () => {
+	it('exposes auto-FDK afterburner and preserves the toggle in encoding config', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -121,9 +127,26 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
+			const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null;
+			expect(afterburner?.checked).toBe(true);
 			const config = readEncodingRequestConfig();
 			expect(config.encoderSettings.encoderType).toBe('auto');
 			expect(config.encoderSettings.afterburner).toBe(true);
+			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
+				'Afterburner on.',
+			);
+		});
+
+		const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement;
+		changeCheckboxValue(afterburner, false);
+
+		await vi.waitFor(() => {
+			const config = readEncodingRequestConfig();
+			expect(config.encoderSettings.encoderType).toBe('auto');
+			expect(config.encoderSettings.afterburner).toBe(false);
+			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
+				'Afterburner off.',
+			);
 		});
 	});
 
@@ -165,7 +188,56 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('shows twoloop only for manual Native AAC and hides all behavior controls for Apple AAC', async () => {
+	it('shows compact auto sample-rate and channel resolutions', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
+		render(EncoderPanelIsland);
+		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
+
+		renderAutoResolutionHints([
+			{
+				path: '/books/source.m4b',
+				isValid: true,
+				sampleRate: 44100,
+				channels: 2,
+			},
+		]);
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
+				'Auto -> 44.1 kHz',
+			);
+			expect(document.querySelector('[data-testid="auto-channels-hint"]')?.textContent).toBe(
+				'Auto -> Stereo',
+			);
+		});
+
+		changeSelectValue(document.getElementById('output-samplerate') as HTMLSelectElement, '44100');
+		changeSelectValue(document.getElementById('output-channels') as HTMLSelectElement, 'mono');
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
+				'Using 44100 Hz.',
+			);
+			expect(document.querySelector('[data-testid="auto-channels-hint"]')?.textContent).toBe(
+				'Using Mono.',
+			);
+		});
+	});
+
+	it('shows effective encoder behavior controls and hides all behavior controls for Apple AAC', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -184,9 +256,7 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			expect(
-				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
-			).toBe(true);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(false);
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
@@ -194,6 +264,7 @@ describe('encoder panel behavior controls', () => {
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(false);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
 			expect(
 				(document.getElementById('adv-native-twoloop') as HTMLInputElement | null)?.checked,
 			).toBe(true);
@@ -229,11 +300,10 @@ describe('encoder panel behavior controls', () => {
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderPanelIsland);
 		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			expect(
-				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
-			).toBe(true);
+			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(false);
 			expect(encoderPanelState.fdkAfterburner).toBe(false);
 			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
@@ -315,8 +385,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('keeps the current session toolchain override path on init', async () => {
-		encoderPanelState.externalToolchainOverridePath = '/custom/ffmpeg';
+	it('shows detected FDK availability in the existing encoder hint', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -326,10 +395,9 @@ describe('encoder panel behavior controls', () => {
 							aacAtAvailable: true,
 							nativeAacAvailable: true,
 						}),
-						fdkSource: 'override',
-						overrideToolchainPath: '/custom/ffmpeg',
-						activeToolchainPath: '/custom/ffmpeg',
-						statusMessage: 'FDK AAC is using the saved override path.',
+						fdkSource: 'detected',
+						detectedToolchainPath: '/opt/homebrew/Cellar/ffmpeg/8.1.1/bin/ffmpeg',
+						statusMessage: 'FDK AAC detected and ready.',
 					},
 				},
 			}),
@@ -340,14 +408,18 @@ describe('encoder panel behavior controls', () => {
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
-			expect(document.getElementById('external-toolchain-path-display')?.textContent).toContain(
-				'/custom/ffmpeg',
+			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
+				'Using external FDK AAC via /opt/homebrew/.../bin/ffmpeg. Afterburner on.',
 			);
-			expect(readEncodingRequestConfig().toolchainSettings.overridePath).toBe('/custom/ffmpeg');
+			expect(document.body.textContent).not.toContain('Toolchain');
+			expect(readEncodingRequestConfig()).toMatchObject({
+				encoderSettings: expect.any(Object),
+				sampleRate: expect.anything(),
+			});
 		});
 	});
 
-	it('shows a compact missing-FDK state with the override input when detection fails', async () => {
+	it('shows missing FDK availability without exposing an override input', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -365,93 +437,12 @@ describe('encoder panel behavior controls', () => {
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
-			expect(document.getElementById('external-toolchain-status')?.textContent).toContain(
-				'FDK not found',
-			);
-			expect(document.getElementById('external-toolchain-path')).toBeTruthy();
-			expect(document.getElementById('external-toolchain-mode')).toBeFalsy();
-		});
-	});
-
-	it('refreshes FDK availability without requiring restart', async () => {
-		context.getRuntimeSettingsCapabilitiesMock
-			.mockResolvedValueOnce(
-				runtimeSettingsCapabilitiesFixture({
-					encoder: {
-						availability: encoderAvailabilityFixture({
-							fdkAvailable: false,
-							aacAtAvailable: true,
-							nativeAacAvailable: true,
-						}),
-					},
-				}),
-			)
-			.mockResolvedValueOnce(
-				runtimeSettingsCapabilitiesFixture({
-					encoder: {
-						availability: encoderAvailabilityFixture({
-							fdkAvailable: true,
-							aacAtAvailable: true,
-							nativeAacAvailable: true,
-						}),
-					},
-				}),
-			);
-
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
-		initializeEncoderPanelLogic();
-
-		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
-		});
-
-		(document.getElementById('toolchain-refresh') as HTMLButtonElement).click();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
-			expect(document.getElementById('external-toolchain-path-display')?.textContent).toContain(
-				'/opt/homebrew/bin/ffmpeg',
+			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
+				'Auto will use Apple AAC.',
 			);
-		});
-	});
-
-	it('keeps the override input visible when the current session path is invalid', async () => {
-		encoderPanelState.externalToolchainOverridePath = '/broken/ffmpeg';
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: {
-						...encoderAvailabilityFixture({
-							fdkAvailable: true,
-							aacAtAvailable: true,
-							nativeAacAvailable: true,
-						}),
-						overrideToolchainPath: '/broken/ffmpeg',
-						overrideInvalid: true,
-						overrideError: "FFmpeg executable not found at 'ffmpeg'.",
-						statusMessage: 'Saved override path is invalid. Auto-detected FDK AAC is active.',
-					},
-				},
-			}),
-		);
-
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
-		initializeEncoderPanelLogic();
-
-		await vi.waitFor(() => {
-			expect(document.getElementById('external-toolchain-status')?.textContent).toContain(
-				'Saved override path is invalid',
-			);
-			expect(document.getElementById('external-toolchain-path')).toBeTruthy();
-			expect(document.getElementById('external-toolchain-error')?.textContent).toContain(
-				'not found',
-			);
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
+			expect(document.body.textContent).not.toContain('Toolchain');
 		});
 	});
 

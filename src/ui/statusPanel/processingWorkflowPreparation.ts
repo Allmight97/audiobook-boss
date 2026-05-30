@@ -35,7 +35,6 @@ export function buildProcessPayload(
 		inputFiles: filePaths,
 		outputDir: processingRequestConfig.outputDirectory,
 		settings: processingRequestConfig.encoderSettings,
-		externalToolchain: processingRequestConfig.toolchainSettings,
 		sampleRate: processingRequestConfig.sampleRate,
 		jobType,
 		outputNaming: processingRequestConfig.outputNaming,

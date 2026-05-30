@@ -149,7 +149,7 @@ fn test_validate_threads_direct() {
 #[test]
 fn test_detect_available_encoders_struct_defaults() {
     // We can't guarantee availability on CI, but the function should always return a struct.
-    let availability = detect_encoder_availability(None);
+    let availability = detect_encoder_availability();
     assert!(
         availability.native_aac_available
             || availability.aac_at_available
@@ -167,10 +167,6 @@ fn test_resolve_encoder_type_prefers_available() {
         native_aac_available: true,
         auto_encoder: EncoderType::FdkHeAac,
         detected_toolchain_path: Some("/opt/homebrew/bin/ffmpeg".into()),
-        override_toolchain_path: None,
-        active_toolchain_path: Some("/opt/homebrew/bin/ffmpeg".into()),
-        override_invalid: false,
-        override_error: None,
         status_message: "FDK AAC detected and ready.".into(),
     };
     let resolved = resolve_encoder_type(
@@ -189,10 +185,6 @@ fn test_resolve_encoder_type_prefers_available() {
         native_aac_available: true,
         auto_encoder: EncoderType::AacAt,
         detected_toolchain_path: None,
-        override_toolchain_path: None,
-        active_toolchain_path: None,
-        override_invalid: false,
-        override_error: None,
         status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
     };
     let resolved = resolve_encoder_type(
@@ -211,10 +203,6 @@ fn test_resolve_encoder_type_prefers_available() {
         native_aac_available: true,
         auto_encoder: EncoderType::NativeAac,
         detected_toolchain_path: None,
-        override_toolchain_path: None,
-        active_toolchain_path: None,
-        override_invalid: false,
-        override_error: None,
         status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
     };
     let resolved = resolve_encoder_type(
@@ -242,10 +230,6 @@ fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encode
         native_aac_available: false,
         auto_encoder: EncoderType::NativeAac,
         detected_toolchain_path: None,
-        override_toolchain_path: None,
-        active_toolchain_path: None,
-        override_invalid: false,
-        override_error: None,
         status_message: "No external FFmpeg toolchain with libfdk_aac was detected.".into(),
     };
 
@@ -284,10 +268,6 @@ fn test_validate_requested_encoder_available_allows_auto_resolution() {
         native_aac_available: true,
         auto_encoder: EncoderType::NativeAac,
         detected_toolchain_path: None,
-        override_toolchain_path: None,
-        active_toolchain_path: None,
-        override_invalid: false,
-        override_error: None,
         status_message: "Native AAC available.".into(),
     };
 

@@ -3,20 +3,15 @@
 	import { encoderPanelState } from './state.svelte';
 	import { outputPanelState } from '../outputPanel/state.svelte';
 	import {
-		clearToolchainOverride,
 		handleBitrateModeChange,
 		handleBitrateValueChange,
-		handleToolchainBrowse,
 		handleChannelsSelectionChange,
 		handleFlavorChange,
 		handleFdkAfterburnerChange,
 		handleNativeTwoloopChange,
 		handleQualityValueChange,
 		handleSampleRateSelectionChange,
-		handleToolchainPathCommit,
-		handleToolchainPathInput,
 		initializeEncoderPanelLogic,
-		refreshExternalToolchain,
 	} from './logic';
 
 	onMount(() => {
@@ -64,6 +59,20 @@
 			default:
 				return value;
 		}
+	}
+
+	function sampleRateDetailText(): string {
+		if (encoderPanelState.sampleRateSelection === 'auto') {
+			return encoderPanelState.sampleRateAutoHint;
+		}
+		return `Using ${sampleRateLabel(encoderPanelState.sampleRateSelection)}.`;
+	}
+
+	function channelsDetailText(): string {
+		if (encoderPanelState.channelsSelection === 'auto') {
+			return encoderPanelState.channelsAutoHint;
+		}
+		return `Using ${channelLabel(encoderPanelState.channelsSelection ?? 'auto')}.`;
 	}
 
 	function encoderOptionDisabled(value: string): boolean {
@@ -219,94 +228,6 @@
 		</div>
 	</div>
 
-	<div class="toolchain-status-card" data-testid="external-toolchain-panel">
-		<div class="toolchain-status-main">
-			<div class="toolchain-status-copy">
-				<span class="label">FDK AAC</span>
-				<p
-					id="external-toolchain-status"
-					class="text-xs muted-text mt-0.5"
-					data-testid="external-toolchain-status"
-				>
-					<strong>{encoderPanelState.toolchainStatusTitle}</strong>
-					<span> {encoderPanelState.toolchainStatusMessage}</span>
-				</p>
-				{#if encoderPanelState.toolchainActivePath}
-					<p
-						id="external-toolchain-path-display"
-						class="text-xs muted-text mt-0.5 toolchain-path"
-						data-testid="external-toolchain-path-display"
-					>
-						{encoderPanelState.toolchainActivePath}
-					</p>
-				{/if}
-				{#if encoderPanelState.toolchainOverrideError}
-					<p
-						id="external-toolchain-error"
-						class="text-xs mt-0.5 toolchain-error-text"
-						data-testid="external-toolchain-error"
-					>
-						{encoderPanelState.toolchainOverrideError}
-					</p>
-				{/if}
-			</div>
-			<div class="toolchain-action-row">
-				<button
-					id="toolchain-refresh"
-					type="button"
-					class="secondary-button compact-button"
-					onclick={refreshExternalToolchain}
-					data-testid="toolchain-refresh"
-				>
-					Refresh
-				</button>
-				{#if encoderPanelState.externalToolchainOverridePath.trim()}
-					<button
-						id="toolchain-clear-override"
-						type="button"
-						class="secondary-button compact-button"
-						onclick={clearToolchainOverride}
-						data-testid="toolchain-clear-override"
-					>
-						Clear Path
-					</button>
-				{/if}
-			</div>
-		</div>
-
-		{#if encoderPanelState.showToolchainOverrideInput}
-			<div class="toolchain-override-row">
-				<div class="toolchain-override-input">
-					<label for="external-toolchain-path">ffmpeg Path</label>
-					<input
-						id="external-toolchain-path"
-						type="text"
-						placeholder="/opt/homebrew/bin/ffmpeg or /path/to/toolchain"
-						value={encoderPanelState.externalToolchainOverridePath}
-						data-testid="external-toolchain-path"
-						oninput={handleToolchainPathInput}
-						onchange={handleToolchainPathCommit}
-						onblur={handleToolchainPathCommit}
-					/>
-					<p class="text-xs muted-text mt-0.5">
-						Paste an `ffmpeg` executable path or a toolchain directory containing `ffmpeg`.
-					</p>
-				</div>
-				<div class="toolchain-action-row toolchain-override-actions">
-					<button
-						id="toolchain-browse"
-						type="button"
-						class="secondary-button compact-button"
-						onclick={handleToolchainBrowse}
-						data-testid="toolchain-browse"
-					>
-						Choose…
-					</button>
-				</div>
-			</div>
-		{/if}
-	</div>
-
 	<div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
 		<div>
 			<label for="output-samplerate">Sample Rate</label>
@@ -326,7 +247,7 @@
 				class="text-xs muted-text mt-0.5"
 				data-testid="auto-samplerate-hint"
 			>
-				{encoderPanelState.sampleRateAutoHint}
+				{sampleRateDetailText()}
 			</p>
 		</div>
 		<div>
@@ -347,7 +268,7 @@
 				class="text-xs muted-text mt-0.5"
 				data-testid="auto-channels-hint"
 			>
-				{encoderPanelState.channelsAutoHint}
+				{channelsDetailText()}
 			</p>
 		</div>
 	</div>
@@ -372,69 +293,6 @@
 
 	.encoder-option-group {
 		padding: 0;
-	}
-
-	.secondary-button.compact-button {
-		margin-top: 0;
-		padding: 0.35rem 0.65rem;
-		border: 1px solid var(--border-secondary);
-		border-radius: 0.375rem;
-		background: var(--bg-input);
-		color: var(--text-secondary);
-		font-size: 0.75rem;
-	}
-
-	.toolchain-status-card {
-		margin: 0.25rem 0 0.75rem;
-		padding: 0.625rem 0.75rem;
-		border: 1px solid var(--border-primary);
-		border-radius: 0.5rem;
-		background: color-mix(in srgb, var(--bg-input) 78%, var(--bg-drag-area) 22%);
-	}
-
-	.toolchain-status-main {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	.toolchain-status-copy {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.toolchain-path {
-		font-family: var(--font-mono);
-		word-break: break-all;
-	}
-
-	.toolchain-error-text {
-		color: #dc2626;
-	}
-
-	.toolchain-action-row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.toolchain-override-row {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
-		margin-top: 0.625rem;
-	}
-
-	.toolchain-override-input {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.toolchain-override-actions {
-		padding-top: 1.5rem;
 	}
 
 	.encoder-inline-toggle {

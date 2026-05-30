@@ -419,7 +419,6 @@ mod tests {
             input_files: vec!["/books/input.m4b".to_string()],
             output_dir: "/tmp/out".to_string(),
             settings: encoder_settings(),
-            external_toolchain: None,
             sample_rate: None,
             job_type: Some(JobType::Batch),
             output_naming: None,

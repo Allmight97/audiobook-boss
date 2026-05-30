@@ -6,9 +6,7 @@ use super::settings_encoder::{
     default_bitrate_mode_for, BitrateMode, BitrateModeKind, ChannelConfig, EncoderType,
     VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE, VALID_VBR_LEVEL_RANGE,
 };
-use super::toolchain::{
-    detect_encoder_availability, EncoderAvailability, ExternalToolchainPreference,
-};
+use super::toolchain::{detect_encoder_availability, EncoderAvailability};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -37,11 +35,9 @@ pub struct EncoderSettingsCapabilities {
     pub channel_options: Vec<ChannelConfig>,
 }
 
-pub fn encoder_settings_capabilities(
-    external_toolchain: Option<&ExternalToolchainPreference>,
-) -> EncoderSettingsCapabilities {
+pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
     EncoderSettingsCapabilities {
-        availability: detect_encoder_availability(external_toolchain),
+        availability: detect_encoder_availability(),
         encoder_types: all_encoder_types().to_vec(),
         auto_resolution_order: auto_encoder_resolution_order().to_vec(),
         bitrate_kbps_options: VALID_ENCODER_BITRATES.to_vec(),
