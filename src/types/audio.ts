@@ -12,7 +12,6 @@ import type {
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
 	BitrateModeKind as GeneratedBitrateModeKind,
-	ExternalToolchainPreference as GeneratedExternalToolchainPreference,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
@@ -67,7 +66,6 @@ export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSet
 export type MaxConcurrentJobsCapabilities =
 	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
 export type RuntimeSettingsCapabilities = NullToOptionalDeep<GeneratedRuntimeSettingsCapabilities>;
-export type ExternalToolchainPreference = NullToOptionalDeep<GeneratedExternalToolchainPreference>;
 export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
 // Output naming options for folder/filename generation
@@ -75,7 +73,6 @@ export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>
 
 export interface EncodingRequestConfig {
 	encoderSettings: EncoderSettings;
-	toolchainSettings: ExternalToolchainPreference;
 	sampleRate: SampleRateConfig;
 }
 

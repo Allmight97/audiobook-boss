@@ -21,7 +21,6 @@ describe('processing config composition', () => {
 		context.readOutputRequestConfigMock.mockReset();
 		context.readEncodingRequestConfigMock.mockReturnValue({
 			encoderSettings: defaultEncoderSettings(),
-			toolchainSettings: { overridePath: '/opt/ffmpeg' },
 			sampleRate: 'auto',
 		});
 		context.readOutputRequestConfigMock.mockReturnValue({
@@ -35,7 +34,6 @@ describe('processing config composition', () => {
 
 		expect(config).toEqual({
 			encoderSettings: defaultEncoderSettings(),
-			toolchainSettings: { overridePath: '/opt/ffmpeg' },
 			sampleRate: 'auto',
 			outputDirectory: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },

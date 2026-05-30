@@ -6,8 +6,7 @@ use super::terminal_outcomes::{
 };
 use crate::audio;
 use crate::audio::{
-    validate_encoder_settings, AudioExecutionRequest, EncoderSettings, ExternalToolchainPreference,
-    FileListInfo,
+    validate_encoder_settings, AudioExecutionRequest, EncoderSettings, FileListInfo,
 };
 use crate::errors::{AppError, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
@@ -111,11 +110,7 @@ fn validate_external_processing_contract_with_file_info(
     payload: &ProcessPayload,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    audio::validate_audio_engine_inputs(
-        &payload.settings,
-        payload.external_toolchain.as_ref(),
-        file_info,
-    )?;
+    audio::validate_audio_engine_inputs(&payload.settings, file_info)?;
     Ok(())
 }
 
@@ -183,7 +178,6 @@ async fn dispatch_merge_job(
         window,
         registry,
         encoder_settings: payload.settings.clone(),
-        external_toolchain: payload.external_toolchain.clone(),
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
         operation_kind: OperationKind::ProcessingMerge,
@@ -238,7 +232,6 @@ async fn dispatch_batch_jobs(
         let window_cloned = window.clone();
         let registry_cloned = registry.clone();
         let settings_cloned = payload.settings.clone();
-        let external_toolchain_cloned = payload.external_toolchain.clone();
         let sr_cloned = sample_rate.clone();
         let md_cloned = planned_job.metadata.clone();
         let cover_art_passthrough = planned_job.cover_art_passthrough;
@@ -255,7 +248,6 @@ async fn dispatch_batch_jobs(
                 window: window_cloned,
                 registry: registry_cloned,
                 encoder_settings: settings_cloned,
-                external_toolchain: external_toolchain_cloned,
                 sample_rate: sr_cloned,
                 input_index,
                 operation_kind: OperationKind::ProcessingBatch,
@@ -279,7 +271,6 @@ struct ProcessingJobRequest {
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     encoder_settings: EncoderSettings,
-    external_toolchain: Option<ExternalToolchainPreference>,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
@@ -314,7 +305,6 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
         request.metadata,
         request.cover_art_passthrough,
         request.encoder_settings,
-        request.external_toolchain,
     )
     .await
     {
@@ -425,7 +415,6 @@ async fn execute_processing_job(
     metadata: Option<crate::metadata::AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
     encoder_settings: EncoderSettings,
-    external_toolchain: Option<ExternalToolchainPreference>,
 ) -> Result<String> {
     audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
@@ -433,24 +422,19 @@ async fn execute_processing_job(
         metadata,
         cover_art_passthrough,
         encoder_settings,
-        external_toolchain,
     ))
     .await
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{preflight_payload, validate_external_processing_contract_with_file_info};
-    use crate::audio::{
-        AudioFile, BitrateMode, ChannelConfig, DecoderSelection, EncoderSettings, EncoderType,
-        ExternalToolchainPreference, FileListInfo, ThreadSetting,
-    };
+    use super::preflight_payload;
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
     use crate::metadata::{MetadataIntentPatch, PatchOp};
     use crate::output_artifact::{CollisionPolicy, OutputCollisionKind};
     use crate::processing::{JobType, OutputNamingConfig, ProcessPayload};
     use std::collections::HashMap;
-    use std::fs::{self, set_permissions, write};
-    use std::os::unix::fs::PermissionsExt;
+    use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -487,61 +471,6 @@ mod tests {
                 .expect("idle registry should allow concurrency updates"),
             1
         );
-    }
-
-    #[test]
-    fn external_fdk_preflight_rejects_unsupported_named_decoder() {
-        let temp_dir = TempDir::new().expect("create temp dir");
-        let ffmpeg_path = write_fake_external_ffmpeg(temp_dir.path(), true, false);
-        let payload = ProcessPayload {
-            input_files: vec!["/books/input.m4b".to_string()],
-            output_dir: "/tmp".to_string(),
-            settings: EncoderSettings {
-                encoder_type: EncoderType::FdkHeAac,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Vbr(3),
-                channels: ChannelConfig::Auto,
-                afterburner: true,
-                threads: ThreadSetting::Auto,
-                twoloop: true,
-            },
-            external_toolchain: Some(ExternalToolchainPreference {
-                override_path: Some(ffmpeg_path.to_string_lossy().to_string()),
-            }),
-            sample_rate: None,
-            job_type: Some(JobType::Batch),
-            output_naming: None,
-            collision_policy: None,
-            preflight_signature: None,
-        };
-        let file_info = FileListInfo {
-            files: vec![AudioFile {
-                path: Path::new("/books/input.m4b").to_path_buf(),
-                size: Some(1.0),
-                duration: Some(5.0),
-                format: Some("M4B".to_string()),
-                bitrate: None,
-                sample_rate: None,
-                channels: None,
-                codec_label: Some("AAC".to_string()),
-                selected_decoder: Some("Apple AAC".to_string()),
-                is_valid: true,
-                error: None,
-            }],
-            selected_decoders: vec![Some(DecoderSelection {
-                decoder_id: "aac_at".to_string(),
-                decoder_label: "Apple AAC".to_string(),
-            })],
-            total_duration: 5.0,
-            total_size: 1.0,
-            valid_count: 1,
-            invalid_count: 0,
-        };
-
-        let err = validate_external_processing_contract_with_file_info(&payload, &file_info)
-            .expect_err("unsupported named decoder should fail preflight");
-
-        assert!(err.to_string().contains("does not expose decoder 'aac_at'"));
     }
 
     #[test]
@@ -589,7 +518,6 @@ mod tests {
                     threads: ThreadSetting::Auto,
                     twoloop: true,
                 },
-                external_toolchain: None,
                 sample_rate: None,
                 job_type: Some(JobType::Batch),
                 output_naming: Some(OutputNamingConfig {
@@ -667,7 +595,6 @@ mod tests {
                     threads: ThreadSetting::Auto,
                     twoloop: true,
                 },
-                external_toolchain: None,
                 sample_rate: None,
                 job_type: Some(JobType::Batch),
                 output_naming: None,
@@ -696,34 +623,5 @@ mod tests {
             first_output.action,
             crate::output_artifact::PlannedOutputAction::ReviewRequired
         );
-    }
-
-    fn write_fake_external_ffmpeg(
-        root: &Path,
-        include_fdk_encoder: bool,
-        include_aac_at_decoder: bool,
-    ) -> std::path::PathBuf {
-        std::fs::create_dir_all(root).expect("create fake ffmpeg root");
-        let script_path = root.join("fake-ffmpeg");
-        let encoder_line = if include_fdk_encoder {
-            "echo ' V..... libfdk_aac'"
-        } else {
-            "echo ' V..... aac'"
-        };
-        let decoder_line = if include_aac_at_decoder {
-            "echo ' V..... aac_at'"
-        } else {
-            "echo ' V..... libfdk_aac'"
-        };
-        let script = format!(
-            "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'ffmpeg version fake'\n    exit 0\n  fi\n  if [ \"$arg\" = \"-encoders\" ]; then\n    {encoder_line}\n    exit 0\n  fi\n  if [ \"$arg\" = \"-decoders\" ]; then\n    {decoder_line}\n    exit 0\n  fi\ndone\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\n: > \"$last\"\necho 'out_time_ms=5000'\nexit 0\n"
-        );
-        write(&script_path, script).expect("write fake ffmpeg");
-        let mut permissions = std::fs::metadata(&script_path)
-            .expect("metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        set_permissions(&script_path, permissions).expect("chmod fake ffmpeg");
-        script_path
     }
 }

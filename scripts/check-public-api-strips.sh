@@ -65,10 +65,7 @@ validate_requested_encoder_available, validate_threads, BitrateMode, BitrateMode
 ChannelConfig, EncoderSettings, EncoderType, ThreadSetting, VALID_ENCODER_BITRATES,
 VALID_THREAD_COUNT_RANGE,
 };
-pub use toolchain::{
-detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
-ExternalToolchainPreference,
-};
+pub use toolchain::{detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource};
 pub(crate) use cleanup::CleanupGuard;
 '
 

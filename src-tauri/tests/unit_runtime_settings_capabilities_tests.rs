@@ -11,7 +11,7 @@ use audiobook_boss_lib::audio::{
 
 #[test]
 fn exposed_encoder_capabilities_match_validators() {
-    let capabilities = encoder_settings_capabilities(None);
+    let capabilities = encoder_settings_capabilities();
 
     assert_eq!(
         capabilities.auto_resolution_order,
@@ -43,7 +43,7 @@ fn exposed_encoder_capabilities_match_validators() {
 
 #[test]
 fn exposed_mode_defaults_validate_for_each_encoder() {
-    let capabilities = encoder_settings_capabilities(None);
+    let capabilities = encoder_settings_capabilities();
 
     for entry in capabilities.bitrate_modes_by_encoder {
         let settings = EncoderSettings {

@@ -50,10 +50,10 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Frontend: `src/ui/fileImport/importAnalysisWorkflow.ts` through `src/lib/tauri/client.ts`
   - Use: local audio import metadata, recursive folder/file discovery, and OS-opened audio drain for the Local Audio Import Boundary
 
-- `validate_encoder_settings`, `list_available_encoders`, `refresh_external_toolchain`
+- `validate_encoder_settings`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain.rs`
-  - Frontend: encoder and toolchain status flows via `src/lib/tauri/client.ts`
+  - Frontend: encoder validation via `src/lib/tauri/client.ts`
 
 - `get_runtime_settings_capabilities`
   - Rust: `src-tauri/src/commands/audio.rs`

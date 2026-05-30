@@ -65,7 +65,6 @@ const METADATA_FIELDS = [
 ] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
-	'externalToolchain',
 	'sampleRate',
 	'jobType',
 	'outputNaming',

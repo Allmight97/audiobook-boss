@@ -47,7 +47,6 @@ function fileList(paths = ['/books/a.m4b']): FileListInfo {
 function processingConfig(): ProcessingRequestConfig {
 	return {
 		encoderSettings: defaultEncoderSettings(),
-		toolchainSettings: {},
 		sampleRate: 'auto',
 		outputDirectory: '/tmp/out',
 		outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },

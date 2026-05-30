@@ -10,7 +10,7 @@ use audiobook_boss_lib::audio::{
 #[test]
 fn test_native_engine_is_available() {
     // Engine capability diagnostics should keep the native in-process path visible.
-    let availability = detect_encoder_availability(None);
+    let availability = detect_encoder_availability();
     assert!(
         availability.native_aac_available,
         "Native AAC should be available through the public audio strip"

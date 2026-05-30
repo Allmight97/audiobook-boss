@@ -13,7 +13,7 @@ export function initJobControls(): void {
 }
 
 async function initializeRuntimeCapabilities(): Promise<void> {
-	const capabilities = await hydrateRuntimeSettingsCapabilities(null);
+	const capabilities = await hydrateRuntimeSettingsCapabilities();
 	jobControlsState.maxConcurrentCapabilities = capabilities?.maxConcurrentJobs ?? null;
 }
 

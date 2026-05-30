@@ -26,4 +26,4 @@
 - Adding, removing, or renaming any Public API Strip export.
 - Changing progress, cancellation, queue terminalization, success/failure/cancel truth, or concurrency-status behavior.
 - Letting external runtime code import `viewState.svelte`, `controller.ts`, `runtimeApi.ts`, or reducer/domain internals directly.
-- Reintroducing mirrored encoder/toolchain/sample-rate state outside the encoder panel.
+- Reintroducing mirrored encoder/sample-rate state outside the encoder panel.

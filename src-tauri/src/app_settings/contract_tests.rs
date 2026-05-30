@@ -190,27 +190,20 @@ fn fixed_concurrency_uses_job_registry_capability_bounds() {
 }
 
 #[test]
-fn blank_user_paths_normalize_to_empty_preferences() {
+fn blank_output_path_normalizes_to_empty_preference() {
     let temp = TempDir::new().expect("temp dir");
-    let mut encoder_defaults = AppSettings::default().encoder_defaults;
-    encoder_defaults.external_toolchain.override_path = Some("   ".to_string());
     let mut output_defaults = AppSettings::default().output_defaults;
     output_defaults.output_directory = Some("   ".to_string());
 
     let settings = update_app_settings(
         temp.path(),
         AppSettingsPatch {
-            encoder_defaults: Some(encoder_defaults),
             output_defaults: Some(output_defaults),
             ..AppSettingsPatch::default()
         },
     )
     .expect("normalize blank paths");
 
-    assert_eq!(
-        settings.encoder_defaults.external_toolchain.override_path,
-        None
-    );
     assert_eq!(settings.output_defaults.output_directory, None);
 }
 

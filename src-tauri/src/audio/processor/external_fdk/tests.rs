@@ -70,7 +70,7 @@ async fn worker_processes_with_fake_external_ffmpeg() {
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -127,7 +127,7 @@ async fn worker_preview_suppresses_passthrough_chapters_while_full_keeps_them() 
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg.clone(),
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -158,7 +158,7 @@ async fn worker_preview_suppresses_passthrough_chapters_while_full_keeps_them() 
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -210,7 +210,7 @@ async fn worker_cleans_temp_dir_when_external_ffmpeg_fails() {
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -266,7 +266,7 @@ async fn worker_cleans_temp_dir_when_metadata_rewrite_fails() {
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -326,7 +326,7 @@ async fn worker_returns_cancelled_without_success_emit_for_late_cancel_before_co
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )
@@ -380,7 +380,7 @@ async fn worker_reaps_child_when_progress_stream_is_invalid_utf8() {
         CoverArtPassthroughPolicy::Preserve,
         ValidatedExternalToolchain {
             ffmpeg_path: fake_ffmpeg,
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: Default::default(),
         },
     )

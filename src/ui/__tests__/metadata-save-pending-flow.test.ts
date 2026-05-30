@@ -2,9 +2,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get, writable, type Writable } from 'svelte/store';
 
 import type { MetadataSaveBatchResult } from '../../types/metadata';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	saveMetadataBatchMock: vi.fn(),
+	getRuntimeSettingsCapabilitiesMock: vi.fn(),
 	persistPendingDraftsMock: vi.fn(async () => false),
 	getPendingIntentEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
 	clearPendingMock: vi.fn(),
@@ -25,6 +27,7 @@ const context = vi.hoisted(() => ({
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		saveMetadataBatch: context.saveMetadataBatchMock,
+		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
 		listen: vi.fn(async () => () => {}),
 		openFiles: vi.fn(),
 		openFile: vi.fn(),
@@ -115,6 +118,9 @@ describe('metadata save pending flow', () => {
       <button id="metadata-save-btn">Save All Changes</button>
       <div id="status-text">Idle</div>
     `;
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture(),
+		);
 
 		await import('../../main');
 		({ saveMetadataFromUI } = await import('../core/actions'));
@@ -123,6 +129,10 @@ describe('metadata save pending flow', () => {
 
 	beforeEach(() => {
 		context.saveMetadataBatchMock.mockReset();
+		context.getRuntimeSettingsCapabilitiesMock.mockReset();
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture(),
+		);
 		context.persistPendingDraftsMock.mockReset();
 		context.clearPendingMock.mockReset();
 		context.resetDirtyStateMock.mockReset();

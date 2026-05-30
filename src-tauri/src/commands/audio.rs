@@ -2,9 +2,8 @@ use crate::audio;
 use crate::audio::{
     detect_encoder_availability, encoder_settings_capabilities,
     validate_encoder_settings as validate_encoder_settings_impl, validate_input_audio_path,
-    validate_requested_encoder_available, EncoderAvailability, EncoderSettings,
-    EncoderSettingsCapabilities, ExternalToolchainPreference, FileListInfo,
-    SupportedAudioImportMetadata,
+    validate_requested_encoder_available, EncoderSettings, EncoderSettingsCapabilities,
+    FileListInfo, SupportedAudioImportMetadata,
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
@@ -110,47 +109,21 @@ pub fn take_opened_audio_files(
 /// Validates encoder settings (no side effects)
 #[tauri::command]
 #[specta::specta]
-pub fn validate_encoder_settings(
-    settings: EncoderSettings,
-    external_toolchain: Option<ExternalToolchainPreference>,
-) -> CommandResult<String> {
+pub fn validate_encoder_settings(settings: EncoderSettings) -> CommandResult<String> {
     validate_encoder_settings_impl(&settings)?;
 
-    let availability = detect_encoder_availability(external_toolchain.as_ref());
+    let availability = detect_encoder_availability();
     validate_requested_encoder_available(settings.encoder_type, &availability)?;
 
     Ok("Encoder settings are valid".to_string())
 }
 
-/// Lists runtime encoder availability so the UI can surface guidance.
-#[tauri::command]
-#[specta::specta]
-pub fn list_available_encoders(
-    external_toolchain: Option<ExternalToolchainPreference>,
-) -> EncoderAvailability {
-    log::info!("🔍 list_available_encoders command invoked");
-    let result = detect_encoder_availability(external_toolchain.as_ref());
-    log::info!("🔍 Returning encoder availability: {:?}", result);
-    result
-}
-
-/// Re-runs external toolchain detection so the UI can refresh FDK status without restart.
-#[tauri::command]
-#[specta::specta]
-pub fn refresh_external_toolchain(
-    external_toolchain: Option<ExternalToolchainPreference>,
-) -> EncoderAvailability {
-    detect_encoder_availability(external_toolchain.as_ref())
-}
-
 /// Returns backend-owned runtime settings capabilities for UI controls.
 #[tauri::command]
 #[specta::specta]
-pub fn get_runtime_settings_capabilities(
-    external_toolchain: Option<ExternalToolchainPreference>,
-) -> CommandResult<RuntimeSettingsCapabilities> {
+pub fn get_runtime_settings_capabilities() -> CommandResult<RuntimeSettingsCapabilities> {
     Ok(RuntimeSettingsCapabilities {
-        encoder: encoder_settings_capabilities(external_toolchain.as_ref()),
+        encoder: encoder_settings_capabilities(),
         max_concurrent_jobs: JobRegistry::max_concurrent_jobs_capabilities(),
     })
 }

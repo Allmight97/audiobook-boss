@@ -312,7 +312,6 @@ describe('tauriClient nullish adapters', () => {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
 				settings: defaultEncoderSettings(),
-				externalToolchain: { overridePath: '/toolchains/ffmpeg' },
 				sampleRate: undefined,
 				jobType: undefined,
 				outputNaming: undefined,
@@ -336,9 +335,6 @@ describe('tauriClient nullish adapters', () => {
 			},
 		];
 		expect(commandName).toBe('process_audiobook_files');
-		expect(args.payload.externalToolchain).toEqual({
-			overridePath: '/toolchains/ffmpeg',
-		});
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
@@ -354,28 +350,23 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
-	it('denormalizes external toolchain input for validate_encoder_settings', async () => {
+	it('validates encoder settings without external toolchain input', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
 
 		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.validateEncoderSettings(defaultEncoderSettings(), {
-			overridePath: '/opt/toolchains/ffmpeg',
-		});
+		await tauriClient.validateEncoderSettings(defaultEncoderSettings());
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
 		const [commandName, args] = lastCall as [
 			string,
 			{
 				settings: Record<string, unknown>;
-				externalToolchain: { overridePath: string | null };
 			},
 		];
 		expect(commandName).toBe('validate_encoder_settings');
-		expect(args.externalToolchain).toEqual({
-			overridePath: '/opt/toolchains/ffmpeg',
-		});
+		expect(args).toEqual({ settings: defaultEncoderSettings() });
 	});
 
 	it('preserves a boundary encoder payload with omitted twoloop through validate_encoder_settings', async () => {
@@ -400,97 +391,25 @@ describe('tauriClient nullish adapters', () => {
 			string,
 			{
 				settings: Record<string, unknown>;
-				externalToolchain: { overridePath: string | null } | null;
 			},
 		];
 		expect(commandName).toBe('validate_encoder_settings');
 		expect(args.settings).toEqual(boundarySettings);
 		expect('twoloop' in args.settings).toBe(false);
-		expect(args.externalToolchain).toBeNull();
 	});
 
-	it('denormalizes external toolchain input for list_available_encoders', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			fdkAvailable: true,
-			fdkSource: 'override',
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-			autoEncoder: 'fdk_he_aac',
-			detectedToolchainPath: null,
-			overrideToolchainPath: '/custom/ffmpeg',
-			activeToolchainPath: '/custom/ffmpeg',
-			overrideInvalid: false,
-			overrideError: null,
-			statusMessage: 'FDK AAC is using the saved override path.',
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const availability = await tauriClient.listAvailableEncoders({
-			overridePath: '/custom/ffmpeg',
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ externalToolchain: { overridePath: string | null } },
-		];
-		expect(commandName).toBe('list_available_encoders');
-		expect(args.externalToolchain).toEqual({
-			overridePath: '/custom/ffmpeg',
-		});
-		expect(availability.fdkSource).toBe('override');
-		expect(availability.activeToolchainPath).toBe('/custom/ffmpeg');
-	});
-
-	it('uses refresh_external_toolchain for explicit FDK refreshes', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			fdkAvailable: true,
-			fdkSource: 'detected',
-			aacAtAvailable: true,
-			nativeAacAvailable: true,
-			autoEncoder: 'fdk_he_aac',
-			detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
-			overrideToolchainPath: null,
-			activeToolchainPath: '/opt/homebrew/bin/ffmpeg',
-			overrideInvalid: false,
-			overrideError: null,
-			statusMessage: 'FDK AAC detected and ready.',
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const availability = await tauriClient.refreshExternalToolchain();
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ externalToolchain: { overridePath: string | null } | null },
-		];
-		expect(commandName).toBe('refresh_external_toolchain');
-		expect(args.externalToolchain).toBeNull();
-		expect(availability.detectedToolchainPath).toBe('/opt/homebrew/bin/ffmpeg');
-	});
-
-	it('denormalizes toolchain input for runtime settings capabilities', async () => {
+	it('loads runtime settings capabilities without external toolchain input', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce(runtimeSettingsCapabilitiesFixture());
 
 		const { tauriClient } = await import('./tauri/client');
-		const capabilities = await tauriClient.getRuntimeSettingsCapabilities({
-			overridePath: '/custom/ffmpeg',
-		});
+		const capabilities = await tauriClient.getRuntimeSettingsCapabilities();
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ externalToolchain: { overridePath: string | null } },
-		];
+		const [commandName, args = {}] = lastCall as [string, Record<string, unknown>?];
 		expect(commandName).toBe('get_runtime_settings_capabilities');
-		expect(args.externalToolchain).toEqual({ overridePath: '/custom/ffmpeg' });
+		expect(args).toEqual({});
 		expect(capabilities.encoder.bitrateKbpsOptions).toContain(128);
 		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
@@ -720,16 +639,12 @@ describe('tauriClient nullish adapters', () => {
 			encoder: {
 				availability: {
 					fdkAvailable: true,
-					fdkSource: 'override',
+					fdkSource: 'detected',
 					aacAtAvailable: true,
 					nativeAacAvailable: true,
 					autoEncoder: 'fdk_he_aac',
-					detectedToolchainPath: null,
-					overrideToolchainPath: '/custom/ffmpeg',
-					activeToolchainPath: '/custom/ffmpeg',
-					overrideInvalid: false,
-					overrideError: null,
-					statusMessage: 'FDK AAC is using the saved override path.',
+					detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
+					statusMessage: 'FDK AAC detected and ready.',
 				},
 				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
 				autoResolutionOrder: ['fdk_he_aac', 'aac_at', 'native_aac'],
@@ -756,18 +671,17 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const capabilities = await tauriClient.getRuntimeSettingsCapabilities({
-			overridePath: '/custom/ffmpeg',
-		});
+		const capabilities = await tauriClient.getRuntimeSettingsCapabilities();
 
-		const [commandName, args] = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1] as [
+		const [commandName, args = {}] = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1] as [
 			string,
-			{ externalToolchain: { overridePath: string } },
+			Record<string, unknown>?,
 		];
 		expect(commandName).toBe('get_runtime_settings_capabilities');
-		expect(args.externalToolchain.overridePath).toBe('/custom/ffmpeg');
-		expect(capabilities.encoder.availability.overrideToolchainPath).toBe('/custom/ffmpeg');
-		expect(capabilities.encoder.availability.overrideError).toBeUndefined();
+		expect(args).toEqual({});
+		expect(capabilities.encoder.availability.detectedToolchainPath).toBe(
+			'/opt/homebrew/bin/ffmpeg',
+		);
 		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 });

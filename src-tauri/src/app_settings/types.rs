@@ -1,6 +1,6 @@
 use crate::audio::{
     validate_encoder_settings, validate_sample_rate_config, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, ExternalToolchainPreference, SampleRateConfig, ThreadSetting,
+    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -26,7 +26,6 @@ pub struct AppSettingsPatch {
 pub struct EncoderDefaults {
     pub settings: EncoderSettings,
     pub sample_rate: SampleRateConfig,
-    pub external_toolchain: ExternalToolchainPreference,
 }
 
 #[derive(
@@ -68,7 +67,6 @@ impl Default for EncoderDefaults {
                 twoloop: true,
             },
             sample_rate: SampleRateConfig::Auto,
-            external_toolchain: ExternalToolchainPreference::default(),
         }
     }
 }
@@ -126,7 +124,6 @@ impl ConcurrencyPreference {
 
 impl EncoderDefaults {
     fn validate(&mut self) -> Result<()> {
-        normalize_external_toolchain(&mut self.external_toolchain);
         validate_encoder_settings(&self.settings)?;
         validate_sample_rate_config(&self.sample_rate)?;
         Ok(())
@@ -141,12 +138,4 @@ impl OutputDefaults {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
     }
-}
-
-fn normalize_external_toolchain(preference: &mut ExternalToolchainPreference) {
-    preference.override_path = preference
-        .override_path
-        .take()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
 }

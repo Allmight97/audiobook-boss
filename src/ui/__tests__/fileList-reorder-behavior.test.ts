@@ -253,6 +253,17 @@ describe('file list reorder behavior', () => {
 		expect(inspectorState.contextDetail).toBe('1 of 1');
 	});
 
+	it('renders all-file auto-resolution hints when a multi-file list has no selection', () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+
+		displayFileList(makeFileList(alpha, beta));
+
+		expect(getSelectedFileIndex()).toBe(-1);
+		expect(context.renderAutoResolutionHintsMock).toHaveBeenCalledWith([alpha, beta]);
+		expect(context.resetAutoResolutionHintsMock).not.toHaveBeenCalled();
+	});
+
 	it('persists the current single-file draft before additive import and keeps selection stable', async () => {
 		const alpha = makeFile('/books/alpha.m4b');
 		const beta = makeFile('/books/beta.m4b');

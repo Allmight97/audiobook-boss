@@ -66,7 +66,7 @@ Human index for common commands. `package.json` owns shortcuts,
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b bun scripts/proof/runner.ts focus rust media-manual xhe-aac`
-  Optionally set `ABB_XHE_AAC_FFMPEG=/path/to/ffmpeg` to validate a specific FDK-capable external FFmpeg. The fixture is local-only and not committed.
+  Requires an auto-detectable FDK-capable external FFmpeg; the fixture is local-only and not committed.
 - Build timing: `bun scripts/proof/runner.ts diagnose timing`
   Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.

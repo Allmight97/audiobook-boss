@@ -1,5 +1,5 @@
 import { tauriClient } from '../lib/tauri/client';
-import type { ExternalToolchainPreference, RuntimeSettingsCapabilities } from '../types/audio';
+import type { RuntimeSettingsCapabilities } from '../types/audio';
 
 export const runtimeSettingsCapabilitiesState = $state({
 	capabilities: null as RuntimeSettingsCapabilities | null,
@@ -10,10 +10,6 @@ export const runtimeSettingsCapabilitiesState = $state({
 const pendingLoads = new Map<string, Promise<RuntimeSettingsCapabilities | null>>();
 let latestLoadKey: string | null = null;
 
-function capabilityKey(externalToolchain: ExternalToolchainPreference | null): string {
-	return JSON.stringify(externalToolchain);
-}
-
 export function setRuntimeSettingsCapabilities(
 	capabilities: RuntimeSettingsCapabilities | null,
 ): void {
@@ -21,10 +17,8 @@ export function setRuntimeSettingsCapabilities(
 	runtimeSettingsCapabilitiesState.loadError = null;
 }
 
-export async function hydrateRuntimeSettingsCapabilities(
-	externalToolchain: ExternalToolchainPreference | null,
-): Promise<RuntimeSettingsCapabilities | null> {
-	const key = capabilityKey(externalToolchain);
+export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSettingsCapabilities | null> {
+	const key = 'auto-detect';
 	const existing = pendingLoads.get(key);
 	if (existing) {
 		return existing;
@@ -33,7 +27,7 @@ export async function hydrateRuntimeSettingsCapabilities(
 	latestLoadKey = key;
 	runtimeSettingsCapabilitiesState.loading = true;
 	const promise = tauriClient
-		.getRuntimeSettingsCapabilities(externalToolchain)
+		.getRuntimeSettingsCapabilities()
 		.then((capabilities) => {
 			if (latestLoadKey === key) {
 				setRuntimeSettingsCapabilities(capabilities);

@@ -41,7 +41,6 @@ const settingsFixture = (): AppSettings => ({
 			twoloop: true,
 		},
 		sampleRate: { explicit: 44100 },
-		externalToolchain: { overridePath: '/opt/ffmpeg' },
 	},
 	outputDefaults: {
 		outputDirectory: '/books/out',

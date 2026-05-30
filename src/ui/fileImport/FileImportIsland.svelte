@@ -374,7 +374,7 @@
     onclick={handleHeaderClick}
     onkeydown={handleHeaderKeydown}
   >
-    <p class="text-sm muted-text">Drag & Drop files or folders here or Click to Select</p>
+    <p class="text-sm muted-text">Drop files or folders here, click to choose files, or use Add Folder</p>
     <p class="text-xs muted-text mt-1">{fileImportUiState.supportText}</p>
   </div>
 

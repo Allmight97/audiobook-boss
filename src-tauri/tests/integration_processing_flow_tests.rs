@@ -188,7 +188,6 @@ async fn process_roundtrip_files(
         Some(metadata),
         CoverArtPassthroughPolicy::Preserve,
         native_encoder_settings(),
-        None,
     ))
     .await
     .expect("processing should complete")

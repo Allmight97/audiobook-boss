@@ -1,6 +1,6 @@
 use audiobook_boss_lib::audio::{
     self, AudioExecutionRequest, BitrateMode, ChannelConfig as EncoderChannelConfig,
-    EncoderSettings, EncoderType, ExternalToolchainPreference, SampleRateConfig, ThreadSetting,
+    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
 };
 use audiobook_boss_lib::processing::{
     OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires ABB_XHE_AAC_FIXTURE and an external FFmpeg with libfdk_aac"]
+#[ignore = "requires ABB_XHE_AAC_FIXTURE and an auto-detectable external FFmpeg with libfdk_aac"]
 async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
     let input_path = fixture_path();
     assert!(
@@ -32,8 +32,7 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
         threads: ThreadSetting::Auto,
         twoloop: true,
     };
-    let toolchain_preference = toolchain_preference();
-    audio::validate_audio_engine_inputs(&settings, toolchain_preference.as_ref(), &file_info)
+    audio::validate_audio_engine_inputs(&settings, &file_info)
         .expect("selected decoder should be available in the external toolchain");
 
     let temp_dir = TempDir::new().expect("create temp dir");
@@ -52,7 +51,6 @@ async fn xhe_aac_fixture_encodes_short_external_fdk_preview_when_configured() {
         None,
         CoverArtPassthroughPolicy::Preserve,
         settings,
-        toolchain_preference,
     ))
     .await
     .expect("external FDK preview should encode the xHE-AAC fixture");
@@ -68,14 +66,4 @@ fn fixture_path() -> PathBuf {
     std::env::var_os("ABB_XHE_AAC_FIXTURE")
         .map(PathBuf::from)
         .expect("set ABB_XHE_AAC_FIXTURE to a local xHE-AAC/USAC audiobook fixture")
-}
-
-fn toolchain_preference() -> Option<ExternalToolchainPreference> {
-    std::env::var("ABB_XHE_AAC_FFMPEG")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(|override_path| ExternalToolchainPreference {
-            override_path: Some(override_path),
-        })
 }

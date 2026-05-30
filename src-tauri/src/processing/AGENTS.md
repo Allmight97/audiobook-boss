@@ -21,9 +21,9 @@
 ## Allowed Agent Edits Without Escalation
 - Change planner or runner internals when `bun scripts/proof/runner.ts focus rust contract` stays green.
 - Keep preflight side-effect-free; execution may create output dirs only after review enforcement.
-- Keep runner responsibilities to encoder/toolchain validation, job
-  registration, scheduler dispatch, audio execution requests through
-  `crate::audio`, and handoff to terminal outcome helpers.
+- Keep runner responsibilities to encoder request validation, job registration,
+  scheduler dispatch, audio execution requests through `crate::audio`, and
+  handoff to terminal outcome helpers. Toolchain selection stays audio-owned.
 - Keep metadata save reporting lifecycle truth through this strip while leaving
   metadata write policy inside metadata-owned APIs.
 

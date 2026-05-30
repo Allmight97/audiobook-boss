@@ -5,7 +5,7 @@ export async function applyEncodingDefaults(defaults: EncoderDefaults): Promise<
 		import('../runtimeSettingsCapabilities.svelte'),
 		import('./logic'),
 	]);
-	const capabilities = await hydrateRuntimeSettingsCapabilities(defaults.externalToolchain);
+	const capabilities = await hydrateRuntimeSettingsCapabilities();
 	logic.setRuntimeEncoderSettingsCapabilities(capabilities?.encoder ?? null);
 	logic.applyEncodingDefaults(defaults);
 }

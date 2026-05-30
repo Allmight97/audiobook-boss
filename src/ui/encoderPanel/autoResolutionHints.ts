@@ -1,12 +1,12 @@
 import type { AudioFile } from '../../types/audio';
 import { resetAutoHints, setChannelsAutoHint, setSampleRateAutoHint } from './state.svelte';
 
-const UNKNOWN_SAMPLE_RATE_HINT = 'Auto resolves from source audio.';
-const UNKNOWN_CHANNELS_HINT = 'Auto resolves from source audio.';
-const MIXED_SAMPLE_RATE_HINT = 'Auto resolves per file (mixed inputs).';
-const MIXED_CHANNELS_HINT = 'Auto resolves per file (mixed inputs).';
+const UNKNOWN_SAMPLE_RATE_HINT = 'Auto -> source audio';
+const UNKNOWN_CHANNELS_HINT = 'Auto -> source audio';
+const PARTIAL_SAMPLE_RATE_HINT = 'Auto -> mixed/unknown rates';
+const PARTIAL_CHANNELS_HINT = 'Auto -> mixed/unknown channels';
 
-type ResolutionState = 'single-exact' | 'multi-same' | 'mixed' | 'unknown';
+type ResolutionState = 'same' | 'mixed' | 'partial' | 'unknown';
 
 export interface AutoResolutionHints {
 	sampleRateHint: string;
@@ -33,22 +33,49 @@ const resolveState = (selectedCount: number, knownValues: readonly number[]): Re
 		return 'unknown';
 	}
 
-	if (selectedCount === 1) {
-		return 'single-exact';
+	if (knownValues.length !== selectedCount) {
+		return 'partial';
 	}
 
 	const uniqueCount = new Set(knownValues).size;
-	if (knownValues.length === selectedCount && uniqueCount === 1) {
-		return 'multi-same';
+	if (uniqueCount === 1) {
+		return 'same';
 	}
 
 	return 'mixed';
+};
+
+const formatSampleRate = (sampleRate: number): string => {
+	const kHz = sampleRate / 1000;
+	return Number.isInteger(kHz)
+		? `${kHz}`
+		: kHz.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+};
+
+const formatSampleRateSummary = (sampleRates: readonly number[]): string => {
+	const uniqueRates = [...new Set(sampleRates)].sort((a, b) => a - b);
+	if (uniqueRates.length <= 3) {
+		return `${uniqueRates.map(formatSampleRate).join('/')} kHz`;
+	}
+
+	const first = uniqueRates[0];
+	const last = uniqueRates[uniqueRates.length - 1];
+	return `${formatSampleRate(first)}-${formatSampleRate(last)} kHz`;
 };
 
 export const channelCountToLabel = (channels: number): string => {
 	if (channels === 1) return 'Mono';
 	if (channels === 2) return 'Stereo';
 	return `${channels} ch`;
+};
+
+const formatChannelSummary = (channels: readonly number[]): string => {
+	const uniqueChannels = [...new Set(channels)].sort((a, b) => a - b);
+	if (uniqueChannels.length <= 3) {
+		return uniqueChannels.map(channelCountToLabel).join('/');
+	}
+
+	return 'mixed channels';
 };
 
 const resolveSampleRateHint = (selectedFiles: readonly AudioFile[]): string => {
@@ -60,16 +87,15 @@ const resolveSampleRateHint = (selectedFiles: readonly AudioFile[]): string => {
 		return UNKNOWN_SAMPLE_RATE_HINT;
 	}
 
+	if (state === 'partial') {
+		return PARTIAL_SAMPLE_RATE_HINT;
+	}
+
 	if (state === 'mixed') {
-		return MIXED_SAMPLE_RATE_HINT;
+		return `Auto -> mixed (${formatSampleRateSummary(knownSampleRates)})`;
 	}
 
-	const sampleRate = knownSampleRates[0];
-	if (state === 'single-exact') {
-		return `Auto resolves to ${sampleRate} Hz from selected file.`;
-	}
-
-	return `Auto resolves to ${sampleRate} Hz across selected files.`;
+	return `Auto -> ${formatSampleRateSummary(knownSampleRates)}`;
 };
 
 const resolveChannelsHint = (selectedFiles: readonly AudioFile[]): string => {
@@ -81,16 +107,15 @@ const resolveChannelsHint = (selectedFiles: readonly AudioFile[]): string => {
 		return UNKNOWN_CHANNELS_HINT;
 	}
 
+	if (state === 'partial') {
+		return PARTIAL_CHANNELS_HINT;
+	}
+
 	if (state === 'mixed') {
-		return MIXED_CHANNELS_HINT;
+		return `Auto -> mixed (${formatChannelSummary(knownChannels)})`;
 	}
 
-	const channelLabel = channelCountToLabel(knownChannels[0]);
-	if (state === 'single-exact') {
-		return `Auto resolves to ${channelLabel} from selected file.`;
-	}
-
-	return `Auto resolves to ${channelLabel} across selected files.`;
+	return `Auto -> ${formatChannelSummary(knownChannels)}`;
 };
 
 export const resolveAutoResolutionHints = (

@@ -22,7 +22,7 @@
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
-  `EncoderCapabilitySource`, `ExternalToolchainPreference`.
+  `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,

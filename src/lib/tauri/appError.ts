@@ -99,8 +99,8 @@ export function normalizeAppError(
  *
  * See `src/lib/generated/tauri.ts`'s `export type Result<T, E>` for the
  * authoritative declaration. Anything else returned from a generated command
- * is a bare value (e.g. `get_max_concurrent_jobs: number`,
- * `list_available_encoders: EncoderAvailability`) and flows through unchanged.
+ * is a bare value (e.g. `get_max_concurrent_jobs: number`) and flows through
+ * unchanged.
  */
 type SpectaResult = { status: 'ok'; data?: unknown } | { status: 'error'; error?: unknown };
 

@@ -55,6 +55,11 @@ describe('encoder panel native AAC warning', () => {
 			const hint = document.getElementById('encoder-availability-hint');
 			expect(hint?.textContent).toContain('Auto will use Native AAC (FFmpeg).');
 			expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
+			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(false);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
+			expect(
+				(document.getElementById('adv-native-twoloop') as HTMLInputElement | null)?.checked,
+			).toBe(true);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (FFmpeg))');
 		});
@@ -104,8 +109,8 @@ describe('encoder panel native AAC warning', () => {
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toContain(
-				'Auto will use external FDK AAC at /opt/homebrew/bin/ffmpeg.',
+			expect(hint?.textContent).toBe(
+				'Using external FDK AAC via /opt/homebrew/bin/ffmpeg. Afterburner on.',
 			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');

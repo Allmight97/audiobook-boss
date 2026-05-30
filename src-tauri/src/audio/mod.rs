@@ -115,10 +115,7 @@ pub use settings_encoder::{
     ChannelConfig, EncoderSettings, EncoderType, ThreadSetting, VALID_ENCODER_BITRATES,
     VALID_THREAD_COUNT_RANGE,
 };
-pub use toolchain::{
-    detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource,
-    ExternalToolchainPreference,
-};
+pub use toolchain::{detect_encoder_availability, EncoderAvailability, EncoderCapabilitySource};
 
 // Crate-internal cleanup strip used by owned backend boundaries.
 pub(crate) use cleanup::CleanupGuard;

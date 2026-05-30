@@ -175,6 +175,16 @@ function isCurrentMultiSelectionRequest(requestId: number, filePaths: string[]):
 	return selectedPaths.every((path, index) => path === expectedPaths[index]);
 }
 
+function renderWorkbenchAutoResolutionHints(): void {
+	const validFiles = getCurrentFileList()?.files.filter((file) => file.isValid) ?? [];
+	if (validFiles.length > 0) {
+		renderAutoResolutionHints(validFiles);
+		return;
+	}
+
+	resetAutoResolutionHints();
+}
+
 export async function showSingleSelection(file: AudioFile): Promise<void> {
 	const requestId = ++latestSingleSelectionRequestId;
 	renderAutoResolutionHints([file]);
@@ -249,7 +259,7 @@ export function refreshSelectionPresentation(selectedFiles: AudioFile[]): void {
 }
 
 export function clearSelectionPanels(): void {
-	resetAutoResolutionHints();
+	renderWorkbenchAutoResolutionHints();
 	resetInspectorState();
 	populateMetadataFormSingle({});
 	clearCoverArt();

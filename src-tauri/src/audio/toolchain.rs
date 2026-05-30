@@ -9,19 +9,12 @@ use std::process::Command;
 
 const APPLE_SILICON_FFMPEG_ARCHES: &[&str] = &["arm64", "arm64e"];
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalToolchainPreference {
-    pub override_path: Option<String>,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderCapabilitySource {
     None,
     Bundled,
     Detected,
-    Override,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -33,10 +26,6 @@ pub struct EncoderAvailability {
     pub native_aac_available: bool,
     pub auto_encoder: EncoderType,
     pub detected_toolchain_path: Option<String>,
-    pub override_toolchain_path: Option<String>,
-    pub active_toolchain_path: Option<String>,
-    pub override_invalid: bool,
-    pub override_error: Option<String>,
     pub status_message: String,
 }
 
@@ -67,27 +56,20 @@ impl ExternalDecoderCapabilities {
 pub(crate) struct ToolchainResolution {
     pub(crate) validated: Option<ValidatedExternalToolchain>,
     pub(crate) detected_toolchain_path: Option<String>,
-    pub(crate) override_toolchain_path: Option<String>,
-    pub(crate) active_toolchain_path: Option<String>,
     pub(crate) fdk_source: EncoderCapabilitySource,
-    pub(crate) override_invalid: bool,
-    pub(crate) override_error: Option<String>,
     pub(crate) status_message: String,
 }
 
-pub fn detect_encoder_availability(
-    preference: Option<&ExternalToolchainPreference>,
-) -> EncoderAvailability {
-    detect_encoder_availability_with_resolution(preference).0
+pub fn detect_encoder_availability() -> EncoderAvailability {
+    detect_encoder_availability_with_resolution().0
 }
 
 pub(crate) fn detect_encoder_availability_with_resolution(
-    preference: Option<&ExternalToolchainPreference>,
 ) -> (EncoderAvailability, ToolchainResolution) {
     let native_aac = settings_encoder::is_encoder_available_by_name("aac");
     let aac_at =
         cfg!(target_os = "macos") && settings_encoder::is_encoder_available_by_name("aac_at");
-    let resolution = resolve_external_toolchain(preference);
+    let resolution = resolve_external_toolchain();
     let fdk_available = resolution.validated.is_some();
     let auto_encoder = if fdk_available {
         EncoderType::FdkHeAac
@@ -104,80 +86,18 @@ pub(crate) fn detect_encoder_availability_with_resolution(
         native_aac_available: native_aac,
         auto_encoder,
         detected_toolchain_path: resolution.detected_toolchain_path.clone(),
-        override_toolchain_path: resolution.override_toolchain_path.clone(),
-        active_toolchain_path: resolution.active_toolchain_path.clone(),
-        override_invalid: resolution.override_invalid,
-        override_error: resolution.override_error.clone(),
         status_message: resolution.status_message.clone(),
     };
     (availability, resolution)
 }
 
-pub(crate) fn resolve_external_toolchain(
-    preference: Option<&ExternalToolchainPreference>,
-) -> ToolchainResolution {
-    resolve_external_toolchain_with_auto_candidates(preference, auto_candidates())
+pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {
+    resolve_external_toolchain_with_auto_candidates(auto_candidates())
 }
 
 fn resolve_external_toolchain_with_auto_candidates(
-    preference: Option<&ExternalToolchainPreference>,
     auto_candidates: Vec<PathBuf>,
 ) -> ToolchainResolution {
-    let override_path = preference
-        .and_then(|value| value.override_path.as_deref())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
-
-    if let Some(raw_override_path) = override_path {
-        let override_candidates = custom_candidates(Some(raw_override_path.as_str()));
-        match validate_candidates(&override_candidates, EncoderCapabilitySource::Override) {
-            Ok(validated) => {
-                let active_toolchain_path = path_to_string(&validated.ffmpeg_path);
-                return ToolchainResolution {
-                    validated: Some(validated),
-                    detected_toolchain_path: None,
-                    override_toolchain_path: Some(raw_override_path),
-                    active_toolchain_path,
-                    fdk_source: EncoderCapabilitySource::Override,
-                    override_invalid: false,
-                    override_error: None,
-                    status_message: "FDK AAC is using the saved override path.".to_string(),
-                };
-            }
-            Err(override_error) => {
-                let auto = resolve_detected_toolchain(&auto_candidates);
-                if let Some(validated) = auto.validated {
-                    return ToolchainResolution {
-                        detected_toolchain_path: auto.detected_toolchain_path,
-                        override_toolchain_path: Some(raw_override_path),
-                        active_toolchain_path: path_to_string(&validated.ffmpeg_path),
-                        fdk_source: EncoderCapabilitySource::Detected,
-                        override_invalid: true,
-                        override_error: Some(override_error),
-                        status_message:
-                            "Saved override path is invalid. Auto-detected FDK AAC is active."
-                                .to_string(),
-                        validated: Some(validated),
-                    };
-                }
-
-                return ToolchainResolution {
-                    validated: None,
-                    detected_toolchain_path: None,
-                    override_toolchain_path: Some(raw_override_path),
-                    active_toolchain_path: None,
-                    fdk_source: EncoderCapabilitySource::None,
-                    override_invalid: true,
-                    override_error: Some(override_error),
-                    status_message:
-                        "FDK AAC is unavailable. Fix the saved override path or install an FDK-capable FFmpeg toolchain."
-                            .to_string(),
-                };
-            }
-        }
-    }
-
     resolve_detected_toolchain(&auto_candidates)
 }
 
@@ -188,22 +108,14 @@ fn resolve_detected_toolchain(auto_candidates: &[PathBuf]) -> ToolchainResolutio
             ToolchainResolution {
                 validated: Some(validated),
                 detected_toolchain_path: detected_toolchain_path.clone(),
-                override_toolchain_path: None,
-                active_toolchain_path: detected_toolchain_path,
                 fdk_source: EncoderCapabilitySource::Detected,
-                override_invalid: false,
-                override_error: None,
                 status_message: "FDK AAC detected and ready.".to_string(),
             }
         }
         Err(last_error) => ToolchainResolution {
             validated: None,
             detected_toolchain_path: None,
-            override_toolchain_path: None,
-            active_toolchain_path: None,
             fdk_source: EncoderCapabilitySource::None,
-            override_invalid: false,
-            override_error: None,
             status_message: if auto_candidates.is_empty() {
                 "No external FFmpeg toolchain with libfdk_aac was detected.".to_string()
             } else {
@@ -257,25 +169,6 @@ fn auto_candidates() -> Vec<PathBuf> {
         .as_deref(),
         command_stdout_known(&["which", "/usr/bin/which"], &["ffmpeg"]).as_deref(),
     )
-}
-
-fn custom_candidates(custom_path: Option<&str>) -> Vec<PathBuf> {
-    let Some(raw) = custom_path.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Vec::new();
-    };
-
-    let path = PathBuf::from(raw);
-    let mut candidates = Vec::new();
-    let mut seen = HashSet::new();
-
-    if path.is_dir() {
-        push_candidate(&mut candidates, &mut seen, path.join("ffmpeg"));
-        push_candidate(&mut candidates, &mut seen, path.join("bin/ffmpeg"));
-    } else {
-        push_candidate(&mut candidates, &mut seen, path);
-    }
-
-    candidates
 }
 
 fn push_candidate(candidates: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>, candidate: PathBuf) {
@@ -589,7 +482,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("temp dir");
         let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), true);
 
-        let resolution = resolve_external_toolchain_with_auto_candidates(None, vec![ffmpeg_path]);
+        let resolution = resolve_external_toolchain_with_auto_candidates(vec![ffmpeg_path]);
 
         let validated = resolution.validated.expect("validated toolchain");
         assert_eq!(validated.source, EncoderCapabilitySource::Detected);
@@ -602,58 +495,11 @@ mod tests {
     }
 
     #[test]
-    fn saved_override_path_wins_when_valid() {
-        let temp_dir = TempDir::new().expect("temp dir");
-        let override_path = write_fake_ffmpeg(temp_dir.path(), true);
-        let detected_path = write_fake_ffmpeg(temp_dir.path().join("auto").as_path(), true);
-
-        let resolution = resolve_external_toolchain_with_auto_candidates(
-            Some(&ExternalToolchainPreference {
-                override_path: Some(override_path.to_string_lossy().to_string()),
-            }),
-            vec![detected_path],
-        );
-
-        let validated = resolution.validated.expect("validated toolchain");
-        assert_eq!(validated.source, EncoderCapabilitySource::Override);
-        assert_eq!(resolution.fdk_source, EncoderCapabilitySource::Override);
-        assert_eq!(
-            resolution.override_toolchain_path.as_deref(),
-            Some(override_path.to_string_lossy().as_ref())
-        );
-        assert!(!resolution.override_invalid);
-    }
-
-    #[test]
-    fn invalid_override_falls_back_to_auto_detection() {
-        let temp_dir = TempDir::new().expect("temp dir");
-        let detected_path = write_fake_ffmpeg(temp_dir.path(), true);
-        let invalid_path = temp_dir.path().join("missing-ffmpeg");
-
-        let resolution = resolve_external_toolchain_with_auto_candidates(
-            Some(&ExternalToolchainPreference {
-                override_path: Some(invalid_path.to_string_lossy().to_string()),
-            }),
-            vec![detected_path.clone()],
-        );
-
-        let validated = resolution.validated.expect("validated toolchain");
-        assert_eq!(validated.source, EncoderCapabilitySource::Detected);
-        assert_eq!(resolution.fdk_source, EncoderCapabilitySource::Detected);
-        assert!(resolution.override_invalid);
-        assert!(resolution.override_error.is_some());
-        assert_eq!(
-            resolution.detected_toolchain_path.as_deref(),
-            Some(detected_path.to_string_lossy().as_ref())
-        );
-    }
-
-    #[test]
     fn no_fdk_found_returns_none_with_status_message() {
         let temp_dir = TempDir::new().expect("temp dir");
         let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), false);
 
-        let resolution = resolve_external_toolchain_with_auto_candidates(None, vec![ffmpeg_path]);
+        let resolution = resolve_external_toolchain_with_auto_candidates(vec![ffmpeg_path]);
 
         assert!(resolution.validated.is_none());
         assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
@@ -677,7 +523,7 @@ mod tests {
         let ffmpeg_path = write_fake_ffmpeg_with_decoders(temp_dir.path(), true, true, false);
 
         let validated =
-            validate_candidate(&ffmpeg_path, EncoderCapabilitySource::Override).expect("toolchain");
+            validate_candidate(&ffmpeg_path, EncoderCapabilitySource::Detected).expect("toolchain");
 
         assert!(validated.decoder_capabilities.libfdk_aac);
         assert!(!validated.decoder_capabilities.aac_at);
@@ -687,7 +533,7 @@ mod tests {
     fn external_decoder_contract_rejects_unsupported_named_decoder() {
         let toolchain = ValidatedExternalToolchain {
             ffmpeg_path: PathBuf::from("/tmp/fake-ffmpeg"),
-            source: EncoderCapabilitySource::Override,
+            source: EncoderCapabilitySource::Detected,
             decoder_capabilities: ExternalDecoderCapabilities {
                 aac_at: false,
                 libfdk_aac: true,
