@@ -2,16 +2,21 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
-## [Unreleased]
+## [1.0.28] - 2026-05-30
 
 ### Changed
 
+- Metadata and runtime settings validation now route through backend-owned
+  boundaries with tighter TS/Rust parity.
+- Processing terminal outcomes are split into focused classification,
+  aggregation, event, and test surfaces.
+- External FDK processing internals are split into private Audio Engine modules;
+  preview outputs omit chapter markers while full outputs preserve chapters.
+- File Import now consumes FileList append/dedupe outcomes, preserving metadata
+  drafts and surfacing duplicate-only imports in the import panel.
+- Proof routing now uses `bun scripts/proof/runner.ts` with immutable
+  `.proof/runs/<run-id>/` summaries, logs, and focused route categories.
 - Bun baseline: **1.3.14 stable**. Refresh with `bun upgrade --stable`.
-- Script proof tests use Vitest through `bun run test`.
-- Replaced the shell proof router with the agent-facing Bun proof runner, using
-  `focus`, `review`, `release`, and `diagnose` proof intents.
-- Proof runs now write immutable `.proof/runs/<run-id>/` artifacts with
-  `summary.json`, `summary.md`, `events.ndjson`, and per-step logs.
 
 ### Removed
 
