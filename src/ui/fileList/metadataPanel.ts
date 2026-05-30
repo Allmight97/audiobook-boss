@@ -131,6 +131,18 @@ export function updateFileProperties(file: AudioFile): void {
 	updatePropertiesContextSingle(file, getSelectedFileIndex());
 }
 
+function updateMultiSelectionProperties(selectedFiles: AudioFile[]): void {
+	updatePropertiesContextMulti(selectedFiles.length);
+	setInspectorValues({
+		bitrateText: '---',
+		sampleRateText: '---',
+		channelsText: '---',
+		codecText: summarizeSharedTextValue(selectedFiles, (file) => file.codecLabel),
+		decoderText: summarizeSharedTextValue(selectedFiles, (file) => file.selectedDecoder),
+		fileSizeText: '---',
+	});
+}
+
 function isCurrentSingleSelectionRequest(requestId: number, filePath: string): boolean {
 	if (requestId !== latestSingleSelectionRequestId) return false;
 	if (getSelectedFileIndices().size !== 1) return false;
@@ -193,16 +205,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<void> {
 	const requestId = ++latestSingleSelectionRequestId;
 	renderAutoResolutionHints(selectedFiles);
-
-	updatePropertiesContextMulti(selectedFiles.length);
-	setInspectorValues({
-		bitrateText: '---',
-		sampleRateText: '---',
-		channelsText: '---',
-		codecText: summarizeSharedTextValue(selectedFiles, (file) => file.codecLabel),
-		decoderText: summarizeSharedTextValue(selectedFiles, (file) => file.selectedDecoder),
-		fileSizeText: '---',
-	});
+	updateMultiSelectionProperties(selectedFiles);
 
 	resetDirtyState();
 
@@ -224,6 +227,23 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	}
 
 	populateMetadataFormMulti(metadataList, selectedFiles.length);
+	refreshOutputForMetadataChange();
+	updateTagPreview();
+}
+
+export function refreshSelectionPresentation(selectedFiles: AudioFile[]): void {
+	latestSingleSelectionRequestId += 1;
+	renderAutoResolutionHints(selectedFiles);
+
+	if (selectedFiles.length === 1 && selectedFiles[0]) {
+		updateFileProperties(selectedFiles[0]);
+	} else if (selectedFiles.length > 1) {
+		updateMultiSelectionProperties(selectedFiles);
+	} else {
+		clearSelectionPanels();
+		return;
+	}
+
 	refreshOutputForMetadataChange();
 	updateTagPreview();
 }

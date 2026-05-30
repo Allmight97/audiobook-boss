@@ -7,7 +7,7 @@
 - Source of truth for max-concurrent-job capability facts exposed to settings
   controls.
 - Operation identity, progress/queue event vocabulary, and shared terminal
-  summaries live in the parent `processing` lifecycle/progress public strip;
+  summaries live in the parent `processing` lifecycle/progress public API;
   this directory owns active-job state, not the whole lifecycle contract.
 
 ## Preferred Path
@@ -25,11 +25,11 @@
 - Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.
 - Concurrency reconfiguration is idle-only to prevent dangling permits and inconsistent UI job counts.
 
-## Canary Trigger
+## Lifecycle Ownership Traps
 
-- Trigger Canary when lifecycle ownership between scheduler, permit handling, and cancellation appears split or implicit.
-- Report the ambiguous ownership, working assumption, and minimal invariant update proposal.
-- Continue unless the ambiguity risks leaked permits, incorrect counts, or stuck cancellation.
+- If ownership between scheduler, permit handling, and cancellation appears split or implicit, name the seam and working assumption.
+- Add or propose the smallest invariant, test, or doc guard that would prevent recurrence.
+- Block when ambiguity risks leaked permits, incorrect counts, or stuck cancellation.
 
 ## Done Criteria
 

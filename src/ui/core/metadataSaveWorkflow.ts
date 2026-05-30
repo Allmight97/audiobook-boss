@@ -132,7 +132,7 @@ function resetInProgressWhenNeeded(
 	});
 }
 
-export function enterMetadataSaveWorkflow(
+function resolveMetadataSaveEntry(
 	services: MetadataSaveWorkflowEntryServices,
 ): PreparedMetadataSaveWorkflowEntry | null {
 	const fileList = services.getCurrentFileList();
@@ -160,6 +160,12 @@ export function enterMetadataSaveWorkflow(
 	return { fileList };
 }
 
+export function enterMetadataSaveWorkflow(
+	services: MetadataSaveWorkflowEntryServices,
+): PreparedMetadataSaveWorkflowEntry | null {
+	return resolveMetadataSaveEntry(services);
+}
+
 function prepareMetadataSaveWorkflowEntry(
 	state: MetadataSaveRunState,
 	preparedEntry: PreparedMetadataSaveWorkflowEntry | undefined,
@@ -171,57 +177,15 @@ function prepareMetadataSaveWorkflowEntry(
 		}
 
 		const services = yield* MetadataSaveWorkflowServicesTag;
-		const fileList = yield* workflowSync(
-			() => services.getCurrentFileList(),
-			'Failed to read current file list.',
+		const entry = yield* workflowSync(
+			() => resolveMetadataSaveEntry(services),
+			'Failed to prepare metadata save entry.',
 		);
-		if (!fileList?.files.length) {
-			yield* workflowSync(
-				() => services.console.log('No files loaded - nothing to save'),
-				'Failed to report metadata save status.',
-			);
+		if (!entry) {
 			return null;
 		}
-
-		yield* workflowSync(() => services.initStatusPanel(), 'Failed to initialize status panel.');
-		const isProcessing = yield* workflowSync(
-			() => services.isStatusPanelProcessing(),
-			'Failed to read status panel processing state.',
-		);
-		if (isProcessing) {
-			yield* workflowSync(
-				() => services.console.log('Processing in progress - cannot save metadata now'),
-				'Failed to report metadata save status.',
-			);
-			return null;
-		}
-
-		yield* workflowSync(
-			() => services.pushStatusPanelTransientStatus('Preparing metadata save...', { ttlMs: 1_000 }),
-			'Failed to report metadata save preparation.',
-		);
-
-		const isSaveInProgress = yield* workflowSync(
-			() => services.isMetadataSaveInProgress(),
-			'Failed to read metadata save state.',
-		);
-		if (isSaveInProgress) {
-			yield* workflowSync(
-				() =>
-					services.pushStatusPanelTransientStatus('Save already in progress...', {
-						ttlMs: 1_500,
-					}),
-				'Failed to report metadata save status.',
-			);
-			return null;
-		}
-
-		yield* workflowSync(
-			() => services.setMetadataSaveInProgress(true),
-			'Failed to enter metadata save state.',
-		);
 		state.enteredSave = true;
-		return fileList;
+		return entry.fileList;
 	});
 }
 

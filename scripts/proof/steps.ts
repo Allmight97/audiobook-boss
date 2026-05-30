@@ -68,7 +68,7 @@ export function generatedBindingsStep(): ProofStep {
 export function publicApiStripsStep(): ProofStep {
 	return bashStep(
 		'public-api-strips',
-		'public API strip assertions',
+		'Public API Strip assertions',
 		'scripts/check-public-api-strips.sh',
 	);
 }

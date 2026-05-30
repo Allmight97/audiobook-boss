@@ -70,7 +70,7 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/processing/run.rs`, `src-tauri/src/processing/plan.rs`, `src-tauri/src/processing/job_registry/`
   - Lifecycle helpers: `src-tauri/src/processing/lifecycle.rs`, `src-tauri/src/processing/progress/`
-  - Audio execution: call the `crate::audio` public strip; native `ffmpeg-next` and external FFmpeg/FDK adapter selection remain private under `src-tauri/src/audio/processor/`
+  - Audio execution: call the `crate::audio` public API; native `ffmpeg-next` and external FFmpeg/FDK adapter selection remain private under `src-tauri/src/audio/processor/`
   - Use: queueing, processing, cancellation, batch orchestration
 
 ### Metadata

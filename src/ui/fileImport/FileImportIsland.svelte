@@ -61,7 +61,7 @@
 	}
 
 	function handleSortClick(): void {
-		toggleFileSort();
+		void toggleFileSort();
 	}
 
 	function handleClearClick(): void {

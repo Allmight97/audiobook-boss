@@ -71,10 +71,10 @@ ownership or proof.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.
 - Backend lifecycle vocabulary and event emission live under `processing` as a
-  sub-owner/public strip; it is not a standalone Grey-Box Public API.
+  sub-owner with a small public API; it is not a standalone Grey-Box Public API.
 - Audio engine execution owns media inspection, decoder/toolchain selection,
   encode/mux/staging behavior, and media-integrity facts behind a small public
-  strip.
+  API.
 - Runtime settings controls render backend-owned capability facts for selectable
   encoder and concurrency settings; UI labels stay frontend-owned, but
   accept/reject facts stay with Audio Engine and Job Registry.
@@ -89,8 +89,8 @@ Use these as the current durable ownership map for architecture work:
 In general architecture language, each entry is being shaped toward a **deep
 module**: a small interface hiding substantial implementation complexity. In
 ABB repo language, a **Grey-Box Module** is the stricter working form of that
-idea: Public API Strip, Private Cluster, nested ownership rules, boundary
-assertions, and contract tests.
+idea: Public API Strip (the allowed import/export surface), Private Cluster,
+nested ownership rules, boundary assertions, and contract tests.
 
 | Public API | Owns |
 | --- | --- |
@@ -102,8 +102,7 @@ assertions, and contract tests.
 | Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 | App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |
 
-Each Public API has a nearest nested `AGENTS.md` that lists the allowed import
-strip, private cluster, edit rules, and breaking-change triggers.
+Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
 
 Backend Lifecycle is a named sub-owner inside `processing`, not its own
 Grey-Box Public API. It provides operation identity, progress/queue event

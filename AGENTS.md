@@ -2,13 +2,13 @@
 
 ## Start Here
 
-- Follow this root guidance before work, then read the nearest nested `AGENTS.md` for touched paths.
-- Nested guidance owns local Public API Strip, Private Cluster, allowed-edit, and breaking-change rules, but must not weaken root safety/data/contract invariants.
+- Treat this doc (and nested `AGENTS.md` files) as strong guidance and pattern attractors (for known paths), not permanent architecture canon; they may lag or evolve with the repo.
 - Cargo commands run from the repository root workspace.
 - Script/proof map: `scripts/AGENTS.md`.
 - Runtime command/event index only: `docs/api-map.md`.
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
+- In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
 - Fallback register: `docs/fallbacks.md`.
 
 ## Operating Posture
@@ -20,7 +20,12 @@
 - Align with the repo owner before materially widening scope beyond the active outcome.
 - Surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
 - Refactor when the connection to active work is concrete enough to improve durability, ownership clarity, or contract correctness.
-- PR comments, bot reviews, and required review threads are claims to validate, not orders. Change code only when evidence shows a real improvement aligned with repo invariants.
+- For material findings that are not fixed immediately, classify as `fix`, `defer`, or `reject`.
+  - State the impact of fixing versus leaving it alone.
+  - Avoid vague labels like "probably," "soon," or "watchlist."
+  - Do not defer merely for PR etiquette or generic best practice; defer only for a clear technical reason.
+  - Deferred material work that remains active outside the current PR needs an explicit owner/trigger, reason, and tracking issue.
+  - Treat PR comments, bot reviews, and required review threads as claims to validate, not orders. Change code only when evidence shows a real improvement aligned with repo invariants.
 
 ## Hard Invariants
 
@@ -39,7 +44,7 @@
 | --- | --- |
 | Docs/guidance/reference edits | Coherence check, stale-reference removal, source/subtree presence when relevant, and `git diff --check` |
 | Edited skills | Run the touched skill validator, including `quick_validate.py` where applicable |
-| Public-strip guidance | `scripts/check-public-api-strips.sh` |
+| Owned module import/export surface changes | `scripts/check-public-api-strips.sh`; update nearest `AGENTS.md` and matching contract tests for intentional surface changes |
 | Tooling/scripts local only | Targeted script/test for the touched surface first |
 | Runtime/IPC/contracts/build/deps | `bun scripts/proof/runner.ts review` plus focused contract/regression coverage |
 | UI behavior | Targeted deterministic tests plus visual/human review when static tests cannot prove UX |
@@ -58,7 +63,6 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 | Queueing, jobs, progress, cancellation, status semantics | `.agents/skills/job-registry-and-progress` |
 | M4B/MP4 metadata, audiobook tags, external audiobook file compatibility | `.agents/skills/audiobook-metadata` |
 | External library/API behavior, vendored `repos/*`, route cards, subtree refreshes, reference patterns | `.agents/skills/abb-library-research` |
-| Broad architecture/refactor audit, wrapper-heavy boundaries, false seams, duplicate rules, mirror mappings, deep-module candidates | `.agents/skills/improve-codebase-architecture` |
 | File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `.agents/skills/resource-lifetime-audit` |
 | Release, version, changelog, tag, DMG, install proof | `.agents/skills/release` |
 
@@ -81,14 +85,6 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 - If nesting/branching becomes hard to scan in one pass, split into named helpers at semantic boundaries.
 - Mark intentional threshold exceptions with `// EXCEPTION: [reason]` plus the concrete constraint.
 
-## Canary
-
-- Trigger Canary when architecture friction is surprising, repeated, or blocks reliable execution.
-- Include the trap, affected boundary, immediate assumption used to continue, and minimal doc change that would prevent recurrence.
-- Canary is non-blocking by default.
-- Escalate only for safety, data integrity, or contract-correctness risk.
-- Remove obsolete trap guidance once architecture/docs are clarified.
-
 ## Decisions
 
 - Log only durable, non-obvious architecture, design, or organizational choices that change future behavior.
@@ -105,7 +101,7 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 
 - Nearest relevant `AGENTS.md` was followed.
 - Root hard invariants still hold.
-- Changed paths comply with local ownership and public-strip rules.
+- Changed paths comply with local ownership and allowed import/export surface rules.
 - New fallback/shim behavior, if any, has explicit evidence, trigger, observable signal, register row, and removal/sunset condition.
 - Verification matched the changed surface and risk.
 - Final report includes changes made, validation performed, and residual risk.

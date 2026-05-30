@@ -11,7 +11,7 @@
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused output panel tests stay green; run
   `bun scripts/proof/runner.ts focus frontend` before handoff and `bun scripts/proof/runner.ts focus runtime`
-  when public-strip or runtime contract surfaces change.
+  when the Public API Strip or runtime contract surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind
   `applyOutputDefaultsFromSettings` and `readOutputDefaultsFromState`; do not

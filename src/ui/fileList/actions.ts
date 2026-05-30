@@ -35,6 +35,7 @@ import {
 	autoUpdateCoverArtFromFirstValidFile,
 	clearSelectionPanels,
 	getSelectedFiles,
+	refreshSelectionPresentation,
 	showMultiSelection,
 	showSingleSelection,
 } from './metadataPanel';
@@ -43,7 +44,7 @@ import {
 	normalizeFileListInfo,
 	type FileListAppendResult,
 } from './appendResult';
-import { persistSingleSelectionMetadata, stageMetadataToSelection } from './metadataStaging';
+import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -51,10 +52,6 @@ function refreshOutputForFileListChange(): void {
 
 function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
-}
-
-function setStatusMessage(message: string): void {
-	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -130,27 +127,13 @@ export async function selectFile(
 		return;
 	}
 
-	const previousSelectionCount = getSelectedFiles().length;
-	const previousSelectedFiles = previousSelectionCount > 1 ? getSelectedFiles() : [];
-	const previousIndex = getSelectedFileIndex();
-	const previousFile =
-		previousSelectionCount === 1 ? (fileList.files[previousIndex] ?? null) : null;
-
-	if (previousSelectionCount === 1 && previousIndex >= 0 && !options?.skipPersistPrevious) {
-		if (!(await persistSingleSelectionMetadata(previousFile))) {
-			return;
-		}
-	}
-
-	if (previousSelectionCount > 1) {
-		const didStage = await stageMetadataToSelection({
-			showStatus: false,
-			selectedFilesOverride: previousSelectedFiles,
-		});
-		if (!didStage) {
-			setStatusMessage('Fix metadata validation errors before changing selection.');
-			return;
-		}
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			skipSingleSelection: options?.skipPersistPrevious,
+			validationFailureMessage: 'Fix metadata validation errors before changing selection.',
+		}))
+	) {
+		return;
 	}
 
 	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
@@ -178,12 +161,12 @@ export async function selectFile(
 export async function selectAll(): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
-	const selectedIndex = getSelectedFileIndex();
-	const previousFile =
-		getSelectedFiles().length === 1 && selectedIndex >= 0
-			? (fileList.files[selectedIndex] ?? null)
-			: null;
-	if (!(await persistSingleSelectionMetadata(previousFile))) {
+
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before selecting all files.',
+		}))
+	) {
 		return;
 	}
 
@@ -200,26 +183,12 @@ export async function selectAll(): Promise<void> {
 }
 
 export async function clearSelectionAction(): Promise<void> {
-	const fileList = getCurrentFileList();
-	const selectedIndex = getSelectedFileIndex();
-	const previousSelectionCount = getSelectedFiles().length;
-	const previousFile =
-		fileList && previousSelectionCount === 1 && selectedIndex >= 0
-			? (fileList.files[selectedIndex] ?? null)
-			: null;
-	if (!(await persistSingleSelectionMetadata(previousFile))) {
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before clearing the selection.',
+		}))
+	) {
 		return;
-	}
-
-	if (previousSelectionCount > 1) {
-		const didStage = await stageMetadataToSelection({
-			showStatus: false,
-			selectedFilesOverride: getSelectedFiles(),
-		});
-		if (!didStage) {
-			setStatusMessage('Fix metadata validation errors before clearing the selection.');
-			return;
-		}
 	}
 
 	const changed = clearSelection();
@@ -286,10 +255,7 @@ export function moveFileUp(index: number): void {
 	updateFileListDOM();
 	refreshOutputForFileListChange();
 
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	}
+	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export function moveFileDown(index: number): void {
@@ -308,16 +274,21 @@ export function moveFileDown(index: number): void {
 	updateFileListDOM();
 	refreshOutputForFileListChange();
 
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	}
+	refreshSelectionPresentation(getSelectedFiles());
 }
 
-export function toggleFileSort(): void {
+export async function toggleFileSort(): Promise<void> {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList || fileList.files.length <= 1) return;
+
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+		}))
+	) {
+		return;
+	}
 
 	setSortAscending(!getSortAscending());
 
@@ -385,12 +356,5 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	updateFileListDOM();
 	refreshOutputForFileListChange();
 
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	} else if (selectedFiles.length > 1) {
-		void showMultiSelection(selectedFiles);
-	} else {
-		clearSelectionPanels();
-	}
+	refreshSelectionPresentation(getSelectedFiles());
 }

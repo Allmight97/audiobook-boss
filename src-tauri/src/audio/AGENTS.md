@@ -9,8 +9,8 @@
   probing, decoder setup, resampling, sample buffering, encoder setup, muxing,
   and output validation.
 - Audio is the **Audio Engine Deep Module** Grey-Box Public API owner. Its
-  public strip lives at `crate::audio`; processor internals stay private under
-  `src-tauri/src/audio/processor/`.
+  allowed import surface lives at `crate::audio`; processor internals stay
+  private under `src-tauri/src/audio/processor/`.
 
 ## Public API Strip
 
@@ -55,8 +55,8 @@
 
 ## Test Placement
 
-- Public-strip behavior belongs in contract/integration tests that import only
-  `crate::audio`.
+- Public API Strip behavior belongs in contract/integration tests that import
+  only `crate::audio`.
 - Private-cluster invariants may use source-tree unit tests, including sibling
   `*_tests.rs` files declared from the owning module with `#[cfg(test)]` and
   `#[path = "..._tests.rs"]`, when moving them to `src-tauri/tests` would widen
@@ -69,7 +69,7 @@
 - Change private implementation files when focused audio/processing tests,
   `scripts/check-public-api-strips.sh`, and `scripts/check-no-bridge-imports.sh`
   stay green.
-- Narrow accidental visibility when callers can use the public strip without
+- Narrow accidental visibility when callers can use the Public API Strip without
   losing contract truth.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside
   the private cluster unless a caller needs a stable capability fact.
@@ -101,9 +101,9 @@
 - Sample sanitization may repair NaN/Inf or clamp out-of-range floats before encoding, but it must not mask channel-layout, frame-size, or format mismatches.
 - Encoder option changes must include evidence for the affected encoder path: targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented external encoder behavior.
 
-## Canary Trigger
+## Audio Integrity Traps
 
-Trigger Canary when any of these appear:
+Treat these as evidence of an audio-boundary assumption to investigate, not as cosmetic warnings:
 
 - repeated frame-plane warnings
 - preview/full divergence for the same encoder path
@@ -112,7 +112,7 @@ Trigger Canary when any of these appear:
 - mismatched source/output duration beyond expected preview boundaries
 - wrapper API behavior that disagrees with FFmpeg frame/layout semantics
 
-Include the affected boundary, the current assumption used to continue, and the smallest doc/test/code guard that would prevent recurrence.
+When one appears, name the affected boundary, state the current assumption used to continue, and add or propose the smallest regression test, invariant, or doc guard that would prevent recurrence.
 
 ## Done Criteria
 

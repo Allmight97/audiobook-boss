@@ -58,7 +58,7 @@ Human index for common commands. `package.json` owns shortcuts,
   `focus ...` routes for owner-local proof. Logs live under `.proof/runs/`;
   clear with `bun run proof:clean`.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
-  Public-strip drift is checked by `scripts/check-public-api-strips.sh`.
+  Allowed import/export surface drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`
   Run explicitly, or use `bun scripts/proof/runner.ts diagnose deps`; it is not part of the normal review gate.
 - Tooling policy: Bun is the package manager/script runner/test runner.

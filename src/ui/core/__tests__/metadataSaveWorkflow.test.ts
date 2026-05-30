@@ -254,6 +254,28 @@ describe('MetadataSaveWorkflow', () => {
 		expect(harness.getSaveInProgress()).toBe(false);
 	});
 
+	it('uses prepared entries without rerunning entry gates', async () => {
+		const preparedFileList = defaultFileList();
+		const harness = makeHarness({ fileList: null });
+
+		await runMetadataSaveWorkflow(harness.layer, { fileList: preparedFileList });
+
+		expect(harness.mocks.getCurrentFileList).not.toHaveBeenCalled();
+		expect(harness.mocks.initStatusPanel).not.toHaveBeenCalled();
+		expect(harness.mocks.isStatusPanelProcessing).not.toHaveBeenCalled();
+		expect(harness.mocks.isMetadataSaveInProgress).not.toHaveBeenCalled();
+		expect(harness.mocks.pushStatusPanelTransientStatus).not.toHaveBeenCalledWith(
+			'Preparing metadata save...',
+			expect.anything(),
+		);
+		expect(harness.mocks.saveMetadataBatch).toHaveBeenCalledWith([
+			{ filePath: '/books/a.m4b', metadataPatch: titlePatch('A') },
+			{ filePath: '/books/b.m4b', metadataPatch: titlePatch('B') },
+		]);
+		expect(harness.mocks.setMetadataSaveInProgress).toHaveBeenCalledTimes(1);
+		expect(harness.mocks.setMetadataSaveInProgress).toHaveBeenCalledWith(false);
+	});
+
 	it('leaves failed and cancelled entries pending while reporting failed entries', async () => {
 		const fileList = fileListFromEntries([
 			{ path: '/books/a.m4b', isValid: true },
