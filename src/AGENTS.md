@@ -12,7 +12,7 @@
 - Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
 - Route durable preference hydration and persistence through
   `src/ui/appSettings`; existing control owners keep their runtime request
-  truth and expose public-strip helpers for App Settings to call.
+  truth and expose documented public helpers for App Settings to call.
 - Runtime settings controls consume backend capability facts for selectable
   accept/reject rules; do not add frontend-owned encoder/concurrency option
   matrices when a Rust owner validates the setting.
@@ -42,11 +42,11 @@
 - If a function becomes branch-heavy or exceeds comfortable scan size, split into named helpers by user-facing behavior.
 - For linting upgrades, prioritize type-aware `typescript-eslint` rules that catch unsafe `any` propagation.
 
-## Canary Trigger
+## Hidden Coupling Traps
 
-- Trigger Canary when frontend behavior depends on hidden coupling between UI modules and the Tauri boundary.
-- Report the coupling, the working assumption used, and a minimal doc update proposal.
-- Continue delivery unless the ambiguity threatens contract correctness or user data behavior.
+- If frontend behavior depends on hidden coupling between UI modules and the Tauri boundary, name the coupling and working assumption used.
+- Localize the behavior behind the owning boundary when it is part of the active task; otherwise report the smallest docs or test guard that would prevent recurrence.
+- Continue only when the ambiguity does not threaten contract correctness or user data behavior.
 
 ## Done Criteria
 

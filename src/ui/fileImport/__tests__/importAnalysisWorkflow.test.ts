@@ -5,6 +5,7 @@ import type { FileListAppendResult } from '../../fileList/appendResult';
 import {
 	importAnalysisWorkflowExecution,
 	makeImportAnalysisWorkflowServicesLayer,
+	runImportAnalysisWorkflow,
 	type ImportAnalysisWorkflowServices,
 } from '../importAnalysisWorkflow';
 
@@ -322,5 +323,84 @@ describe('ImportAnalysisWorkflow', () => {
 			'No new files added. All analyzed files were already in the list.',
 		);
 		expect(harness.services.clearFileImportError).not.toHaveBeenCalled();
+	});
+
+	it('appends prepared analyzed file lists through the same staging path', async () => {
+		const existingFiles = [audioFile('/books/existing.m4b')];
+		const analyzed = fileListInfo([audioFile('/books/new.m4b')]);
+		const harness = makeHarness();
+
+		await runImportAnalysisWorkflow(
+			{ type: 'importPaths', paths: [], existingFiles: [] },
+			harness.layer,
+			{
+				type: 'analyzeFiles',
+				fileListInfo: Promise.resolve(analyzed),
+				existingFiles,
+			},
+		);
+
+		expect(harness.services.persistPendingMetadataDraftsForCurrentSelection).toHaveBeenCalledTimes(
+			1,
+		);
+		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
+			existingFiles,
+			showDuplicateStatus: false,
+		});
+		expect(harness.services.clearFileImportError).toHaveBeenCalledTimes(1);
+	});
+
+	it('preserves duplicate-only feedback for prepared analyzed file lists', async () => {
+		const existingFiles = [audioFile('/books/existing.m4b')];
+		const analyzed = fileListInfo([audioFile('/books/existing.m4b')]);
+		const harness = makeHarness({
+			appendFileList: vi.fn(() => appendResult('duplicateOnly', analyzed.files)),
+		});
+
+		await runImportAnalysisWorkflow(
+			{ type: 'importPaths', paths: [], existingFiles: [] },
+			harness.layer,
+			{
+				type: 'analyzeFiles',
+				fileListInfo: Promise.resolve(analyzed),
+				existingFiles,
+			},
+		);
+
+		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
+			existingFiles,
+			showDuplicateStatus: false,
+		});
+		expect(harness.services.pushStatusPanelTransientStatus).toHaveBeenCalledWith(
+			'No new files added. All analyzed files were already in the list.',
+			{ ttlMs: 2000 },
+		);
+		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
+			'No new files added. All analyzed files were already in the list.',
+		);
+		expect(harness.services.clearFileImportError).not.toHaveBeenCalled();
+	});
+
+	it('reports rejected prepared analysis without appending files', async () => {
+		const cause = new Error('prepared analysis failed');
+		const harness = makeHarness();
+
+		await runImportAnalysisWorkflow(
+			{ type: 'importPaths', paths: [], existingFiles: [] },
+			harness.layer,
+			{
+				type: 'analyzeFiles',
+				fileListInfo: new Promise<FileListInfo>((_, reject) => {
+					setTimeout(() => reject(cause), 0);
+				}),
+				existingFiles: [],
+			},
+		);
+
+		expect(harness.services.appendFileList).not.toHaveBeenCalled();
+		expect(harness.services.console.error).toHaveBeenCalledWith('Failed to analyze files:', cause);
+		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
+			'Failed to analyze files. Please try again.',
+		);
 	});
 });

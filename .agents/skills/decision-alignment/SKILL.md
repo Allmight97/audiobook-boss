@@ -183,6 +183,6 @@ For substantial decisions, end with:
 - **Routing**: no doc change, proposed issue/active spec, or proposed doc patch.
 - **Next Question**: one remaining high-leverage question, if any.
 
-If the conversation exposes a surprising architecture trap, apply the Canary rule
-from `AGENTS.md`: name the trap, affected boundary, assumption used to continue,
-and smallest doc change that would prevent recurrence.
+If the conversation exposes a surprising architecture trap, name the trap,
+affected boundary, assumption used to continue, and smallest doc change that
+would prevent recurrence.

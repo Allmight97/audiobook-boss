@@ -12,17 +12,20 @@ import {
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
-import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
-import {
-	firstMetadataIntentValidationError,
-	validateMetadataDraftIntent,
-} from '../metadataValidation';
 import {
 	ProcessingWorkflowServicesTag,
 	type ProcessingWorkflowLayer,
 	type ProcessingWorkflowServicesId,
 	type ProcessingWorkflowServices,
 } from './processingWorkflowServices';
+import {
+	buildMetadataIntentByPath,
+	buildProcessPayload,
+	ensureBatchMetadataLoaded,
+	reviewOutputPlan,
+	stagePendingMetadataIntent,
+	validInputFilePaths,
+} from './processingWorkflowPreparation';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -194,6 +197,53 @@ function readProcessingConfig(
 	);
 }
 
+function beginProcessingExecution(
+	services: ProcessingWorkflowServices,
+	context: ProcessingWorkflowContext,
+): AppEffect<void> {
+	return Effect.sync(() => {
+		context.setProcessingState(true);
+		context.updateStatus({
+			stage: 'analyzing',
+			percentage: 0,
+			message: 'Starting processing...',
+		});
+		services.setJobControlsEnabled(false);
+		services.setFileOrderLocked(true);
+	});
+}
+
+function startProcessingRuntime(
+	context: ProcessingWorkflowContext,
+): AppEffect<void, ProcessingWorkflowFailed> {
+	return Effect.gen(function* () {
+		yield* workflowPromise(() => context.updateArtThumbnail(), 'Failed to update art thumbnail.');
+		yield* workflowPromise(
+			() => context.startProgressListener(),
+			'Failed to start progress listener.',
+		);
+	});
+}
+
+function completeProcessingExecution(
+	services: ProcessingWorkflowServices,
+	context: ProcessingWorkflowContext,
+	result: ProcessCommandResult,
+	filePaths: string[],
+): AppEffect<void, ProcessingWorkflowFailed> {
+	return Effect.gen(function* () {
+		yield* Effect.sync(() => {
+			services.console.log('Processing command resolved:', result);
+			context.reconcileProcessResult?.(result);
+			context.setBatchCompletionMessage(summarizeBatchOutcome(result, filePaths));
+		});
+		yield* workflowPromise(
+			() => services.openGeneratedPreviewIfSingle(result),
+			'Failed to open generated preview.',
+		);
+	});
+}
+
 function handleWorkflowError(
 	services: ProcessingWorkflowServices,
 	context: ProcessingWorkflowContext,
@@ -263,121 +313,27 @@ export function processingWorkflowProgram(
 			),
 		);
 
-		const filePaths = fileList.files.filter((file) => file.isValid).map((file) => file.path);
-		const selectionCount = services.getSelectedFileIndices().size;
-		if (selectionCount > 1) {
-			const staged = yield* workflowPromise(
-				() => services.stageMetadataToSelection({ showStatus: false }),
-				'Failed to stage metadata for processing.',
-			);
-			if (!staged) {
-				yield* Effect.sync(() =>
-					services.feedback.showError('Fix metadata validation errors before processing.'),
-				);
-				return;
-			}
-		}
-
-		if (selectionCount <= 1 && services.hasDirtyMetadataFields()) {
-			const selectedFileIndex = services.getSelectedFileIndex();
-			const formMetadata = services.readMetadataForm({ mode: 'single' });
-			const validation = yield* workflowPromise(
-				() => validateMetadataDraftIntent(formMetadata, services.validateMetadataIntentPatch),
-				'Failed to validate metadata intent for processing.',
-			);
-			const validationError = firstMetadataIntentValidationError(validation.result);
-			if (validationError) {
-				yield* Effect.sync(() => services.feedback.showError(validationError));
-				return;
-			}
-			const intentPatch = validation.intentPatch;
-			const activeFile =
-				selectedFileIndex >= 0
-					? fileList.files[selectedFileIndex]
-					: fileList.files.find((file) => file.isValid);
-			if (activeFile?.isValid && hasActionableMetadataDraftIntent(intentPatch)) {
-				const existing = services.getMetadataForFile(activeFile.path) ?? {};
-				const currentMetadata = applyMetadataDraftIntent(existing, intentPatch);
-				yield* Effect.sync(() =>
-					services.setMetadataForFile(activeFile.path, currentMetadata, {
-						markPending: true,
-						intentPatch,
-					}),
-				);
-			}
+		const filePaths = validInputFilePaths(fileList);
+		const metadataReady = yield* stagePendingMetadataIntent(services, fileList, workflowPromise);
+		if (!metadataReady) {
+			return;
 		}
 
 		const jobType = services.getJobType();
 		yield* Effect.sync(() => context.setCurrentWorkKind(jobType));
 
-		const processPayload: ProcessPayload = {
-			inputFiles: filePaths,
-			outputDir: processingRequestConfig.outputDirectory,
-			settings: processingRequestConfig.encoderSettings,
-			externalToolchain: processingRequestConfig.toolchainSettings,
-			sampleRate: processingRequestConfig.sampleRate,
-			jobType,
-			outputNaming: processingRequestConfig.outputNaming,
-		};
+		const processPayload = buildProcessPayload(filePaths, processingRequestConfig, jobType);
+		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
 
-		if (processPayload.jobType === 'batch') {
-			const missingMetadata = filePaths.filter(
-				(filePath) => !services.getMetadataForFile(filePath),
-			);
-			if (missingMetadata.length > 0) {
-				yield* workflowPromise(
-					() =>
-						Promise.all(
-							missingMetadata.map(async (filePath) => {
-								try {
-									const metadata = await services.readAudioMetadata(filePath);
-									services.setMetadataForFile(filePath, metadata);
-								} catch (error) {
-									services.console.warn('Failed to load metadata for batch file:', filePath, error);
-								}
-							}),
-						),
-					'Failed to load batch metadata.',
-				);
-			}
-		}
-
-		let metadataIntentByPath: MetadataIntentByPath | null = null;
-		if (processPayload.jobType === 'merge') {
-			const mergeKey = processPayload.inputFiles[0];
-			const mergeIntentPatch = mergeKey
-				? services.getMetadataIntentPatchForFile(mergeKey)
-				: undefined;
-			if (
-				mergeKey &&
-				processPayload.inputFiles.length > 0 &&
-				hasActionableMetadataDraftIntent(mergeIntentPatch)
-			) {
-				metadataIntentByPath = {
-					[mergeKey]: mergeIntentPatch,
-				};
-			}
-		} else {
-			const storedMetadataIntentByPath = services.getAllMetadataIntentPatches();
-			const activeInputFiles = new Set(processPayload.inputFiles);
-			const filteredMetadataIntentByPath = Object.fromEntries(
-				Object.entries(storedMetadataIntentByPath).filter(
-					([filePath, value]) =>
-						activeInputFiles.has(filePath) && hasActionableMetadataDraftIntent(value),
-				),
-			);
-			metadataIntentByPath =
-				Object.keys(filteredMetadataIntentByPath).length > 0 ? filteredMetadataIntentByPath : null;
-		}
-
-		const reviewResult = yield* workflowPromise(
-			() =>
-				services.runOutputPlanReviewWorkflow({
-					payload: processPayload,
-					metadataIntentByPath,
-					previewSeconds: options?.previewSeconds,
-				}),
-			'Output plan review failed.',
+		const metadataIntentByPath = buildMetadataIntentByPath(services, processPayload);
+		const reviewResult = yield* reviewOutputPlan(
+			services,
+			{
+				payload: processPayload,
+				metadataIntentByPath,
+				previewSeconds: options?.previewSeconds,
+			},
+			workflowPromise,
 		);
 		if (reviewResult.status === 'blocked') {
 			yield* Effect.sync(() => services.feedback.showError(reviewResult.message));
@@ -387,22 +343,8 @@ export function processingWorkflowProgram(
 			return;
 		}
 
-		yield* Effect.sync(() => {
-			context.setProcessingState(true);
-			context.updateStatus({
-				stage: 'analyzing',
-				percentage: 0,
-				message: 'Starting processing...',
-			});
-			services.setJobControlsEnabled(false);
-			services.setFileOrderLocked(true);
-		});
-
-		yield* workflowPromise(() => context.updateArtThumbnail(), 'Failed to update art thumbnail.');
-		yield* workflowPromise(
-			() => context.startProgressListener(),
-			'Failed to start progress listener.',
-		);
+		yield* beginProcessingExecution(services, context);
+		yield* startProcessingRuntime(context);
 
 		const result = yield* processingCommand(services, {
 			payload: reviewResult.payload,
@@ -410,15 +352,7 @@ export function processingWorkflowProgram(
 			previewSeconds: options?.previewSeconds,
 		});
 
-		yield* Effect.sync(() => {
-			services.console.log('Processing command resolved:', result);
-			context.reconcileProcessResult?.(result);
-			context.setBatchCompletionMessage(summarizeBatchOutcome(result, filePaths));
-		});
-		yield* workflowPromise(
-			() => services.openGeneratedPreviewIfSingle(result),
-			'Failed to open generated preview.',
-		);
+		yield* completeProcessingExecution(services, context, result, filePaths);
 	}).pipe(
 		Effect.catchAll((error) =>
 			Effect.gen(function* () {

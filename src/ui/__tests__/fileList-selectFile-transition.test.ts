@@ -3,10 +3,12 @@ import type { FileListInfo } from '../../types/audio';
 import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 
 const context = vi.hoisted(() => ({
-	readMetadataFormMock: vi.fn(() => ({ title: 'Persisted Title' })),
+	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
 	setMetadataForFileMock: vi.fn(),
 	getSelectedFilesMock: vi.fn(),
 	handleSelectionMock: vi.fn(() => ({ changed: true })),
+	selectAllFilesMock: vi.fn(() => true),
+	showMultiSelectionMock: vi.fn(),
 	showSingleSelectionMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
@@ -63,7 +65,7 @@ vi.mock('../fileList/selection', () => ({
 	handleSelection: context.handleSelectionMock,
 	reindexSelectionAfterMove: vi.fn(),
 	reindexSelectionAfterRemoval: vi.fn(),
-	selectAllFiles: vi.fn(() => true),
+	selectAllFiles: context.selectAllFilesMock,
 	swapSelectionIndices: vi.fn(),
 }));
 
@@ -72,7 +74,8 @@ vi.mock('../fileList/metadataPanel', () => ({
 	clearSelectionPanels: vi.fn(),
 	ensureMetadataForFiles: vi.fn(async () => undefined),
 	getSelectedFiles: context.getSelectedFilesMock,
-	showMultiSelection: vi.fn(async () => undefined),
+	refreshSelectionPresentation: vi.fn(),
+	showMultiSelection: context.showMultiSelectionMock,
 	showSingleSelection: context.showSingleSelectionMock,
 }));
 
@@ -123,6 +126,8 @@ describe('selectFile transition options', () => {
 		context.readMetadataFormMock.mockClear();
 		context.setMetadataForFileMock.mockClear();
 		context.handleSelectionMock.mockClear();
+		context.selectAllFilesMock.mockClear();
+		context.showMultiSelectionMock.mockClear();
 		context.showSingleSelectionMock.mockClear();
 		context.pushStatusPanelTransientStatusMock.mockClear();
 		context.validationErrorMock.mockReset();
@@ -187,5 +192,33 @@ describe('selectFile transition options', () => {
 			'Fix metadata validation errors before clearing the selection.',
 			expect.objectContaining({ ttlMs: 2500 }),
 		);
+	});
+
+	it('stages dirty multi-selection metadata before selecting all files', async () => {
+		context.readMetadataFormMock.mockReturnValue({ series: 'Draft Series' });
+		context.getSelectedFilesMock.mockReturnValue([
+			{ path: '/books/alpha.m4b', isValid: true },
+			{ path: '/books/beta.m4b', isValid: true },
+		]);
+		const { selectAll } = await import('../fileList/actions');
+
+		await selectAll();
+
+		expect(context.readMetadataFormMock).toHaveBeenCalledWith({
+			mode: 'multi',
+			onlyDirty: true,
+		});
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/alpha.m4b',
+			{ series: 'Draft Series' },
+			expect.objectContaining({ markPending: true }),
+		);
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/beta.m4b',
+			{ series: 'Draft Series' },
+			expect.objectContaining({ markPending: true }),
+		);
+		expect(context.selectAllFilesMock).toHaveBeenCalledTimes(1);
+		expect(context.showMultiSelectionMock).toHaveBeenCalledTimes(1);
 	});
 });

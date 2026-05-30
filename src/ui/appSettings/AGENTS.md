@@ -10,7 +10,7 @@
 - Files: `hydration.ts`, `persistence.ts`, `appSettings.test.ts`, `AGENTS.md`.
 - The cluster coordinates durable preference hydration/persistence through
   `tauriClient` while leaving runtime request ownership in the job controls,
-  encoder panel, and output panel public strips.
+  encoder panel, and output panel Public API Strips.
 
 ## Allowed Agent Edits Without Escalation
 
@@ -24,6 +24,6 @@
 
 - Bypassing `tauriClient` for settings commands.
 - Importing private panel internals from outside this cluster's hydration
-  coordinator instead of using the owning panel public strips.
+  coordinator instead of using the owning panel Public API Strips.
 - Making App Settings apply runtime behavior directly instead of asking the
   owning runtime/control module to accept the change first.

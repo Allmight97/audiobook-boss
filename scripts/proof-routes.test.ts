@@ -30,7 +30,7 @@ describe('proof route catalog', () => {
 		);
 	});
 
-	it('renders Rust contract proof as a focused library route plus public strip assertions', () => {
+	it('renders Rust contract proof as a focused library route plus Public API Strip assertions', () => {
 		const plan = buildPlan(['focus', 'rust', 'contract']);
 
 		expect(plan.id).toBe('focus.rust.contract');

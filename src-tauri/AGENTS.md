@@ -8,11 +8,11 @@
 ## Preferred Path
 
 - Route media execution through the `crate::audio` Audio Engine Deep Module
-  public strip; callers outside audio must not choose processor adapters or
+  public API; callers outside audio must not choose processor adapters or
   import private audio engine files directly.
 - Route backend operation lifecycle vocabulary, queue/progress events, and
   terminal summaries through the `crate::processing` lifecycle/progress public
-  strip. Audio and metadata may report lifecycle truth there without owning the
+  API. Audio and metadata may report lifecycle truth there without owning the
   lifecycle model.
 - Route durable app preference schema, defaults, merge, validation, and JSON
   storage through `crate::app_settings`; commands and UI code must not invent a
@@ -45,11 +45,11 @@
 - For functions exceeding `~80` LOC or `7` parameters, either refactor or annotate the boundary constraint with `// EXCEPTION: [reason]`.
 - Keep clippy allowances local and justified; avoid broad crate-level suppressions for maintainability lints.
 
-## Canary Trigger
+## Hidden Coupling Traps
 
-- Trigger Canary when backend behavior relies on implicit coupling across commands, processor stages, or registry state.
-- Report the coupling, working assumption, and a minimal invariant update proposal.
-- Continue unless safety, data integrity, or contract parity requires blocking escalation.
+- If backend behavior relies on implicit coupling across commands, processor stages, or registry state, name the ownership seam and working assumption.
+- Localize ownership when it is part of the active task; otherwise report the smallest invariant, test, or doc update that would prevent recurrence.
+- Block when ambiguity risks safety, data integrity, or contract parity.
 
 ## Done Criteria
 

@@ -30,7 +30,7 @@ describe('processing config composition', () => {
 		});
 	});
 
-	it('composes process config from encoder and output public strips', () => {
+	it('composes process config from encoder and output Public API Strips', () => {
 		const config = readProcessingRequestConfig();
 
 		expect(config).toEqual({

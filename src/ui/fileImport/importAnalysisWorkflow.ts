@@ -5,8 +5,19 @@ import {
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
-import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import { ImportAnalysisWorkflowLive } from './importAnalysisWorkflowLive';
+import {
+	duplicateOnlyImportMessage,
+	importOrderLockedMessage,
+	reportAnalysisFailure,
+	reportImportDiscoveryFailure,
+	reportImportMetadataFailure,
+	reportMetadataStagingFailure,
+	reportOpenFileDialogFailure,
+	reportOpenFolderDialogFailure,
+	unsupportedImportMessage,
+} from './importAnalysisWorkflowFeedback';
 import {
 	ImportAnalysisWorkflowServicesTag,
 	type ImportAnalysisWorkflowAction,
@@ -14,6 +25,8 @@ import {
 	type ImportAnalysisWorkflowServices,
 	type ImportAnalysisWorkflowServicesId,
 } from './importAnalysisWorkflowServices';
+
+export { importOrderLockedMessage } from './importAnalysisWorkflowFeedback';
 
 export {
 	ImportAnalysisWorkflowServicesTag,
@@ -64,74 +77,6 @@ function workflowPromise<A>(
 	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
-export function importOrderLockedMessage(): string {
-	return 'Order locked while processing. Wait for completion to add files.';
-}
-
-function unsupportedImportMessage(metadata: SupportedAudioImportMetadata): string {
-	return `No supported audio files found. Please use ${metadata.formatsText} files.`;
-}
-
-function reportAnalysisFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): FileListInfo | null {
-	services.console.error('Failed to analyze files:', cause);
-	services.setFileImportError('Failed to analyze files. Please try again.');
-	return null;
-}
-
-function reportMetadataStagingFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): false {
-	services.console.error('Failed to stage metadata drafts:', cause);
-	services.setFileImportError(
-		'Failed to prepare metadata drafts before adding files. Please try again.',
-	);
-	return false;
-}
-
-function reportOpenFileDialogFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): null {
-	services.console.error('Failed to open file dialog:', cause);
-	services.setFileImportError('Failed to open file dialog. Please try again.');
-	return null;
-}
-
-function reportOpenFolderDialogFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): null {
-	services.console.error('Failed to open folder dialog:', cause);
-	services.setFileImportError('Failed to open folder dialog. Please try again.');
-	return null;
-}
-
-function reportImportDiscoveryFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): string[] | null {
-	services.console.error('Failed to discover audio files:', cause);
-	services.setFileImportError('Failed to discover audio files. Please try again.');
-	return null;
-}
-
-function reportImportMetadataFailure(
-	services: ImportAnalysisWorkflowServices,
-	cause: unknown,
-): SupportedAudioImportMetadata | null {
-	services.console.error('Failed to load supported audio import metadata:', cause);
-	services.setFileImportError('Failed to load supported audio formats. Please try again.');
-	return null;
-}
-
-function duplicateOnlyImportMessage(): string {
-	return 'No new files added. All analyzed files were already in the list.';
-}
-
 function appendAnalyzedFiles(
 	services: ImportAnalysisWorkflowServices,
 	fileListInfo: FileListInfo,
@@ -149,6 +94,68 @@ function appendAnalyzedFiles(
 	return appendResult.outcome;
 }
 
+function analyzeFileListInfo(
+	services: ImportAnalysisWorkflowServices,
+	evaluate: () => ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
+): AppEffect<FileListInfo | null, never> {
+	return workflowPromise(evaluate, 'Failed to analyze files.').pipe(
+		Effect.catchAll((error) =>
+			Effect.sync(() => {
+				return reportAnalysisFailure(services, error.cause);
+			}),
+		),
+	);
+}
+
+function stagePendingMetadataDrafts(
+	services: ImportAnalysisWorkflowServices,
+): AppEffect<boolean, never> {
+	return workflowPromise(
+		() => services.persistPendingMetadataDraftsForCurrentSelection(),
+		'Failed to stage metadata drafts before import.',
+	).pipe(
+		Effect.catchAll((error) =>
+			Effect.sync(() => {
+				return reportMetadataStagingFailure(services, error.cause);
+			}),
+		),
+	);
+}
+
+function stageAndAppendAnalyzedFiles(
+	services: ImportAnalysisWorkflowServices,
+	fileListInfo: FileListInfo,
+	existingFiles: AudioFile[],
+): AppEffect<void, never> {
+	return Effect.gen(function* () {
+		const staged = yield* stagePendingMetadataDrafts(services);
+		if (!staged) {
+			services.setFileImportError('Fix metadata validation errors before adding files.');
+			return;
+		}
+
+		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
+		if (appendOutcome !== 'duplicateOnly') {
+			services.clearFileImportError();
+		}
+	});
+}
+
+function processAnalyzedFileList(
+	evaluateFileListInfo: () => ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
+	existingFiles: AudioFile[],
+): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+	return Effect.gen(function* () {
+		const services = yield* ImportAnalysisWorkflowServicesTag;
+		const fileListInfo = yield* analyzeFileListInfo(services, evaluateFileListInfo);
+		if (!fileListInfo) {
+			return;
+		}
+
+		yield* stageAndAppendAnalyzedFiles(services, fileListInfo, existingFiles);
+	});
+}
+
 function processFilePaths(
 	filePaths: string[],
 	existingFiles: AudioFile[],
@@ -159,39 +166,7 @@ function processFilePaths(
 		}
 
 		const services = yield* ImportAnalysisWorkflowServicesTag;
-		const fileListInfo = yield* workflowPromise(
-			() => services.analyzeAudioFiles(filePaths),
-			'Failed to analyze files.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportAnalysisFailure(services, error.cause);
-				}),
-			),
-		);
-		if (!fileListInfo) {
-			return;
-		}
-
-		const staged = yield* workflowPromise(
-			() => services.persistPendingMetadataDraftsForCurrentSelection(),
-			'Failed to stage metadata drafts before import.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportMetadataStagingFailure(services, error.cause);
-				}),
-			),
-		);
-		if (!staged) {
-			services.setFileImportError('Fix metadata validation errors before adding files.');
-			return;
-		}
-
-		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
-		if (appendOutcome !== 'duplicateOnly') {
-			services.clearFileImportError();
-		}
+		yield* processAnalyzedFileList(() => services.analyzeAudioFiles(filePaths), existingFiles);
 	});
 }
 
@@ -261,42 +236,7 @@ function processPreparedFileList(
 	fileListInfoPromise: ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
 	existingFiles: AudioFile[],
 ): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* ImportAnalysisWorkflowServicesTag;
-		const fileListInfo = yield* workflowPromise(
-			() => fileListInfoPromise,
-			'Failed to analyze files.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportAnalysisFailure(services, error.cause);
-				}),
-			),
-		);
-		if (!fileListInfo) {
-			return;
-		}
-
-		const staged = yield* workflowPromise(
-			() => services.persistPendingMetadataDraftsForCurrentSelection(),
-			'Failed to stage metadata drafts before import.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportMetadataStagingFailure(services, error.cause);
-				}),
-			),
-		);
-		if (!staged) {
-			services.setFileImportError('Fix metadata validation errors before adding files.');
-			return;
-		}
-
-		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
-		if (appendOutcome !== 'duplicateOnly') {
-			services.clearFileImportError();
-		}
-	});
+	return processAnalyzedFileList(() => fileListInfoPromise, existingFiles);
 }
 
 function clickToSelect(
@@ -309,20 +249,7 @@ function clickToSelect(
 			return;
 		}
 
-		const selected = yield* workflowPromise(
-			() => openSupportedAudioFiles(services),
-			'Failed to open file dialog.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportOpenFileDialogFailure(services, error.cause);
-				}),
-			),
-		);
-
-		if (Array.isArray(selected) && selected.length > 0) {
-			yield* discoverAndProcessPaths(selected, existingFiles);
-		}
+		yield* processSelectedFiles(services, () => openSupportedAudioFiles(services), existingFiles);
 	});
 }
 
@@ -336,20 +263,7 @@ function clickToSelectFolder(
 			return;
 		}
 
-		const selected = yield* workflowPromise(
-			() => services.openDirectory(),
-			'Failed to open folder dialog.',
-		).pipe(
-			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					return reportOpenFolderDialogFailure(services, error.cause);
-				}),
-			),
-		);
-
-		if (selected) {
-			yield* discoverAndProcessPaths([selected], existingFiles);
-		}
+		yield* processSelectedFolder(services, () => services.openDirectory(), existingFiles);
 	});
 }
 
@@ -368,13 +282,14 @@ function openSupportedAudioFiles(
 	);
 }
 
-function clickToSelectFromPrepared(
-	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openFiles' }>,
+function processSelectedFiles(
+	services: ImportAnalysisWorkflowServices,
+	evaluateSelectedPaths: () => ReturnType<ImportAnalysisWorkflowServices['openFiles']>,
+	existingFiles: AudioFile[],
 ): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
-		const services = yield* ImportAnalysisWorkflowServicesTag;
 		const selected = yield* workflowPromise(
-			() => preparedEntry.selectedPaths,
+			evaluateSelectedPaths,
 			'Failed to open file dialog.',
 		).pipe(
 			Effect.catchAll((error) =>
@@ -385,18 +300,19 @@ function clickToSelectFromPrepared(
 		);
 
 		if (Array.isArray(selected) && selected.length > 0) {
-			yield* discoverAndProcessPaths(selected, preparedEntry.existingFiles);
+			yield* discoverAndProcessPaths(selected, existingFiles);
 		}
 	});
 }
 
-function clickToSelectFolderFromPrepared(
-	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openDirectory' }>,
+function processSelectedFolder(
+	services: ImportAnalysisWorkflowServices,
+	evaluateSelectedPath: () => ReturnType<ImportAnalysisWorkflowServices['openDirectory']>,
+	existingFiles: AudioFile[],
 ): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
-		const services = yield* ImportAnalysisWorkflowServicesTag;
 		const selected = yield* workflowPromise(
-			() => preparedEntry.selectedPath,
+			evaluateSelectedPath,
 			'Failed to open folder dialog.',
 		).pipe(
 			Effect.catchAll((error) =>
@@ -407,8 +323,34 @@ function clickToSelectFolderFromPrepared(
 		);
 
 		if (selected) {
-			yield* discoverAndProcessPaths([selected], preparedEntry.existingFiles);
+			yield* discoverAndProcessPaths([selected], existingFiles);
 		}
+	});
+}
+
+function clickToSelectFromPrepared(
+	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openFiles' }>,
+): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+	return Effect.gen(function* () {
+		const services = yield* ImportAnalysisWorkflowServicesTag;
+		yield* processSelectedFiles(
+			services,
+			() => preparedEntry.selectedPaths,
+			preparedEntry.existingFiles,
+		);
+	});
+}
+
+function clickToSelectFolderFromPrepared(
+	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openDirectory' }>,
+): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+	return Effect.gen(function* () {
+		const services = yield* ImportAnalysisWorkflowServicesTag;
+		yield* processSelectedFolder(
+			services,
+			() => preparedEntry.selectedPath,
+			preparedEntry.existingFiles,
+		);
 	});
 }
 

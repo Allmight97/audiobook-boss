@@ -66,7 +66,7 @@ function rustContractPlan(args: string[]): ProofPlan {
 		'focus.rust.contract',
 		'Rust contract proof',
 		'focused',
-		'Run Rust library contract tests plus public API strip assertions.',
+		'Run Rust library contract tests plus Public API Strip assertions.',
 		[
 			cargoStep(
 				'rust-contract-lib',
@@ -231,7 +231,7 @@ export function focusedPlan(args: string[]): ProofPlan {
 				'focus.runtime',
 				'Tauri runtime boundary proof',
 				'focused',
-				'Run generated binding drift, public strip assertions, and runtime adapter contract tests.',
+				'Run generated binding drift, Public API Strip assertions, and runtime adapter contract tests.',
 				runtimeSteps(),
 			);
 		case 'rust':

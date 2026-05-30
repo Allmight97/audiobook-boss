@@ -20,8 +20,8 @@ Keep Effect private to workflow owners:
 - Dependencies are injected through service objects so tests can provide fake
   layers without Svelte rendering or live Tauri.
 - State and event outputs stay explicit in the owner contract.
-- Public-strip impact is stated by the wrapper: if callers do not need new
-  symbols or changed return types, keep the existing public strip stable.
+- Public API Strip impact is stated by the wrapper: if callers do not need new
+  symbols or changed return types, keep the existing public API stable.
 - Scenario tests prove visible workflow outcomes, cleanup/lifetime handoff,
   cancellation behavior where relevant, terminal results, and typed failure
   handling.
@@ -61,16 +61,16 @@ Vitest selections for local diagnosis.
 
 | Owner | Coordinates | Service families | Public entrypoints | Terminal outcomes and focused proof |
 | --- | --- | --- | --- | --- |
-| `ProcessingWorkflow` | Processing request composition, output-plan review, metadata staging, listener startup, process IPC, cancellation, terminal status. | File list, metadata form/state, encoder/output panel public strips, job controls, status feedback, `tauriClient`. | `startProcessing(...)` via status-panel runtime. | Approved processing, blocked review, cancellation, failed command. `bun run test -- src/ui/statusPanel/__tests__/processingWorkflow.test.ts` |
-| `MetadataSaveWorkflow` | File availability, save lifecycle, draft persistence, pending intent filtering, batch save, cleanup. | File list, metadata form/state, status panel public strip, `tauriClient`. | `saveMetadataFromUI()` through `src/ui/core/actions.ts`. | No files, processing active, save busy, validation failure, no-op, partial/failed batch, typed failure. `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts` |
+| `ProcessingWorkflow` | Processing request composition, output-plan review, metadata staging, listener startup, process IPC, cancellation, terminal status. | File list, metadata form/state, encoder/output panel Public API Strips, job controls, status feedback, `tauriClient`. | `startProcessing(...)` via status-panel runtime. | Approved processing, blocked review, cancellation, failed command. `bun run test -- src/ui/statusPanel/__tests__/processingWorkflow.test.ts` |
+| `MetadataSaveWorkflow` | File availability, save lifecycle, draft persistence, pending intent filtering, batch save, cleanup. | File list, metadata form/state, status panel Public API Strip, `tauriClient`. | `saveMetadataFromUI()` through `src/ui/core/actions.ts`. | No files, processing active, save busy, validation failure, no-op, partial/failed batch, typed failure. `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts` |
 | `MetadataLookupWorkflow` | Lookup queue, search, result apply, queue advancement, lookup-result cover-art replacement. | Metadata lookup state, file selection/list, metadata form/state, output/tag preview, cover art, `tauriClient`. | `runMetadataLookupWorkflow(...)` behind metadata lookup UI actions. | Open/search/apply/skip, queue completion, cover-art success/failure, typed failure. `bun run test -- src/ui/metadataLookup/__tests__/metadataLookupWorkflow.test.ts` |
 | `OutputPlanWorkflow` | Output preview, stale preview handling, preflight, collision review. | Output panel state, metadata, collision dialog, `tauriClient`. | `runOutputPathPreviewWorkflow(...)`, `runOutputPlanReviewWorkflow(...)`. | Preview success/missing dir/stale/failure, approved/block/cancel/reviewed preflight. `bun run test -- src/ui/outputPanel/__tests__/outputPlanWorkflow.test.ts` |
 | `ToolchainValidationWorkflow` | Initial availability load, manual refresh, toolchain browse, override commit/clear. | Encoder panel state and `tauriClient` toolchain calls. | `runToolchainValidationWorkflow(...)` from encoder panel logic. | Load success/fallback unavailable, browse cancel/path, override clear. `bun run test -- src/ui/encoderPanel/__tests__/toolchainValidationWorkflow.test.ts` |
-| `ImportAnalysisWorkflow` | Picker/drop import, supported-path filtering, order-lock checks, analysis, metadata draft staging, append/error cleanup. | File import state, file list, status panel public strip, `tauriClient`. | `runImportAnalysisWorkflow(...)` from import handlers. | Locked, picker cancel/failure, unsupported drop, analysis/staging failure, append success, duplicate-only. `bun run test -- src/ui/fileImport/__tests__/importAnalysisWorkflow.test.ts` |
+| `ImportAnalysisWorkflow` | Picker/drop import, supported-path filtering, order-lock checks, analysis, metadata draft staging, append/error cleanup. | File import state, file list, status panel Public API Strip, `tauriClient`. | `runImportAnalysisWorkflow(...)` from import handlers. | Locked, picker cancel/failure, unsupported drop, analysis/staging failure, append success, duplicate-only. `bun run test -- src/ui/fileImport/__tests__/importAnalysisWorkflow.test.ts` |
 | `ProcessingCancellationWorkflow` | Cancel-all pending lifecycle and per-job cancellation failure reporting. | Status feedback and `tauriClient.cancelProcessing`. | `runProcessingCancellationWorkflow(...)` through status-panel controller. | Cancel-all success/failure, per-job cancel success/failure. `bun run test -- src/ui/statusPanel/__tests__/processingCancellationWorkflow.test.ts` |
 
-Public-strip impact for these owners is intentionally narrow: callers keep the
-existing UI/runtime Promise or synchronous wrapper shape unless a milestone
+Public API Strip impact for these owners is intentionally narrow: callers keep
+existing UI/runtime Promise or synchronous wrapper shapes unless a milestone
 explicitly accepts a public API change.
 
 ## Future Workflow Ingress

@@ -1,7 +1,7 @@
 //! Unit tests for runtime settings capability facts.
 //!
-//! These tests live outside the production capability module so the public strip
-//! proves the capability contract without inlining test-only code into the
+//! These tests live outside the production capability module so the Public API
+//! Strip proves the capability contract without inlining test-only code into the
 //! Audio Engine implementation file.
 
 use audiobook_boss_lib::audio::{

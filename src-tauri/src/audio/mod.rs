@@ -94,7 +94,7 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
-// Audio Engine Deep Module public strip.
+// Audio Engine Deep Module Public API Strip.
 pub use file_list::{get_file_list_info, FileListInfo};
 pub use imports::{
     discover_audio_import_paths, supported_audio_import_metadata, SupportedAudioImportFormat,

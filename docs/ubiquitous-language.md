@@ -23,7 +23,7 @@
 | **Local Audio Import Boundary** | The frontend import workflow that all local audio ingress uses after a path exists: file picker, recursive folder picker, drag/drop, and OS Open With all route through backend import discovery, backend analysis, metadata draft staging, duplicate handling, and file-list append. Rust owns importable-audio truth; the frontend does not mirror supported extensions. | file picker helper, drop handler, frontend allowlist |
 | **Product Intent** | What the user believes they asked Audiobook Boss to do with selected files, metadata, output rules, and processing settings. | UI state, backend guess |
 | **UI State** | The frontend-held state for selected files, edits, visible status, and enabled actions before or after backend truth is returned. | product truth, backend state |
-| **Backend Lifecycle** | The `processing` sub-owner/public strip for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a standalone Grey-Box Public API. | processing helper, job loop, status UI owner |
+| **Backend Lifecycle** | The `processing` sub-owner with a small public API for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a standalone Grey-Box Public API. | processing helper, job loop, status UI owner |
 | **Operation Kind** | The backend-declared operation identity carried on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | caller mode guess, UI-only work kind |
 | **Operation Result Summary** | Shared terminal counts for long-running backend operations: total, succeeded, skipped, cancelled, and failed. | processing-only summary, UI completion guess |
 | **Artifact Truth** | The final files, tags, paths, and terminal results that exist after processing or metadata operations complete. | expected output, UI summary |
@@ -59,7 +59,7 @@
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
 | **Grey-Box Module** | ABB's repo-governed form of a **Deep Module**: a small, deliberately published **Public API Strip** backed by a hidden **Private Cluster** of implementation files, boundary assertions, and contract tests. Use this term inside ABB when the ownership rules matter; use **Deep Module** in general engineering discussion. | shallow module, façade-only wrapper, generic "module", deep/grey module |
-| **Public API Strip** | The deliberately small set of public symbols (functions, types, events, commands) a grey-box module allows callers to import. Symbols outside the strip are not public even when the language would allow them to be. | exports list, "everything pub", surface area |
+| **Public API Strip** | The owned module's allowed import/export surface: the deliberately small set of public symbols (functions, types, events, commands, module exports) callers may use. Symbols outside the strip are private even when Rust or TypeScript visibility would technically allow importing them. | exports list, "everything pub", surface area |
 | **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
 | **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
 | **Seven Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, and App Settings. | "the modules" (ambiguous), deep modules (too broad) |
@@ -96,7 +96,7 @@
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
-- Each **Public API Strip** in the **Seven Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner/public strip inside `processing`.
+- Each **Public API Strip** in the **Seven Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner with a small public API inside `processing`.
 - A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue

@@ -6,7 +6,7 @@
 - Source of truth for processor stage orchestration, cancellation checkpoints, and cleanup guarantees.
 - Output artifact commit policy lives in `src-tauri/src/output_artifact/`; processor finalization delegates final artifact decisions to that boundary.
 - This directory is the Audio Engine Deep Module private execution cluster. Code
-  outside `src-tauri/src/audio/` must use the parent `crate::audio` public strip
+  outside `src-tauri/src/audio/` must use the parent `crate::audio` public API
   rather than importing processor files directly.
 - Private processor tests that assert execution-cluster invariants may live in
   sibling `*_tests.rs` files declared from the owning module with `#[cfg(test)]`
@@ -37,11 +37,11 @@
 - Terminal paths clean temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
 
-## Canary Trigger
+## Stage-Coupling Traps
 
-- Trigger Canary when processor behavior relies on implicit assumptions across execute/finalize/cancel stages.
-- Report hidden assumption, working behavior used, and minimal invariant update proposal.
-- Continue unless ambiguity risks false success, file loss, or stuck cleanup.
+- If processor behavior relies on implicit assumptions across execute/finalize/cancel stages, name the assumption and working behavior used.
+- Add or propose the smallest invariant, test, or doc guard that would prevent recurrence.
+- Block when ambiguity risks false success, file loss, or stuck cleanup.
 
 ## Done Criteria
 

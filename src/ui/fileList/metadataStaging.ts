@@ -135,3 +135,22 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 
 	return stageMetadataToSelection({ showStatus: options?.showStatus });
 }
+
+export async function preserveMetadataDraftsBeforeSelectionChange(options?: {
+	skipSingleSelection?: boolean;
+	validationFailureMessage?: string;
+}): Promise<boolean> {
+	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
+	if (selectedFiles.length === 0) {
+		return true;
+	}
+	if (options?.skipSingleSelection && selectedFiles.length === 1) {
+		return true;
+	}
+
+	const preserved = await persistPendingMetadataDraftsForCurrentSelection({ showStatus: false });
+	if (!preserved && selectedFiles.length > 1 && options?.validationFailureMessage) {
+		setStatusMessage(options.validationFailureMessage);
+	}
+	return preserved;
+}
