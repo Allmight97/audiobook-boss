@@ -2,6 +2,25 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.29] - 2026-05-30
+
+### Changed
+
+- Import and processing workflow preparation now use smaller owned helpers,
+  reducing duplicated entry and feedback logic in the frontend workflows.
+- Repo agent guidance now uses clearer Public API Strip and local trap wording
+  for future boundary work.
+
+### Fixed
+
+- File-list selection changes, select-all, clear-selection, and sorting now
+  preserve staged metadata drafts or block on validation instead of discarding
+  dirty edits.
+- Moving or reordering files now refreshes inspector, output, and tag previews
+  without resetting dirty metadata fields.
+- Metadata Save now shares one entry decision path for busy, processing-active,
+  validation, no-op, success, partial failure, and typed failure states.
+
 ## [1.0.28] - 2026-05-30
 
 ### Changed
