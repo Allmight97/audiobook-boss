@@ -55,8 +55,9 @@ Human index for common commands. `package.json` owns shortcuts,
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
 - Main quality gate: `bun scripts/proof/runner.ts review`
   Use `review quick` for static/boundary proof, `release` for packaging, and
-  `focus ...` routes for owner-local proof. Logs live under `.proof/runs/`;
-  clear with `bun run proof:clean`.
+  `focus ...` routes for owner-local proof. Successful proof runs discard temp
+  logs; failed runs print the OS-temp evidence directory and summary path.
+  `bun run proof:clean` removes legacy repo-local `.proof/` debris.
 - Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
   Allowed import/export surface drift is checked by `scripts/check-public-api-strips.sh`.
 - Dependency hygiene: `bun run check:deps`

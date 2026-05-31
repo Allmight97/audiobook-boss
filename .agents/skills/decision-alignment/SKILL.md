@@ -88,7 +88,7 @@ consult:
 | Stable product/system ownership shape | `docs/system-map.md` |
 | Canonical term or overloaded language fix | `docs/ubiquitous-language.md` |
 | Deferred work or revisit-later concept | GitHub issue |
-| Accepted durable rationale with no better home and value after active-spec cleanup | `docs/decisions.md` escape hatch |
+| Accepted durable rationale with no better home and value after active-spec cleanup | `docs/DECISIONS.md` escape hatch |
 | Personal learning | outside repo unless explicitly requested |
 | Discarded ideas or transient reasoning | keep out of repo docs |
 
@@ -145,7 +145,7 @@ Required active-spec qualities:
 
 ## Decision Note Escape Hatch
 
-Use `docs/decisions.md` only for accepted ABB rationale that should survive
+Use `docs/DECISIONS.md` only for accepted ABB rationale that should survive
 active-spec cleanup and has no better home. It is not a normal docs surface,
 ADR tree, changelog, issue tracker, PR recap, historical archive, or learning
 log.
@@ -160,14 +160,14 @@ Before proposing a decision note, answer in chat:
 - Why is the rationale not better housed in an existing ABB surface?
 - What future agent or human behavior will the entry change?
 
-If `docs/decisions.md` does not exist, propose the first entry in chat and
+If `docs/DECISIONS.md` does not exist, propose the first entry in chat and
 create it only when the user asks. If it exists, append one compact accepted
 decision entry, newest first.
 
 When creating or appending an entry, load
 `references/decision-note-template.md`.
 
-If creating or updating `docs/decisions.md`, keep the file short and verify the
+If creating or updating `docs/DECISIONS.md`, keep the file short and verify the
 references you add against current repo state.
 
 ## Output Shape

@@ -1,6 +1,6 @@
 # Decision Note Template
 
-Use this compact shape for accepted ABB rationale in `docs/decisions.md`.
+Use this compact shape for accepted ABB rationale in `docs/DECISIONS.md`.
 
 ```md
 ## DEC-YYYY-MM-DD-short-title

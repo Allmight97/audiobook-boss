@@ -1,5 +1,12 @@
 # Decisions
 
+## 2026-05-30 - Proof Evidence Retention
+
+- Proof output is terminal-first.
+- Successful proof runs discard temp logs.
+- Failed proof runs keep OS-temp evidence and print the artifact directory and summary path.
+- `bun run proof:clean` is only for legacy repo-local `.proof/` cleanup.
+
 ## 2026-05-28 - Bun Stable Runtime
 
 - Use Bun `1.3.14` stable via `packageManager`.
@@ -11,7 +18,6 @@
 
 - Use `bun scripts/proof/runner.ts`; public categories are `focus`, `review`, `release`, and `diagnose`.
 - Focused Rust library filters must target `--lib`; do not use package-wide contract filters for library-owned tests.
-- Cite `.proof/runs/<run-id>/summary.md`; `.proof/latest` is convenience only.
 - Cargo remains the Rust executor. Revisit Nextest only if structured reporting becomes the repeated pain.
 
 ## 2026-05-27 - Proof Orchestration
