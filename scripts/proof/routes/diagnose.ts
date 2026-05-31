@@ -44,9 +44,29 @@ export function diagnosePlan(args: string[]): ProofPlan {
 				'Run Cargo build timing diagnostics.',
 				[cargoStep('cargo-build-timing', 'Cargo build timings', 'build', '--timings', ...rest)],
 			);
+		case 'rust-target':
+			if (rest.length > 0) {
+				throw new ProofUsageError('diagnose rust-target does not accept extra arguments.');
+			}
+			return plan(
+				'diagnose.rust-target',
+				'Rust target directory diagnostic',
+				'diagnostic',
+				'Report Rust target/debug/deps size and file count without cleaning anything.',
+				[
+					{
+						...bunStep(
+							'rust-target-diagnostic',
+							'Rust target/debug/deps diagnostic',
+							'scripts/proof/diagnose-rust-target.ts',
+						),
+						reportOnSuccess: true,
+					},
+				],
+			);
 		default:
 			throw new ProofUsageError(
-				'Usage: bun scripts/proof/runner.ts diagnose <coverage|deps|timing> ...',
+				'Usage: bun scripts/proof/runner.ts diagnose <coverage|deps|timing|rust-target> ...',
 			);
 	}
 }

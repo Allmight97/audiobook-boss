@@ -17,8 +17,9 @@
 ## 2026-05-27 - Proof Entrypoint
 
 - Use `bun scripts/proof/runner.ts`; public categories are `focus`, `review`, `release`, and `diagnose`.
-- Focused Rust library filters must target `--lib`; do not use package-wide contract filters for library-owned tests.
-- Cargo remains the Rust executor. Revisit Nextest only if structured reporting becomes the repeated pain.
+- Full Rust review proof uses `cargo nextest run`; Cargo remains the Rust build/compiler executor.
+- Focused Rust routes must stay target-aware: `--lib` for library-owned tests, consolidated `--test all_tests <module>[::filter]` for integration modules.
+- Trigger: issue #349 measurements showed structured reporting and serialized `cargo test` execution became repeated proof pain.
 
 ## 2026-05-27 - Proof Orchestration
 

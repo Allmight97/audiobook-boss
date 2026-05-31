@@ -47,6 +47,17 @@ export function cargoStep(id: string, label: string, ...args: string[]): ProofSt
 	});
 }
 
+export function cargoNextestStep(id: string, label: string): ProofStep {
+	return {
+		...cargoStep(id, label, 'nextest', 'run'),
+		preflight: {
+			args: ['--version'],
+			command: 'cargo-nextest',
+			hint: 'Install cargo-nextest with `cargo install cargo-nextest --locked` before running full Rust proof.',
+		},
+	};
+}
+
 export function withRequiredEnv(stepToWrap: ProofStep, ...requiredEnv: string[]): ProofStep {
 	return { ...stepToWrap, requiredEnv };
 }

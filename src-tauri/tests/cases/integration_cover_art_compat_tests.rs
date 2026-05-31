@@ -7,7 +7,7 @@ use std::path::Path;
 use tempfile::TempDir;
 
 // Minimal 1x1 JPEG (JFIF) header (valid tiny image) - using a common minimal pattern.
-const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
+const MINIMAL_JPEG: &[u8] = include_bytes!("../support/minimal.jpg");
 
 fn write_minimal_m4b(output: &Path) {
     let codec = ff::encoder::find(ff::codec::Id::AAC).expect("aac encoder present");

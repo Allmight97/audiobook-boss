@@ -8,6 +8,7 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 
 - Proof gate: `bun scripts/proof/runner.ts review`.
 - Proof route index: `bun scripts/proof/runner.ts --help`.
+- Rust target diagnostic: `bun scripts/proof/runner.ts diagnose rust-target`.
 - Convenience commands: `package.json` scripts.
 
 ## Proof Map
@@ -21,6 +22,11 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 - `proof/events.ts`: temporary proof logs, summaries, and cleanup.
 - `proof/format.ts`: command rendering for human/agent evidence.
 - `proof/plan.ts` / `proof/types.ts`: small plan model and usage errors.
+- Full Rust review proof uses `cargo nextest run`; focused Rust routes stay on
+  targeted `cargo test` commands.
+- `cargo-nextest` is preflighted with an install hint before full Rust proof.
+- Rust integration focus targets modules inside the consolidated `all_tests`
+  harness, e.g. `focus rust integration integration_metadata_tests reads_track`.
 
 ## Script Families
 

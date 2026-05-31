@@ -14,7 +14,7 @@ function usage(): string {
   bun scripts/proof/runner.ts [review]
   bun scripts/proof/runner.ts review [quick|rust|runtime|frontend]
   bun scripts/proof/runner.ts focus rust lib <filter>
-  bun scripts/proof/runner.ts focus rust integration <test-target> [filter]
+  bun scripts/proof/runner.ts focus rust integration <test-module> [filter]
   bun scripts/proof/runner.ts focus rust contract
   bun scripts/proof/runner.ts focus rust private
   bun scripts/proof/runner.ts focus rust media
@@ -25,6 +25,10 @@ function usage(): string {
   bun scripts/proof/runner.ts diagnose timing [cargo build args...]
   bun scripts/proof/runner.ts diagnose coverage [rust|ts|all]
   bun scripts/proof/runner.ts diagnose deps
+  bun scripts/proof/runner.ts diagnose rust-target
+
+Requirements:
+  cargo-nextest for full Rust proof: cargo install cargo-nextest --locked
 
 Examples:
   bun scripts/proof/runner.ts review
@@ -85,10 +89,37 @@ function printFailureExcerpt(plan: ProofPlan, result: ProofStepResult): void {
 	console.error(excerpt);
 }
 
+function printSuccessReport(plan: ProofPlan, result: ProofStepResult): void {
+	if (!result.reportOnSuccess) {
+		return;
+	}
+
+	const report = readLogOutputTail(result.logPath, 80);
+	if (!report) {
+		return;
+	}
+
+	console.log(`[proof:${plan.id}] report from ${result.id}:`);
+	console.log(report);
+}
+
 function readLogTail(logPath: string, maxLines: number): string {
 	try {
 		return readFileSync(logPath, 'utf8')
 			.split(/\r?\n/)
+			.filter((line) => line.trim().length > 0)
+			.slice(-maxLines)
+			.join('\n');
+	} catch {
+		return '';
+	}
+}
+
+function readLogOutputTail(logPath: string, maxLines: number): string {
+	try {
+		const lines = readFileSync(logPath, 'utf8').split(/\r?\n/);
+		const body = lines[0]?.startsWith('$ ') ? lines.slice(2) : lines;
+		return body
 			.filter((line) => line.trim().length > 0)
 			.slice(-maxLines)
 			.join('\n');
@@ -148,6 +179,9 @@ async function runPlan(plan: ProofPlan): Promise<number> {
 		const result = await runStep(step, { logPath, repoRoot });
 		stepResults.push(result);
 		printStepResult(plan, result);
+		if (result.status === 'passed') {
+			printSuccessReport(plan, result);
+		}
 		artifacts.record({
 			durationMs: result.durationMs,
 			exitCode: result.exitCode,

@@ -8,16 +8,46 @@ import {
 } from '../steps';
 import type { ProofPlan, ProofStep } from '../types';
 
+const RUST_INTEGRATION_HARNESS = 'all_tests';
+const MEDIA_FIXTURE_MODULES = [
+	'integration_file_list_tests',
+	'integration_metadata_tests',
+	'integration_metadata_reader_matrix_tests',
+	'integration_native_aac_regression_tests',
+	'integration_processing_flow_tests',
+];
+
+function integrationFilter(testModule: string, filter?: string): string {
+	return filter ? `${testModule}::${filter}` : testModule;
+}
+
+function rustIntegrationHarnessStep(
+	id: string,
+	label: string,
+	testModule: string,
+	filter?: string,
+	...runnerArgs: string[]
+): ProofStep {
+	return cargoStep(
+		id,
+		label,
+		'test',
+		'-p',
+		'audiobook-boss',
+		'--test',
+		RUST_INTEGRATION_HARNESS,
+		integrationFilter(testModule, filter),
+		...runnerArgs,
+	);
+}
+
 function xheAacManualStep(): ProofStep {
 	return withRequiredEnv(
-		cargoStep(
+		rustIntegrationHarnessStep(
 			'rust-media-manual-xhe-aac',
 			'manual xHE-AAC fixture proof',
-			'test',
-			'-p',
-			'audiobook-boss',
-			'--test',
 			'integration_xhe_aac_fixture_tests',
+			undefined,
 			'--',
 			'--ignored',
 		),
@@ -26,14 +56,11 @@ function xheAacManualStep(): ProofStep {
 }
 
 function nativeFastpathManualStep(): ProofStep {
-	return cargoStep(
+	return rustIntegrationHarnessStep(
 		'rust-media-manual-native-fastpath',
 		'manual native fastpath fixture proof',
-		'test',
-		'-p',
-		'audiobook-boss',
-		'--test',
 		'integration_fastpath_parity_tests',
+		undefined,
 		'--',
 		'--ignored',
 	);
@@ -83,29 +110,24 @@ function rustContractPlan(args: string[]): ProofPlan {
 }
 
 function rustIntegrationPlan(args: string[]): ProofPlan {
-	const [testTarget, filter, ...extra] = args;
-	if (!testTarget || extra.length > 0) {
+	const [testModule, filter, ...extra] = args;
+	if (!testModule || extra.length > 0) {
 		throw new ProofUsageError(
-			'Usage: bun scripts/proof/runner.ts focus rust integration <test-target> [filter]',
+			'Usage: bun scripts/proof/runner.ts focus rust integration <test-module> [filter]',
 		);
 	}
 
-	const filterArgs = filter ? [filter] : [];
 	return plan(
-		`focus.rust.integration.${testTarget}`,
-		`Rust integration proof: ${testTarget}`,
+		`focus.rust.integration.${testModule}`,
+		`Rust integration proof: ${testModule}`,
 		'focused',
-		'Run one Rust integration test binary with an optional filter.',
+		'Run one module in the consolidated Rust integration harness with an optional filter.',
 		[
-			cargoStep(
+			rustIntegrationHarnessStep(
 				'rust-integration-target',
-				`Rust integration target ${testTarget}`,
-				'test',
-				'-p',
-				'audiobook-boss',
-				'--test',
-				testTarget,
-				...filterArgs,
+				`Rust integration module ${testModule}`,
+				testModule,
+				filter,
 			),
 		],
 	);
@@ -142,26 +164,14 @@ function rustMediaPlan(args: string[]): ProofPlan {
 		'focus.rust.media',
 		'Rust media fixture proof',
 		'focused',
-		'Run committed-fixture Rust media integration targets.',
-		[
-			cargoStep(
-				'rust-media-fixtures',
-				'Rust committed media fixture targets',
-				'test',
-				'-p',
-				'audiobook-boss',
-				'--test',
-				'integration_file_list_tests',
-				'--test',
-				'integration_metadata_tests',
-				'--test',
-				'integration_metadata_reader_matrix_tests',
-				'--test',
-				'integration_native_aac_regression_tests',
-				'--test',
-				'integration_processing_flow_tests',
+		'Run committed-fixture Rust media modules in the consolidated integration harness.',
+		MEDIA_FIXTURE_MODULES.map((testModule) =>
+			rustIntegrationHarnessStep(
+				`rust-media-fixtures-${testModule}`,
+				`Rust media fixture module ${testModule}`,
+				testModule,
 			),
-		],
+		),
 	);
 }
 

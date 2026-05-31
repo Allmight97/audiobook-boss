@@ -7,7 +7,7 @@ use audiobook_boss_lib::AudiobookMetadata;
 use audiobook_boss_lib::{ffmpeg_detect_cover_art_format, ffmpeg_validate_metadata_compatibility};
 
 // Test data - minimal valid JPEG and PNG images
-const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
+const MINIMAL_JPEG: &[u8] = include_bytes!("../support/minimal.jpg");
 const MINIMAL_PNG: &[u8] = b"\x89PNG\r\n\x1A\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xDE\x00\x00\x00\x0CIDAT\x08\x99c```\x00\x00\x00\x04\x00\x01]\xCC\x18[\x00\x00\x00\x00IEND\xAEB`\x82";
 
 #[test]

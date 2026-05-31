@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 const TEST_MEDIA_FILE: &str = "media/media_20sec.mp3";
-const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
+const MINIMAL_JPEG: &[u8] = include_bytes!("../support/minimal.jpg");
 
 fn committed_test_media() -> PathBuf {
     let media_path = Path::new(env!("CARGO_MANIFEST_DIR"))

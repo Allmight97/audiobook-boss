@@ -6,6 +6,12 @@ export type ProofStep = {
 	tool: 'bash' | 'bun' | 'cargo';
 	command: string;
 	args: string[];
+	preflight?: {
+		args: string[];
+		command: string;
+		hint: string;
+	};
+	reportOnSuccess?: boolean;
 	requiredEnv?: string[];
 };
 

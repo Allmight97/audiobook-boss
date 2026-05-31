@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { formatCommand } from './format';
 import type { ProofStep, ProofStepResult } from './types';
 
@@ -29,6 +29,39 @@ function missingRequiredEnv(step: ProofStep, env: EnvLookup): string[] {
 	return step.requiredEnv?.filter((name) => !env[name]) ?? [];
 }
 
+function preflightFailure(step: ProofStep, options: RunStepOptions, env: EnvLookup): string | null {
+	if (!step.preflight) {
+		return null;
+	}
+
+	const result = spawnSync(step.preflight.command, step.preflight.args, {
+		cwd: options.repoRoot,
+		encoding: 'utf8',
+		env,
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+
+	if (!result.error && result.status === 0) {
+		return null;
+	}
+
+	const lines = [
+		`[proof] Required proof tool is unavailable: ${step.preflight.command}`,
+		`[proof] ${step.preflight.hint}`,
+	];
+	if (result.error) {
+		lines.push(`[proof] ${result.error.message}`);
+	}
+	if (result.stderr?.trim()) {
+		lines.push(result.stderr.trim());
+	}
+	if (result.stdout?.trim()) {
+		lines.push(result.stdout.trim());
+	}
+
+	return `${lines.join('\n')}\n`;
+}
+
 export async function runStep(step: ProofStep, options: RunStepOptions): Promise<ProofStepResult> {
 	const startedAt = Date.now();
 	const env = options.env ?? process.env;
@@ -38,6 +71,13 @@ export async function runStep(step: ProofStep, options: RunStepOptions): Promise
 	const missingEnv = missingRequiredEnv(step, env);
 	if (missingEnv.length > 0) {
 		logStream.write(`[proof] Missing required environment variable(s): ${missingEnv.join(', ')}\n`);
+		await closeLogStream(logStream);
+		return resultFor(step, options.logPath, startedAt, null);
+	}
+
+	const preflightError = preflightFailure(step, options, env);
+	if (preflightError) {
+		logStream.write(preflightError);
 		await closeLogStream(logStream);
 		return resultFor(step, options.logPath, startedAt, null);
 	}

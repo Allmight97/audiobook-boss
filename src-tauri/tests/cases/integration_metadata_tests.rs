@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 // Minimal valid 1x1 JPEG fixture
-const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
+const MINIMAL_JPEG: &[u8] = include_bytes!("../support/minimal.jpg");
 
 fn sample_mp3_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

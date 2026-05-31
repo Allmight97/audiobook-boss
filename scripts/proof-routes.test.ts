@@ -21,6 +21,24 @@ function assertAudiobookBossTestTargetSelector(step: ProofStep): void {
 }
 
 describe('proof route catalog', () => {
+	it('runs full Rust review proof through cargo nextest', () => {
+		const rustPlan = buildPlan(['review', 'rust']);
+		const mainPlan = buildPlan(['review']);
+
+		expect(formatCommand(rustPlan.steps[0])).toBe('cargo nextest run');
+		expect(rustPlan.steps[0].preflight?.command).toBe('cargo-nextest');
+		expect(rustPlan.steps[0].preflight?.hint).toContain('cargo install cargo-nextest --locked');
+		expect(mainPlan.steps.some((step) => formatCommand(step) === 'cargo nextest run')).toBe(true);
+	});
+
+	it('exposes rust-target as a non-cleaning diagnostic route', () => {
+		const plan = buildPlan(['diagnose', 'rust-target']);
+
+		expect(plan.id).toBe('diagnose.rust-target');
+		expect(plan.steps[0].reportOnSuccess).toBe(true);
+		expect(formatCommand(plan.steps[0])).toBe('bun scripts/proof/diagnose-rust-target.ts');
+	});
+
 	it('renders focused Rust library filters with --lib to avoid package-wide fan-out', () => {
 		const plan = buildPlan(['focus', 'rust', 'lib', 'metadata_intent_validation_contract']);
 
@@ -38,10 +56,10 @@ describe('proof route catalog', () => {
 		expect(formatCommand(plan.steps[0])).toBe('cargo test -p audiobook-boss --lib contract_tests');
 	});
 
-	it('renders focused Rust integration proof with an explicit test target', () => {
+	it('renders focused Rust integration proof through the consolidated harness', () => {
 		expect(
 			firstCommand(['focus', 'rust', 'integration', 'integration_metadata_tests', 'reads_track']),
-		).toBe('cargo test -p audiobook-boss --test integration_metadata_tests reads_track');
+		).toBe('cargo test -p audiobook-boss --test all_tests integration_metadata_tests::reads_track');
 	});
 
 	it('renders manual xHE-AAC proof as direct cargo with truthful required env', () => {
@@ -51,7 +69,7 @@ describe('proof route catalog', () => {
 		expect(step.command).toBe('cargo');
 		expect(step.requiredEnv).toEqual(['ABB_XHE_AAC_FIXTURE']);
 		expect(formatCommand(step, {})).toBe(
-			'ABB_XHE_AAC_FIXTURE=<required> cargo test -p audiobook-boss --test integration_xhe_aac_fixture_tests -- --ignored',
+			'ABB_XHE_AAC_FIXTURE=<required> cargo test -p audiobook-boss --test all_tests integration_xhe_aac_fixture_tests -- --ignored',
 		);
 		expect(formatCommand(step, {})).not.toContain('bash -c');
 	});

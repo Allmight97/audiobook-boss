@@ -12,7 +12,7 @@ use mp4ameta::{FreeformIdent, Tag, WriteConfig};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-const MINIMAL_JPEG: &[u8] = include_bytes!("support/minimal.jpg");
+const MINIMAL_JPEG: &[u8] = include_bytes!("../support/minimal.jpg");
 const SERIES_KEYS: [&str; 3] = ["series", "----:com.apple.iTunes:SERIES", "show"];
 const SERIES_PART_KEYS: [&str; 3] = [
     "series-part",

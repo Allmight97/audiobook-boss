@@ -57,4 +57,34 @@ describe('proof step executor', () => {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
 	});
+
+	it('fails missing proof-tool preflights with the install hint before spawning the step', async () => {
+		const repoRoot = tempRepo();
+		try {
+			const logPath = path.join(repoRoot, 'missing-preflight.log');
+			const step: ProofStep = {
+				args: ['nextest', 'run'],
+				command: '__abb_should_not_spawn__',
+				id: 'nextest-preflight',
+				label: 'nextest preflight',
+				preflight: {
+					args: ['--version'],
+					command: '__abb_missing_cargo_nextest__',
+					hint: 'Install cargo-nextest with `cargo install cargo-nextest --locked`.',
+				},
+				tool: 'cargo',
+			};
+
+			const result = await runStep(step, { logPath, repoRoot });
+
+			expect(result.status).toBe('failed');
+			expect(result.exitCode).toBeNull();
+			const log = readFileSync(logPath, 'utf8');
+			expect(log).toContain('Required proof tool is unavailable: __abb_missing_cargo_nextest__');
+			expect(log).toContain('cargo install cargo-nextest --locked');
+			expect(log).not.toContain('Failed to start command:');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
 });

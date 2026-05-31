@@ -1,6 +1,6 @@
 import { ProofUsageError, plan } from '../plan';
 import {
-	cargoStep,
+	cargoNextestStep,
 	frontendBuildStep,
 	frontendTestStep,
 	quickSteps,
@@ -26,7 +26,7 @@ export function reviewPlan(args: string[]): ProofPlan {
 			);
 		case 'rust':
 			return plan('review.rust', 'Full Rust proof', 'review', 'Run full non-ignored Rust proof.', [
-				cargoStep('rust-full', 'Full Rust test suite', 'test'),
+				cargoNextestStep('rust-full', 'Full Rust test suite (nextest)'),
 			]);
 		case 'runtime':
 			return plan(
@@ -48,7 +48,7 @@ export function reviewPlan(args: string[]): ProofPlan {
 				'Run the main non-release review gate.',
 				[
 					...quickSteps(),
-					cargoStep('rust-full', 'Full Rust test suite', 'test'),
+					cargoNextestStep('rust-full', 'Full Rust test suite (nextest)'),
 					scriptTestStep(),
 					frontendTestStep(),
 					frontendBuildStep(),
