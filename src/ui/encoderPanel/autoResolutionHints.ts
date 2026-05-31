@@ -47,9 +47,7 @@ const resolveState = (selectedCount: number, knownValues: readonly number[]): Re
 
 const formatSampleRate = (sampleRate: number): string => {
 	const kHz = sampleRate / 1000;
-	return Number.isInteger(kHz)
-		? `${kHz}`
-		: kHz.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+	return Number.isInteger(kHz) ? `${kHz}` : kHz.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 };
 
 const formatSampleRateSummary = (sampleRates: readonly number[]): string => {

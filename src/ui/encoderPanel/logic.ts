@@ -70,10 +70,10 @@ const compactToolchainPath = (path: string | null | undefined): string | null =>
 	if (!path) return null;
 	if (path.length <= 38) return path;
 
-	const normalized = path.replaceAll('\\', '/');
+	const normalized = path.replace(/\\/g, '/');
 	const parts = normalized.split('/').filter(Boolean);
-	const parent = parts.at(-2);
-	const filename = parts.at(-1);
+	const parent = parts[parts.length - 2];
+	const filename = parts[parts.length - 1];
 	if (!parent || !filename) return path;
 
 	if (normalized.startsWith('/opt/homebrew/')) {

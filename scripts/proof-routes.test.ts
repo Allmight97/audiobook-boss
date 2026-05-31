@@ -63,6 +63,17 @@ describe('proof route catalog', () => {
 		expect(() => buildPlan(['quick'])).toThrow(ProofUsageError);
 	});
 
+	it('uses tracked frontend tests instead of dirty-worktree discovery for proof routes', () => {
+		const plan = buildPlan(['review', 'frontend']);
+		const [step] = plan.steps;
+
+		expect(step.id).toBe('frontend-tests');
+		expect(formatCommand(step)).toMatch(/^bun run test -- src\//);
+		expect(step.args).not.toEqual(['run', 'test']);
+		expect(step.args).toContain('src/ui/encoderPanel/__tests__/autoResolutionHints.test.ts');
+		expect(step.args.some((arg) => arg.startsWith('scripts/'))).toBe(false);
+	});
+
 	it('keeps every focused Rust cargo test step target-aware for audiobook-boss', () => {
 		const focusedRustPlans: ProofPlan[] = [
 			buildPlan(['focus', 'rust', 'contract']),

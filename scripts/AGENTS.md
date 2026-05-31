@@ -12,12 +12,13 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 
 ## Proof Map
 
-- `proof/runner.ts`: executable entrypoint; prints step status and artifact paths.
+- `proof/runner.ts`: executable entrypoint; prints step status and keeps temp logs only
+  for failed runs.
 - `proof/catalog.ts`: dispatches top-level categories only.
 - `proof/routes/*.ts`: maps CLI args to `ProofPlan`; no spawning or file writes.
 - `proof/steps.ts`: shared step factories and curated gate membership.
 - `proof/executor.ts`: command execution, env preflight, and step logs.
-- `proof/events.ts`: `.proof/runs` artifacts, summaries, and `.proof/latest`.
+- `proof/events.ts`: temporary proof logs, summaries, and cleanup.
 - `proof/format.ts`: command rendering for human/agent evidence.
 - `proof/plan.ts` / `proof/types.ts`: small plan model and usage errors.
 

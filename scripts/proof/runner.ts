@@ -59,10 +59,10 @@ function stepStartedEvent(step: ProofStep) {
 	};
 }
 
-function printPlanStart(plan: ProofPlan, artifactDir: string): void {
+function printPlanStart(plan: ProofPlan): void {
 	console.log(`[proof:${plan.id}] ${plan.label}`);
 	console.log(`[proof:${plan.id}] ${plan.purpose}`);
-	console.log(`[proof:${plan.id}] artifacts: ${artifactDir}`);
+	console.log(`[proof:${plan.id}] logs: temp evidence kept only on failure`);
 }
 
 function printStepStart(plan: ProofPlan, step: ProofStep): void {
@@ -71,9 +71,8 @@ function printStepStart(plan: ProofPlan, step: ProofStep): void {
 
 function printStepResult(plan: ProofPlan, result: ProofStepResult): void {
 	const seconds = (result.durationMs / 1000).toFixed(2);
-	console.log(
-		`[proof:${plan.id}] ${result.status}: ${result.id} (${seconds}s) -> ${result.logPath}`,
-	);
+	const logHint = result.status === 'failed' ? ` -> ${result.logPath}` : '';
+	console.log(`[proof:${plan.id}] ${result.status}: ${result.id} (${seconds}s)${logHint}`);
 }
 
 function printFailureExcerpt(plan: ProofPlan, result: ProofStepResult): void {
@@ -120,6 +119,14 @@ function makeSummary(
 	};
 }
 
+function printTerminalSummary(summary: ProofSummary): void {
+	const seconds = (summary.durationMs / 1000).toFixed(2);
+	console.log(`[proof:${summary.plan.id}] summary: ${summary.status} (${seconds}s)`);
+	for (const step of summary.steps) {
+		console.log(`  ${step.status === 'passed' ? 'OK' : 'FAIL'} ${step.id}`);
+	}
+}
+
 async function runPlan(plan: ProofPlan): Promise<number> {
 	const artifacts = createArtifactWriter(repoRoot, plan.id);
 	const startedAt = Date.now();
@@ -131,7 +138,7 @@ async function runPlan(plan: ProofPlan): Promise<number> {
 		planId: plan.id,
 		timestamp: eventTimestamp(),
 	});
-	printPlanStart(plan, artifacts.artifactDir);
+	printPlanStart(plan);
 
 	for (const step of plan.steps) {
 		const logPath = path.join(artifacts.logsDir, `${step.id}.log`);
@@ -158,8 +165,8 @@ async function runPlan(plan: ProofPlan): Promise<number> {
 	}
 
 	const summary = makeSummary(artifacts.artifactDir, Date.now() - startedAt, plan, stepResults);
-	const summaryPaths = artifacts.writeSummary(summary);
 	artifacts.record({ kind: 'run_finished', status: summary.status, timestamp: eventTimestamp() });
+	printTerminalSummary(summary);
 
 	if (summary.status === 'failed') {
 		artifacts.record({
@@ -167,11 +174,14 @@ async function runPlan(plan: ProofPlan): Promise<number> {
 			message: `Inspect ${summary.failedStepId ?? 'failed step'} log before rerunning broader proof.`,
 			timestamp: eventTimestamp(),
 		});
-		console.error(`[proof:${plan.id}] failed. summary: ${summaryPaths.markdownPath}`);
+		const summaryPaths = artifacts.writeSummary(summary);
+		console.error(`[proof:${plan.id}] failed artifacts: ${artifacts.artifactDir}`);
+		console.error(`[proof:${plan.id}] failed summary: ${summaryPaths.markdownPath}`);
 		return 1;
 	}
 
-	console.log(`[proof:${plan.id}] passed. summary: ${summaryPaths.markdownPath}`);
+	artifacts.discard();
+	console.log(`[proof:${plan.id}] passed. temporary logs discarded.`);
 	return 0;
 }
 

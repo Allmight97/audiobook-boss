@@ -2,6 +2,24 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.30] - 2026-05-30
+
+### Changed
+
+- Encoder settings now show effective Auto FDK, Afterburner, sample-rate, and
+  channel choices in the existing encoder area with compact resolved-source
+  hints.
+- File import copy now more clearly describes adding files, folders, or dragged
+  folders from one input surface.
+- Review proof no longer keeps repo-local `.proof/runs` history by default and
+  now runs tracked frontend tests to avoid scratch-file pollution.
+
+### Removed
+
+- Removed the ad hoc FDK FFmpeg override UI, settings, commands, preflight, and
+  processing payload plumbing; FDK AAC still works through backend
+  auto-detection.
+
 ## [1.0.29] - 2026-05-30
 
 ### Changed

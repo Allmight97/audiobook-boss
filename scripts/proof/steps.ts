@@ -1,8 +1,14 @@
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ProofStep } from './types';
 
 type StepInput = Omit<ProofStep, 'args' | 'command'> & {
 	command: [string, ...string[]];
 };
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const FRONTEND_TEST_PATTERNS = ['src/**/*.test.ts', 'src/**/*.spec.ts'];
 
 function step(input: StepInput): ProofStep {
 	const [command, ...args] = input.command;
@@ -129,8 +135,20 @@ export function scriptTestStep(): ProofStep {
 	);
 }
 
+function trackedFiles(patterns: readonly string[]): string[] {
+	const output = execFileSync('git', ['ls-files', ...patterns], {
+		cwd: repoRoot,
+		encoding: 'utf8',
+	});
+	return output
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
 export function frontendTestStep(): ProofStep {
-	return bunStep('frontend-tests', 'frontend Vitest suite', 'run', 'test');
+	const tests = trackedFiles(FRONTEND_TEST_PATTERNS);
+	return bunStep('frontend-tests', 'tracked frontend Vitest suite', 'run', 'test', '--', ...tests);
 }
 
 export function frontendBuildStep(): ProofStep {

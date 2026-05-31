@@ -1,12 +1,5 @@
-import {
-	appendFileSync,
-	mkdirSync,
-	mkdtempSync,
-	renameSync,
-	rmSync,
-	symlinkSync,
-	writeFileSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { ProofEvent, ProofSummary } from './types';
 
@@ -14,6 +7,7 @@ export type ProofArtifactWriter = {
 	artifactDir: string;
 	eventsPath: string;
 	logsDir: string;
+	discard: () => void;
 	record: (event: ProofEvent) => void;
 	writeSummary: (summary: ProofSummary) => { markdownPath: string; jsonPath: string };
 };
@@ -28,11 +22,11 @@ function runIdPrefix(planId: string, timestamp = nowIso()): string {
 }
 
 export function createArtifactWriter(
-	repoRoot: string,
+	_repoRoot: string,
 	planId: string,
-	options: { timestamp?: string } = {},
+	options: { artifactRoot?: string; timestamp?: string } = {},
 ): ProofArtifactWriter {
-	const proofRoot = path.join(repoRoot, '.proof');
+	const proofRoot = options.artifactRoot ?? path.join(os.tmpdir(), 'audiobook-boss-proof');
 	const runsRoot = path.join(proofRoot, 'runs');
 	const runPrefix = runIdPrefix(planId, options.timestamp).replace(/[:.]/g, '-');
 	mkdirSync(runsRoot, { recursive: true });
@@ -42,12 +36,14 @@ export function createArtifactWriter(
 
 	mkdirSync(logsDir, { recursive: true });
 	writeFileSync(eventsPath, '');
-	refreshLatestPointer(proofRoot, artifactDir);
 
 	return {
 		artifactDir,
 		eventsPath,
 		logsDir,
+		discard() {
+			if (existsSync(artifactDir)) rmSync(artifactDir, { force: true, recursive: true });
+		},
 		record(event) {
 			appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
 		},
@@ -65,23 +61,6 @@ export function createArtifactWriter(
 
 export function eventTimestamp(): string {
 	return nowIso();
-}
-
-function refreshLatestPointer(proofRoot: string, artifactDir: string): void {
-	const latestPath = path.join(proofRoot, 'latest');
-	const tempLatestPath = path.join(
-		proofRoot,
-		`.latest-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-	);
-
-	try {
-		symlinkSync(path.relative(proofRoot, artifactDir), tempLatestPath, 'dir');
-		renameSync(tempLatestPath, latestPath);
-	} catch (error) {
-		rmSync(tempLatestPath, { force: true, recursive: true });
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[proof] Warning: failed to update .proof/latest pointer: ${message}`);
-	}
 }
 
 function renderSummaryMarkdown(summary: ProofSummary): string {
