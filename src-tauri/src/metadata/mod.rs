@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality to read and write metadata from/to audio
 //! files through container-aware metadata strategies. Pure metadata intent and
-//! naming facts live in `abb-metadata-core` so focused proof can run without
+//! naming facts live in `abb-metadata-core` so focused tests can run without
 //! compiling Tauri, FFmpeg, or container adapters.
 
 use crate::errors::{AppError, Result};

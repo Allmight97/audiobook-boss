@@ -40,5 +40,5 @@
   binding drift checks.
 - Focused command tests or owning module tests prove the behavior moved through
   the intended boundary.
-- `bun scripts/proof/runner.ts review` is the default gate for command, contract, or
-  generated-binding changes.
+- Direct review commands from `README.md` and `scripts/AGENTS.md` are the
+  default verification path for command, contract, or generated-binding changes.

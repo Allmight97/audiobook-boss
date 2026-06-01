@@ -34,50 +34,52 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 
 - Package manager: **Bun 1.3.14 stable**.
 - Refresh: `bun upgrade --stable`.
-- Verify Bun changes with `bun scripts/proof/runner.ts review`;
-  use `release` for packaging/release work.
+- Verify Bun changes with direct test/build commands; use `.agents/skills/release`
+  for packaging/release work.
 
 ## Development
 
 ```bash
 bun install
 bun run tauri dev
-bun scripts/proof/runner.ts review
 bun run test
 ```
 
 ## Script Guide
 
-Human index for common commands. `package.json` owns shortcuts,
-`bun scripts/proof/runner.ts --help` owns proof routes, and
+Human index for common commands. `package.json` owns shortcuts and
 `scripts/AGENTS.md` maps script internals.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Main quality gate: `bun scripts/proof/runner.ts review`
-  Use `review quick` for static/boundary proof, `release` for packaging, and
-  `focus ...` routes for owner-local proof. Use `review rust` for non-media
-  Rust proof, including core crates and runtime shell tests. Use `review core` or
-  `focus core <owner>` for fast pure Rust domain proof before touching the
-  Tauri/media crate. Media execution proof is suspended pending issue #341
-  reassessment; do not route FFmpeg/audio/container tests through canonical
-  proof until that lane is redesigned. Successful proof runs discard temp logs;
-  failed runs print the OS-temp evidence directory and summary path.
-  `bun run proof:clean` removes legacy repo-local `.proof/` debris.
-- Policy checks: `scripts/check-fallback-policy.sh`,
-  `scripts/check-no-bridge-imports.sh`, and `scripts/check-public-api-strips.sh`
-  Run standalone only when touching those rule sets directly; `review quick`
-  includes them.
-- Dependency hygiene: `bun run audit` or `bun run proof:diagnose:deps`
-  It is not part of the normal review gate.
-- Diagnostics: `bun run proof:diagnose:coverage`,
-  `bun run proof:diagnose:timing`, `bun run proof:diagnose:rust-target`
-  These are evidence routes, not default review gates.
+- Direct review commands:
+  `cargo fmt --all -- --check`,
+  `bun run fmt:check`,
+  `bun run lint:check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `bash scripts/check-generated-bindings.sh --mode local`,
+  the remaining boundary checks named below,
+  `cargo nextest run --workspace`,
+  `bun run test`, and `bun run build`.
+- Focused Rust loops:
+  `cargo nextest run -p abb-metadata-core`,
+  `cargo nextest run -p abb-output-artifact-core`,
+  `cargo nextest run -p abb-processing-core`,
+  `cargo nextest run -p abb-remote-source-core`,
+  `cargo nextest run -p audiobook-boss --lib`, or
+  `cargo nextest run -p audiobook-boss --test all_tests`.
+- Focused frontend loops: `bun run test -- <test files>`.
+- Policy checks: `scripts/check-generated-bindings.sh --mode local`,
+  `scripts/check-fallback-policy.sh`, `scripts/check-no-bridge-imports.sh`, and
+  `scripts/check-public-api-strips.sh`.
+  Run standalone when touching those rule sets directly.
+- Dependency hygiene: `bun run audit`
+  It is not part of the normal review matrix.
 - Tooling policy: Bun is the package manager/script runner/test runner.
-  Keep Vite scripts on the standard Vite CLI unless a proof-backed tooling
+  Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- Build timing: `bun scripts/proof/runner.ts diagnose timing`
-  Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
+- Build timing: use direct Cargo timing commands such as `cargo build --timings`
+  when investigating compile cost.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces;
   `bun run app:build` builds a repo-local `.app`; `bun run app:install-local`

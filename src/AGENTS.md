@@ -19,7 +19,7 @@
 - Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
 - Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.
-- Route UI proof-of-done through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
+- Route UI done evidence through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
 - When touching Effect workflow owners or the AppEffect kernel, open
@@ -54,4 +54,4 @@
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
 - Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Svelte surface.
 - UI-facing changes have targeted tests and, when needed, explicit visual/UX review evidence for the touched surface.
-- Validation matches scope (`bun scripts/proof/runner.ts review` for non-doc code changes).
+- Validation matches scope with direct commands from `README.md` and `scripts/AGENTS.md`.

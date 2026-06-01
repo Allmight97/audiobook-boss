@@ -11,8 +11,9 @@
 - The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation, and final artifact commit behavior.
 
 ## Allowed Agent Edits Without Escalation
-- Change pure output planning rules when `bun scripts/proof/runner.ts focus core output-artifact` stays green.
-- Change private implementation files when `bun scripts/proof/runner.ts focus rust contract` stays green.
+- Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.
+- Change private implementation files when targeted `audiobook-boss` Nextest
+  and Public API Strip checks stay green.
 - Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
 - Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
 - Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.

@@ -51,7 +51,7 @@ Prefer explicit ownership transitions:
 - Remove cleanup ownership only after the durable artifact is committed.
 - Map file/path errors through existing `AppError` patterns.
 
-Add focused tests when behavior is deterministic without real media. Use `bun scripts/proof/runner.ts review` for code changes.
+Add focused tests when behavior is deterministic without real media. Use the direct review matrix from `README.md` / `scripts/AGENTS.md` for code changes.
 
 ## Report Shape
 

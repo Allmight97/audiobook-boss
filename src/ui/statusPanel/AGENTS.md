@@ -11,10 +11,10 @@
   vocabulary or terminal-summary truth.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when focused status-panel tests stay green; run
-  `bun scripts/proof/runner.ts focus frontend` before handoff for UI behavior changes and
-  `bun scripts/proof/runner.ts focus runtime` when runtime contracts or generated event shapes
-  are touched.
+- Change internals when focused status-panel tests stay green; run targeted
+  Vitest files before handoff for UI behavior changes and generated-binding,
+  Public API Strip, and runtime contract checks when generated event shapes are
+  touched.
 - Test visible status outcomes rather than private reducer shape when behavior is user-facing.
 - Keep direct view-state/controller/runtimeApi imports inside this cluster or tests.
 - Build `ProcessingRequestConfig` through `processingConfig.ts`; do not import encoder or output panel private state to assemble process payloads.

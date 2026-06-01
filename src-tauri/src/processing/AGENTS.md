@@ -22,8 +22,9 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change pure processing classification/summarization when
-  `bun scripts/proof/runner.ts focus core processing` stays green.
-- Change planner or runner internals when `bun scripts/proof/runner.ts focus rust contract` stays green.
+  `cargo nextest run -p abb-processing-core` stays green.
+- Change planner or runner internals when targeted `audiobook-boss` Nextest and
+  Public API Strip checks stay green.
 - Keep preflight side-effect-free; execution may create output dirs only after review enforcement.
 - Keep runner responsibilities to encoder request validation, job registration,
   scheduler dispatch, audio execution requests through `crate::audio`, and

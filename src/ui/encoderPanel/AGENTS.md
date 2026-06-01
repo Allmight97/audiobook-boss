@@ -12,9 +12,9 @@
   Settings Capabilities contract.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when focused encoder panel tests stay green; run
-  `bun scripts/proof/runner.ts focus frontend` before handoff and `bun scripts/proof/runner.ts focus runtime`
-  when the Public API Strip or runtime contract surfaces change.
+- Change internals when focused encoder panel tests stay green; run targeted
+  Vitest files before handoff and generated-binding/Public API Strip/runtime
+  contract checks when runtime surfaces change.
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind
   `applyEncodingDefaults` and `readEncoderDefaultsFromState`; do not let other

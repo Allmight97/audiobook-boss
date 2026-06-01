@@ -59,7 +59,7 @@ Omit empty categories in a release section. Keep `[Unreleased]` as the staging a
 1. Confirm the intended version and impact category.
 2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
 3. Run `scripts/bump-version.sh <x.y.z>`.
-4. Run `bun scripts/proof/runner.ts review`.
+4. Run the direct review matrix from `README.md` / `scripts/AGENTS.md`.
 5. For a local launcher-visible app smoke build, run:
 ```bash
 bun run app:install-local
@@ -94,6 +94,6 @@ gh release list --limit 5
 ```
 Use the matching `CHANGELOG.md` section as the release notes and attach the verified DMG.
 
-## Final Proof
+## Final Verification
 
 End release work by reporting the version, tag, changelog entry, validation commands, DMG path, GitHub Release URL, attached asset name, and local/remote SHA parity. If publishing was intentionally tag-only, state that GitHub will not show it as the latest release.

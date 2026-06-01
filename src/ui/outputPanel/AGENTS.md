@@ -9,9 +9,9 @@
 - The cluster owns output directory, output naming, output-path preview, estimated-size display, tag preview display, collision review, and output-plan preflight.
 
 ## Allowed Agent Edits Without Escalation
-- Change internals when focused output panel tests stay green; run
-  `bun scripts/proof/runner.ts focus frontend` before handoff and `bun scripts/proof/runner.ts focus runtime`
-  when the Public API Strip or runtime contract surfaces change.
+- Change internals when focused output panel tests stay green; run targeted
+  Vitest files before handoff and generated-binding/Public API Strip/runtime
+  contract checks when runtime surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind
   `applyOutputDefaultsFromSettings` and `readOutputDefaultsFromState`; do not

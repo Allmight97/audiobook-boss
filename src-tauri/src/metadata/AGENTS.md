@@ -15,8 +15,9 @@
 - The broader metadata boundary owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, remux helpers, and container routing.
 
 ## Allowed Agent Edits Without Escalation
-- Change pure intent internals when `bun scripts/proof/runner.ts focus core metadata` stays green.
-- Change runtime/container adapters when `bun scripts/proof/runner.ts focus rust contract` stays green.
+- Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
+- Change runtime/container adapters when targeted `audiobook-boss` Nextest and
+  Public API Strip checks stay green.
 - Preserve `set | clear | noop` semantics across save, processing projection,
   naming projection, write plans, validation/normalization, and cover-art
   handling.

@@ -23,7 +23,6 @@
 			"Bash(git checkout:*)",
 			"Bash(git add:*)",
 			"Bash(git commit:*)",
-			"Bash(bun scripts/proof/runner.ts:*)",
 			"mcp__acp__Write",
 			"Bash(git push:*)",
 			"WebFetch(domain:v2.tauri.app)"

@@ -1,6 +1,6 @@
 ---
 name: decision-alignment
-description: ABB-specific repo-grounded alignment for architecture, product, fallback/compat, domain-language, active spec, issue, doc, and proof-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Align decisions to ABB's clean, agent-first repo north star, inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
+description: ABB-specific repo-grounded alignment for architecture, product, fallback/compat, domain-language, active spec, issue, doc, and verification-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Align decisions to ABB's clean, agent-first repo north star, inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
 ---
 
 # Decision Alignment
@@ -9,13 +9,13 @@ description: ABB-specific repo-grounded alignment for architecture, product, fal
 
 Use this skill to turn an ABB design, architecture, or product conversation into
 an aligned decision, bounded non-decision, active spec, issue, doc route, or
-proof step.
+verification step.
 
-Default to a proposed decision, patch shape, or proof route. Do not edit durable
+Default to a proposed decision, patch shape, or verification route. Do not edit durable
 repo docs unless the user asks for the change.
 
 ## North Star: Clean, agent-first codebase and repo
-- Proof infrastructure and docs that reflect current repo truth.
+- Verification infrastructure and docs that reflect current repo truth.
 - Collaborative human feedback as scope control.
 - Temporary planning state purged or distilled after use.
 - Smallest coherent home future agents must consult.
@@ -38,7 +38,7 @@ non-ABB decisions, or strategy work whose primary need is a roadmap artifact.
 3. Inspect repo elements before asking for facts the repo can answer: start
    with `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`,
    `docs/fallbacks.md`, and owning code/docs for the touched boundary.
-4. Ask no more than two sharp questions aiming toward coherence, alignment, a locked decision, a proof path, or a concrete
+4. Ask no more than two sharp questions aiming toward coherence, alignment, a locked decision, a verification path, or a concrete
    next action. Include recommended answers.
    Treat two questions as a hard cap: if more facts would help, combine them or
    choose the two that change routing or implementation readiness.
@@ -138,7 +138,7 @@ When creating or revising an active spec, use
 Required active-spec qualities:
 
 - self-contained enough to resume without prior chat context
-- current progress, discoveries, decisions, proof status, and remaining work
+- current progress, discoveries, decisions, verification status, and remaining work
 - observable outcomes
 - concrete repo paths and commands
 - explicit cleanup trigger: delete, or distill concise enduring rules into canon
@@ -179,7 +179,7 @@ For substantial decisions, end with:
 - **Aligned Decision**: accepted choice or current best recommendation.
 - **Why It Holds**: product, architecture, or domain reason.
 - **Boundary / Layer**: ABB layer and owning files/docs.
-- **Proof Path**: checks, tests, review evidence, or artifacts needed.
+- **Verification Path**: checks, tests, review evidence, or artifacts needed.
 - **Routing**: no doc change, proposed issue/active spec, or proposed doc patch.
 - **Next Question**: one remaining high-leverage question, if any.
 

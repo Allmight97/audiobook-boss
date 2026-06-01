@@ -8,10 +8,10 @@ description: Audiobook Boss dependency and toolchain maintenance workflow. Use w
 ## Operating Rules
 
 - Preserve supply-chain guardrails.
-- Prefer staged updates, explicit risk classification, and full repo proof.
+- Prefer staged updates, explicit risk classification, and full repo verification.
 - Keep routine updates out of avoidable break/fix churn.
 
-Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally means `bun scripts/proof/runner.ts review`.
+Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally follows the direct review matrix in `README.md` and `scripts/AGENTS.md`.
 
 ## Quick Snapshot
 
@@ -66,7 +66,7 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 - Use `bun audit` and `bun pm untrusted` as standard supply-chain preflights.
 - Do not use `npm audit` here; the repo intentionally has no npm lockfile, so it fails with `ENOLOCK` and adds noise.
 - Refresh Bun with `bun upgrade --stable`.
-- Bun-change proof: `bun scripts/proof/runner.ts review`; use `release` for
+- Bun-change verification follows the direct review matrix; use `release` for
   packaging/release work.
 - Do not adopt Tailwind insiders, prerelease Bun builds, Vite-under-Bun, or a
   package-manager swap as routine warning cleanup without an explicit tooling
@@ -96,7 +96,13 @@ bun ci
 bun audit
 bun pm untrusted
 cargo audit -D warnings
-bun scripts/proof/runner.ts review
+cargo fmt --all -- --check
+bun run fmt:check
+bun run lint:check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo nextest run --workspace
+bun run test
+bun run build
 ```
 
 If IPC/Rust contract shapes change, regenerate/check bindings with the existing repo scripts before trusting UI tests:
@@ -115,13 +121,13 @@ python3 /Users/jstar/.codex/skills/.system/skill-creator/scripts/quick_validate.
 
 Use concrete risk language:
 
-- Low risk: lock/install proof only, no package changes, formatter/linter patch updates after age gate.
+- Low risk: lock/install verification only, no package changes, formatter/linter patch updates after age gate.
 - Mild risk: Bun binary updates, JS test/build tooling patches, small direct Rust patches.
 - Moderate risk: Rust toolchain pin changes, broad `Cargo.lock` refreshes touching Tauri/WebKit/TLS/FFmpeg-adjacent transitive crates.
 - CI-only residual risk: GitHub Actions major bumps after local checks pass.
 - High risk: anything that bypasses path safety, fallback policy, generated IPC parity, release artifact truth, or supply-chain guardrails.
 
-Do not call something risky just because it is unfamiliar. Tie risk to a concrete failure mode and the proof that would catch it.
+Do not call something risky just because it is unfamiliar. Tie risk to a concrete failure mode and the verification that would catch it.
 
 ## Handoff
 
@@ -133,4 +139,4 @@ Final reports should include:
 - Security/audit preflight results.
 - Full check result.
 - Any source fixes required by new toolchain behavior.
-- Residual risk that needs CI or release-artifact proof.
+- Residual risk that needs CI or release-artifact verification.

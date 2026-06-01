@@ -40,11 +40,10 @@
 ## Verification And Planning
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Proof Route** | A named route under `bun scripts/proof/runner.ts` that chooses the cheapest meaningful proof for the touched owner surface. | random command, local incantation |
-| **Core Crate Proof** | A focused Rust proof route that selects a boundary-aligned `abb-*-core` workspace package so pure domain logic compiles without the Tauri/media crate. | filtered broad-crate test, cargo regex shortcut |
-| **Review Gate** | The main non-doc review proof route run via `bun scripts/proof/runner.ts review` to validate code, contracts, and repo health. | test pass, quick smoke check |
-| **Media Execution Proof** | Suspended proof lane for FFmpeg/audio/metadata container behavior pending issue #341 reassessment. | default review, incidental fixture test |
-| **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
+| **Direct Review Matrix** | The current direct command set used to validate code, contracts, and repo health without a custom runner. | hidden runner route, local incantation maze |
+| **Core Crate Test** | A focused Rust test command that selects a boundary-aligned `abb-*-core` workspace package so pure domain logic compiles without the Tauri/media crate. | filtered broad-crate test, cargo regex shortcut |
+| **Media Execution Test** | Absent test lane for FFmpeg/audio/metadata container behavior pending issue #341 reassessment. | default review, incidental fixture test |
+| **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only check, vague scenario check |
 | **Active Spec** | A temporary `docs/specs/<task>.md` work packet for substantial planning, roadmap, architecture, or implementation work. It is self-contained while active and must be deleted or distilled into canon when done. | permanent feature doc, transcript, generated report |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
 | **Minimal Churn** | Fewer reactive correction loops and less avoidable rework, not automatically the smallest diff. | smallest patch, least code motion |
@@ -93,13 +92,13 @@
 - A **Metadata Intent Patch** is compiled at the **Runtime Boundary** and preserved across the **IPC Contract** so clear intent is never inferred from sentinel values; canonical metadata validation and normalization happen in the Rust metadata boundary.
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
-- The **Review Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
-- **Core Crate Proof** owns fast feedback for pure Rust domain rules; `src-tauri`
-  proof owns runtime adapters, IPC contracts, filesystem/keychain integration,
-  and FFmpeg/media execution.
-- **Media Execution Proof** is explicit because it is expensive and noisy by
-  nature. It belongs to audio, metadata/container, and processing behavior
-  changes, not every general proof loop.
+- The **Direct Review Matrix** and focused **UI Workflow Smoke Test** coverage keep **Contract Truth** and **Operational Truthfulness** honest.
+- **Core Crate Tests** own fast feedback for pure Rust domain rules; `src-tauri`
+  tests own runtime adapters, IPC contracts, filesystem/keychain integration,
+  and future FFmpeg/media execution tests.
+- **Media Execution Tests** are absent because they are expensive and noisy by
+  nature. They return only after audio, metadata/container, and processing
+  behavior needs are redesigned explicitly.
 - An **Active Spec** is a temporary **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
@@ -119,7 +118,7 @@
 - "preview" can mean different things. Prefer **Output Path Preview** for path derivation, **Processing Preflight Plan** for pre-run backend review, **audio preview** for a short media render, and **preview artifact** for the file created by that render.
 - "fallback" can drift into "temporary workaround." Prefer **Fallback** only for registered, observable, sunset-bound behavior; otherwise call it a compatibility path, recovery default, bug, or design decision.
 - "metadata" and "metadata intent" are not interchangeable. Prefer **Metadata Intent Patch** when the important question is user intent to set, clear, or preserve a field; use **Metadata Outcome Plan**, metadata draft, write plan, lookup result, or tag projection when those narrower concepts are meant.
-- "proof route", "gate", "check", "test", and "smoke test" are different confidence shapes. Prefer **Proof Route** for named `bun scripts/proof/runner.ts` paths, **Review Gate** for `bun scripts/proof/runner.ts review`, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow proof.
+- "check", "test", "review command", and "smoke test" are different confidence shapes. Prefer **Direct Review Matrix** for the current no-runner command set, **Boundary Assertion** for repo scripts that block broken imports or policy drift, **Contract Test** for public API behavior, and **UI Workflow Smoke Test** for deterministic user-flow verification.
 - Product names and implementation names should not blur together. For example, **Book Binder** is user-facing product language; **Merge** is the processing job type.
 - "minimal churn" can be mistaken for "smallest diff." Prefer **Minimal Churn** as fewer correction loops and less rework, even when the better fix is somewhat broader.
 - "status", "progress", and "terminal outcome" are not interchangeable. Prefer **Terminal Outcome** only for final per-job status and **Terminal Truth** for the backend-owned final report.

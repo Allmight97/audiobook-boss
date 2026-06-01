@@ -56,7 +56,7 @@ Constraints:
 ## Plan Of Work
 
 - Edits:
-- Proof steps:
+- Verification steps:
 - Expected repo-visible outcome:
 
 ## Interfaces And Dependencies
@@ -65,10 +65,10 @@ Constraints:
 - Libraries/external behavior:
 - Dependency constraints:
 
-## Proof Path and Checks
+## Verification Path and Checks
 
 - Targeted checks:
-- Full gate, if needed:
+- Full review, if needed:
 - Manual or visual evidence, if needed:
 
 ## Cleanup Trigger
