@@ -1,0 +1,12 @@
+[package]
+name = "abb-remote-source-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+specta = { version = "=2.0.0-rc.24", features = ["derive"] }

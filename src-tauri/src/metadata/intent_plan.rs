@@ -1,65 +1,7 @@
-use super::{AudiobookMetadata, MetadataIntentPatch, MetadataWritePlan};
+use super::{AudiobookMetadata, MetadataIntentPatch, MetadataWritePlan, NamingMetadata};
 use crate::errors::Result;
 use crate::metadata::passthrough::PassthroughMetadata;
 use std::path::Path;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NamingMetadata {
-    title: Option<String>,
-    artist: Option<String>,
-    series: Option<String>,
-    series_part: Option<String>,
-    subseries: Option<String>,
-    subseries_part: Option<String>,
-    date: Option<String>,
-}
-
-impl NamingMetadata {
-    pub fn from_metadata(metadata: &AudiobookMetadata) -> Self {
-        Self {
-            title: metadata.title.clone(),
-            artist: metadata.artist.clone(),
-            series: metadata.series.clone(),
-            series_part: metadata.series_part.clone(),
-            subseries: metadata.subseries.clone(),
-            subseries_part: metadata.subseries_part.clone(),
-            date: metadata.date.clone(),
-        }
-    }
-
-    pub(crate) fn title(&self) -> Option<&str> {
-        self.title.as_deref()
-    }
-
-    pub(crate) fn artist(&self) -> Option<&str> {
-        self.artist.as_deref()
-    }
-
-    pub(crate) fn series(&self) -> Option<&str> {
-        self.series.as_deref()
-    }
-
-    pub(crate) fn series_part(&self) -> Option<&str> {
-        self.series_part.as_deref()
-    }
-
-    pub(crate) fn subseries(&self) -> Option<&str> {
-        self.subseries.as_deref()
-    }
-
-    pub(crate) fn subseries_part(&self) -> Option<&str> {
-        self.subseries_part.as_deref()
-    }
-
-    pub(crate) fn date(&self) -> Option<&str> {
-        self.date.as_deref()
-    }
-
-    fn scrub_legacy_source_series_parts_for_naming(&mut self) {
-        scrub_invalid_series_part_for_naming(&mut self.series_part);
-        scrub_invalid_series_part_for_naming(&mut self.subseries_part);
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoverArtPassthroughPolicy {
@@ -120,7 +62,7 @@ pub(crate) fn plan_metadata_outcome(
 }
 
 pub(crate) fn plan_metadata_write(patch: &MetadataIntentPatch) -> Result<MetadataWritePlan> {
-    patch.to_write_plan()
+    Ok(patch.to_write_plan()?)
 }
 
 fn resolve_effective_processing_metadata(
@@ -150,18 +92,6 @@ fn resolve_naming_metadata(
     }
 
     Some(naming_metadata)
-}
-
-fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
-    let should_clear = value
-        .as_deref()
-        .map(str::trim)
-        .filter(|trimmed| !trimmed.is_empty())
-        .is_some_and(|trimmed| crate::metadata::validate_series_part(trimmed).is_err());
-
-    if should_clear {
-        *value = None;
-    }
 }
 
 #[cfg(test)]

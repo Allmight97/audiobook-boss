@@ -6,6 +6,7 @@ pub use crate::output_artifact::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
+pub use abb_processing_core::ProcessResultStatus;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -38,17 +39,6 @@ pub struct ProcessPayload {
     pub collision_policy: Option<CollisionPolicy>,
     /// Signature returned by preflight so execution can reject stale destination assumptions.
     pub preflight_signature: Option<String>,
-}
-
-/// Processes multiple audio files into a single M4B audiobook
-/// Merges files with specified settings and optional metadata
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ProcessResultStatus {
-    Success,
-    Skipped,
-    Cancelled,
-    Failed,
 }
 
 pub type ProcessResultSummary = OperationResultSummary;
@@ -85,28 +75,9 @@ pub struct ProcessCommandResult {
 
 impl ProcessCommandResult {
     pub fn new(job_type: JobType, results: Vec<ProcessResultEntry>) -> Self {
-        let succeeded = results
-            .iter()
-            .filter(|result| result.status == ProcessResultStatus::Success)
-            .count();
-        let skipped = results
-            .iter()
-            .filter(|result| result.status == ProcessResultStatus::Skipped)
-            .count();
-        let cancelled = results
-            .iter()
-            .filter(|result| result.status == ProcessResultStatus::Cancelled)
-            .count();
-        let failed = results
-            .len()
-            .saturating_sub(succeeded + skipped + cancelled);
-        let summary = OperationResultSummary {
-            total: results.len(),
-            succeeded,
-            skipped,
-            cancelled,
-            failed,
-        };
+        let summary = abb_processing_core::summarize_result_statuses(
+            results.iter().map(|result| result.status),
+        );
 
         Self {
             job_type,

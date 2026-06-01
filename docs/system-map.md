@@ -51,7 +51,7 @@ Prefer:
 - artifact and container truth over labels, suffixes, or optimistic UI state
 - explicit compatibility policy over ambient fallback behavior
 - small public subsystem surfaces over scattered helper knowledge
-- verification that proves user-visible truth, not just internal path selection
+- verification that demonstrates user-visible truth, not just internal path selection
 
 This is a bias, not a command to collapse subsystems into fewer files. Private
 strategy modules are healthy when each owns a coherent mechanism and the public
@@ -60,7 +60,7 @@ boundary owns the rule callers depend on.
 Use this bias to reduce caller knowledge, stale compatibility lore, duplicated
 routing rules, and false facades. Do not use it to create generic managers,
 controllers, routers, or facades that merely rename complexity without improving
-ownership or proof.
+ownership or verification.
 
 ## Core Truth Boundaries
 
@@ -104,6 +104,11 @@ nested ownership rules, boundary assertions, and contract tests.
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
 
+Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
+packaging surfaces for pure domain logic inside these owners. They are not new
+Grey-Box Public APIs. `src-tauri` remains the runtime shell for IPC, filesystem,
+keychain, FFmpeg/audio execution, generated bindings, and cross-boundary verification.
+
 Backend Lifecycle is a named sub-owner inside `processing`, not its own
 Grey-Box Public API. It provides operation identity, progress/queue event
 vocabulary, cancellation checks, and shared terminal-summary vocabulary for
@@ -128,7 +133,7 @@ For meaningful work, identify:
 - owned truth
 - boundaries involved
 - invariants protected
-- proof of done
+- done evidence
 
 Use [docs/api-map.md](api-map.md) for the runtime command/event index and
 [docs/ubiquitous-language.md](ubiquitous-language.md) for canonical terms.

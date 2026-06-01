@@ -74,37 +74,21 @@ export const commands = {
 	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
 	// Builds an output path preview using backend naming rules without collision suffixing.
 	previewOutputPath: (outputDir: string, metadata: {
-	// Title of the audiobook (©nam)
 	title: string | null,
-	// Author of the book (©ART, also written to aART/AlbumArtist)
 	artist: string | null,
-	// Album name - typically same as title for audiobooks (©alb)
 	album: string | null,
-	// Narrator of the audiobook (©wrt/Composer, mirrored to freeform NARRATOR)
 	composer: string | null,
-	// Genre of the book (©gen)
 	genre: string | null,
-	// Publication date as YYYY or YYYY-MM (©day)
 	date: string | null,
-	// Track number (chapter number, total chapters)
 	track: [number, number | null] | null,
-	// Disk number (rarely used for audiobooks)
 	disk: [number, number | null] | null,
-	// Comment field (©cmt) - short note, distinct from description
 	comment: string | null,
-	// Description or synopsis (desc)
 	description: string | null,
-	// Series name (freeform SERIES)
 	series: string | null,
-	// Series sequence / book # in series (freeform SERIES-PART)
 	series_part: string | null,
-	// Sub-series name (secondary series)
 	subseries: string | null,
-	// Series sequence / book # in sub-series (secondary series part)
 	subseries_part: string | null,
-	// Album sort order for library sorting (soal/TSOA)
 	album_sort: string | null,
-	// Cover art as raw bytes
 	cover_art: number[] | null,
 } | null, outputNaming: {
 	preset: NamingPreset,
@@ -189,52 +173,22 @@ export type AudioFile = {
 	error: string | null,
 };
 
-/**
- *  Represents audiobook metadata.
- *
- *  `track`, `disk`, and `comment` are preserved for read compatibility with files
- *  in the wild, but ABB does not expose them as supported UI draft write fields.
- *  `album_sort` is writable only through explicit backend intent.
- *
- *  Field mapping for Plex/Audiobookshelf compatibility:
- *  - `artist` = Author (also written to AlbumArtist)
- *  - `composer` = Narrator (also mirrored to freeform NARRATOR)
- *  - `series` = Series name (freeform SERIES)
- *  - `series_part` = Series sequence / book # in series (freeform SERIES-PART)
- *  - `album_sort` = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
- */
 export type AudiobookMetadata = {
-	// Title of the audiobook (©nam)
 	title: string | null,
-	// Author of the book (©ART, also written to aART/AlbumArtist)
 	artist: string | null,
-	// Album name - typically same as title for audiobooks (©alb)
 	album: string | null,
-	// Narrator of the audiobook (©wrt/Composer, mirrored to freeform NARRATOR)
 	composer: string | null,
-	// Genre of the book (©gen)
 	genre: string | null,
-	// Publication date as YYYY or YYYY-MM (©day)
 	date: string | null,
-	// Track number (chapter number, total chapters)
 	track: [number, number | null] | null,
-	// Disk number (rarely used for audiobooks)
 	disk: [number, number | null] | null,
-	// Comment field (©cmt) - short note, distinct from description
 	comment: string | null,
-	// Description or synopsis (desc)
 	description: string | null,
-	// Series name (freeform SERIES)
 	series: string | null,
-	// Series sequence / book # in series (freeform SERIES-PART)
 	series_part: string | null,
-	// Sub-series name (secondary series)
 	subseries: string | null,
-	// Series sequence / book # in sub-series (secondary series part)
 	subseries_part: string | null,
-	// Album sort order for library sorting (soal/TSOA)
 	album_sort: string | null,
-	// Cover art as raw bytes
 	cover_art: number[] | null,
 };
 
@@ -365,15 +319,6 @@ export type MetadataIntentFieldError = {
 	message: string,
 };
 
-/**
- *  Writable metadata-intent contract for ABB.
- *
- *  UI drafts support title, author, album, narrator, genre, publication date,
- *  description, series, subseries, and cover-art intent. `album_sort` is included
- *  as an explicit backend operation for set, clear, preserve, or recompute.
- *  Read-compatible `track`, `disk`, and `comment` fields remain outside this
- *  write-intent contract.
- */
 export type MetadataIntentPatch = {
 	title?: PatchOp<string>,
 	artist?: PatchOp<string>,
@@ -456,16 +401,8 @@ export type OnlineMetadataResult = {
 
 export type OpenedAudioFilesEvent = Record<string, never>;
 
-// Backend operation family reported through progress and queue events.
-export type OperationKind =
-// Merge selected inputs into one output artifact.
-"processingMerge" |
-// Process selected inputs as one output artifact per input.
-"processingBatch" |
-// Save pending metadata patches back to existing files.
-"metadataSave";
+export type OperationKind = "processingMerge" | "processingBatch" | "metadataSave";
 
-// Shared terminal outcome counts for long-running backend operations.
 export type OperationResultSummary = {
 	total: number,
 	succeeded: number,
@@ -547,10 +484,6 @@ export type ProcessResultEntry = {
 	jobId: string | null,
 };
 
-/**
- *  Processes multiple audio files into a single M4B audiobook
- *  Merges files with specified settings and optional metadata
- */
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
 
 export type ProcessingPreflightPlan = {

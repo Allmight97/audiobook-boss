@@ -139,8 +139,8 @@ UI caller
 
 - Contract and boundary regressions: `src/lib/behavior-contract.test.ts`, `src/lib/tauri-client.test.ts`
 - UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`
-- Runtime boundary proof: `bun scripts/proof/runner.ts focus runtime`
-- Full review proof: `bun scripts/proof/runner.ts review`
+- Runtime boundary checks: `bash scripts/check-generated-bindings.sh --mode local`, `bash scripts/check-public-api-strips.sh`, and targeted `bun run test -- src/lib/...`
+- Broad direct review: `cargo nextest run --workspace`, `bun run test`, and `bun run build`
 
 ## Maintenance Rule
 

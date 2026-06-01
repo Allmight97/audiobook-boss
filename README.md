@@ -34,42 +34,56 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 
 - Package manager: **Bun 1.3.14 stable**.
 - Refresh: `bun upgrade --stable`.
-- Verify Bun changes with `bun scripts/proof/runner.ts review`;
-  use `release` for packaging/release work.
+- Verify Bun changes with direct test/build commands; use `.agents/skills/release`
+  for packaging/release work.
 
 ## Development
 
 ```bash
 bun install
 bun run tauri dev
-bun scripts/proof/runner.ts review
 bun run test
 ```
 
 ## Script Guide
 
-Human index for common commands. `package.json` owns shortcuts,
-`bun scripts/proof/runner.ts --help` owns proof routes, and
-`scripts/AGENTS.md` maps script internals.
+Human index for common commands. `package.json` owns shortcuts and
+`scripts/AGENTS.md` is the exact fresh-agent verification command map. ABB
+currently uses direct native commands, not a custom verification runner.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Main quality gate: `bun scripts/proof/runner.ts review`
-  Use `review quick` for static/boundary proof, `release` for packaging, and
-  `focus ...` routes for owner-local proof. Successful proof runs discard temp
-  logs; failed runs print the OS-temp evidence directory and summary path.
-  `bun run proof:clean` removes legacy repo-local `.proof/` debris.
-- Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
-  Allowed import/export surface drift is checked by `scripts/check-public-api-strips.sh`.
-- Dependency hygiene: `bun run check:deps`
-  Run explicitly, or use `bun scripts/proof/runner.ts diagnose deps`; it is not part of the normal review gate.
+- Before handoff: use the direct review commands below, sequentially. For
+  owner-local loops, run the focused command first and escalate only when the
+  touched surface warrants it.
+- Direct review commands:
+  `cargo fmt --all -- --check`,
+  `bun run fmt:check`,
+  `bun run lint:check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `bash scripts/check-generated-bindings.sh --mode local`,
+  the remaining boundary checks named below,
+  `cargo nextest run --workspace`,
+  `bun run test`, and `bun run build`.
+- Focused Rust loops:
+  `cargo nextest run -p abb-metadata-core`,
+  `cargo nextest run -p abb-output-artifact-core`,
+  `cargo nextest run -p abb-processing-core`,
+  `cargo nextest run -p abb-remote-source-core`,
+  `cargo nextest run -p audiobook-boss --lib`, or
+  `cargo nextest run -p audiobook-boss --test all_tests`.
+- Focused frontend loops: `bun run test -- <test files>`.
+- Policy checks: `scripts/check-generated-bindings.sh --mode local`,
+  `scripts/check-fallback-policy.sh`, `scripts/check-no-bridge-imports.sh`, and
+  `scripts/check-public-api-strips.sh`.
+  Run standalone when touching those rule sets directly.
+- Dependency hygiene: `bun run audit`
+  It is not part of the normal review matrix.
 - Tooling policy: Bun is the package manager/script runner/test runner.
-  Keep Vite scripts on the standard Vite CLI unless a proof-backed tooling
+  Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b bun scripts/proof/runner.ts focus rust media-manual xhe-aac`
-  Requires an auto-detectable FDK-capable external FFmpeg; the fixture is local-only and not committed.
-- Build timing: `bun scripts/proof/runner.ts diagnose timing`
-  Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
+- Build timing: use direct Cargo timing commands such as `cargo build --timings`
+  when investigating compile cost.
 - Release: use `.agents/skills/release`.
   `scripts/bump-version.sh <version>` updates version surfaces;
   `bun run app:build` builds a repo-local `.app`; `bun run app:install-local`

@@ -55,11 +55,11 @@ Workflow tests should run the Effect program directly with fake services:
 
 ## Workflow Service Catalog
 
-Current owners and focused proof examples. Use `bun scripts/proof/runner.ts focus frontend` as
-the canonical frontend proof route before handoff; the table names focused
-Vitest selections for local diagnosis.
+Current owners and focused test examples. Use `bun run test -- <files>` for
+frontend focus before handoff; the table names focused Vitest selections for
+local diagnosis.
 
-| Owner | Coordinates | Service families | Public entrypoints | Terminal outcomes and focused proof |
+| Owner | Coordinates | Service families | Public entrypoints | Terminal outcomes and focused tests |
 | --- | --- | --- | --- | --- |
 | `ProcessingWorkflow` | Processing request composition, output-plan review, metadata staging, listener startup, process IPC, cancellation, terminal status. | File list, metadata form/state, encoder/output panel Public API Strips, job controls, status feedback, `tauriClient`. | `startProcessing(...)` via status-panel runtime. | Approved processing, blocked review, cancellation, failed command. `bun run test -- src/ui/statusPanel/__tests__/processingWorkflow.test.ts` |
 | `MetadataSaveWorkflow` | File availability, save lifecycle, draft persistence, pending intent filtering, batch save, cleanup. | File list, metadata form/state, status panel Public API Strip, `tauriClient`. | `saveMetadataFromUI()` through `src/ui/core/actions.ts`. | No files, processing active, save busy, validation failure, no-op, partial/failed batch, typed failure. `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts` |

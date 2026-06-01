@@ -112,7 +112,7 @@ Do not produce broad library surveys unless the user explicitly asks for one.
   boundary decision changes intentionally.
 - For stale or conflicting evidence, name the mismatch and let installed ABB
   dependencies decide importable API truth.
-- Absence from ABB dependencies is an adoption/planning fact, not proof that the
+- Absence from ABB dependencies is an adoption/planning fact, not evidence that the
   library is irrelevant.
 
 ## Route Map
@@ -144,4 +144,4 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 
 Read `references/subtree-management.md`, use the recorded subtree command, then
 verify subtree metadata, expected source directories, and `git status`. Do not
-run `bun scripts/proof/runner.ts review` for pure reference-source refreshes.
+run the direct review matrix for pure reference-source refreshes.

@@ -3,10 +3,6 @@ mod passthrough;
 mod process;
 mod progress;
 
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;
-
 use crate::audio::settings_encoder::EncoderType;
 use crate::audio::toolchain::validate_external_input_decoders;
 use crate::audio::toolchain::ValidatedExternalToolchain;

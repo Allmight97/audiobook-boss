@@ -8,7 +8,8 @@
 - Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
 ## Allowed Agent Edits Without Escalation
-- Change private adapters when `bun scripts/proof/runner.ts focus runtime` stays green.
+- Change private adapters when generated-binding, Public API Strip, and targeted
+  runtime Vitest checks stay green.
 - Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
 - Keep metadata intent operations explicit as `set | clear | noop`; compile
   patch intent here, not in scattered UI callsites. Canonical metadata

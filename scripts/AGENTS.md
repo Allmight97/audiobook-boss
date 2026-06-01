@@ -1,45 +1,65 @@
 # Scripts Boundary
 
-This directory owns repo-local tooling: proof routes, boundary assertions,
-build/release helpers, and diagnostics. Prefer `package.json` scripts or
-`bun scripts/proof/runner.ts --help` over invoking internals directly.
+This directory owns repo-local tooling: boundary assertions, build/release
+helpers, and diagnostics. Prefer `package.json` scripts or documented direct
+commands over invoking internals directly.
 
 ## Public Entrypoints
 
-- Proof gate: `bun scripts/proof/runner.ts review`.
-- Proof route index: `bun scripts/proof/runner.ts --help`.
-- Rust target diagnostic: `bun scripts/proof/runner.ts diagnose rust-target`.
 - Convenience commands: `package.json` scripts.
+- There is no repo-owned verification runner. Run native commands directly,
+  one at a time, and report the command, exit code, failing test/script line,
+  and residual risk.
+- Direct review matrix:
+  `cargo fmt --all -- --check`,
+  `bun run fmt:check`,
+  `bun run lint:check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `bash scripts/check-generated-bindings.sh --mode local`,
+  `bash scripts/check-public-api-strips.sh`,
+  `bash scripts/check-no-bridge-imports.sh`,
+  `bash scripts/check-fallback-policy.sh`,
+  `cargo nextest run --workspace`, `bun run test`, and
+  `bun run build`.
+- Focus pure Rust owner loops with `cargo nextest run -p abb-*-core`.
+- Focus runtime shell loops with `cargo nextest run -p audiobook-boss --lib` or
+  `cargo nextest run -p audiobook-boss --test all_tests`.
+- Use Cargo's built-in `cargo test` only when Nextest cannot express the route
+  and document the reason.
+- Media execution tests remain absent pending issue #341 reassessment. Do not
+  add FFmpeg/audio/container tests back until behavior, fixtures, runtime cost,
+  and owner boundary are redesigned explicitly.
 
-## Proof Map
+## Fresh Agent Verification Shape
 
-- `proof/runner.ts`: executable entrypoint; prints step status and keeps temp logs only
-  for failed runs.
-- `proof/catalog.ts`: dispatches top-level categories only.
-- `proof/routes/*.ts`: maps CLI args to `ProofPlan`; no spawning or file writes.
-- `proof/steps.ts`: shared step factories and curated gate membership.
-- `proof/executor.ts`: command execution, env preflight, and step logs.
-- `proof/events.ts`: temporary proof logs, summaries, and cleanup.
-- `proof/format.ts`: command rendering for human/agent evidence.
-- `proof/plan.ts` / `proof/types.ts`: small plan model and usage errors.
-- Full Rust review proof uses `cargo nextest run`; focused Rust routes stay on
-  targeted `cargo test` commands.
-- `cargo-nextest` is preflighted with an install hint before full Rust proof.
-- Rust integration focus targets modules inside the consolidated `all_tests`
-  harness, e.g. `focus rust integration integration_metadata_tests reads_track`.
+- Docs/guidance only: run `git diff --check` plus stale-reference searches for
+  the edited terms.
+- Rust core owner: run the matching `cargo nextest run -p abb-<owner>-core`.
+- Runtime shell or Rust integration: run `cargo nextest run -p audiobook-boss --lib`
+  or `cargo nextest run -p audiobook-boss --test all_tests`.
+- Frontend owner: run `bun run test -- <owner test files>`.
+- IPC/generated binding changes: run `bash scripts/check-generated-bindings.sh --mode local`,
+  `bash scripts/check-public-api-strips.sh`, and targeted `tauriClient`/contract
+  Vitest files.
+- Before PR handoff for non-doc code: run the full direct review matrix above.
+- Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
+  reports file/test counts; shell checks print `OK` or matched offending lines;
+  `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
 
 ## Script Families
 
 - `check-*.sh` and `check-generated-tauri-imports.ts`: boundary and policy assertions.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
   `bump-version.sh`: build/release utilities.
-- `coverage.sh`, `analyze_code_lines.py`, `sg/size_budget.sh`: diagnostics.
-- `*.test.ts`: Vitest coverage for script and proof helpers.
+- `analyze_code_lines.py`, `sg/size_budget.sh`: diagnostics.
+- `*.test.ts`: Vitest coverage for script helpers.
 
 ## Edit Rules
 
-- Add durable review-gate membership in `proof/steps.ts`.
-- Add focused proof routes only when they reduce human/agent friction.
-- Normal Rust and Vitest product tests should be covered by existing review steps.
-- Do not add old proof-route aliases unless the repo owner explicitly asks.
-- New scripts need an obvious public route, package script, or usage header.
+- Prefer direct native tooling output before adding repo-local scripts.
+- New scripts must enforce a live repo invariant or simplify a release/build
+  workflow enough to justify maintenance.
+- Prefer Rust focused loops as package-selected core tests. Do not route pure
+  domain logic through filtered broad-crate tests when a core crate can own it.
+- Do not recreate custom runner aliases without explicit repo-owner approval.
+- New scripts need an obvious public command, package script, or usage header.

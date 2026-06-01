@@ -1,31 +1,29 @@
 # Decisions
 
-## 2026-05-30 - Proof Evidence Retention
+## 2026-06-01 - Custom Runner Ablation
 
-- Proof output is terminal-first.
-- Successful proof runs discard temp logs.
-- Failed proof runs keep OS-temp evidence and print the artifact directory and summary path.
-- `bun run proof:clean` is only for legacy repo-local `.proof/` cleanup.
+- The custom verification runner and aliases were removed from current repo guidance.
+- Agents use direct Cargo/Nextest/Vitest/build/check commands and record gaps in #341 before adding replacement infrastructure.
+- Low-value runner-era scripts were deleted; their claimed protections are recorded in the external ablation report and PR body.
+- Guardrail: future AX helpers must prove value over native tool output before becoming repo-local scripts.
+
+## 2026-06-01 - Boundary-Aligned Rust Core Testing
+
+- Focused Rust tests target boundary-aligned workspace packages before the Tauri/media crate.
+- `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
+- Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
+- Use `cargo nextest run -p abb-*-core` for pure domain loops and `cargo nextest run --workspace` for the broad Rust review.
+- Committed/generated audio media fixtures are not part of the current test suite.
+- Media execution tests remain absent pending issue #341 reassessment. Do not add
+  FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and
+  owner boundary are redesigned explicitly.
 
 ## 2026-05-28 - Bun Stable Runtime
 
 - Use Bun `1.3.14` stable via `packageManager`.
 - Refresh: `bun upgrade --stable`.
-- Bun-change proof: `bun scripts/proof/runner.ts review`; use `release` for packaging/release work.
-- Script proof tests: Vitest via `bun run test`.
-
-## 2026-05-27 - Proof Entrypoint
-
-- Use `bun scripts/proof/runner.ts`; public categories are `focus`, `review`, `release`, and `diagnose`.
-- Full Rust review proof uses `cargo nextest run`; Cargo remains the Rust build/compiler executor.
-- Focused Rust routes must stay target-aware: `--lib` for library-owned tests, consolidated `--test all_tests <module>[::filter]` for integration modules.
-- Trigger: issue #349 measurements showed structured reporting and serialized `cargo test` execution became repeated proof pain.
-
-## 2026-05-27 - Proof Orchestration
-
-- Canonical proof runner is Bun under `scripts/proof/`.
-- Do not add root `.mise.toml` as a replacement proof gate unless it delegates to the Bun runner.
-- Guardrail: sequential review gate semantics are not equivalent to parallel mise sibling tasks.
+- Validate Bun changes with direct test/build commands; use `.agents/skills/release` for packaging/release work.
+- Script tests run through Vitest via `bun run test`.
 
 ## 2026-05-27 - Metadata Intent Validation
 
@@ -46,7 +44,7 @@
 
 - Update only direct dependencies with a concrete trigger in the touched ownership path.
 - Leave unrelated Tauri, frontend, and Cargo lockfile churn out of focused dependency releases.
-- Guardrail: release proof scope should not expand without a security, compatibility, or release-surface reason.
+- Guardrail: release verification scope should not expand without a security, compatibility, or release-surface reason.
 
 ## 2026-05-27 - Runtime Settings Capability
 

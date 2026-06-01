@@ -9,6 +9,8 @@ mod types;
 #[cfg(test)]
 mod contract_tests;
 
+use crate::errors::AppError;
+
 pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
 #[cfg_attr(not(test), allow(unused_imports))]
@@ -23,3 +25,16 @@ pub use types::{
 };
 #[allow(unused_imports)]
 pub(crate) use types::{OutputCollision, ResolvedOutputPlan};
+
+impl From<abb_output_artifact_core::OutputArtifactCoreError> for AppError {
+    fn from(error: abb_output_artifact_core::OutputArtifactCoreError) -> Self {
+        match error {
+            abb_output_artifact_core::OutputArtifactCoreError::InvalidInput(message) => {
+                AppError::InvalidInput(message)
+            }
+            abb_output_artifact_core::OutputArtifactCoreError::FileValidation(message) => {
+                AppError::FileValidation(message)
+            }
+        }
+    }
+}

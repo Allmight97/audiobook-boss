@@ -9,6 +9,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
+name = "abb-metadata-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "specta",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "abb-output-artifact-core"
+version = "0.1.0"
+dependencies = [
+ "abb-metadata-core",
+ "serde",
+ "specta",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "abb-processing-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "specta",
+]
+
+[[package]]
+name = "abb-remote-source-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "specta",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -267,6 +302,9 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 name = "audiobook-boss"
 version = "1.0.30"
 dependencies = [
+ "abb-metadata-core",
+ "abb-output-artifact-core",
+ "abb-processing-core",
  "anyhow",
  "bogon",
  "chrono",

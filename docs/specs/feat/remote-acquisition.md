@@ -98,7 +98,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - **A1**. Extract `LocalImportBridge` from `handlers.ts:processFilePaths` into `src/lib/import/localImport.ts`. Update picker + drop callers. Add behavior test that proves identical output for the same inputs.
 - **A2**. Scaffold `src-tauri/src/remote_source/`: provider trait, `RemoteSourceRuntime` skeleton, `Vault` trait, `AcquisitionJobRegistry` skeleton, `MaterializedAsset` + `ProvenanceManifest` types, phase event enum. Wire empty command stubs through `ipc_contract.rs`.
 - **A3**. Write `src-tauri/src/remote_source/AGENTS.md`: Public API Strip enumeration, Private Cluster enumeration, allowed agent edits, breaking-change triggers, GPL contamination rule, Vault reach-through prohibition with target script.
-- **A4**. Add boundary-assertion script `scripts/check-no-remote-source-reach-through.sh` modeled on `scripts/check-no-bridge-imports.sh` (existing pattern). Blocks: imports of `remote_source::providers::*::*` from outside the provider module; imports of `remote_source::vault::*` from anywhere outside `RemoteSourceRuntime`'s private cluster. Wire into `bun scripts/proof/runner.ts review`.
+- **A4**. Add boundary-assertion script `scripts/check-no-remote-source-reach-through.sh` modeled on `scripts/check-no-bridge-imports.sh` (existing pattern). Blocks: imports of `remote_source::providers::*::*` from outside the provider module; imports of `remote_source::vault::*` from anywhere outside `RemoteSourceRuntime`'s private cluster. Include it in the direct review matrix if implemented.
 - **A5**. Update `docs/system-map.md` (eighth Public API row + Boundary section), `docs/api-map.md` (new command family), `docs/ubiquitous-language.md` (new terms).
 
 ### Phase B — Audible auth
@@ -128,7 +128,7 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 - **D3**. **Widevine decrypt**: HTTPS GET on resolved MPD `BaseURL` (single concatenated URL pattern per Audible; segment splicing not needed); open MP4 with CENC `sinf`/`pssh` boxes; parse Widevine LicenseResponse protobuf to extract AES content key; AES-128-CTR streaming decrypt of CENC samples; strip CENC protection atoms; verify resulting M4B.
 - **D4**. **Widevine device identity**: implement a private `WidevineDeviceProvider` inside the Audible provider cluster.
   - First load a cached validated device identity from the provider-private store.
-  - If cache is absent or invalid, fetch a configured resolver/index, try resolver endpoints using an Android-registered Audible account proof, validate the returned WVD/device bytes by parsing the header/client ID/private key and constructing a license challenge, then cache the bytes with source URL, retrieval timestamp, and SHA-256.
+  - If cache is absent or invalid, fetch a configured resolver/index, try resolver endpoints using an Android-registered Audible account credential, validate the returned WVD/device bytes by parsing the header/client ID/private key and constructing a license challenge, then cache the bytes with source URL, retrieval timestamp, and SHA-256.
   - Support a user-supplied WVD/device identity import as an override/fallback.
   - Do not vendor a device blob into ABB release artifacts. Do not depend on Libation's `.cdmurls.json` as an unowned canonical service; Libation's shape is evidence for the mechanism, not ABB's infrastructure contract.
   - If no valid device identity is available, Widevine acquisition fails explicitly as `widevineDeviceUnavailable`; do not silently downgrade the title into another acquisition route unless the license response itself supports AAXC.
@@ -147,11 +147,11 @@ What good looks like: a user logs into Audible inside ABB, selects three titles,
 ### Phase F — Validation and docs
 
 - **F1**. Contract tests for `RemoteSourceRuntime` Public API Strip behavior. Lock the strip; internal cluster changes must keep them green.
-- **F2**. Boundary-assertion CI: `scripts/check-no-remote-source-reach-through.sh` must be green in `bun scripts/proof/runner.ts review`.
+- **F2**. Boundary-assertion check: `scripts/check-no-remote-source-reach-through.sh` must be green if implemented.
 - **F3**. Drift fixture corpus committed under `src-tauri/tests/fixtures/audible/`: sanitized library response, AAXC license response, Widevine license response, MPD manifest, ADRM activation response (for future AAX), at least one failure-class fixture per phase. Provider tests run from fixtures, not live network.
 - **F4**. Real-account smoke test runbook: documented manual procedure to acquire one AAXC title (if available) and one Widevine title against jstar's account; recorded in the spec progress section.
 - **F5**. `docs/system-map.md`, `docs/api-map.md`, `docs/ubiquitous-language.md` reflect committed state.
-- **F6**. `bun scripts/proof/runner.ts review` green.
+- **F6**. Direct review matrix green.
 - **F7**. Delete this active spec or distill enduring truths into canon once
   implementation, review, validation, docs alignment, and sync are complete.
 
@@ -233,7 +233,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 - **2026-05-16**: Three test files acquired via Libation (Billy Fingers / Star Trek / 7 Habits, source dates 2014 / 2019 / 1989) all report `AUDIBLE_DRM_TYPE: Widevine` in their `org.libation` Apple-list freeform tags. AAX legacy is effectively absent from active Audible distribution for this account. v1 ships without AAX-classic support.
 - **2026-05-16**: AAXClean is GPL-3, not MIT. There is no easy license-clean decrypt library to vendor. Decrypt math must be derived from public protocol (FFmpeg AAX demuxer, public AAXC voucher field shapes, CENC/AES-CTR ISO spec, Widevine LicenseRequest protobuf shape).
 - **2026-05-16**: Libation's auth shape is Amazon LWA via embedded browser, catching `/ap/maplanding` redirect. Standard OAuth-style redirect catch, NOT RFC 8252 PKCE. The complexity is in device registration + request signing, not the OAuth dance itself.
-- **2026-05-16**: Libation handles Widevine device identity by caching a base64 CDM/WVD blob in `AccountsSettings.Cdm`; if missing/invalid, it fetches a URI list from its repo `.cdmurls.json`, tries resolver endpoints using a signed Android-account Audible API proof, validates the returned binary as a Widevine device, then caches it. ABB adopts this mechanism category (validated resolver + cache + override), not Libation's exact infrastructure or source code.
+- **2026-05-16**: Libation handles Widevine device identity by caching a base64 CDM/WVD blob in `AccountsSettings.Cdm`; if missing/invalid, it fetches a URI list from its repo `.cdmurls.json`, tries resolver endpoints using signed Android-account Audible API credentials, validates the returned binary as a Widevine device, then caches it. ABB adopts this mechanism category (validated resolver + cache + override), not Libation's exact infrastructure or source code.
 
 ## Accepted Decisions
 
@@ -257,7 +257,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ### Required to Claim Done
 
-- `bun scripts/proof/runner.ts review` green.
+- Direct review matrix green.
 - `scripts/check-no-remote-source-reach-through.sh` green (added in A4).
 - `cargo test` in `src-tauri/` passes including new contract tests for `RemoteSourceRuntime` Public API Strip.
 - Fixture-driven provider tests pass against committed fixtures under `src-tauri/tests/fixtures/audible/` covering: library response, AAXC license response, Widevine license response, MPD manifest, at least one failure-class fixture per acquisition phase.
@@ -270,7 +270,7 @@ Frontend sees these; never sees tokens, license blobs, decrypt keys, device blob
 
 ### Review-Agent Requirements
 
-- UI proof: external browser-agent or human review of the acquisition flow including login, library, acquisition, import-ready handoff, and inspector "Source" field. Static assertions cannot prove this surface.
+- UI smoke review: external browser-agent or human review of the acquisition flow including login, library, acquisition, import-ready handoff, and inspector "Source" field. Static assertions cannot prove this surface.
 - GPL contamination review: spot-check authored provider code (D-phase Rust) for distinctive code patterns matching Libation source. Agents are expected to disclose if they referenced GPL source during implementation.
 
 ### Documentation Alignment

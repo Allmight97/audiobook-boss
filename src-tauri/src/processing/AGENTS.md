@@ -8,6 +8,8 @@
   `ProgressEvent`, `QueueEvent`, `QueueItem`, `JobId`, `CancellationChecker`.
   Functions/helpers: `emit_progress_event`, `emit_queue_event`,
   `ProgressEmitter`.
+- Pure lifecycle/terminal summary classification that has no runtime/media
+  dependency is packaged in `abb-processing-core`.
 
 ## Private Cluster
 - Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes/`,
@@ -19,7 +21,10 @@
   normalization, and their behavior tests.
 
 ## Allowed Agent Edits Without Escalation
-- Change planner or runner internals when `bun scripts/proof/runner.ts focus rust contract` stays green.
+- Change pure processing classification/summarization when
+  `cargo nextest run -p abb-processing-core` stays green.
+- Change planner or runner internals when targeted `audiobook-boss` Nextest and
+  Public API Strip checks stay green.
 - Keep preflight side-effect-free; execution may create output dirs only after review enforcement.
 - Keep runner responsibilities to encoder request validation, job registration,
   scheduler dispatch, audio execution requests through `crate::audio`, and

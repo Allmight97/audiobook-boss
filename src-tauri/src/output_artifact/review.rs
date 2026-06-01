@@ -1,8 +1,5 @@
 use super::plan::{action_requires_output_write, plan_is_hard_block};
-use super::types::{
-    CollisionPolicy, OutputCollisionKind, OutputReviewRequirement, PlannedOutputAction,
-    ResolvedOutputPlan,
-};
+use super::types::{CollisionPolicy, OutputCollisionKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
 pub(crate) struct OutputPlanReview<'a> {
@@ -45,15 +42,6 @@ fn output_plan_review_message(output: &ResolvedOutputPlan) -> String {
             destination
         ),
     }
-}
-
-pub(super) fn output_review_requirement(
-    output: &ResolvedOutputPlan,
-) -> Option<OutputReviewRequirement> {
-    (output.action == PlannedOutputAction::ReviewRequired).then(|| OutputReviewRequirement {
-        can_proceed: !plan_is_hard_block(output),
-        message: output_plan_review_message(output),
-    })
 }
 
 pub(crate) fn enforce_output_plan_review<'a>(

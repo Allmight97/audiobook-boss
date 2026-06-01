@@ -76,6 +76,9 @@ has_contract_related_changes() {
     if [[ "$file" == "src-tauri/Cargo.toml" ]]; then
       return 0
     fi
+    if [[ "$file" == "crates/abb-"*"-core/"* ]]; then
+      return 0
+    fi
     if [[ "$file" == "src-tauri/src/"* ]]; then
       return 0
     fi
@@ -88,19 +91,31 @@ has_contract_related_changes() {
 }
 
 regenerate_and_verify() {
+  local before_file
+  local before_exists="false"
+  before_file="$(mktemp)"
   if [[ ! -f "$bindings_file" ]]; then
     echo "[check-generated-bindings] Missing $bindings_file. Generating it now..."
+  else
+    before_exists="true"
+    cp "$bindings_file" "$before_file"
   fi
 
   echo "[check-generated-bindings] Regenerating TypeScript bindings"
   bun run bindings:generate >/dev/null
 
-  if ! git diff --quiet -- "$bindings_file"; then
+  if [[ "$before_exists" != "true" ]] || ! cmp -s "$before_file" "$bindings_file"; then
     echo "[check-generated-bindings] Generated bindings are stale."
     echo "[check-generated-bindings] Run: bun run bindings:generate"
-    git --no-pager diff -- "$bindings_file"
+    if [[ "$before_exists" == "true" ]]; then
+      diff -u "$before_file" "$bindings_file" || true
+    else
+      git --no-pager diff -- "$bindings_file" || true
+    fi
+    rm -f "$before_file"
     return 1
   fi
+  rm -f "$before_file"
 
   echo "[check-generated-bindings] Bindings are up to date."
 }

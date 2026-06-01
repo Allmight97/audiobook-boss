@@ -4,7 +4,7 @@
 
 - Treat this doc (and nested `AGENTS.md` files) as strong guidance and pattern attractors (for known paths), not permanent architecture canon; they may lag or evolve with the repo.
 - Cargo commands run from the repository root workspace.
-- Script/proof map: `scripts/AGENTS.md`.
+- Script and verification command map: `scripts/AGENTS.md`. ABB currently uses direct native commands, not a custom verification runner.
 - Runtime command/event index only: `docs/api-map.md`.
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
@@ -40,13 +40,13 @@
 
 ## Verification
 
-| Change | Proof |
+| Change | Verification |
 | --- | --- |
 | Docs/guidance/reference edits | Coherence check, stale-reference removal, source/subtree presence when relevant, and `git diff --check` |
 | Edited skills | Run the touched skill validator, including `quick_validate.py` where applicable |
 | Owned module import/export surface changes | `scripts/check-public-api-strips.sh`; update nearest `AGENTS.md` and matching contract tests for intentional surface changes |
 | Tooling/scripts local only | Targeted script/test for the touched surface first |
-| Runtime/IPC/contracts/build/deps | `bun scripts/proof/runner.ts review` plus focused contract/regression coverage |
+| Runtime/IPC/contracts/build/deps | Direct command matrix in `README.md`/`scripts/AGENTS.md`, plus focused contract/regression coverage |
 | UI behavior | Targeted deterministic tests plus visual/human review when static tests cannot prove UX |
 | Release/version/changelog/tag/DMG | Use `.agents/skills/release`; prove launcher-visible install/DMG/GitHub Release surface as applicable |
 
@@ -64,7 +64,7 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 | M4B/MP4 metadata, audiobook tags, external audiobook file compatibility | `.agents/skills/audiobook-metadata` |
 | External library/API behavior, vendored `repos/*`, route cards, subtree refreshes, reference patterns | `.agents/skills/abb-library-research` |
 | File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `.agents/skills/resource-lifetime-audit` |
-| Release, version, changelog, tag, DMG, install proof | `.agents/skills/release` |
+| Release, version, changelog, tag, DMG, install verification | `.agents/skills/release` |
 
 ## Planning And Specs
 

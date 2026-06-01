@@ -55,4 +55,4 @@
 
 - Processing, metadata, and concurrency edits follow the nearest local subsystem `AGENTS.md`.
 - Path validation, progress semantics, and contract parity remain intact.
-- Validation matches scope (`bun scripts/proof/runner.ts review` for non-doc code changes).
+- Validation matches scope with direct commands from `README.md` and `scripts/AGENTS.md`.
