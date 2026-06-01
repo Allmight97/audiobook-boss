@@ -18,6 +18,13 @@
   FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and
   owner boundary are redesigned explicitly.
 
+## 2026-05-31 - Remote Source Acquisition Experiment
+
+- Add `RemoteSourceRuntime` as the eighth Grey-Box Public API for provider-neutral acquisition, backend-only auth/secrets, staged materialized files, Supplemental Assets, and purge behavior.
+- Audible provider work may use license-compatible crates as provider-private dependencies, but must not copy GPL source, invoke sidecars, expose frontend credentials, or fake materialization success.
+- Supplemental PDFs attach to imported file-list `inputId`s and are copied only after matching final batch M4B success through output-artifact-owned naming/collision behavior.
+- Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent fallback.
+
 ## 2026-05-28 - Bun Stable Runtime
 
 - Use Bun `1.3.14` stable via `packageManager`.

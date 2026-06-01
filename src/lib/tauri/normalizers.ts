@@ -65,11 +65,13 @@ const METADATA_FIELDS = [
 ] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
+	'inputIds',
 	'sampleRate',
 	'jobType',
 	'outputNaming',
 	'collisionPolicy',
 	'preflightSignature',
+	'supplementalAssetsByInputId',
 ] as const satisfies readonly (keyof GeneratedProcessPayload)[];
 
 const isPlainRecord = (value: unknown): value is PlainRecord =>

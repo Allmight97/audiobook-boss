@@ -45,6 +45,7 @@ import {
 	type FileListAppendResult,
 } from './appendResult';
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
+import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource/sessionAssets.svelte';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -65,6 +66,7 @@ function selectSoleImportedFile(fileList: FileListInfo): void {
 }
 
 export function displayFileList(fileListInfo: FileListInfo): void {
+	const previousInputIds = getCurrentFileList()?.files.map((file) => file.inputId) ?? [];
 	const normalizedFileListInfo = normalizeFileListInfo(fileListInfo);
 
 	clearMetadataState();
@@ -81,6 +83,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 	selectSoleImportedFile(normalizedFileListInfo);
 	void autoUpdateCoverArtFromFirstValidFile();
+	void purgeRemoteSourceSessionsForInputIds(previousInputIds);
 }
 
 export function appendFileList(
@@ -207,6 +210,7 @@ export async function removeFile(index: number): Promise<void> {
 
 	const removedFile = fileList.files[index];
 	removeMetadataForFile(removedFile.path);
+	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
 	fileList.files.splice(index, 1);
 	fileList.validCount = fileList.files.filter((f) => f.isValid).length;
@@ -317,6 +321,7 @@ export function clearAllFiles(): void {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
+	const inputIds = fileList.files.map((file) => file.inputId);
 
 	clearMetadataState();
 	fileList.files = [];
@@ -333,6 +338,7 @@ export function clearAllFiles(): void {
 	updateTotalStats();
 	updateButtonVisibility();
 	refreshOutputForFileListChange();
+	void purgeRemoteSourceSessionsForInputIds(inputIds);
 }
 
 export function setFileOrderLocked(locked: boolean): void {

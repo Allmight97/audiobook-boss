@@ -14,6 +14,7 @@ import {
 import type { OutputPlanReviewResult } from '../outputPanel/outputPlanWorkflow';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
 import type { ProcessingWorkflowServices } from './processingWorkflowServices';
+import { supplementalAssetsForInputIds } from '../remoteSource/sessionAssets.svelte';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 
@@ -26,18 +27,29 @@ export function validInputFilePaths(fileList: FileListInfo): string[] {
 	return fileList.files.filter((file) => file.isValid).map((file) => file.path);
 }
 
+export function validInputIds(fileList: FileListInfo): (string | undefined)[] {
+	return fileList.files.filter((file) => file.isValid).map((file) => file.inputId);
+}
+
+function toWireInputIds(inputIds: readonly (string | undefined)[]): (string | null)[] {
+	return inputIds.map((inputId) => inputId ?? null);
+}
+
 export function buildProcessPayload(
 	filePaths: string[],
+	inputIds: (string | undefined)[],
 	processingRequestConfig: ProcessingRequestConfig,
 	jobType: JobType,
 ): ProcessPayload {
 	return {
 		inputFiles: filePaths,
+		inputIds: toWireInputIds(inputIds),
 		outputDir: processingRequestConfig.outputDirectory,
 		settings: processingRequestConfig.encoderSettings,
 		sampleRate: processingRequestConfig.sampleRate,
 		jobType,
 		outputNaming: processingRequestConfig.outputNaming,
+		supplementalAssetsByInputId: supplementalAssetsForInputIds(inputIds),
 	};
 }
 

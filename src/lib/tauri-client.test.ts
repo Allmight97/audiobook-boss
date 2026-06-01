@@ -24,6 +24,7 @@ describe('tauriClient', () => {
 			expect(typeof tauriClient.analyzeAudioFiles).toBe('function');
 			expect(typeof tauriClient.processAudiobookFiles).toBe('function');
 			expect(typeof tauriClient.cancelProcessing).toBe('function');
+			expect(typeof tauriClient.startRemoteSourceAcquisition).toBe('function');
 		});
 	});
 
@@ -466,6 +467,37 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.artist).toEqual({ op: 'set', value: 'Author X' });
 		expect(args.metadata['/books/a.m4b']?.series).toBeUndefined();
+	});
+
+	it('routes remote source acquisition through provider-neutral command payloads', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({
+			jobId: 'remote-job-1',
+			providerId: 'audible',
+			status: 'validated',
+			materializedFiles: [],
+			supplementalAssets: [],
+			diagnostics: [],
+		});
+
+		const { tauriClient } = await import('./tauri/client');
+		const result = await tauriClient.startRemoteSourceAcquisition({
+			providerId: 'audible',
+			selections: [{ titleId: 'B000000001', includeSupplementalPdf: true }],
+		});
+
+		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [commandName, args] = lastCall as [
+			string,
+			{ plan: { providerId: string; selections: Array<Record<string, unknown>> } },
+		];
+		expect(commandName).toBe('start_remote_source_acquisition');
+		expect(args.plan).toEqual({
+			providerId: 'audible',
+			selections: [{ titleId: 'B000000001', includeSupplementalPdf: true }],
+		});
+		expect(result.jobId).toBe('remote-job-1');
 	});
 
 	it('preserves failed process result status, error, and input index from backend results', async () => {

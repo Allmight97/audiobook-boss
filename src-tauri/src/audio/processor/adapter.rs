@@ -177,6 +177,7 @@ mod tests {
         };
         let file_info = FileListInfo {
             files: vec![AudioFile {
+                input_id: "input-1".to_string(),
                 path: Path::new("/books/input.m4b").to_path_buf(),
                 size: Some(1.0),
                 duration: Some(5.0),

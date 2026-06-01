@@ -540,6 +540,7 @@ mod tests {
             },
         };
         let files = vec![AudioFile {
+            input_id: "input-1".to_string(),
             path: PathBuf::from("/books/input.m4b"),
             size: Some(1.0),
             duration: Some(5.0),

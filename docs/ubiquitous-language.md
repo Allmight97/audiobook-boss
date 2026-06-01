@@ -13,6 +13,7 @@
 | **IPC Contract** | The Rust-declared set of commands and events exported through `src-tauri/src/ipc_contract.rs` and consumed through generated bindings plus adapters. | ad hoc API, implicit bridge |
 | **App Settings** | The backend-owned Grey-Box Module for durable user preference truth: schema, defaults, validation, private JSON storage, and settings IPC commands. Runtime owners still accept runtime-coupled changes before App Settings persists them. | localStorage settings, UI preference bag, settings plugin surface |
 | **Runtime Settings Capabilities** | Backend-owned selectable settings facts exposed through the Tauri Runtime Boundary, currently covering encoder options and max-concurrent-job capabilities. The UI uses these facts to render controls and build requests without carrying independent validity tables. | frontend settings matrix, UI capability guess, settings fallback table |
+| **RemoteSourceRuntime** | The backend-owned Grey-Box Module for provider-neutral remote acquisition: provider capabilities, backend-only auth, secret vault access, library scan, acquisition jobs, staged materialized audio, Supplemental Assets, and cleanup/purge behavior. | Audible UI helper, downloader screen, frontend credential flow |
 
 ## Processing And Metadata
 | Term | Definition | Aliases to avoid |
@@ -21,6 +22,8 @@
 | **Processing Flow** | The end-to-end audiobook processing path coordinated through `process_audiobook_files`, progress events, and processor stages. | encode call, single task |
 | **Product Spine** | The user workflow from import through verification: Import, Inspect, Decide, Preflight, Process, Verify. | feature list, screen order |
 | **Local Audio Import Boundary** | The frontend import workflow that all local audio ingress uses after a path exists: file picker, recursive folder picker, drag/drop, and OS Open With all route through backend import discovery, backend analysis, metadata draft staging, duplicate handling, and file-list append. Rust owns importable-audio truth; the frontend does not mirror supported extensions. | file picker helper, drop handler, frontend allowlist |
+| **Remote Source Acquisition** | The provider-shaped ingress path that gets account-owned remote audiobook inputs into ABB-owned session storage, then hands materialized local audio paths to the Local Audio Import Boundary. | auto-processing, external downloader workflow |
+| **Supplemental Asset** | A non-audio sidecar acquired with a remote title, currently Supplemental PDF. It is associated to a file-list `inputId`, copied only after the matching final batch M4B succeeds, and never enters audio processing. | attachment, extra file, audio input |
 | **Product Intent** | What the user believes they asked Audiobook Boss to do with selected files, metadata, output rules, and processing settings. | UI state, backend guess |
 | **UI State** | The frontend-held state for selected files, edits, visible status, and enabled actions before or after backend truth is returned. | product truth, backend state |
 | **Backend Lifecycle** | The `processing` sub-owner with a small public API for operation identity, queue/progress event vocabulary, cancellation checks, and terminal-summary truth used by long-running backend work. Not a standalone Grey-Box Public API. | processing helper, job loop, status UI owner |
@@ -63,7 +66,7 @@
 | **Public API Strip** | The owned module's allowed import/export surface: the deliberately small set of public symbols (functions, types, events, commands, module exports) callers may use. Symbols outside the strip are private even when Rust or TypeScript visibility would technically allow importing them. | exports list, "everything pub", surface area |
 | **Private Cluster** | The set of files inside a grey-box module that implement its Public API Strip. Rename-safe, split-safe, AI-editable, and not importable from outside the module. | helper files, internal utilities (unscoped) |
 | **Module Owner** | The single grey-box module a product decision or invariant belongs to. If two modules both feel partial responsibility, the rule has no owner. | shared responsibility, "wherever it ends up" |
-| **Seven Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, and App Settings. | "the modules" (ambiguous), deep modules (too broad) |
+| **Eight Public APIs** | The current ABB grey-box public-API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime. | "the modules" (ambiguous), deep modules (too broad) |
 | **Audio Engine Deep Module** | The Grey-Box Public API owner for media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. | processor helper, ffmpeg wrapper, generic media manager |
 | **Reach-Through** | An import that crosses a module boundary into another module's Private Cluster. Always a smell; always names a bug, an unowned rule, or an unintentional contract. | shortcut, "just this once" |
 | **Ownership Smear** | A product rule whose implementation is split across two or more modules where each holds a partial answer and no single source of truth exists. | shared concern, "it depends" |
@@ -83,6 +86,9 @@
   or reject live runtime changes before those values become preference truth.
 - **Runtime Settings Capabilities** expose selectable encoder and concurrency
   facts from those runtime owners; they are not durable preference storage.
+- **Remote Source Acquisition** produces local staged audio and **Supplemental
+  Assets**; normal file-list import, user review, output planning, and processing
+  still own the rest of the workflow.
 - The **Backend Lifecycle** strip under `processing` names operation identity,
   queue/progress events, cancellation checks, and shared terminal summaries for
   processing and metadata save.
@@ -103,7 +109,7 @@
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.
 - A **Reach-Through** is the diagnostic for an **Ownership Smear**; a **Boundary Assertion** is the script-enforced cure.
-- Each **Public API Strip** in the **Seven Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner with a small public API inside `processing`.
+- Each **Public API Strip** in the **Eight Public APIs** set is locked by **Contract Tests**; internal cluster changes are safe when contract tests stay green. **Backend Lifecycle** is instead a sub-owner with a small public API inside `processing`.
 - A **Cluster Audit** inspects shape inside a **Private Cluster** without changing the **Public API Strip**; it informs future internal refactor decisions and does not, by itself, change behavior.
 
 ## Example Dialogue

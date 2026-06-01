@@ -4,6 +4,7 @@ mod commit;
 mod naming;
 mod plan;
 mod review;
+mod supplemental;
 mod types;
 
 #[cfg(test)]
@@ -19,6 +20,9 @@ pub use naming::build_output_path_preview;
 #[allow(unused_imports)]
 pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};
 pub(crate) use review::{enforce_output_plan_review, ensure_output_parent_dirs, OutputPlanReview};
+pub(crate) use supplemental::{
+    commit_supplemental_output_asset, SupplementalOutputAssetCommitRequest,
+};
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,

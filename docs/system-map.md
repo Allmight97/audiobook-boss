@@ -78,6 +78,9 @@ ownership or verification.
 - Runtime settings controls render backend-owned capability facts for selectable
   encoder and concurrency settings; UI labels stay frontend-owned, but
   accept/reject facts stay with Audio Engine and Job Registry.
+- Remote source acquisition materializes provider-owned titles into local staged
+  files before normal file-list import; provider auth, sessions, acquisition
+  jobs, Supplemental Assets, and purge behavior stay behind `RemoteSourceRuntime`.
 - Run orchestration owns dispatch and side effects; terminal outcome helpers own final status normalization.
 - Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
 - Processing adapters produce media artifacts; final results report what actually happened.
@@ -101,6 +104,7 @@ nested ownership rules, boundary assertions, and contract tests.
 | Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
 | Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 | App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |
+| RemoteSourceRuntime | Provider registry/capabilities, backend-only account auth, secret vault access, library scan, acquisition jobs, staged materialized source files, Supplemental Assets, and remote-source cleanup/purge behavior. |
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
 

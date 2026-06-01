@@ -30,6 +30,7 @@ fn test_public_encoder_settings_and_sample_rate_compile() {
 fn test_duration_calculation() {
     let files = [
         AudioFile {
+            input_id: "file-1".to_string(),
             path: PathBuf::from("file1.mp3"),
             duration: Some(30.0),
             size: Some(1000000.0),
@@ -43,6 +44,7 @@ fn test_duration_calculation() {
             error: None,
         },
         AudioFile {
+            input_id: "file-2".to_string(),
             path: PathBuf::from("file2.mp3"),
             duration: Some(45.5),
             size: Some(1500000.0),
@@ -56,6 +58,7 @@ fn test_duration_calculation() {
             error: None,
         },
         AudioFile {
+            input_id: "file-3".to_string(),
             path: PathBuf::from("file3.mp3"),
             duration: None, // Should be ignored
             size: Some(800000.0),

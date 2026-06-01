@@ -24,8 +24,10 @@ import {
 	ensureBatchMetadataLoaded,
 	reviewOutputPlan,
 	stagePendingMetadataIntent,
+	validInputIds,
 	validInputFilePaths,
 } from './processingWorkflowPreparation';
+import { purgeSuccessfulRemoteSourceSessions } from '../remoteSource/sessionAssets.svelte';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -230,6 +232,8 @@ function completeProcessingExecution(
 	context: ProcessingWorkflowContext,
 	result: ProcessCommandResult,
 	filePaths: string[],
+	inputIds: readonly (string | undefined)[],
+	shouldPurgeRemoteSessions: boolean,
 ): AppEffect<void, ProcessingWorkflowFailed> {
 	return Effect.gen(function* () {
 		yield* Effect.sync(() => {
@@ -241,6 +245,12 @@ function completeProcessingExecution(
 			() => services.openGeneratedPreviewIfSingle(result),
 			'Failed to open generated preview.',
 		);
+		if (shouldPurgeRemoteSessions) {
+			yield* workflowPromise(
+				() => purgeSuccessfulRemoteSourceSessions(result, inputIds),
+				'Failed to purge remote source session.',
+			);
+		}
 	});
 }
 
@@ -314,6 +324,7 @@ export function processingWorkflowProgram(
 		);
 
 		const filePaths = validInputFilePaths(fileList);
+		const inputIds = validInputIds(fileList);
 		const metadataReady = yield* stagePendingMetadataIntent(services, fileList, workflowPromise);
 		if (!metadataReady) {
 			return;
@@ -322,7 +333,12 @@ export function processingWorkflowProgram(
 		const jobType = services.getJobType();
 		yield* Effect.sync(() => context.setCurrentWorkKind(jobType));
 
-		const processPayload = buildProcessPayload(filePaths, processingRequestConfig, jobType);
+		const processPayload = buildProcessPayload(
+			filePaths,
+			inputIds,
+			processingRequestConfig,
+			jobType,
+		);
 		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
 
 		const metadataIntentByPath = buildMetadataIntentByPath(services, processPayload);
@@ -352,7 +368,14 @@ export function processingWorkflowProgram(
 			previewSeconds: options?.previewSeconds,
 		});
 
-		yield* completeProcessingExecution(services, context, result, filePaths);
+		yield* completeProcessingExecution(
+			services,
+			context,
+			result,
+			filePaths,
+			inputIds,
+			options?.previewSeconds == null,
+		);
 	}).pipe(
 		Effect.catchAll((error) =>
 			Effect.gen(function* () {

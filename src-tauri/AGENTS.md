@@ -17,6 +17,10 @@
 - Route durable app preference schema, defaults, merge, validation, and JSON
   storage through `crate::app_settings`; commands and UI code must not invent a
   parallel settings store.
+- Route remote source provider registry, auth, secrets, acquisition staging,
+  materialized source files, Supplemental Assets, and purge behavior through
+  `crate::remote_source`; provider-private details must not leak into
+  processing, metadata, audio, output, logs, or IPC payloads.
 - Route metadata reads and writes through the public `metadata` boundary; outside callers should request metadata outcomes, not choose private MP4/FFmpeg strategy modules.
 - Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side fallback assumptions.
 - Use `JobRegistry` as the central active-job and cancellation surface.
