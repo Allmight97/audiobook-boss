@@ -62,6 +62,26 @@ function preflightFailure(step: ProofStep, options: RunStepOptions, env: EnvLook
 	return `${lines.join('\n')}\n`;
 }
 
+function terminateProcess(child: ReturnType<typeof spawn>): void {
+	if (typeof child.pid !== 'number') {
+		return;
+	}
+
+	try {
+		if (process.platform !== 'win32') {
+			process.kill(-child.pid, 'SIGTERM');
+			return;
+		}
+		child.kill('SIGTERM');
+	} catch {
+		child.kill('SIGTERM');
+	}
+}
+
+function timeoutLabel(timeoutMs: number): string {
+	return timeoutMs < 1000 ? `${timeoutMs}ms` : `${(timeoutMs / 1000).toFixed(0)}s`;
+}
+
 export async function runStep(step: ProofStep, options: RunStepOptions): Promise<ProofStepResult> {
 	const startedAt = Date.now();
 	const env = options.env ?? process.env;
@@ -95,17 +115,29 @@ export async function runStep(step: ProofStep, options: RunStepOptions): Promise
 		try {
 			const child = spawn(step.command, step.args, {
 				cwd: options.repoRoot,
+				detached: process.platform !== 'win32',
 				env,
 				stdio: ['ignore', 'pipe', 'pipe'],
 			});
+			const timeoutMs = step.timeoutMs;
+			const timeout = timeoutMs
+				? setTimeout(() => {
+						logStream.write(`[proof] Step timed out after ${timeoutLabel(timeoutMs)}.\n`);
+						terminateProcess(child);
+					}, timeoutMs)
+				: null;
 
 			child.stdout.on('data', (chunk) => logStream.write(chunk));
 			child.stderr.on('data', (chunk) => logStream.write(chunk));
 			child.on('error', (error) => {
+				if (timeout) clearTimeout(timeout);
 				logStream.write(`[proof] Failed to start command: ${error.message}\n`);
 				finish(null);
 			});
-			child.on('close', finish);
+			child.on('close', (code) => {
+				if (timeout) clearTimeout(timeout);
+				finish(code);
+			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logStream.write(`[proof] Failed to start command: ${message}\n`);

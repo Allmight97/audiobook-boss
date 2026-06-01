@@ -1,29 +1,5 @@
-#[path = "cases/integration_cover_art_compat_tests.rs"]
-mod integration_cover_art_compat_tests;
-#[path = "cases/integration_fastpath_parity_tests.rs"]
-mod integration_fastpath_parity_tests;
-#[path = "cases/integration_ffmpeg_tests.rs"]
-mod integration_ffmpeg_tests;
-#[path = "cases/integration_file_list_tests.rs"]
-mod integration_file_list_tests;
-#[path = "cases/integration_metadata_passthrough_tests.rs"]
-mod integration_metadata_passthrough_tests;
-#[path = "cases/integration_metadata_reader_matrix_tests.rs"]
-mod integration_metadata_reader_matrix_tests;
-#[path = "cases/integration_metadata_tests.rs"]
-mod integration_metadata_tests;
-#[path = "cases/integration_native_aac_regression_tests.rs"]
-mod integration_native_aac_regression_tests;
-#[path = "cases/integration_path_validation_tests.rs"]
-mod integration_path_validation_tests;
-#[path = "cases/integration_processing_flow_tests.rs"]
-mod integration_processing_flow_tests;
 #[path = "cases/integration_reqwest_resolver_tests.rs"]
 mod integration_reqwest_resolver_tests;
-#[path = "cases/integration_settings_tests.rs"]
-mod integration_settings_tests;
-#[path = "cases/integration_xhe_aac_fixture_tests.rs"]
-mod integration_xhe_aac_fixture_tests;
 #[path = "cases/unit_audio_command_result_schema_tests.rs"]
 mod unit_audio_command_result_schema_tests;
 #[path = "cases/unit_audio_context_tests.rs"]

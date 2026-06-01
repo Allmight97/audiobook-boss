@@ -34,7 +34,7 @@ export function diagnosePlan(args: string[]): ProofPlan {
 				'Dependency hygiene proof',
 				'diagnostic',
 				'Run dependency audit.',
-				[bunStep('dependency-audit', 'dependency audit', 'run', 'check:deps')],
+				[cargoStep('dependency-audit', 'dependency audit', 'audit', '-D', 'warnings')],
 			);
 		case 'timing':
 			return plan(

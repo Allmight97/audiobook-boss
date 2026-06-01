@@ -6,13 +6,17 @@
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   `plan_metadata_write`.
 - Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
+- Pure intent, validation, naming, and write-plan facts are packaged in
+  `abb-metadata-core`; `src-tauri/src/metadata` owns container adapters and
+  runtime file behavior.
 
 ## Private Cluster
-- Files: `intent.rs`, `intent_plan.rs`, `contract_tests.rs`; `mod.rs` owns the public re-export strip.
+- Files: `intent_plan.rs`, `contract_tests.rs`; `mod.rs` owns the public re-export strip.
 - The broader metadata boundary owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, remux helpers, and container routing.
 
 ## Allowed Agent Edits Without Escalation
-- Change intent internals when `bun scripts/proof/runner.ts focus rust contract` stays green.
+- Change pure intent internals when `bun scripts/proof/runner.ts focus core metadata` stays green.
+- Change runtime/container adapters when `bun scripts/proof/runner.ts focus rust contract` stays green.
 - Preserve `set | clear | noop` semantics across save, processing projection,
   naming projection, write plans, validation/normalization, and cover-art
   handling.

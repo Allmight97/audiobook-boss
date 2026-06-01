@@ -1,9 +1,9 @@
-use super::intent::{MetadataIntentValidationCode, MetadataIntentValidationField};
 use crate::metadata::{
     plan_metadata_outcome, plan_metadata_write, validate_metadata_intent_patch, AlbumSortPatchOp,
     AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, MetadataOutcomeRequest,
     PatchOp,
 };
+use abb_metadata_core::{MetadataIntentValidationCode, MetadataIntentValidationField};
 
 #[test]
 fn metadata_intent_plan_contract_preserves_set_clear_noop_semantics() {

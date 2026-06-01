@@ -42,7 +42,7 @@ describe('proof step executor', () => {
 				command: 'cargo',
 				id: 'env-preflight',
 				label: 'env preflight',
-				requiredEnv: ['ABB_XHE_AAC_FIXTURE'],
+				requiredEnv: ['ABB_REQUIRED_TEST_ENV'],
 				tool: 'cargo',
 			};
 
@@ -51,7 +51,7 @@ describe('proof step executor', () => {
 			expect(result.status).toBe('failed');
 			expect(result.exitCode).toBeNull();
 			expect(readFileSync(logPath, 'utf8')).toContain(
-				'Missing required environment variable(s): ABB_XHE_AAC_FIXTURE',
+				'Missing required environment variable(s): ABB_REQUIRED_TEST_ENV',
 			);
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
@@ -83,6 +83,28 @@ describe('proof step executor', () => {
 			expect(log).toContain('Required proof tool is unavailable: __abb_missing_cargo_nextest__');
 			expect(log).toContain('cargo install cargo-nextest --locked');
 			expect(log).not.toContain('Failed to start command:');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
+
+	it('fails timed-out steps with an explicit proof message', async () => {
+		const repoRoot = tempRepo();
+		try {
+			const logPath = path.join(repoRoot, 'timeout.log');
+			const step: ProofStep = {
+				args: ['-e', 'setTimeout(() => {}, 1000)'],
+				command: process.execPath,
+				id: 'timeout',
+				label: 'timeout',
+				timeoutMs: 25,
+				tool: 'bun',
+			};
+
+			const result = await runStep(step, { logPath, repoRoot });
+
+			expect(result.status).toBe('failed');
+			expect(readFileSync(logPath, 'utf8')).toContain('[proof] Step timed out after 25ms.');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}

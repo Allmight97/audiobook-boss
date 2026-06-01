@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-06-01 - Boundary-Aligned Rust Core Proof
+
+- Focused Rust proof targets boundary-aligned workspace packages before the Tauri/media crate.
+- `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
+- Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
+- `review rust` uses Nextest for core crates plus non-media runtime shell tests;
+  `review core` is the pure fast domain route.
+- Committed/generated audio media fixtures are not part of canonical proof or
+  the current test suite. Existing media execution tests were purged pending
+  issue #341 reassessment.
+- Media execution proof is suspended pending issue #341 reassessment. Do not add
+  FFmpeg/audio/container tests back to canonical proof until the behavior,
+  fixtures, runtime cost, and owner boundary are redesigned explicitly.
+
 ## 2026-05-30 - Proof Evidence Retention
 
 - Proof output is terminal-first.
@@ -19,7 +33,7 @@
 - Use `bun scripts/proof/runner.ts`; public categories are `focus`, `review`, `release`, and `diagnose`.
 - Full Rust review proof uses `cargo nextest run`; Cargo remains the Rust build/compiler executor.
 - Focused Rust routes must stay target-aware: `--lib` for library-owned tests, consolidated `--test all_tests <module>[::filter]` for integration modules.
-- Trigger: issue #349 measurements showed structured reporting and serialized `cargo test` execution became repeated proof pain.
+- Trigger: issue #349 measurements showed structured reporting and broad Rust test execution became repeated proof pain.
 
 ## 2026-05-27 - Proof Orchestration
 

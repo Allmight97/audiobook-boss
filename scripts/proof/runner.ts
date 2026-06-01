@@ -12,13 +12,11 @@ const repoRoot = path.resolve(import.meta.dir, '..', '..');
 function usage(): string {
 	return `Usage:
   bun scripts/proof/runner.ts [review]
-  bun scripts/proof/runner.ts review [quick|rust|runtime|frontend]
+  bun scripts/proof/runner.ts review [quick|core|rust|runtime|frontend]
+  bun scripts/proof/runner.ts focus core <metadata|output-artifact|processing|remote-source>
   bun scripts/proof/runner.ts focus rust lib <filter>
   bun scripts/proof/runner.ts focus rust integration <test-module> [filter]
   bun scripts/proof/runner.ts focus rust contract
-  bun scripts/proof/runner.ts focus rust private
-  bun scripts/proof/runner.ts focus rust media
-  bun scripts/proof/runner.ts focus rust media-manual [all|xhe-aac|native-fastpath]
   bun scripts/proof/runner.ts focus frontend
   bun scripts/proof/runner.ts focus runtime
   bun scripts/proof/runner.ts release [package]
@@ -33,10 +31,10 @@ Requirements:
 Examples:
   bun scripts/proof/runner.ts review
   bun scripts/proof/runner.ts review quick
+  bun scripts/proof/runner.ts review core
+  bun scripts/proof/runner.ts focus core metadata
   bun scripts/proof/runner.ts focus rust contract
   bun scripts/proof/runner.ts focus rust lib metadata_intent_validation_contract
-  bun scripts/proof/runner.ts focus rust integration integration_metadata_tests reads_track
-  ABB_XHE_AAC_FIXTURE=/path/to/book.m4b bun scripts/proof/runner.ts focus rust media-manual xhe-aac
 `;
 }
 

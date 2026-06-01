@@ -511,8 +511,6 @@ real xHE-AAC fixture evidence for the external path.
 - A processor adapter boundary that routes native `ffmpeg-next` processing and
   external FFmpeg/libfdk_aac processing through one processor-owned decision
   point.
-- An ignored `ABB_XHE_AAC_FIXTURE` regression lane for proving real USAC /
-  xHE-AAC fixtures through the external FDK preview path.
 - Runtime architecture train notes that fold in the high-ROI boundary-glue audit
   without creating extra GitHub issue churn.
 

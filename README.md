@@ -55,19 +55,27 @@ Human index for common commands. `package.json` owns shortcuts,
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
 - Main quality gate: `bun scripts/proof/runner.ts review`
   Use `review quick` for static/boundary proof, `release` for packaging, and
-  `focus ...` routes for owner-local proof. Successful proof runs discard temp
-  logs; failed runs print the OS-temp evidence directory and summary path.
+  `focus ...` routes for owner-local proof. Use `review rust` for non-media
+  Rust proof, including core crates and runtime shell tests. Use `review core` or
+  `focus core <owner>` for fast pure Rust domain proof before touching the
+  Tauri/media crate. Media execution proof is suspended pending issue #341
+  reassessment; do not route FFmpeg/audio/container tests through canonical
+  proof until that lane is redesigned. Successful proof runs discard temp logs;
+  failed runs print the OS-temp evidence directory and summary path.
   `bun run proof:clean` removes legacy repo-local `.proof/` debris.
-- Policy checks: `bun run check:fallback`, `bun run check:no-bridge`
-  Allowed import/export surface drift is checked by `scripts/check-public-api-strips.sh`.
-- Dependency hygiene: `bun run check:deps`
-  Run explicitly, or use `bun scripts/proof/runner.ts diagnose deps`; it is not part of the normal review gate.
+- Policy checks: `scripts/check-fallback-policy.sh`,
+  `scripts/check-no-bridge-imports.sh`, and `scripts/check-public-api-strips.sh`
+  Run standalone only when touching those rule sets directly; `review quick`
+  includes them.
+- Dependency hygiene: `bun run audit` or `bun run proof:diagnose:deps`
+  It is not part of the normal review gate.
+- Diagnostics: `bun run proof:diagnose:coverage`,
+  `bun run proof:diagnose:timing`, `bun run proof:diagnose:rust-target`
+  These are evidence routes, not default review gates.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a proof-backed tooling
   decision changes that.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- xHE-AAC fixture proof: `ABB_XHE_AAC_FIXTURE=/path/to/book.m4b bun scripts/proof/runner.ts focus rust media-manual xhe-aac`
-  Requires an auto-detectable FDK-capable external FFmpeg; the fixture is local-only and not committed.
 - Build timing: `bun scripts/proof/runner.ts diagnose timing`
   Use timing proof for compile/build feedback; do not infer compile cost from late-stage spinner labels.
 - Release: use `.agents/skills/release`.

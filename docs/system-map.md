@@ -104,6 +104,11 @@ nested ownership rules, boundary assertions, and contract tests.
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
 
+Boundary-aligned Rust core crates under `crates/abb-*-core` are proof and
+packaging surfaces for pure domain logic inside these owners. They are not new
+Grey-Box Public APIs. `src-tauri` remains the runtime shell for IPC, filesystem,
+keychain, FFmpeg/audio execution, generated bindings, and cross-boundary proof.
+
 Backend Lifecycle is a named sub-owner inside `processing`, not its own
 Grey-Box Public API. It provides operation identity, progress/queue event
 vocabulary, cancellation checks, and shared terminal-summary vocabulary for

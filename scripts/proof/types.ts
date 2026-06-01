@@ -13,6 +13,7 @@ export type ProofStep = {
 	};
 	reportOnSuccess?: boolean;
 	requiredEnv?: string[];
+	timeoutMs?: number;
 };
 
 export type ProofPlan = {

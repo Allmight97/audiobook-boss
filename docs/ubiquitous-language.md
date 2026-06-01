@@ -41,7 +41,9 @@
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
 | **Proof Route** | A named route under `bun scripts/proof/runner.ts` that chooses the cheapest meaningful proof for the touched owner surface. | random command, local incantation |
+| **Core Crate Proof** | A focused Rust proof route that selects a boundary-aligned `abb-*-core` workspace package so pure domain logic compiles without the Tauri/media crate. | filtered broad-crate test, cargo regex shortcut |
 | **Review Gate** | The main non-doc review proof route run via `bun scripts/proof/runner.ts review` to validate code, contracts, and repo health. | test pass, quick smoke check |
+| **Media Execution Proof** | Suspended proof lane for FFmpeg/audio/metadata container behavior pending issue #341 reassessment. | default review, incidental fixture test |
 | **UI Workflow Smoke Test** | A deterministic app-level test that exercises one high-value user path with mocked Tauri boundaries and asserts visible state transitions. | screenshot-only proof, vague scenario check |
 | **Active Spec** | A temporary `docs/specs/<task>.md` work packet for substantial planning, roadmap, architecture, or implementation work. It is self-contained while active and must be deleted or distilled into canon when done. | permanent feature doc, transcript, generated report |
 | **Source Of Truth** | The owning code or canon surface that should settle a question before implementation claims are made. | memory, assumption, third-party critique |
@@ -92,6 +94,12 @@
 - A **Metadata Outcome Plan** is produced by the metadata boundary so processing and output callers consume effective metadata, naming metadata, write facts, and cover-art policy instead of rebuilding metadata sequencing.
 - A **Fallback** must appear in the **Fallback Register** and stay observable until it is removed or renewed.
 - The **Review Gate** and focused **UI Workflow Smoke Test** coverage are proof surfaces for keeping **Contract Truth** and **Operational Truthfulness** honest.
+- **Core Crate Proof** owns fast feedback for pure Rust domain rules; `src-tauri`
+  proof owns runtime adapters, IPC contracts, filesystem/keychain integration,
+  and FFmpeg/media execution.
+- **Media Execution Proof** is explicit because it is expensive and noisy by
+  nature. It belongs to audio, metadata/container, and processing behavior
+  changes, not every general proof loop.
 - An **Active Spec** is a temporary **Durable Workflow Surface** for substantial work produced through **decision-alignment**; it complements, but does not replace, canon repo docs.
 - A **Deep Module** is the general architecture idea; a **Grey-Box Module** is ABB's stricter repo pattern for applying it.
 - A **Grey-Box Module** publishes a **Public API Strip** and hides a **Private Cluster** behind it; only one **Module Owner** holds any given product rule.

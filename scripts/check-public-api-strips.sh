@@ -71,13 +71,12 @@ pub(crate) use cleanup::CleanupGuard;
 
 processing_lifecycle_exports="$(
   rg "^(pub mod lifecycle;|pub use lifecycle::\\{OperationKind, OperationResultSummary\\};)" src-tauri/src/processing.rs || true
-  rg "^(pub enum OperationKind|pub struct OperationResultSummary)" src-tauri/src/processing/lifecycle.rs || true
+  rg "^pub use abb_processing_core::\\{OperationKind, OperationResultSummary\\};" src-tauri/src/processing/lifecycle.rs || true
   rg "^(pub const PROGRESS_EVENT_NAME|pub const QUEUE_EVENT_NAME|pub struct ProgressEvent|pub struct QueueEvent|pub fn emit_progress_event|pub fn emit_queue_event)" src-tauri/src/processing/progress/mod.rs || true
 )"
 compare_block "Backend Lifecycle Public API Strip" "$processing_lifecycle_exports" 'pub mod lifecycle;
 pub use lifecycle::{OperationKind, OperationResultSummary};
-pub enum OperationKind {
-pub struct OperationResultSummary {
+pub use abb_processing_core::{OperationKind, OperationResultSummary};
 pub const PROGRESS_EVENT_NAME: &str = "processing-progress";
 pub const QUEUE_EVENT_NAME: &str = "processing-queue";
 pub struct ProgressEvent {
@@ -105,7 +104,7 @@ pub(crate) fn resolve_preflight_plan(
 pub(crate) fn prepare_execution_plan('
 
 metadata_intent_exports="$(extract_export_blocks src-tauri/src/metadata/mod.rs | awk '
-  /^pub(\(crate\))? use intent(_plan)?/ { capture=1 }
+  /^pub(\(crate\))? use (abb_metadata_core|intent_plan)/ { capture=1 }
   capture {
     print
     if ($0 ~ /;$/) {
@@ -113,15 +112,17 @@ metadata_intent_exports="$(extract_export_blocks src-tauri/src/metadata/mod.rs |
     }
   }
 ')"
-compare_block "Metadata Outcome Plan Public API Strip" "$metadata_intent_exports" 'pub use intent::{
-validate_metadata_intent_patch, AlbumSortPatchOp, MetadataIntentPatch,
-MetadataIntentValidationResult, PatchOp,
+compare_block "Metadata Outcome Plan Public API Strip" "$metadata_intent_exports" 'pub use abb_metadata_core::{
+build_series_list, compute_album_sort, normalize_publication_date, publication_year_from_date,
+split_series_list, validate_metadata_intent_patch, AlbumSortPatchOp, AudiobookMetadata,
+MetadataCoreError, MetadataIntentPatch, MetadataIntentValidationResult, NamingMetadata,
+PatchOp,
 };
-pub(crate) use intent::{AlbumSortWriteAction, MetadataWritePlan};
+pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
+pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
 plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,
-};
-pub use intent_plan::{CoverArtPassthroughPolicy, NamingMetadata};'
+};'
 
 tauri_client_exports="$(rg "^export (const|type)" src/lib/tauri/client.ts || true)"
 compare_block "Tauri Runtime Boundary Public API Strip" "$tauri_client_exports" 'export const tauriClient = {

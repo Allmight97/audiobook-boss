@@ -1,6 +1,4 @@
 pub mod context;
-#[cfg(test)]
-mod contract_tests;
 pub mod job_registry;
 pub mod lifecycle;
 pub(crate) mod plan;

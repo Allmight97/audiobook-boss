@@ -9,6 +9,12 @@ type StepInput = Omit<ProofStep, 'args' | 'command'> & {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FRONTEND_TEST_PATTERNS = ['src/**/*.test.ts', 'src/**/*.spec.ts'];
+const FRONTEND_TEST_CHUNK_SIZE = 12;
+const FRONTEND_WORKFLOW_TEST_CHUNK_SIZE = 1;
+const FRONTEND_STATUS_PANEL_TEST_CHUNK_SIZE = 1;
+const BASH_PROOF_STEP_TIMEOUT_MS = 600_000;
+const BUN_PROOF_STEP_TIMEOUT_MS = 180_000;
+const CARGO_PROOF_STEP_TIMEOUT_MS = 1_800_000;
 
 function step(input: StepInput): ProofStep {
 	const [command, ...args] = input.command;
@@ -25,6 +31,7 @@ export function bashStep(
 		command: ['bash', scriptPath, ...args],
 		id,
 		label,
+		timeoutMs: BASH_PROOF_STEP_TIMEOUT_MS,
 		tool: 'bash',
 	});
 }
@@ -34,6 +41,7 @@ export function bunStep(id: string, label: string, ...args: string[]): ProofStep
 		command: ['bun', ...args],
 		id,
 		label,
+		timeoutMs: BUN_PROOF_STEP_TIMEOUT_MS,
 		tool: 'bun',
 	});
 }
@@ -43,19 +51,59 @@ export function cargoStep(id: string, label: string, ...args: string[]): ProofSt
 		command: ['cargo', ...args],
 		id,
 		label,
+		timeoutMs: CARGO_PROOF_STEP_TIMEOUT_MS,
 		tool: 'cargo',
 	});
 }
 
-export function cargoNextestStep(id: string, label: string): ProofStep {
+export function cargoNextestStep(id: string, label: string, ...args: string[]): ProofStep {
 	return {
-		...cargoStep(id, label, 'nextest', 'run'),
+		...cargoStep(id, label, 'nextest', 'run', ...args),
 		preflight: {
 			args: ['--version'],
 			command: 'cargo-nextest',
 			hint: 'Install cargo-nextest with `cargo install cargo-nextest --locked` before running full Rust proof.',
 		},
 	};
+}
+
+export function rustReviewStep(): ProofStep {
+	return cargoNextestStep(
+		'rust-review-core',
+		'Rust review suite (core crates only)',
+		'-p',
+		'abb-metadata-core',
+		'-p',
+		'abb-output-artifact-core',
+		'-p',
+		'abb-processing-core',
+		'-p',
+		'abb-remote-source-core',
+	);
+}
+
+export function rustRuntimeShellSteps(): ProofStep[] {
+	return [
+		cargoNextestStep(
+			'rust-runtime-lib',
+			'Rust runtime shell library tests',
+			'-p',
+			'audiobook-boss',
+			'--lib',
+		),
+		cargoNextestStep(
+			'rust-runtime-integration',
+			'Rust runtime shell integration tests',
+			'-p',
+			'audiobook-boss',
+			'--test',
+			'all_tests',
+		),
+	];
+}
+
+export function rustReviewSteps(): ProofStep[] {
+	return [rustReviewStep(), ...rustRuntimeShellSteps()];
 }
 
 export function withRequiredEnv(stepToWrap: ProofStep, ...requiredEnv: string[]): ProofStep {
@@ -157,13 +205,98 @@ function trackedFiles(patterns: readonly string[]): string[] {
 		.filter(Boolean);
 }
 
-export function frontendTestStep(): ProofStep {
-	const tests = trackedFiles(FRONTEND_TEST_PATTERNS);
-	return bunStep('frontend-tests', 'tracked frontend Vitest suite', 'run', 'test', '--', ...tests);
+function chunks<T>(values: T[], size: number): T[][] {
+	const result: T[][] = [];
+	for (let index = 0; index < values.length; index += size) {
+		result.push(values.slice(index, index + size));
+	}
+	return result;
 }
 
-export function frontendBuildStep(): ProofStep {
-	return bunStep('frontend-build', 'production frontend build', 'run', 'build');
+function frontendGroupStep(
+	group: string,
+	label: string,
+	files: string[],
+	index: number,
+): ProofStep {
+	const suffix = index + 1;
+	return bunStep(
+		`frontend-${group}-${suffix}`,
+		`${label} ${suffix}`,
+		'run',
+		'test',
+		'--',
+		...files,
+	);
+}
+
+export function frontendTestSteps(): ProofStep[] {
+	const tests = trackedFiles(FRONTEND_TEST_PATTERNS);
+	const groups = [
+		{
+			id: 'runtime',
+			label: 'frontend runtime/type tests',
+			files: tests.filter((file) => file.startsWith('src/lib/') || file.startsWith('src/types/')),
+			chunkSize: FRONTEND_TEST_CHUNK_SIZE,
+		},
+		{
+			id: 'ui-root',
+			label: 'frontend UI root tests',
+			files: tests.filter((file) => file.startsWith('src/ui/__tests__/')),
+			chunkSize: FRONTEND_TEST_CHUNK_SIZE,
+		},
+		{
+			id: 'workflows',
+			label: 'frontend workflow tests',
+			files: tests.filter(
+				(file) =>
+					file.includes('/fileImport/') ||
+					file.includes('/metadataLookup/') ||
+					file.includes('/outputPanel/') ||
+					file.includes('/core/'),
+			),
+			chunkSize: FRONTEND_WORKFLOW_TEST_CHUNK_SIZE,
+		},
+		{
+			id: 'status-panel',
+			label: 'frontend Status Panel tests',
+			files: tests.filter((file) => file.startsWith('src/ui/statusPanel/')),
+			chunkSize: FRONTEND_STATUS_PANEL_TEST_CHUNK_SIZE,
+		},
+		{
+			id: 'owner-panels',
+			label: 'frontend owner panel tests',
+			files: tests.filter(
+				(file) =>
+					file.startsWith('src/ui/') &&
+					!file.startsWith('src/ui/__tests__/') &&
+					!file.startsWith('src/ui/statusPanel/') &&
+					!file.includes('/fileImport/') &&
+					!file.includes('/metadataLookup/') &&
+					!file.includes('/outputPanel/') &&
+					!file.includes('/core/'),
+			),
+			chunkSize: FRONTEND_TEST_CHUNK_SIZE,
+		},
+	];
+	const covered = new Set(groups.flatMap((group) => group.files));
+	if (covered.size !== tests.length) {
+		const missing = tests.filter((file) => !covered.has(file));
+		throw new Error(`Frontend proof grouping missed tracked tests: ${missing.join(', ')}`);
+	}
+
+	return groups.flatMap((group) =>
+		chunks(group.files, group.chunkSize).map((files, index) =>
+			frontendGroupStep(group.id, group.label, files, index),
+		),
+	);
+}
+
+export function frontendBuildSteps(): ProofStep[] {
+	return [
+		bunStep('frontend-typecheck', 'frontend TypeScript typecheck', 'x', 'tsc', '--noEmit'),
+		bunStep('frontend-vite-build', 'frontend Vite production build', 'x', 'vite', 'build'),
+	];
 }
 
 export function runtimeSteps(): ProofStep[] {

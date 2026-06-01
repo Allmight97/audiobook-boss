@@ -72,7 +72,7 @@ fn normalize_batch_entry(
     }
 
     if let Some(error) = cancellation_error_for_failed_entry(&entry) {
-        classifier.observe_error(&error);
+        classifier.observe_cancelled();
         return terminal_cancelled_result(
             entry.input_index,
             entry.job_id.clone(),
@@ -103,10 +103,11 @@ fn normalize_batch_error(
     failure_events: &mut Vec<TerminalFailureEvent>,
     classifier: &mut RunTerminalClassifier,
 ) -> ProcessResultEntry {
-    classifier.observe_error(&error);
     if is_cancellation_error(&error) {
+        classifier.observe_cancelled();
         return terminal_cancelled_result(Some(index), None, error.to_string());
     }
+    classifier.observe_failure();
 
     let envelope: AppErrorEnvelope = error.into();
     failure_events.push(TerminalFailureEvent {

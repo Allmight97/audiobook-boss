@@ -1,8 +1,7 @@
 use super::artifact::derive_output_artifact_path;
 use super::collision::{detect_output_collision, next_rename_candidate, OutputCollisionCache};
 use super::types::{
-    CollisionPolicy, OutputCollision, OutputCollisionInfo, OutputCollisionKind, OutputKind,
-    PlannedOutput, PlannedOutputAction, ResolvedOutputPlan,
+    CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
 };
 use crate::errors::{AppError, Result};
 use std::collections::HashSet;
@@ -48,27 +47,11 @@ impl OutputPlanLedger {
 }
 
 pub(crate) fn action_requires_output_write(action: PlannedOutputAction) -> bool {
-    matches!(
-        action,
-        PlannedOutputAction::Write
-            | PlannedOutputAction::ReplaceExisting
-            | PlannedOutputAction::RenameNew
-    )
-}
-
-pub(crate) fn collision_is_hard_block(collision: Option<&OutputCollision>) -> bool {
-    collision.is_some_and(|value| {
-        matches!(
-            value.kind,
-            OutputCollisionKind::SourceDestinationOverlap
-                | OutputCollisionKind::CanonicalPathOverlap
-        )
-    })
+    abb_output_artifact_core::action_requires_output_write(action)
 }
 
 pub(crate) fn plan_is_hard_block(plan: &ResolvedOutputPlan) -> bool {
-    matches!(plan.action, PlannedOutputAction::ReviewRequired)
-        && collision_is_hard_block(plan.collision.as_ref())
+    abb_output_artifact_core::plan_is_hard_block(plan)
 }
 
 #[cfg(test)]
@@ -163,42 +146,6 @@ fn resolve_output_plan_with_cache(
         collision,
         action,
     })
-}
-
-impl OutputCollision {
-    pub(crate) fn to_public(&self) -> OutputCollisionInfo {
-        OutputCollisionInfo {
-            kind: self.kind,
-            conflicting_path: self
-                .conflicting_path
-                .as_ref()
-                .map(|value| value.display().to_string()),
-            detail: self.detail.clone(),
-        }
-    }
-}
-
-impl ResolvedOutputPlan {
-    pub(crate) fn to_public(
-        &self,
-        input_index: Option<usize>,
-        input_path: Option<&Path>,
-    ) -> PlannedOutput {
-        PlannedOutput {
-            input_index,
-            input_path: input_path.map(|value| value.display().to_string()),
-            kind: self.kind,
-            requested_path: self.requested_path.display().to_string(),
-            resolved_path: self.resolved_path.display().to_string(),
-            rename_candidate: self
-                .rename_candidate
-                .as_ref()
-                .map(|value| value.display().to_string()),
-            collision: self.collision.as_ref().map(OutputCollision::to_public),
-            review: super::review::output_review_requirement(self),
-            action: self.action,
-        }
-    }
 }
 
 #[cfg(test)]

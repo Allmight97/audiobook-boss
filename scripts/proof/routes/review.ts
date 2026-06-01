@@ -1,13 +1,27 @@
 import { ProofUsageError, plan } from '../plan';
 import {
 	cargoNextestStep,
-	frontendBuildStep,
-	frontendTestStep,
+	frontendBuildSteps,
+	frontendTestSteps,
 	quickSteps,
+	rustReviewSteps,
 	runtimeSteps,
 	scriptTestStep,
 } from '../steps';
 import type { ProofPlan } from '../types';
+
+const CORE_CRATES = [
+	'abb-metadata-core',
+	'abb-output-artifact-core',
+	'abb-processing-core',
+	'abb-remote-source-core',
+];
+
+function coreSteps() {
+	return CORE_CRATES.map((crateName) =>
+		cargoNextestStep(`core-${crateName}`, `Core crate ${crateName}`, '-p', crateName),
+	);
+}
 
 export function reviewPlan(args: string[]): ProofPlan {
 	const [target = 'main', ...rest] = args;
@@ -25,9 +39,13 @@ export function reviewPlan(args: string[]): ProofPlan {
 				quickSteps(),
 			);
 		case 'rust':
-			return plan('review.rust', 'Full Rust proof', 'review', 'Run full non-ignored Rust proof.', [
-				cargoNextestStep('rust-full', 'Full Rust test suite (nextest)'),
-			]);
+			return plan(
+				'review.rust',
+				'Rust review proof',
+				'review',
+				'Run non-media Rust proof: boundary-aligned core crates plus runtime shell tests.',
+				rustReviewSteps(),
+			);
 		case 'runtime':
 			return plan(
 				'review.runtime',
@@ -37,26 +55,43 @@ export function reviewPlan(args: string[]): ProofPlan {
 				runtimeSteps(),
 			);
 		case 'frontend':
-			return plan('review.frontend', 'Frontend proof', 'review', 'Run frontend Vitest proof.', [
-				frontendTestStep(),
-			]);
+			return plan(
+				'review.frontend',
+				'Frontend proof',
+				'review',
+				'Run frontend Vitest proof in route-owned chunks.',
+				frontendTestSteps(),
+			);
+		case 'core':
+			return plan(
+				'review.core',
+				'Core crate proof',
+				'review',
+				'Run all boundary-aligned Rust core crate proof.',
+				coreSteps(),
+			);
 		case 'main':
 			return plan(
 				'review.main',
 				'Review proof',
 				'review',
-				'Run the main non-release review gate.',
+				'Run the main non-release review gate with media execution proof suspended.',
 				[
 					...quickSteps(),
-					cargoNextestStep('rust-full', 'Full Rust test suite (nextest)'),
+					...rustReviewSteps(),
 					scriptTestStep(),
-					frontendTestStep(),
-					frontendBuildStep(),
+					...frontendTestSteps(),
+					...frontendBuildSteps(),
 				],
+			);
+		case 'full':
+		case 'media':
+			throw new ProofUsageError(
+				'Media execution proof is suspended pending issue #341 reassessment. Use review, review quick, review core, review rust, review runtime, or review frontend.',
 			);
 		default:
 			throw new ProofUsageError(
-				'Usage: bun scripts/proof/runner.ts review [quick|rust|runtime|frontend]',
+				'Usage: bun scripts/proof/runner.ts review [quick|core|rust|runtime|frontend]',
 			);
 	}
 }

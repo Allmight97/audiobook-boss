@@ -8,6 +8,8 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 
 - Proof gate: `bun scripts/proof/runner.ts review`.
 - Proof route index: `bun scripts/proof/runner.ts --help`.
+- Package aliases use the `proof:*` namespace; do not add duplicate `check:*`
+  aliases for proof routes.
 - Rust target diagnostic: `bun scripts/proof/runner.ts diagnose rust-target`.
 - Convenience commands: `package.json` scripts.
 
@@ -22,11 +24,18 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 - `proof/events.ts`: temporary proof logs, summaries, and cleanup.
 - `proof/format.ts`: command rendering for human/agent evidence.
 - `proof/plan.ts` / `proof/types.ts`: small plan model and usage errors.
-- Full Rust review proof uses `cargo nextest run`; focused Rust routes stay on
-  targeted `cargo test` commands.
+- Rust review proof uses `cargo nextest run`; use Cargo's built-in `cargo test`
+  only when Nextest cannot express the route and document the reason.
+- Boundary-aligned pure Rust proof uses workspace core crates:
+  `focus core <metadata|output-artifact|processing|remote-source>` or `review core`.
+  These routes must not compile the Tauri/media crate.
+- Media execution proof is suspended pending issue #341 reassessment. Do not add
+  FFmpeg/audio/container tests back to canonical proof until the behavior,
+  fixtures, runtime cost, and owner boundary are redesigned explicitly.
 - `cargo-nextest` is preflighted with an install hint before full Rust proof.
-- Rust integration focus targets modules inside the consolidated `all_tests`
-  harness, e.g. `focus rust integration integration_metadata_tests reads_track`.
+- Rust integration focus targets non-media modules inside the consolidated
+  `all_tests` harness. Use this only for adapter/runtime behavior that cannot
+  live in a core crate.
 
 ## Script Families
 
@@ -40,6 +49,8 @@ build/release helpers, and diagnostics. Prefer `package.json` scripts or
 
 - Add durable review-gate membership in `proof/steps.ts`.
 - Add focused proof routes only when they reduce human/agent friction.
+- Prefer new Rust focused routes as package-selected core proof. Do not route pure
+  domain logic through filtered broad-crate proof when a core crate can own it.
 - Normal Rust and Vitest product tests should be covered by existing review steps.
 - Do not add old proof-route aliases unless the repo owner explicitly asks.
 - New scripts need an obvious public route, package script, or usage header.
