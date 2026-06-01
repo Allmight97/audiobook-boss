@@ -48,9 +48,13 @@ bun run test
 ## Script Guide
 
 Human index for common commands. `package.json` owns shortcuts and
-`scripts/AGENTS.md` maps script internals.
+`scripts/AGENTS.md` is the exact fresh-agent verification command map. ABB
+currently uses direct native commands, not a custom verification runner.
 
 - Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
+- Before handoff: use the direct review commands below, sequentially. For
+  owner-local loops, run the focused command first and escalate only when the
+  touched surface warrants it.
 - Direct review commands:
   `cargo fmt --all -- --check`,
   `bun run fmt:check`,

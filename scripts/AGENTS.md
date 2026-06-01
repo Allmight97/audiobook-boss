@@ -7,6 +7,9 @@ commands over invoking internals directly.
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
+- There is no repo-owned verification runner. Run native commands directly,
+  one at a time, and report the command, exit code, failing test/script line,
+  and residual risk.
 - Direct review matrix:
   `cargo fmt --all -- --check`,
   `bun run fmt:check`,
@@ -26,6 +29,22 @@ commands over invoking internals directly.
 - Media execution tests remain absent pending issue #341 reassessment. Do not
   add FFmpeg/audio/container tests back until behavior, fixtures, runtime cost,
   and owner boundary are redesigned explicitly.
+
+## Fresh Agent Verification Shape
+
+- Docs/guidance only: run `git diff --check` plus stale-reference searches for
+  the edited terms.
+- Rust core owner: run the matching `cargo nextest run -p abb-<owner>-core`.
+- Runtime shell or Rust integration: run `cargo nextest run -p audiobook-boss --lib`
+  or `cargo nextest run -p audiobook-boss --test all_tests`.
+- Frontend owner: run `bun run test -- <owner test files>`.
+- IPC/generated binding changes: run `bash scripts/check-generated-bindings.sh --mode local`,
+  `bash scripts/check-public-api-strips.sh`, and targeted `tauriClient`/contract
+  Vitest files.
+- Before PR handoff for non-doc code: run the full direct review matrix above.
+- Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
+  reports file/test counts; shell checks print `OK` or matched offending lines;
+  `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
 
 ## Script Families
 
