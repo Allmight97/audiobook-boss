@@ -8,4 +8,4 @@ doctest = false
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
-specta = "=2.0.0-rc.24"
+specta = { version = "=2.0.0-rc.24", features = ["derive"] }

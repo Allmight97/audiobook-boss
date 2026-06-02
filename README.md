@@ -62,7 +62,13 @@ currently uses direct native commands, not a custom verification runner.
   `cargo clippy --workspace --all-targets -- -D warnings`,
   `bash scripts/check-generated-bindings.sh --mode local`,
   the remaining boundary checks named below,
-  `cargo nextest run --workspace`,
+  `cargo nextest run -p abb-media-core`,
+  `cargo nextest run -p abb-metadata-core`,
+  `cargo nextest run -p abb-output-artifact-core`,
+  `cargo nextest run -p abb-processing-core`,
+  `cargo nextest run -p abb-remote-source-core`,
+  `cargo nextest run -p audiobook-boss --lib`,
+  `cargo nextest run -p audiobook-boss --test all_tests`,
   `bun run test`, and `bun run build`.
 - Focused Rust loops:
   `cargo nextest run -p abb-metadata-core`,

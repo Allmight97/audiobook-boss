@@ -12,7 +12,9 @@
 - Focused Rust tests target boundary-aligned workspace packages before the Tauri/media crate.
 - `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
 - Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
-- Use `cargo nextest run -p abb-*-core` for pure domain loops and `cargo nextest run --workspace` for the broad Rust review.
+- Use one package/target-selected Nextest command at a time for broad Rust
+  review: each core crate, `audiobook-boss --lib`, and
+  `audiobook-boss --test all_tests`.
 - Committed/generated audio media fixtures are not part of the current test suite.
 - Media execution tests remain absent pending issue #341 reassessment. Do not add
   FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and

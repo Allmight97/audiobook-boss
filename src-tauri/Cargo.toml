@@ -13,6 +13,9 @@ default-run = "audiobook-boss"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "audiobook_boss_lib"
+# Tauri packaging needs these crate types. Use one package/target-selected
+# Nextest command at a time for Rust review instead of changing packaging
+# artifacts to influence test discovery.
 crate-type = ["staticlib", "cdylib", "rlib"]
 # ABB treats backend contract coverage as unit/integration tests plus IPC and
 # boundary checks; rustdoc examples are not a supported test surface today.
@@ -43,6 +46,8 @@ ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+# audible_api currently accepts reqwest 0.12 request values. Keep this renamed
+# dependency private to the Audible provider until that upstream surface changes.
 audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"

@@ -3,6 +3,9 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::time::{timeout, Duration};
+
+const LOCAL_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 struct PortZeroResolver {
     ip: IpAddr,
@@ -21,19 +24,26 @@ async fn reqwest_replaces_port_zero_with_url_port() -> Result<(), Box<dyn std::e
     let addr = listener.local_addr()?;
 
     let server = tokio::spawn(async move {
-        let (mut stream, _) = listener.accept().await?;
+        let (mut stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept()).await??;
         let mut buffer = [0u8; 1024];
-        let _ = stream.read(&mut buffer).await?;
-        stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
-            .await?;
+        let _ = timeout(LOCAL_REQUEST_TIMEOUT, stream.read(&mut buffer)).await??;
+        timeout(
+            LOCAL_REQUEST_TIMEOUT,
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"),
+        )
+        .await??;
         Ok::<(), std::io::Error>(())
     });
 
     let resolver = Arc::new(PortZeroResolver { ip: addr.ip() });
-    let client = reqwest::Client::builder().dns_resolver(resolver).build()?;
+    let client = reqwest::Client::builder()
+        .dns_resolver(resolver)
+        .no_proxy()
+        .timeout(LOCAL_REQUEST_TIMEOUT)
+        .build()?;
     let url = format!("http://example.test:{}/", addr.port());
-    let body = client.get(url).send().await?.text().await?;
+    let response = timeout(LOCAL_REQUEST_TIMEOUT, client.get(url).send()).await??;
+    let body = timeout(LOCAL_REQUEST_TIMEOUT, response.text()).await??;
 
     assert_eq!(body, "OK");
     server.await??;

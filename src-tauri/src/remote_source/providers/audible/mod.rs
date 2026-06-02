@@ -665,11 +665,29 @@ fn license_request_payload() -> Value {
     })
 }
 
+struct LicenseRequestSpec<'a> {
+    method: &'static str,
+    url: String,
+    body: &'a Value,
+}
+
+fn license_request_spec<'a>(title_id: &str, payload: &'a Value) -> LicenseRequestSpec<'a> {
+    LicenseRequestSpec {
+        method: "POST",
+        url: format!("https://api.audible.{DOMAIN}/1.0/content/{title_id}/licenserequest"),
+        body: payload,
+    }
+}
+
 fn build_license_request(title_id: &str, payload: &Value) -> Result<audible_reqwest::Request> {
-    let url = format!("https://api.audible.{DOMAIN}/1.0/content/{title_id}/licenserequest");
-    audible_reqwest::Client::new()
-        .post(url)
-        .json(payload)
+    let spec = license_request_spec(title_id, payload);
+    let request = match spec.method {
+        "POST" => audible_reqwest::Client::new()
+            .post(spec.url)
+            .json(spec.body),
+        _ => return Err(provider_private_failure("license request method")),
+    };
+    request
         .build()
         .map_err(|_| provider_private_failure("license request construction"))
 }
@@ -929,21 +947,17 @@ mod tests {
     #[test]
     fn license_request_uses_json_body_not_query_payload() {
         let payload = license_request_payload();
-        let request = build_license_request("B000000001", &payload).expect("build license request");
+        let spec = license_request_spec("B000000001", &payload);
 
-        assert_eq!(request.method(), audible_reqwest::Method::POST);
-        assert_eq!(request.url().query(), None);
-
-        let body = request
-            .body()
-            .and_then(|body| body.as_bytes())
-            .expect("request body bytes");
-        let body_json: serde_json::Value =
-            serde_json::from_slice(body).expect("body should be JSON");
-
-        assert_eq!(body_json["quality"], "High");
-        assert_eq!(body_json["consumption_type"], "Download");
-        assert!(body_json["supported_media_features"].is_object());
+        assert_eq!(spec.method, "POST");
+        assert_eq!(
+            spec.url,
+            format!("https://api.audible.{DOMAIN}/1.0/content/B000000001/licenserequest")
+        );
+        assert!(!spec.url.contains('?'));
+        assert_eq!(spec.body["quality"], "High");
+        assert_eq!(spec.body["consumption_type"], "Download");
+        assert!(spec.body["supported_media_features"].is_object());
     }
 
     #[test]
