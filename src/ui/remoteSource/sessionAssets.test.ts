@@ -34,6 +34,14 @@ function acquisitionJob(): AcquisitionJob {
 		jobId: 'remote-job-1',
 		providerId: 'audible',
 		status: 'validated',
+		progress: {
+			stage: 'importHandoff',
+			percentage: 100,
+			message: 'Importing acquired audiobook.',
+			bytesDownloaded: undefined,
+			bytesTotal: undefined,
+			terminal: true,
+		},
 		materializedFiles: [
 			{
 				inputId: 'provider-input-1',

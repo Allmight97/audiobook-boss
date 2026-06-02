@@ -475,7 +475,15 @@ describe('tauriClient nullish adapters', () => {
 		mockInvoke.mockResolvedValueOnce({
 			jobId: 'remote-job-1',
 			providerId: 'audible',
-			status: 'validated',
+			status: 'acquiring',
+			progress: {
+				stage: 'download',
+				percentage: 35,
+				message: 'Downloading audiobook.',
+				bytesDownloaded: 50,
+				bytesTotal: 100,
+				terminal: false,
+			},
 			materializedFiles: [],
 			supplementalAssets: [],
 			diagnostics: [],

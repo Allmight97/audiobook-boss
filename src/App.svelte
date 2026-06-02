@@ -25,6 +25,7 @@
 	import JobControlsIsland from './ui/jobControls/JobControlsIsland.svelte';
 	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
+	import RemoteSourceAcquireDialog from './ui/remoteSource/RemoteSourceAcquireDialog.svelte';
 	import { saveMetadataFromUI } from './ui/core/actions';
 	import { inspectorState } from './ui/fileList/inspectorState.svelte';
 	import PreviewAudioControls from './ui/previewAudio/PreviewAudioControls.svelte';
@@ -151,4 +152,5 @@
 	</div>
 </div>
 <MetadataLookupIsland />
+<RemoteSourceAcquireDialog />
 <CollisionDialogIsland />

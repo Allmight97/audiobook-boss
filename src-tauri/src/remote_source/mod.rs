@@ -3,6 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use abb_remote_source_core::{
+    acquisition_progress, AcquisitionProgress as CoreAcquisitionProgress, AcquisitionStage,
+};
 use tauri::Manager;
 
 mod providers;
@@ -141,18 +144,92 @@ impl RemoteSourceRuntime {
         }
         let job_id = uuid::Uuid::new_v4().to_string();
         let job_dir = self.inner.staging.create_job_dir(&job_id)?;
-        let job = match plan.provider_id {
-            RemoteProviderId::Audible => {
-                AudibleProvider::acquire(self.inner.vault.as_ref(), &plan, &job_id, &job_dir)
-                    .await?
-            }
+        let job = RemoteAcquisitionJob {
+            job_id: job_id.clone(),
+            provider_id: plan.provider_id,
+            status: types::RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
         };
         self.inner
             .jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .insert(job_id, job.clone());
+        let runtime = self.clone();
+        let spawned_job_id = job.job_id.clone();
+        tokio::spawn(async move {
+            runtime
+                .run_acquisition_job(plan, spawned_job_id, job_dir)
+                .await;
+        });
         Ok(job)
+    }
+
+    async fn run_acquisition_job(
+        &self,
+        plan: RemoteAcquisitionPlan,
+        job_id: String,
+        job_dir: PathBuf,
+    ) {
+        let result = match plan.provider_id {
+            RemoteProviderId::Audible => {
+                AudibleProvider::acquire(
+                    self.inner.vault.as_ref(),
+                    &plan,
+                    &job_id,
+                    &job_dir,
+                    |progress| {
+                        self.update_job_progress(&job_id, progress);
+                    },
+                )
+                .await
+            }
+        };
+
+        match result {
+            Ok(job) => self.replace_job(job),
+            Err(error) => self.mark_job_failed(&job_id, plan.provider_id, error.to_string()),
+        }
+    }
+
+    fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
+        if let Ok(mut jobs) = self.inner.jobs.lock() {
+            if let Some(job) = jobs.get_mut(job_id) {
+                job.progress = progress;
+            }
+        }
+    }
+
+    fn replace_job(&self, job: RemoteAcquisitionJob) {
+        if let Ok(mut jobs) = self.inner.jobs.lock() {
+            jobs.insert(job.job_id.clone(), job);
+        }
+    }
+
+    fn mark_job_failed(&self, job_id: &str, provider_id: RemoteProviderId, message: String) {
+        if let Ok(mut jobs) = self.inner.jobs.lock() {
+            let job = jobs
+                .entry(job_id.to_string())
+                .or_insert_with(|| RemoteAcquisitionJob {
+                    job_id: job_id.to_string(),
+                    provider_id,
+                    status: types::RemoteAcquisitionStatus::Failed,
+                    progress: acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None),
+                    materialized_files: Vec::new(),
+                    supplemental_assets: Vec::new(),
+                    diagnostics: Vec::new(),
+                });
+            job.status = types::RemoteAcquisitionStatus::Failed;
+            job.progress = acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
+            job.diagnostics.push(types::RemoteSourceDiagnostic {
+                kind: types::RemoteAcquisitionFailureKind::MaterializationFailed,
+                title_id: None,
+                message,
+            });
+        }
     }
 
     pub fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
@@ -177,6 +254,7 @@ impl RemoteSourceRuntime {
             AppError::InvalidInput("Remote acquisition job was not found.".to_string())
         })?;
         job.status = types::RemoteAcquisitionStatus::Cancelled;
+        job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
         Ok(job.clone())
     }
 

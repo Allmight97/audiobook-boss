@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+pub use abb_remote_source_core::AcquisitionProgress;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderId {
@@ -168,12 +170,13 @@ pub struct SupplementalAsset {
     pub sha256: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionJob {
     pub job_id: String,
     pub provider_id: ProviderId,
     pub status: RemoteAcquisitionStatus,
+    pub progress: AcquisitionProgress,
     pub materialized_files: Vec<MaterializedSourceFile>,
     pub supplemental_assets: Vec<SupplementalAsset>,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,

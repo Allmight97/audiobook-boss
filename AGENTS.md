@@ -20,6 +20,16 @@
 - Align with the repo owner before materially widening scope beyond the active outcome.
 - Surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
 - Refactor when the connection to active work is concrete enough to improve durability, ownership clarity, or contract correctness.
+- Use plain implementation language over process theater. Avoid words like
+  "blocker," "phase," "sprint," "stakeholder," and "clean room" unless the user
+  asks for that framing or the repo surface specifically requires it.
+- When stating a constraint, say exactly what is allowed, what is not allowed,
+  and why. Example: "AAXClean is allowed as an Audible materializer dependency;
+  do not paste or closely port third-party source unless ABB explicitly accepts
+  the resulting license obligations."
+- For licensing, distinguish dependency use, source copying, close source
+  porting, linking/bundling, binary distribution, and charging for binaries.
+  Do not collapse those into vague "do not use GPL" guidance.
 - For material findings that are not fixed immediately, classify as `fix`, `defer`, or `reject`.
   - State the impact of fixing versus leaving it alone.
   - Avoid vague labels like "probably," "soon," or "watchlist."

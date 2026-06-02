@@ -217,6 +217,14 @@ vi.mock('@tauri-apps/api/core', () => ({
 					jobId: 'remote-job-1',
 					providerId: 'audible',
 					status: 'validated',
+					progress: {
+						stage: 'importHandoff',
+						percentage: 100,
+						message: 'Importing acquired audiobook.',
+						bytesDownloaded: null,
+						bytesTotal: null,
+						terminal: true,
+					},
 					materializedFiles: [
 						{
 							inputId: 'remote-input-1',
@@ -235,6 +243,14 @@ vi.mock('@tauri-apps/api/core', () => ({
 					jobId: 'remote-job-1',
 					providerId: 'audible',
 					status: 'cancelled',
+					progress: {
+						stage: 'cancelled',
+						percentage: 100,
+						message: 'Acquisition cancelled.',
+						bytesDownloaded: null,
+						bytesTotal: null,
+						terminal: true,
+					},
 					materializedFiles: [],
 					supplementalAssets: [],
 					diagnostics: [],

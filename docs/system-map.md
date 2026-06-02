@@ -75,6 +75,9 @@ ownership or verification.
 - Audio engine execution owns media inspection, decoder/toolchain selection,
   encode/mux/staging behavior, and media-integrity facts behind a small public
   API.
+- `abb-media-core` packages backend-neutral media facts, error kinds, progress,
+  and provenance vocabulary for owners that must classify media without leaking
+  FFmpeg, AAXClean, provider payloads, or metadata-tool details.
 - Runtime settings controls render backend-owned capability facts for selectable
   encoder and concurrency settings; UI labels stay frontend-owned, but
   accept/reject facts stay with Audio Engine and Job Registry.
@@ -110,8 +113,10 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
 packaging surfaces for pure domain logic inside these owners. They are not new
-Grey-Box Public APIs. `src-tauri` remains the runtime shell for IPC, filesystem,
-keychain, FFmpeg/audio execution, generated bindings, and cross-boundary verification.
+Grey-Box Public APIs. `abb-media-core` is the first backend-neutral media
+contract package; media execution still belongs to Audio Engine. `src-tauri`
+remains the runtime shell for IPC, filesystem, keychain, FFmpeg/audio execution,
+generated bindings, and cross-boundary verification.
 
 Backend Lifecycle is a named sub-owner inside `processing`, not its own
 Grey-Box Public API. It provides operation identity, progress/queue event

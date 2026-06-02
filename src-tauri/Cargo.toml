@@ -25,6 +25,7 @@ tauri-build = { version = "2.5.6", features = [] }
 abb-metadata-core = { path = "../crates/abb-metadata-core" }
 abb-output-artifact-core = { path = "../crates/abb-output-artifact-core" }
 abb-processing-core = { path = "../crates/abb-processing-core" }
+abb-remote-source-core = { path = "../crates/abb-remote-source-core" }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-opener = "2.5.3"
 tauri-plugin-dialog = "2.7.0"
@@ -42,6 +43,7 @@ ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"

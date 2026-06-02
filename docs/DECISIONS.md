@@ -21,7 +21,7 @@
 ## 2026-05-31 - Remote Source Acquisition Experiment
 
 - Add `RemoteSourceRuntime` as the eighth Grey-Box Public API for provider-neutral acquisition, backend-only auth/secrets, staged materialized files, Supplemental Assets, and purge behavior.
-- Audible provider work may use license-compatible crates as provider-private dependencies, but must not copy GPL source, invoke sidecars, expose frontend credentials, or fake materialization success.
+- Audible provider work may evaluate and deliberately use GPL materializer dependencies such as AAXClean, but must not paste or closely port third-party source, expose frontend credentials, or fake materialization success. Helper/dependency shape requires an explicit implementation decision.
 - Supplemental PDFs attach to imported file-list `inputId`s and are copied only after matching final batch M4B success through output-artifact-owned naming/collision behavior.
 - Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent fallback.
 

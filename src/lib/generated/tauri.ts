@@ -143,6 +143,7 @@ export type AcquisitionJob = {
 	jobId: string,
 	providerId: ProviderId,
 	status: RemoteAcquisitionStatus,
+	progress: AcquisitionProgress,
 	materializedFiles: MaterializedSourceFile[],
 	supplementalAssets: SupplementalAsset[],
 	diagnostics: RemoteSourceDiagnostic[],
@@ -153,10 +154,21 @@ export type AcquisitionPlan = {
 	selections: AcquisitionSelection[],
 };
 
+export type AcquisitionProgress = {
+	stage: AcquisitionStage,
+	percentage: number,
+	message: string,
+	bytesDownloaded: number | null,
+	bytesTotal: number | null,
+	terminal: boolean,
+};
+
 export type AcquisitionSelection = {
 	titleId: string,
 	includeSupplementalPdf: boolean,
 };
+
+export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
 
 export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | { op: "recompute" } | { op: "noop" };
 
