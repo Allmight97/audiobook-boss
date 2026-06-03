@@ -1,6 +1,6 @@
 # Ubiquitous Language
 
-Compact glossary for ABB terms that change implementation behavior. Keep this
+Compact glossary for ABB terms that change implementation behavior and help align agent with user. Keep this
 file small: if a term does not affect ownership, contracts, or verification,
 prefer local prose or delete it.
 
