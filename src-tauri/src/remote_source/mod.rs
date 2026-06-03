@@ -7,6 +7,7 @@ use abb_remote_source_core::{
     acquisition_progress, AcquisitionProgress as CoreAcquisitionProgress, AcquisitionStage,
 };
 use tauri::Manager;
+use tokio::task::AbortHandle;
 
 mod providers;
 mod staging;
@@ -36,6 +37,7 @@ struct RemoteSourceRuntimeInner {
     staging: RemoteSourceStaging,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
+    acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
 }
 
 impl RemoteSourceRuntime {
@@ -49,6 +51,7 @@ impl RemoteSourceRuntime {
                 staging: RemoteSourceStaging::new(cache_dir),
                 pending_audible_auth: Mutex::new(None),
                 jobs: Mutex::new(HashMap::new()),
+                acquisition_tasks: Mutex::new(HashMap::new()),
             }),
         })
     }
@@ -108,6 +111,7 @@ impl RemoteSourceRuntime {
     }
 
     pub fn logout(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
+        self.abort_all_acquisition_tasks();
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
         }
@@ -160,11 +164,13 @@ impl RemoteSourceRuntime {
             .insert(job_id, job.clone());
         let runtime = self.clone();
         let spawned_job_id = job.job_id.clone();
-        tokio::spawn(async move {
+        let abort_handle = tokio::spawn(async move {
             runtime
                 .run_acquisition_job(plan, spawned_job_id, job_dir)
                 .await;
-        });
+        })
+        .abort_handle();
+        self.store_acquisition_task(&job.job_id, abort_handle);
         Ok(job)
     }
 
@@ -184,13 +190,41 @@ impl RemoteSourceRuntime {
                     |progress| {
                         self.update_job_progress(&job_id, progress);
                     },
+                    || self.job_is_cancelled(&job_id),
                 )
                 .await
             }
         };
 
+        self.remove_acquisition_task(&job_id);
+
         match result {
-            Ok(job) => self.replace_job(job),
+            Ok(job) if self.job_is_cancelled(&job_id) => {
+                self.cleanup_cancelled_job_session(&job_id);
+                self.mark_job_cancelled(&job_id, plan.provider_id);
+                log::info!(
+                    "remote_source acquisition job_id={} status=cancelled_preserved",
+                    job_id
+                );
+                let _ = job;
+            }
+            Ok(job) => self.replace_job_if_active(job),
+            Err(AppError::Cancellation(_)) => {
+                self.cleanup_cancelled_job_session(&job_id);
+                self.mark_job_cancelled(&job_id, plan.provider_id);
+                log::info!(
+                    "remote_source acquisition job_id={} status=cancelled",
+                    job_id
+                );
+            }
+            Err(_error) if self.job_is_cancelled(&job_id) => {
+                self.cleanup_cancelled_job_session(&job_id);
+                self.mark_job_cancelled(&job_id, plan.provider_id);
+                log::info!(
+                    "remote_source acquisition job_id={} status=cancelled provider_error_suppressed=true",
+                    job_id
+                );
+            }
             Err(error) => self.mark_job_failed(&job_id, plan.provider_id, error.to_string()),
         }
     }
@@ -198,13 +232,21 @@ impl RemoteSourceRuntime {
     fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
         if let Ok(mut jobs) = self.inner.jobs.lock() {
             if let Some(job) = jobs.get_mut(job_id) {
+                if job.status == types::RemoteAcquisitionStatus::Cancelled {
+                    return;
+                }
                 job.progress = progress;
             }
         }
     }
 
-    fn replace_job(&self, job: RemoteAcquisitionJob) {
+    fn replace_job_if_active(&self, job: RemoteAcquisitionJob) {
         if let Ok(mut jobs) = self.inner.jobs.lock() {
+            if jobs.get(&job.job_id).is_some_and(|existing| {
+                existing.status == types::RemoteAcquisitionStatus::Cancelled
+            }) {
+                return;
+            }
             jobs.insert(job.job_id.clone(), job);
         }
     }
@@ -222,6 +264,9 @@ impl RemoteSourceRuntime {
                     supplemental_assets: Vec::new(),
                     diagnostics: Vec::new(),
                 });
+            if job.status == types::RemoteAcquisitionStatus::Cancelled {
+                return;
+            }
             job.status = types::RemoteAcquisitionStatus::Failed;
             job.progress = acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
             job.diagnostics.push(types::RemoteSourceDiagnostic {
@@ -229,6 +274,127 @@ impl RemoteSourceRuntime {
                 title_id: None,
                 message,
             });
+        }
+    }
+
+    fn mark_job_cancelled(&self, job_id: &str, provider_id: RemoteProviderId) {
+        if let Ok(mut jobs) = self.inner.jobs.lock() {
+            let job = jobs
+                .entry(job_id.to_string())
+                .or_insert_with(|| RemoteAcquisitionJob {
+                    job_id: job_id.to_string(),
+                    provider_id,
+                    status: types::RemoteAcquisitionStatus::Cancelled,
+                    progress: acquisition_progress(
+                        AcquisitionStage::Cancelled,
+                        Some(1.0),
+                        None,
+                        None,
+                    ),
+                    materialized_files: Vec::new(),
+                    supplemental_assets: Vec::new(),
+                    diagnostics: Vec::new(),
+                });
+            job.status = types::RemoteAcquisitionStatus::Cancelled;
+            job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
+            job.materialized_files.clear();
+            job.supplemental_assets.clear();
+            if !job
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled)
+            {
+                job.diagnostics.push(types::RemoteSourceDiagnostic {
+                    kind: types::RemoteAcquisitionFailureKind::Cancelled,
+                    title_id: None,
+                    message: "Remote source acquisition was cancelled.".to_string(),
+                });
+            }
+        }
+    }
+
+    fn job_is_cancelled(&self, job_id: &str) -> bool {
+        self.inner
+            .jobs
+            .lock()
+            .ok()
+            .and_then(|jobs| {
+                jobs.get(job_id)
+                    .map(|job| job.status == types::RemoteAcquisitionStatus::Cancelled)
+            })
+            .unwrap_or(false)
+    }
+
+    fn job_is_active(&self, job_id: &str) -> bool {
+        self.inner
+            .jobs
+            .lock()
+            .ok()
+            .and_then(|jobs| {
+                jobs.get(job_id).map(|job| {
+                    matches!(
+                        job.status,
+                        types::RemoteAcquisitionStatus::Planned
+                            | types::RemoteAcquisitionStatus::Acquiring
+                            | types::RemoteAcquisitionStatus::Materialized
+                    )
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
+        let Ok(mut tasks) = self.inner.acquisition_tasks.lock() else {
+            log::warn!(
+                "remote_source acquisition job_id={} task_registry_store_failed=true",
+                job_id
+            );
+            return;
+        };
+        tasks.insert(job_id.to_string(), abort_handle);
+        drop(tasks);
+        if !self.job_is_active(job_id) {
+            self.remove_acquisition_task(job_id);
+        }
+    }
+
+    fn remove_acquisition_task(&self, job_id: &str) {
+        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+            tasks.remove(job_id);
+        }
+    }
+
+    fn abort_acquisition_task(&self, job_id: &str) {
+        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+            if let Some(handle) = tasks.remove(job_id) {
+                handle.abort();
+                log::info!(
+                    "remote_source acquisition job_id={} task_aborted=true",
+                    job_id
+                );
+            }
+        }
+    }
+
+    fn abort_all_acquisition_tasks(&self) {
+        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+            for (job_id, handle) in tasks.drain() {
+                handle.abort();
+                log::info!(
+                    "remote_source acquisition job_id={} task_aborted=true",
+                    job_id
+                );
+            }
+        }
+    }
+
+    fn cleanup_cancelled_job_session(&self, job_id: &str) {
+        if let Err(error) = self.inner.staging.purge_session(job_id) {
+            log::warn!(
+                "remote_source acquisition job_id={} cancelled_session_cleanup_failed={}",
+                job_id,
+                error
+            );
         }
     }
 
@@ -255,10 +421,28 @@ impl RemoteSourceRuntime {
         })?;
         job.status = types::RemoteAcquisitionStatus::Cancelled;
         job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
-        Ok(job.clone())
+        job.materialized_files.clear();
+        job.supplemental_assets.clear();
+        if !job
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled)
+        {
+            job.diagnostics.push(types::RemoteSourceDiagnostic {
+                kind: types::RemoteAcquisitionFailureKind::Cancelled,
+                title_id: None,
+                message: "Remote source acquisition was cancelled.".to_string(),
+            });
+        }
+        let cancelled_job = job.clone();
+        drop(jobs);
+        self.abort_acquisition_task(job_id);
+        self.cleanup_cancelled_job_session(job_id);
+        Ok(cancelled_job)
     }
 
     pub fn purge_session(&self, job_id: &str) -> Result<()> {
+        self.abort_acquisition_task(job_id);
         self.inner.staging.purge_session(job_id)?;
         self.inner
             .jobs
@@ -300,8 +484,53 @@ pub use types::*;
 
 #[cfg(test)]
 mod tests {
-    use super::read_handoff_url;
+    use super::*;
+    use secrecy::SecretString;
     use tempfile::TempDir;
+
+    #[derive(Default)]
+    struct TestSecretVault;
+
+    impl vault::SecretVault for TestSecretVault {
+        fn get_secret(&self, _key: &str) -> Result<Option<SecretString>> {
+            Ok(None)
+        }
+
+        fn set_secret(&self, _key: &str, _value: SecretString) -> Result<()> {
+            Ok(())
+        }
+
+        fn delete_secret(&self, _key: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
+        RemoteSourceRuntime {
+            inner: Arc::new(RemoteSourceRuntimeInner {
+                vault: Box::<TestSecretVault>::default(),
+                staging: RemoteSourceStaging::new(root.path().to_path_buf()),
+                pending_audible_auth: Mutex::new(None),
+                jobs: Mutex::new(HashMap::new()),
+                acquisition_tasks: Mutex::new(HashMap::new()),
+            }),
+        }
+    }
+
+    fn acquisition_job(
+        job_id: &str,
+        status: types::RemoteAcquisitionStatus,
+    ) -> RemoteAcquisitionJob {
+        RemoteAcquisitionJob {
+            job_id: job_id.to_string(),
+            provider_id: RemoteProviderId::Audible,
+            status,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
 
     #[test]
     fn read_handoff_url_reads_trimmed_non_symlink_file() {
@@ -337,5 +566,111 @@ mod tests {
         let error = read_handoff_url(Some(link)).expect_err("symlink should fail");
 
         assert!(error.to_string().contains("must not be a symlink"));
+    }
+
+    #[test]
+    fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "remote-job-1";
+        runtime.inner.jobs.lock().expect("jobs lock").insert(
+            job_id.to_string(),
+            acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
+        );
+
+        runtime
+            .cancel_acquisition(job_id)
+            .expect("cancel acquisition");
+        runtime.update_job_progress(
+            job_id,
+            acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(5), Some(10)),
+        );
+        runtime.replace_job_if_active(acquisition_job(
+            job_id,
+            types::RemoteAcquisitionStatus::Validated,
+        ));
+        runtime.mark_job_failed(
+            job_id,
+            RemoteProviderId::Audible,
+            "late provider failure".to_string(),
+        );
+
+        let job = runtime.acquisition_status(job_id).expect("job status");
+        assert_eq!(job.status, types::RemoteAcquisitionStatus::Cancelled);
+        assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
+        assert!(job.materialized_files.is_empty());
+        assert!(job
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled));
+    }
+
+    #[test]
+    fn cancel_acquisition_clears_existing_import_handoff_references() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "remote-job-handoff";
+        let mut job = acquisition_job(job_id, types::RemoteAcquisitionStatus::Validated);
+        job.materialized_files.push(types::MaterializedSourceFile {
+            input_id: "input-1".to_string(),
+            title_id: "B000000001".to_string(),
+            path: root.path().join("book.m4b"),
+            size_bytes: 42,
+            sha256: "abc123".to_string(),
+        });
+        job.supplemental_assets.push(types::SupplementalAsset {
+            asset_id: "asset-1".to_string(),
+            input_id: "input-1".to_string(),
+            title_id: "B000000001".to_string(),
+            path: root.path().join("book.pdf"),
+            file_name: "Supplemental PDF.pdf".to_string(),
+            size_bytes: 24,
+            sha256: "def456".to_string(),
+        });
+        runtime
+            .inner
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(job_id.to_string(), job);
+
+        let cancelled = runtime
+            .cancel_acquisition(job_id)
+            .expect("cancel acquisition");
+
+        assert_eq!(cancelled.status, types::RemoteAcquisitionStatus::Cancelled);
+        assert!(cancelled.materialized_files.is_empty());
+        assert!(cancelled.supplemental_assets.is_empty());
+        let stored = runtime.acquisition_status(job_id).expect("job status");
+        assert!(stored.materialized_files.is_empty());
+        assert!(stored.supplemental_assets.is_empty());
+    }
+
+    #[test]
+    fn cancelled_job_cleanup_removes_session_files_without_removing_status() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "remote-job-2";
+        let job_dir = runtime
+            .inner
+            .staging
+            .create_job_dir(job_id)
+            .expect("job dir");
+        std::fs::write(job_dir.join("download.m4b"), b"payload").expect("write staged file");
+        runtime.inner.jobs.lock().expect("jobs lock").insert(
+            job_id.to_string(),
+            acquisition_job(job_id, types::RemoteAcquisitionStatus::Cancelled),
+        );
+
+        runtime.cleanup_cancelled_job_session(job_id);
+
+        assert!(!job_dir.exists());
+        assert_eq!(
+            runtime
+                .acquisition_status(job_id)
+                .expect("job status")
+                .status,
+            types::RemoteAcquisitionStatus::Cancelled
+        );
     }
 }

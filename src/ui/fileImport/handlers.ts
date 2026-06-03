@@ -12,6 +12,7 @@ import {
 	enterImportAnalysisWorkflow,
 	importOrderLockedMessage,
 	runImportAnalysisWorkflow,
+	type ImportAnalysisWorkflowResult,
 } from './importAnalysisWorkflow';
 import {
 	ImportAnalysisWorkflowLive,
@@ -25,6 +26,17 @@ export interface DragDropContext {
 }
 
 type Unlisten = () => void;
+
+export type ImportedAudioPathsResult = ImportAnalysisWorkflowResult;
+
+const genericImportBlockedMessage = 'Audio paths were not imported. Check the file import panel.';
+
+export function getImportedAudioPathsBlockedMessage(): string | null {
+	if (liveImportAnalysisWorkflowServices.isOrderLocked()) {
+		return importOrderLockedMessage();
+	}
+	return null;
+}
 
 export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 	const { getCoverArtArea, getFileManagementContainer, getVisibleFiles } = context;
@@ -147,15 +159,21 @@ export async function handleClickToSelectFolder(existingFiles: AudioFile[] = [])
 export async function handleImportedAudioPaths(
 	paths: string[],
 	existingFiles: AudioFile[] = [],
-): Promise<void> {
+): Promise<ImportedAudioPathsResult> {
+	const blockedMessage = getImportedAudioPathsBlockedMessage();
+	if (blockedMessage) {
+		const message = blockedMessage;
+		liveImportAnalysisWorkflowServices.setFileImportError(message);
+		return { status: 'blocked', message };
+	}
 	const currentFiles =
 		existingFiles.length > 0 ? existingFiles : (getCurrentFileList()?.files ?? []);
 	const action = { type: 'importPaths' as const, paths, existingFiles: currentFiles };
 	const preparedEntry = enterImportAnalysisWorkflow(liveImportAnalysisWorkflowServices, action);
 	if (!preparedEntry) {
-		return;
+		return { status: 'blocked', message: genericImportBlockedMessage };
 	}
-	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+	return runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
 }
 
 async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {

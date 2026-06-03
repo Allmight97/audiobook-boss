@@ -71,6 +71,7 @@ currently uses direct native commands, not a custom verification runner.
   `cargo nextest run -p audiobook-boss --test all_tests`,
   `bun run test`, and `bun run build`.
 - Focused Rust loops:
+  `cargo nextest run -p abb-media-core`,
   `cargo nextest run -p abb-metadata-core`,
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,

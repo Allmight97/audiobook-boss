@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { normalizeAppError } from '../../lib/tauri/appError';
 	import { tauriClient } from '../../lib/tauri/client';
 	import type {
 		AcquisitionJob,
@@ -8,7 +9,10 @@
 		RemoteSourceAccountState,
 		RemoteTitle,
 	} from '../../types/remoteSource';
-	import { handleImportedAudioPaths } from '../fileImport/handlers';
+	import {
+		getImportedAudioPathsBlockedMessage,
+		handleImportedAudioPaths,
+	} from '../fileImport/handlers';
 	import { getCurrentFileList } from '../fileList/state.svelte';
 	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
 	import { registerRemoteSourceSupplementalAssets } from './sessionAssets.svelte';
@@ -33,8 +37,9 @@
 	let lastJob = $state<AcquisitionJobWithProgress | null>(null);
 
 	function setError(cause: unknown, fallback: string): void {
-		console.error(fallback, cause);
-		statusMessage = cause instanceof Error ? cause.message : fallback;
+		const error = normalizeAppError(cause, fallback);
+		console.error(`${fallback} code=${error.code} category=${error.category}`);
+		statusMessage = error.code === 'unknown_error' ? fallback : error.message;
 	}
 
 	function delay(ms: number): Promise<void> {
@@ -61,6 +66,14 @@
 
 	function progressPercent(job: AcquisitionJobWithProgress): number {
 		return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
+	}
+
+	function clearedHandoffJob(job: AcquisitionJobWithProgress): AcquisitionJobWithProgress {
+		return {
+			...job,
+			materializedFiles: [],
+			supplementalAssets: [],
+		};
 	}
 
 	function bytesLabel(progress: AcquisitionProgress): string | null {
@@ -98,7 +111,15 @@
 	async function finishAcquisitionJob(job: AcquisitionJobWithProgress): Promise<void> {
 		const materializedPaths = job.materializedFiles.map((file) => file.path);
 		if (materializedPaths.length > 0) {
-			await handleImportedAudioPaths(materializedPaths);
+			const importResult = await handleImportedAudioPaths(materializedPaths);
+			if (importResult.status !== 'imported') {
+				await tauriClient.purgeRemoteSourceSession(job.jobId);
+				const cleanedJob = clearedHandoffJob(job);
+				activeJob = cleanedJob;
+				lastJob = cleanedJob;
+				statusMessage = `${importResult.message} Staged remote files were removed; retry acquisition after processing completes.`;
+				return;
+			}
 			registerRemoteSourceSupplementalAssets(job, getCurrentFileList());
 			statusMessage = `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`;
 		} else {
@@ -222,6 +243,12 @@
 	async function acquireSelected(): Promise<void> {
 		if (selectedTitleIds.size === 0) {
 			statusMessage = 'Select at least one Audible title.';
+			return;
+		}
+
+		const blockedMessage = getImportedAudioPathsBlockedMessage();
+		if (blockedMessage) {
+			statusMessage = blockedMessage;
 			return;
 		}
 

@@ -163,6 +163,88 @@ describe('file import handlers', () => {
 		dispose();
 	});
 
+	it('reports a blocked import-path handoff while file order is locked', async () => {
+		context.isOrderLockedMock.mockReturnValue(true);
+
+		const { handleImportedAudioPaths } = await import('../fileImport/handlers');
+		const result = await handleImportedAudioPaths(['/books/remote.m4b']);
+
+		expect(result).toEqual({
+			status: 'blocked',
+			message: 'Order locked while processing. Wait for completion to add files.',
+		});
+		expect(context.discoverAudioImportPathsMock).not.toHaveBeenCalled();
+		expect(context.analyzeAudioFilesMock).not.toHaveBeenCalled();
+		expect(fileImportUiState.errorMessage).toBe(
+			'Order locked while processing. Wait for completion to add files.',
+		);
+	});
+
+	it('reports an imported outcome for successful import-path handoff', async () => {
+		context.analyzeAudioFilesMock.mockResolvedValue({
+			files: [
+				{
+					path: '/books/remote.m4b',
+					size: 1,
+					duration: 1,
+					isValid: true,
+					bitrate: 64,
+					sampleRate: 44_100,
+					channels: 2,
+				},
+			],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		context.persistPendingDraftsMock.mockResolvedValue(true);
+
+		const { handleImportedAudioPaths } = await import('../fileImport/handlers');
+		const result = await handleImportedAudioPaths(['/books/remote.m4b']);
+
+		expect(result).toEqual({ status: 'imported' });
+		expect(context.discoverAudioImportPathsMock).toHaveBeenCalledWith(['/books/remote.m4b']);
+		expect(context.appendFileListMock).toHaveBeenCalled();
+	});
+
+	it('reports a blocked import-path handoff when no files are appended', async () => {
+		context.analyzeAudioFilesMock.mockResolvedValue({
+			files: [
+				{
+					path: '/books/duplicate.m4b',
+					size: 1,
+					duration: 1,
+					isValid: true,
+					bitrate: 64,
+					sampleRate: 44_100,
+					channels: 2,
+				},
+			],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		});
+		context.appendFileListMock.mockReturnValueOnce({
+			outcome: 'duplicateOnly',
+			fileList: null,
+			incomingFiles: [],
+			appendedFiles: [],
+			existingFiles: [],
+		});
+		context.persistPendingDraftsMock.mockResolvedValue(true);
+
+		const { handleImportedAudioPaths } = await import('../fileImport/handlers');
+		const result = await handleImportedAudioPaths(['/books/duplicate.m4b']);
+
+		expect(result).toEqual({
+			status: 'blocked',
+			message: 'No new files added. All analyzed files were already in the list.',
+		});
+		expect(context.appendFileListMock).toHaveBeenCalled();
+	});
+
 	it('defers queued OS-opened files until import order unlocks', async () => {
 		const listeners = new Map<string, (event: { payload: unknown }) => Promise<void> | void>();
 		let orderLockListener: ((locked: boolean) => void) | undefined;

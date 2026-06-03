@@ -35,6 +35,7 @@ const MARKETPLACE_ID: &str = "ATVPDKIKX0DER";
 const ACCOUNT_ID: &str = "audible-us";
 const AUTH_SECRET_KEY: &str = "audible.us.auth";
 const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_DOWNLOAD_REDIRECTS: usize = 5;
 
 struct AcquiredTitle {
     file: Option<MaterializedSourceFile>,
@@ -51,6 +52,17 @@ fn provider_private_failure(stage: &str) -> AppError {
     AppError::General(format!(
         "Audible {stage} failed. Provider-private details were withheld from UI and logs."
     ))
+}
+
+fn remote_acquisition_cancelled() -> AppError {
+    AppError::Cancellation("Remote source acquisition was cancelled.".to_string())
+}
+
+fn ensure_not_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<()> {
+    if is_cancelled() {
+        return Err(remote_acquisition_cancelled());
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -101,11 +113,7 @@ impl AudibleProvider {
         pending: PendingAudibleAuth,
         response_url: &str,
     ) -> Result<RemoteSourceAccountState> {
-        let authorization_code = extract_auth_code(response_url).map_err(|error| {
-            AppError::InvalidInput(format!(
-                "Audible auth response URL was not accepted: {error}"
-            ))
-        })?;
+        let authorization_code = extract_audible_auth_code(response_url)?;
         let registration = register(
             &authorization_code,
             &pending.code_verifier,
@@ -195,7 +203,9 @@ impl AudibleProvider {
         job_id: &str,
         job_dir: &Path,
         mut progress: impl FnMut(AcquisitionProgress),
+        is_cancelled: impl Fn() -> bool,
     ) -> Result<AcquisitionJob> {
+        ensure_not_cancelled(&is_cancelled)?;
         let client = client_from_vault(vault)?;
         let mut job = AcquisitionJob {
             job_id: job_id.to_string(),
@@ -208,6 +218,7 @@ impl AudibleProvider {
         };
 
         for selection in &plan.selections {
+            ensure_not_cancelled(&is_cancelled)?;
             match acquire_one(
                 &client,
                 &selection.title_id,
@@ -215,6 +226,7 @@ impl AudibleProvider {
                 job_id,
                 job_dir,
                 &mut progress,
+                &is_cancelled,
             )
             .await
             {
@@ -241,6 +253,9 @@ impl AudibleProvider {
                     });
                 }
                 Err(error) => {
+                    if matches!(error, AppError::Cancellation(_)) {
+                        return Err(error);
+                    }
                     job.diagnostics.push(RemoteSourceDiagnostic {
                         kind: RemoteAcquisitionFailureKind::MaterializationFailed,
                         title_id: Some(selection.title_id.clone()),
@@ -275,6 +290,15 @@ fn client_from_vault(vault: &dyn SecretVault) -> Result<AudibleClient> {
         .map_err(|error| AppError::General(format!("Failed to create Audible client: {error}")))
 }
 
+fn extract_audible_auth_code(response_url: &str) -> Result<String> {
+    extract_auth_code(response_url).map_err(|_| {
+        AppError::InvalidInput(
+            "Audible auth response URL was not accepted. Provide the final Amazon redirect URL saved by the auth handoff."
+                .to_string(),
+        )
+    })
+}
+
 async fn acquire_one(
     client: &AudibleClient,
     title_id: &str,
@@ -282,7 +306,9 @@ async fn acquire_one(
     job_id: &str,
     job_dir: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<AcquiredTitle> {
+    ensure_not_cancelled(is_cancelled)?;
     log::info!(
         "remote_source audible stage=title_start job_id={} title_ref={} include_pdf={}",
         job_id,
@@ -295,8 +321,9 @@ async fn acquire_one(
         None,
         None,
     ));
-    let supplemental_pdf_url = lookup_supplemental_pdf_url(client, title_id, include_pdf).await?;
-    let lane = request_license_lane(client, title_id, job_id, progress).await?;
+    let supplemental_pdf_url =
+        lookup_supplemental_pdf_url(client, title_id, include_pdf, is_cancelled).await?;
+    let lane = request_license_lane(client, title_id, job_id, progress, is_cancelled).await?;
     if let Some(deferred) = deferred_result_for_non_import_ready_lane(title_id, job_id, &lane) {
         return Ok(deferred);
     }
@@ -308,8 +335,10 @@ async fn acquire_one(
         title_id,
         job_dir,
         progress,
+        is_cancelled,
     )
     .await?;
+    ensure_not_cancelled(is_cancelled)?;
     progress(acquisition_progress(
         AcquisitionStage::Validation,
         Some(0.1),
@@ -317,9 +346,14 @@ async fn acquire_one(
         None,
     ));
     let file = validate_import_ready_download(title_id, &downloaded_path, lane.strategy, progress)?;
-    let (assets, diagnostics) =
-        download_supplemental_pdf_if_requested(title_id, &file, supplemental_pdf_url, job_dir)
-            .await;
+    let (assets, diagnostics) = download_supplemental_pdf_if_requested(
+        title_id,
+        &file,
+        supplemental_pdf_url,
+        job_dir,
+        is_cancelled,
+    )
+    .await?;
     Ok(AcquiredTitle {
         file: Some(file),
         assets,
@@ -331,7 +365,9 @@ async fn lookup_supplemental_pdf_url(
     client: &AudibleClient,
     title_id: &str,
     include_pdf: bool,
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<Option<String>> {
+    ensure_not_cancelled(is_cancelled)?;
     let metadata = client
         .get_library_item_by_asin(
             title_id,
@@ -341,6 +377,7 @@ async fn lookup_supplemental_pdf_url(
         )
         .await
         .map_err(|_| provider_private_failure("title lookup"))?;
+    ensure_not_cancelled(is_cancelled)?;
     Ok(include_pdf
         .then(|| {
             find_first_string_for_key(&metadata, "pdf_url")
@@ -354,7 +391,9 @@ async fn request_license_lane(
     title_id: &str,
     job_id: &str,
     progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<LicenseLane> {
+    ensure_not_cancelled(is_cancelled)?;
     progress(acquisition_progress(
         AcquisitionStage::License,
         Some(0.45),
@@ -363,6 +402,7 @@ async fn request_license_lane(
     ));
     let license_payload = license_request_payload();
     let license = post_license_request_json(client, title_id, &license_payload, job_id).await?;
+    ensure_not_cancelled(is_cancelled)?;
     let facts = license_facts_from_value(&license);
     let strategy = choose_acquisition_strategy(&facts);
     log_license_facts(job_id, title_id, &facts, strategy);
@@ -481,20 +521,28 @@ async fn download_supplemental_pdf_if_requested(
     file: &MaterializedSourceFile,
     supplemental_pdf_url: Option<String>,
     job_dir: &Path,
-) -> (Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>) {
+    is_cancelled: &impl Fn() -> bool,
+) -> Result<(Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>)> {
     let mut assets = Vec::new();
     let mut diagnostics = Vec::new();
     if let Some(pdf_url) = supplemental_pdf_url {
-        match download_pdf(title_id, &file.input_id, &pdf_url, job_dir).await {
+        ensure_not_cancelled(is_cancelled)?;
+        match download_pdf(title_id, &file.input_id, &pdf_url, job_dir, is_cancelled).await {
             Ok(asset) => assets.push(asset),
-            Err(error) => diagnostics.push(RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
-                title_id: Some(title_id.to_string()),
-                message: error.to_string(),
-            }),
+            Err(AppError::Cancellation(message)) => {
+                return Err(AppError::Cancellation(message));
+            }
+            Err(error) => {
+                diagnostics.push(RemoteSourceDiagnostic {
+                    kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
+                    title_id: Some(title_id.to_string()),
+                    message: error.to_string(),
+                });
+            }
         }
     }
-    (assets, diagnostics)
+    ensure_not_cancelled(is_cancelled)?;
+    Ok((assets, diagnostics))
 }
 
 async fn download_audio(
@@ -504,7 +552,9 @@ async fn download_audio(
     title_id: &str,
     job_dir: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<std::path::PathBuf> {
+    ensure_not_cancelled(is_cancelled)?;
     fs::create_dir_all(job_dir)?;
     let path = generated_staging_path(job_dir, extension);
     log::info!(
@@ -513,7 +563,11 @@ async fn download_audio(
         title_ref(title_id),
         extension
     );
-    download_to_path(content_url, &path, progress).await?;
+    download_to_path(content_url, &path, progress, is_cancelled).await?;
+    if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
+        cleanup_download_artifacts(&path)?;
+        return Err(error);
+    }
     log::info!(
         "remote_source audible stage=download_complete job_id={} title_ref={} extension={}",
         job_id,
@@ -595,11 +649,17 @@ async fn download_pdf(
     input_id: &str,
     url: &str,
     job_dir: &Path,
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<SupplementalAsset> {
+    ensure_not_cancelled(is_cancelled)?;
     fs::create_dir_all(job_dir)?;
     let path = generated_staging_path(job_dir, "pdf");
     let mut ignore_progress = |_progress: AcquisitionProgress| {};
-    download_to_path(url, &path, &mut ignore_progress).await?;
+    download_to_path(url, &path, &mut ignore_progress, is_cancelled).await?;
+    if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
+        cleanup_download_artifacts(&path)?;
+        return Err(error);
+    }
     let bytes = fs::read(&path)?;
     if !bytes.starts_with(b"%PDF-") {
         return Err(AppError::FileValidation(
@@ -634,17 +694,23 @@ async fn download_to_path(
     url: &str,
     path: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<()> {
+    ensure_not_cancelled(is_cancelled)?;
     let parsed = reqwest::Url::parse(url).map_err(|_| provider_private_failure("download URL"))?;
-    if !matches!(parsed.scheme(), "https" | "http") {
+    if parsed.scheme() != "https" {
         return Err(AppError::InvalidInput(
-            "Remote source download URL must use http or https.".to_string(),
+            "Remote source download URL must use https.".to_string(),
         ));
     }
 
     let partial_path = partial_download_path(path);
-    let result = download_to_partial_path(parsed, &partial_path, progress).await;
+    let result = download_to_partial_path(parsed, &partial_path, progress, is_cancelled).await;
     if let Err(error) = result {
+        let _ = tokio::fs::remove_file(&partial_path).await;
+        return Err(error);
+    }
+    if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         let _ = tokio::fs::remove_file(&partial_path).await;
         return Err(error);
     }
@@ -782,10 +848,16 @@ async fn download_to_partial_path(
     url: reqwest::Url,
     path: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
 ) -> Result<()> {
-    let response = reqwest::get(url)
+    ensure_not_cancelled(is_cancelled)?;
+    let client = remote_download_client()?;
+    let response = client
+        .get(url)
+        .send()
         .await
         .map_err(|_| provider_private_failure("download request"))?;
+    ensure_not_cancelled(is_cancelled)?;
     if !response.status().is_success() {
         return Err(AppError::General(format!(
             "Remote source download returned HTTP {}",
@@ -805,6 +877,7 @@ async fn download_to_partial_path(
         .await
         .map_err(|_| provider_private_failure("download read"))?
     {
+        ensure_not_cancelled(is_cancelled)?;
         bytes_downloaded += chunk.len() as u64;
         file.write_all(&chunk).await?;
         let fraction = bytes_total
@@ -818,8 +891,25 @@ async fn download_to_partial_path(
             bytes_total,
         ));
     }
+    ensure_not_cancelled(is_cancelled)?;
     file.sync_all().await?;
     Ok(())
+}
+
+fn remote_download_client() -> Result<reqwest::Client> {
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= MAX_DOWNLOAD_REDIRECTS {
+            return attempt.error("remote source download exceeded redirect limit");
+        }
+        if attempt.url().scheme() != "https" {
+            return attempt.error("remote source download redirect must use https");
+        }
+        attempt.follow()
+    });
+    reqwest::Client::builder()
+        .redirect(redirect_policy)
+        .build()
+        .map_err(|_| provider_private_failure("download client"))
 }
 
 fn generated_staging_path(job_dir: &Path, extension: &str) -> std::path::PathBuf {
@@ -914,6 +1004,55 @@ mod tests {
             partial_download_path(path),
             Path::new("/tmp/book.m4b.partial")
         );
+    }
+
+    #[tokio::test]
+    async fn download_to_path_rejects_cleartext_urls_without_fetching() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let target = root.path().join("book.m4b");
+        let mut ignore_progress = |_progress: AcquisitionProgress| {};
+
+        let error = download_to_path(
+            "http://provider.example/book.m4b?token=fake-secret",
+            &target,
+            &mut ignore_progress,
+            &|| false,
+        )
+        .await
+        .expect_err("cleartext URL rejected");
+
+        assert!(error.to_string().contains("must use https"));
+        assert!(!error.to_string().contains("fake-secret"));
+        assert!(!target.exists());
+        assert!(!partial_download_path(&target).exists());
+    }
+
+    #[test]
+    fn cancellation_guard_returns_cancellation_error() {
+        let error = ensure_not_cancelled(&|| true).expect_err("cancelled");
+
+        assert!(matches!(error, AppError::Cancellation(_)));
+        assert!(error
+            .to_string()
+            .contains("Remote source acquisition was cancelled"));
+    }
+
+    #[test]
+    fn cancellation_guard_allows_active_acquisition() {
+        ensure_not_cancelled(&|| false).expect("active acquisition");
+    }
+
+    #[test]
+    fn auth_code_extraction_error_does_not_expose_response_url() {
+        let response_url = "not-a-url token=fake-secret license=fake-license";
+
+        let error = extract_audible_auth_code(response_url).expect_err("invalid response URL");
+        let message = error.to_string();
+
+        assert!(message.contains("Audible auth response URL was not accepted"));
+        assert!(!message.contains("fake-secret"));
+        assert!(!message.contains("fake-license"));
+        assert!(!message.contains(response_url));
     }
 
     #[test]

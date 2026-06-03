@@ -12,8 +12,10 @@ const context = vi.hoisted(() => ({
 	loadRemoteSourceLibraryMock: vi.fn(),
 	startRemoteSourceAcquisitionMock: vi.fn(),
 	getRemoteSourceAcquisitionStatusMock: vi.fn(),
+	purgeRemoteSourceSessionMock: vi.fn(),
 	openUrlMock: vi.fn(),
 	handleImportedAudioPathsMock: vi.fn(),
+	getImportedAudioPathsBlockedMessageMock: vi.fn(),
 	registerRemoteSourceSupplementalAssetsMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
 }));
@@ -24,11 +26,13 @@ vi.mock('../../lib/tauri/client', () => ({
 		loadRemoteSourceLibrary: context.loadRemoteSourceLibraryMock,
 		startRemoteSourceAcquisition: context.startRemoteSourceAcquisitionMock,
 		getRemoteSourceAcquisitionStatus: context.getRemoteSourceAcquisitionStatusMock,
+		purgeRemoteSourceSession: context.purgeRemoteSourceSessionMock,
 		openUrl: context.openUrlMock,
 	},
 }));
 
 vi.mock('../fileImport/handlers', () => ({
+	getImportedAudioPathsBlockedMessage: context.getImportedAudioPathsBlockedMessageMock,
 	handleImportedAudioPaths: context.handleImportedAudioPathsMock,
 }));
 
@@ -134,8 +138,13 @@ describe('RemoteSourceAcquireIsland progress', () => {
 					],
 				}),
 			);
+		context.purgeRemoteSourceSessionMock.mockReset();
+		context.purgeRemoteSourceSessionMock.mockResolvedValue(null);
 		context.openUrlMock.mockReset();
 		context.handleImportedAudioPathsMock.mockReset();
+		context.handleImportedAudioPathsMock.mockResolvedValue({ status: 'imported' });
+		context.getImportedAudioPathsBlockedMessageMock.mockReset();
+		context.getImportedAudioPathsBlockedMessageMock.mockReturnValue(null);
 		context.registerRemoteSourceSupplementalAssetsMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
 	});
@@ -181,5 +190,89 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		expect(screen.getAllByText('Acquisition failed.').length).toBeGreaterThan(0);
 		expect(screen.getByText(/Audible decryption is not available/)).toBeTruthy();
 		expect(document.body.textContent).not.toContain('fake-secret');
+	});
+
+	it('redacts unknown provider-boundary errors from status text and console logs', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		context.getRemoteSourceAccountStateMock.mockRejectedValueOnce(
+			new Error('token=fake-secret license=fake-license'),
+		);
+		remoteSourceAcquireState.isOpen = true;
+
+		try {
+			render(RemoteSourceAcquireDialog);
+
+			await screen.findByText('Failed to load remote source state.');
+			const consoleOutput = consoleError.mock.calls.flat().join(' ');
+			expect(document.body.textContent).not.toContain('fake-secret');
+			expect(document.body.textContent).not.toContain('fake-license');
+			expect(consoleOutput).toContain('Failed to load remote source state.');
+			expect(consoleOutput).toContain('code=unknown_error');
+			expect(consoleOutput).not.toContain('fake-secret');
+			expect(consoleOutput).not.toContain('fake-license');
+		} finally {
+			consoleError.mockRestore();
+		}
+	});
+
+	it('does not start acquisition while file import handoff is order-locked', async () => {
+		const user = userEvent.setup();
+		context.getImportedAudioPathsBlockedMessageMock.mockReturnValue(
+			'Order locked while processing. Wait for completion to add files.',
+		);
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		expect(context.startRemoteSourceAcquisitionMock).not.toHaveBeenCalled();
+		expect(
+			screen.getByText('Order locked while processing. Wait for completion to add files.'),
+		).toBeTruthy();
+	});
+
+	it('does not report import success when file import handoff is blocked after acquisition', async () => {
+		const user = userEvent.setup();
+		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
+			acquisitionJob({
+				status: 'validated',
+				materializedFiles: [
+					{
+						inputId: 'input-1',
+						titleId: 'B000000001',
+						path: '/tmp/remote/book.m4b',
+						sizeBytes: 42,
+						sha256: 'abc123',
+					},
+				],
+				progress: {
+					stage: 'importHandoff',
+					percentage: 100,
+					message: 'Ready for import.',
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					terminal: true,
+				},
+			}),
+		);
+		context.handleImportedAudioPathsMock.mockResolvedValueOnce({
+			status: 'blocked',
+			message: 'Order locked while processing. Wait for completion to add files.',
+		});
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		await screen.findByText(/Order locked while processing\. Wait for completion to add files\./);
+		expect(context.handleImportedAudioPathsMock).toHaveBeenCalledWith(['/tmp/remote/book.m4b']);
+		expect(context.purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
+		expect(context.registerRemoteSourceSupplementalAssetsMock).not.toHaveBeenCalled();
+		expect(document.body.textContent).not.toContain('acquired title imported');
+		expect(document.body.textContent).toContain('Staged remote files were removed');
 	});
 });

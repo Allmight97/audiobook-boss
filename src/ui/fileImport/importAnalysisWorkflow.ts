@@ -66,6 +66,18 @@ export type PreparedImportAnalysisWorkflowEntry =
 			readonly existingFiles: AudioFile[];
 	  };
 
+export type ImportAnalysisWorkflowResult =
+	| { status: 'imported' }
+	| { status: 'blocked'; message: string };
+
+function importedResult(): ImportAnalysisWorkflowResult {
+	return { status: 'imported' };
+}
+
+function blockedResult(message: string): ImportAnalysisWorkflowResult {
+	return { status: 'blocked', message };
+}
+
 function workflowFailure(message: string, cause: unknown): ImportAnalysisWorkflowFailed {
 	return new ImportAnalysisWorkflowFailed({ message, cause });
 }
@@ -126,53 +138,59 @@ function stageAndAppendAnalyzedFiles(
 	services: ImportAnalysisWorkflowServices,
 	fileListInfo: FileListInfo,
 	existingFiles: AudioFile[],
-): AppEffect<void, never> {
+): AppEffect<ImportAnalysisWorkflowResult, never> {
 	return Effect.gen(function* () {
 		const staged = yield* stagePendingMetadataDrafts(services);
 		if (!staged) {
-			services.setFileImportError('Fix metadata validation errors before adding files.');
-			return;
+			const message = 'Fix metadata validation errors before adding files.';
+			services.setFileImportError(message);
+			return blockedResult(message);
 		}
 
 		const appendOutcome = appendAnalyzedFiles(services, fileListInfo, existingFiles);
-		if (appendOutcome !== 'duplicateOnly') {
-			services.clearFileImportError();
+		if (appendOutcome === 'duplicateOnly') {
+			return blockedResult(duplicateOnlyImportMessage());
 		}
+		services.clearFileImportError();
+		return importedResult();
 	});
 }
 
 function processAnalyzedFileList(
 	evaluateFileListInfo: () => ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		const fileListInfo = yield* analyzeFileListInfo(services, evaluateFileListInfo);
 		if (!fileListInfo) {
-			return;
+			return blockedResult('Failed to analyze files. Please try again.');
 		}
 
-		yield* stageAndAppendAnalyzedFiles(services, fileListInfo, existingFiles);
+		return yield* stageAndAppendAnalyzedFiles(services, fileListInfo, existingFiles);
 	});
 }
 
 function processFilePaths(
 	filePaths: string[],
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		if (filePaths.length === 0) {
-			return;
+			return blockedResult('No audio files selected.');
 		}
 
 		const services = yield* ImportAnalysisWorkflowServicesTag;
-		yield* processAnalyzedFileList(() => services.analyzeAudioFiles(filePaths), existingFiles);
+		return yield* processAnalyzedFileList(
+			() => services.analyzeAudioFiles(filePaths),
+			existingFiles,
+		);
 	});
 }
 
 function reportUnsupportedImport(
 	services: ImportAnalysisWorkflowServices,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const metadata = yield* workflowPromise(
 			() => services.getSupportedAudioImportMetadata(),
@@ -186,31 +204,33 @@ function reportUnsupportedImport(
 		);
 
 		if (metadata) {
-			services.setFileImportError(unsupportedImportMessage(metadata));
+			const message = unsupportedImportMessage(metadata);
+			services.setFileImportError(message);
+			return blockedResult(message);
 		}
+		return blockedResult('Failed to load supported audio formats. Please try again.');
 	});
 }
 
 function processDiscoveredPaths(
 	discoveredPaths: string[],
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 
 		if (discoveredPaths.length === 0) {
-			yield* reportUnsupportedImport(services);
-			return;
+			return yield* reportUnsupportedImport(services);
 		}
 
-		yield* processFilePaths(discoveredPaths, existingFiles);
+		return yield* processFilePaths(discoveredPaths, existingFiles);
 	});
 }
 
 function discoverAndProcessPaths(
 	paths: string[],
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		const discoveredPaths = yield* workflowPromise(
@@ -225,45 +245,51 @@ function discoverAndProcessPaths(
 		);
 
 		if (!discoveredPaths) {
-			return;
+			return blockedResult('Failed to discover audio files. Please try again.');
 		}
 
-		yield* processDiscoveredPaths(discoveredPaths, existingFiles);
+		return yield* processDiscoveredPaths(discoveredPaths, existingFiles);
 	});
 }
 
 function processPreparedFileList(
 	fileListInfoPromise: ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return processAnalyzedFileList(() => fileListInfoPromise, existingFiles);
 }
 
 function clickToSelect(
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		if (services.isOrderLocked()) {
-			services.setFileImportError(importOrderLockedMessage());
-			return;
+			const message = importOrderLockedMessage();
+			services.setFileImportError(message);
+			return blockedResult(message);
 		}
 
-		yield* processSelectedFiles(services, () => openSupportedAudioFiles(services), existingFiles);
+		return yield* processSelectedFiles(
+			services,
+			() => openSupportedAudioFiles(services),
+			existingFiles,
+		);
 	});
 }
 
 function clickToSelectFolder(
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		if (services.isOrderLocked()) {
-			services.setFileImportError(importOrderLockedMessage());
-			return;
+			const message = importOrderLockedMessage();
+			services.setFileImportError(message);
+			return blockedResult(message);
 		}
 
-		yield* processSelectedFolder(services, () => services.openDirectory(), existingFiles);
+		return yield* processSelectedFolder(services, () => services.openDirectory(), existingFiles);
 	});
 }
 
@@ -286,7 +312,7 @@ function processSelectedFiles(
 	services: ImportAnalysisWorkflowServices,
 	evaluateSelectedPaths: () => ReturnType<ImportAnalysisWorkflowServices['openFiles']>,
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const selected = yield* workflowPromise(
 			evaluateSelectedPaths,
@@ -300,8 +326,9 @@ function processSelectedFiles(
 		);
 
 		if (Array.isArray(selected) && selected.length > 0) {
-			yield* discoverAndProcessPaths(selected, existingFiles);
+			return yield* discoverAndProcessPaths(selected, existingFiles);
 		}
+		return blockedResult('No audio files selected.');
 	});
 }
 
@@ -309,7 +336,7 @@ function processSelectedFolder(
 	services: ImportAnalysisWorkflowServices,
 	evaluateSelectedPath: () => ReturnType<ImportAnalysisWorkflowServices['openDirectory']>,
 	existingFiles: AudioFile[],
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const selected = yield* workflowPromise(
 			evaluateSelectedPath,
@@ -323,17 +350,18 @@ function processSelectedFolder(
 		);
 
 		if (selected) {
-			yield* discoverAndProcessPaths([selected], existingFiles);
+			return yield* discoverAndProcessPaths([selected], existingFiles);
 		}
+		return blockedResult('No audio files selected.');
 	});
 }
 
 function clickToSelectFromPrepared(
 	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openFiles' }>,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
-		yield* processSelectedFiles(
+		return yield* processSelectedFiles(
 			services,
 			() => preparedEntry.selectedPaths,
 			preparedEntry.existingFiles,
@@ -343,10 +371,10 @@ function clickToSelectFromPrepared(
 
 function clickToSelectFolderFromPrepared(
 	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'openDirectory' }>,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
-		yield* processSelectedFolder(
+		return yield* processSelectedFolder(
 			services,
 			() => preparedEntry.selectedPath,
 			preparedEntry.existingFiles,
@@ -356,7 +384,7 @@ function clickToSelectFolderFromPrepared(
 
 function importPathsFromPrepared(
 	preparedEntry: Extract<PreparedImportAnalysisWorkflowEntry, { type: 'discoverPaths' }>,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ImportAnalysisWorkflowServicesTag;
 		const discoveredPaths = yield* workflowPromise(
@@ -371,15 +399,16 @@ function importPathsFromPrepared(
 		);
 
 		if (discoveredPaths) {
-			yield* processDiscoveredPaths(discoveredPaths, preparedEntry.existingFiles);
+			return yield* processDiscoveredPaths(discoveredPaths, preparedEntry.existingFiles);
 		}
+		return blockedResult('Failed to discover audio files. Please try again.');
 	});
 }
 
 function importAnalysisWorkflowBody(
 	action: ImportAnalysisWorkflowAction,
 	preparedEntry?: PreparedImportAnalysisWorkflowEntry,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	if (preparedEntry?.type === 'openFiles') {
 		return clickToSelectFromPrepared(preparedEntry);
 	}
@@ -452,7 +481,7 @@ export function enterImportAnalysisWorkflow(
 
 export function importAnalysisWorkflowExecution(
 	action: ImportAnalysisWorkflowAction,
-): AppEffect<void, never, ImportAnalysisWorkflowServicesId> {
+): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
 	return importAnalysisWorkflowBody(action);
 }
 
@@ -460,7 +489,7 @@ export async function runImportAnalysisWorkflow(
 	action: ImportAnalysisWorkflowAction,
 	layer?: ImportAnalysisWorkflowLayer,
 	preparedEntry?: PreparedImportAnalysisWorkflowEntry,
-): Promise<void> {
+): Promise<ImportAnalysisWorkflowResult> {
 	const workflowLayer = layer ?? ImportAnalysisWorkflowLive;
 	return runAppEffect(
 		importAnalysisWorkflowBody(action, preparedEntry).pipe(Effect.provide(workflowLayer)),

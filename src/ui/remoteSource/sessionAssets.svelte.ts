@@ -1,5 +1,6 @@
 import type { AudioFile, FileListInfo, SupplementalProcessingAsset } from '../../types/audio';
 import type { ProcessCommandResult } from '../../types/audio';
+import { normalizeAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource';
 
@@ -81,16 +82,38 @@ export function removeRemoteSourceSupplementalAssets(
 	jobIdsByInputId = nextJobs;
 }
 
+function registeredInputIdsForJob(jobId: string): string[] {
+	return Object.entries(jobIdsByInputId)
+		.filter(([, registeredJobId]) => registeredJobId === jobId)
+		.map(([inputId]) => inputId);
+}
+
+function jobIsReadyForSessionPurge(jobId: string, inputIdsToRemove: Set<string>): boolean {
+	const registeredInputIds = registeredInputIdsForJob(jobId);
+	return (
+		registeredInputIds.length > 0 &&
+		registeredInputIds.every((inputId) => inputIdsToRemove.has(inputId))
+	);
+}
+
 export async function purgeRemoteSourceSessionsForInputIds(
 	inputIds: readonly (string | undefined)[],
 ): Promise<void> {
-	const ids = inputIds.filter((inputId): inputId is string => Boolean(inputId));
-	const jobIds = Array.from(new Set(ids.flatMap((inputId) => jobIdsByInputId[inputId] ?? [])));
+	const ids = Array.from(
+		new Set(inputIds.filter((inputId): inputId is string => Boolean(inputId))),
+	);
+	const idsToRemove = new Set(ids);
+	const jobIds = Array.from(
+		new Set(ids.flatMap((inputId) => jobIdsByInputId[inputId] ?? [])),
+	).filter((jobId) => jobIsReadyForSessionPurge(jobId, idsToRemove));
 	for (const jobId of jobIds) {
 		try {
 			await tauriClient.purgeRemoteSourceSession(jobId);
 		} catch (cause) {
-			console.warn('Failed to purge remote source session:', jobId, cause);
+			const error = normalizeAppError(cause, 'Failed to purge remote source session.');
+			console.warn(
+				`Failed to purge remote source session: ${jobId} code=${error.code} category=${error.category}`,
+			);
 		}
 	}
 	removeRemoteSourceSupplementalAssets(ids);
