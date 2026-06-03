@@ -16,6 +16,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import {
 	assertSupportedMacOsHost,
+	buildTauriApp,
 	ensureFeatureArg,
 	findForbiddenLinkedLibraries,
 	findUnsupportedMacOsArchitectures,
@@ -244,6 +245,57 @@ describe('ensureFeatureArg', () => {
 			'--features',
 			'custom-protocol,bundled-ffmpeg',
 		]);
+	});
+});
+
+describe('buildTauriApp', () => {
+	it('forces noninteractive Finder-free DMG packaging when requested', () => {
+		const calls: Array<{
+			args: string[];
+			command: string;
+			env?: NodeJS.ProcessEnv;
+			stdio?: unknown;
+		}> = [];
+		const commandRunner = ((
+			command: string,
+			args: string[],
+			options?: { env?: NodeJS.ProcessEnv; stdio?: unknown },
+		) => {
+			calls.push({ command, args, env: options?.env, stdio: options?.stdio });
+			return { status: 0 };
+		}) as typeof spawnSync;
+
+		buildTauriApp('/repo', ['--bundles', 'dmg'], {
+			commandRunner,
+			nonInteractiveDmg: true,
+		});
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toMatchObject({
+			args: ['run', 'tauri', 'build', '--bundles', 'dmg', '--features', 'bundled-ffmpeg'],
+			command: 'bun',
+			stdio: 'inherit',
+		});
+		expect(calls[0]?.env?.CI).toBe('true');
+	});
+
+	it('leaves CI untouched for non-DMG app builds', () => {
+		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
+		const commandRunner = ((
+			_command: string,
+			_args: string[],
+			options?: { env?: NodeJS.ProcessEnv },
+		) => {
+			calls.push({ env: options?.env });
+			return { status: 0 };
+		}) as typeof spawnSync;
+
+		buildTauriApp('/repo', ['--bundles', 'app'], {
+			commandRunner,
+			nonInteractiveDmg: false,
+		});
+
+		expect(calls[0]?.env).toBe(process.env);
 	});
 });
 

@@ -33,6 +33,11 @@ interface BundlePaths {
 type ApplicationsLinkOutcome = 'created' | 'updated' | 'skipped';
 type RequestedBundle = 'app' | 'dmg';
 
+interface BuildTauriAppOptions {
+	commandRunner?: typeof spawnSync;
+	nonInteractiveDmg?: boolean;
+}
+
 interface LinkFsOps {
 	lstatSync: typeof lstatSync;
 	mkdirSync: typeof mkdirSync;
@@ -174,12 +179,26 @@ export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundl
 	return bundles;
 }
 
-export function buildTauriApp(repoRoot: string, buildArgs: string[]): void {
+export function buildTauriApp(
+	repoRoot: string,
+	buildArgs: string[],
+	options: BuildTauriAppOptions = {},
+): void {
 	const tauriArgs = ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg');
-	const result = spawnSync('bun', ['run', 'tauri', 'build', ...tauriArgs], {
-		cwd: repoRoot,
-		stdio: 'inherit',
-	});
+	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
+	if (options.nonInteractiveDmg) {
+		console.log('[build-app] DMG build is noninteractive; Tauri will skip Finder styling.');
+	}
+
+	const result = (options.commandRunner ?? spawnSync)(
+		'bun',
+		['run', 'tauri', 'build', ...tauriArgs],
+		{
+			cwd: repoRoot,
+			env,
+			stdio: 'inherit',
+		},
+	);
 
 	if (typeof result.status === 'number' && result.status !== 0) {
 		process.exit(result.status);
@@ -422,7 +441,7 @@ function main(): void {
 	const requestedBundles = resolveRequestedBundles(buildArgs);
 
 	assertSupportedMacOsHost();
-	buildTauriApp(repoRoot, buildArgs);
+	buildTauriApp(repoRoot, buildArgs, { nonInteractiveDmg: requestedBundles.has('dmg') });
 
 	if (process.platform !== 'darwin') {
 		return;

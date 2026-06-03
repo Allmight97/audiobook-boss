@@ -78,10 +78,11 @@ default broad review route.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`
   when investigating compile cost.
-- Release: use `.agents/skills/release`.
+- Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
-  `bun run app:build` builds a repo-local `.app`; `bun run app:install-local`
-  installs `/Applications/AudioBook Boss.app`; `bun run app:build:dmg` builds a DMG.
+  `bun run app:install-local` is the developer-install lane and silently
+  replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
+  repo-local `.app`; `bun run app:build:dmg` builds a noninteractive public DMG.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.
 
 ## Project Operation

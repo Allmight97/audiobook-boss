@@ -43,8 +43,10 @@ commands over invoking internals directly.
 - Runtime boundary changes: run the generated binding check, the generated
   Tauri runtime-boundary check, or targeted contract tests for the owning public
   surface.
-- Build/release artifact changes: use the release skill's artifact commands.
-  Do not convert release work into a broad test mandate by default.
+- Build/release artifact changes: use the release skill's lane commands.
+  Developer install replaces `/Applications/AudioBook Boss.app`; public release
+  builds a verified noninteractive DMG. Do not convert release work into a broad
+  test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
