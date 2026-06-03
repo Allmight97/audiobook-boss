@@ -118,5 +118,5 @@ When one appears, name the affected boundary, state the current assumption used 
 
 - Sample-buffer, resampler, or encoder-boundary changes include focused regression coverage for channel preservation and tail/frame behavior.
 - Native AAC changes include a real-media probe when feasible: output codec/profile, sample rate, channels, duration, and at least one channel-level sanity check such as RMS/peak parity.
-- Audio correctness fixes run the direct review matrix before being presented as done.
+- Audio correctness fixes run the focused audio/runtime checks warranted by the touched boundary before being presented as done; escalate only when the change crosses owners or uses real-media behavior the focused checks cannot prove.
 - Final notes distinguish structural correctness from subjective encoder quality when discussing Native AAC artifacts.

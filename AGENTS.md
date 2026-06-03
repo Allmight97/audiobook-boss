@@ -82,7 +82,7 @@
 | Edited skills | Run the touched skill validator, including `quick_validate.py` where applicable |
 | Owned module import/export surface changes | `scripts/check-public-api-strips.sh`; update nearest `AGENTS.md` and matching contract tests for intentional surface changes |
 | Tooling/scripts local only | Targeted script/test for the touched surface first |
-| Runtime/IPC/contracts/build/deps | Direct command matrix in `README.md`/`scripts/AGENTS.md`, plus focused contract/regression coverage |
+| Runtime/IPC/contracts/build/deps | Owner-scoped command menu in `README.md`/`scripts/AGENTS.md`, plus focused contract/regression coverage |
 | UI behavior | Targeted deterministic tests plus visual/human review when static tests cannot prove UX |
 | Release/version/changelog/tag/DMG | Use `.agents/skills/release`; prove launcher-visible install/DMG/GitHub Release surface as applicable |
 
