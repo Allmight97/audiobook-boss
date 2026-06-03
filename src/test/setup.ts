@@ -344,8 +344,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 				return Promise.resolve('cancel requested');
 			}
 			default:
-				console.warn(`[Test Mock] Unhandled invoke: ${cmd}`);
-				return Promise.resolve(undefined);
+				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
 	}),
 	Channel: class MockChannel {

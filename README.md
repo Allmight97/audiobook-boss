@@ -52,7 +52,7 @@ touched.
 Human index for common commands. `package.json` owns shortcuts and
 `scripts/AGENTS.md` owns the exact fresh-agent verification command menu. ABB
 currently uses direct native commands, not a custom verification runner or a
-default full review matrix.
+default broad review route.
 
 - Core dev: `bun run tauri dev`, `bun run build`
 - Verification is owner-scoped by default. Run the smallest native command that
@@ -67,11 +67,11 @@ default full review matrix.
   `cargo nextest run -p audiobook-boss --lib`, or
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Focused frontend loops: `bun run test -- <test files>`.
-- Policy checks: `scripts/check-generated-bindings.sh --mode local`,
-  `scripts/check-fallback-policy.sh`, and `scripts/check-no-bridge-imports.sh`.
-  Run standalone when touching those rule sets directly.
+- IPC/boundary checks: `scripts/check-generated-bindings.sh --mode local` and
+  `bun scripts/check-generated-tauri-imports.ts`. Run standalone when touching
+  generated bindings or generated command/event import boundaries directly.
 - Dependency hygiene: `bun run audit`
-  It is not part of the normal review matrix.
+  It is not part of the normal review path.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.

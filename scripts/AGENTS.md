@@ -1,13 +1,13 @@
 # Scripts Boundary
 
-This directory owns repo-local tooling: boundary assertions, build/release
+This directory owns repo-local tooling: narrow contract checks, build/release
 helpers, and diagnostics. Prefer `package.json` scripts or documented direct
 commands over invoking internals directly.
 
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
-- There is no repo-owned verification runner and no default full review matrix.
+- There is no repo-owned verification runner and no default broad review route.
   Run native commands directly, one at a time, only for the touched owner or
   explicit risk surface. Report the command, elapsed time when meaningful, exit
   code, failing test/script line, and residual risk.
@@ -40,10 +40,8 @@ commands over invoking internals directly.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local` and targeted
   `tauriClient`/contract Vitest files.
-- Boundary/policy changes: run the specific touched checker:
-  `bash scripts/check-no-bridge-imports.sh`,
-  `bash scripts/check-fallback-policy.sh`, or targeted contract tests for the
-  owning public surface.
+- Runtime boundary changes: run the generated binding check, the generated
+  Tauri import check, or targeted contract tests for the owning public surface.
 - Build/release artifact changes: use the release skill's artifact commands.
   Do not convert release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
@@ -52,10 +50,12 @@ commands over invoking internals directly.
 
 ## Script Families
 
-- `check-*.sh` and `check-generated-tauri-imports.ts`: boundary and policy assertions.
+- `check-generated-bindings.sh`: IPC binding drift detection.
+- `check-generated-tauri-imports.ts`: generated command/event import boundary.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
   `bump-version.sh`: build/release utilities.
-- `analyze_code_lines.py`: diagnostic source-size scanner.
+- `analyze_code_lines.py`: optional human "Commander View" source-size
+  diagnostic, not proof.
 - `*.test.ts`: Vitest coverage for script helpers.
 
 ## Edit Rules

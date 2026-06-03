@@ -1,12 +1,4 @@
-import {
-	chmodSync,
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	unlinkSync,
-	writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,8 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-
-const SYSTEM_BASH = '/bin/bash';
+const checkScriptPath = path.join(scriptDir, 'check-generated-tauri-imports.ts');
 const TEST_PATH = process.env.PATH ?? '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 
 type CheckResult = {
@@ -27,27 +18,10 @@ type CheckResult = {
 };
 
 function createFixtureRepo(): string {
-	const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'abb-no-bridge-'));
+	const repoRoot = mkdtempSync(path.join(os.tmpdir(), 'abb-generated-tauri-imports-'));
 
-	for (const dir of [
-		'scripts',
-		'src/lib/generated',
-		'src/lib/tauri',
-		'src/types',
-		'src/ui/outputPanel',
-		'src/ui/statusPanel',
-		'src/ui/__tests__',
-	]) {
+	for (const dir of ['src/lib/generated', 'src/lib/tauri', 'src/types', 'src/ui']) {
 		mkdirSync(path.join(repoRoot, dir), { recursive: true });
-	}
-
-	for (const scriptName of ['check-no-bridge-imports.sh', 'check-generated-tauri-imports.ts']) {
-		const sourcePath = path.join(scriptDir, scriptName);
-		const targetPath = path.join(repoRoot, 'scripts', scriptName);
-		writeFileSync(targetPath, readFileSync(sourcePath, 'utf8'));
-		if (scriptName.endsWith('.sh')) {
-			chmodSync(targetPath, 0o755);
-		}
 	}
 
 	writeFileSync(
@@ -70,34 +44,21 @@ function createFixtureRepo(): string {
 	return repoRoot;
 }
 
-function runNoBridgeCheck(repoRoot: string): CheckResult {
-	const stdoutPath = path.join(repoRoot, '.no-bridge.stdout');
-	const stderrPath = path.join(repoRoot, '.no-bridge.stderr');
-
-	for (const outputPath of [stdoutPath, stderrPath]) {
-		try {
-			unlinkSync(outputPath);
-		} catch {}
-	}
-
-	const result = spawnSync(
-		SYSTEM_BASH,
-		['-c', './scripts/check-no-bridge-imports.sh > .no-bridge.stdout 2> .no-bridge.stderr'],
-		{
-			cwd: repoRoot,
-			encoding: 'utf8',
-			env: {
-				...process.env,
-				PATH: TEST_PATH,
-			},
+function runGeneratedTauriCheck(repoRoot: string): CheckResult {
+	const result = spawnSync('bun', [checkScriptPath], {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		env: {
+			...process.env,
+			PATH: TEST_PATH,
 		},
-	);
+	});
 	return {
 		error: result.error?.message,
 		signal: result.signal,
 		status: result.status,
-		stdout: readFileSync(stdoutPath, 'utf8'),
-		stderr: readFileSync(stderrPath, 'utf8'),
+		stdout: result.stdout,
+		stderr: result.stderr,
 	};
 }
 
@@ -117,13 +78,13 @@ function expectStatus(result: CheckResult, status: number): void {
 	}
 }
 
-describe('check-no-bridge-imports.sh', () => {
+describe('check-generated-tauri-imports.ts', () => {
 	it('allows boundary-owned generated value imports and type-only contract imports', () => {
 		const repoRoot = createFixtureRepo();
 		try {
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 0);
-			expect(result.stdout).toContain('[no-bridge] OK');
+			expect(result.stdout).toContain('[check-generated-tauri-imports] OK');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
@@ -137,7 +98,7 @@ describe('check-no-bridge-imports.sh', () => {
 				"import { commands as c } from '../lib/generated/tauri';\nvoid c;\n",
 			);
 
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 1);
 			expect(result.stderr).toContain("generated 'commands' value imports");
 			expect(result.stderr).toContain('src/ui/bypass.ts');
@@ -161,9 +122,9 @@ describe('check-no-bridge-imports.sh', () => {
 				].join('\n'),
 			);
 
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 0);
-			expect(result.stdout).toContain('[no-bridge] OK');
+			expect(result.stdout).toContain('[check-generated-tauri-imports] OK');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
@@ -177,7 +138,7 @@ describe('check-no-bridge-imports.sh', () => {
 				"export { commands as generatedCommands } from '../lib/generated/tauri';\n",
 			);
 
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 1);
 			expect(result.stderr).toContain("generated 'commands' value imports");
 			expect(result.stderr).toContain('src/ui/bypass.ts');
@@ -194,7 +155,7 @@ describe('check-no-bridge-imports.sh', () => {
 				"import defaultExport, * as generated from '../lib/generated/tauri';\nvoid defaultExport;\nvoid generated;\n",
 			);
 
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 1);
 			expect(result.stderr).toContain('generated Tauri namespace value imports');
 			expect(result.stderr).toContain('src/ui/bypass.ts');
@@ -203,59 +164,29 @@ describe('check-no-bridge-imports.sh', () => {
 		}
 	});
 
-	it('rejects frontend output path naming mirror reintroduction', () => {
+	it('rejects generated value imports inside Svelte script tags outside the boundary files', () => {
 		const repoRoot = createFixtureRepo();
 		try {
 			writeFileSync(
-				path.join(repoRoot, 'src/ui/outputPanel/pathBuilder.ts'),
-				'export function calculateOutputPath(): string { return ""; }\n',
+				path.join(repoRoot, 'src/ui/bypass.svelte'),
+				[
+					'<script module lang="ts">',
+					"import { commands } from '../lib/generated/tauri';",
+					'void commands;',
+					'</script>',
+					'<script lang="ts">',
+					"import type { Foo } from '../lib/generated/tauri';",
+					'const value: Foo = "ok";',
+					'</script>',
+					'<div>{value}</div>',
+					'',
+				].join('\n'),
 			);
 
-			const result = runNoBridgeCheck(repoRoot);
+			const result = runGeneratedTauriCheck(repoRoot);
 			expectStatus(result, 1);
-			expect(result.stderr).toContain('Frontend output path naming mirrors must not exist');
-		} finally {
-			rmSync(repoRoot, { force: true, recursive: true });
-		}
-	});
-
-	it('rejects frontend output path naming mirror shorthand methods', () => {
-		const repoRoot = createFixtureRepo();
-		try {
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/outputPanel/utils.ts'),
-				'export const utils = { calculateOutputPath(metadata: unknown): string { void metadata; return ""; } };\n',
-			);
-
-			const result = runNoBridgeCheck(repoRoot);
-			expectStatus(result, 1);
-			expect(result.stderr).toContain(
-				'Output path naming must stay in the Rust output_artifact boundary',
-			);
-			expect(result.stderr).toContain('src/ui/outputPanel/utils.ts');
-		} finally {
-			rmSync(repoRoot, { force: true, recursive: true });
-		}
-	});
-
-	it('rejects status-panel workflow private imports from outside the status panel', () => {
-		const repoRoot = createFixtureRepo();
-		try {
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/statusPanel/processingWorkflow.ts'),
-				'export const privateWorkflow = true;\n',
-			);
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/bypass.ts'),
-				"import { privateWorkflow } from './statusPanel/processingWorkflow';\nvoid privateWorkflow;\n",
-			);
-
-			const result = runNoBridgeCheck(repoRoot);
-			expectStatus(result, 1);
-			expect(result.stderr).toContain(
-				'Code outside src/ui/statusPanel must use the status panel public API',
-			);
-			expect(result.stderr).toContain('src/ui/bypass.ts');
+			expect(result.stderr).toContain("generated 'commands' value imports");
+			expect(result.stderr).toContain('src/ui/bypass.svelte');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}

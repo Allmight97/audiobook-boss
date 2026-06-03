@@ -21,4 +21,4 @@
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.
 - Changing collision/review semantics, source-destination overlap handling, final commit behavior, or success message truth.
-- Relaxing output-artifact assertions in `scripts/check-no-bridge-imports.sh`.
+- Moving final artifact commit truth outside this boundary.

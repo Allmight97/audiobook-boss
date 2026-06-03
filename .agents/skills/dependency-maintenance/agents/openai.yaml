@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dependency Maintenance"
-  short_description: "Maintain ABB dependencies and toolchains safely."
-  default_prompt: "Use $dependency-maintenance to audit or update Audiobook Boss dependencies, toolchains, and CI pins while respecting project guardrails."

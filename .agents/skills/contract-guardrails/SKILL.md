@@ -43,6 +43,7 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
    boundary checks first:
 ```bash
 bash scripts/check-generated-bindings.sh --mode local
+bun scripts/check-generated-tauri-imports.ts
 bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
 ```
 3. Use the owner-scoped command menu in `README.md` / `scripts/AGENTS.md` when
@@ -52,8 +53,6 @@ bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.t
 4. For release-critical binding drift checks:
 ```bash
 bun run bindings:check
-# or
-CHECK_BINDINGS_STRICT=1 bash scripts/check-generated-bindings.sh --mode local
 ```
 
 ## Command Pointers
@@ -81,5 +80,6 @@ CHECK_BINDINGS_STRICT=1 bash scripts/check-generated-bindings.sh --mode local
 
 - Use root AGENTS precedence.
 - No implicit internal legacy assumptions.
-- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.
+- Fallback behavior requires explicit trigger/evidence/sunset, `docs/fallbacks.md`
+  registration, source marker, and focused behavior proof.
 - For external Tauri/API uncertainty, invoke `abb-library-research`.

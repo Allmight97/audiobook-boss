@@ -5,7 +5,7 @@
  * against mocked Tauri APIs.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings, type EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
@@ -17,39 +17,7 @@ describe('tauriClient', () => {
 		vi.clearAllMocks();
 	});
 
-	describe('typed command helpers', () => {
-		it('should be importable', async () => {
-			const { tauriClient } = await import('./tauri/client');
-			expect(tauriClient).toBeDefined();
-			expect(typeof tauriClient.analyzeAudioFiles).toBe('function');
-			expect(typeof tauriClient.processAudiobookFiles).toBe('function');
-			expect(typeof tauriClient.cancelProcessing).toBe('function');
-			expect(typeof tauriClient.startRemoteSourceAcquisition).toBe('function');
-		});
-	});
-
-	describe('listen', () => {
-		it('should be importable', async () => {
-			const { tauriClient } = await import('./tauri/client');
-			expect(typeof tauriClient.listen).toBe('function');
-		});
-	});
-
-	describe('open', () => {
-		it('should be importable', async () => {
-			const { tauriClient } = await import('./tauri/client');
-			expect(typeof tauriClient.open).toBe('function');
-		});
-	});
-
 	describe('dialog helpers', () => {
-		it('should be importable', async () => {
-			const { tauriClient } = await import('./tauri/client');
-			expect(typeof tauriClient.openFile).toBe('function');
-			expect(typeof tauriClient.openFiles).toBe('function');
-			expect(typeof tauriClient.openDirectory).toBe('function');
-		});
-
 		it('sets single-file dialog options at the boundary', async () => {
 			const { open } = await import('@tauri-apps/plugin-dialog');
 			const mockOpen = vi.mocked(open);
@@ -89,12 +57,6 @@ describe('tauriClient', () => {
 	});
 
 	describe('opener helpers', () => {
-		it('should be importable', async () => {
-			const { tauriClient } = await import('./tauri/client');
-			expect(typeof tauriClient.openPath).toBe('function');
-			expect(typeof tauriClient.openUrl).toBe('function');
-		});
-
 		it('routes paths and URLs to distinct Tauri opener commands', async () => {
 			const { openPath, openUrl } = await import('@tauri-apps/plugin-opener');
 			const mockOpenPath = vi.mocked(openPath);
@@ -107,21 +69,6 @@ describe('tauriClient', () => {
 			expect(mockOpenPath).toHaveBeenLastCalledWith('/tmp/preview.m4b', undefined);
 			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login', undefined);
 		});
-	});
-});
-
-// Example of how to test with custom mock implementations
-describe('tauriClient with custom mocks', () => {
-	it('example: mock invoke to return specific data', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-
-		// Set up specific return value for this test
-		mockInvoke.mockResolvedValueOnce({ files: [], totalDuration: 0 });
-
-		// Now any code that calls invoke will get this mock
-		const result = await invoke('analyze_audio_files', { paths: [] });
-		expect(result).toEqual({ files: [], totalDuration: 0 });
 	});
 });
 

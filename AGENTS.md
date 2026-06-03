@@ -9,7 +9,8 @@
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
-- Fallback register: `docs/fallbacks.md`.
+- Fallback register: `docs/fallbacks.md` (data register; verify with source
+  markers and focused behavior tests).
 
 ## Project Priority Zero: Testing Infrastructure
 
@@ -72,7 +73,9 @@
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
 - Greenfield default: do not preserve internal legacy payloads, aliases, or shims without repo evidence or explicit owner request.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.
-- No silent fallback/shim behavior. Every intentional fallback needs an explicit trigger, observable signal, register row, source marker/metadata, and `scripts/check-fallback-policy.sh`.
+- No silent fallback/shim behavior. Every intentional fallback needs an explicit
+  trigger, observable signal, register row, and source marker/metadata.
+  Verify fallback behavior with focused tests for the owning surface.
 
 ## Verification
 
@@ -93,7 +96,6 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 | Trigger | Load |
 | --- | --- |
 | Multi-session alignment, roadmap, architecture, substantial planning, issue/spec/doc route | `.agents/skills/decision-alignment` |
-| Bun, JS packages, Rust/Cargo deps, toolchains, Homebrew build tools, GitHub Actions pins, supply-chain guardrails | `.agents/skills/dependency-maintenance` |
 | Tauri commands/events/plugin adapters/`tauriClient`/generated bindings/TS↔Rust shapes | `.agents/skills/contract-guardrails` |
 | User paths, file inputs, file outputs, path validation, or write locations | `.agents/skills/path-security-validation` |
 | Queueing, jobs, progress, cancellation, status semantics | `.agents/skills/job-registry-and-progress` |

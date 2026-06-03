@@ -30,6 +30,8 @@ if (violations.length > 0) {
 	process.exit(1);
 }
 
+console.log('[check-generated-tauri-imports] OK');
+
 function collectSourceFiles(root: string): string[] {
 	const files: string[] = [];
 	for (const entry of readdirSync(root)) {

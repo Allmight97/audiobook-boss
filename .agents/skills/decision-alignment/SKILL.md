@@ -84,7 +84,7 @@ consult:
 | Outcome | Preferred home |
 | --- | --- |
 | Temporary multi-session planning, roadmap, architecture, or implementation state | `docs/specs/<task>.md` via Active Spec Handoff |
-| Fallback, shim, or compatibility behavior | `docs/fallbacks.md` plus source marker and `scripts/check-fallback-policy.sh` |
+| Fallback, shim, or compatibility behavior | `docs/fallbacks.md` plus source marker and focused behavior proof |
 | Stable product/system ownership shape | `docs/system-map.md` |
 | Canonical term or overloaded language fix | `docs/ubiquitous-language.md` |
 | Deferred work or revisit-later concept | GitHub issue |
@@ -92,8 +92,9 @@ consult:
 | Personal learning | outside repo unless explicitly requested |
 | Discarded ideas or transient reasoning | keep out of repo docs |
 
-Keep `docs/fallbacks.md` separate from general decisions. Fallbacks need active
-enforcement, source markers, sunset dates, and renewal rules.
+Keep `docs/fallbacks.md` separate from general decisions. Fallbacks need
+observable signals, source markers, sunset dates, renewal rules, and focused
+behavior proof from the owning surface.
 
 ## Tool Routing
 

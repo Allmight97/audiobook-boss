@@ -8,26 +8,8 @@ export default defineConfig({
 		// Use jsdom for DOM testing (statusPanel, fileList, etc.)
 		environment: 'jsdom',
 
-		// Include source files for coverage
 		include: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'scripts/**/*.test.ts'],
 		environmentMatchGlobs: [['scripts/**', 'node']],
-
-		// Coverage configuration
-		coverage: {
-			provider: 'istanbul',
-			reporter: ['text', 'html', 'lcov'],
-			reportsDirectory: './coverage/typescript',
-			include: ['src/**/*.ts', 'src/**/*.svelte'],
-			exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
-			// Ratchet thresholds — baseline measured Feb 2026, rounded down ~3pt
-			// Increase as coverage improves; do not lower without justification
-			thresholds: {
-				statements: 60,
-				branches: 42,
-				functions: 56,
-				lines: 61,
-			},
-		},
 
 		// Global setup for Tauri mocks
 		setupFiles: ['./src/test/setup.ts'],

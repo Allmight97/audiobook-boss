@@ -34,8 +34,8 @@ After a pure reference-source refresh:
 - verify expected source directories still exist
 - update affected route cards only if high-value entry paths changed
 - verify `git status`
-- do not run the direct review matrix unless app code, manifests,
-  build/test semantics, runtime imports, or generated bindings changed
+- do not run broad review commands unless app code, manifests, build/test
+  semantics, runtime imports, or generated bindings changed
 
 When active guidance, skill text, or route references change, verify source
 presence and validate any edited skills with `quick_validate.py`.

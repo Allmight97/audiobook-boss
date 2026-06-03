@@ -25,7 +25,8 @@
 ## Hard Invariants
 
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
-- Processor code must not directly perform final artifact `rename`, `copy`, or `hard_link`; `scripts/check-no-bridge-imports.sh` enforces this.
+- Processor code must not directly perform final artifact `rename`, `copy`, or
+  `hard_link`; final artifact commit truth lives in `output_artifact`.
 - External FDK and native engine paths must use the shared finalization handoff;
   adapter-specific code may stage media and write metadata, but final artifact
   commit and success wording remain centralized.

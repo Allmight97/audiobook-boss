@@ -8,6 +8,12 @@ cd "$repo_root"
 bindings_file="src/lib/generated/tauri.ts"
 mode="verify"
 use_staged=false
+script_started_at="$(date +%s)"
+
+elapsed_since() {
+  local started_at="$1"
+  echo "$(( $(date +%s) - started_at ))"
+}
 
 usage() {
   cat <<'USAGE'
@@ -79,10 +85,10 @@ has_contract_related_changes() {
       fi
       continue
     fi
-    if [[ "$file" == "crates/abb-"*"-core/"* ]]; then
+    if [[ "$file" == "crates/abb-"*"-core/Cargo.toml" || "$file" == "crates/abb-"*"-core/"*".rs" ]]; then
       return 0
     fi
-    if [[ "$file" == "src-tauri/src/"* ]]; then
+    if [[ "$file" == "src-tauri/build.rs" || "$file" == "src-tauri/src/"*".rs" ]]; then
       return 0
     fi
     if [[ "$file" == "$bindings_file" ]]; then
@@ -122,6 +128,7 @@ src_tauri_cargo_toml_has_contract_diff() {
 regenerate_and_verify() {
   local before_file
   local before_exists="false"
+  local started_at finished_at elapsed
   before_file="$(mktemp)"
   if [[ ! -f "$bindings_file" ]]; then
     echo "[check-generated-bindings] Missing $bindings_file. Generating it now..."
@@ -130,8 +137,13 @@ regenerate_and_verify() {
     cp "$bindings_file" "$before_file"
   fi
 
-  echo "[check-generated-bindings] Regenerating TypeScript bindings"
-  bun run bindings:generate >/dev/null
+  echo "[check-generated-bindings] Mode: $mode; staged: $use_staged"
+  echo "[check-generated-bindings] Regenerating TypeScript bindings..."
+  started_at="$(date +%s)"
+  bun run bindings:generate
+  finished_at="$(date +%s)"
+  elapsed=$((finished_at - started_at))
+  echo "[check-generated-bindings] Generation completed in ${elapsed}s."
 
   if [[ "$before_exists" != "true" ]] || ! cmp -s "$before_file" "$bindings_file"; then
     echo "[check-generated-bindings] Generated bindings are stale."
@@ -151,21 +163,26 @@ regenerate_and_verify() {
 
 if [[ "$mode" == "local" ]] && ! has_contract_related_changes; then
   echo "[check-generated-bindings] Local mode: no contract-related changes detected; skipping regeneration."
+  echo "[check-generated-bindings] Completed in $(elapsed_since "$script_started_at")s."
   exit 0
 fi
 
 if [[ "$mode" == "sync" ]]; then
+  sync_started_at="$(date +%s)"
   if [[ ! -f "$bindings_file" ]]; then
     echo "[check-generated-bindings] Missing $bindings_file. Generating it now..."
   fi
-  echo "[check-generated-bindings] Regenerating TypeScript bindings (sync mode)"
-  bun run bindings:generate >/dev/null
+  echo "[check-generated-bindings] Mode: sync; staged: $use_staged"
+  echo "[check-generated-bindings] Regenerating TypeScript bindings..."
+  bun run bindings:generate
+  echo "[check-generated-bindings] Generation completed in $(elapsed_since "$sync_started_at")s."
   if ! git diff --quiet -- "$bindings_file"; then
     git add "$bindings_file"
     echo "[check-generated-bindings] Staged updated $bindings_file"
   fi
-  echo "[check-generated-bindings] Binding sync complete."
+  echo "[check-generated-bindings] Binding sync complete in $(elapsed_since "$script_started_at")s."
   exit 0
 fi
 
 regenerate_and_verify
+echo "[check-generated-bindings] Completed in $(elapsed_since "$script_started_at")s."

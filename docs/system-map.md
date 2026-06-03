@@ -96,7 +96,7 @@ In general architecture language, each entry is being shaped toward a **deep
 module**: a small interface hiding substantial implementation complexity. In
 ABB repo language, a **Grey-Box Module** is the stricter working form of that
 idea: Public API Strip (the allowed import/export surface), Private Cluster,
-nested ownership rules, boundary assertions, and contract tests.
+nested ownership rules, narrow boundary checks, and contract tests.
 
 | Public API | Owns |
 | --- | --- |

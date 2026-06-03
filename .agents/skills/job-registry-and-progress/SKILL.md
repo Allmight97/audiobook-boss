@@ -58,4 +58,5 @@ flat wire-shaped discriminator the UI consumes.
 
 - Use root AGENTS precedence.
 - No implicit internal legacy assumptions.
-- Fallback behavior requires explicit trigger/evidence/sunset and fallback-policy compliance.
+- Fallback behavior requires explicit trigger/evidence/sunset, `docs/fallbacks.md`
+  registration, source marker, and focused behavior proof.
