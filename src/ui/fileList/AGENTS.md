@@ -37,4 +37,4 @@
   least one workflow-level import/FileList behavior test.
 - Selection, order, metadata staging, and output-refresh behavior stay covered
   by targeted Vitest tests.
-- Run targeted Vitest files before handoff for FileList workflow changes.
+- Run targeted Vitest files when proving FileList workflow changes.

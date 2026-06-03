@@ -38,13 +38,12 @@ commands over invoking internals directly.
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Frontend owner: `bun run test -- <owner test files>`.
 - IPC/generated binding changes:
-  `bash scripts/check-generated-bindings.sh --mode local`,
-  `bash scripts/check-public-api-strips.sh`, and targeted
+  `bash scripts/check-generated-bindings.sh --mode local` and targeted
   `tauriClient`/contract Vitest files.
 - Boundary/policy changes: run the specific touched checker:
   `bash scripts/check-no-bridge-imports.sh`,
-  `bash scripts/check-fallback-policy.sh`, or
-  `bash scripts/check-public-api-strips.sh`.
+  `bash scripts/check-fallback-policy.sh`, or targeted contract tests for the
+  owning public surface.
 - Build/release artifact changes: use the release skill's artifact commands.
   Do not convert release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
@@ -56,7 +55,7 @@ commands over invoking internals directly.
 - `check-*.sh` and `check-generated-tauri-imports.ts`: boundary and policy assertions.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
   `bump-version.sh`: build/release utilities.
-- `analyze_code_lines.py`, `sg/size_budget.sh`: diagnostics.
+- `analyze_code_lines.py`: diagnostic source-size scanner.
 - `*.test.ts`: Vitest coverage for script helpers.
 
 ## Edit Rules

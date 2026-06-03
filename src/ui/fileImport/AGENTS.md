@@ -43,6 +43,6 @@
 - Behavior changes have focused file-import workflow or handler tests.
 - UI-facing changes prove visible error/status behavior, not only private helper
   calls.
-- Run targeted Vitest files before handoff for import UI/workflow changes.
+- Run targeted Vitest files when proving import UI/workflow changes.
 - Run generated-binding, Public API Strip, and runtime contract checks when
   shared import surfaces or runtime contracts are added or changed.

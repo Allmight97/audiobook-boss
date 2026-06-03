@@ -13,7 +13,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused encoder panel tests stay green; run targeted
-  Vitest files before handoff and generated-binding/Public API Strip/runtime
+  Vitest files when proving UI behavior and generated-binding/Public API Strip/runtime
   contract checks when runtime surfaces change.
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind

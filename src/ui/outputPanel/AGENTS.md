@@ -10,7 +10,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused output panel tests stay green; run targeted
-  Vitest files before handoff and generated-binding/Public API Strip/runtime
+  Vitest files when proving UI behavior and generated-binding/Public API Strip/runtime
   contract checks when runtime surfaces change.
 - Keep process-boundary output config reads behind `readOutputRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind

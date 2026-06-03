@@ -68,8 +68,7 @@ default full review matrix.
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Focused frontend loops: `bun run test -- <test files>`.
 - Policy checks: `scripts/check-generated-bindings.sh --mode local`,
-  `scripts/check-fallback-policy.sh`, `scripts/check-no-bridge-imports.sh`, and
-  `scripts/check-public-api-strips.sh`.
+  `scripts/check-fallback-policy.sh`, and `scripts/check-no-bridge-imports.sh`.
   Run standalone when touching those rule sets directly.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review matrix.

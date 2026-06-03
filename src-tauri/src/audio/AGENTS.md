@@ -66,9 +66,8 @@
 
 ## Allowed Agent Edits Without Escalation
 
-- Change private implementation files when focused audio/processing tests,
-  `scripts/check-public-api-strips.sh`, and `scripts/check-no-bridge-imports.sh`
-  stay green.
+- Change private implementation files when focused audio/processing tests and
+  `scripts/check-no-bridge-imports.sh` stay green.
 - Narrow accidental visibility when callers can use the Public API Strip without
   losing contract truth.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside

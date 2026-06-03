@@ -12,7 +12,7 @@
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused status-panel tests stay green; run targeted
-  Vitest files before handoff for UI behavior changes and generated-binding,
+  Vitest files when proving UI behavior changes and generated-binding,
   Public API Strip, and runtime contract checks when generated event shapes are
   touched.
 - Test visible status outcomes rather than private reducer shape when behavior is user-facing.

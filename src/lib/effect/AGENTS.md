@@ -56,8 +56,8 @@ Workflow tests should run the Effect program directly with fake services:
 ## Workflow Service Catalog
 
 Current owners and focused test examples. Use `bun run test -- <files>` for
-frontend focus before handoff; the table names focused Vitest selections for
-local diagnosis.
+frontend focus when proving touched workflow behavior; the table names focused
+Vitest selections for local diagnosis.
 
 | Owner | Coordinates | Service families | Public entrypoints | Terminal outcomes and focused tests |
 | --- | --- | --- | --- | --- |

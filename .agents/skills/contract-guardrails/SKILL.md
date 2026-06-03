@@ -43,12 +43,12 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
    boundary checks first:
 ```bash
 bash scripts/check-generated-bindings.sh --mode local
-bash scripts/check-public-api-strips.sh
 bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
 ```
-3. Run the direct review matrix from `README.md` / `scripts/AGENTS.md` when the change affects Rust command/event
-   signatures, generated bindings, runtime behavior, dependency/build/test
-   semantics, or release-critical merge confidence.
+3. Use the owner-scoped command menu in `README.md` / `scripts/AGENTS.md` when
+   the change affects Rust command/event signatures, generated bindings,
+   runtime behavior, dependency/build/test semantics, or release-critical merge
+   confidence.
 4. For release-critical binding drift checks:
 ```bash
 bun run bindings:check
@@ -74,7 +74,7 @@ CHECK_BINDINGS_STRICT=1 bash scripts/check-generated-bindings.sh --mode local
 - Progress-stage authority is not duplicated here; use
   `job-registry-and-progress` and `src/types/events.ts` for lifecycle state.
 - Verification follows root `AGENTS.md` risk-based scope: focused boundary
-  checks for local adapter changes; the direct review matrix for contract,
+  checks for local adapter changes and owner-scoped escalation for contract,
   runtime, build/test, dependency, or release-critical risk.
 
 ## Alignment

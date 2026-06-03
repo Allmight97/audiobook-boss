@@ -11,7 +11,9 @@ description: Audiobook Boss dependency and toolchain maintenance workflow. Use w
 - Prefer staged updates, explicit risk classification, and full repo verification.
 - Keep routine updates out of avoidable break/fix churn.
 
-Use root `AGENTS.md` first. Dependency work is code/config work unless it is strictly prose-only, so final validation normally follows the direct review matrix in `README.md` and `scripts/AGENTS.md`.
+Use root `AGENTS.md` first. Dependency work is code/config work unless it is
+strictly prose-only, so final validation follows the owner-scoped command menu
+in `README.md` and `scripts/AGENTS.md`.
 
 ## Quick Snapshot
 
@@ -66,8 +68,8 @@ State which lanes are in scope before mutating files. Keep unrelated dirty work 
 - Use `bun audit` and `bun pm untrusted` as standard supply-chain preflights.
 - Do not use `npm audit` here; the repo intentionally has no npm lockfile, so it fails with `ENOLOCK` and adds noise.
 - Refresh Bun with `bun upgrade --stable`.
-- Bun-change verification follows the direct review matrix; use `release` for
-  packaging/release work.
+- Bun-change verification follows the owner-scoped command menu; use `release`
+  for packaging/release work.
 - Do not adopt Tailwind insiders, prerelease Bun builds, Vite-under-Bun, or a
   package-manager swap as routine warning cleanup without an explicit tooling
   decision.
