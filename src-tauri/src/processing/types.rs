@@ -7,6 +7,8 @@ pub use crate::output_artifact::{
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
 pub use abb_processing_core::ProcessResultStatus;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +30,9 @@ impl From<JobType> for OperationKind {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessPayload {
     pub input_files: Vec<String>,
+    /// Session/workbench identities aligned to `input_files`; used for acquired
+    /// source sidecars without replacing path as the filesystem source label.
+    pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
     pub settings: EncoderSettings,
     /// Sample rate from frontend (optional, defaults to Auto)
@@ -39,6 +44,21 @@ pub struct ProcessPayload {
     pub collision_policy: Option<CollisionPolicy>,
     /// Signature returned by preflight so execution can reject stale destination assumptions.
     pub preflight_signature: Option<String>,
+    /// Supplemental assets keyed by input id. These are committed only after a
+    /// matching final batch audiobook succeeds.
+    pub supplemental_assets_by_input_id: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SupplementalProcessingAsset {
+    pub asset_id: String,
+    pub input_id: String,
+    pub title_id: String,
+    pub path: PathBuf,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub sha256: String,
 }
 
 pub type ProcessResultSummary = OperationResultSummary;

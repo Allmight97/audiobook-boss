@@ -10,7 +10,10 @@ use crate::audio::{
 };
 use crate::errors::{AppError, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
-use crate::output_artifact::{OutputKind, ResolvedOutputPlan};
+use crate::output_artifact::{
+    commit_supplemental_output_asset, OutputKind, ResolvedOutputPlan,
+    SupplementalOutputAssetCommitRequest,
+};
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
     emit_queue_event, OperationKind, OutputConfig, PreviewConfig, ProcessingContext,
@@ -18,13 +21,16 @@ use crate::processing::{
 };
 use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessingPreflightPlan,
+    ProcessingPreflightPlan, SupplementalProcessingAsset,
 };
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tokio::sync::OwnedSemaphorePermit;
+
+const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 
 pub(crate) struct ProcessingRun;
 
@@ -186,6 +192,7 @@ async fn dispatch_merge_job(
         metadata: planned_job.metadata,
         cover_art_passthrough: planned_job.cover_art_passthrough,
         preview_seconds: plan.preview_seconds,
+        supplemental_assets: Vec::new(),
     })
     .await?;
 
@@ -241,6 +248,7 @@ async fn dispatch_batch_jobs(
         let path = planned_job.input_path.clone().ok_or_else(|| {
             AppError::InvalidInput("Missing batch input path in output plan".to_string())
         })?;
+        let supplemental_assets = supplemental_assets_for_input(payload, input_index);
 
         scheduled_jobs.push(Box::pin(async move {
             let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
@@ -256,6 +264,7 @@ async fn dispatch_batch_jobs(
                 metadata: md_cloned,
                 cover_art_passthrough,
                 preview_seconds: preview_cloned,
+                supplemental_assets,
             })
             .await
         }));
@@ -279,6 +288,7 @@ struct ProcessingJobRequest {
     metadata: Option<crate::metadata::AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
     preview_seconds: Option<f64>,
+    supplemental_assets: Vec<SupplementalProcessingAsset>,
 }
 
 async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
@@ -322,6 +332,24 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
             preview_file_path,
             preview_actual_seconds,
         } => {
+            if request.output_plan.kind == OutputKind::Final {
+                if let Err(error) = commit_supplemental_assets(
+                    &request.supplemental_assets,
+                    &request.output_plan.resolved_path,
+                ) {
+                    let envelope = crate::errors::AppErrorEnvelope::from(error);
+                    request
+                        .registry
+                        .fail_job(job_id, envelope.message.clone())
+                        .await;
+                    log::error!("Job {} failed: {}", job_id, envelope.message);
+                    return Ok(terminal_failure_result(
+                        request.input_index,
+                        Some(job_id.to_string()),
+                        envelope,
+                    ));
+                }
+            }
             request.registry.complete_job(job_id).await;
             log::info!("Job {} completed successfully", job_id);
             Ok(ProcessResultEntry {
@@ -352,6 +380,91 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
             ))
         }
     }
+}
+
+fn supplemental_assets_for_input(
+    payload: &ProcessPayload,
+    input_index: Option<usize>,
+) -> Vec<SupplementalProcessingAsset> {
+    let Some(index) = input_index else {
+        return Vec::new();
+    };
+    let Some(input_id) = payload
+        .input_ids
+        .as_ref()
+        .and_then(|ids| ids.get(index))
+        .and_then(|value| value.as_ref())
+    else {
+        return Vec::new();
+    };
+    payload
+        .supplemental_assets_by_input_id
+        .as_ref()
+        .and_then(|assets| assets.get(input_id))
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn validate_supplemental_asset(asset: &SupplementalProcessingAsset) -> Result<()> {
+    let metadata = std::fs::symlink_metadata(&asset.path).map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot inspect Supplemental PDF source '{}': {}",
+            crate::errors::sanitize_path_for_display(&asset.path),
+            error
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(AppError::FileValidation(
+            "Supplemental PDF source must be a regular file.".to_string(),
+        ));
+    }
+    if metadata.len() != asset.size_bytes {
+        return Err(AppError::FileValidation(
+            "Supplemental PDF source size changed before output commit.".to_string(),
+        ));
+    }
+    if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
+        return Err(AppError::FileValidation(
+            "Supplemental PDF source exceeds the 100 MiB size limit.".to_string(),
+        ));
+    }
+
+    let bytes = std::fs::read(&asset.path).map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot read Supplemental PDF source '{}': {}",
+            crate::errors::sanitize_path_for_display(&asset.path),
+            error
+        ))
+    })?;
+    if !bytes.starts_with(b"%PDF-") {
+        return Err(AppError::FileValidation(
+            "Supplemental PDF source did not pass PDF magic-byte validation.".to_string(),
+        ));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let hash = format!("{:x}", hasher.finalize());
+    if hash != asset.sha256 {
+        return Err(AppError::FileValidation(
+            "Supplemental PDF source hash changed before output commit.".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn commit_supplemental_assets(
+    assets: &[SupplementalProcessingAsset],
+    final_audio_path: &Path,
+) -> Result<()> {
+    for asset in assets {
+        validate_supplemental_asset(asset)?;
+        commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
+            &asset.path,
+            final_audio_path,
+        ))?;
+    }
+    Ok(())
 }
 
 async fn register_job_and_validate_output(

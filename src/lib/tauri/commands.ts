@@ -4,6 +4,7 @@ import {
 	type EncoderDefaults as GeneratedEncoderDefaults,
 	type OutputDefaults as GeneratedOutputDefaults,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
+	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
 } from '../generated/tauri';
 import type {
 	EncoderSettings,
@@ -16,6 +17,11 @@ import type {
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
+import type {
+	AcquisitionPlan,
+	ProviderId,
+	RemoteAuthCompletionRequest,
+} from '../../types/remoteSource';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeMetadata,
@@ -184,6 +190,54 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.discoverAudioImportPaths(args.inputPaths)),
 	take_opened_audio_files: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.takeOpenedAudioFiles()),
+	list_remote_source_providers: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.listRemoteSourceProviders(), normalizeNullish),
+	get_remote_source_account_state: (args: { providerId: ProviderId }) =>
+		runGeneratedCommand(
+			generatedCommands.getRemoteSourceAccountState(args.providerId),
+			normalizeNullish,
+		),
+	start_remote_source_auth: (args: { providerId: ProviderId }) =>
+		runGeneratedCommand(generatedCommands.startRemoteSourceAuth(args.providerId), normalizeNullish),
+	complete_remote_source_auth: (args: { request: RemoteAuthCompletionRequest }) =>
+		runGeneratedCommand(
+			generatedCommands.completeRemoteSourceAuth(
+				denormalizeNullish(args.request) as GeneratedRemoteAuthCompletionRequest,
+			),
+			normalizeNullish,
+		),
+	logout_remote_source_account: (args: { providerId: ProviderId }) =>
+		runGeneratedCommand(
+			generatedCommands.logoutRemoteSourceAccount(args.providerId),
+			normalizeNullish,
+		),
+	load_remote_source_library: (args: { providerId: ProviderId }) =>
+		runGeneratedCommand(
+			generatedCommands.loadRemoteSourceLibrary(args.providerId),
+			normalizeNullish,
+		),
+	refresh_remote_source_library: (args: { providerId: ProviderId }) =>
+		runGeneratedCommand(
+			generatedCommands.refreshRemoteSourceLibrary(args.providerId),
+			normalizeNullish,
+		),
+	start_remote_source_acquisition: (args: { plan: AcquisitionPlan }) =>
+		runGeneratedCommand(
+			generatedCommands.startRemoteSourceAcquisition(args.plan),
+			normalizeNullish,
+		),
+	get_remote_source_acquisition_status: (args: { jobId: string }) =>
+		runGeneratedCommand(
+			generatedCommands.getRemoteSourceAcquisitionStatus(args.jobId),
+			normalizeNullish,
+		),
+	cancel_remote_source_acquisition: (args: { jobId: string }) =>
+		runGeneratedCommand(
+			generatedCommands.cancelRemoteSourceAcquisition(args.jobId),
+			normalizeNullish,
+		),
+	purge_remote_source_session: (args: { jobId: string }) =>
+		runGeneratedCommand(generatedCommands.purgeRemoteSourceSession(args.jobId)),
 	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
 		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
 	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>

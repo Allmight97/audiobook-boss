@@ -114,6 +114,7 @@ mod tests {
 
     fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
         AudioFile {
+            input_id: format!("{name}-input"),
             path: PathBuf::from(name),
             size: Some(1.0),
             duration,

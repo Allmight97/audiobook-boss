@@ -19,13 +19,24 @@ commands over invoking internals directly.
   `bash scripts/check-public-api-strips.sh`,
   `bash scripts/check-no-bridge-imports.sh`,
   `bash scripts/check-fallback-policy.sh`,
-  `cargo nextest run --workspace`, `bun run test`, and
+  `cargo nextest run -p abb-media-core`,
+  `cargo nextest run -p abb-metadata-core`,
+  `cargo nextest run -p abb-output-artifact-core`,
+  `cargo nextest run -p abb-processing-core`,
+  `cargo nextest run -p abb-remote-source-core`,
+  `cargo nextest run -p audiobook-boss --lib`,
+  `cargo nextest run -p audiobook-boss --test all_tests`, `bun run test`, and
   `bun run build`.
 - Focus pure Rust owner loops with `cargo nextest run -p abb-*-core`.
 - Focus runtime shell loops with `cargo nextest run -p audiobook-boss --lib` or
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Use Cargo's built-in `cargo test` only when Nextest cannot express the route
   and document the reason.
+- Keep Rust binary checks out of broad Nextest discovery. Run generated binding
+  export and decoder-contract binaries through their explicit commands only.
+- Avoid broad workspace and multi-package Nextest routes; they can discover or
+  list unrelated binaries such as `export_bindings` and
+  `verify_aac_decoder_contract`.
 - Media execution tests remain absent pending issue #341 reassessment. Do not
   add FFmpeg/audio/container tests back until behavior, fixtures, runtime cost,
   and owner boundary are redesigned explicitly.

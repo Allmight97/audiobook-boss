@@ -68,6 +68,17 @@ export const commands = {
 	discoverAudioImportPaths: (inputPaths: string[]) => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("discover_audio_import_paths", { inputPaths })),
 	// Drains local audio paths opened by the OS before the frontend was ready.
 	takeOpenedAudioFiles: () => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("take_opened_audio_files")),
+	listRemoteSourceProviders: () => typedError<RemoteSourceProviderCapabilities[], AppErrorEnvelope>(__TAURI_INVOKE("list_remote_source_providers")),
+	getRemoteSourceAccountState: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_account_state", { providerId })),
+	startRemoteSourceAuth: (providerId: ProviderId) => typedError<RemoteAuthStartResponse, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_auth", { providerId })),
+	completeRemoteSourceAuth: (request: RemoteAuthCompletionRequest) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("complete_remote_source_auth", { request })),
+	logoutRemoteSourceAccount: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("logout_remote_source_account", { providerId })),
+	loadRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("load_remote_source_library", { providerId })),
+	refreshRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("refresh_remote_source_library", { providerId })),
+	startRemoteSourceAcquisition: (plan: AcquisitionPlan) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_acquisition", { plan })),
+	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
+	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
+	purgeRemoteSourceSession: (jobId: string) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("purge_remote_source_session", { jobId })),
 	// Validates encoder settings (no side effects)
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	// Returns backend-owned runtime settings capabilities for UI controls.
@@ -122,6 +133,43 @@ export const events = {
 };
 
 /* Types */
+export type AccountRef = {
+	providerId: ProviderId,
+	accountId: string,
+	displayName: string,
+};
+
+export type AcquisitionJob = {
+	jobId: string,
+	providerId: ProviderId,
+	status: RemoteAcquisitionStatus,
+	progress: AcquisitionProgress,
+	materializedFiles: MaterializedSourceFile[],
+	supplementalAssets: SupplementalAsset[],
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type AcquisitionPlan = {
+	providerId: ProviderId,
+	selections: AcquisitionSelection[],
+};
+
+export type AcquisitionProgress = {
+	stage: AcquisitionStage,
+	percentage: number,
+	message: string,
+	bytesDownloaded: number | null,
+	bytesTotal: number | null,
+	terminal: boolean,
+};
+
+export type AcquisitionSelection = {
+	titleId: string,
+	includeSupplementalPdf: boolean,
+};
+
+export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
+
 export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | { op: "recompute" } | { op: "noop" };
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
@@ -149,6 +197,8 @@ export type AppSettingsPatch = {
 
 // Represents an audio file with metadata
 export type AudioFile = {
+	// Stable workbench/session identity for joins that must survive reorder/remove operations.
+	inputId: string,
 	// File path
 	path: string,
 	// File size in bytes (None if unavailable)
@@ -304,6 +354,14 @@ export type FileListInfo = {
 };
 
 export type JobType = "merge" | "batch";
+
+export type MaterializedSourceFile = {
+	inputId: string,
+	titleId: string,
+	path: string,
+	sizeBytes: number,
+	sha256: string,
+};
 
 export type MaxConcurrentJobsCapabilities = {
 	allowAuto: boolean,
@@ -461,6 +519,11 @@ export type ProcessCommandResult = {
 
 export type ProcessPayload = {
 	inputFiles: string[],
+	/**
+	 *  Session/workbench identities aligned to `input_files`; used for acquired
+	 *  source sidecars without replacing path as the filesystem source label.
+	 */
+	inputIds: (string | null)[] | null,
 	outputDir: string,
 	settings: EncoderSettings,
 	// Sample rate from frontend (optional, defaults to Auto)
@@ -472,6 +535,11 @@ export type ProcessPayload = {
 	collisionPolicy: CollisionPolicy | null,
 	// Signature returned by preflight so execution can reject stale destination assumptions.
 	preflightSignature: string | null,
+	/**
+	 *  Supplemental assets keyed by input id. These are committed only after a
+	 *  matching final batch audiobook succeeds.
+	 */
+	supplementalAssetsByInputId: { [key in string]: SupplementalProcessingAsset[] } | null,
 };
 
 export type ProcessResultEntry = {
@@ -537,6 +605,8 @@ export type ProgressEvent_Serialize = {
 	input_index?: number | null,
 };
 
+export type ProviderId = "audible";
+
 // Batch queue snapshot for frontend communication
 export type QueueEvent = {
 	operation_kind: OperationKind,
@@ -550,6 +620,72 @@ export type QueueItem = {
 	file_path: string,
 };
 
+export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
+
+export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "materializationFailed" | "validationFailed" | "supplementalPdfFailed" | "cancelled";
+
+export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
+
+export type RemoteAuthCompletionRequest = {
+	providerId: ProviderId,
+	responseUrlHandoffPath: string | null,
+};
+
+export type RemoteAuthFlow = "externalBrowserHandoff";
+
+export type RemoteAuthStartResponse = {
+	providerId: ProviderId,
+	authorizationUrl: string,
+	handoffPathHint: string,
+	message: string,
+};
+
+export type RemoteLibraryResponse = {
+	providerId: ProviderId,
+	titles: RemoteTitle[],
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type RemoteSourceAccountState = {
+	providerId: ProviderId,
+	status: RemoteAccountStatus,
+	account: AccountRef | null,
+	message: string | null,
+};
+
+export type RemoteSourceDiagnostic = {
+	kind: RemoteAcquisitionFailureKind,
+	titleId: string | null,
+	message: string,
+};
+
+export type RemoteSourceProviderCapabilities = {
+	providerId: ProviderId,
+	label: string,
+	authFlow: RemoteAuthFlow,
+	supportsLibraryScan: boolean,
+	supportsPagedScan: boolean,
+	supportsTypeaheadFilter: boolean,
+	supportsSupplementalPdf: boolean,
+	supportsMaterializedAudio: boolean,
+	supportsRefresh: boolean,
+	requiresLiveSession: boolean,
+	knownUnsupportedReasons: RemoteAcquisitionFailureKind[],
+};
+
+export type RemoteTitle = {
+	providerId: ProviderId,
+	titleId: string,
+	title: string,
+	authors: string[],
+	narrators: string[],
+	durationSeconds: number | null,
+	coverUrl: string | null,
+	supplementalPdfAvailable: boolean,
+	acquired: boolean,
+	unsupportedReasons: RemoteAcquisitionFailureKind[],
+};
+
 export type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities,
 	maxConcurrentJobs: MaxConcurrentJobsCapabilities,
@@ -561,6 +697,26 @@ export type SampleRateConfig =
 "auto" |
 // Explicit sample rate in Hz
 { explicit: number };
+
+export type SupplementalAsset = {
+	assetId: string,
+	inputId: string,
+	titleId: string,
+	path: string,
+	fileName: string,
+	sizeBytes: number,
+	sha256: string,
+};
+
+export type SupplementalProcessingAsset = {
+	assetId: string,
+	inputId: string,
+	titleId: string,
+	path: string,
+	fileName: string,
+	sizeBytes: number,
+	sha256: string,
+};
 
 export type SupportedAudioImportFormat = {
 	extension: string,

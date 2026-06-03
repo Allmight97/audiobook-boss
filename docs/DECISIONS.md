@@ -12,11 +12,20 @@
 - Focused Rust tests target boundary-aligned workspace packages before the Tauri/media crate.
 - `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
 - Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
-- Use `cargo nextest run -p abb-*-core` for pure domain loops and `cargo nextest run --workspace` for the broad Rust review.
+- Use one package/target-selected Nextest command at a time for broad Rust
+  review: each core crate, `audiobook-boss --lib`, and
+  `audiobook-boss --test all_tests`.
 - Committed/generated audio media fixtures are not part of the current test suite.
 - Media execution tests remain absent pending issue #341 reassessment. Do not add
   FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and
   owner boundary are redesigned explicitly.
+
+## 2026-05-31 - Remote Source Acquisition Experiment
+
+- Add `RemoteSourceRuntime` as the eighth Grey-Box Public API for provider-neutral acquisition, backend-only auth/secrets, staged materialized files, Supplemental Assets, and purge behavior.
+- Audible provider work may evaluate and deliberately use GPL materializer dependencies such as AAXClean, but must not paste or closely port third-party source, expose frontend credentials, or fake materialization success. Helper/dependency shape requires an explicit implementation decision.
+- Supplemental PDFs attach to imported file-list `inputId`s and are copied only after matching final batch M4B success through output-artifact-owned naming/collision behavior.
+- Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent fallback.
 
 ## 2026-05-28 - Bun Stable Runtime
 

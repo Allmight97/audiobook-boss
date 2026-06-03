@@ -25,6 +25,8 @@ mod toolchain;
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
+    /// Stable workbench/session identity for joins that must survive reorder/remove operations.
+    pub input_id: String,
     /// File path
     pub path: PathBuf,
     /// File size in bytes (None if unavailable)
@@ -69,6 +71,7 @@ impl AudioFile {
     /// Creates a new AudioFile instance
     pub fn new(path: PathBuf) -> Self {
         Self {
+            input_id: uuid::Uuid::new_v4().to_string(),
             path,
             size: None,
             duration: None,

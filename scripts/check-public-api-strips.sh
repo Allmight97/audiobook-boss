@@ -91,6 +91,9 @@ pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;
 pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};
 pub(crate) use review::{enforce_output_plan_review, ensure_output_parent_dirs, OutputPlanReview};
+pub(crate) use supplemental::{
+commit_supplemental_output_asset, SupplementalOutputAssetCommitRequest,
+};
 pub use types::{
 CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
 OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
@@ -154,6 +157,24 @@ AppSettings, AppSettingsPatch, ConcurrencyPreference, EncoderDefaults, OutputDef
 pub fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
 pub fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<AppSettings> {
 pub fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {'
+
+remote_source_exports="$(
+  rg "^(pub struct RemoteSourceRuntime|pub use types::\\*;|    pub( async)? fn)" src-tauri/src/remote_source/mod.rs || true
+)"
+compare_block "RemoteSourceRuntime Public API Strip" "$remote_source_exports" 'pub struct RemoteSourceRuntime {
+    pub fn new(app: &tauri::AppHandle) -> Result<Self> {
+    pub fn cleanup_abandoned_sessions(&self) -> Result<()> {
+    pub fn list_providers(&self) -> Vec<RemoteProviderCapabilities> {
+    pub fn account_state(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
+    pub fn start_auth(&self, provider_id: RemoteProviderId) -> Result<RemoteAuthStart> {
+    pub async fn complete_auth(&self, request: RemoteAuthCompletion) -> Result<RemoteAccountState> {
+    pub fn logout(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
+    pub async fn load_library(&self, provider_id: RemoteProviderId) -> Result<RemoteLibrary> {
+    pub async fn start_acquisition(
+    pub fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
+    pub fn cancel_acquisition(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
+    pub fn purge_session(&self, job_id: &str) -> Result<()> {
+pub use types::*;'
 
 if [[ "$failures" -ne 0 ]]; then
   exit 1

@@ -1,14 +1,14 @@
 ## Public API Strip
 - Import from `crate::output_artifact`, not private child modules.
-- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `build_output_path`, `action_requires_output_write`, `plan_is_hard_block`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`.
-- Types: `OutputCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `OutputCollision`, `ResolvedOutputPlan`.
+- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `build_output_path`, `action_requires_output_write`, `plan_is_hard_block`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_asset`.
+- Types: `OutputCommitRequest`, `SupplementalOutputAssetCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `OutputCollision`, `ResolvedOutputPlan`.
 - Pure naming/collision/review data facts are packaged in
   `abb-output-artifact-core`; `src-tauri/src/output_artifact` owns runtime file
   I/O and final commit behavior.
 
 ## Private Cluster
-- Files: `artifact.rs`, `collision.rs`, `commit.rs`, `naming.rs`, `plan.rs`, `review.rs`, `types.rs`, `contract_tests.rs`.
-- The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation, and final artifact commit behavior.
+- Files: `artifact.rs`, `collision.rs`, `commit.rs`, `naming.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
+- The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation, final artifact commit behavior, and final-sidecar Supplemental PDF commit behavior.
 
 ## Allowed Agent Edits Without Escalation
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.

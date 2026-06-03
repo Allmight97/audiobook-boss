@@ -30,6 +30,16 @@ import type {
 	MetadataIntentPatch,
 	MetadataIntentValidationResult,
 } from '../../types/metadataIntent';
+import type {
+	AcquisitionJob,
+	AcquisitionPlan,
+	ProviderId,
+	RemoteAuthCompletionRequest,
+	RemoteAuthStartResponse,
+	RemoteLibraryResponse,
+	RemoteSourceAccountState,
+	RemoteSourceProviderCapabilities,
+} from '../../types/remoteSource';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import { normalizeProgressEvent, normalizeQueueEvent } from './normalizers';
 
@@ -163,6 +173,29 @@ export const tauriClient = {
 		commandSpecs.discover_audio_import_paths({ inputPaths }),
 	takeOpenedAudioFiles: (): Promise<CommandResult<'take_opened_audio_files'>> =>
 		commandSpecs.take_opened_audio_files(),
+	listRemoteSourceProviders: (): Promise<RemoteSourceProviderCapabilities[]> =>
+		commandSpecs.list_remote_source_providers(),
+	getRemoteSourceAccountState: (providerId: ProviderId): Promise<RemoteSourceAccountState> =>
+		commandSpecs.get_remote_source_account_state({ providerId }),
+	startRemoteSourceAuth: (providerId: ProviderId): Promise<RemoteAuthStartResponse> =>
+		commandSpecs.start_remote_source_auth({ providerId }),
+	completeRemoteSourceAuth: (
+		request: RemoteAuthCompletionRequest,
+	): Promise<RemoteSourceAccountState> => commandSpecs.complete_remote_source_auth({ request }),
+	logoutRemoteSourceAccount: (providerId: ProviderId): Promise<RemoteSourceAccountState> =>
+		commandSpecs.logout_remote_source_account({ providerId }),
+	loadRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
+		commandSpecs.load_remote_source_library({ providerId }),
+	refreshRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
+		commandSpecs.refresh_remote_source_library({ providerId }),
+	startRemoteSourceAcquisition: (plan: AcquisitionPlan): Promise<AcquisitionJob> =>
+		commandSpecs.start_remote_source_acquisition({ plan }),
+	getRemoteSourceAcquisitionStatus: (jobId: string): Promise<AcquisitionJob> =>
+		commandSpecs.get_remote_source_acquisition_status({ jobId }),
+	cancelRemoteSourceAcquisition: (jobId: string): Promise<AcquisitionJob> =>
+		commandSpecs.cancel_remote_source_acquisition({ jobId }),
+	purgeRemoteSourceSession: (jobId: string): Promise<void> =>
+		commandSpecs.purge_remote_source_session({ jobId }).then(() => undefined),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>

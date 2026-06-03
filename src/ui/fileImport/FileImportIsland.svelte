@@ -21,6 +21,7 @@
 		handleClickToSelectFolder,
 	} from './handlers';
 	import { fileImportUiState } from './state.svelte';
+	import RemoteSourceAcquireIsland from '../remoteSource/RemoteSourceAcquireIsland.svelte';
 
 	let dropZoneHeader: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
@@ -119,6 +120,7 @@
     >
       Add Folder
     </button>
+    <RemoteSourceAcquireIsland />
     <button
       id="sort-toggle-btn"
       class="btn-pill btn-pill-secondary"
@@ -388,7 +390,7 @@
     tabindex="0"
     onkeydown={onFileListKeyDown}
   >
-    {#each fileListViewState.files as file, index (file.path)}
+    {#each fileListViewState.files as file, index (file.inputId ?? file.path)}
       <div
         data-file-index={index}
         class="file-list-item {file.isValid ? 'valid' : 'invalid'}"

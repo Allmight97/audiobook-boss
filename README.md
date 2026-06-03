@@ -62,9 +62,16 @@ currently uses direct native commands, not a custom verification runner.
   `cargo clippy --workspace --all-targets -- -D warnings`,
   `bash scripts/check-generated-bindings.sh --mode local`,
   the remaining boundary checks named below,
-  `cargo nextest run --workspace`,
+  `cargo nextest run -p abb-media-core`,
+  `cargo nextest run -p abb-metadata-core`,
+  `cargo nextest run -p abb-output-artifact-core`,
+  `cargo nextest run -p abb-processing-core`,
+  `cargo nextest run -p abb-remote-source-core`,
+  `cargo nextest run -p audiobook-boss --lib`,
+  `cargo nextest run -p audiobook-boss --test all_tests`,
   `bun run test`, and `bun run build`.
 - Focused Rust loops:
+  `cargo nextest run -p abb-media-core`,
   `cargo nextest run -p abb-metadata-core`,
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,
@@ -93,7 +100,7 @@ currently uses direct native commands, not a custom verification runner.
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
-- Grey-box module work is governed by the seven Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, and App Settings.
+- Grey-box module work is governed by the eight Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime.
 - For substantial planning, roadmap, architecture, or implementation alignment, use `.agents/skills/decision-alignment` to align outcomes with the repo owner. Keep active specs under `docs/specs/` only while the work needs a temporary repo-carried plan; delete them or distill enduring truths into canon when done. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
 - For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for authenticated Context7/current docs, squashed `repos/*` reference source, route cards, subtree refresh guidance, and installed dependency truth. Reference repos are read-only research material, not app dependencies.
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).

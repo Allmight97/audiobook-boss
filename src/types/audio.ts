@@ -29,16 +29,22 @@ import type {
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
 	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	SampleRateConfig as GeneratedSampleRateConfig,
+	SupplementalProcessingAsset as GeneratedSupplementalProcessingAsset,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 	ThreadSetting as GeneratedThreadSetting,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
-export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
+type GeneratedAudioFileUi = NullToOptionalDeep<GeneratedAudioFile>;
+export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId'> & {
+	inputId?: string;
+};
 export type DecoderSelection = NullToOptionalDeep<GeneratedDecoderSelection>;
 
-export type FileListInfo = NullToOptionalDeep<GeneratedFileListInfo>;
+export type FileListInfo = Omit<NullToOptionalDeep<GeneratedFileListInfo>, 'files'> & {
+	files: AudioFile[];
+};
 export type CollisionPolicy = GeneratedCollisionPolicy;
 export type OutputKind = GeneratedOutputKind;
 export type OutputCollisionKind = GeneratedOutputCollisionKind;
@@ -114,6 +120,7 @@ export type JobType = GeneratedJobType;
 export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'settings'> & {
 	settings: EncoderSettings;
 };
+export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
 // Default encoder settings with runtime auto resolution.
 // Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.

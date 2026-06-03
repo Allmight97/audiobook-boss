@@ -413,6 +413,7 @@ mod tests {
     fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
         let mut payload = ProcessPayload {
             input_files: vec!["/books/input.m4b".to_string()],
+            input_ids: None,
             output_dir: "/tmp/out".to_string(),
             settings: encoder_settings(),
             sample_rate: None,
@@ -420,6 +421,7 @@ mod tests {
             output_naming: None,
             collision_policy: None,
             preflight_signature: None,
+            supplemental_assets_by_input_id: None,
         };
         overrides(&mut payload);
         payload

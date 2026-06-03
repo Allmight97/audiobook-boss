@@ -50,6 +50,29 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Frontend: `src/ui/fileImport/importAnalysisWorkflow.ts` through `src/lib/tauri/client.ts`
   - Use: local audio import metadata, recursive folder/file discovery, and OS-opened audio drain for the Local Audio Import Boundary
 
+### Remote Source Acquisition
+
+- `list_remote_source_providers`, `get_remote_source_account_state`,
+  `start_remote_source_auth`, `complete_remote_source_auth`,
+  `logout_remote_source_account`
+  - Rust: `src-tauri/src/commands/remote_source.rs`
+  - Core owner: `src-tauri/src/remote_source/`
+  - Frontend: `src/ui/remoteSource/` through `src/lib/tauri/client.ts`
+  - Use: provider-neutral source availability and backend-owned auth/account lifecycle. Frontend state must not hold provider credentials, tokens, cookies, license blobs, or raw provider responses.
+
+- `load_remote_source_library`, `refresh_remote_source_library`,
+  `start_remote_source_acquisition`, `get_remote_source_acquisition_status`,
+  `cancel_remote_source_acquisition`, `purge_remote_source_session`
+  - Rust: `src-tauri/src/commands/remote_source.rs`
+  - Core owner: `src-tauri/src/remote_source/`
+  - Private provider cluster: `src-tauri/src/remote_source/providers/audible/`
+  - Frontend: `src/ui/remoteSource/` through `src/lib/tauri/client.ts`
+  - Use: library scan, acquisition job status, local materialized audio handoff
+    into the Local Audio Import Boundary, Supplemental Asset tracking, and
+    cleanup/purge of ABB-owned acquisition session storage. Processing receives
+    explicit Supplemental Asset maps by file-list `inputId`; it does not query
+    `RemoteSourceRuntime`.
+
 - `validate_encoder_settings`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain.rs`
@@ -140,7 +163,7 @@ UI caller
 - Contract and boundary regressions: `src/lib/behavior-contract.test.ts`, `src/lib/tauri-client.test.ts`
 - UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`
 - Runtime boundary checks: `bash scripts/check-generated-bindings.sh --mode local`, `bash scripts/check-public-api-strips.sh`, and targeted `bun run test -- src/lib/...`
-- Broad direct review: `cargo nextest run --workspace`, `bun run test`, and `bun run build`
+- Broad direct review: run Nextest sequentially per Rust package/target (`abb-media-core`, `abb-metadata-core`, `abb-output-artifact-core`, `abb-processing-core`, `abb-remote-source-core`, `audiobook-boss --lib`, `audiobook-boss --test all_tests`), then `bun run test` and `bun run build`
 
 ## Maintenance Rule
 

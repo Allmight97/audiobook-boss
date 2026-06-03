@@ -12,6 +12,7 @@ mod metadata;
 mod opened_audio;
 pub mod output_artifact;
 pub mod processing;
+pub mod remote_source;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::{
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
@@ -127,6 +128,9 @@ pub fn run() {
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
+            let remote_runtime = remote_source::RemoteSourceRuntime::new(app.handle())?;
+            remote_runtime.cleanup_abandoned_sessions()?;
+            app.manage(remote_runtime);
 
             if let Some(main_window) = app.get_webview_window("main") {
                 if let Err(error) = configure_startup_window(&main_window) {

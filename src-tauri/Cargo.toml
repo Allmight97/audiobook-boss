@@ -13,6 +13,9 @@ default-run = "audiobook-boss"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "audiobook_boss_lib"
+# Tauri packaging needs these crate types. Use one package/target-selected
+# Nextest command at a time for Rust review instead of changing packaging
+# artifacts to influence test discovery.
 crate-type = ["staticlib", "cdylib", "rlib"]
 # ABB treats backend contract coverage as unit/integration tests plus IPC and
 # boundary checks; rustdoc examples are not a supported test surface today.
@@ -25,6 +28,7 @@ tauri-build = { version = "2.5.6", features = [] }
 abb-metadata-core = { path = "../crates/abb-metadata-core" }
 abb-output-artifact-core = { path = "../crates/abb-output-artifact-core" }
 abb-processing-core = { path = "../crates/abb-processing-core" }
+abb-remote-source-core = { path = "../crates/abb-remote-source-core" }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-opener = "2.5.3"
 tauri-plugin-dialog = "2.7.0"
@@ -42,6 +46,9 @@ ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+# audible_api currently accepts reqwest 0.12 request values. Keep this renamed
+# dependency private to the Audible provider until that upstream surface changes.
+audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
@@ -49,6 +56,12 @@ specta = "=2.0.0-rc.24"
 specta-typescript = "=0.0.11"
 tauri-specta = { version = "=2.0.0-rc.24", features = ["typescript"] }
 urlencoding = "2.1.3"
+keyring = "4.0.1"
+keyring-core = "1.0.0"
+secrecy = "0.10.3"
+sha2 = "0.10.9"
+zeroize = "1.8.2"
+audible_api = "0.1.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

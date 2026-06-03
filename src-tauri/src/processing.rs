@@ -60,5 +60,5 @@ pub use types::{
     CollisionPolicy, JobType, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
     ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessResultSummary, ProcessingPreflightPlan,
+    ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset,
 };
