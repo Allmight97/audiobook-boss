@@ -2,6 +2,24 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.32] - 2026-06-03
+
+### Changed
+
+- Tightened Tauri runtime boundary checks so generated command/event values and
+  raw Tauri invoke calls stay behind the owned `tauriClient` boundary.
+- Replaced the shell version bump helper with a structured Bun script that
+  validates and updates all release version surfaces.
+- Shrunk repo glossary guidance to implementation-changing terms for clearer
+  human and agent routing.
+
+### Fixed
+
+- Removed global remote-source Tauri mocks from frontend test setup so
+  remote-source tests must own their provider command fixtures locally.
+- Staged binding checks now treat deleted Rust contract files as
+  contract-related changes instead of skipping regeneration.
+
 ## [1.0.31] - 2026-06-03
 
 ### Added
