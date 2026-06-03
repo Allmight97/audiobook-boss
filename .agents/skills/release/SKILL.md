@@ -37,7 +37,7 @@ Keep these synchronized during explicit release work:
 Use:
 
 ```bash
-scripts/bump-version.sh <x.y.z>
+bun scripts/bump-version.ts <x.y.z>
 ```
 
 ## Changelog Format
@@ -62,7 +62,7 @@ Omit empty categories in a release section. Keep `[Unreleased]` as the staging a
 
 1. Confirm the intended version and impact category.
 2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
-3. Run `scripts/bump-version.sh <x.y.z>`.
+3. Run `bun scripts/bump-version.ts <x.y.z>`.
 4. Run only the validation warranted by the changed owner or release metadata.
    For release-only version/changelog edits, `git diff --check` plus the
    artifact commands below is sufficient unless a concrete safety, data, or

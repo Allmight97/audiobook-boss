@@ -68,8 +68,8 @@ default broad review route.
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Focused frontend loops: `bun run test -- <test files>`.
 - IPC/boundary checks: `scripts/check-generated-bindings.sh --mode local` and
-  `bun scripts/check-generated-tauri-imports.ts`. Run standalone when touching
-  generated bindings or generated command/event import boundaries directly.
+  `bun scripts/check-tauri-runtime-boundary.ts`. Run standalone when touching
+  generated bindings or Tauri runtime boundaries directly.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
 - Tooling policy: Bun is the package manager/script runner/test runner.
@@ -79,7 +79,7 @@ default broad review route.
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`
   when investigating compile cost.
 - Release: use `.agents/skills/release`.
-  `scripts/bump-version.sh <version>` updates version surfaces;
+  `bun scripts/bump-version.ts <version>` updates version surfaces;
   `bun run app:build` builds a repo-local `.app`; `bun run app:install-local`
   installs `/Applications/AudioBook Boss.app`; `bun run app:build:dmg` builds a DMG.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.

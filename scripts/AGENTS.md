@@ -41,7 +41,8 @@ commands over invoking internals directly.
   `bash scripts/check-generated-bindings.sh --mode local` and targeted
   `tauriClient`/contract Vitest files.
 - Runtime boundary changes: run the generated binding check, the generated
-  Tauri import check, or targeted contract tests for the owning public surface.
+  Tauri runtime-boundary check, or targeted contract tests for the owning public
+  surface.
 - Build/release artifact changes: use the release skill's artifact commands.
   Do not convert release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
@@ -51,9 +52,10 @@ commands over invoking internals directly.
 ## Script Families
 
 - `check-generated-bindings.sh`: IPC binding drift detection.
-- `check-generated-tauri-imports.ts`: generated command/event import boundary.
+- `check-tauri-runtime-boundary.ts`: generated command/event import boundary
+  plus raw Tauri invoke bypass protection.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
-  `bump-version.sh`: build/release utilities.
+  `bump-version.ts`: build/release utilities.
 - `analyze_code_lines.py`: optional human "Commander View" source-size
   diagnostic, not proof.
 - `*.test.ts`: Vitest coverage for script helpers.

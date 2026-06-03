@@ -43,7 +43,7 @@ pub async fn my_command(payload: MyPayload) -> Result<MyResult> {
    boundary checks first:
 ```bash
 bash scripts/check-generated-bindings.sh --mode local
-bun scripts/check-generated-tauri-imports.ts
+bun scripts/check-tauri-runtime-boundary.ts
 bun run test -- src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts
 ```
 3. Use the owner-scoped command menu in `README.md` / `scripts/AGENTS.md` when

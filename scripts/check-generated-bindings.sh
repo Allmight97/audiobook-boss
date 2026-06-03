@@ -67,7 +67,7 @@ esac
 
 collect_changed_files() {
   if $use_staged; then
-    git diff --cached --name-only --diff-filter=ACMR || true
+    git diff --cached --name-only --diff-filter=ACMRD || true
     return
   fi
 

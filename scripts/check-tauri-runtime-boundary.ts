@@ -6,6 +6,8 @@ const repoRoot = process.cwd();
 const generatedModulePath = path.join(repoRoot, 'src/lib/generated/tauri');
 const allowedCommandImporter = path.join(repoRoot, 'src/lib/tauri/commands.ts');
 const allowedEventImporter = path.join(repoRoot, 'src/lib/tauri/client.ts');
+const tauriBoundaryDir = withTrailingSeparator(path.join(repoRoot, 'src/lib/tauri'));
+const testSupportDir = withTrailingSeparator(path.join(repoRoot, 'src/test'));
 
 type Violation = {
 	file: string;
@@ -30,7 +32,7 @@ if (violations.length > 0) {
 	process.exit(1);
 }
 
-console.log('[check-generated-tauri-imports] OK');
+console.log('[check-tauri-runtime-boundary] OK');
 
 function collectSourceFiles(root: string): string[] {
 	const files: string[] = [];
@@ -62,6 +64,10 @@ function checkSourceBlock(file: string, fullContent: string, block: SourceBlock)
 			checkExportDeclaration(file, fullContent, block, sourceFile, statement);
 		}
 	}
+
+	if (!allowsRawTauriCore(file)) {
+		checkRawTauriInvokeUsage(file, fullContent, block, sourceFile);
+	}
 }
 
 function checkImportDeclaration(
@@ -73,16 +79,20 @@ function checkImportDeclaration(
 ): void {
 	const source = moduleSpecifierText(statement.moduleSpecifier);
 	const importClause = statement.importClause;
-	if (
-		!source ||
-		!importClause ||
-		importClause.isTypeOnly ||
-		!isGeneratedTauriImport(file, source)
-	) {
+	if (!source || !importClause || importClause.isTypeOnly) {
 		return;
 	}
 
 	const line = lineNumberAt(fullContent, block.start + statement.getStart(sourceFile));
+	if (source === '@tauri-apps/api/core' && !allowsRawTauriCore(file)) {
+		pushRawTauriCoreImportViolations(file, line, importClause);
+		return;
+	}
+
+	if (!isGeneratedTauriImport(file, source)) {
+		return;
+	}
+
 	const namedImports = importNamedValues(importClause);
 	const hasValueNamespaceImport =
 		importClause.namedBindings !== undefined && ts.isNamespaceImport(importClause.namedBindings);
@@ -123,6 +133,69 @@ function checkExportDeclaration(
 	}
 
 	pushNamedValueViolations(file, line, namedExports(exportClause));
+}
+
+function checkRawTauriInvokeUsage(
+	file: string,
+	fullContent: string,
+	block: SourceBlock,
+	sourceFile: ts.SourceFile,
+): void {
+	function visit(node: ts.Node): void {
+		if (ts.isIdentifier(node) && node.text === '__TAURI_INVOKE') {
+			violations.push({
+				file: displayPath(file),
+				line: lineNumberAt(fullContent, block.start + node.getStart(sourceFile)),
+				message: 'raw __TAURI_INVOKE usage must stay out of runtime app code; use tauriClient',
+			});
+		}
+		ts.forEachChild(node, visit);
+	}
+
+	visit(sourceFile);
+}
+
+function pushRawTauriCoreImportViolations(
+	file: string,
+	line: number,
+	importClause: ts.ImportClause,
+): void {
+	if (importClause.name) {
+		violations.push({
+			file: displayPath(file),
+			line,
+			message: 'raw Tauri core default imports must stay out of runtime app code; use tauriClient',
+		});
+	}
+
+	const namedBindings = importClause.namedBindings;
+	if (!namedBindings) {
+		return;
+	}
+
+	if (ts.isNamespaceImport(namedBindings)) {
+		violations.push({
+			file: displayPath(file),
+			line,
+			message:
+				'raw Tauri core namespace imports must stay out of runtime app code; use tauriClient',
+		});
+		return;
+	}
+
+	for (const specifier of namedBindings.elements) {
+		if (specifier.isTypeOnly) {
+			continue;
+		}
+		const name = specifier.propertyName?.text ?? specifier.name.text;
+		if (name === 'invoke') {
+			violations.push({
+				file: displayPath(file),
+				line,
+				message: "raw Tauri 'invoke' imports must stay out of runtime app code; use tauriClient",
+			});
+		}
+	}
 }
 
 type SourceBlock = {
@@ -221,8 +294,24 @@ function stripKnownExtension(value: string): string {
 	return value.replace(/\.(ts|js|svelte)$/, '');
 }
 
+function allowsRawTauriCore(file: string): boolean {
+	const normalized = normalizeFilePath(file);
+	if (normalized.startsWith(tauriBoundaryDir) || normalized.startsWith(testSupportDir)) {
+		return true;
+	}
+	if (/[./](test|spec)\.ts$/.test(normalized)) {
+		return true;
+	}
+	return normalized.includes(`${path.sep}__tests__${path.sep}`);
+}
+
 function normalizeFilePath(file: string): string {
 	return path.normalize(file);
+}
+
+function withTrailingSeparator(file: string): string {
+	const normalized = normalizeFilePath(file);
+	return normalized.endsWith(path.sep) ? normalized : `${normalized}${path.sep}`;
 }
 
 function displayPath(file: string): string {
