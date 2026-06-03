@@ -51,12 +51,15 @@
   "blocker," "phase," "sprint," "stakeholder," and "clean room" unless the user
   asks for that framing or the repo surface specifically requires it.
 - When stating a constraint, say exactly what is allowed, what is not allowed,
-  and why. Example: "AAXClean is allowed as an Audible materializer dependency;
-  do not paste or closely port third-party source unless ABB explicitly accepts
-  the resulting license obligations."
-- For licensing, distinguish dependency use, source copying, close source
-  porting, linking/bundling, binary distribution, and charging for binaries.
-  Do not collapse those into vague "do not use GPL" guidance.
+  and why. Third-party implementations may be used, wrapped, studied, ported,
+  or replaced only through an explicit design/licensing decision. Do not
+  accidentally absorb implementation code or close ports without recording
+  intended ownership, license posture, and distribution implications.
+- Treat licensing as a design dimension, not an early architecture filter.
+  Distinguish dependency use, source copying, close source porting,
+  linking/bundling, binary distribution, and charging for binaries. Do not
+  collapse those into vague allow/ban guidance around a named license or
+  dependency.
 - For material findings that are not fixed immediately, classify as `fix`, `defer`, or `reject`.
   - State the impact of fixing versus leaving it alone.
   - Avoid vague labels like "probably," "soon," or "watchlist."
