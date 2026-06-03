@@ -7,31 +7,16 @@ commands over invoking internals directly.
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
-- There is no repo-owned verification runner. Run native commands directly,
-  one at a time, and report the command, exit code, failing test/script line,
-  and residual risk.
-- Direct review matrix:
-  `cargo fmt --all -- --check`,
-  `bun run fmt:check`,
-  `bun run lint:check`,
-  `cargo clippy --workspace --all-targets -- -D warnings`,
-  `bash scripts/check-generated-bindings.sh --mode local`,
-  `bash scripts/check-public-api-strips.sh`,
-  `bash scripts/check-no-bridge-imports.sh`,
-  `bash scripts/check-fallback-policy.sh`,
-  `cargo nextest run -p abb-media-core`,
-  `cargo nextest run -p abb-metadata-core`,
-  `cargo nextest run -p abb-output-artifact-core`,
-  `cargo nextest run -p abb-processing-core`,
-  `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p audiobook-boss --lib`,
-  `cargo nextest run -p audiobook-boss --test all_tests`, `bun run test`, and
-  `bun run build`.
-- Focus pure Rust owner loops with `cargo nextest run -p abb-*-core`.
-- Focus runtime shell loops with `cargo nextest run -p audiobook-boss --lib` or
-  `cargo nextest run -p audiobook-boss --test all_tests`.
-- Use Cargo's built-in `cargo test` only when Nextest cannot express the route
-  and document the reason.
+- There is no repo-owned verification runner and no default full review matrix.
+  Run native commands directly, one at a time, only for the touched owner or
+  explicit risk surface. Report the command, elapsed time when meaningful, exit
+  code, failing test/script line, and residual risk.
+- Broad workspace routes are not a freshness badge. Use them only when the
+  changed surface actually crosses owners or when the repo owner asks for that
+  cost.
+- If a proof/test/build command consumes disproportionate wall-clock, first-output
+  latency, or agent tokens, classify the friction as `fix` unless a safety, data,
+  or contract invariant requires finishing the current command.
 - Keep Rust binary checks out of broad Nextest discovery. Run generated binding
   export and decoder-contract binaries through their explicit commands only.
 - Avoid broad workspace and multi-package Nextest routes; they can discover or
@@ -41,18 +26,27 @@ commands over invoking internals directly.
   add FFmpeg/audio/container tests back until behavior, fixtures, runtime cost,
   and owner boundary are redesigned explicitly.
 
-## Fresh Agent Verification Shape
+## Command Menu
 
-- Docs/guidance only: run `git diff --check` plus stale-reference searches for
-  the edited terms.
-- Rust core owner: run the matching `cargo nextest run -p abb-<owner>-core`.
-- Runtime shell or Rust integration: run `cargo nextest run -p audiobook-boss --lib`
-  or `cargo nextest run -p audiobook-boss --test all_tests`.
-- Frontend owner: run `bun run test -- <owner test files>`.
-- IPC/generated binding changes: run `bash scripts/check-generated-bindings.sh --mode local`,
-  `bash scripts/check-public-api-strips.sh`, and targeted `tauriClient`/contract
-  Vitest files.
-- Before PR handoff for non-doc code: run the full direct review matrix above.
+- Docs/guidance only: `git diff --check` plus stale-reference searches for the
+  edited terms.
+- Formatting/linting when formatting or TypeScript style is in scope:
+  `bun run fmt:check`, `bun run lint:check`, or `cargo fmt --all -- --check`.
+- Rust core owner: `cargo nextest run -p abb-<owner>-core`.
+- Runtime shell or Rust integration:
+  `cargo nextest run -p audiobook-boss --lib` or
+  `cargo nextest run -p audiobook-boss --test all_tests`.
+- Frontend owner: `bun run test -- <owner test files>`.
+- IPC/generated binding changes:
+  `bash scripts/check-generated-bindings.sh --mode local`,
+  `bash scripts/check-public-api-strips.sh`, and targeted
+  `tauriClient`/contract Vitest files.
+- Boundary/policy changes: run the specific touched checker:
+  `bash scripts/check-no-bridge-imports.sh`,
+  `bash scripts/check-fallback-policy.sh`, or
+  `bash scripts/check-public-api-strips.sh`.
+- Build/release artifact changes: use the release skill's artifact commands.
+  Do not convert release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.

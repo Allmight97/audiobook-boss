@@ -42,34 +42,22 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 ```bash
 bun install
 bun run tauri dev
-bun run test
 ```
+
+Run targeted validation from the script guide for the owner or risk surface you
+touched.
 
 ## Script Guide
 
 Human index for common commands. `package.json` owns shortcuts and
-`scripts/AGENTS.md` is the exact fresh-agent verification command map. ABB
-currently uses direct native commands, not a custom verification runner.
+`scripts/AGENTS.md` owns the exact fresh-agent verification command menu. ABB
+currently uses direct native commands, not a custom verification runner or a
+default full review matrix.
 
-- Core dev: `bun run tauri dev`, `bun run build`, `bun run test`
-- Before handoff: use the direct review commands below, sequentially. For
-  owner-local loops, run the focused command first and escalate only when the
-  touched surface warrants it.
-- Direct review commands:
-  `cargo fmt --all -- --check`,
-  `bun run fmt:check`,
-  `bun run lint:check`,
-  `cargo clippy --workspace --all-targets -- -D warnings`,
-  `bash scripts/check-generated-bindings.sh --mode local`,
-  the remaining boundary checks named below,
-  `cargo nextest run -p abb-media-core`,
-  `cargo nextest run -p abb-metadata-core`,
-  `cargo nextest run -p abb-output-artifact-core`,
-  `cargo nextest run -p abb-processing-core`,
-  `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p audiobook-boss --lib`,
-  `cargo nextest run -p audiobook-boss --test all_tests`,
-  `bun run test`, and `bun run build`.
+- Core dev: `bun run tauri dev`, `bun run build`
+- Verification is owner-scoped by default. Run the smallest native command that
+  proves the touched owner or risk surface, then escalate only when the change
+  crosses owners or a concrete safety/data/contract invariant requires it.
 - Focused Rust loops:
   `cargo nextest run -p abb-media-core`,
   `cargo nextest run -p abb-metadata-core`,

@@ -11,6 +11,10 @@ description: Audiobook Boss release workflow for deciding whether changes need a
 - A complete public release includes a Git tag, GitHub Release, and verified DMG
   attachment.
 - A tag alone is tag-only; GitHub will not show it as the latest release.
+- This skill owns release metadata and artifact proof. It does not impose a
+  broad test matrix by default; choose code validation from the touched owner
+  and concrete risk surface before release work, or skip it when the accepted
+  change has already been verified and the owner asks to avoid rerunning tests.
 
 ## Decision Rule
 
@@ -59,7 +63,10 @@ Omit empty categories in a release section. Keep `[Unreleased]` as the staging a
 1. Confirm the intended version and impact category.
 2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
 3. Run `scripts/bump-version.sh <x.y.z>`.
-4. Run the direct review matrix from `README.md` / `scripts/AGENTS.md`.
+4. Run only the validation warranted by the changed owner or release metadata.
+   For release-only version/changelog edits, `git diff --check` plus the
+   artifact commands below is sufficient unless a concrete safety, data, or
+   contract invariant says otherwise.
 5. For a local launcher-visible app smoke build, run:
 ```bash
 bun run app:install-local
