@@ -11,6 +11,32 @@
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
 - Fallback register: `docs/fallbacks.md`.
 
+## Project Priority Zero: Testing Infrastructure
+
+- Fixing proof/test/build-validation wall-clock, opacity, false-green results,
+  target bloat, and agent-feedback friction is ABB Project Priority Zero.
+  Treat it as first-order product work, not cleanup or polish.
+- Testing and proof infrastructure are not sacred. Delete, consolidate,
+  replace, or redesign tests, proof routes, build scripts, and validation
+  surfaces when their signal does not justify their wall-clock, token, or
+  attention cost.
+- Do not normalize slow verification as "just the stack" without measured
+  evidence. Separate actual test execution from compile, link, export,
+  packaging, target-dir lock, runner handoff, and no-output stall time.
+- If a proof/test/build command consumes disproportionate time or agent tokens,
+  stop ordinary completion bias and classify the friction as `fix` unless a
+  safety, data, or contract invariant requires finishing the current command.
+- For suspicious or slow verification, capture the command, elapsed time,
+  first-output latency when available, active child process or lock state, and
+  whether the cost was expected stack work or unacceptable infrastructure
+  friction.
+- High-ROI reductions to verification wall-clock and feedback opacity outrank
+  ordinary feature work and release polish until the repo owner explicitly
+  deprioritizes testing-infra repair.
+- Do not add new tests, proof routes, or validation layers unless they reduce
+  total feedback cost, remove false confidence, or protect a concrete high-risk
+  contract.
+
 ## Operating Posture
 
 - Complete tasks by proving the requested outcome, not by accumulating process.

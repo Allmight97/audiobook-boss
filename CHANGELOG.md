@@ -2,6 +2,27 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.31] - 2026-06-03
+
+### Added
+
+- Added remote source acquisition with an app-level Acquire dialog, Audible
+  account handoff, library loading, import-ready M4B handoff, and Supplemental
+  PDF copy-through during normal processing.
+- Added backend-owned remote source and media contract boundaries for classifying
+  provider lanes, protected formats, materialized source files, and staged
+  session cleanup.
+
+### Fixed
+
+- Cancelled remote acquisitions now stop the background provider task, keep the
+  cancelled terminal state, and remove staged handoff files instead of importing
+  late provider results.
+- Protected Audible AAX, AAXC, and Dash lanes now stop at the materializer
+  boundary instead of entering the FileList as import-ready audio.
+- Blocked acquisition handoff paths now purge staged remote files and avoid false
+  import success messages.
+
 ## [1.0.30] - 2026-05-30
 
 ### Changed
