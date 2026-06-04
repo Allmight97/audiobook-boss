@@ -671,8 +671,8 @@ async fn download_audio(
     ensure_not_cancelled(is_cancelled)?;
     let extension = path
         .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or("bin");
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_else(|| std::borrow::Cow::Borrowed("bin"));
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

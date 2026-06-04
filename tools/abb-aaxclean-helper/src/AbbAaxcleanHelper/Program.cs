@@ -5,6 +5,8 @@ namespace AbbAaxcleanHelper;
 
 internal static class Program
 {
+    private static readonly SemaphoreSlim WriteSemaphore = new(1, 1);
+
     private const int SuccessExitCode = 0;
     private const int InvalidRequestExitCode = 2;
     private const int MaterializationFailedExitCode = 3;
@@ -67,8 +69,16 @@ internal static class Program
 
     private static async Task WriteAsync(HelperMessage message)
     {
-        var line = JsonSerializer.Serialize(message, message.GetType(), Protocol.JsonOptions);
-        await Console.Out.WriteLineAsync(line);
-        await Console.Out.FlushAsync();
+        await WriteSemaphore.WaitAsync();
+        try
+        {
+            var line = JsonSerializer.Serialize(message, message.GetType(), Protocol.JsonOptions);
+            await Console.Out.WriteLineAsync(line);
+            await Console.Out.FlushAsync();
+        }
+        finally
+        {
+            WriteSemaphore.Release();
+        }
     }
 }

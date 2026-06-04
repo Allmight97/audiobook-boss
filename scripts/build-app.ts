@@ -61,6 +61,8 @@ const defaultLinkFsOps: LinkFsOps = {
 	unlinkSync,
 };
 
+const aaxcleanHelperExternalBin = `binaries/${aaxcleanHelperBaseName}`;
+
 function readJson<T>(filePath: string): T {
 	return JSON.parse(readFileSync(filePath, 'utf8')) as T;
 }
@@ -200,7 +202,9 @@ export function buildTauriApp(
 	publishAaxcleanHelper(repoRoot, options.commandRunner);
 	verifyAaxcleanHelperSidecar(repoRoot);
 
-	const tauriArgs = ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg');
+	const tauriArgs = addAaxcleanHelperConfigArg(
+		ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg'),
+	);
 	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
 	if (options.nonInteractiveDmg) {
 		console.log('[build-app] DMG build is noninteractive; Tauri will skip Finder styling.');
@@ -223,6 +227,20 @@ export function buildTauriApp(
 	if (result.error) {
 		throw result.error;
 	}
+}
+
+export function addAaxcleanHelperConfigArg(args: string[]): string[] {
+	const [tauriArgs, trailingArgs] = splitArgsAtBoundary(args);
+	return [
+		...tauriArgs,
+		'--config',
+		JSON.stringify({
+			bundle: {
+				externalBin: [aaxcleanHelperExternalBin],
+			},
+		}),
+		...trailingArgs,
+	];
 }
 
 export function verifyMacOsBundle(paths: BundlePaths): void {

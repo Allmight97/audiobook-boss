@@ -15,6 +15,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
+	addAaxcleanHelperConfigArg,
 	assertSupportedMacOsHost,
 	buildTauriApp,
 	ensureFeatureArg,
@@ -268,6 +269,30 @@ describe('ensureFeatureArg', () => {
 	});
 });
 
+describe('addAaxcleanHelperConfigArg', () => {
+	it('injects the AAXClean helper sidecar as a Tauri CLI config overlay', () => {
+		const args = addAaxcleanHelperConfigArg(['--bundles', 'app']);
+		const configIndex = args.indexOf('--config');
+
+		expect(args.slice(0, configIndex)).toEqual(['--bundles', 'app']);
+		expect(JSON.parse(args[configIndex + 1] ?? '{}')).toEqual({
+			bundle: {
+				externalBin: ['binaries/abb-aaxclean-helper'],
+			},
+		});
+	});
+
+	it('inserts the sidecar config before arguments after the boundary', () => {
+		const args = addAaxcleanHelperConfigArg(['--bundles', 'app', '--', '--runner-only']);
+		const boundaryIndex = args.indexOf('--');
+		const configIndex = args.indexOf('--config');
+
+		expect(configIndex).toBeGreaterThan(-1);
+		expect(configIndex).toBeLessThan(boundaryIndex);
+		expect(args.slice(boundaryIndex)).toEqual(['--', '--runner-only']);
+	});
+});
+
 describe('buildTauriApp', () => {
 	it('forces noninteractive Finder-free DMG packaging when requested', () => {
 		const { repoRoot } = createRepoFixture();
@@ -297,15 +322,25 @@ describe('buildTauriApp', () => {
 		});
 
 		expect(calls).toHaveLength(2);
-		expect(calls[1]).toMatchObject({
-			args: ['run', 'tauri', 'build', '--bundles', 'dmg', '--features', 'bundled-ffmpeg'],
-			command: 'bun',
-			stdio: 'inherit',
+		expect(calls[1]?.command).toBe('bun');
+		expect(calls[1]?.args.slice(0, 8)).toEqual([
+			'run',
+			'tauri',
+			'build',
+			'--bundles',
+			'dmg',
+			'--features',
+			'bundled-ffmpeg',
+			'--config',
+		]);
+		expect(JSON.parse(calls[1]?.args[8] ?? '{}')).toEqual({
+			bundle: { externalBin: ['binaries/abb-aaxclean-helper'] },
 		});
+		expect(calls[1]?.stdio).toBe('inherit');
 		expect(calls[1]?.env?.CI).toBe('true');
 	});
 
-	it('leaves CI untouched for non-DMG app builds', () => {
+	it('leaves CI value untouched for non-DMG app builds', () => {
 		const { repoRoot } = createRepoFixture();
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
@@ -328,6 +363,7 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: false,
 		});
 
+		expect(calls[1]?.env?.CI).toBe(process.env.CI);
 		expect(calls[1]?.env).toBe(process.env);
 	});
 });

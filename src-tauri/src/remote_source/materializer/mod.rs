@@ -371,8 +371,10 @@ fn ensure_not_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<()> {
 
 fn cleanup_materializer_outputs(output_temp_path: &Path, output_path: &Path) -> Result<()> {
     for candidate in [output_temp_path, output_path] {
-        if candidate.exists() {
-            std::fs::remove_file(candidate)?;
+        match std::fs::remove_file(candidate) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
     }
     Ok(())
