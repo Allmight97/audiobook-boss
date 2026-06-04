@@ -66,6 +66,7 @@ struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
     decryption_material: Option<AudibleDecryptionMaterial>,
+    supplemental_pdf_url: Option<String>,
 }
 
 struct AudibleTitleDetails {
@@ -545,10 +546,14 @@ async fn acquire_one(
     };
     let file =
         validate_materialized_audio(title_id, &materialized_path, progress_context, progress)?;
+    let supplemental_pdf_url =
+        supplemental_pdf_url_for_acquisition(include_pdf, &title_details, &lane);
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
         title_id,
+        job_id,
         &file,
-        title_details.supplemental_pdf_url,
+        include_pdf,
+        supplemental_pdf_url,
         &item_dir,
         is_cancelled,
     )
@@ -624,6 +629,7 @@ async fn request_license_lane(
             content_url: String::new(),
             strategy: AcquisitionStrategy::ProviderProtocolFailed,
             decryption_material: None,
+            supplemental_pdf_url: facts.supplemental_pdf_url,
         });
     };
 
@@ -648,6 +654,7 @@ async fn request_license_lane(
             );
             material
         },
+        supplemental_pdf_url: facts.supplemental_pdf_url,
     })
 }
 
@@ -713,6 +720,19 @@ fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {
         "Audible returned {}; ABB cannot materialize this lane in the current build.",
         strategy_label(strategy)
     )
+}
+
+fn supplemental_pdf_url_for_acquisition(
+    include_pdf: bool,
+    title_details: &AudibleTitleDetails,
+    lane: &LicenseLane,
+) -> Option<String> {
+    include_pdf.then(|| {
+        title_details
+            .supplemental_pdf_url
+            .clone()
+            .or_else(|| lane.supplemental_pdf_url.clone())
+    })?
 }
 
 async fn materialize_protected_download(
@@ -823,27 +843,55 @@ fn validate_materialized_audio(
 
 async fn download_supplemental_pdf_if_requested(
     title_id: &str,
+    job_id: &str,
     file: &MaterializedSourceFile,
+    include_pdf: bool,
     supplemental_pdf_url: Option<String>,
     job_dir: &Path,
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<(Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>)> {
     let mut assets = Vec::new();
     let mut diagnostics = Vec::new();
-    if let Some(pdf_url) = supplemental_pdf_url {
+    if !include_pdf {
         ensure_not_cancelled(is_cancelled)?;
-        match download_pdf(title_id, &file.input_id, &pdf_url, job_dir, is_cancelled).await {
-            Ok(asset) => assets.push(asset),
-            Err(AppError::Cancellation(message)) => {
-                return Err(AppError::Cancellation(message));
-            }
-            Err(error) => {
-                diagnostics.push(RemoteSourceDiagnostic {
-                    kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
-                    title_id: Some(title_id.to_string()),
-                    message: error.to_string(),
-                });
-            }
+        return Ok((assets, diagnostics));
+    }
+    let Some(pdf_url) = supplemental_pdf_url else {
+        log::warn!(
+            "remote_source audible stage=supplemental_pdf_missing job_id={} title_ref={} reason=missing_url",
+            job_id,
+            title_ref(title_id)
+        );
+        diagnostics.push(RemoteSourceDiagnostic {
+            kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
+            title_id: Some(title_id.to_string()),
+            message: "Audible did not provide a Supplemental PDF download URL.".to_string(),
+        });
+        ensure_not_cancelled(is_cancelled)?;
+        return Ok((assets, diagnostics));
+    };
+
+    ensure_not_cancelled(is_cancelled)?;
+    match download_pdf(
+        title_id,
+        job_id,
+        &file.input_id,
+        &pdf_url,
+        job_dir,
+        is_cancelled,
+    )
+    .await
+    {
+        Ok(asset) => assets.push(asset),
+        Err(AppError::Cancellation(message)) => {
+            return Err(AppError::Cancellation(message));
+        }
+        Err(error) => {
+            diagnostics.push(RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
+                title_id: Some(title_id.to_string()),
+                message: error.to_string(),
+            });
         }
     }
     ensure_not_cancelled(is_cancelled)?;
@@ -1397,6 +1445,7 @@ fn cleanup_download_artifacts(path: &Path) -> Result<()> {
 
 async fn download_pdf(
     title_id: &str,
+    job_id: &str,
     input_id: &str,
     url: &str,
     job_dir: &Path,
@@ -1406,7 +1455,21 @@ async fn download_pdf(
     fs::create_dir_all(job_dir)?;
     let path = generated_staging_path(job_dir, "pdf");
     let mut ignore_progress = |_progress: AcquisitionProgress| {};
-    download_to_path(url, &path, None, &mut ignore_progress, is_cancelled).await?;
+    log::info!(
+        "remote_source audible stage=supplemental_pdf_download_start job_id={} title_ref={}",
+        job_id,
+        title_ref(title_id)
+    );
+    download_to_path(url, &path, None, &mut ignore_progress, is_cancelled)
+        .await
+        .map_err(|error| {
+            log::warn!(
+                "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=download",
+                job_id,
+                title_ref(title_id)
+            );
+            error
+        })?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         cleanup_download_artifacts(&path)?;
         return Err(error);
@@ -1430,6 +1493,12 @@ async fn download_pdf(
             error
         ))
     })?;
+    log::info!(
+        "remote_source audible stage=supplemental_pdf_download_complete job_id={} title_ref={} bytes={}",
+        job_id,
+        title_ref(title_id),
+        metadata.len()
+    );
     Ok(SupplementalAsset {
         asset_id: uuid::Uuid::new_v4().to_string(),
         input_id: input_id.to_string(),
@@ -2487,6 +2556,7 @@ mod tests {
             content_url: "https://cdn.example.test/book.aax".to_string(),
             strategy: AcquisitionStrategy::DownloadThenDecryptAax,
             decryption_material: Some(material),
+            supplemental_pdf_url: None,
         };
 
         let (helper_lane, secret) =
@@ -2508,6 +2578,7 @@ mod tests {
             content_url: "https://cdn.example.test/manifest.mpd".to_string(),
             strategy: AcquisitionStrategy::DownloadThenDecryptDash,
             decryption_material: None,
+            supplemental_pdf_url: None,
         };
 
         let acquired = unsupported_result_for_unmaterializable_lane("B000000001", "job-1", &lane)
@@ -2521,6 +2592,45 @@ mod tests {
         assert!(acquired.diagnostics[0]
             .message
             .contains("Dash/Widevine materialization is not supported"));
+    }
+
+    #[test]
+    fn supplemental_pdf_url_falls_back_to_license_lane_when_title_lookup_misses() {
+        let details = AudibleTitleDetails {
+            title: Some("Remote Book".to_string()),
+            supplemental_pdf_url: None,
+        };
+        let lane = LicenseLane {
+            content_url: "https://cdn.example.test/book.aax".to_string(),
+            strategy: AcquisitionStrategy::DownloadThenDecryptAax,
+            decryption_material: None,
+            supplemental_pdf_url: Some("https://cdn.example.test/book.pdf".to_string()),
+        };
+
+        assert_eq!(
+            supplemental_pdf_url_for_acquisition(true, &details, &lane).as_deref(),
+            Some("https://cdn.example.test/book.pdf")
+        );
+    }
+
+    #[test]
+    fn supplemental_pdf_url_prefers_title_lookup_and_respects_toggle() {
+        let details = AudibleTitleDetails {
+            title: Some("Remote Book".to_string()),
+            supplemental_pdf_url: Some("https://metadata.example.test/book.pdf".to_string()),
+        };
+        let lane = LicenseLane {
+            content_url: "https://cdn.example.test/book.aax".to_string(),
+            strategy: AcquisitionStrategy::DownloadThenDecryptAax,
+            decryption_material: None,
+            supplemental_pdf_url: Some("https://license.example.test/book.pdf".to_string()),
+        };
+
+        assert_eq!(
+            supplemental_pdf_url_for_acquisition(true, &details, &lane).as_deref(),
+            Some("https://metadata.example.test/book.pdf")
+        );
+        assert!(supplemental_pdf_url_for_acquisition(false, &details, &lane).is_none());
     }
 
     #[test]
