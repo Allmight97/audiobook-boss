@@ -8,6 +8,8 @@ type InspectorState = {
 	codecText: string;
 	decoderText: string;
 	fileSizeText: string;
+	companionsText: string;
+	companionsTitle: string;
 };
 
 const EMPTY_INSPECTOR_STATE: InspectorState = {
@@ -20,6 +22,8 @@ const EMPTY_INSPECTOR_STATE: InspectorState = {
 	codecText: '---',
 	decoderText: '---',
 	fileSizeText: '---',
+	companionsText: '---',
+	companionsTitle: '',
 };
 
 export const inspectorState = $state<InspectorState>({ ...EMPTY_INSPECTOR_STATE });
@@ -50,6 +54,11 @@ export function setInspectorValues(options: {
 	inspectorState.fileSizeText = options.fileSizeText;
 }
 
+export function setInspectorCompanions(options: { text: string; title: string }): void {
+	inspectorState.companionsText = options.text;
+	inspectorState.companionsTitle = options.title;
+}
+
 export function resetInspectorState(): void {
 	inspectorState.contextText = EMPTY_INSPECTOR_STATE.contextText;
 	inspectorState.contextVariant = EMPTY_INSPECTOR_STATE.contextVariant;
@@ -60,4 +69,6 @@ export function resetInspectorState(): void {
 	inspectorState.codecText = EMPTY_INSPECTOR_STATE.codecText;
 	inspectorState.decoderText = EMPTY_INSPECTOR_STATE.decoderText;
 	inspectorState.fileSizeText = EMPTY_INSPECTOR_STATE.fileSizeText;
+	inspectorState.companionsText = EMPTY_INSPECTOR_STATE.companionsText;
+	inspectorState.companionsTitle = EMPTY_INSPECTOR_STATE.companionsTitle;
 }

@@ -157,11 +157,10 @@ pub(crate) fn commit_supplemental_output_asset(
         )));
     }
 
-    log::info!(
-        "supplemental_pdf_commit status=ok source={} dest={}",
-        request.source_path.display(),
-        destination.display()
-    );
+    let committed_bytes = std::fs::metadata(&destination)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    log::info!("supplemental_pdf_commit status=ok bytes={committed_bytes}");
     Ok(destination)
 }
 

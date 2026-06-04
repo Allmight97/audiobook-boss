@@ -21,6 +21,7 @@ const context = vi.hoisted(() => ({
 	clearCoverArtMock: vi.fn(),
 	getHasCustomCoverArtMock: vi.fn(() => false),
 	setCoverArtMock: vi.fn(),
+	companionSummaryForInputIdsMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -55,6 +56,10 @@ vi.mock('../coverArt', () => ({
 	setCoverArt: context.setCoverArtMock,
 }));
 
+vi.mock('../remoteSource/sessionAssets.svelte', () => ({
+	companionSummaryForInputIds: context.companionSummaryForInputIdsMock,
+}));
+
 const makeFile = (overrides: Partial<AudioFile>): AudioFile => ({
 	path: '/books/input.m4b',
 	isValid: true,
@@ -87,6 +92,13 @@ describe('metadata panel input inspector', () => {
 		context.updateTagPreviewMock.mockReset();
 		context.clearCoverArtMock.mockReset();
 		context.setCoverArtMock.mockReset();
+		context.companionSummaryForInputIdsMock.mockReset();
+		context.companionSummaryForInputIdsMock.mockReturnValue({
+			text: 'No companions',
+			title: '',
+			pdfCount: 0,
+			fileCountWithCompanions: 0,
+		});
 		context.getMetadataForFileMock.mockReturnValue({});
 		setSelectedIndex(-1);
 	});
@@ -105,6 +117,27 @@ describe('metadata panel input inspector', () => {
 		expect(inspectorState.codecText).toBe('USAC / xHE-AAC');
 		expect(inspectorState.decoderText).toBe('Apple AAC');
 		expect(inspectorState.contextText).toContain('science.m4b');
+	});
+
+	it('shows companion assets for a single selected file', async () => {
+		context.companionSummaryForInputIdsMock.mockReturnValueOnce({
+			text: 'PDF attached',
+			title: 'Supplemental PDF.pdf',
+			pdfCount: 1,
+			fileCountWithCompanions: 1,
+		});
+		const file = makeFile({
+			inputId: 'current-input-1',
+			path: '/books/science.m4b',
+		});
+		setCurrentFileList(makeFileList(file));
+		setSelectedIndex(0);
+
+		await showSingleSelection(file);
+
+		expect(context.companionSummaryForInputIdsMock).toHaveBeenCalledWith(['current-input-1']);
+		expect(inspectorState.companionsText).toBe('PDF attached');
+		expect(inspectorState.companionsTitle).toBe('Supplemental PDF.pdf');
 	});
 
 	it('shows shared codec and decoder values for multi-selection when they match', async () => {
@@ -151,5 +184,6 @@ describe('metadata panel input inspector', () => {
 
 		expect(inspectorState.codecText).toBe('---');
 		expect(inspectorState.decoderText).toBe('---');
+		expect(inspectorState.companionsText).toBe('---');
 	});
 });

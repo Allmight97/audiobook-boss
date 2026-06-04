@@ -7,6 +7,13 @@ import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource
 let supplementalAssetsByInputId = $state<Record<string, SupplementalProcessingAsset[]>>({});
 let jobIdsByInputId = $state<Record<string, string>>({});
 
+export type CompanionAssetSummary = {
+	text: string;
+	title: string;
+	pdfCount: number;
+	fileCountWithCompanions: number;
+};
+
 function normalizePath(path: string): string {
 	return path;
 }
@@ -65,6 +72,51 @@ export function supplementalAssetsForInputIds(
 			}),
 	);
 	return Object.keys(selected).length > 0 ? selected : undefined;
+}
+
+export function supplementalAssetsForInputId(
+	inputId: string | undefined,
+): SupplementalProcessingAsset[] {
+	if (!inputId) return [];
+	return supplementalAssetsByInputId[inputId] ?? [];
+}
+
+export function hasSupplementalAssetsForInputId(inputId: string | undefined): boolean {
+	return supplementalAssetsForInputId(inputId).length > 0;
+}
+
+export function companionSummaryForInputIds(
+	inputIds: readonly (string | undefined)[],
+): CompanionAssetSummary {
+	const selectedCount = inputIds.length;
+	const assetsByInput = inputIds.map((inputId) => supplementalAssetsForInputId(inputId));
+	const pdfCount = assetsByInput.reduce((count, assets) => count + assets.length, 0);
+	const fileCountWithCompanions = assetsByInput.filter((assets) => assets.length > 0).length;
+	const title = Array.from(
+		new Set(assetsByInput.flatMap((assets) => assets.map((asset) => asset.fileName))),
+	).join(', ');
+
+	if (selectedCount === 0) {
+		return { text: '---', title, pdfCount, fileCountWithCompanions };
+	}
+	if (pdfCount === 0) {
+		return { text: 'No companions', title, pdfCount, fileCountWithCompanions };
+	}
+	if (selectedCount === 1) {
+		return {
+			text: pdfCount === 1 ? 'PDF attached' : `${pdfCount} PDFs attached`,
+			title,
+			pdfCount,
+			fileCountWithCompanions,
+		};
+	}
+
+	return {
+		text: `${pdfCount} ${pdfCount === 1 ? 'PDF' : 'PDFs'} across ${selectedCount} selected files`,
+		title,
+		pdfCount,
+		fileCountWithCompanions,
+	};
 }
 
 export function removeRemoteSourceSupplementalAssets(

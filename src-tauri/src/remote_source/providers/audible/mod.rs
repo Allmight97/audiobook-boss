@@ -26,8 +26,13 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
 mod library;
+mod supplemental_pdf;
 
 use library::parse_library_titles;
+use supplemental_pdf::{
+    log_supplemental_pdf_resolve_failed, resolve_supplemental_pdf_url,
+    supplemental_pdf_resolve_failure_message,
+};
 
 use crate::audio;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -310,7 +315,7 @@ impl AudibleProvider {
         ensure_not_cancelled(&is_cancelled)?;
         let auth = auth_from_vault(vault)?;
         let license_decrypt_context = license_decrypt_context_from_auth(&auth);
-        let client = client_from_auth(auth)?;
+        let client = client_from_auth(auth.clone())?;
         let mut job = AcquisitionJob {
             job_id: job_id.to_string(),
             provider_id: ProviderId::Audible,
@@ -326,6 +331,7 @@ impl AudibleProvider {
             ensure_not_cancelled(&is_cancelled)?;
             match acquire_one(
                 &client,
+                &auth,
                 materializer,
                 &selection.title_id,
                 selection.include_supplemental_pdf,
@@ -460,6 +466,7 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 
 async fn acquire_one(
     client: &AudibleClient,
+    auth: &Auth,
     materializer: &AaxcleanMaterializer,
     title_id: &str,
     include_pdf: bool,
@@ -546,14 +553,15 @@ async fn acquire_one(
     };
     let file =
         validate_materialized_audio(title_id, &materialized_path, progress_context, progress)?;
-    let supplemental_pdf_url =
-        supplemental_pdf_url_for_acquisition(include_pdf, &title_details, &lane);
+    let supplemental_pdf_hint_present =
+        supplemental_pdf_hint_present_for_acquisition(include_pdf, &title_details, &lane);
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
+        auth,
         title_id,
         job_id,
         &file,
         include_pdf,
-        supplemental_pdf_url,
+        supplemental_pdf_hint_present,
         &item_dir,
         is_cancelled,
     )
@@ -722,17 +730,13 @@ fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {
     )
 }
 
-fn supplemental_pdf_url_for_acquisition(
+fn supplemental_pdf_hint_present_for_acquisition(
     include_pdf: bool,
     title_details: &AudibleTitleDetails,
     lane: &LicenseLane,
-) -> Option<String> {
-    include_pdf.then(|| {
-        title_details
-            .supplemental_pdf_url
-            .clone()
-            .or_else(|| lane.supplemental_pdf_url.clone())
-    })?
+) -> bool {
+    include_pdf
+        && (title_details.supplemental_pdf_url.is_some() || lane.supplemental_pdf_url.is_some())
 }
 
 async fn materialize_protected_download(
@@ -842,11 +846,12 @@ fn validate_materialized_audio(
 }
 
 async fn download_supplemental_pdf_if_requested(
+    auth: &Auth,
     title_id: &str,
     job_id: &str,
     file: &MaterializedSourceFile,
     include_pdf: bool,
-    supplemental_pdf_url: Option<String>,
+    api_pdf_hint_present: bool,
     job_dir: &Path,
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<(Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>)> {
@@ -856,27 +861,39 @@ async fn download_supplemental_pdf_if_requested(
         ensure_not_cancelled(is_cancelled)?;
         return Ok((assets, diagnostics));
     }
-    let Some(pdf_url) = supplemental_pdf_url else {
-        log::warn!(
-            "remote_source audible stage=supplemental_pdf_missing job_id={} title_ref={} reason=missing_url",
-            job_id,
-            title_ref(title_id)
-        );
-        diagnostics.push(RemoteSourceDiagnostic {
-            kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
-            title_id: Some(title_id.to_string()),
-            message: "Audible did not provide a Supplemental PDF download URL.".to_string(),
-        });
-        ensure_not_cancelled(is_cancelled)?;
-        return Ok((assets, diagnostics));
-    };
 
     ensure_not_cancelled(is_cancelled)?;
+    let resolved_pdf_url = match resolve_supplemental_pdf_url(
+        auth,
+        title_id,
+        job_id,
+        api_pdf_hint_present,
+        is_cancelled,
+    )
+    .await
+    {
+        Ok(url) => url,
+        Err(failure) if failure.category == "cancelled" => {
+            return Err(remote_acquisition_cancelled())
+        }
+        Err(failure) => {
+            log_supplemental_pdf_resolve_failed(job_id, title_id, failure);
+            log_supplemental_pdf_failed(job_id, title_id, failure.category);
+            diagnostics.push(RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
+                title_id: Some(title_id.to_string()),
+                message: supplemental_pdf_resolve_failure_message(failure),
+            });
+            ensure_not_cancelled(is_cancelled)?;
+            return Ok((assets, diagnostics));
+        }
+    };
+
     match download_pdf(
         title_id,
         job_id,
         &file.input_id,
-        &pdf_url,
+        resolved_pdf_url.as_str(),
         job_dir,
         is_cancelled,
     )
@@ -1456,7 +1473,7 @@ async fn download_pdf(
     let path = generated_staging_path(job_dir, "pdf");
     let mut ignore_progress = |_progress: AcquisitionProgress| {};
     log::info!(
-        "remote_source audible stage=supplemental_pdf_download_start job_id={} title_ref={}",
+        "remote_source audible stage=supplemental_pdf_download_start job_id={} title_ref={} source=companion_file",
         job_id,
         title_ref(title_id)
     );
@@ -2613,7 +2630,7 @@ mod tests {
     }
 
     #[test]
-    fn supplemental_pdf_url_falls_back_to_license_lane_when_title_lookup_misses() {
+    fn supplemental_pdf_hint_uses_title_or_license_presence_without_exposing_url() {
         let details = AudibleTitleDetails {
             title: Some("Remote Book".to_string()),
             supplemental_pdf_url: None,
@@ -2625,14 +2642,16 @@ mod tests {
             supplemental_pdf_url: Some("https://cdn.example.test/book.pdf".to_string()),
         };
 
-        assert_eq!(
-            supplemental_pdf_url_for_acquisition(true, &details, &lane).as_deref(),
-            Some("https://cdn.example.test/book.pdf")
-        );
+        assert!(supplemental_pdf_hint_present_for_acquisition(
+            true, &details, &lane
+        ));
+        assert!(!supplemental_pdf_hint_present_for_acquisition(
+            false, &details, &lane
+        ));
     }
 
     #[test]
-    fn supplemental_pdf_url_prefers_title_lookup_and_respects_toggle() {
+    fn supplemental_pdf_hint_treats_api_pdf_url_as_presence_not_download_candidate() {
         let details = AudibleTitleDetails {
             title: Some("Remote Book".to_string()),
             supplemental_pdf_url: Some("https://metadata.example.test/book.pdf".to_string()),
@@ -2644,11 +2663,9 @@ mod tests {
             supplemental_pdf_url: Some("https://license.example.test/book.pdf".to_string()),
         };
 
-        assert_eq!(
-            supplemental_pdf_url_for_acquisition(true, &details, &lane).as_deref(),
-            Some("https://metadata.example.test/book.pdf")
-        );
-        assert!(supplemental_pdf_url_for_acquisition(false, &details, &lane).is_none());
+        assert!(supplemental_pdf_hint_present_for_acquisition(
+            true, &details, &lane
+        ));
     }
 
     #[test]

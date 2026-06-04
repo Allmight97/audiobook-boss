@@ -147,6 +147,33 @@ describe('remote source session assets', () => {
 		});
 	});
 
+	it('summarizes single-file companion assets without exposing paths', async () => {
+		const module = await import('./sessionAssets.svelte');
+		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
+
+		const summary = module.companionSummaryForInputIds(['current-input-1']);
+
+		expect(summary).toEqual({
+			text: 'PDF attached',
+			title: 'Supplemental PDF.pdf',
+			pdfCount: 1,
+			fileCountWithCompanions: 1,
+		});
+		expect(summary.title).not.toContain('/session/');
+		expect(module.hasSupplementalAssetsForInputId('current-input-1')).toBe(true);
+	});
+
+	it('summarizes multi-file companion assets by selected count', async () => {
+		const module = await import('./sessionAssets.svelte');
+		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
+
+		const summary = module.companionSummaryForInputIds(['current-input-1', 'current-input-2']);
+
+		expect(summary.text).toBe('1 PDF across 2 selected files');
+		expect(summary.pdfCount).toBe(1);
+		expect(summary.fileCountWithCompanions).toBe(1);
+	});
+
 	it('purges acquired session roots after matching final batch success', async () => {
 		const module = await import('./sessionAssets.svelte');
 		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());

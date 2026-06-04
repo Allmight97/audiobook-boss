@@ -15,10 +15,12 @@ import {
 	resetAutoResolutionHints,
 } from '../encoderPanel/autoResolutionHints';
 import {
+	setInspectorCompanions,
 	resetInspectorState,
 	setInspectorContext,
 	setInspectorValues,
 } from './inspectorState.svelte';
+import { companionSummaryForInputIds } from '../remoteSource/sessionAssets.svelte';
 import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state.svelte';
 
 let latestSingleSelectionRequestId = 0;
@@ -62,6 +64,7 @@ function clearPropertyValues(): void {
 		decoderText: '---',
 		fileSizeText: '---',
 	});
+	setInspectorCompanions({ text: '---', title: '' });
 }
 
 function formatOptionalText(value: string | undefined): string {
@@ -115,6 +118,12 @@ export async function ensureMetadataForFiles(files: AudioFile[]): Promise<void> 
 }
 
 export function updateFileProperties(file: AudioFile): void {
+	const companionSummary = companionSummaryForInputIds([file.inputId]);
+	setInspectorCompanions({
+		text: companionSummary.text,
+		title: companionSummary.title,
+	});
+
 	if (file.isValid) {
 		setInspectorValues({
 			bitrateText: file.bitrate ? `${file.bitrate} kb/s` : 'N/A',
@@ -133,6 +142,11 @@ export function updateFileProperties(file: AudioFile): void {
 
 function updateMultiSelectionProperties(selectedFiles: AudioFile[]): void {
 	updatePropertiesContextMulti(selectedFiles.length);
+	const companionSummary = companionSummaryForInputIds(selectedFiles.map((file) => file.inputId));
+	setInspectorCompanions({
+		text: companionSummary.text,
+		title: companionSummary.title,
+	});
 	setInspectorValues({
 		bitrateText: '---',
 		sampleRateText: '---',

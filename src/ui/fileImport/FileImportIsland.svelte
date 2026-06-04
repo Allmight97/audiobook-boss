@@ -22,6 +22,7 @@
 	} from './handlers';
 	import { fileImportUiState } from './state.svelte';
 	import RemoteSourceAcquireIsland from '../remoteSource/RemoteSourceAcquireIsland.svelte';
+	import { hasSupplementalAssetsForInputId } from '../remoteSource/sessionAssets.svelte';
 
 	let dropZoneHeader: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
@@ -259,13 +260,39 @@
 		min-width: 0;
 	}
 
-	.file-name {
+	.file-name-row {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
 		margin-bottom: 0.25rem;
+		min-width: 0;
+	}
+
+	.file-name {
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-size: 0.875rem;
 		font-weight: 500;
+	}
+
+	.companion-chip {
+		flex: 0 0 auto;
+		padding: 0.0625rem 0.25rem;
+		border: 1px solid var(--accent-primary);
+		border-radius: 0.25rem;
+		background-color: rgb(59 130 246 / 0.12);
+		color: var(--accent-primary);
+		font-size: 0.625rem;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.file-list-item.selected .companion-chip {
+		border-color: rgb(255 255 255 / 0.7);
+		background-color: rgb(255 255 255 / 0.18);
+		color: var(--text-inverse);
 	}
 
 	.file-details {
@@ -413,7 +440,12 @@
             {file.isValid ? '✓' : '✗'}
           </div>
           <div class="file-info">
-            <div class="file-name">{getFileName(file.path)}</div>
+            <div class="file-name-row">
+              <div class="file-name">{getFileName(file.path)}</div>
+              {#if hasSupplementalAssetsForInputId(file.inputId)}
+                <span class="companion-chip" title="Supplemental PDF attached">PDF</span>
+              {/if}
+            </div>
             <div class="file-details">{formatFileDetails(file)}</div>
           </div>
           <button

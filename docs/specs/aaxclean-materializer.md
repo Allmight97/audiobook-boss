@@ -19,6 +19,9 @@ bytes, keys, IVs, raw license JSON, and helper diagnostics stay behind
   separate CDM, MPD/PSSH, challenge/response, and key-selection subsystem.
 - The helper protocol is backend-private. It is not generated into TypeScript
   and does not add a frontend command.
+- Supplemental PDFs resolve through the provider-private authenticated
+  companion-file route. Audible API `pdf_url` fields are presence hints only;
+  ABB must not expose or directly download them as frontend or FileList facts.
 
 ## Implementation Targets
 
@@ -28,7 +31,8 @@ bytes, keys, IVs, raw license JSON, and helper diagnostics stay behind
   process registry, request serialization, stdout parsing, redaction, and
   cancellation cleanup.
 - `src-tauri/src/remote_source/providers/audible/`: provider-private license
-  material extraction and AAX/AAXC materialization path.
+  material extraction, AAX/AAXC materialization path, and authenticated
+  Supplemental PDF resolution/download.
 - `scripts/build-app.ts` / helper publish command: generate
   `src-tauri/binaries/abb-aaxclean-helper-aarch64-apple-darwin` before app
   packaging and local install verification.

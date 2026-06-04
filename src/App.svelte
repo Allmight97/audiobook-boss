@@ -86,6 +86,10 @@
 				<span class="property-label">Codec:</span><span class="property-value">{inspectorState.codecText}</span>
 				<span class="property-label">Decoder:</span><span class="property-value">{inspectorState.decoderText}</span>
 				<span class="property-label">File Size:</span><span class="property-value">{inspectorState.fileSizeText}</span>
+				<span class="property-label">Companions:</span><span
+					class="property-value"
+					title={inspectorState.companionsTitle}>{inspectorState.companionsText}</span
+				>
 				<span class="property-label">Combined Size:</span><span class="property-value"
 					>{fileListViewState.combinedSizeText}</span
 				>
