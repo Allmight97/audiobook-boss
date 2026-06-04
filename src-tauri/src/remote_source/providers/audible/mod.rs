@@ -3,13 +3,14 @@ use std::path::Path;
 
 use abb_remote_source_core::{
     acquisition_progress, choose_acquisition_strategy, license_facts_from_value,
-    strategy_allows_import_handoff, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
-    LicenseFacts, MaterializedSourceKind,
+    AcquisitionProgress, AcquisitionStage, AcquisitionStrategy, LicenseFacts,
+    MaterializedSourceKind,
 };
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -21,6 +22,10 @@ use library::parse_library_titles;
 
 use crate::audio;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::remote_source::materializer::{
+    AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
+};
+use crate::remote_source::staging;
 use crate::remote_source::vault::SecretVault;
 use crate::remote_source::{
     AccountRef, AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, ProviderId,
@@ -46,6 +51,17 @@ struct AcquiredTitle {
 struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
+    decryption_material: Option<AudibleDecryptionMaterial>,
+}
+
+enum AudibleDecryptionMaterial {
+    Aax {
+        activation_bytes_hex: SecretString,
+    },
+    Aaxc {
+        key_hex: SecretString,
+        iv_hex: SecretString,
+    },
 }
 
 fn provider_private_failure(stage: &str) -> AppError {
@@ -199,6 +215,7 @@ impl AudibleProvider {
 
     pub(in crate::remote_source) async fn acquire(
         vault: &dyn SecretVault,
+        materializer: &AaxcleanMaterializer,
         plan: &AcquisitionPlan,
         job_id: &str,
         job_dir: &Path,
@@ -221,6 +238,7 @@ impl AudibleProvider {
             ensure_not_cancelled(&is_cancelled)?;
             match acquire_one(
                 &client,
+                materializer,
                 &selection.title_id,
                 selection.include_supplemental_pdf,
                 job_id,
@@ -301,6 +319,7 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 
 async fn acquire_one(
     client: &AudibleClient,
+    materializer: &AaxcleanMaterializer,
     title_id: &str,
     include_pdf: bool,
     job_id: &str,
@@ -309,6 +328,8 @@ async fn acquire_one(
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<AcquiredTitle> {
     ensure_not_cancelled(is_cancelled)?;
+    let item_id = uuid::Uuid::new_v4().to_string();
+    let item_dir = staging::create_item_dir(job_dir, &item_id)?;
     log::info!(
         "remote_source audible stage=title_start job_id={} title_ref={} include_pdf={}",
         job_id,
@@ -324,16 +345,21 @@ async fn acquire_one(
     let supplemental_pdf_url =
         lookup_supplemental_pdf_url(client, title_id, include_pdf, is_cancelled).await?;
     let lane = request_license_lane(client, title_id, job_id, progress, is_cancelled).await?;
-    if let Some(deferred) = deferred_result_for_non_import_ready_lane(title_id, job_id, &lane) {
-        return Ok(deferred);
+    if let Some(unsupported) = unsupported_result_for_unmaterializable_lane(title_id, job_id, &lane)
+    {
+        return Ok(unsupported);
     }
 
-    let downloaded_path = download_audio(
+    let downloaded_path = if lane.strategy == AcquisitionStrategy::DownloadImportReady {
+        staged_materialized_path(&item_dir)
+    } else {
+        staged_protected_source_path(&item_dir, lane.strategy)
+    };
+    download_audio(
         &lane.content_url,
-        download_extension_for_strategy(lane.strategy),
+        &downloaded_path,
         job_id,
         title_id,
-        job_dir,
         progress,
         is_cancelled,
     )
@@ -345,12 +371,28 @@ async fn acquire_one(
         None,
         None,
     ));
-    let file = validate_import_ready_download(title_id, &downloaded_path, lane.strategy, progress)?;
+    let materialized_path = if lane.strategy == AcquisitionStrategy::DownloadImportReady {
+        downloaded_path
+    } else {
+        materialize_protected_download(
+            materializer,
+            title_id,
+            job_id,
+            &item_id,
+            &downloaded_path,
+            &item_dir,
+            &lane,
+            progress,
+            is_cancelled,
+        )
+        .await?
+    };
+    let file = validate_materialized_audio(title_id, &materialized_path, progress)?;
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
         title_id,
         &file,
         supplemental_pdf_url,
-        job_dir,
+        &item_dir,
         is_cancelled,
     )
     .await?;
@@ -415,29 +457,31 @@ async fn request_license_lane(
         return Ok(LicenseLane {
             content_url: String::new(),
             strategy: AcquisitionStrategy::ProviderProtocolFailed,
+            decryption_material: None,
         });
     };
 
     Ok(LicenseLane {
         content_url: content_url.to_string(),
         strategy,
+        decryption_material: audible_decryption_material_from_license(&license, strategy),
     })
 }
 
-fn deferred_result_for_non_import_ready_lane(
+fn unsupported_result_for_unmaterializable_lane(
     title_id: &str,
     job_id: &str,
     lane: &LicenseLane,
 ) -> Option<AcquiredTitle> {
     let strategy = lane.strategy;
     match strategy {
-        AcquisitionStrategy::DownloadImportReady => None,
-        AcquisitionStrategy::DownloadThenDecryptAax
-        | AcquisitionStrategy::DownloadThenDecryptAaxc
-        | AcquisitionStrategy::DownloadThenDecryptDash => {
+        AcquisitionStrategy::DownloadImportReady
+        | AcquisitionStrategy::DownloadThenDecryptAax
+        | AcquisitionStrategy::DownloadThenDecryptAaxc => None,
+        AcquisitionStrategy::DownloadThenDecryptDash => {
             let lane = strategy_label(strategy);
             log::info!(
-                "remote_source audible stage=materializer_selection job_id={} title_ref={} lane={} action=deferred",
+                "remote_source audible stage=materializer_selection job_id={} title_ref={} lane={} action=unsupported",
                 job_id,
                 title_ref(title_id),
                 lane
@@ -449,7 +493,7 @@ fn deferred_result_for_non_import_ready_lane(
                     kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
                     title_id: Some(title_id.to_string()),
                     message: format!(
-                        "Audible returned {lane}; ABB has not selected the materializer implementation yet."
+                        "Audible returned {lane}; Dash/Widevine materialization is not supported in this build."
                     ),
                 }],
             })
@@ -488,16 +532,87 @@ fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {
     )
 }
 
-fn validate_import_ready_download(
+async fn materialize_protected_download(
+    materializer: &AaxcleanMaterializer,
     title_id: &str,
+    job_id: &str,
+    item_id: &str,
     downloaded_path: &Path,
-    strategy: AcquisitionStrategy,
+    item_dir: &Path,
+    lane: &LicenseLane,
+    progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
+) -> Result<std::path::PathBuf> {
+    let Some(secret) = helper_secret_from_audible_material(lane) else {
+        cleanup_download_artifacts(downloaded_path)?;
+        return Err(provider_private_failure("AAXClean decryption material"));
+    };
+    let helper_lane = match lane.strategy {
+        AcquisitionStrategy::DownloadThenDecryptAax => AaxcleanLane::Aax,
+        AcquisitionStrategy::DownloadThenDecryptAaxc => AaxcleanLane::Aaxc,
+        _ => {
+            cleanup_download_artifacts(downloaded_path)?;
+            return Err(provider_private_failure("AAXClean materializer lane"));
+        }
+    };
+    progress(acquisition_progress(
+        AcquisitionStage::Decryption,
+        Some(0.0),
+        None,
+        None,
+    ));
+    let output_path = staged_materialized_path(item_dir);
+    let output_temp_path = materializer_output_temp_path(&output_path);
+    let result = materializer
+        .materialize(
+            MaterializationRequest {
+                job_id: job_id.to_string(),
+                operation_id: item_id.to_string(),
+                lane: helper_lane,
+                input_path: downloaded_path.to_path_buf(),
+                output_temp_path,
+                output_path: output_path.clone(),
+                secret,
+            },
+            &mut *progress,
+            is_cancelled,
+        )
+        .await;
+    let protected_cleanup = cleanup_download_artifacts(downloaded_path);
+    match result {
+        Ok(path) => {
+            if protected_cleanup.is_err() {
+                let _ = cleanup_download_artifacts(&output_path);
+                return Err(provider_private_failure("staged protected cleanup"));
+            }
+            Ok(path)
+        }
+        Err(error) => {
+            let _ = protected_cleanup;
+            let _ = cleanup_download_artifacts(&output_path);
+            if matches!(error, AppError::Cancellation(_)) {
+                return Err(error);
+            }
+            log::warn!(
+                "remote_source audible stage=materialization_failed job_id={} title_ref={} lane={}",
+                job_id,
+                title_ref(title_id),
+                strategy_label(lane.strategy)
+            );
+            Err(error)
+        }
+    }
+}
+
+fn validate_materialized_audio(
+    title_id: &str,
+    materialized_path: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
 ) -> Result<MaterializedSourceFile> {
-    let file = match materialized_file_from_downloaded_path(title_id, downloaded_path, strategy) {
+    let file = match materialized_file_from_path(title_id, materialized_path) {
         Ok(file) => file,
         Err(error) => {
-            cleanup_download_artifacts(downloaded_path)?;
+            cleanup_download_artifacts(materialized_path)?;
             progress(acquisition_progress(
                 AcquisitionStage::Failed,
                 Some(1.0),
@@ -547,25 +662,29 @@ async fn download_supplemental_pdf_if_requested(
 
 async fn download_audio(
     content_url: &str,
-    extension: &str,
+    path: &Path,
     job_id: &str,
     title_id: &str,
-    job_dir: &Path,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
-) -> Result<std::path::PathBuf> {
+) -> Result<()> {
     ensure_not_cancelled(is_cancelled)?;
-    fs::create_dir_all(job_dir)?;
-    let path = generated_staging_path(job_dir, extension);
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("bin");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     log::info!(
         "remote_source audible stage=download_start job_id={} title_ref={} extension={}",
         job_id,
         title_ref(title_id),
         extension
     );
-    download_to_path(content_url, &path, progress, is_cancelled).await?;
+    download_to_path(content_url, path, progress, is_cancelled).await?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
-        cleanup_download_artifacts(&path)?;
+        cleanup_download_artifacts(path)?;
         return Err(error);
     }
     log::info!(
@@ -574,18 +693,31 @@ async fn download_audio(
         title_ref(title_id),
         extension
     );
-    Ok(path)
+    Ok(())
 }
 
+#[cfg(test)]
 fn materialized_file_from_downloaded_path(
     title_id: &str,
     path: &Path,
     strategy: AcquisitionStrategy,
 ) -> Result<MaterializedSourceFile> {
     let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-    if !strategy_allows_import_handoff(strategy, source_kind) {
+    if !abb_remote_source_core::strategy_allows_import_handoff(strategy, source_kind) {
         return Err(AppError::FileValidation(format!(
             "Downloaded Audible {} requires Audible decryption before ABB import handoff.",
+            kind_label(source_kind)
+        )));
+    }
+
+    materialized_file_from_path(title_id, path)
+}
+
+fn materialized_file_from_path(title_id: &str, path: &Path) -> Result<MaterializedSourceFile> {
+    let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
+    if !abb_remote_source_core::materialized_source_is_import_ready(source_kind) {
+        return Err(AppError::FileValidation(format!(
+            "Materialized Audible {} requires Audible decryption before ABB import handoff.",
             kind_label(source_kind)
         )));
     }
@@ -632,6 +764,169 @@ fn download_extension_for_strategy(strategy: AcquisitionStrategy) -> &'static st
             "bin"
         }
     }
+}
+
+fn staged_protected_source_path(
+    job_dir: &Path,
+    strategy: AcquisitionStrategy,
+) -> std::path::PathBuf {
+    job_dir.join(format!(
+        "source.{}",
+        download_extension_for_strategy(strategy)
+    ))
+}
+
+fn staged_materialized_path(job_dir: &Path) -> std::path::PathBuf {
+    job_dir.join("materialized.m4b")
+}
+
+fn materializer_output_temp_path(path: &Path) -> std::path::PathBuf {
+    path.with_extension("m4b.partial")
+}
+
+fn helper_secret_from_audible_material(lane: &LicenseLane) -> Option<AaxcleanSecret> {
+    match lane.decryption_material.as_ref()? {
+        AudibleDecryptionMaterial::Aax {
+            activation_bytes_hex,
+        } => Some(AaxcleanSecret::Aax {
+            activation_bytes_hex: activation_bytes_hex.clone(),
+        }),
+        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => Some(AaxcleanSecret::Aaxc {
+            key_hex: key_hex.clone(),
+            iv_hex: iv_hex.clone(),
+        }),
+    }
+}
+
+fn audible_decryption_material_from_license(
+    license: &Value,
+    strategy: AcquisitionStrategy,
+) -> Option<AudibleDecryptionMaterial> {
+    match strategy {
+        AcquisitionStrategy::DownloadThenDecryptAax => {
+            find_activation_bytes(license).map(|activation_bytes| AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex: SecretString::from(hex_encode(&activation_bytes)),
+            })
+        }
+        AcquisitionStrategy::DownloadThenDecryptAaxc => {
+            find_key_iv_pair(license).map(|(key, iv)| AudibleDecryptionMaterial::Aaxc {
+                key_hex: SecretString::from(hex_encode(&key)),
+                iv_hex: SecretString::from(hex_encode(&iv)),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
+    find_bytes_for_keys(
+        value,
+        &[
+            "activation_bytes",
+            "activationBytes",
+            "activationBytesHex",
+            "activation_bytes_hex",
+            "activation",
+            "key",
+            "Key",
+        ],
+        4,
+    )
+}
+
+fn find_key_iv_pair(value: &Value) -> Option<(Vec<u8>, Vec<u8>)> {
+    match value {
+        Value::Object(map) => {
+            let key = find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], 16);
+            let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], 16);
+            if let (Some(key), Some(iv)) = (key, iv) {
+                return Some((key, iv));
+            }
+            map.values().find_map(find_key_iv_pair)
+        }
+        Value::Array(values) => values.iter().find_map(find_key_iv_pair),
+        _ => None,
+    }
+}
+
+fn find_bytes_for_keys(value: &Value, keys: &[&str], expected_len: usize) -> Option<Vec<u8>> {
+    match value {
+        Value::Object(map) => {
+            if let Some(bytes) = find_bytes_for_keys_in_object(map, keys, expected_len) {
+                return Some(bytes);
+            }
+            map.values()
+                .find_map(|entry| find_bytes_for_keys(entry, keys, expected_len))
+        }
+        Value::Array(values) => values
+            .iter()
+            .find_map(|entry| find_bytes_for_keys(entry, keys, expected_len)),
+        _ => None,
+    }
+}
+
+fn find_bytes_for_keys_in_object(
+    map: &serde_json::Map<String, Value>,
+    keys: &[&str],
+    expected_len: usize,
+) -> Option<Vec<u8>> {
+    keys.iter()
+        .filter_map(|key| map.get(*key))
+        .find_map(|value| decode_secret_bytes(value, expected_len))
+}
+
+fn decode_secret_bytes(value: &Value, expected_len: usize) -> Option<Vec<u8>> {
+    match value {
+        Value::String(raw) => decode_secret_string(raw, expected_len),
+        Value::Array(values) => {
+            let bytes = values
+                .iter()
+                .map(|value| value.as_u64().and_then(|byte| u8::try_from(byte).ok()))
+                .collect::<Option<Vec<_>>>()?;
+            (bytes.len() == expected_len).then_some(bytes)
+        }
+        _ => None,
+    }
+}
+
+fn decode_secret_string(raw: &str, expected_len: usize) -> Option<Vec<u8>> {
+    let trimmed = raw.trim();
+    let hex = trimmed
+        .chars()
+        .filter(|character| character.is_ascii_hexdigit())
+        .collect::<String>();
+    if hex.len() == expected_len * 2
+        && trimmed.chars().all(|character| {
+            character.is_ascii_hexdigit()
+                || character == '-'
+                || character == ':'
+                || character == ' '
+        })
+    {
+        return decode_hex(&hex);
+    }
+
+    BASE64_STANDARD
+        .decode(trimmed)
+        .ok()
+        .filter(|bytes| bytes.len() == expected_len)
+}
+
+fn decode_hex(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() % 2 != 0 {
+        return None;
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).ok())
+        .collect()
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>()
 }
 
 fn cleanup_download_artifacts(path: &Path) -> Result<()> {
@@ -997,6 +1292,34 @@ mod tests {
     }
 
     #[test]
+    fn item_staged_paths_do_not_use_provider_title_id() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
+        let unsafe_title_id = "../../account-title";
+
+        let protected_path =
+            staged_protected_source_path(&item_dir, AcquisitionStrategy::DownloadThenDecryptAaxc);
+        let materialized_path = staged_materialized_path(&item_dir);
+
+        assert!(protected_path.starts_with(root.path()));
+        assert!(materialized_path.starts_with(root.path()));
+        assert!(!protected_path.to_string_lossy().contains(unsafe_title_id));
+        assert!(!materialized_path
+            .to_string_lossy()
+            .contains(unsafe_title_id));
+        assert_eq!(
+            protected_path.file_name().and_then(|value| value.to_str()),
+            Some("source.aaxc")
+        );
+        assert_eq!(
+            materialized_path
+                .file_name()
+                .and_then(|value| value.to_str()),
+            Some("materialized.m4b")
+        );
+    }
+
+    #[test]
     fn partial_download_path_keeps_final_extension_visible() {
         let path = Path::new("/tmp/book.m4b");
 
@@ -1113,6 +1436,84 @@ mod tests {
 
         let error = result.expect_err("encrypted download must not be import-ready");
         assert!(error.to_string().contains("requires Audible decryption"));
+    }
+
+    #[test]
+    fn aax_license_material_extracts_activation_bytes_without_public_surface() {
+        let response = json!({
+            "content_license": {
+                "content_url": "https://cdn.example.test/book.aax",
+                "drm_type": "Mpeg",
+                "voucher": {
+                    "key": [10, 27, 44, 61]
+                }
+            }
+        });
+
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAax,
+        )
+        .expect("aax material");
+
+        match material {
+            AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex,
+            } => assert_eq!(activation_bytes_hex.expose_secret(), "0a1b2c3d"),
+            AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
+        }
+    }
+
+    #[test]
+    fn aaxc_license_material_extracts_key_and_iv_from_hex_or_base64() {
+        let response = json!({
+            "content_license": {
+                "content_url": "https://cdn.example.test/book.aaxc",
+                "drm_type": "Mpeg",
+                "voucher": {
+                    "key": "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d",
+                    "iv": BASE64_STANDARD.encode([
+                        0x2e, 0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+                        0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x5a, 0x5b
+                    ])
+                }
+            }
+        });
+
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAaxc,
+        )
+        .expect("aaxc material");
+
+        match material {
+            AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
+                assert_eq!(key_hex.expose_secret(), "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d");
+                assert_eq!(iv_hex.expose_secret(), "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b");
+            }
+            AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
+        }
+    }
+
+    #[test]
+    fn dash_lane_is_reported_unsupported_not_deferred() {
+        let lane = LicenseLane {
+            content_url: "https://cdn.example.test/manifest.mpd".to_string(),
+            strategy: AcquisitionStrategy::DownloadThenDecryptDash,
+            decryption_material: None,
+        };
+
+        let acquired = unsupported_result_for_unmaterializable_lane("B000000001", "job-1", &lane)
+            .expect("dash unsupported");
+
+        assert!(acquired.file.is_none());
+        assert_eq!(
+            acquired.diagnostics[0].kind,
+            RemoteAcquisitionFailureKind::ProtectedUnsupported
+        );
+        assert!(acquired.diagnostics[0]
+            .message
+            .contains("Dash/Widevine materialization is not supported"));
     }
 
     #[test]

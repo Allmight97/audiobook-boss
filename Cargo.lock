@@ -455,6 +455,7 @@ dependencies = [
  "abb-remote-source-core",
  "anyhow",
  "audible_api",
+ "base64 0.22.1",
  "bogon",
  "chrono",
  "clap",

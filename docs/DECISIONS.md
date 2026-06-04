@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-06-03 - AAXClean AAX/AAXC Materializer
+
+- Bundle a `.NET 8` AAXClean sidecar as the first Audible AAX/AAXC materializer; `RemoteSourceRuntime` owns helper invocation, provider-secret containment, staged protected files, cancellation, cleanup, and final M4B validation.
+- Keep ABB's top-level Apache license unchanged in this workblock while carrying helper source, GPL notices, and public-release compliance notes for the AAXClean helper.
+- Guardrail: Dash/Widevine remains unsupported until ABB owns a separate CDM, MPD/PSSH, challenge/response, and content-key selection design.
+
 ## 2026-06-01 - Custom Runner Ablation
 
 - The custom verification runner and aliases were removed from current repo guidance.

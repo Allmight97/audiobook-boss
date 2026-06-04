@@ -12,6 +12,12 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
+import {
+	aaxcleanHelperBaseName,
+	publishAaxcleanHelper,
+	verifyAaxcleanHelperSidecar,
+} from './publish-aaxclean-helper';
+
 interface PackageJson {
 	name: string;
 }
@@ -25,6 +31,7 @@ interface BundlePaths {
 	bundleDir: string;
 	canonicalAppPath: string;
 	executablePath: string;
+	helperExecutablePath: string;
 	applicationsAppPath: string;
 	applicationsLinkPath: string;
 	dmgDir: string;
@@ -141,6 +148,12 @@ export function resolveMacOsBundlePaths(
 		bundleDir,
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
+		helperExecutablePath: path.join(
+			canonicalAppPath,
+			'Contents',
+			'MacOS',
+			aaxcleanHelperBaseName,
+		),
 		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		applicationsLinkPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
@@ -184,6 +197,9 @@ export function buildTauriApp(
 	buildArgs: string[],
 	options: BuildTauriAppOptions = {},
 ): void {
+	publishAaxcleanHelper(repoRoot, options.commandRunner);
+	verifyAaxcleanHelperSidecar(repoRoot);
+
 	const tauriArgs = ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg');
 	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
 	if (options.nonInteractiveDmg) {
@@ -218,7 +234,12 @@ export function verifyMacOsBundle(paths: BundlePaths): void {
 		throw new Error(`Expected app executable at ${paths.executablePath}`);
 	}
 
+	if (!existsSync(paths.helperExecutablePath)) {
+		throw new Error(`Expected AAXClean helper executable at ${paths.helperExecutablePath}`);
+	}
+
 	verifyMacOsExecutableArchitecture(paths.executablePath);
+	verifyMacOsExecutableArchitecture(paths.helperExecutablePath);
 
 	const result = spawnSync('otool', ['-L', paths.executablePath], {
 		encoding: 'utf8',

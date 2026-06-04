@@ -5,6 +5,7 @@ use crate::errors::{AppError, Result};
 
 const REMOTE_SOURCE_DIR: &str = "remote-source";
 const SESSIONS_DIR: &str = "sessions";
+const ITEMS_DIR: &str = "items";
 
 #[derive(Debug, Clone)]
 pub(super) struct RemoteSourceStaging {
@@ -44,6 +45,12 @@ impl RemoteSourceStaging {
         ensure_owned_child(&self.session_root(), &path)?;
         remove_owned_dir(&path)
     }
+}
+
+pub(in crate::remote_source) fn create_item_dir(job_dir: &Path, item_id: &str) -> Result<PathBuf> {
+    let path = job_dir.join(ITEMS_DIR).join(item_id);
+    fs::create_dir_all(&path)?;
+    Ok(path)
 }
 
 fn ensure_owned_child(root: &Path, child: &Path) -> Result<()> {

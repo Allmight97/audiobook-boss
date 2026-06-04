@@ -9,11 +9,13 @@ use abb_remote_source_core::{
 use tauri::Manager;
 use tokio::task::AbortHandle;
 
+mod materializer;
 mod providers;
 mod staging;
 mod types;
 mod vault;
 
+use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
 use staging::RemoteSourceStaging;
 use types::{
@@ -35,6 +37,7 @@ pub struct RemoteSourceRuntime {
 struct RemoteSourceRuntimeInner {
     vault: Box<dyn SecretVault>,
     staging: RemoteSourceStaging,
+    materializer: AaxcleanMaterializer,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
@@ -49,6 +52,7 @@ impl RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 vault: Box::<KeyringSecretVault>::default(),
                 staging: RemoteSourceStaging::new(cache_dir),
+                materializer: AaxcleanMaterializer::from_app(app),
                 pending_audible_auth: Mutex::new(None),
                 jobs: Mutex::new(HashMap::new()),
                 acquisition_tasks: Mutex::new(HashMap::new()),
@@ -184,6 +188,7 @@ impl RemoteSourceRuntime {
             RemoteProviderId::Audible => {
                 AudibleProvider::acquire(
                     self.inner.vault.as_ref(),
+                    &self.inner.materializer,
                     &plan,
                     &job_id,
                     &job_dir,
@@ -365,6 +370,7 @@ impl RemoteSourceRuntime {
     }
 
     fn abort_acquisition_task(&self, job_id: &str) {
+        self.inner.materializer.abort_job(job_id);
         if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
             if let Some(handle) = tasks.remove(job_id) {
                 handle.abort();
@@ -377,6 +383,7 @@ impl RemoteSourceRuntime {
     }
 
     fn abort_all_acquisition_tasks(&self) {
+        self.inner.materializer.abort_all();
         if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
             for (job_id, handle) in tasks.drain() {
                 handle.abort();
@@ -510,6 +517,7 @@ mod tests {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 vault: Box::<TestSecretVault>::default(),
                 staging: RemoteSourceStaging::new(root.path().to_path_buf()),
+                materializer: AaxcleanMaterializer::for_tests(),
                 pending_audible_auth: Mutex::new(None),
                 jobs: Mutex::new(HashMap::new()),
                 acquisition_tasks: Mutex::new(HashMap::new()),

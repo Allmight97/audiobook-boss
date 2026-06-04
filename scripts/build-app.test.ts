@@ -41,6 +41,20 @@ function createRepoFixture(): { applicationsDir: string; repoRoot: string } {
 		path.join(repoRoot, 'src-tauri/tauri.conf.json'),
 		JSON.stringify({ productName: 'AudioBook Boss' }),
 	);
+	mkdirSync(path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper'), {
+		recursive: true,
+	});
+	writeFileSync(
+		path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs'),
+		'// helper source fixture',
+	);
+	writeFileSync(
+		path.join(
+			repoRoot,
+			'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj',
+		),
+		'<Project />',
+	);
 	mkdirSync(path.join(repoRoot, 'target/release/bundle/macos'), { recursive: true });
 	mkdirSync(applicationsDir, { recursive: true });
 
@@ -65,6 +79,12 @@ describe('resolveMacOsBundlePaths', () => {
 			path.join(
 				repoRoot,
 				'target/release/bundle/macos/AudioBook Boss.app/Contents/MacOS/audiobook-boss',
+			),
+		);
+		expect(paths.helperExecutablePath).toBe(
+			path.join(
+				repoRoot,
+				'target/release/bundle/macos/AudioBook Boss.app/Contents/MacOS/abb-aaxclean-helper',
 			),
 		);
 		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
@@ -250,6 +270,7 @@ describe('ensureFeatureArg', () => {
 
 describe('buildTauriApp', () => {
 	it('forces noninteractive Finder-free DMG packaging when requested', () => {
+		const { repoRoot } = createRepoFixture();
 		const calls: Array<{
 			args: string[];
 			command: string;
@@ -262,40 +283,52 @@ describe('buildTauriApp', () => {
 			options?: { env?: NodeJS.ProcessEnv; stdio?: unknown },
 		) => {
 			calls.push({ command, args, env: options?.env, stdio: options?.stdio });
+			if (args[0] === 'publish') {
+				const outputDir = args[args.indexOf('-o') + 1] as string;
+				mkdirSync(outputDir, { recursive: true });
+				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
+			}
 			return { status: 0 };
 		}) as typeof spawnSync;
 
-		buildTauriApp('/repo', ['--bundles', 'dmg'], {
+		buildTauriApp(repoRoot, ['--bundles', 'dmg'], {
 			commandRunner,
 			nonInteractiveDmg: true,
 		});
 
-		expect(calls).toHaveLength(1);
-		expect(calls[0]).toMatchObject({
+		expect(calls).toHaveLength(2);
+		expect(calls[1]).toMatchObject({
 			args: ['run', 'tauri', 'build', '--bundles', 'dmg', '--features', 'bundled-ffmpeg'],
 			command: 'bun',
 			stdio: 'inherit',
 		});
-		expect(calls[0]?.env?.CI).toBe('true');
+		expect(calls[1]?.env?.CI).toBe('true');
 	});
 
 	it('leaves CI untouched for non-DMG app builds', () => {
+		const { repoRoot } = createRepoFixture();
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
-			_command: string,
-			_args: string[],
+			command: string,
+			args: string[],
 			options?: { env?: NodeJS.ProcessEnv },
 		) => {
 			calls.push({ env: options?.env });
+			if (args[0] === 'publish') {
+				const outputDir = args[args.indexOf('-o') + 1] as string;
+				mkdirSync(outputDir, { recursive: true });
+				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
+			}
+			void command;
 			return { status: 0 };
 		}) as typeof spawnSync;
 
-		buildTauriApp('/repo', ['--bundles', 'app'], {
+		buildTauriApp(repoRoot, ['--bundles', 'app'], {
 			commandRunner,
 			nonInteractiveDmg: false,
 		});
 
-		expect(calls[0]?.env).toBe(process.env);
+		expect(calls[1]?.env).toBe(process.env);
 	});
 });
 

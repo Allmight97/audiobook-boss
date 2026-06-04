@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>abb-aaxclean-helper</AssemblyName>
+    <RootNamespace>AbbAaxcleanHelper</RootNamespace>
+    <RuntimeIdentifiers>osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AAXClean" Version="3.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AbbAaxcleanHelper.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

@@ -42,6 +42,7 @@ Icon
 *.ntvs*
 *.njsproj
 *.sln
+!/tools/abb-aaxclean-helper/abb-aaxclean-helper.sln
 *.sw?
 docs/model_tests/*
 
@@ -57,6 +58,13 @@ __pycache__/
 /target/
 /src-tauri/target/
 
+# Generated Tauri sidecar binaries
+/src-tauri/binaries/abb-aaxclean-helper-*
+
+# Generated AAXClean helper build artifacts
+/tools/abb-aaxclean-helper/.publish/
+/tools/abb-aaxclean-helper/**/bin/
+/tools/abb-aaxclean-helper/**/obj/
 
 # Local coverage reports
 /coverage/

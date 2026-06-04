@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/abb-aaxclean-helper"],
     "fileAssociations": [
       {
         "ext": ["mp3"],
