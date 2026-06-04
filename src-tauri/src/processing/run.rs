@@ -332,23 +332,22 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
             preview_file_path,
             preview_actual_seconds,
         } => {
-            if request.output_plan.kind == OutputKind::Final {
-                if let Err(error) = commit_supplemental_assets(
-                    &request.supplemental_assets,
-                    &request.output_plan.resolved_path,
-                ) {
-                    let envelope = crate::errors::AppErrorEnvelope::from(error);
-                    request
-                        .registry
-                        .fail_job(job_id, envelope.message.clone())
-                        .await;
-                    log::error!("Job {} failed: {}", job_id, envelope.message);
-                    return Ok(terminal_failure_result(
-                        request.input_index,
-                        Some(job_id.to_string()),
-                        envelope,
-                    ));
-                }
+            if let Err(error) = commit_supplemental_assets_for_output(
+                request.output_plan.kind,
+                &request.supplemental_assets,
+                &request.output_plan.resolved_path,
+            ) {
+                let envelope = crate::errors::AppErrorEnvelope::from(error);
+                request
+                    .registry
+                    .fail_job(job_id, envelope.message.clone())
+                    .await;
+                log::error!("Job {} failed: {}", job_id, envelope.message);
+                return Ok(terminal_failure_result(
+                    request.input_index,
+                    Some(job_id.to_string()),
+                    envelope,
+                ));
             }
             request.registry.complete_job(job_id).await;
             log::info!("Job {} completed successfully", job_id);
@@ -467,6 +466,17 @@ fn commit_supplemental_assets(
     Ok(())
 }
 
+fn commit_supplemental_assets_for_output(
+    output_kind: OutputKind,
+    assets: &[SupplementalProcessingAsset],
+    output_path: &Path,
+) -> Result<()> {
+    if output_kind != OutputKind::Final {
+        return Ok(());
+    }
+    commit_supplemental_assets(assets, output_path)
+}
+
 async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
@@ -541,7 +551,63 @@ async fn execute_processing_job(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
+    use crate::processing::{JobType, ProcessPayload};
+    use sha2::Sha256;
+    use std::collections::HashMap;
     use tempfile::TempDir;
+
+    fn encoder_settings() -> EncoderSettings {
+        EncoderSettings {
+            encoder_type: EncoderType::Auto,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: ChannelConfig::Auto,
+            afterburner: true,
+            threads: ThreadSetting::Auto,
+            twoloop: true,
+        }
+    }
+
+    fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
+        let mut payload = ProcessPayload {
+            input_files: vec!["/books/input.m4b".to_string()],
+            input_ids: None,
+            output_dir: "/tmp/out".to_string(),
+            settings: encoder_settings(),
+            sample_rate: None,
+            job_type: Some(JobType::Batch),
+            output_naming: None,
+            collision_policy: None,
+            preflight_signature: None,
+            supplemental_assets_by_input_id: None,
+        };
+        overrides(&mut payload);
+        payload
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        format!("{:x}", hasher.finalize())
+    }
+
+    fn supplemental_asset(
+        path: std::path::PathBuf,
+        input_id: &str,
+        bytes: &[u8],
+    ) -> SupplementalProcessingAsset {
+        SupplementalProcessingAsset {
+            asset_id: "asset-1".to_string(),
+            input_id: input_id.to_string(),
+            title_id: "B000000001".to_string(),
+            path,
+            file_name: "Supplemental PDF.pdf".to_string(),
+            size_bytes: bytes.len() as u64,
+            sha256: sha256_hex(bytes),
+        }
+    }
 
     #[tokio::test]
     async fn register_job_and_validate_output_cleans_up_failed_validation() {
@@ -575,6 +641,92 @@ mod tests {
                 .await
                 .expect("idle registry should allow concurrency updates"),
             1
+        );
+    }
+
+    #[test]
+    fn supplemental_assets_for_input_selects_by_file_list_input_id() {
+        let asset = SupplementalProcessingAsset {
+            asset_id: "asset-1".to_string(),
+            input_id: "current-input-2".to_string(),
+            title_id: "B000000001".to_string(),
+            path: "/staged/book.pdf".into(),
+            file_name: "Supplemental PDF.pdf".to_string(),
+            size_bytes: 128,
+            sha256: "hash".to_string(),
+        };
+        let mut assets = HashMap::new();
+        assets.insert("current-input-2".to_string(), vec![asset.clone()]);
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![
+                "/books/first.m4b".to_string(),
+                "/books/second.m4b".to_string(),
+            ];
+            payload.input_ids = Some(vec![
+                Some("current-input-1".to_string()),
+                Some("current-input-2".to_string()),
+            ]);
+            payload.supplemental_assets_by_input_id = Some(assets);
+        });
+
+        assert!(supplemental_assets_for_input(&payload, None).is_empty());
+        assert!(supplemental_assets_for_input(&payload, Some(0)).is_empty());
+        assert_eq!(
+            supplemental_assets_for_input(&payload, Some(1)),
+            vec![asset]
+        );
+    }
+
+    #[test]
+    fn supplemental_asset_commit_runs_only_for_final_outputs() {
+        let root = TempDir::new().expect("temp root");
+        let pdf_bytes = b"%PDF-1.7\nbody";
+        let source = root.path().join("source.pdf");
+        std::fs::write(&source, pdf_bytes).expect("write source pdf");
+        let asset = supplemental_asset(source, "current-input-1", pdf_bytes);
+        let preview_audio = root.path().join("Preview.m4b");
+        let final_audio = root.path().join("Book.m4b");
+
+        commit_supplemental_assets_for_output(
+            OutputKind::Preview,
+            std::slice::from_ref(&asset),
+            &preview_audio,
+        )
+        .expect("preview should not commit");
+        assert!(
+            !root.path().join("Preview - Supplemental PDF.pdf").exists(),
+            "preview output must not commit acquired PDFs"
+        );
+
+        commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
+            .expect("final should commit");
+        assert_eq!(
+            std::fs::read(root.path().join("Book - Supplemental PDF.pdf")).expect("read commit"),
+            pdf_bytes
+        );
+    }
+
+    #[test]
+    fn stale_supplemental_assets_fail_instead_of_silently_dropping_pdf() {
+        let root = TempDir::new().expect("temp root");
+        let pdf_bytes = b"%PDF-1.7\nbody";
+        let source = root.path().join("source.pdf");
+        std::fs::write(&source, pdf_bytes).expect("write source pdf");
+        let mut asset = supplemental_asset(source, "current-input-1", pdf_bytes);
+        asset.sha256 = "stale-hash".to_string();
+        let final_audio = root.path().join("Book.m4b");
+
+        let error =
+            commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
+                .expect_err("stale supplemental asset should fail");
+
+        assert!(
+            error.to_string().contains("hash changed"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            !root.path().join("Book - Supplemental PDF.pdf").exists(),
+            "bad supplemental asset must not be silently dropped or committed"
         );
     }
 }

@@ -15,9 +15,14 @@ import {
 	type ProcessPayload,
 	type JobType,
 } from '../../../types/audio';
+import type { AcquisitionJob } from '../../../types/remoteSource';
 import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
+import {
+	registerRemoteSourceSupplementalAssets,
+	removeRemoteSourceSupplementalAssets,
+} from '../../remoteSource/sessionAssets.svelte';
 
-function audioFile(path: string): AudioFile {
+function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
 		path,
 		size: 1,
@@ -30,12 +35,13 @@ function audioFile(path: string): AudioFile {
 		selectedDecoder: undefined,
 		isValid: true,
 		error: undefined,
+		...overrides,
 	};
 }
 
 function fileList(paths = ['/books/a.m4b']): FileListInfo {
 	return {
-		files: paths.map(audioFile),
+		files: paths.map((path) => audioFile(path)),
 		selectedDecoders: paths.map(() => null),
 		totalDuration: paths.length,
 		totalSize: paths.length,
@@ -88,6 +94,46 @@ function successResult(jobType: ProcessCommandResult['jobType'] = 'merge'): Proc
 				previewActualSeconds: undefined,
 			},
 		],
+	};
+}
+
+function acquisitionJobWithPdf(): AcquisitionJob {
+	return {
+		jobId: 'remote-job-1',
+		providerId: 'audible',
+		status: 'validated',
+		progress: {
+			stage: 'importHandoff',
+			percentage: 100,
+			message: 'Ready for import.',
+			bytesDownloaded: undefined,
+			bytesTotal: undefined,
+			currentTitleId: 'B000000001',
+			currentItemIndex: 1,
+			totalItems: 1,
+			terminal: true,
+		},
+		materializedFiles: [
+			{
+				inputId: 'provider-input-1',
+				titleId: 'B000000001',
+				path: '/session/book.m4b',
+				sizeBytes: 1024,
+				sha256: 'audio-sha',
+			},
+		],
+		supplementalAssets: [
+			{
+				assetId: 'pdf-1',
+				inputId: 'provider-input-1',
+				titleId: 'B000000001',
+				path: '/session/book.pdf',
+				fileName: 'Supplemental PDF.pdf',
+				sizeBytes: 32,
+				sha256: 'pdf-sha',
+			},
+		],
+		diagnostics: [],
 	};
 }
 
@@ -162,6 +208,7 @@ async function runWithServices(
 describe('ProcessingWorkflow', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		removeRemoteSourceSupplementalAssets(['current-input-1']);
 	});
 
 	it('coordinates approved processing through injected services without changing the public runtime API', async () => {
@@ -192,6 +239,48 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.reconcileProcessResult).toHaveBeenCalledWith(successResult());
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
+	});
+
+	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {
+		const currentFileList: FileListInfo = {
+			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
+			selectedDecoders: [null],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		};
+		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
+		const ctx = workflowContext();
+		const { services } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+			getJobType: vi.fn((): JobType => 'batch'),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(services.processAudiobookFiles).toHaveBeenCalledWith({
+			payload: expect.objectContaining({
+				inputFiles: ['/session/book.m4b'],
+				inputIds: ['current-input-1'],
+				jobType: 'batch',
+				supplementalAssetsByInputId: {
+					'current-input-1': [
+						{
+							assetId: 'pdf-1',
+							inputId: 'current-input-1',
+							titleId: 'B000000001',
+							path: '/session/book.pdf',
+							fileName: 'Supplemental PDF.pdf',
+							sizeBytes: 32,
+							sha256: 'pdf-sha',
+						},
+					],
+				},
+			}),
+			metadataIntent: null,
+			previewSeconds: undefined,
+		});
 	});
 
 	it('stops before listener startup when output-plan review blocks processing', async () => {

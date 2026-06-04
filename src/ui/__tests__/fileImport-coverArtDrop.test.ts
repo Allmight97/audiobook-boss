@@ -1,10 +1,12 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../types/events';
+import type { AcquisitionJob } from '../../types/remoteSource';
 import FileImportIsland from '../fileImport/FileImportIsland.svelte';
 import { clearFileImportError } from '../fileImport/state.svelte';
 import { clearSelectionPanels } from '../fileList/metadataPanel';
 import {
+	getCurrentFileList,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
@@ -12,6 +14,10 @@ import {
 import { fileListViewState } from '../fileList/viewState.svelte';
 import { resetFileListViewState } from '../fileList/viewState.svelte';
 import { clearMetadataState } from '../metadataState';
+import {
+	registerRemoteSourceSupplementalAssets,
+	removeRemoteSourceSupplementalAssets,
+} from '../remoteSource/sessionAssets.svelte';
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 type DragDropListener = (event: { payload: DragDropPayload }) => void;
@@ -106,6 +112,46 @@ function makeAnalyzedFileList(
 	};
 }
 
+function acquisitionJobWithPdf(): AcquisitionJob {
+	return {
+		jobId: 'remote-job-1',
+		providerId: 'audible',
+		status: 'validated',
+		progress: {
+			stage: 'importHandoff',
+			percentage: 100,
+			message: 'Ready for import.',
+			bytesDownloaded: undefined,
+			bytesTotal: undefined,
+			currentTitleId: 'B000000001',
+			currentItemIndex: 1,
+			totalItems: 1,
+			terminal: true,
+		},
+		materializedFiles: [
+			{
+				inputId: 'provider-input-1',
+				titleId: 'B000000001',
+				path: '/tmp/book-with-pdf.m4b',
+				sizeBytes: 1000,
+				sha256: 'audio-sha',
+			},
+		],
+		supplementalAssets: [
+			{
+				assetId: 'pdf-1',
+				inputId: 'provider-input-1',
+				titleId: 'B000000001',
+				path: '/tmp/book-with-pdf.pdf',
+				fileName: 'Supplemental PDF.pdf',
+				sizeBytes: 32,
+				sha256: 'pdf-sha',
+			},
+		],
+		diagnostics: [],
+	};
+}
+
 describe('File import drop vs cover art drop isolation', () => {
 	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
@@ -129,6 +175,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		takeOpenedAudioFilesMock.mockResolvedValue([]);
 		clearMetadataState();
 		clearFileImportError();
+		removeRemoteSourceSupplementalAssets(['current-input-1']);
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
@@ -274,6 +321,28 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
 		expect(clearButton?.style.display).toBe('none');
+	});
+
+	it('shows a PDF companion chip for imported files with acquired supplemental assets', async () => {
+		analyzeAudioFilesMock.mockResolvedValue(
+			makeAnalyzedFileList([
+				makeAnalyzedFile('/tmp/book-with-pdf.m4b', {
+					inputId: 'current-input-1',
+				}),
+			]),
+		);
+
+		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-with-pdf.m4b']);
+		await waitFor(() => {
+			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
+		});
+		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), getCurrentFileList());
+
+		await waitFor(() => {
+			const chip = document.querySelector('.companion-chip') as HTMLElement | null;
+			expect(chip?.textContent).toBe('PDF');
+			expect(chip?.title).toBe('Supplemental PDF attached');
+		});
 	});
 
 	it('appends a single new file to a populated list', async () => {

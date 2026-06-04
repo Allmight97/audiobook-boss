@@ -332,6 +332,76 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		).toBeTruthy();
 	});
 
+	it('registers supplemental PDF assets after successful remote import handoff', async () => {
+		const user = userEvent.setup();
+		const terminalJob = acquisitionJob({
+			status: 'validated',
+			materializedFiles: [
+				{
+					inputId: 'provider-input-1',
+					titleId: 'B000000001',
+					path: '/tmp/remote/book.m4b',
+					sizeBytes: 42,
+					sha256: 'abc123',
+				},
+			],
+			supplementalAssets: [
+				{
+					assetId: 'pdf-1',
+					inputId: 'provider-input-1',
+					titleId: 'B000000001',
+					path: '/tmp/remote/book.pdf',
+					fileName: 'Supplemental PDF.pdf',
+					sizeBytes: 32,
+					sha256: 'pdf-sha',
+				},
+			],
+			progress: {
+				stage: 'importHandoff',
+				percentage: 100,
+				message: 'Ready for import.',
+				bytesDownloaded: undefined,
+				bytesTotal: undefined,
+				currentTitleId: 'B000000001',
+				currentItemIndex: 1,
+				totalItems: 1,
+				terminal: true,
+			},
+		});
+		const currentFileList = {
+			files: [
+				{
+					inputId: 'current-input-1',
+					path: '/tmp/remote/book.m4b',
+					size: 42,
+					duration: 3600,
+					isValid: true,
+				},
+			],
+			totalDuration: 3600,
+			totalSize: 42,
+			validCount: 1,
+			invalidCount: 0,
+			selectedDecoders: [null],
+		};
+		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(terminalJob);
+		context.getCurrentFileListMock.mockReturnValueOnce(currentFileList);
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		await screen.findByText('1 acquired title imported.');
+		expect(context.handleImportedAudioPathsMock).toHaveBeenCalledWith(['/tmp/remote/book.m4b']);
+		expect(context.registerRemoteSourceSupplementalAssetsMock).toHaveBeenCalledWith(
+			terminalJob,
+			currentFileList,
+		);
+		expect(context.purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
+	});
+
 	it('does not report import success when file import handoff is blocked after acquisition', async () => {
 		const user = userEvent.setup();
 		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(

@@ -19,9 +19,10 @@ bytes, keys, IVs, raw license JSON, and helper diagnostics stay behind
   separate CDM, MPD/PSSH, challenge/response, and key-selection subsystem.
 - The helper protocol is backend-private. It is not generated into TypeScript
   and does not add a frontend command.
-- Supplemental PDFs resolve through the provider-private authenticated
-  companion-file route. Audible API `pdf_url` fields are presence hints only;
-  ABB must not expose or directly download them as frontend or FileList facts.
+- Supplemental PDFs download through the provider-private authenticated
+  `GET /companion-file/{title_id}` route using Audible website cookies. Do not
+  use `HEAD`; Audible API `pdf_url` fields are presence hints only, not
+  frontend, FileList, or direct-download facts.
 
 ## Implementation Targets
 

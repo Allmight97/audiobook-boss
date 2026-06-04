@@ -30,8 +30,7 @@ mod supplemental_pdf;
 
 use library::parse_library_titles;
 use supplemental_pdf::{
-    log_supplemental_pdf_resolve_failed, resolve_supplemental_pdf_url,
-    supplemental_pdf_resolve_failure_message,
+    download_supplemental_pdf, log_supplemental_pdf_failed, supplemental_pdf_failure_message,
 };
 
 use crate::audio;
@@ -863,52 +862,30 @@ async fn download_supplemental_pdf_if_requested(
     }
 
     ensure_not_cancelled(is_cancelled)?;
-    let resolved_pdf_url = match resolve_supplemental_pdf_url(
+    match download_supplemental_pdf(
         auth,
         title_id,
         job_id,
-        api_pdf_hint_present,
-        is_cancelled,
-    )
-    .await
-    {
-        Ok(url) => url,
-        Err(failure) if failure.category == "cancelled" => {
-            return Err(remote_acquisition_cancelled())
-        }
-        Err(failure) => {
-            log_supplemental_pdf_resolve_failed(job_id, title_id, failure);
-            log_supplemental_pdf_failed(job_id, title_id, failure.category);
-            diagnostics.push(RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
-                title_id: Some(title_id.to_string()),
-                message: supplemental_pdf_resolve_failure_message(failure),
-            });
-            ensure_not_cancelled(is_cancelled)?;
-            return Ok((assets, diagnostics));
-        }
-    };
-
-    match download_pdf(
-        title_id,
-        job_id,
         &file.input_id,
-        resolved_pdf_url.as_str(),
+        api_pdf_hint_present,
         job_dir,
         is_cancelled,
     )
     .await
     {
         Ok(asset) => assets.push(asset),
-        Err(AppError::Cancellation(message)) => {
-            return Err(AppError::Cancellation(message));
+        Err(failure) if failure.category == "cancelled" => {
+            return Err(remote_acquisition_cancelled())
         }
-        Err(error) => {
+        Err(failure) => {
+            log_supplemental_pdf_failed(job_id, title_id, failure);
             diagnostics.push(RemoteSourceDiagnostic {
                 kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
                 title_id: Some(title_id.to_string()),
-                message: error.to_string(),
+                message: supplemental_pdf_failure_message(failure),
             });
+            ensure_not_cancelled(is_cancelled)?;
+            return Ok((assets, diagnostics));
         }
     }
     ensure_not_cancelled(is_cancelled)?;
@@ -1458,91 +1435,6 @@ fn cleanup_download_artifacts(path: &Path) -> Result<()> {
         }
     }
     Ok(())
-}
-
-async fn download_pdf(
-    title_id: &str,
-    job_id: &str,
-    input_id: &str,
-    url: &str,
-    job_dir: &Path,
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<SupplementalAsset> {
-    ensure_not_cancelled(is_cancelled)?;
-    fs::create_dir_all(job_dir)?;
-    let path = generated_staging_path(job_dir, "pdf");
-    let mut ignore_progress = |_progress: AcquisitionProgress| {};
-    log::info!(
-        "remote_source audible stage=supplemental_pdf_download_start job_id={} title_ref={} source=companion_file",
-        job_id,
-        title_ref(title_id)
-    );
-    download_to_path(
-        url,
-        &path,
-        Some(DownloadLogContext {
-            job_id,
-            title_id,
-            extension: "pdf",
-        }),
-        &mut ignore_progress,
-        is_cancelled,
-    )
-    .await
-    .map_err(|error| {
-        log_supplemental_pdf_failed(job_id, title_id, "download");
-        error
-    })?;
-    if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
-        cleanup_download_artifacts(&path)?;
-        return Err(error);
-    }
-    let bytes = fs::read(&path)?;
-    if !bytes.starts_with(b"%PDF-") {
-        log_supplemental_pdf_failed(job_id, title_id, "pdf_magic");
-        return Err(AppError::FileValidation(
-            "Downloaded Supplemental PDF did not pass PDF magic-byte validation.".to_string(),
-        ));
-    }
-    let metadata = fs::metadata(&path)?;
-    if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
-        log_supplemental_pdf_failed(job_id, title_id, "size_limit");
-        return Err(AppError::FileValidation(
-            "Downloaded Supplemental PDF exceeds the 100 MiB size limit.".to_string(),
-        ));
-    }
-    let path = path.canonicalize().map_err(|error| {
-        log_supplemental_pdf_failed(job_id, title_id, "canonicalize");
-        AppError::FileValidation(format!(
-            "Cannot canonicalize Supplemental PDF source '{}': {}",
-            sanitize_path_for_display(&path),
-            error
-        ))
-    })?;
-    log::info!(
-        "remote_source audible stage=supplemental_pdf_download_complete job_id={} title_ref={} bytes={}",
-        job_id,
-        title_ref(title_id),
-        metadata.len()
-    );
-    Ok(SupplementalAsset {
-        asset_id: uuid::Uuid::new_v4().to_string(),
-        input_id: input_id.to_string(),
-        title_id: title_id.to_string(),
-        path,
-        file_name: "Supplemental PDF.pdf".to_string(),
-        size_bytes: metadata.len(),
-        sha256: sha256_bytes(&bytes),
-    })
-}
-
-fn log_supplemental_pdf_failed(job_id: &str, title_id: &str, category: &str) {
-    log::warn!(
-        "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category={}",
-        job_id,
-        title_ref(title_id),
-        category
-    );
 }
 
 async fn download_to_path(
@@ -2193,6 +2085,44 @@ mod tests {
             Some(expected.as_str())
         );
         assert!(!materialized_path.to_string_lossy().contains(title_id));
+    }
+
+    #[tokio::test]
+    #[ignore = "uses local keychain Audible auth and a real owned title"]
+    async fn audible_pdf_live_probe() {
+        let title_id = std::env::var("ABB_AUDIBLE_PDF_PROBE_TITLE_ID")
+            .expect("ABB_AUDIBLE_PDF_PROBE_TITLE_ID is required");
+        let vault = crate::remote_source::vault::KeyringSecretVault;
+        let auth = auth_from_vault(&vault).expect("Audible account must be connected");
+        let root = tempfile::TempDir::new().expect("temp root");
+
+        let asset = supplemental_pdf::download_supplemental_pdf(
+            &auth,
+            &title_id,
+            "audible-pdf-live-probe",
+            "probe-input",
+            true,
+            root.path(),
+            &|| false,
+        )
+        .await
+        .expect("download supplemental PDF");
+        assert!(std::fs::read(&asset.path)
+            .expect("read staged PDF")
+            .starts_with(b"%PDF-"));
+
+        let final_audio = root.path().join("Probe.m4b");
+        std::fs::write(&final_audio, b"audio").expect("write dummy final audio");
+        let committed = crate::output_artifact::commit_supplemental_output_asset(
+            crate::output_artifact::SupplementalOutputAssetCommitRequest::new(
+                &asset.path,
+                &final_audio,
+            ),
+        )
+        .expect("commit supplemental PDF beside dummy final audio");
+        assert!(std::fs::read(committed)
+            .expect("read committed PDF")
+            .starts_with(b"%PDF-"));
     }
 
     #[test]
