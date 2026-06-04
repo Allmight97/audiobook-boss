@@ -6,6 +6,7 @@ use abb_remote_source_core::{
     license_facts_from_value, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
     LicenseFacts, MaterializedSourceKind,
 };
+use aes::Aes128;
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
@@ -17,6 +18,7 @@ use base64::{
     },
     Engine as _,
 };
+use cbc::cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
@@ -50,6 +52,8 @@ const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_DOWNLOAD_REDIRECTS: usize = 5;
 const MAX_DOWNLOAD_ATTEMPTS: usize = 4;
 const AUDIBLE_DOWNLOAD_USER_AGENT: &str = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0";
+const AUDIBLE_IOS_DEVICE_TYPE: &str = "A2CZJZGLK2JJVM";
+type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
 struct AcquiredTitle {
     file: Option<MaterializedSourceFile>,
@@ -61,6 +65,12 @@ struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
     decryption_material: Option<AudibleDecryptionMaterial>,
+}
+
+struct AudibleLicenseDecryptContext {
+    device_type: String,
+    device_serial: String,
+    amazon_account_id: String,
 }
 
 #[derive(Clone, Copy)]
@@ -291,7 +301,9 @@ impl AudibleProvider {
         is_cancelled: impl Fn() -> bool,
     ) -> Result<AcquisitionJob> {
         ensure_not_cancelled(&is_cancelled)?;
-        let client = client_from_vault(vault)?;
+        let auth = auth_from_vault(vault)?;
+        let license_decrypt_context = license_decrypt_context_from_auth(&auth);
+        let client = client_from_auth(auth)?;
         let mut job = AcquisitionJob {
             job_id: job_id.to_string(),
             provider_id: ProviderId::Audible,
@@ -312,6 +324,7 @@ impl AudibleProvider {
                 selection.include_supplemental_pdf,
                 job_id,
                 job_dir,
+                license_decrypt_context.as_ref(),
                 TitleProgressContext {
                     title_id: &selection.title_id,
                     item_index: u32::try_from(selection_index + 1).unwrap_or(u32::MAX),
@@ -390,14 +403,43 @@ fn diagnostic_kind_for_acquire_error(error: &AppError) -> RemoteAcquisitionFailu
 }
 
 fn client_from_vault(vault: &dyn SecretVault) -> Result<AudibleClient> {
+    client_from_auth(auth_from_vault(vault)?)
+}
+
+fn auth_from_vault(vault: &dyn SecretVault) -> Result<Auth> {
     let secret = vault
         .get_secret(AUTH_SECRET_KEY)?
         .ok_or_else(|| AppError::InvalidInput("Audible account is not connected.".to_string()))?;
-    let auth: Auth = serde_json::from_str(secret.expose_secret()).map_err(|error| {
+    serde_json::from_str(secret.expose_secret()).map_err(|error| {
         AppError::ResourceCleanup(format!("Stored Audible auth is invalid: {error}"))
-    })?;
+    })
+}
+
+fn client_from_auth(auth: Auth) -> Result<AudibleClient> {
     AudibleClient::new(auth)
         .map_err(|error| AppError::General(format!("Failed to create Audible client: {error}")))
+}
+
+fn license_decrypt_context_from_auth(auth: &Auth) -> Option<AudibleLicenseDecryptContext> {
+    let device_type =
+        find_first_string_for_key(&auth.device_registration.device_info, "device_type")
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| AUDIBLE_IOS_DEVICE_TYPE.to_string());
+    let device_serial = find_first_string_for_key(
+        &auth.device_registration.device_info,
+        "device_serial_number",
+    )
+    .filter(|value| !value.is_empty())
+    .unwrap_or_else(|| auth.device_registration.device_serial.clone());
+    let amazon_account_id =
+        find_first_string_for_key(&auth.device_registration.customer_info, "user_id")
+            .filter(|value| !value.is_empty())?;
+
+    Some(AudibleLicenseDecryptContext {
+        device_type,
+        device_serial,
+        amazon_account_id,
+    })
 }
 
 fn extract_audible_auth_code(response_url: &str) -> Result<String> {
@@ -416,6 +458,7 @@ async fn acquire_one(
     include_pdf: bool,
     job_id: &str,
     job_dir: &Path,
+    license_decrypt_context: Option<&AudibleLicenseDecryptContext>,
     progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
@@ -442,6 +485,7 @@ async fn acquire_one(
         client,
         title_id,
         job_id,
+        license_decrypt_context,
         progress_context,
         progress,
         is_cancelled,
@@ -538,6 +582,7 @@ async fn request_license_lane(
     client: &AudibleClient,
     title_id: &str,
     job_id: &str,
+    license_decrypt_context: Option<&AudibleLicenseDecryptContext>,
     progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
@@ -572,7 +617,24 @@ async fn request_license_lane(
     Ok(LicenseLane {
         content_url: content_url.to_string(),
         strategy,
-        decryption_material: audible_decryption_material_from_license(&license, strategy),
+        decryption_material: {
+            let material = audible_decryption_material_from_license(
+                &license,
+                strategy,
+                title_id,
+                license_decrypt_context,
+            );
+            log_missing_license_material(
+                job_id,
+                title_id,
+                &license,
+                &facts,
+                strategy,
+                license_decrypt_context.is_some(),
+                material.is_some(),
+            );
+            material
+        },
     })
 }
 
@@ -939,7 +1001,15 @@ fn helper_material_from_audible_material(
 fn audible_decryption_material_from_license(
     license: &Value,
     strategy: AcquisitionStrategy,
+    title_id: &str,
+    decrypt_context: Option<&AudibleLicenseDecryptContext>,
 ) -> Option<AudibleDecryptionMaterial> {
+    if let Some(material) =
+        decrypt_license_response_material(license, strategy, title_id, decrypt_context)
+    {
+        return Some(material);
+    }
+
     let key_material = find_voucher_key_material(license);
     if let Some(material) = audible_decryption_material_from_key_material(key_material.as_ref()) {
         return Some(material);
@@ -961,6 +1031,55 @@ fn audible_decryption_material_from_license(
     }
 }
 
+fn decrypt_license_response_material(
+    license: &Value,
+    strategy: AcquisitionStrategy,
+    title_id: &str,
+    decrypt_context: Option<&AudibleLicenseDecryptContext>,
+) -> Option<AudibleDecryptionMaterial> {
+    match strategy {
+        AcquisitionStrategy::DownloadThenDecryptAax
+        | AcquisitionStrategy::DownloadThenDecryptAaxc => {}
+        _ => return None,
+    }
+
+    let context = decrypt_context?;
+    let license_response =
+        find_first_string_for_keys(license, &["license_response", "licenseResponse"])?;
+    let asin =
+        find_first_string_for_keys(license, &["asin", "Asin"]).unwrap_or_else(|| title_id.into());
+    let decrypted = decrypt_license_response(&license_response, &asin, context)?;
+    let key_material = find_voucher_key_material(&decrypted);
+    audible_decryption_material_from_key_material(key_material.as_ref())
+}
+
+fn decrypt_license_response(
+    license_response: &str,
+    asin: &str,
+    context: &AudibleLicenseDecryptContext,
+) -> Option<Value> {
+    let mut ciphertext = decode_base64_any(license_response)?;
+    if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
+        return None;
+    }
+
+    let key_components = format!(
+        "{}{}{}{}",
+        context.device_type, context.device_serial, context.amazon_account_id, asin
+    );
+    let hash = Sha256::digest(key_components.as_bytes());
+    let (key, iv) = hash.split_at(16);
+    let plaintext = Aes128CbcDec::new_from_slices(key, iv)
+        .ok()?
+        .decrypt_padded_mut::<NoPadding>(&mut ciphertext)
+        .ok()?;
+    let json_bytes = plaintext
+        .split(|byte| *byte == 0)
+        .next()
+        .unwrap_or(plaintext);
+    serde_json::from_slice(json_bytes).ok()
+}
+
 fn audible_decryption_material_from_key_material(
     key_material: Option<&VoucherKeyMaterial>,
 ) -> Option<AudibleDecryptionMaterial> {
@@ -979,6 +1098,36 @@ fn audible_decryption_material_from_key_material(
         }
         _ => None,
     }
+}
+
+fn log_missing_license_material(
+    job_id: &str,
+    title_id: &str,
+    license: &Value,
+    facts: &LicenseFacts,
+    strategy: AcquisitionStrategy,
+    decrypt_context_present: bool,
+    material_present: bool,
+) {
+    if material_present {
+        return;
+    }
+    if !matches!(
+        strategy,
+        AcquisitionStrategy::DownloadThenDecryptAax | AcquisitionStrategy::DownloadThenDecryptAaxc
+    ) {
+        return;
+    }
+    log::warn!(
+        "remote_source audible stage=license_material_extraction job_id={} title_ref={} strategy={} provider_material_hint={} license_response_present={} content_license_asin_present={} decrypt_context_present={} material_extracted=false",
+        job_id,
+        title_ref(title_id),
+        strategy_label(strategy),
+        facts.decryption_material_present,
+        find_first_string_for_keys(license, &["license_response", "licenseResponse"]).is_some(),
+        find_first_string_for_keys(license, &["asin", "Asin"]).is_some(),
+        decrypt_context_present
+    );
 }
 
 struct VoucherKeyMaterial {
@@ -1128,6 +1277,18 @@ fn decode_secret_string(raw: &str, expected_lens: &[usize]) -> Option<Vec<u8>> {
             .ok()
             .filter(|bytes| expected_lens.contains(&bytes.len()))
     })
+}
+
+fn decode_base64_any(raw: &str) -> Option<Vec<u8>> {
+    let trimmed = raw.trim();
+    [
+        &BASE64_STANDARD,
+        &BASE64_STANDARD_NO_PAD,
+        &URL_SAFE,
+        &URL_SAFE_NO_PAD,
+    ]
+    .iter()
+    .find_map(|engine| engine.decode(trimmed).ok())
 }
 
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {
@@ -1693,6 +1854,11 @@ fn find_first_string_for_key(value: &Value, key: &str) -> Option<String> {
     }
 }
 
+fn find_first_string_for_keys(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| find_first_string_for_key(value, key))
+}
+
 fn sha256_file(path: &Path) -> Result<String> {
     let bytes = fs::read(path)?;
     Ok(sha256_bytes(&bytes))
@@ -1707,6 +1873,38 @@ fn sha256_bytes(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cbc::cipher::BlockEncryptMut;
+
+    type Aes128CbcEnc = cbc::Encryptor<Aes128>;
+
+    fn fixture_decrypt_context() -> AudibleLicenseDecryptContext {
+        AudibleLicenseDecryptContext {
+            device_type: AUDIBLE_IOS_DEVICE_TYPE.to_string(),
+            device_serial: "device-serial".to_string(),
+            amazon_account_id: "account-1".to_string(),
+        }
+    }
+
+    fn encrypted_license_response(
+        voucher: Value,
+        asin: &str,
+        context: &AudibleLicenseDecryptContext,
+    ) -> String {
+        let mut plaintext = serde_json::to_vec(&voucher).expect("voucher json");
+        let padded_len = plaintext.len().next_multiple_of(16);
+        plaintext.resize(padded_len, 0);
+        let key_components = format!(
+            "{}{}{}{}",
+            context.device_type, context.device_serial, context.amazon_account_id, asin
+        );
+        let hash = Sha256::digest(key_components.as_bytes());
+        let (key, iv) = hash.split_at(16);
+        let ciphertext = Aes128CbcEnc::new_from_slices(key, iv)
+            .expect("cipher")
+            .encrypt_padded_mut::<NoPadding>(&mut plaintext, padded_len)
+            .expect("encrypt");
+        BASE64_STANDARD.encode(ciphertext)
+    }
 
     #[test]
     fn capabilities_stay_provider_neutral() {
@@ -1982,6 +2180,79 @@ mod tests {
     }
 
     #[test]
+    fn aax_license_response_decrypts_adrm_voucher_activation_bytes() {
+        let context = fixture_decrypt_context();
+        let asin = "B000000001";
+        let response = json!({
+            "content_license": {
+                "asin": asin,
+                "content_url": "https://cdn.example.test/book.aax",
+                "drm_type": "Adrm",
+                "license_response": encrypted_license_response(
+                    json!({ "key": [10, 27, 44, 61] }),
+                    asin,
+                    &context
+                )
+            }
+        });
+
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAax,
+            asin,
+            Some(&context),
+        )
+        .expect("aax material");
+
+        match material {
+            AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex,
+            } => assert_eq!(activation_bytes_hex.expose_secret(), "0a1b2c3d"),
+            AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
+        }
+    }
+
+    #[test]
+    fn aaxc_license_response_decrypts_adrm_voucher_key_iv() {
+        let context = fixture_decrypt_context();
+        let asin = "B000000002";
+        let response = json!({
+            "content_license": {
+                "Asin": asin,
+                "content_url": "https://cdn.example.test/book.aaxc",
+                "drm_type": "Adrm",
+                "licenseResponse": encrypted_license_response(
+                    json!({
+                        "key": "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d",
+                        "iv": BASE64_STANDARD.encode([
+                            0x2e, 0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+                            0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x5a, 0x5b
+                        ])
+                    }),
+                    asin,
+                    &context
+                )
+            }
+        });
+
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAaxc,
+            asin,
+            Some(&context),
+        )
+        .expect("aaxc material");
+
+        match material {
+            AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
+                assert_eq!(key_hex.expose_secret(), "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d");
+                assert_eq!(iv_hex.expose_secret(), "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b");
+            }
+            AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
+        }
+    }
+
+    #[test]
     fn aax_license_material_extracts_activation_bytes_without_public_surface() {
         let response = json!({
             "content_license": {
@@ -1996,6 +2267,8 @@ mod tests {
         let material = audible_decryption_material_from_license(
             &response,
             AcquisitionStrategy::DownloadThenDecryptAax,
+            "B000000001",
+            None,
         )
         .expect("aax material");
 
@@ -2022,6 +2295,8 @@ mod tests {
         let material = audible_decryption_material_from_license(
             &response,
             AcquisitionStrategy::DownloadThenDecryptAax,
+            "B000000001",
+            None,
         )
         .expect("aax material");
 
@@ -2052,6 +2327,8 @@ mod tests {
         let material = audible_decryption_material_from_license(
             &response,
             AcquisitionStrategy::DownloadThenDecryptAaxc,
+            "B000000001",
+            None,
         )
         .expect("aaxc material");
 
@@ -2085,6 +2362,8 @@ mod tests {
         let material = audible_decryption_material_from_license(
             &response,
             AcquisitionStrategy::DownloadThenDecryptAax,
+            "B000000001",
+            None,
         )
         .expect("aaxc-shaped material");
         let lane = LicenseLane {
