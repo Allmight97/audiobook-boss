@@ -247,6 +247,50 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		expect(document.body.textContent).not.toContain('Previous download failed.');
 	});
 
+	it('deduplicates repeated safe diagnostic copy for batch acquisition failures', async () => {
+		const user = userEvent.setup();
+		const repeatedMessage =
+			'Audible license response did not include a downloadable audio URL.';
+		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
+			acquisitionJob({
+				status: 'failed',
+				progress: {
+					stage: 'failed',
+					percentage: 100,
+					message: 'Acquisition failed.',
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					currentTitleId: 'B000000001',
+					currentItemIndex: 1,
+					totalItems: 1,
+					terminal: true,
+				},
+				diagnostics: [
+					{
+						kind: 'providerPrivateProtocolFailed',
+						titleId: 'B000000001',
+						message: repeatedMessage,
+					},
+					{
+						kind: 'providerPrivateProtocolFailed',
+						titleId: 'B000000002',
+						message: repeatedMessage,
+					},
+				],
+			}),
+		);
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		await screen.findByText(repeatedMessage);
+		const occurrenceCount = (document.body.textContent?.split(repeatedMessage).length ?? 1) - 1;
+		expect(occurrenceCount).toBe(1);
+	});
+
 	it('redacts unknown provider-boundary errors from status text and console logs', async () => {
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		context.getRemoteSourceAccountStateMock.mockRejectedValueOnce(

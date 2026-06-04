@@ -36,6 +36,9 @@ commands over invoking internals directly.
 - Runtime shell or Rust integration:
   `cargo nextest run -p audiobook-boss --lib` or
   `cargo nextest run -p audiobook-boss --test all_tests`.
+- Manual Tauri dev with captured logs:
+  `bun run app:dev:log`; inspect `.logs/tauri-dev.log` before asking for pasted
+  terminal output. The file is overwritten on each fresh run.
 - Frontend owner: `bun run test -- <owner test files>`.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local` and targeted

@@ -23,6 +23,7 @@
 	type AcquisitionJobWithProgress = AcquisitionJob & {
 		progress?: AcquisitionProgress;
 	};
+	type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
 
 	let isBusy = $state(false);
 	let didHydrateOpenDialog = $state(false);
@@ -56,8 +57,20 @@
 		);
 	}
 
+	function diagnosticStatus(diagnostics: RemoteSourceDiagnostic[]): string {
+		const uniqueMessages: string[] = [];
+		const seenMessages = new Set<string>();
+		for (const diagnostic of diagnostics) {
+			const message = diagnostic.message.trim();
+			if (!message || seenMessages.has(message)) continue;
+			seenMessages.add(message);
+			uniqueMessages.push(message);
+		}
+		return uniqueMessages.join(' ');
+	}
+
 	function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): string {
-		const diagnostics = job.diagnostics.map((diagnostic) => diagnostic.message).join(' ');
+		const diagnostics = diagnosticStatus(job.diagnostics);
 		if (job.progress?.terminal && diagnostics) return diagnostics;
 		if (job.progress?.message) return job.progress.message;
 		return diagnostics || 'Audible acquisition is running.';
@@ -135,7 +148,7 @@
 			statusMessage = `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`;
 		} else {
 			statusMessage =
-				job.diagnostics.map((diagnostic) => diagnostic.message).join(' ') ||
+				diagnosticStatus(job.diagnostics) ||
 				'Audible acquisition did not materialize an importable file.';
 		}
 	}
@@ -214,7 +227,7 @@
 			);
 			statusMessage =
 				library.diagnostics.length > 0
-					? library.diagnostics.map((diagnostic) => diagnostic.message).join(' ')
+					? diagnosticStatus(library.diagnostics)
 					: `${library.titles.length} Audible titles loaded.`;
 		} catch (cause) {
 			setError(cause, 'Failed to load Audible library.');

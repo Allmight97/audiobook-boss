@@ -1460,33 +1460,42 @@ async fn download_pdf(
         job_id,
         title_ref(title_id)
     );
-    download_to_path(url, &path, None, &mut ignore_progress, is_cancelled)
-        .await
-        .map_err(|error| {
-            log::warn!(
-                "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=download",
-                job_id,
-                title_ref(title_id)
-            );
-            error
-        })?;
+    download_to_path(
+        url,
+        &path,
+        Some(DownloadLogContext {
+            job_id,
+            title_id,
+            extension: "pdf",
+        }),
+        &mut ignore_progress,
+        is_cancelled,
+    )
+    .await
+    .map_err(|error| {
+        log_supplemental_pdf_failed(job_id, title_id, "download");
+        error
+    })?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         cleanup_download_artifacts(&path)?;
         return Err(error);
     }
     let bytes = fs::read(&path)?;
     if !bytes.starts_with(b"%PDF-") {
+        log_supplemental_pdf_failed(job_id, title_id, "pdf_magic");
         return Err(AppError::FileValidation(
             "Downloaded Supplemental PDF did not pass PDF magic-byte validation.".to_string(),
         ));
     }
     let metadata = fs::metadata(&path)?;
     if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
+        log_supplemental_pdf_failed(job_id, title_id, "size_limit");
         return Err(AppError::FileValidation(
             "Downloaded Supplemental PDF exceeds the 100 MiB size limit.".to_string(),
         ));
     }
     let path = path.canonicalize().map_err(|error| {
+        log_supplemental_pdf_failed(job_id, title_id, "canonicalize");
         AppError::FileValidation(format!(
             "Cannot canonicalize Supplemental PDF source '{}': {}",
             sanitize_path_for_display(&path),
@@ -1508,6 +1517,15 @@ async fn download_pdf(
         size_bytes: metadata.len(),
         sha256: sha256_bytes(&bytes),
     })
+}
+
+fn log_supplemental_pdf_failed(job_id: &str, title_id: &str, category: &str) {
+    log::warn!(
+        "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category={}",
+        job_id,
+        title_ref(title_id),
+        category
+    );
 }
 
 async fn download_to_path(

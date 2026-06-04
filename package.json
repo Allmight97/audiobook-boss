@@ -15,6 +15,7 @@
 		"audit": "cargo audit -D warnings",
 		"preview": "vite preview",
 		"tauri": "tauri",
+		"app:dev:log": "bash scripts/dev-tauri-log.sh",
 		"aaxclean-helper:publish": "bun scripts/publish-aaxclean-helper.ts",
 		"app:build": "bun scripts/build-app.ts --bundles app",
 		"app:build:dmg": "bun scripts/build-app.ts --bundles dmg",
