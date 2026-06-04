@@ -51,6 +51,7 @@ const AUTH_SECRET_KEY: &str = "audible.us.auth";
 const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_DOWNLOAD_REDIRECTS: usize = 5;
 const MAX_DOWNLOAD_ATTEMPTS: usize = 4;
+const MAX_REMOTE_FILENAME_STEM_BYTES: usize = 180;
 const AUDIBLE_DOWNLOAD_USER_AGENT: &str = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0";
 const AUDIBLE_IOS_DEVICE_TYPE: &str = "A2CZJZGLK2JJVM";
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
@@ -65,6 +66,11 @@ struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
     decryption_material: Option<AudibleDecryptionMaterial>,
+}
+
+struct AudibleTitleDetails {
+    title: Option<String>,
+    supplemental_pdf_url: Option<String>,
 }
 
 struct AudibleLicenseDecryptContext {
@@ -479,8 +485,8 @@ async fn acquire_one(
         None,
         None,
     ));
-    let supplemental_pdf_url =
-        lookup_supplemental_pdf_url(client, title_id, include_pdf, is_cancelled).await?;
+    let title_details = lookup_title_details(client, title_id, include_pdf, is_cancelled).await?;
+    let title_name = title_details.title.as_deref();
     let lane = request_license_lane(
         client,
         title_id,
@@ -497,7 +503,7 @@ async fn acquire_one(
     }
 
     let downloaded_path = if lane.strategy == AcquisitionStrategy::DownloadImportReady {
-        staged_materialized_path(&item_dir)
+        staged_materialized_path(&item_dir, title_name, title_id)
     } else {
         staged_protected_source_path(&item_dir, lane.strategy)
     };
@@ -529,6 +535,7 @@ async fn acquire_one(
             &item_id,
             &downloaded_path,
             &item_dir,
+            title_name,
             &lane,
             progress_context,
             progress,
@@ -541,7 +548,7 @@ async fn acquire_one(
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
         title_id,
         &file,
-        supplemental_pdf_url,
+        title_details.supplemental_pdf_url,
         &item_dir,
         is_cancelled,
     )
@@ -553,12 +560,12 @@ async fn acquire_one(
     })
 }
 
-async fn lookup_supplemental_pdf_url(
+async fn lookup_title_details(
     client: &AudibleClient,
     title_id: &str,
     include_pdf: bool,
     is_cancelled: &impl Fn() -> bool,
-) -> Result<Option<String>> {
+) -> Result<AudibleTitleDetails> {
     ensure_not_cancelled(is_cancelled)?;
     let metadata = client
         .get_library_item_by_asin(
@@ -570,12 +577,18 @@ async fn lookup_supplemental_pdf_url(
         .await
         .map_err(|_| provider_private_failure("title lookup"))?;
     ensure_not_cancelled(is_cancelled)?;
-    Ok(include_pdf
+    let title =
+        find_first_string_for_key(&metadata, "title").filter(|value| !value.trim().is_empty());
+    let supplemental_pdf_url = include_pdf
         .then(|| {
             find_first_string_for_key(&metadata, "pdf_url")
                 .or_else(|| find_first_string_for_key(&metadata, "pdfUrl"))
         })
-        .flatten())
+        .flatten();
+    Ok(AudibleTitleDetails {
+        title,
+        supplemental_pdf_url,
+    })
 }
 
 async fn request_license_lane(
@@ -709,6 +722,7 @@ async fn materialize_protected_download(
     item_id: &str,
     downloaded_path: &Path,
     item_dir: &Path,
+    title_name: Option<&str>,
     lane: &LicenseLane,
     progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
@@ -731,7 +745,7 @@ async fn materialize_protected_download(
         None,
         None,
     ));
-    let output_path = staged_materialized_path(item_dir);
+    let output_path = staged_materialized_path(item_dir, title_name, title_id);
     let output_temp_path = materializer_output_temp_path(&output_path);
     let mut materializer_progress = |progress_event: AcquisitionProgress| {
         progress(with_title_progress(progress_event, progress_context));
@@ -968,8 +982,71 @@ fn staged_protected_source_path(
     ))
 }
 
-fn staged_materialized_path(job_dir: &Path) -> std::path::PathBuf {
-    job_dir.join("materialized.m4b")
+fn staged_materialized_path(
+    job_dir: &Path,
+    title_name: Option<&str>,
+    title_id: &str,
+) -> std::path::PathBuf {
+    job_dir.join(format!(
+        "{}.m4b",
+        remote_materialized_filename_stem(title_name, title_id)
+    ))
+}
+
+fn remote_materialized_filename_stem(title_name: Option<&str>, title_id: &str) -> String {
+    let fallback = format!("Audible {}", title_ref(title_id));
+    let Some(title_name) = title_name else {
+        return fallback;
+    };
+    let sanitized = sanitize_remote_filename_stem(title_name);
+    if sanitized.is_empty() {
+        fallback
+    } else {
+        truncate_filename_stem(&sanitized, MAX_REMOTE_FILENAME_STEM_BYTES).unwrap_or(fallback)
+    }
+}
+
+fn sanitize_remote_filename_stem(input: &str) -> String {
+    let mut value = input.replace(':', " - ");
+    value = value.replace(',', " - ");
+    value
+        .replace(['/', '\\', '*', '?', '"', '<', '>', '|'], " ")
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_matches(['.', ' ', '-'])
+        .to_string()
+}
+
+fn truncate_filename_stem(value: &str, max_bytes: usize) -> Option<String> {
+    if value.is_empty() || max_bytes == 0 {
+        return None;
+    }
+    if value.len() <= max_bytes {
+        return Some(value.to_string());
+    }
+    let mut end = 0;
+    for (index, character) in value.char_indices() {
+        let next = index + character.len_utf8();
+        if next > max_bytes {
+            break;
+        }
+        end = next;
+    }
+    let truncated = value[..end]
+        .trim_end()
+        .trim_matches(['.', ' ', '-'])
+        .to_string();
+    (!truncated.is_empty()).then_some(truncated)
 }
 
 fn materializer_output_temp_path(path: &Path) -> std::path::PathBuf {
@@ -1954,7 +2031,8 @@ mod tests {
 
         let protected_path =
             staged_protected_source_path(&item_dir, AcquisitionStrategy::DownloadThenDecryptAaxc);
-        let materialized_path = staged_materialized_path(&item_dir);
+        let materialized_path =
+            staged_materialized_path(&item_dir, Some("../../account:title,?"), unsafe_title_id);
 
         assert!(protected_path.starts_with(root.path()));
         assert!(materialized_path.starts_with(root.path()));
@@ -1970,8 +2048,47 @@ mod tests {
             materialized_path
                 .file_name()
                 .and_then(|value| value.to_str()),
-            Some("materialized.m4b")
+            Some("account - title.m4b")
         );
+    }
+
+    #[test]
+    fn staged_materialized_path_uses_sanitized_remote_title() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
+
+        let materialized_path = staged_materialized_path(
+            &item_dir,
+            Some("Secure Love: Create a Relationship That Lasts a Lifetime"),
+            "B000000001",
+        );
+
+        assert!(materialized_path.starts_with(root.path()));
+        assert_eq!(
+            materialized_path
+                .file_name()
+                .and_then(|value| value.to_str()),
+            Some("Secure Love - Create a Relationship That Lasts a Lifetime.m4b")
+        );
+    }
+
+    #[test]
+    fn staged_materialized_path_falls_back_to_title_ref_for_empty_title() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
+        let title_id = "../../account-title";
+
+        let materialized_path = staged_materialized_path(&item_dir, Some("../"), title_id);
+        let expected = format!("Audible {}.m4b", title_ref(title_id));
+
+        assert!(materialized_path.starts_with(root.path()));
+        assert_eq!(
+            materialized_path
+                .file_name()
+                .and_then(|value| value.to_str()),
+            Some(expected.as_str())
+        );
+        assert!(!materialized_path.to_string_lossy().contains(title_id));
     }
 
     #[test]
