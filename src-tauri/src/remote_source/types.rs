@@ -134,6 +134,7 @@ pub enum RemoteAcquisitionFailureKind {
     AuthRequired,
     ProviderPrivateProtocolFailed,
     ProtectedUnsupported,
+    DownloadFailed,
     MaterializationFailed,
     ValidationFailed,
     SupplementalPdfFailed,

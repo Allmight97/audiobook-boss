@@ -11,6 +11,7 @@ use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -41,6 +42,8 @@ const ACCOUNT_ID: &str = "audible-us";
 const AUTH_SECRET_KEY: &str = "audible.us.auth";
 const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_DOWNLOAD_REDIRECTS: usize = 5;
+const MAX_DOWNLOAD_ATTEMPTS: usize = 4;
+const AUDIBLE_DOWNLOAD_USER_AGENT: &str = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0";
 
 struct AcquiredTitle {
     file: Option<MaterializedSourceFile>,
@@ -52,6 +55,20 @@ struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
     decryption_material: Option<AudibleDecryptionMaterial>,
+}
+
+#[derive(Clone, Copy)]
+struct DownloadLogContext<'a> {
+    job_id: &'a str,
+    title_id: &'a str,
+    extension: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ParsedContentRange {
+    start: u64,
+    end: u64,
+    total: Option<u64>,
 }
 
 enum AudibleDecryptionMaterial {
@@ -67,6 +84,19 @@ enum AudibleDecryptionMaterial {
 fn provider_private_failure(stage: &str) -> AppError {
     AppError::General(format!(
         "Audible {stage} failed. Provider-private details were withheld from UI and logs."
+    ))
+}
+
+fn download_failure(stage: &str) -> AppError {
+    AppError::General(format!(
+        "Audible download {stage} failed. Provider-private details were withheld from UI and logs."
+    ))
+}
+
+fn download_status_failure(status: reqwest::StatusCode) -> AppError {
+    AppError::General(format!(
+        "Remote source download returned HTTP {}. Check application logs for sanitized acquisition facts.",
+        status.as_u16()
     ))
 }
 
@@ -274,8 +304,9 @@ impl AudibleProvider {
                     if matches!(error, AppError::Cancellation(_)) {
                         return Err(error);
                     }
+                    let kind = diagnostic_kind_for_acquire_error(&error);
                     job.diagnostics.push(RemoteSourceDiagnostic {
-                        kind: RemoteAcquisitionFailureKind::MaterializationFailed,
+                        kind,
                         title_id: Some(selection.title_id.clone()),
                         message: error.to_string(),
                     });
@@ -295,6 +326,23 @@ impl AudibleProvider {
         };
         Ok(job)
     }
+}
+
+fn diagnostic_kind_for_acquire_error(error: &AppError) -> RemoteAcquisitionFailureKind {
+    let message = error.to_string();
+    if matches!(error, AppError::FileValidation(_)) {
+        return RemoteAcquisitionFailureKind::ValidationFailed;
+    }
+    if message.contains("Remote source download") || message.contains("Audible download") {
+        return RemoteAcquisitionFailureKind::DownloadFailed;
+    }
+    if message.contains("Audible license") || message.contains("license response") {
+        return RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed;
+    }
+    if message.contains("AAXClean") {
+        return RemoteAcquisitionFailureKind::MaterializationFailed;
+    }
+    RemoteAcquisitionFailureKind::MaterializationFailed
 }
 
 fn client_from_vault(vault: &dyn SecretVault) -> Result<AudibleClient> {
@@ -682,16 +730,28 @@ async fn download_audio(
         title_ref(title_id),
         extension
     );
-    download_to_path(content_url, path, progress, is_cancelled).await?;
+    let bytes = download_to_path(
+        content_url,
+        path,
+        Some(DownloadLogContext {
+            job_id,
+            title_id,
+            extension: &extension,
+        }),
+        progress,
+        is_cancelled,
+    )
+    .await?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         cleanup_download_artifacts(path)?;
         return Err(error);
     }
     log::info!(
-        "remote_source audible stage=download_complete job_id={} title_ref={} extension={}",
+        "remote_source audible stage=download_complete job_id={} title_ref={} extension={} bytes={}",
         job_id,
         title_ref(title_id),
-        extension
+        extension,
+        bytes
     );
     Ok(())
 }
@@ -950,7 +1010,7 @@ async fn download_pdf(
     fs::create_dir_all(job_dir)?;
     let path = generated_staging_path(job_dir, "pdf");
     let mut ignore_progress = |_progress: AcquisitionProgress| {};
-    download_to_path(url, &path, &mut ignore_progress, is_cancelled).await?;
+    download_to_path(url, &path, None, &mut ignore_progress, is_cancelled).await?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         cleanup_download_artifacts(&path)?;
         return Err(error);
@@ -988,9 +1048,10 @@ async fn download_pdf(
 async fn download_to_path(
     url: &str,
     path: &Path,
+    log_context: Option<DownloadLogContext<'_>>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
-) -> Result<()> {
+) -> Result<u64> {
     ensure_not_cancelled(is_cancelled)?;
     let parsed = reqwest::Url::parse(url).map_err(|_| provider_private_failure("download URL"))?;
     if parsed.scheme() != "https" {
@@ -1000,17 +1061,23 @@ async fn download_to_path(
     }
 
     let partial_path = partial_download_path(path);
-    let result = download_to_partial_path(parsed, &partial_path, progress, is_cancelled).await;
-    if let Err(error) = result {
-        let _ = tokio::fs::remove_file(&partial_path).await;
-        return Err(error);
-    }
+    let _ = tokio::fs::remove_file(&partial_path).await;
+    let bytes =
+        match download_to_partial_path(parsed, &partial_path, log_context, progress, is_cancelled)
+            .await
+        {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                let _ = tokio::fs::remove_file(&partial_path).await;
+                return Err(error);
+            }
+        };
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
         let _ = tokio::fs::remove_file(&partial_path).await;
         return Err(error);
     }
     tokio::fs::rename(&partial_path, path).await?;
-    Ok(())
+    Ok(bytes)
 }
 
 fn license_request_payload() -> Value {
@@ -1146,53 +1213,281 @@ fn title_ref(title_id: &str) -> String {
 async fn download_to_partial_path(
     url: reqwest::Url,
     path: &Path,
+    log_context: Option<DownloadLogContext<'_>>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
-) -> Result<()> {
+) -> Result<u64> {
     ensure_not_cancelled(is_cancelled)?;
     let client = remote_download_client()?;
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|_| provider_private_failure("download request"))?;
-    ensure_not_cancelled(is_cancelled)?;
-    if !response.status().is_success() {
-        return Err(AppError::General(format!(
-            "Remote source download returned HTTP {}",
-            response.status()
-        )));
-    }
-    let bytes_total = response.content_length();
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .await?;
-    let mut response = response;
     let mut bytes_downloaded = 0_u64;
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| provider_private_failure("download read"))?
-    {
+    let mut bytes_total = None;
+    let mut first_bytes_logged = false;
+    let can_resume = log_context.is_some();
+
+    for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
         ensure_not_cancelled(is_cancelled)?;
-        bytes_downloaded += chunk.len() as u64;
-        file.write_all(&chunk).await?;
-        let fraction = bytes_total
-            .filter(|total| *total > 0)
-            .map(|total| bytes_downloaded as f32 / total as f32)
-            .unwrap_or(0.2);
-        progress(acquisition_progress(
-            AcquisitionStage::Download,
-            Some(fraction),
-            Some(bytes_downloaded),
-            bytes_total,
+        log_download_request_start(log_context, bytes_downloaded);
+        let request = if log_context.is_some() {
+            build_download_request(&client, url.clone(), bytes_downloaded)
+        } else {
+            client.get(url.clone())
+        };
+        let mut response = match request.send().await {
+            Ok(response) => response,
+            Err(_) => {
+                log_download_failed(log_context, "request", bytes_downloaded, bytes_total, None);
+                return Err(download_failure("request"));
+            }
+        };
+        ensure_not_cancelled(is_cancelled)?;
+
+        let status = response.status();
+        let content_range = response
+            .headers()
+            .get(CONTENT_RANGE)
+            .and_then(|value| value.to_str().ok());
+        let final_url_is_https = response.url().scheme() == "https";
+        let response_total = match classify_download_response_for_mode(
+            log_context.is_some(),
+            status,
+            final_url_is_https,
+            bytes_downloaded,
+            response.content_length(),
+            content_range,
+        ) {
+            Ok(total) => total,
+            Err(error) => {
+                log_download_failed(
+                    log_context,
+                    "status",
+                    bytes_downloaded,
+                    bytes_total,
+                    Some(status),
+                );
+                return Err(error);
+            }
+        };
+        bytes_total = response_total.or(bytes_total);
+        log_download_request_status(log_context, status, bytes_downloaded, bytes_total);
+
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .await?;
+        let mut read_failed = false;
+        loop {
+            let chunk = match response.chunk().await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break,
+                Err(_) => {
+                    read_failed = true;
+                    break;
+                }
+            };
+            ensure_not_cancelled(is_cancelled)?;
+            if chunk.is_empty() {
+                continue;
+            }
+            bytes_downloaded += chunk.len() as u64;
+            if !first_bytes_logged {
+                first_bytes_logged = true;
+                log_download_progress_first_bytes(log_context, bytes_downloaded, bytes_total);
+            }
+            file.write_all(&chunk).await?;
+            let fraction = bytes_total
+                .filter(|total| *total > 0)
+                .map(|total| bytes_downloaded as f32 / total as f32)
+                .unwrap_or(0.2);
+            progress(acquisition_progress(
+                AcquisitionStage::Download,
+                Some(fraction),
+                Some(bytes_downloaded),
+                bytes_total,
+            ));
+        }
+        file.sync_all().await?;
+
+        if read_failed {
+            if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
+                continue;
+            }
+            log_download_failed(log_context, "read", bytes_downloaded, bytes_total, None);
+            return Err(download_failure("read"));
+        }
+        ensure_not_cancelled(is_cancelled)?;
+        if bytes_total.is_none_or(|total| bytes_downloaded >= total) && bytes_downloaded > 0 {
+            return Ok(bytes_downloaded);
+        }
+        if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
+            continue;
+        }
+        break;
+    }
+
+    log_download_failed(
+        log_context,
+        "incomplete",
+        bytes_downloaded,
+        bytes_total,
+        None,
+    );
+    Err(download_failure("incomplete"))
+}
+
+fn build_download_request(
+    client: &reqwest::Client,
+    url: reqwest::Url,
+    offset: u64,
+) -> reqwest::RequestBuilder {
+    client
+        .get(url)
+        .header(USER_AGENT, AUDIBLE_DOWNLOAD_USER_AGENT)
+        .header(RANGE, format!("bytes={offset}-"))
+}
+
+fn classify_download_response(
+    status: reqwest::StatusCode,
+    final_url_is_https: bool,
+    offset: u64,
+    content_length: Option<u64>,
+    content_range: Option<&str>,
+) -> Result<Option<u64>> {
+    if !final_url_is_https {
+        return Err(AppError::InvalidInput(
+            "Remote source download redirect must use https.".to_string(),
         ));
     }
-    ensure_not_cancelled(is_cancelled)?;
-    file.sync_all().await?;
-    Ok(())
+    if status == reqwest::StatusCode::PARTIAL_CONTENT {
+        if let Some(range) = content_range.and_then(parse_content_range) {
+            if range.start != offset || range.end < range.start {
+                return Err(download_failure("content range"));
+            }
+            return Ok(range
+                .total
+                .or_else(|| content_length.map(|length| offset + length)));
+        }
+        return Ok(content_length.map(|length| offset + length));
+    }
+    if status == reqwest::StatusCode::OK && offset == 0 && content_length.is_some() {
+        return Ok(content_length);
+    }
+    Err(download_status_failure(status))
+}
+
+fn classify_download_response_for_mode(
+    licensed_audio: bool,
+    status: reqwest::StatusCode,
+    final_url_is_https: bool,
+    offset: u64,
+    content_length: Option<u64>,
+    content_range: Option<&str>,
+) -> Result<Option<u64>> {
+    if licensed_audio {
+        return classify_download_response(
+            status,
+            final_url_is_https,
+            offset,
+            content_length,
+            content_range,
+        );
+    }
+    if !final_url_is_https {
+        return Err(AppError::InvalidInput(
+            "Remote source download redirect must use https.".to_string(),
+        ));
+    }
+    if status.is_success() {
+        return Ok(content_length.map(|length| offset + length));
+    }
+    Err(download_status_failure(status))
+}
+
+fn parse_content_range(header: &str) -> Option<ParsedContentRange> {
+    let range = header.trim().strip_prefix("bytes ")?;
+    let (bounds, total_raw) = range.split_once('/')?;
+    let (start_raw, end_raw) = bounds.split_once('-')?;
+    let start = start_raw.parse().ok()?;
+    let end = end_raw.parse().ok()?;
+    let total = if total_raw == "*" {
+        None
+    } else {
+        Some(total_raw.parse().ok()?)
+    };
+    Some(ParsedContentRange { start, end, total })
+}
+
+fn log_download_request_start(context: Option<DownloadLogContext<'_>>, offset: u64) {
+    let Some(context) = context else {
+        return;
+    };
+    log::info!(
+        "remote_source audible stage=download_request_start job_id={} title_ref={} extension={} bytes={}",
+        context.job_id,
+        title_ref(context.title_id),
+        context.extension,
+        offset
+    );
+}
+
+fn log_download_request_status(
+    context: Option<DownloadLogContext<'_>>,
+    status: reqwest::StatusCode,
+    bytes_downloaded: u64,
+    bytes_total: Option<u64>,
+) {
+    let Some(context) = context else {
+        return;
+    };
+    log::info!(
+        "remote_source audible stage=download_request_status job_id={} title_ref={} extension={} http_status={} bytes={} bytes_total={}",
+        context.job_id,
+        title_ref(context.title_id),
+        context.extension,
+        status.as_u16(),
+        bytes_downloaded,
+        bytes_total.unwrap_or(0)
+    );
+}
+
+fn log_download_progress_first_bytes(
+    context: Option<DownloadLogContext<'_>>,
+    bytes_downloaded: u64,
+    bytes_total: Option<u64>,
+) {
+    let Some(context) = context else {
+        return;
+    };
+    log::info!(
+        "remote_source audible stage=download_progress_first_bytes job_id={} title_ref={} extension={} bytes={} bytes_total={}",
+        context.job_id,
+        title_ref(context.title_id),
+        context.extension,
+        bytes_downloaded,
+        bytes_total.unwrap_or(0)
+    );
+}
+
+fn log_download_failed(
+    context: Option<DownloadLogContext<'_>>,
+    category: &str,
+    bytes_downloaded: u64,
+    bytes_total: Option<u64>,
+    status: Option<reqwest::StatusCode>,
+) {
+    let Some(context) = context else {
+        return;
+    };
+    log::warn!(
+        "remote_source audible stage=download_failed job_id={} title_ref={} extension={} category={} http_status={} bytes={} bytes_total={}",
+        context.job_id,
+        title_ref(context.title_id),
+        context.extension,
+        category,
+        status.map(|status| status.as_u16()).unwrap_or(0),
+        bytes_downloaded,
+        bytes_total.unwrap_or(0)
+    );
 }
 
 fn remote_download_client() -> Result<reqwest::Client> {
@@ -1342,6 +1637,7 @@ mod tests {
         let error = download_to_path(
             "http://provider.example/book.m4b?token=fake-secret",
             &target,
+            None,
             &mut ignore_progress,
             &|| false,
         )
@@ -1352,6 +1648,71 @@ mod tests {
         assert!(!error.to_string().contains("fake-secret"));
         assert!(!target.exists());
         assert!(!partial_download_path(&target).exists());
+    }
+
+    #[test]
+    fn licensed_audio_download_request_uses_range_and_audible_user_agent() {
+        let client = reqwest::Client::new();
+        let request = build_download_request(
+            &client,
+            reqwest::Url::parse("https://cdn.example.test/book.aax").expect("url"),
+            4096,
+        )
+        .build()
+        .expect("request");
+
+        assert_eq!(
+            request
+                .headers()
+                .get(RANGE)
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes=4096-")
+        );
+        assert_eq!(
+            request
+                .headers()
+                .get(USER_AGENT)
+                .and_then(|value| value.to_str().ok()),
+            Some(AUDIBLE_DOWNLOAD_USER_AGENT)
+        );
+    }
+
+    #[test]
+    fn partial_content_status_uses_content_range_total() {
+        let total = classify_download_response(
+            reqwest::StatusCode::PARTIAL_CONTENT,
+            true,
+            4096,
+            Some(2048),
+            Some("bytes 4096-6143/8192"),
+        )
+        .expect("partial content");
+
+        assert_eq!(total, Some(8192));
+    }
+
+    #[test]
+    fn initial_ok_status_requires_usable_content_length() {
+        let total = classify_download_response(reqwest::StatusCode::OK, true, 0, Some(42), None)
+            .expect("initial ok");
+
+        assert_eq!(total, Some(42));
+        assert!(
+            classify_download_response(reqwest::StatusCode::OK, true, 7, Some(42), None).is_err()
+        );
+        assert!(classify_download_response(reqwest::StatusCode::OK, true, 0, None, None).is_err());
+    }
+
+    #[test]
+    fn download_status_errors_map_to_download_failure_kind() {
+        let error = download_status_failure(reqwest::StatusCode::FORBIDDEN);
+
+        assert_eq!(
+            diagnostic_kind_for_acquire_error(&error),
+            RemoteAcquisitionFailureKind::DownloadFailed
+        );
+        assert!(!error.to_string().contains("token"));
+        assert!(!error.to_string().contains("license"));
     }
 
     #[test]

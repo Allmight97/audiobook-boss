@@ -62,4 +62,22 @@ public sealed class ValidationTests
         Assert.DoesNotContain("0a1b2c3d", json);
         Assert.DoesNotContain("license", json, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("input_open_failed")]
+    [InlineData("output_open_failed")]
+    [InlineData("aax_parse_failed")]
+    [InlineData("conversion_failed")]
+    [InlineData("invalid_request")]
+    public void SafeErrorCategoriesAreSecretFree(string category)
+    {
+        var message = new ErrorMessage("op-1", category, "AAXClean helper returned a safe diagnostic.");
+
+        var json = JsonSerializer.Serialize(message, message.GetType(), Protocol.JsonOptions);
+
+        Assert.Contains(category, json);
+        Assert.DoesNotContain("0a1b2c3d", json);
+        Assert.DoesNotContain("token", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("voucher", json, StringComparison.OrdinalIgnoreCase);
+    }
 }

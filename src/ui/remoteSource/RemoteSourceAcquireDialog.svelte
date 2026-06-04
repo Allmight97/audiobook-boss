@@ -57,11 +57,10 @@
 	}
 
 	function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): string {
+		const diagnostics = job.diagnostics.map((diagnostic) => diagnostic.message).join(' ');
+		if (job.progress?.terminal && diagnostics) return diagnostics;
 		if (job.progress?.message) return job.progress.message;
-		return (
-			job.diagnostics.map((diagnostic) => diagnostic.message).join(' ') ||
-			'Audible acquisition is running.'
-		);
+		return diagnostics || 'Audible acquisition is running.';
 	}
 
 	function progressPercent(job: AcquisitionJobWithProgress): number {
@@ -254,6 +253,9 @@
 
 		isBusy = true;
 		try {
+			activeJob = null;
+			lastJob = null;
+			statusMessage = 'Starting Audible acquisition.';
 			const startedJob = (await tauriClient.startRemoteSourceAcquisition({
 				providerId,
 				selections: [...selectedTitleIds].map((titleId) => ({

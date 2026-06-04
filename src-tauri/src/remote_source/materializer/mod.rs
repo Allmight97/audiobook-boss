@@ -107,6 +107,12 @@ impl AaxcleanMaterializer {
         ensure_not_cancelled(&is_cancelled)?;
         ensure_helper_available(&self.helper_path)?;
         cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
+        log::info!(
+            "remote_source materializer stage=materializer_start job_id={} operation_id={} lane={}",
+            request.job_id,
+            request.operation_id,
+            lane_label(request.lane)
+        );
 
         let mut child = Command::new(self.helper_path.as_path())
             .stdin(std::process::Stdio::piped())
@@ -184,9 +190,23 @@ impl AaxcleanMaterializer {
                 }
                 "result" => {
                     result_seen = message.bytes_written.is_some_and(|bytes| bytes > 0);
+                    if let Some(bytes_written) = message.bytes_written {
+                        log::info!(
+                            "remote_source materializer stage=materializer_result job_id={} operation_id={} bytes={}",
+                            request.job_id,
+                            request.operation_id,
+                            bytes_written
+                        );
+                    }
                     break;
                 }
                 "error" => {
+                    log::warn!(
+                        "remote_source materializer stage=materializer_failed job_id={} operation_id={} category={}",
+                        request.job_id,
+                        request.operation_id,
+                        message.category.as_deref().unwrap_or("materialization_failed")
+                    );
                     helper_error = Some(safe_helper_error_message(
                         message.category.as_deref(),
                         message.message.as_deref(),
@@ -216,12 +236,24 @@ impl AaxcleanMaterializer {
         }
         if !status.success() || !result_seen {
             cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
+            log::warn!(
+                "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=helper_result",
+                request.job_id,
+                request.operation_id
+            );
             return Err(materializer_failure("helper result"));
         }
 
         tokio::fs::rename(&request.output_temp_path, &request.output_path)
             .await
-            .map_err(|_| materializer_failure("helper output commit"))?;
+            .map_err(|_| {
+                log::warn!(
+                    "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=output_commit_failed",
+                    request.job_id,
+                    request.operation_id
+                );
+                materializer_failure("helper output commit")
+            })?;
         Ok(request.output_path)
     }
 }
@@ -325,6 +357,13 @@ fn helper_request_json(request: &MaterializationRequest) -> Result<String> {
         "secret": secret,
     }))
     .map_err(|_| materializer_failure("helper request serialization"))
+}
+
+fn lane_label(lane: AaxcleanLane) -> &'static str {
+    match lane {
+        AaxcleanLane::Aax => "aax",
+        AaxcleanLane::Aaxc => "aaxc",
+    }
 }
 
 fn path_to_helper_string(path: &Path) -> Result<String> {

@@ -192,6 +192,47 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		expect(document.body.textContent).not.toContain('fake-secret');
 	});
 
+	it('clears stale terminal acquisition copy when a fresh acquisition starts', async () => {
+		const user = userEvent.setup();
+		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
+			acquisitionJob({
+				status: 'failed',
+				progress: {
+					stage: 'failed',
+					percentage: 100,
+					message: 'Acquisition failed.',
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					terminal: true,
+				},
+				diagnostics: [
+					{
+						kind: 'downloadFailed',
+						titleId: 'B000000001',
+						message: 'Previous download failed.',
+					},
+				],
+			}),
+		);
+		context.startRemoteSourceAcquisitionMock.mockImplementationOnce(
+			() => new Promise(() => undefined),
+		);
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		await screen.findByText('Previous download failed.');
+
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+		await tick();
+
+		expect(screen.getByText('Starting Audible acquisition.')).toBeTruthy();
+		expect(document.body.textContent).not.toContain('Previous download failed.');
+	});
+
 	it('redacts unknown provider-boundary errors from status text and console logs', async () => {
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		context.getRemoteSourceAccountStateMock.mockRejectedValueOnce(

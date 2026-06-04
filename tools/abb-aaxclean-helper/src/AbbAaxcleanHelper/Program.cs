@@ -31,6 +31,15 @@ internal static class Program
             await WriteAsync(new ResultMessage(operationId, bytesWritten));
             return SuccessExitCode;
         }
+        catch (HelperFailure failure)
+        {
+            await WriteAsync(new ErrorMessage(
+                operationId,
+                failure.Category,
+                failure.SafeMessage
+            ));
+            return MaterializationFailedExitCode;
+        }
         catch (Exception)
         {
             await WriteAsync(new ErrorMessage(
@@ -44,27 +53,89 @@ internal static class Program
 
     private static async Task MaterializeAsync(MaterializeRequest request)
     {
-        await using var input = File.Open(request.InputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        await using var output = File.Open(request.OutputTempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        var aaxFile = new AaxFile(input);
+        await using var input = OpenInput(request.InputPath);
+        await using var output = OpenOutput(request.OutputTempPath);
+        var aaxFile = ParseAax(input);
 
-        switch (request.Lane)
+        try
         {
-            case MaterializeLane.Aax:
-                aaxFile.SetDecryptionKey(request.Secret.ActivationBytesHex!);
-                break;
-            case MaterializeLane.Aaxc:
-                aaxFile.SetDecryptionKey(request.Secret.KeyHex!, request.Secret.IvHex!);
-                break;
-            default:
-                throw new InvalidOperationException("Unsupported materialization lane.");
-        }
+            switch (request.Lane)
+            {
+                case MaterializeLane.Aax:
+                    aaxFile.SetDecryptionKey(request.Secret.ActivationBytesHex!);
+                    break;
+                case MaterializeLane.Aaxc:
+                    aaxFile.SetDecryptionKey(request.Secret.KeyHex!, request.Secret.IvHex!);
+                    break;
+                default:
+                    throw new HelperFailure(
+                        "invalid_request",
+                        "AAXClean helper received an unsupported materialization lane."
+                    );
+            }
 
-        var operation = aaxFile.ConvertToMp4aAsync(output);
-        operation.ConversionProgressUpdate += async (_, args) =>
-            await WriteAsync(new ProgressMessage(request.OperationId, args.FractionCompleted));
-        operation.Start();
-        await operation.OperationTask;
+            var operation = aaxFile.ConvertToMp4aAsync(output);
+            operation.ConversionProgressUpdate += async (_, args) =>
+                await WriteAsync(new ProgressMessage(request.OperationId, args.FractionCompleted));
+            operation.Start();
+            await operation.OperationTask;
+        }
+        catch (HelperFailure)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new HelperFailure(
+                "conversion_failed",
+                "AAXClean helper conversion failed."
+            );
+        }
+    }
+
+    private static FileStream OpenInput(string path)
+    {
+        try
+        {
+            return File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (Exception)
+        {
+            throw new HelperFailure(
+                "input_open_failed",
+                "AAXClean helper could not open the protected input."
+            );
+        }
+    }
+
+    private static FileStream OpenOutput(string path)
+    {
+        try
+        {
+            return File.Open(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (Exception)
+        {
+            throw new HelperFailure(
+                "output_open_failed",
+                "AAXClean helper could not create the output file."
+            );
+        }
+    }
+
+    private static AaxFile ParseAax(Stream input)
+    {
+        try
+        {
+            return new AaxFile(input);
+        }
+        catch (Exception)
+        {
+            throw new HelperFailure(
+                "aax_parse_failed",
+                "AAXClean helper could not parse the protected input."
+            );
+        }
     }
 
     private static async Task WriteAsync(HelperMessage message)
@@ -80,5 +151,17 @@ internal static class Program
         {
             WriteSemaphore.Release();
         }
+    }
+
+    private sealed class HelperFailure : Exception
+    {
+        internal HelperFailure(string category, string safeMessage)
+        {
+            Category = category;
+            SafeMessage = safeMessage;
+        }
+
+        internal string Category { get; }
+        internal string SafeMessage { get; }
     }
 }

@@ -622,7 +622,7 @@ export type QueueItem = {
 
 export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
 
-export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "materializationFailed" | "validationFailed" | "supplementalPdfFailed" | "cancelled";
+export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" | "validationFailed" | "supplementalPdfFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
