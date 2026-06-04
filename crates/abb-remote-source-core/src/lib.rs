@@ -96,8 +96,18 @@ pub fn materialized_source_is_import_ready(kind: MaterializedSourceKind) -> bool
 }
 
 pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
-    let content_url =
-        find_first_string_for_keys(value, &["content_url", "contentUrl", "download_url", "url"]);
+    let content_url = find_first_string_for_keys(
+        value,
+        &[
+            "content_url",
+            "contentUrl",
+            "download_url",
+            "downloadUrl",
+            "offline_url",
+            "offlineUrl",
+            "url",
+        ],
+    );
     let media_container = content_url
         .as_deref()
         .map(classify_media_container_url)
@@ -381,7 +391,11 @@ mod tests {
     fn license_response_facts_classify_content_protection_and_voucher() {
         let response = json!({
             "content_license": {
-                "content_url": "https://cdn.example.test/book.aaxc?Signature=fake-secret",
+                "content_metadata": {
+                    "content_url": {
+                        "offline_url": "https://cdn.example.test/book.aaxc?Signature=fake-secret"
+                    }
+                },
                 "drm_type": "Mpeg",
                 "voucher": "fake-voucher-material",
                 "license": "fake-license-material"

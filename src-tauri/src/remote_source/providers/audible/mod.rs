@@ -1016,13 +1016,17 @@ async fn download_to_path(
 fn license_request_payload() -> Value {
     json!({
         "quality": "High",
-        "response_groups": "chapter_info,content_reference,last_position_heard,pdf_url,ad_insertion,certificate",
+        "response_groups": "last_position_heard,pdf_url,content_reference,chapter_info",
         "consumption_type": "Download",
+        "tenant_id": "Audible",
+        "spatial": false,
         "supported_media_features": {
-            "codecs": ["mp4a.40.2", "mp4a.40.42"],
-            "drm_types": ["Mpeg"]
-        },
-        "spatial": false
+            "drm_types": ["Adrm", "Mpeg"],
+            "codecs": ["mp4a.40.2"],
+            "chapter_titles_type": "Tree",
+            "previews": false,
+            "catalog_samples": false
+        }
     })
 }
 
@@ -1407,7 +1411,7 @@ mod tests {
     }
 
     #[test]
-    fn license_request_uses_json_body_not_query_payload() {
+    fn license_request_matches_aaxc_adaptive_license_shape() {
         let payload = license_request_payload();
         let spec = license_request_spec("B000000001", &payload);
 
@@ -1419,7 +1423,27 @@ mod tests {
         assert!(!spec.url.contains('?'));
         assert_eq!(spec.body["quality"], "High");
         assert_eq!(spec.body["consumption_type"], "Download");
-        assert!(spec.body["supported_media_features"].is_object());
+        assert_eq!(spec.body["tenant_id"], "Audible");
+        assert_eq!(
+            spec.body["response_groups"],
+            "last_position_heard,pdf_url,content_reference,chapter_info"
+        );
+        assert_eq!(
+            spec.body["supported_media_features"]["drm_types"][0],
+            "Adrm"
+        );
+        assert_eq!(
+            spec.body["supported_media_features"]["drm_types"][1],
+            "Mpeg"
+        );
+        assert_eq!(
+            spec.body["supported_media_features"]["codecs"][0],
+            "mp4a.40.2"
+        );
+        assert_eq!(
+            spec.body["supported_media_features"]["chapter_titles_type"],
+            "Tree"
+        );
     }
 
     #[test]
