@@ -71,6 +71,9 @@ function acquisitionJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob
 			message: 'Downloading audiobook.',
 			bytesDownloaded: 50,
 			bytesTotal: 100,
+			currentTitleId: 'B000000001',
+			currentItemIndex: 1,
+			totalItems: 1,
 			terminal: false,
 		},
 		...overrides,
@@ -114,6 +117,9 @@ describe('RemoteSourceAcquireIsland progress', () => {
 						message: 'Decrypting audiobook.',
 						bytesDownloaded: undefined,
 						bytesTotal: undefined,
+						currentTitleId: 'B000000001',
+						currentItemIndex: 1,
+						totalItems: 1,
 						terminal: false,
 					},
 				}),
@@ -127,6 +133,9 @@ describe('RemoteSourceAcquireIsland progress', () => {
 						message: 'Acquisition failed.',
 						bytesDownloaded: undefined,
 						bytesTotal: undefined,
+						currentTitleId: 'B000000001',
+						currentItemIndex: 1,
+						totalItems: 1,
 						terminal: true,
 					},
 					diagnostics: [
@@ -176,6 +185,7 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		await tick();
 
 		expect(screen.getAllByText('Downloading audiobook.').length).toBeGreaterThan(0);
+		expect(screen.getByText('Downloading audiobook: 1/1 - Mock Audible Book')).toBeTruthy();
 
 		await vi.advanceTimersByTimeAsync(100);
 		await tick();
@@ -185,9 +195,10 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		await vi.advanceTimersByTimeAsync(100);
 		await tick();
 		expect(screen.getAllByText('Decrypting audiobook.').length).toBeGreaterThan(0);
+		expect(screen.getByText('Decrypting audiobook: 1/1 - Mock Audible Book')).toBeTruthy();
 		await vi.advanceTimersByTimeAsync(100);
 		await tick();
-		expect(screen.getAllByText('Acquisition failed.').length).toBeGreaterThan(0);
+		expect(screen.getByText('Acquisition failed: 1/1 - Mock Audible Book')).toBeTruthy();
 		expect(screen.getByText(/Audible decryption is not available/)).toBeTruthy();
 		expect(document.body.textContent).not.toContain('fake-secret');
 	});
@@ -203,6 +214,9 @@ describe('RemoteSourceAcquireIsland progress', () => {
 					message: 'Acquisition failed.',
 					bytesDownloaded: undefined,
 					bytesTotal: undefined,
+					currentTitleId: 'B000000001',
+					currentItemIndex: 1,
+					totalItems: 1,
 					terminal: true,
 				},
 				diagnostics: [
@@ -294,6 +308,9 @@ describe('RemoteSourceAcquireIsland progress', () => {
 					message: 'Ready for import.',
 					bytesDownloaded: undefined,
 					bytesTotal: undefined,
+					currentTitleId: 'B000000001',
+					currentItemIndex: 1,
+					totalItems: 1,
 					terminal: true,
 				},
 			}),

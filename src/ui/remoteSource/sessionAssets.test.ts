@@ -61,6 +61,9 @@ function acquisitionJob(): AcquisitionJob {
 			message: 'Importing acquired audiobook.',
 			bytesDownloaded: undefined,
 			bytesTotal: undefined,
+			currentTitleId: 'B000000001',
+			currentItemIndex: 1,
+			totalItems: 1,
 			terminal: true,
 		},
 		materializedFiles: [

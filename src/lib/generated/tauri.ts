@@ -160,6 +160,9 @@ export type AcquisitionProgress = {
 	message: string,
 	bytesDownloaded: number | null,
 	bytesTotal: number | null,
+	currentTitleId: string | null,
+	currentItemIndex: number | null,
+	totalItems: number | null,
 	terminal: boolean,
 };
 

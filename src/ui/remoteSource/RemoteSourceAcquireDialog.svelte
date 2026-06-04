@@ -85,6 +85,18 @@
 		return `${downloadedMb.toFixed(1)} / ${totalMb.toFixed(1)} MB`;
 	}
 
+	function progressTitleLabel(progress: AcquisitionProgress): string {
+		const title = titles.find((candidate) => candidate.titleId === progress.currentTitleId);
+		const ordinal =
+			progress.currentItemIndex != null && progress.totalItems != null
+				? `${progress.currentItemIndex}/${progress.totalItems}`
+				: null;
+		const titleLabel = title?.title ?? (progress.currentTitleId ? 'Selected title' : null);
+		const context = [ordinal, titleLabel].filter(Boolean).join(' - ');
+		if (!context) return progress.message;
+		return `${progress.message.replace(/\.$/, '')}: ${context}`;
+	}
+
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
 			closeRemoteSourceAcquire();
@@ -403,7 +415,7 @@
 						<span style={`width: ${progressPercent(activeJob)}%;`}></span>
 					</div>
 					<div class="remote-progress-copy">
-						<span>{activeJob.progress.message}</span>
+						<span>{progressTitleLabel(activeJob.progress)}</span>
 						<span>{Math.round(progressPercent(activeJob))}%</span>
 					</div>
 					{#if bytesLabel(activeJob.progress)}

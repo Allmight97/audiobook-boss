@@ -77,6 +77,9 @@ pub struct AcquisitionProgress {
     pub message: String,
     pub bytes_downloaded: Option<u64>,
     pub bytes_total: Option<u64>,
+    pub current_title_id: Option<String>,
+    pub current_item_index: Option<u32>,
+    pub total_items: Option<u32>,
     pub terminal: bool,
 }
 
@@ -220,8 +223,23 @@ pub fn acquisition_progress(
         message: message.to_string(),
         bytes_downloaded,
         bytes_total,
+        current_title_id: None,
+        current_item_index: None,
+        total_items: None,
         terminal,
     }
+}
+
+pub fn acquisition_progress_for_current_title(
+    mut progress: AcquisitionProgress,
+    title_id: impl Into<String>,
+    item_index: u32,
+    total_items: u32,
+) -> AcquisitionProgress {
+    progress.current_title_id = Some(title_id.into());
+    progress.current_item_index = Some(item_index);
+    progress.total_items = Some(total_items);
+    progress
 }
 
 pub fn sanitized_provider_diagnostic(
@@ -546,5 +564,16 @@ mod tests {
         assert_eq!(downloading.bytes_downloaded, Some(50));
         assert_eq!(downloading.bytes_total, Some(100));
         assert!(decrypting.message.to_lowercase().contains("decrypt"));
+
+        let scoped_progress =
+            acquisition_progress_for_current_title(downloading, "B000000001", 2, 3);
+
+        assert_eq!(
+            scoped_progress.current_title_id.as_deref(),
+            Some("B000000001")
+        );
+        assert_eq!(scoped_progress.current_item_index, Some(2));
+        assert_eq!(scoped_progress.total_items, Some(3));
+        assert_eq!(scoped_progress.stage, AcquisitionStage::Download);
     }
 }

@@ -2,15 +2,21 @@ use std::fs;
 use std::path::Path;
 
 use abb_remote_source_core::{
-    acquisition_progress, choose_acquisition_strategy, license_facts_from_value,
-    AcquisitionProgress, AcquisitionStage, AcquisitionStrategy, LicenseFacts,
-    MaterializedSourceKind,
+    acquisition_progress, acquisition_progress_for_current_title, choose_acquisition_strategy,
+    license_facts_from_value, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
+    LicenseFacts, MaterializedSourceKind,
 };
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use base64::{
+    engine::general_purpose::{
+        STANDARD as BASE64_STANDARD, STANDARD_NO_PAD as BASE64_STANDARD_NO_PAD, URL_SAFE,
+        URL_SAFE_NO_PAD,
+    },
+    Engine as _,
+};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
@@ -55,6 +61,13 @@ struct LicenseLane {
     content_url: String,
     strategy: AcquisitionStrategy,
     decryption_material: Option<AudibleDecryptionMaterial>,
+}
+
+#[derive(Clone, Copy)]
+struct TitleProgressContext<'a> {
+    title_id: &'a str,
+    item_index: u32,
+    total_items: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -109,6 +122,31 @@ fn ensure_not_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<()> {
         return Err(remote_acquisition_cancelled());
     }
     Ok(())
+}
+
+fn title_progress(
+    context: TitleProgressContext<'_>,
+    stage: AcquisitionStage,
+    fraction: Option<f32>,
+    bytes_downloaded: Option<u64>,
+    bytes_total: Option<u64>,
+) -> AcquisitionProgress {
+    with_title_progress(
+        acquisition_progress(stage, fraction, bytes_downloaded, bytes_total),
+        context,
+    )
+}
+
+fn with_title_progress(
+    progress: AcquisitionProgress,
+    context: TitleProgressContext<'_>,
+) -> AcquisitionProgress {
+    acquisition_progress_for_current_title(
+        progress,
+        context.title_id,
+        context.item_index,
+        context.total_items,
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -264,7 +302,8 @@ impl AudibleProvider {
             diagnostics: Vec::new(),
         };
 
-        for selection in &plan.selections {
+        let total_items = u32::try_from(plan.selections.len()).unwrap_or(u32::MAX);
+        for (selection_index, selection) in plan.selections.iter().enumerate() {
             ensure_not_cancelled(&is_cancelled)?;
             match acquire_one(
                 &client,
@@ -273,6 +312,11 @@ impl AudibleProvider {
                 selection.include_supplemental_pdf,
                 job_id,
                 job_dir,
+                TitleProgressContext {
+                    title_id: &selection.title_id,
+                    item_index: u32::try_from(selection_index + 1).unwrap_or(u32::MAX),
+                    total_items,
+                },
                 &mut progress,
                 &is_cancelled,
             )
@@ -372,6 +416,7 @@ async fn acquire_one(
     include_pdf: bool,
     job_id: &str,
     job_dir: &Path,
+    progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<AcquiredTitle> {
@@ -384,7 +429,8 @@ async fn acquire_one(
         title_ref(title_id),
         include_pdf
     );
-    progress(acquisition_progress(
+    progress(title_progress(
+        progress_context,
         AcquisitionStage::License,
         Some(0.05),
         None,
@@ -392,7 +438,15 @@ async fn acquire_one(
     ));
     let supplemental_pdf_url =
         lookup_supplemental_pdf_url(client, title_id, include_pdf, is_cancelled).await?;
-    let lane = request_license_lane(client, title_id, job_id, progress, is_cancelled).await?;
+    let lane = request_license_lane(
+        client,
+        title_id,
+        job_id,
+        progress_context,
+        progress,
+        is_cancelled,
+    )
+    .await?;
     if let Some(unsupported) = unsupported_result_for_unmaterializable_lane(title_id, job_id, &lane)
     {
         return Ok(unsupported);
@@ -408,12 +462,14 @@ async fn acquire_one(
         &downloaded_path,
         job_id,
         title_id,
+        progress_context,
         progress,
         is_cancelled,
     )
     .await?;
     ensure_not_cancelled(is_cancelled)?;
-    progress(acquisition_progress(
+    progress(title_progress(
+        progress_context,
         AcquisitionStage::Validation,
         Some(0.1),
         None,
@@ -430,12 +486,14 @@ async fn acquire_one(
             &downloaded_path,
             &item_dir,
             &lane,
+            progress_context,
             progress,
             is_cancelled,
         )
         .await?
     };
-    let file = validate_materialized_audio(title_id, &materialized_path, progress)?;
+    let file =
+        validate_materialized_audio(title_id, &materialized_path, progress_context, progress)?;
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
         title_id,
         &file,
@@ -480,11 +538,13 @@ async fn request_license_lane(
     client: &AudibleClient,
     title_id: &str,
     job_id: &str,
+    progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<LicenseLane> {
     ensure_not_cancelled(is_cancelled)?;
-    progress(acquisition_progress(
+    progress(title_progress(
+        progress_context,
         AcquisitionStage::License,
         Some(0.45),
         None,
@@ -588,22 +648,22 @@ async fn materialize_protected_download(
     downloaded_path: &Path,
     item_dir: &Path,
     lane: &LicenseLane,
+    progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<std::path::PathBuf> {
-    let Some(secret) = helper_secret_from_audible_material(lane) else {
+    let Some((helper_lane, secret)) = helper_material_from_audible_material(lane) else {
+        log::warn!(
+            "remote_source audible stage=materializer_failed job_id={} title_ref={} item_id={} category=decryption_material",
+            job_id,
+            title_ref(title_id),
+            item_id
+        );
         cleanup_download_artifacts(downloaded_path)?;
         return Err(provider_private_failure("AAXClean decryption material"));
     };
-    let helper_lane = match lane.strategy {
-        AcquisitionStrategy::DownloadThenDecryptAax => AaxcleanLane::Aax,
-        AcquisitionStrategy::DownloadThenDecryptAaxc => AaxcleanLane::Aaxc,
-        _ => {
-            cleanup_download_artifacts(downloaded_path)?;
-            return Err(provider_private_failure("AAXClean materializer lane"));
-        }
-    };
-    progress(acquisition_progress(
+    progress(title_progress(
+        progress_context,
         AcquisitionStage::Decryption,
         Some(0.0),
         None,
@@ -611,6 +671,9 @@ async fn materialize_protected_download(
     ));
     let output_path = staged_materialized_path(item_dir);
     let output_temp_path = materializer_output_temp_path(&output_path);
+    let mut materializer_progress = |progress_event: AcquisitionProgress| {
+        progress(with_title_progress(progress_event, progress_context));
+    };
     let result = materializer
         .materialize(
             MaterializationRequest {
@@ -622,7 +685,7 @@ async fn materialize_protected_download(
                 output_path: output_path.clone(),
                 secret,
             },
-            &mut *progress,
+            &mut materializer_progress,
             is_cancelled,
         )
         .await;
@@ -655,13 +718,15 @@ async fn materialize_protected_download(
 fn validate_materialized_audio(
     title_id: &str,
     materialized_path: &Path,
+    progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
 ) -> Result<MaterializedSourceFile> {
     let file = match materialized_file_from_path(title_id, materialized_path) {
         Ok(file) => file,
         Err(error) => {
             cleanup_download_artifacts(materialized_path)?;
-            progress(acquisition_progress(
+            progress(title_progress(
+                progress_context,
                 AcquisitionStage::Failed,
                 Some(1.0),
                 None,
@@ -670,7 +735,8 @@ fn validate_materialized_audio(
             return Err(error);
         }
     };
-    progress(acquisition_progress(
+    progress(title_progress(
+        progress_context,
         AcquisitionStage::Validation,
         Some(1.0),
         None,
@@ -713,6 +779,7 @@ async fn download_audio(
     path: &Path,
     job_id: &str,
     title_id: &str,
+    progress_context: TitleProgressContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<()> {
@@ -730,6 +797,9 @@ async fn download_audio(
         title_ref(title_id),
         extension
     );
+    let mut download_progress = |progress_event: AcquisitionProgress| {
+        progress(with_title_progress(progress_event, progress_context));
+    };
     let bytes = download_to_path(
         content_url,
         path,
@@ -738,7 +808,7 @@ async fn download_audio(
             title_id,
             extension: &extension,
         }),
-        progress,
+        &mut download_progress,
         is_cancelled,
     )
     .await?;
@@ -844,17 +914,25 @@ fn materializer_output_temp_path(path: &Path) -> std::path::PathBuf {
     path.with_extension("m4b.partial")
 }
 
-fn helper_secret_from_audible_material(lane: &LicenseLane) -> Option<AaxcleanSecret> {
+fn helper_material_from_audible_material(
+    lane: &LicenseLane,
+) -> Option<(AaxcleanLane, AaxcleanSecret)> {
     match lane.decryption_material.as_ref()? {
         AudibleDecryptionMaterial::Aax {
             activation_bytes_hex,
-        } => Some(AaxcleanSecret::Aax {
-            activation_bytes_hex: activation_bytes_hex.clone(),
-        }),
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => Some(AaxcleanSecret::Aaxc {
-            key_hex: key_hex.clone(),
-            iv_hex: iv_hex.clone(),
-        }),
+        } => Some((
+            AaxcleanLane::Aax,
+            AaxcleanSecret::Aax {
+                activation_bytes_hex: activation_bytes_hex.clone(),
+            },
+        )),
+        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => Some((
+            AaxcleanLane::Aaxc,
+            AaxcleanSecret::Aaxc {
+                key_hex: key_hex.clone(),
+                iv_hex: iv_hex.clone(),
+            },
+        )),
     }
 }
 
@@ -862,6 +940,11 @@ fn audible_decryption_material_from_license(
     license: &Value,
     strategy: AcquisitionStrategy,
 ) -> Option<AudibleDecryptionMaterial> {
+    let key_material = find_voucher_key_material(license);
+    if let Some(material) = audible_decryption_material_from_key_material(key_material.as_ref()) {
+        return Some(material);
+    }
+
     match strategy {
         AcquisitionStrategy::DownloadThenDecryptAax => {
             find_activation_bytes(license).map(|activation_bytes| AudibleDecryptionMaterial::Aax {
@@ -878,6 +961,69 @@ fn audible_decryption_material_from_license(
     }
 }
 
+fn audible_decryption_material_from_key_material(
+    key_material: Option<&VoucherKeyMaterial>,
+) -> Option<AudibleDecryptionMaterial> {
+    let material = key_material?;
+    match (material.key.as_slice(), material.iv.as_deref()) {
+        (activation_bytes, None) if activation_bytes.len() == 4 => {
+            Some(AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex: SecretString::from(hex_encode(activation_bytes)),
+            })
+        }
+        (key, Some(iv)) if key.len() == 16 && iv.len() == 16 => {
+            Some(AudibleDecryptionMaterial::Aaxc {
+                key_hex: SecretString::from(hex_encode(key)),
+                iv_hex: SecretString::from(hex_encode(iv)),
+            })
+        }
+        _ => None,
+    }
+}
+
+struct VoucherKeyMaterial {
+    key: Vec<u8>,
+    iv: Option<Vec<u8>>,
+}
+
+fn find_voucher_key_material(value: &Value) -> Option<VoucherKeyMaterial> {
+    match value {
+        Value::Object(map) => {
+            if let Some(voucher) = map
+                .get("voucher")
+                .or_else(|| map.get("Voucher"))
+                .or_else(|| map.get("content_license"))
+                .or_else(|| map.get("contentLicense"))
+                .and_then(find_voucher_key_material)
+            {
+                return Some(voucher);
+            }
+            let key = find_bytes_for_keys_in_object(
+                map,
+                &[
+                    "key",
+                    "Key",
+                    "keyHex",
+                    "key_hex",
+                    "activation_bytes",
+                    "activationBytes",
+                    "activationBytesHex",
+                    "activation_bytes_hex",
+                ],
+                &[4, 16],
+            );
+            if let Some(key) = key {
+                let iv =
+                    find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16]);
+                return Some(VoucherKeyMaterial { key, iv });
+            }
+            map.values().find_map(find_voucher_key_material)
+        }
+        Value::Array(values) => values.iter().find_map(find_voucher_key_material),
+        _ => None,
+    }
+}
+
 fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
     find_bytes_for_keys(
         value,
@@ -890,15 +1036,16 @@ fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
             "key",
             "Key",
         ],
-        4,
+        &[4],
     )
 }
 
 fn find_key_iv_pair(value: &Value) -> Option<(Vec<u8>, Vec<u8>)> {
     match value {
         Value::Object(map) => {
-            let key = find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], 16);
-            let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], 16);
+            let key =
+                find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], &[16]);
+            let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16]);
             if let (Some(key), Some(iv)) = (key, iv) {
                 return Some((key, iv));
             }
@@ -909,18 +1056,18 @@ fn find_key_iv_pair(value: &Value) -> Option<(Vec<u8>, Vec<u8>)> {
     }
 }
 
-fn find_bytes_for_keys(value: &Value, keys: &[&str], expected_len: usize) -> Option<Vec<u8>> {
+fn find_bytes_for_keys(value: &Value, keys: &[&str], expected_lens: &[usize]) -> Option<Vec<u8>> {
     match value {
         Value::Object(map) => {
-            if let Some(bytes) = find_bytes_for_keys_in_object(map, keys, expected_len) {
+            if let Some(bytes) = find_bytes_for_keys_in_object(map, keys, expected_lens) {
                 return Some(bytes);
             }
             map.values()
-                .find_map(|entry| find_bytes_for_keys(entry, keys, expected_len))
+                .find_map(|entry| find_bytes_for_keys(entry, keys, expected_lens))
         }
         Value::Array(values) => values
             .iter()
-            .find_map(|entry| find_bytes_for_keys(entry, keys, expected_len)),
+            .find_map(|entry| find_bytes_for_keys(entry, keys, expected_lens)),
         _ => None,
     }
 }
@@ -928,34 +1075,36 @@ fn find_bytes_for_keys(value: &Value, keys: &[&str], expected_len: usize) -> Opt
 fn find_bytes_for_keys_in_object(
     map: &serde_json::Map<String, Value>,
     keys: &[&str],
-    expected_len: usize,
+    expected_lens: &[usize],
 ) -> Option<Vec<u8>> {
     keys.iter()
         .filter_map(|key| map.get(*key))
-        .find_map(|value| decode_secret_bytes(value, expected_len))
+        .find_map(|value| decode_secret_bytes(value, expected_lens))
 }
 
-fn decode_secret_bytes(value: &Value, expected_len: usize) -> Option<Vec<u8>> {
+fn decode_secret_bytes(value: &Value, expected_lens: &[usize]) -> Option<Vec<u8>> {
     match value {
-        Value::String(raw) => decode_secret_string(raw, expected_len),
+        Value::String(raw) => decode_secret_string(raw, expected_lens),
         Value::Array(values) => {
             let bytes = values
                 .iter()
                 .map(|value| value.as_u64().and_then(|byte| u8::try_from(byte).ok()))
                 .collect::<Option<Vec<_>>>()?;
-            (bytes.len() == expected_len).then_some(bytes)
+            expected_lens.contains(&bytes.len()).then_some(bytes)
         }
         _ => None,
     }
 }
 
-fn decode_secret_string(raw: &str, expected_len: usize) -> Option<Vec<u8>> {
+fn decode_secret_string(raw: &str, expected_lens: &[usize]) -> Option<Vec<u8>> {
     let trimmed = raw.trim();
     let hex = trimmed
         .chars()
         .filter(|character| character.is_ascii_hexdigit())
         .collect::<String>();
-    if hex.len() == expected_len * 2
+    if expected_lens
+        .iter()
+        .any(|expected_len| hex.len() == expected_len * 2)
         && trimmed.chars().all(|character| {
             character.is_ascii_hexdigit()
                 || character == '-'
@@ -966,10 +1115,19 @@ fn decode_secret_string(raw: &str, expected_len: usize) -> Option<Vec<u8>> {
         return decode_hex(&hex);
     }
 
-    BASE64_STANDARD
-        .decode(trimmed)
-        .ok()
-        .filter(|bytes| bytes.len() == expected_len)
+    [
+        &BASE64_STANDARD,
+        &BASE64_STANDARD_NO_PAD,
+        &URL_SAFE,
+        &URL_SAFE_NO_PAD,
+    ]
+    .iter()
+    .find_map(|engine| {
+        engine
+            .decode(trimmed)
+            .ok()
+            .filter(|bytes| expected_lens.contains(&bytes.len()))
+    })
 }
 
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {
@@ -1850,6 +2008,32 @@ mod tests {
     }
 
     #[test]
+    fn aax_license_material_extracts_url_safe_unpadded_voucher_key() {
+        let response = json!({
+            "content_license": {
+                "content_url": "https://cdn.example.test/book.aax",
+                "drm_type": "Mpeg",
+                "voucher": {
+                    "Key": URL_SAFE_NO_PAD.encode([0xfb, 0xff, 0xee, 0xdd])
+                }
+            }
+        });
+
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAax,
+        )
+        .expect("aax material");
+
+        match material {
+            AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex,
+            } => assert_eq!(activation_bytes_hex.expose_secret(), "fbffeedd"),
+            AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
+        }
+    }
+
+    #[test]
     fn aaxc_license_material_extracts_key_and_iv_from_hex_or_base64() {
         let response = json!({
             "content_license": {
@@ -1877,6 +2061,48 @@ mod tests {
                 assert_eq!(iv_hex.expose_secret(), "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b");
             }
             AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
+        }
+    }
+
+    #[test]
+    fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
+        let response = json!({
+            "content_license": {
+                "content_url": "https://cdn.example.test/book.aax",
+                "drm_type": "Mpeg",
+                "voucher": {
+                    "key": URL_SAFE_NO_PAD.encode([
+                        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10
+                    ]),
+                    "iv": URL_SAFE_NO_PAD.encode([
+                        0x10, 0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09,
+                        0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01
+                    ])
+                }
+            }
+        });
+        let material = audible_decryption_material_from_license(
+            &response,
+            AcquisitionStrategy::DownloadThenDecryptAax,
+        )
+        .expect("aaxc-shaped material");
+        let lane = LicenseLane {
+            content_url: "https://cdn.example.test/book.aax".to_string(),
+            strategy: AcquisitionStrategy::DownloadThenDecryptAax,
+            decryption_material: Some(material),
+        };
+
+        let (helper_lane, secret) =
+            helper_material_from_audible_material(&lane).expect("helper material");
+
+        assert_eq!(helper_lane, AaxcleanLane::Aaxc);
+        match secret {
+            AaxcleanSecret::Aaxc { key_hex, iv_hex } => {
+                assert_eq!(key_hex.expose_secret(), "0102030405060708090a0b0c0d0e0f10");
+                assert_eq!(iv_hex.expose_secret(), "100f0e0d0c0b0a090807060504030201");
+            }
+            AaxcleanSecret::Aax { .. } => panic!("unexpected aax helper secret"),
         }
     }
 
