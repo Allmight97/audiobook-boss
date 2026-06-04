@@ -352,7 +352,7 @@
 						<input
 							id="remote-source-handoff"
 							type="text"
-							placeholder="Final Amazon URL handoff file path"
+							placeholder="Final Amazon URL or handoff file path"
 							bind:value={handoffPath}
 						/>
 					</div>

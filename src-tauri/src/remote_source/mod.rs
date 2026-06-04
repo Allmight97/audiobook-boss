@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use abb_remote_source_core::{
@@ -85,9 +85,9 @@ impl RemoteSourceRuntime {
                     provider_id,
                     authorization_url,
                     handoff_path_hint:
-                        "$TMPDIR/abb-audible-auth-response-url.txt or ABB_AUDIBLE_AUTH_RESPONSE_URL_PATH"
+                        "Paste the final Amazon URL or use $TMPDIR/abb-audible-auth-response-url.txt / ABB_AUDIBLE_AUTH_RESPONSE_URL_PATH"
                             .to_string(),
-                    message: "Open the authorization URL externally, sign in, then save the final browser URL to a local handoff file and complete auth from ABB.".to_string(),
+                    message: "Open the authorization URL externally, sign in, then paste the final Amazon URL or save it to a local handoff file and complete auth from ABB.".to_string(),
                 })
             }
         }
@@ -471,6 +471,9 @@ fn read_handoff_url(path: Option<PathBuf>) -> Result<String> {
                 )
             })?,
     };
+    if let Some(response_url) = direct_response_url_from_input(&path) {
+        return Ok(response_url);
+    }
     let metadata = fs::symlink_metadata(&path)?;
     if metadata.file_type().is_symlink() {
         return Err(AppError::InvalidInput(
@@ -485,6 +488,14 @@ fn read_handoff_url(path: Option<PathBuf>) -> Result<String> {
         ));
     }
     Ok(response_url)
+}
+
+fn direct_response_url_from_input(path: &Path) -> Option<String> {
+    let input = path.as_os_str().to_str()?.trim();
+    if input.starts_with("https://") || input.starts_with("http://") {
+        return Some(input.to_string());
+    }
+    None
 }
 
 pub use types::*;
@@ -549,6 +560,16 @@ mod tests {
         let url = read_handoff_url(Some(path)).expect("read handoff");
 
         assert_eq!(url, "https://example.test/callback?code=abc");
+    }
+
+    #[test]
+    fn read_handoff_url_accepts_direct_final_url_input() {
+        let url = read_handoff_url(Some(PathBuf::from(
+            " https://example.test/callback?code=abc&state=xyz ",
+        )))
+        .expect("read direct handoff URL");
+
+        assert_eq!(url, "https://example.test/callback?code=abc&state=xyz");
     }
 
     #[test]
