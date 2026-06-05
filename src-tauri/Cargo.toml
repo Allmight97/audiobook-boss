@@ -25,6 +25,8 @@ doctest = false
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
+abb-audible-core = { path = "../crates/abb-audible-core" }
+abb-media-core = { path = "../crates/abb-media-core" }
 abb-metadata-core = { path = "../crates/abb-metadata-core" }
 abb-output-artifact-core = { path = "../crates/abb-output-artifact-core" }
 abb-processing-core = { path = "../crates/abb-processing-core" }
