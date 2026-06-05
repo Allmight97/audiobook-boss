@@ -21,8 +21,8 @@ dotnet publish tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper
   -p:PublishSingleFile=true -p:PublishTrimmed=false
 ```
 
-`scripts/build-app.ts` publishes the helper into `src-tauri/binaries/` before
-Tauri packages the app.
+`bun run tauri dev`, Tauri builds, and `scripts/build-app.ts` publish the helper
+into `src-tauri/binaries/` before the app resolves or packages the sidecar.
 
 ## Licensing
 

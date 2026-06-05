@@ -13,6 +13,7 @@ use tokio::process::Command;
 use crate::errors::{AppError, Result};
 
 const HELPER_NAME: &str = "abb-aaxclean-helper";
+const HELPER_SIDECAR_FILE: &str = "abb-aaxclean-helper-aarch64-apple-darwin";
 const REQUEST_SCHEMA_VERSION: u8 = 1;
 
 #[derive(Debug, Clone)]
@@ -320,13 +321,158 @@ impl Drop for ProcessRegistration {
 }
 
 fn resolve_helper_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("ABB_AAXCLEAN_HELPER_PATH") {
-        return PathBuf::from(path);
+    resolve_helper_path_from(
+        std::env::var_os("ABB_AAXCLEAN_HELPER_PATH").map(PathBuf::from),
+        std::env::current_exe().ok(),
+        std::env::current_dir().ok(),
+    )
+}
+
+fn resolve_helper_path_from(
+    env_path: Option<PathBuf>,
+    current_exe: Option<PathBuf>,
+    current_dir: Option<PathBuf>,
+) -> PathBuf {
+    if let Some(path) = env_path {
+        return path;
     }
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|parent| parent.join(HELPER_NAME)))
-        .unwrap_or_else(|| PathBuf::from(HELPER_NAME))
+
+    let sibling_helper_path = current_exe
+        .as_ref()
+        .and_then(|path| path.parent().map(|parent| parent.join(HELPER_NAME)));
+    if let Some(path) = sibling_helper_path.as_ref() {
+        if path.exists() {
+            return path.clone();
+        }
+    }
+
+    if let Some(path) = dev_sidecar_path(current_exe.as_deref(), current_dir.as_deref()) {
+        return path;
+    }
+
+    sibling_helper_path.unwrap_or_else(|| PathBuf::from(HELPER_NAME))
+}
+
+fn dev_sidecar_path(current_exe: Option<&Path>, current_dir: Option<&Path>) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(current_dir) = current_dir {
+        push_dev_sidecar_candidates(current_dir, &mut candidates);
+        for ancestor in current_dir.ancestors().take(4) {
+            push_dev_sidecar_candidates(ancestor, &mut candidates);
+        }
+    }
+    if let Some(current_exe) = current_exe {
+        for ancestor in current_exe.ancestors() {
+            push_dev_sidecar_candidates(ancestor, &mut candidates);
+        }
+    }
+
+    candidates.into_iter().find(|path| path.exists())
+}
+
+fn push_dev_sidecar_candidates(base: &Path, candidates: &mut Vec<PathBuf>) {
+    candidates.push(
+        base.join("src-tauri")
+            .join("binaries")
+            .join(HELPER_SIDECAR_FILE),
+    );
+    candidates.push(base.join("binaries").join(HELPER_SIDECAR_FILE));
+}
+
+#[cfg(test)]
+fn make_executable(path: &Path) {
+    std::fs::write(path, b"helper").expect("write executable fixture");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)
+            .expect("executable metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).expect("chmod executable fixture");
+    }
+}
+
+#[cfg(test)]
+fn repo_sidecar_path(root: &Path) -> PathBuf {
+    root.join("src-tauri")
+        .join("binaries")
+        .join(HELPER_SIDECAR_FILE)
+}
+
+#[cfg(test)]
+fn target_debug_exe_path(root: &Path) -> PathBuf {
+    root.join("target").join("debug").join("audiobook-boss")
+}
+
+#[cfg(test)]
+fn packaged_exe_path(root: &Path) -> PathBuf {
+    root.join("AudioBook Boss.app")
+        .join("Contents")
+        .join("MacOS")
+        .join("audiobook-boss")
+}
+
+#[cfg(test)]
+fn packaged_helper_path(root: &Path) -> PathBuf {
+    root.join("AudioBook Boss.app")
+        .join("Contents")
+        .join("MacOS")
+        .join(HELPER_NAME)
+}
+
+#[cfg(test)]
+mod helper_path_tests {
+    use super::*;
+
+    #[test]
+    fn env_helper_path_wins() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let env_path = root.path().join("custom-helper");
+
+        assert_eq!(
+            resolve_helper_path_from(Some(env_path.clone()), None, None),
+            env_path
+        );
+    }
+
+    #[test]
+    fn packaged_sibling_helper_wins() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let exe = packaged_exe_path(root.path());
+        let helper = packaged_helper_path(root.path());
+        std::fs::create_dir_all(helper.parent().expect("helper parent")).expect("create bundle");
+        make_executable(&helper);
+
+        assert_eq!(resolve_helper_path_from(None, Some(exe), None), helper);
+    }
+
+    #[test]
+    fn dev_build_finds_repo_sidecar_from_target_debug_executable() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let exe = target_debug_exe_path(root.path());
+        let helper = repo_sidecar_path(root.path());
+        std::fs::create_dir_all(exe.parent().expect("exe parent")).expect("create target dir");
+        std::fs::create_dir_all(helper.parent().expect("helper parent"))
+            .expect("create sidecar dir");
+        make_executable(&helper);
+
+        assert_eq!(resolve_helper_path_from(None, Some(exe), None), helper);
+    }
+
+    #[test]
+    fn dev_build_finds_repo_sidecar_from_repo_cwd() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let helper = repo_sidecar_path(root.path());
+        std::fs::create_dir_all(helper.parent().expect("helper parent"))
+            .expect("create sidecar dir");
+        make_executable(&helper);
+
+        assert_eq!(
+            resolve_helper_path_from(None, None, Some(root.path().to_path_buf())),
+            helper
+        );
+    }
 }
 
 fn helper_request_json(request: &MaterializationRequest) -> Result<String> {

@@ -119,7 +119,7 @@ impl RemoteSourceRuntime {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
         }
-        self.cleanup_abandoned_sessions()?;
+        self.cleanup_logout_sessions_without_handoff()?;
         self.inner
             .jobs
             .lock()
@@ -131,6 +131,24 @@ impl RemoteSourceRuntime {
             .lock()
             .map_err(|_| AppError::General("Remote auth state lock failed".to_string()))? = None;
         self.account_state(provider_id)
+    }
+
+    fn cleanup_logout_sessions_without_handoff(&self) -> Result<()> {
+        let job_ids = self
+            .inner
+            .jobs
+            .lock()
+            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
+            .values()
+            .filter(|job| job.materialized_files.is_empty())
+            .map(|job| job.job_id.clone())
+            .collect::<Vec<_>>();
+
+        for job_id in job_ids {
+            self.inner.staging.purge_session(&job_id)?;
+        }
+
+        Ok(())
     }
 
     pub async fn load_library(&self, provider_id: RemoteProviderId) -> Result<RemoteLibrary> {
@@ -701,5 +719,60 @@ mod tests {
                 .status,
             types::RemoteAcquisitionStatus::Cancelled
         );
+    }
+
+    #[test]
+    fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_sessions() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let materialized_job_id = "remote-job-materialized";
+        let unmaterialized_job_id = "remote-job-unmaterialized";
+        let materialized_job_dir = runtime
+            .inner
+            .staging
+            .create_job_dir(materialized_job_id)
+            .expect("materialized job dir");
+        let unmaterialized_job_dir = runtime
+            .inner
+            .staging
+            .create_job_dir(unmaterialized_job_id)
+            .expect("unmaterialized job dir");
+        let materialized_path = materialized_job_dir.join("book.m4b");
+        std::fs::write(&materialized_path, b"audio").expect("write materialized file");
+        std::fs::write(unmaterialized_job_dir.join("source.aax"), b"protected")
+            .expect("write protected source");
+
+        let mut materialized_job = acquisition_job(
+            materialized_job_id,
+            types::RemoteAcquisitionStatus::Validated,
+        );
+        materialized_job
+            .materialized_files
+            .push(types::MaterializedSourceFile {
+                input_id: "input-1".to_string(),
+                title_id: "B000000001".to_string(),
+                path: materialized_path.clone(),
+                size_bytes: 5,
+                sha256: "abc123".to_string(),
+            });
+        let mut jobs = runtime.inner.jobs.lock().expect("jobs lock");
+        jobs.insert(materialized_job_id.to_string(), materialized_job);
+        jobs.insert(
+            unmaterialized_job_id.to_string(),
+            acquisition_job(
+                unmaterialized_job_id,
+                types::RemoteAcquisitionStatus::Acquiring,
+            ),
+        );
+        drop(jobs);
+
+        runtime
+            .logout(RemoteProviderId::Audible)
+            .expect("logout should preserve handoff session");
+
+        assert!(materialized_path.exists());
+        assert!(materialized_job_dir.exists());
+        assert!(!unmaterialized_job_dir.exists());
+        assert!(runtime.inner.jobs.lock().expect("jobs lock").is_empty());
     }
 }

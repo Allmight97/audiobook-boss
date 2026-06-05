@@ -4,9 +4,9 @@
   "version": "1.0.32",
   "identifier": "com.audiobook-boss",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun run aaxclean-helper:publish && bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run aaxclean-helper:publish && bun run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/abb-aaxclean-helper"],
     "fileAssociations": [
       {
         "ext": ["mp3"],

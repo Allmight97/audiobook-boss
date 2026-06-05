@@ -50,10 +50,7 @@ function createRepoFixture(): { applicationsDir: string; repoRoot: string } {
 		'// helper source fixture',
 	);
 	writeFileSync(
-		path.join(
-			repoRoot,
-			'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj',
-		),
+		path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj'),
 		'<Project />',
 	);
 	mkdirSync(path.join(repoRoot, 'target/release/bundle/macos'), { recursive: true });
@@ -369,14 +366,18 @@ describe('buildTauriApp', () => {
 });
 
 describe('resolveRequestedBundles', () => {
-	it('defaults to app when no bundle selection is passed', () => {
-		expect([...resolveRequestedBundles([])]).toEqual(['app']);
+	it('defaults to app and dmg when no bundle selection is passed', () => {
+		expect(resolveRequestedBundles([])).toEqual(new Set(['app', 'dmg']));
 	});
 
 	it('parses explicit app and dmg bundle selections', () => {
 		expect(resolveRequestedBundles(['--bundles', 'dmg'])).toEqual(new Set(['dmg']));
 		expect(resolveRequestedBundles(['--bundles=app,dmg'])).toEqual(new Set(['app', 'dmg']));
 		expect(resolveRequestedBundles(['-b', 'app'])).toEqual(new Set(['app']));
+	});
+
+	it('treats explicit all as app and dmg', () => {
+		expect(resolveRequestedBundles(['--bundles', 'all'])).toEqual(new Set(['app', 'dmg']));
 	});
 });
 

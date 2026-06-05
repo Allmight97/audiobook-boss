@@ -150,12 +150,7 @@ export function resolveMacOsBundlePaths(
 		bundleDir,
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
-		helperExecutablePath: path.join(
-			canonicalAppPath,
-			'Contents',
-			'MacOS',
-			aaxcleanHelperBaseName,
-		),
+		helperExecutablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', aaxcleanHelperBaseName),
 		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		applicationsLinkPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
@@ -181,6 +176,11 @@ export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundl
 		}
 
 		for (const entry of rawValue.split(',').map((value) => value.trim().toLowerCase())) {
+			if (entry === 'all') {
+				bundles.add('app');
+				bundles.add('dmg');
+				continue;
+			}
 			if (entry === 'app' || entry === 'dmg') {
 				bundles.add(entry);
 			}
@@ -189,6 +189,7 @@ export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundl
 
 	if (bundles.size === 0) {
 		bundles.add('app');
+		bundles.add('dmg');
 	}
 
 	return bundles;

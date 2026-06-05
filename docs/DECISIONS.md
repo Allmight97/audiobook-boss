@@ -3,14 +3,15 @@
 ## 2026-06-03 - AAXClean AAX/AAXC Materializer
 
 - Bundle a `.NET 8` AAXClean sidecar as the first Audible AAX/AAXC materializer; `RemoteSourceRuntime` owns helper invocation, provider-secret containment, staged protected files, cancellation, cleanup, and final M4B validation.
-- Keep ABB's top-level Apache license unchanged in this workblock while carrying helper source, GPL notices, and public-release compliance notes for the AAXClean helper.
+- Keep raw Tauri dev/build routes and release build scripts helper-aware by publishing the sidecar before runtime resolution or packaging.
+- Keep ABB's top-level Apache license unchanged while carrying helper source, GPL notices, and public-release compliance notes for the AAXClean helper.
 - Guardrail: Dash/Widevine remains unsupported until ABB owns a separate CDM, MPD/PSSH, challenge/response, and content-key selection design.
 
 ## 2026-06-01 - Custom Runner Ablation
 
 - The custom verification runner and aliases were removed from current repo guidance.
 - Agents use direct Cargo/Nextest/Vitest/build/check commands and record gaps in #341 before adding replacement infrastructure.
-- Low-value runner-era scripts were deleted; their claimed protections are recorded in the external ablation report and PR body.
+- Deleted runner-era scripts must not be recreated without measured value over direct native tool output.
 - Guardrail: future AX helpers must prove value over native tool output before becoming repo-local scripts.
 
 ## 2026-06-01 - Boundary-Aligned Rust Core Testing
@@ -26,7 +27,7 @@
   FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and
   owner boundary are redesigned explicitly.
 
-## 2026-05-31 - Remote Source Acquisition Experiment
+## 2026-05-31 - Remote Source Acquisition Runtime
 
 - Add `RemoteSourceRuntime` as the eighth Grey-Box Public API for provider-neutral acquisition, backend-only auth/secrets, staged materialized files, Supplemental Assets, and purge behavior.
 - Audible provider work may evaluate materializer dependencies, helper binaries, ports, reference implementations, or replacement implementations such as AAXClean. The selected shape requires an explicit design/licensing decision, including ownership, license posture, and distribution implications; do not accidentally absorb third-party implementation code, expose frontend credentials, or fake materialization success.

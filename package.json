@@ -19,7 +19,7 @@
 		"aaxclean-helper:publish": "bun scripts/publish-aaxclean-helper.ts",
 		"app:build": "bun scripts/build-app.ts --bundles app",
 		"app:build:dmg": "bun scripts/build-app.ts --bundles dmg",
-		"app:build:all": "bun scripts/build-app.ts",
+		"app:build:all": "bun scripts/build-app.ts --bundles all",
 		"app:install-local": "bun scripts/install-local-app.ts",
 		"app:install-local:existing": "bun scripts/install-local-app.ts --skip-build",
 		"bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --bin export_bindings",

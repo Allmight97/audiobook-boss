@@ -22,8 +22,8 @@ brew install ffmpeg
 # Install JS/TS dependencies
 bun install
 
-# Run in development
-bun run tauri dev
+# Run in development with reusable logs
+bun run app:dev:log
 ```
 
 **AAC runtime contract**: output encoder choice and input decoder choice are separate concerns. Normal processing uses the in-process `ffmpeg-next` engine. FDK HE-AAC output routes through an external FFmpeg/libfdk_aac processor adapter, which can force compatible AAC-family input decoders such as `aac_at` or `libfdk_aac` when the default decoder cannot handle the source. For higher quality AAC encoding and broader AAC decode compatibility on macOS, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
@@ -41,7 +41,7 @@ Requires: macOS (Apple Silicon). [Download latest release →](https://github.co
 
 ```bash
 bun install
-bun run tauri dev
+bun run app:dev:log
 ```
 
 Run targeted validation from the script guide for the owner or risk surface you
@@ -54,7 +54,7 @@ Human index for common commands. `package.json` owns shortcuts and
 currently uses direct native commands, not a custom verification runner or a
 default broad review route.
 
-- Core dev: `bun run tauri dev`, `bun run build`
+- Core dev: `bun run app:dev:log`, `bun run build`
 - Verification is owner-scoped by default. Run the smallest native command that
   proves the touched owner or risk surface, then escalate only when the change
   crosses owners or a concrete safety/data/contract invariant requires it.

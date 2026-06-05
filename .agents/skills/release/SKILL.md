@@ -34,7 +34,7 @@ a combined lane.
 | "release" with no qualifier | Confirm lane if the request is interactive; if the owner is asking to ship a new version, run Public Release plus Developer Install. |
 | "all", "public and dev", "public plus local" | Public Release + Developer Install | Install local app and publish the matching public version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
 
-Never build or open a DMG for Developer Install. Use `bun run tauri dev` for
+Never build or open a DMG for Developer Install. Use `bun run app:dev:log` for
 temporary development testing instead of creating a local installed release.
 
 ## Decision Rule

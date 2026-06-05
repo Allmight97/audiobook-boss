@@ -28,6 +28,14 @@ Supplemental Assets may cross only as provider-neutral, validated asset facts.
 Processing receives them explicitly by file-list `inputId`; it must not query
 `RemoteSourceRuntime`.
 
+Materialized handoff files must remain usable after provider logout. Do not
+purge a session containing materialized files unless the FileList/session-asset
+owner has removed the corresponding imported inputs.
+
+Audible Supplemental PDF acquisition uses provider-private authenticated
+`GET /companion-file/{title_id}`. Do not use `HEAD`; Audible API `pdf_url`
+fields are presence hints, not direct-download facts.
+
 ## Failure Truth
 
 Remote providers may return typed unsupported/protected/auth statuses. They must
