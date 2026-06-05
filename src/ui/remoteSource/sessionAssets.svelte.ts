@@ -14,13 +14,8 @@ export type CompanionAssetSummary = {
 	fileCountWithCompanions: number;
 };
 
-function normalizePath(path: string): string {
-	return path;
-}
-
 function findImportedFileByPath(files: readonly AudioFile[], path: string): AudioFile | undefined {
-	const normalized = normalizePath(path);
-	return files.find((file) => normalizePath(file.path) === normalized);
+	return files.find((file) => file.path === path);
 }
 
 function toProcessingAsset(asset: SupplementalAsset, inputId: string): SupplementalProcessingAsset {

@@ -1,9 +1,8 @@
 use super::collision::path_entry_exists;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use abb_media_core::{has_pdf_magic, MAX_SUPPLEMENTAL_PDF_BYTES};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 
 pub(crate) struct SupplementalOutputAssetCommitRequest<'a> {
     source_path: &'a Path,
@@ -96,7 +95,7 @@ fn ensure_pdf_source(source_path: &Path) -> Result<()> {
             error
         ))
     })?;
-    if &header != b"%PDF-" {
+    if !has_pdf_magic(&header) {
         return Err(AppError::FileValidation(
             "Supplemental asset did not pass PDF magic-byte validation.".to_string(),
         ));

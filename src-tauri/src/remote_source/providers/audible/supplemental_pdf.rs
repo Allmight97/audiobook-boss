@@ -3,10 +3,12 @@ use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
+use abb_media_core::{has_pdf_magic, sha256_hex, MAX_SUPPLEMENTAL_PDF_BYTES};
+
 use super::{
-    generated_staging_path, partial_download_path, sha256_bytes, title_ref,
-    AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS, MAX_SUPPLEMENTAL_PDF_BYTES,
+    generated_staging_path, title_ref, AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS,
 };
+use crate::remote_source::scoped_output::StagedTempFile;
 use crate::remote_source::SupplementalAsset;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,44 +112,34 @@ fn supplemental_pdf_download_client() -> std::result::Result<reqwest::Client, Su
         .map_err(|_| SupplementalPdfFailure::new("request", None))
 }
 
+pub(super) struct SupplementalPdfRequest<'a> {
+    pub auth: &'a Auth,
+    pub title_id: &'a str,
+    pub job_id: &'a str,
+    pub input_id: &'a str,
+    pub file_name: &'a str,
+    pub api_pdf_hint_present: bool,
+    pub job_dir: &'a Path,
+}
+
+#[derive(Clone, Copy)]
+struct SupplementalPdfLog<'a> {
+    job_id: &'a str,
+    title_id: &'a str,
+}
+
 pub(super) async fn download_supplemental_pdf(
-    auth: &Auth,
-    title_id: &str,
-    job_id: &str,
-    input_id: &str,
-    file_name: &str,
-    api_pdf_hint_present: bool,
-    job_dir: &Path,
+    request: SupplementalPdfRequest<'_>,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalAsset, SupplementalPdfFailure> {
     let client = supplemental_pdf_download_client()?;
-    let url = companion_file_url(title_id)?;
-    download_supplemental_pdf_with_client(
-        &client,
-        auth,
-        title_id,
-        job_id,
-        input_id,
-        file_name,
-        api_pdf_hint_present,
-        job_dir,
-        url,
-        false,
-        is_cancelled,
-    )
-    .await
+    let url = companion_file_url(request.title_id)?;
+    download_supplemental_pdf_with_client(&client, request, url, false, is_cancelled).await
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn download_supplemental_pdf_with_client(
     client: &reqwest::Client,
-    auth: &Auth,
-    title_id: &str,
-    job_id: &str,
-    input_id: &str,
-    file_name: &str,
-    api_pdf_hint_present: bool,
-    job_dir: &Path,
+    request: SupplementalPdfRequest<'_>,
     start_url: reqwest::Url,
     allow_insecure_for_test: bool,
     is_cancelled: &impl Fn() -> bool,
@@ -155,50 +147,104 @@ async fn download_supplemental_pdf_with_client(
     if is_cancelled() {
         return Err(SupplementalPdfFailure::new("cancelled", None));
     }
-    tokio::fs::create_dir_all(job_dir)
+    tokio::fs::create_dir_all(request.job_dir)
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let path = generated_staging_path(job_dir, "pdf");
-    let partial_path = partial_download_path(&path);
-    let _ = tokio::fs::remove_file(&partial_path).await;
-    log_supplemental_pdf_download_start(job_id, title_id, api_pdf_hint_present);
+    let path = generated_staging_path(request.job_dir, "pdf");
+    // Guard cleans the partial + (uncommitted) final on every early return / `?`.
+    let staged = StagedTempFile::new(&path);
+    let _ = tokio::fs::remove_file(staged.partial_path()).await;
+    log_supplemental_pdf_download_start(
+        request.job_id,
+        request.title_id,
+        request.api_pdf_hint_present,
+    );
 
-    let cookie = supplemental_pdf_cookie_header(auth)?;
+    let cookie = supplemental_pdf_cookie_header(request.auth)?;
+    let log = SupplementalPdfLog {
+        job_id: request.job_id,
+        title_id: request.title_id,
+    };
+    let bytes = fetch_pdf_to_partial(
+        client,
+        &cookie,
+        log,
+        start_url,
+        allow_insecure_for_test,
+        staged.partial_path(),
+        is_cancelled,
+    )
+    .await?;
+
+    if bytes == 0 {
+        return Err(SupplementalPdfFailure::new("empty", None));
+    }
+    tokio::fs::rename(staged.partial_path(), staged.final_path())
+        .await
+        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+    let contents = tokio::fs::read(staged.final_path())
+        .await
+        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+    if !has_pdf_magic(&contents) {
+        return Err(SupplementalPdfFailure::new("pdf_magic", None));
+    }
+    let canonical = canonicalize_staged_pdf(staged.final_path())?;
+    staged.commit();
+    log_supplemental_pdf_download_complete(request.job_id, request.title_id, bytes);
+    Ok(SupplementalAsset {
+        asset_id: uuid::Uuid::new_v4().to_string(),
+        input_id: request.input_id.to_string(),
+        title_id: request.title_id.to_string(),
+        path: canonical,
+        file_name: request.file_name.to_string(),
+        size_bytes: bytes,
+        sha256: sha256_hex(&contents),
+    })
+}
+
+/// Follow redirects and stream the companion-file PDF into `partial_path`,
+/// returning the bytes written. Cleanup of `partial_path` on failure is the
+/// caller's [`StagedTempFile`] guard responsibility.
+async fn fetch_pdf_to_partial(
+    client: &reqwest::Client,
+    cookie: &HeaderValue,
+    log: SupplementalPdfLog<'_>,
+    start_url: reqwest::Url,
+    allow_insecure_for_test: bool,
+    partial_path: &Path,
+    is_cancelled: &impl Fn() -> bool,
+) -> std::result::Result<u64, SupplementalPdfFailure> {
     let mut url = start_url;
     let mut redirect_count = 0_usize;
-
-    let bytes = loop {
+    loop {
         if is_cancelled() {
-            let _ = tokio::fs::remove_file(&partial_path).await;
             return Err(SupplementalPdfFailure::new("cancelled", None));
         }
         if !url_is_allowed(&url, allow_insecure_for_test) {
-            let _ = tokio::fs::remove_file(&partial_path).await;
             return Err(SupplementalPdfFailure::new("redirect_non_https", None));
         }
-        let mut response = build_supplemental_pdf_get_request(client, url.clone(), &cookie)
+        let response = build_supplemental_pdf_get_request(client, url.clone(), cookie)
             .send()
             .await
             .map_err(|_| SupplementalPdfFailure::new("request", None))?;
         if is_cancelled() {
-            let _ = tokio::fs::remove_file(&partial_path).await;
             return Err(SupplementalPdfFailure::new("cancelled", None));
         }
 
         let status = response.status();
         let response_url = response.url().clone();
+        let final_https = response_url.scheme() == "https";
         if status.is_redirection() {
             log_supplemental_pdf_request_status(
-                job_id,
-                title_id,
+                log.job_id,
+                log.title_id,
                 status,
                 redirect_count,
-                response_url.scheme() == "https",
+                final_https,
                 0,
                 false,
             );
             if redirect_count >= MAX_DOWNLOAD_REDIRECTS {
-                let _ = tokio::fs::remove_file(&partial_path).await;
                 return Err(SupplementalPdfFailure::new("redirect_limit", Some(status)));
             }
             let next = supplemental_pdf_redirect_target(
@@ -213,15 +259,14 @@ async fn download_supplemental_pdf_with_client(
 
         if !status.is_success() || !url_is_allowed(&response_url, allow_insecure_for_test) {
             log_supplemental_pdf_request_status(
-                job_id,
-                title_id,
+                log.job_id,
+                log.title_id,
                 status,
                 redirect_count,
-                response_url.scheme() == "https",
+                final_https,
                 0,
                 false,
             );
-            let _ = tokio::fs::remove_file(&partial_path).await;
             return Err(SupplementalPdfFailure::new("status", Some(status)));
         }
         if response
@@ -229,91 +274,70 @@ async fn download_supplemental_pdf_with_client(
             .is_some_and(|length| length > MAX_SUPPLEMENTAL_PDF_BYTES)
         {
             log_supplemental_pdf_request_status(
-                job_id,
-                title_id,
+                log.job_id,
+                log.title_id,
                 status,
                 redirect_count,
-                response_url.scheme() == "https",
+                final_https,
                 0,
                 false,
             );
-            let _ = tokio::fs::remove_file(&partial_path).await;
             return Err(SupplementalPdfFailure::new("size_limit", None));
         }
 
-        let mut file = tokio::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&partial_path)
-            .await
-            .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-        let mut bytes_downloaded = 0_u64;
-        while let Some(chunk) = match response.chunk().await {
-            Ok(chunk) => chunk,
-            Err(_) => {
-                let _ = tokio::fs::remove_file(&partial_path).await;
-                return Err(SupplementalPdfFailure::new("read", None));
-            }
-        } {
-            if is_cancelled() {
-                let _ = tokio::fs::remove_file(&partial_path).await;
-                return Err(SupplementalPdfFailure::new("cancelled", None));
-            }
-            if chunk.is_empty() {
-                continue;
-            }
-            bytes_downloaded += chunk.len() as u64;
-            if bytes_downloaded > MAX_SUPPLEMENTAL_PDF_BYTES {
-                let _ = tokio::fs::remove_file(&partial_path).await;
-                return Err(SupplementalPdfFailure::new("size_limit", None));
-            }
-            if file.write_all(&chunk).await.is_err() {
-                let _ = tokio::fs::remove_file(&partial_path).await;
-                return Err(SupplementalPdfFailure::new("file", None));
-            }
-        }
-        if file.sync_all().await.is_err() {
-            let _ = tokio::fs::remove_file(&partial_path).await;
-            return Err(SupplementalPdfFailure::new("file", None));
-        }
+        let bytes_downloaded = stream_pdf_body(response, partial_path, is_cancelled).await?;
         log_supplemental_pdf_request_status(
-            job_id,
-            title_id,
+            log.job_id,
+            log.title_id,
             status,
             redirect_count,
-            response_url.scheme() == "https",
+            final_https,
             bytes_downloaded,
             true,
         );
-        break bytes_downloaded;
-    };
+        return Ok(bytes_downloaded);
+    }
+}
 
-    if bytes == 0 {
-        let _ = tokio::fs::remove_file(&partial_path).await;
-        return Err(SupplementalPdfFailure::new("empty", None));
-    }
-    tokio::fs::rename(&partial_path, &path)
+/// Stream the response body to the staged partial path, enforcing the size cap
+/// and cancellation. Cleanup of the partial on failure is the caller's
+/// [`StagedTempFile`] guard responsibility.
+async fn stream_pdf_body(
+    mut response: reqwest::Response,
+    partial_path: &Path,
+    is_cancelled: &impl Fn() -> bool,
+) -> std::result::Result<u64, SupplementalPdfFailure> {
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(partial_path)
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let contents = tokio::fs::read(&path)
+    let mut bytes_downloaded = 0_u64;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| SupplementalPdfFailure::new("read", None))?
+    {
+        if is_cancelled() {
+            return Err(SupplementalPdfFailure::new("cancelled", None));
+        }
+        if chunk.is_empty() {
+            continue;
+        }
+        bytes_downloaded += chunk.len() as u64;
+        if bytes_downloaded > MAX_SUPPLEMENTAL_PDF_BYTES {
+            return Err(SupplementalPdfFailure::new("size_limit", None));
+        }
+        file.write_all(&chunk)
+            .await
+            .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+    }
+    file.sync_all()
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    if !contents.starts_with(b"%PDF-") {
-        let _ = tokio::fs::remove_file(&path).await;
-        return Err(SupplementalPdfFailure::new("pdf_magic", None));
-    }
-    let path = canonicalize_staged_pdf(&path)?;
-    log_supplemental_pdf_download_complete(job_id, title_id, bytes);
-    Ok(SupplementalAsset {
-        asset_id: uuid::Uuid::new_v4().to_string(),
-        input_id: input_id.to_string(),
-        title_id: title_id.to_string(),
-        path,
-        file_name: file_name.to_string(),
-        size_bytes: bytes,
-        sha256: sha256_bytes(&contents),
-    })
+    Ok(bytes_downloaded)
 }
 
 fn canonicalize_staged_pdf(path: &Path) -> std::result::Result<PathBuf, SupplementalPdfFailure> {
@@ -567,13 +591,15 @@ mod tests {
 
         let asset = download_supplemental_pdf_with_client(
             &client,
-            &auth,
-            "B000000001",
-            "job-1",
-            "input-1",
-            "Being You - A New Science of Consciousness - Supplemental PDF.pdf",
-            true,
-            root.path(),
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Being You - A New Science of Consciousness - Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
             start_url,
             true,
             &|| false,
@@ -599,7 +625,7 @@ mod tests {
             "Being You - A New Science of Consciousness - Supplemental PDF.pdf"
         );
         assert_eq!(asset.size_bytes, pdf_bytes.len() as u64);
-        assert_eq!(asset.sha256, sha256_bytes(pdf_bytes));
+        assert_eq!(asset.sha256, sha256_hex(pdf_bytes));
         assert_eq!(std::fs::read(&asset.path).expect("read pdf"), pdf_bytes);
     }
 
@@ -674,13 +700,15 @@ mod tests {
 
         let asset = download_supplemental_pdf_with_client(
             &client,
-            &auth,
-            "B000000001",
-            "job-1",
-            "input-1",
-            "Supplemental PDF.pdf",
-            true,
-            root.path(),
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
             start_url,
             true,
             &|| false,
@@ -717,13 +745,15 @@ mod tests {
 
         let failure = download_supplemental_pdf_with_client(
             &client,
-            &auth,
-            "B000000001",
-            "job-1",
-            "input-1",
-            "Supplemental PDF.pdf",
-            true,
-            root.path(),
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
             start_url,
             true,
             &|| false,
@@ -760,13 +790,15 @@ mod tests {
 
         let failure = download_supplemental_pdf_with_client(
             &client,
-            &auth,
-            "B000000001",
-            "job-1",
-            "input-1",
-            "Supplemental PDF.pdf",
-            true,
-            root.path(),
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
             start_url,
             true,
             &|| false,
@@ -807,13 +839,15 @@ mod tests {
 
         let failure = download_supplemental_pdf_with_client(
             &client,
-            &auth,
-            "B000000001",
-            "job-1",
-            "input-1",
-            "Supplemental PDF.pdf",
-            true,
-            root.path(),
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
             start_url,
             true,
             &|| false,

@@ -23,14 +23,11 @@ use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessingPreflightPlan, SupplementalProcessingAsset,
 };
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tokio::sync::OwnedSemaphorePermit;
-
-const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 
 pub(crate) struct ProcessingRun;
 
@@ -318,10 +315,17 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
     )
     .await
     {
-        Ok(message) => ProcessingJobTerminalOutcome::Success {
-            message,
-            preview_file_path: preview_path,
-            preview_actual_seconds: preview_seconds_resolved,
+        Ok(message) => match commit_supplemental_assets_for_output(
+            request.output_plan.kind,
+            &request.supplemental_assets,
+            &request.output_plan.resolved_path,
+        ) {
+            Ok(()) => ProcessingJobTerminalOutcome::Success {
+                message,
+                preview_file_path: preview_path,
+                preview_actual_seconds: preview_seconds_resolved,
+            },
+            Err(error) => classify_processing_error(error),
         },
         Err(error) => classify_processing_error(error),
     };
@@ -332,23 +336,6 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
             preview_file_path,
             preview_actual_seconds,
         } => {
-            if let Err(error) = commit_supplemental_assets_for_output(
-                request.output_plan.kind,
-                &request.supplemental_assets,
-                &request.output_plan.resolved_path,
-            ) {
-                let envelope = crate::errors::AppErrorEnvelope::from(error);
-                request
-                    .registry
-                    .fail_job(job_id, envelope.message.clone())
-                    .await;
-                log::error!("Job {} failed: {}", job_id, envelope.message);
-                return Ok(terminal_failure_result(
-                    request.input_index,
-                    Some(job_id.to_string()),
-                    envelope,
-                ));
-            }
             request.registry.complete_job(job_id).await;
             log::info!("Job {} completed successfully", job_id);
             Ok(ProcessResultEntry {
@@ -404,6 +391,11 @@ fn supplemental_assets_for_input(
         .unwrap_or_default()
 }
 
+/// TOCTOU guard for a staged Supplemental PDF: confirms the on-disk file still
+/// matches the size and content hash recorded at acquisition time. Structural
+/// PDF policy (regular-file, size limit, magic bytes) is the commit boundary's
+/// job in [`commit_supplemental_output_asset`]; this check owns only identity
+/// drift between staging and commit.
 fn validate_supplemental_asset(asset: &SupplementalProcessingAsset) -> Result<()> {
     let metadata = std::fs::symlink_metadata(&asset.path).map_err(|error| {
         AppError::FileValidation(format!(
@@ -412,19 +404,9 @@ fn validate_supplemental_asset(asset: &SupplementalProcessingAsset) -> Result<()
             error
         ))
     })?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(AppError::FileValidation(
-            "Supplemental PDF source must be a regular file.".to_string(),
-        ));
-    }
     if metadata.len() != asset.size_bytes {
         return Err(AppError::FileValidation(
             "Supplemental PDF source size changed before output commit.".to_string(),
-        ));
-    }
-    if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
-        return Err(AppError::FileValidation(
-            "Supplemental PDF source exceeds the 100 MiB size limit.".to_string(),
         ));
     }
 
@@ -435,15 +417,7 @@ fn validate_supplemental_asset(asset: &SupplementalProcessingAsset) -> Result<()
             error
         ))
     })?;
-    if !bytes.starts_with(b"%PDF-") {
-        return Err(AppError::FileValidation(
-            "Supplemental PDF source did not pass PDF magic-byte validation.".to_string(),
-        ));
-    }
-    let mut hasher = Sha256::new();
-    hasher.update(&bytes);
-    let hash = format!("{:x}", hasher.finalize());
-    if hash != asset.sha256 {
+    if abb_media_core::sha256_hex(&bytes) != asset.sha256 {
         return Err(AppError::FileValidation(
             "Supplemental PDF source hash changed before output commit.".to_string(),
         ));
@@ -554,7 +528,6 @@ mod tests {
     use super::*;
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
     use crate::processing::{JobType, ProcessPayload};
-    use sha2::Sha256;
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -587,12 +560,6 @@ mod tests {
         payload
     }
 
-    fn sha256_hex(bytes: &[u8]) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(bytes);
-        format!("{:x}", hasher.finalize())
-    }
-
     fn supplemental_asset(
         path: std::path::PathBuf,
         input_id: &str,
@@ -605,7 +572,7 @@ mod tests {
             path,
             file_name: "Supplemental PDF.pdf".to_string(),
             size_bytes: bytes.len() as u64,
-            sha256: sha256_hex(bytes),
+            sha256: abb_media_core::sha256_hex(bytes),
         }
     }
 
