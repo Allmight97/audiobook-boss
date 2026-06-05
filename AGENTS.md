@@ -34,6 +34,10 @@
 - High-ROI reductions to verification wall-clock and feedback opacity outrank
   ordinary feature work and release polish until the repo owner explicitly
   deprioritizes testing-infra repair.
+- For repeated cross-boundary failures, silent artifact loss, identity drift, or
+  provider/lifecycle uncertainty, consider a focused vertical-slice TDD work
+  block: define the user-visible outcome, prove only the handoffs that can lose
+  it, and keep the route deterministic and fast.
 - Do not add new tests, proof routes, or validation layers unless they reduce
   total feedback cost, remove false confidence, or protect a concrete high-risk
   contract.
