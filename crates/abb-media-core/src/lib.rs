@@ -118,6 +118,25 @@ pub fn protection_requires_materializer(protection: MediaProtectionKind) -> bool
     )
 }
 
+/// Maximum accepted size for a Supplemental PDF asset (100 MiB). This is the
+/// single canonical policy value shared by the acquisition downloader, the
+/// processing handoff, and the output-artifact commit boundary.
+pub const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
+
+/// True when the bytes begin with the PDF magic header (`%PDF-`).
+pub fn has_pdf_magic(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"%PDF-")
+}
+
+/// Lowercase hex-encoded SHA-256 digest of the given bytes. Shared content
+/// identity fact used for supplemental-asset integrity checks.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +218,31 @@ mod tests {
         assert_eq!(
             classify_media_container_path(&path),
             MediaContainerKind::Unknown
+        );
+    }
+
+    #[test]
+    fn pdf_magic_detects_only_pdf_header() {
+        assert!(has_pdf_magic(b"%PDF-1.7\nbody"));
+        assert!(!has_pdf_magic(b"not-a-pdf"));
+        assert!(!has_pdf_magic(b""));
+        assert!(!has_pdf_magic(b"%PDF"));
+    }
+
+    #[test]
+    fn supplemental_pdf_limit_is_100_mib() {
+        assert_eq!(MAX_SUPPLEMENTAL_PDF_BYTES, 104_857_600);
+    }
+
+    #[test]
+    fn sha256_hex_matches_known_vector() {
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
     }
 }
