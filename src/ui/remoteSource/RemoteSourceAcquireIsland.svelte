@@ -8,5 +8,5 @@
 	type="button"
 	onclick={openRemoteSourceAcquire}
 >
-	Acquire
+	Import from Library
 </button>

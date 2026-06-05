@@ -167,7 +167,7 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		const user = userEvent.setup();
 		render(RemoteSourceAcquireIsland);
 
-		await user.click(screen.getByRole('button', { name: 'Acquire' }));
+		await user.click(screen.getByRole('button', { name: 'Import from Library' }));
 
 		expect(remoteSourceAcquireState.isOpen).toBe(true);
 	});
