@@ -94,7 +94,7 @@ describe('metadata panel input inspector', () => {
 		context.setCoverArtMock.mockReset();
 		context.companionSummaryForInputIdsMock.mockReset();
 		context.companionSummaryForInputIdsMock.mockReturnValue({
-			text: 'No companions',
+			text: 'None',
 			title: '',
 			pdfCount: 0,
 			fileCountWithCompanions: 0,
@@ -121,7 +121,7 @@ describe('metadata panel input inspector', () => {
 
 	it('shows companion assets for a single selected file', async () => {
 		context.companionSummaryForInputIdsMock.mockReturnValueOnce({
-			text: 'PDF attached',
+			text: 'Supplemental PDF.pdf',
 			title: 'Supplemental PDF.pdf',
 			pdfCount: 1,
 			fileCountWithCompanions: 1,
@@ -136,7 +136,7 @@ describe('metadata panel input inspector', () => {
 		await showSingleSelection(file);
 
 		expect(context.companionSummaryForInputIdsMock).toHaveBeenCalledWith(['current-input-1']);
-		expect(inspectorState.companionsText).toBe('PDF attached');
+		expect(inspectorState.companionsText).toBe('Supplemental PDF.pdf');
 		expect(inspectorState.companionsTitle).toBe('Supplemental PDF.pdf');
 	});
 

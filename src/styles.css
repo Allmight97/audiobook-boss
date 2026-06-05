@@ -380,6 +380,10 @@ textarea:hover:not(:focus) {
 	margin-left: 0.25rem;
 	font-family: var(--font-mono);
 	color: var(--text-primary);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .checkbox-label {

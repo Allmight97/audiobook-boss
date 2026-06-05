@@ -100,11 +100,11 @@ export function companionSummaryForInputIds(
 		return { text: '---', title, pdfCount, fileCountWithCompanions };
 	}
 	if (pdfCount === 0) {
-		return { text: 'No companions', title, pdfCount, fileCountWithCompanions };
+		return { text: 'None', title, pdfCount, fileCountWithCompanions };
 	}
 	if (selectedCount === 1) {
 		return {
-			text: pdfCount === 1 ? 'PDF attached' : `${pdfCount} PDFs attached`,
+			text: pdfCount === 1 ? title || 'PDF attached' : `${pdfCount} PDFs attached`,
 			title,
 			pdfCount,
 			fileCountWithCompanions,

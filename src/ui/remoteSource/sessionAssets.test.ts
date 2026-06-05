@@ -154,7 +154,7 @@ describe('remote source session assets', () => {
 		const summary = module.companionSummaryForInputIds(['current-input-1']);
 
 		expect(summary).toEqual({
-			text: 'PDF attached',
+			text: 'Supplemental PDF.pdf',
 			title: 'Supplemental PDF.pdf',
 			pdfCount: 1,
 			fileCountWithCompanions: 1,
