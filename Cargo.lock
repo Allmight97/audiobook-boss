@@ -447,7 +447,7 @@ dependencies = [
 
 [[package]]
 name = "audiobook-boss"
-version = "1.0.32"
+version = "1.0.33"
 dependencies = [
  "abb-metadata-core",
  "abb-output-artifact-core",

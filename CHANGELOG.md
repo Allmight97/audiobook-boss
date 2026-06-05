@@ -2,6 +2,33 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.33] - 2026-06-04
+
+### Added
+
+- Added bundled AAXClean materialization for Audible AAX/AAXC remote
+  acquisition on Apple Silicon, with helper protocol and provider secrets kept
+  behind the backend runtime.
+- Added authenticated Audible Supplemental PDF acquisition and final PDF
+  copy-through next to matching processed M4B outputs.
+
+### Changed
+
+- Remote acquisitions now use title-derived materialized audio and Supplemental
+  PDF display names, with compact PDF indicators in FileList and inspector
+  surfaces.
+- Local dev and release build routes now publish and package the AAXClean helper
+  sidecar without requiring manual helper-path setup.
+- The default developer run command is `bun run app:dev:log`, which refreshes
+  `.logs/tauri-dev.log` for shared debugging.
+
+### Fixed
+
+- Provider logout no longer deletes staged materialized files that have already
+  been handed to FileList for later processing.
+- `app:build:all` now applies the same noninteractive DMG safeguards and bundle
+  verification as explicit DMG builds.
+
 ## [1.0.32] - 2026-06-03
 
 ### Changed
