@@ -11,6 +11,7 @@ use tokio::task::AbortHandle;
 
 mod materializer;
 mod providers;
+mod scoped_output;
 mod staging;
 mod types;
 mod vault;
