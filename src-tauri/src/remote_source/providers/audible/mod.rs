@@ -559,6 +559,7 @@ async fn acquire_one(
         title_id,
         job_id,
         &file,
+        title_name,
         include_pdf,
         supplemental_pdf_hint_present,
         &item_dir,
@@ -849,6 +850,7 @@ async fn download_supplemental_pdf_if_requested(
     title_id: &str,
     job_id: &str,
     file: &MaterializedSourceFile,
+    title_name: Option<&str>,
     include_pdf: bool,
     api_pdf_hint_present: bool,
     job_dir: &Path,
@@ -862,11 +864,13 @@ async fn download_supplemental_pdf_if_requested(
     }
 
     ensure_not_cancelled(is_cancelled)?;
+    let supplemental_file_name = supplemental_pdf_display_file_name(title_name, title_id);
     match download_supplemental_pdf(
         auth,
         title_id,
         job_id,
         &file.input_id,
+        &supplemental_file_name,
         api_pdf_hint_present,
         job_dir,
         is_cancelled,
@@ -1033,6 +1037,13 @@ fn staged_materialized_path(
         "{}.m4b",
         remote_materialized_filename_stem(title_name, title_id)
     ))
+}
+
+fn supplemental_pdf_display_file_name(title_name: Option<&str>, title_id: &str) -> String {
+    format!(
+        "{} - Supplemental PDF.pdf",
+        remote_materialized_filename_stem(title_name, title_id)
+    )
 }
 
 fn remote_materialized_filename_stem(title_name: Option<&str>, title_id: &str) -> String {
@@ -2087,6 +2098,39 @@ mod tests {
         assert!(!materialized_path.to_string_lossy().contains(title_id));
     }
 
+    #[test]
+    fn supplemental_pdf_display_file_name_uses_sanitized_remote_title() {
+        let file_name = supplemental_pdf_display_file_name(
+            Some("Being You: A New Science of Consciousness"),
+            "B000000001",
+        );
+
+        assert_eq!(
+            file_name,
+            "Being You - A New Science of Consciousness - Supplemental PDF.pdf"
+        );
+    }
+
+    #[test]
+    fn supplemental_pdf_display_file_name_sanitizes_path_hostile_title() {
+        let file_name = supplemental_pdf_display_file_name(Some("../../bad,title?"), "B000000001");
+
+        assert_eq!(file_name, "bad - title - Supplemental PDF.pdf");
+    }
+
+    #[test]
+    fn supplemental_pdf_display_file_name_falls_back_to_title_ref_for_empty_title() {
+        let title_id = "../../account-title";
+        let file_name = supplemental_pdf_display_file_name(Some("../"), title_id);
+        let missing_title_file_name = supplemental_pdf_display_file_name(None, title_id);
+        let expected = format!("Audible {} - Supplemental PDF.pdf", title_ref(title_id));
+
+        assert_eq!(file_name, expected);
+        assert_eq!(missing_title_file_name, expected);
+        assert!(!file_name.contains(title_id));
+        assert!(!missing_title_file_name.contains(title_id));
+    }
+
     #[tokio::test]
     #[ignore = "uses local keychain Audible auth and a real owned title"]
     async fn audible_pdf_live_probe() {
@@ -2095,12 +2139,14 @@ mod tests {
         let vault = crate::remote_source::vault::KeyringSecretVault;
         let auth = auth_from_vault(&vault).expect("Audible account must be connected");
         let root = tempfile::TempDir::new().expect("temp root");
+        let file_name = supplemental_pdf_display_file_name(None, &title_id);
 
         let asset = supplemental_pdf::download_supplemental_pdf(
             &auth,
             &title_id,
             "audible-pdf-live-probe",
             "probe-input",
+            &file_name,
             true,
             root.path(),
             &|| false,

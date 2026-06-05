@@ -249,8 +249,7 @@ describe('RemoteSourceAcquireIsland progress', () => {
 
 	it('deduplicates repeated safe diagnostic copy for batch acquisition failures', async () => {
 		const user = userEvent.setup();
-		const repeatedMessage =
-			'Audible license response did not include a downloadable audio URL.';
+		const repeatedMessage = 'Audible license response did not include a downloadable audio URL.';
 		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
 			acquisitionJob({
 				status: 'failed',
@@ -351,7 +350,7 @@ describe('RemoteSourceAcquireIsland progress', () => {
 					inputId: 'provider-input-1',
 					titleId: 'B000000001',
 					path: '/tmp/remote/book.pdf',
-					fileName: 'Supplemental PDF.pdf',
+					fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
 					sizeBytes: 32,
 					sha256: 'pdf-sha',
 				},

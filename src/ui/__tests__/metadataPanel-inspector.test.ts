@@ -120,9 +120,10 @@ describe('metadata panel input inspector', () => {
 	});
 
 	it('shows companion assets for a single selected file', async () => {
+		const pdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 		context.companionSummaryForInputIdsMock.mockReturnValueOnce({
-			text: 'Supplemental PDF.pdf',
-			title: 'Supplemental PDF.pdf',
+			text: pdfFileName,
+			title: pdfFileName,
 			pdfCount: 1,
 			fileCountWithCompanions: 1,
 		});
@@ -136,8 +137,8 @@ describe('metadata panel input inspector', () => {
 		await showSingleSelection(file);
 
 		expect(context.companionSummaryForInputIdsMock).toHaveBeenCalledWith(['current-input-1']);
-		expect(inspectorState.companionsText).toBe('Supplemental PDF.pdf');
-		expect(inspectorState.companionsTitle).toBe('Supplemental PDF.pdf');
+		expect(inspectorState.companionsText).toBe(pdfFileName);
+		expect(inspectorState.companionsTitle).toBe(pdfFileName);
 	});
 
 	it('shows shared codec and decoder values for multi-selection when they match', async () => {

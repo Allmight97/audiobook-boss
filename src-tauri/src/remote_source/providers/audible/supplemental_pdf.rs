@@ -115,6 +115,7 @@ pub(super) async fn download_supplemental_pdf(
     title_id: &str,
     job_id: &str,
     input_id: &str,
+    file_name: &str,
     api_pdf_hint_present: bool,
     job_dir: &Path,
     is_cancelled: &impl Fn() -> bool,
@@ -127,6 +128,7 @@ pub(super) async fn download_supplemental_pdf(
         title_id,
         job_id,
         input_id,
+        file_name,
         api_pdf_hint_present,
         job_dir,
         url,
@@ -143,6 +145,7 @@ async fn download_supplemental_pdf_with_client(
     title_id: &str,
     job_id: &str,
     input_id: &str,
+    file_name: &str,
     api_pdf_hint_present: bool,
     job_dir: &Path,
     start_url: reqwest::Url,
@@ -307,7 +310,7 @@ async fn download_supplemental_pdf_with_client(
         input_id: input_id.to_string(),
         title_id: title_id.to_string(),
         path,
-        file_name: "Supplemental PDF.pdf".to_string(),
+        file_name: file_name.to_string(),
         size_bytes: bytes,
         sha256: sha256_bytes(&contents),
     })
@@ -568,6 +571,7 @@ mod tests {
             "B000000001",
             "job-1",
             "input-1",
+            "Being You - A New Science of Consciousness - Supplemental PDF.pdf",
             true,
             root.path(),
             start_url,
@@ -590,6 +594,10 @@ mod tests {
         assert!(request_lower.contains("cookie: at-main=cookie-a; sess-at-main=cookie-b"));
         assert_eq!(asset.input_id, "input-1");
         assert_eq!(asset.title_id, "B000000001");
+        assert_eq!(
+            asset.file_name,
+            "Being You - A New Science of Consciousness - Supplemental PDF.pdf"
+        );
         assert_eq!(asset.size_bytes, pdf_bytes.len() as u64);
         assert_eq!(asset.sha256, sha256_bytes(pdf_bytes));
         assert_eq!(std::fs::read(&asset.path).expect("read pdf"), pdf_bytes);
@@ -670,6 +678,7 @@ mod tests {
             "B000000001",
             "job-1",
             "input-1",
+            "Supplemental PDF.pdf",
             true,
             root.path(),
             start_url,
@@ -712,6 +721,7 @@ mod tests {
             "B000000001",
             "job-1",
             "input-1",
+            "Supplemental PDF.pdf",
             true,
             root.path(),
             start_url,
@@ -754,6 +764,7 @@ mod tests {
             "B000000001",
             "job-1",
             "input-1",
+            "Supplemental PDF.pdf",
             true,
             root.path(),
             start_url,
@@ -800,6 +811,7 @@ mod tests {
             "B000000001",
             "job-1",
             "input-1",
+            "Supplemental PDF.pdf",
             true,
             root.path(),
             start_url,

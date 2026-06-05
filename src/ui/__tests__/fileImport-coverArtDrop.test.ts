@@ -143,7 +143,7 @@ function acquisitionJobWithPdf(): AcquisitionJob {
 				inputId: 'provider-input-1',
 				titleId: 'B000000001',
 				path: '/tmp/book-with-pdf.pdf',
-				fileName: 'Supplemental PDF.pdf',
+				fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
 				sizeBytes: 32,
 				sha256: 'pdf-sha',
 			},

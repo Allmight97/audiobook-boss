@@ -111,9 +111,10 @@ export function companionSummaryForInputIds(
 		};
 	}
 
+	const text = `${pdfCount} ${pdfCount === 1 ? 'PDF' : 'PDFs'} across ${selectedCount} selected files`;
 	return {
-		text: `${pdfCount} ${pdfCount === 1 ? 'PDF' : 'PDFs'} across ${selectedCount} selected files`,
-		title,
+		text,
+		title: text,
 		pdfCount,
 		fileCountWithCompanions,
 	};

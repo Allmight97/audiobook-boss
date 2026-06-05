@@ -3,6 +3,8 @@ import type { AcquisitionJob } from '../../types/remoteSource';
 import type { FileListInfo, ProcessCommandResult } from '../../types/audio';
 
 const purgeRemoteSourceSessionMock = vi.hoisted(() => vi.fn());
+const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
+const secondaryPdfFileName = 'Secure Love - Supplemental PDF.pdf';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -81,7 +83,7 @@ function acquisitionJob(): AcquisitionJob {
 				inputId: 'provider-input-1',
 				titleId: 'B000000001',
 				path: '/session/book.pdf',
-				fileName: 'Supplemental PDF.pdf',
+				fileName: primaryPdfFileName,
 				sizeBytes: 32,
 				sha256: 'pdf-sha',
 			},
@@ -111,7 +113,7 @@ function multiTitleAcquisitionJob(): AcquisitionJob {
 				inputId: 'provider-input-2',
 				titleId: 'B000000002',
 				path: '/session/book-two.pdf',
-				fileName: 'Supplemental PDF 2.pdf',
+				fileName: secondaryPdfFileName,
 				sizeBytes: 64,
 				sha256: 'pdf-sha-two',
 			},
@@ -139,7 +141,7 @@ describe('remote source session assets', () => {
 					inputId: 'current-input-1',
 					titleId: 'B000000001',
 					path: '/session/book.pdf',
-					fileName: 'Supplemental PDF.pdf',
+					fileName: primaryPdfFileName,
 					sizeBytes: 32,
 					sha256: 'pdf-sha',
 				},
@@ -154,8 +156,8 @@ describe('remote source session assets', () => {
 		const summary = module.companionSummaryForInputIds(['current-input-1']);
 
 		expect(summary).toEqual({
-			text: 'Supplemental PDF.pdf',
-			title: 'Supplemental PDF.pdf',
+			text: primaryPdfFileName,
+			title: primaryPdfFileName,
 			pdfCount: 1,
 			fileCountWithCompanions: 1,
 		});
@@ -170,8 +172,23 @@ describe('remote source session assets', () => {
 		const summary = module.companionSummaryForInputIds(['current-input-1', 'current-input-2']);
 
 		expect(summary.text).toBe('1 PDF across 2 selected files');
+		expect(summary.title).toBe('1 PDF across 2 selected files');
 		expect(summary.pdfCount).toBe(1);
 		expect(summary.fileCountWithCompanions).toBe(1);
+	});
+
+	it('keeps multi-file companion summaries count-based when every file has a long PDF name', async () => {
+		const module = await import('./sessionAssets.svelte');
+		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
+
+		const summary = module.companionSummaryForInputIds(['current-input-1', 'current-input-2']);
+
+		expect(summary.text).toBe('2 PDFs across 2 selected files');
+		expect(summary.title).toBe('2 PDFs across 2 selected files');
+		expect(summary.text).not.toContain(primaryPdfFileName);
+		expect(summary.text).not.toContain(secondaryPdfFileName);
+		expect(summary.pdfCount).toBe(2);
+		expect(summary.fileCountWithCompanions).toBe(2);
 	});
 
 	it('purges acquired session roots after matching final batch success', async () => {
@@ -245,7 +262,7 @@ describe('remote source session assets', () => {
 					inputId: 'current-input-2',
 					titleId: 'B000000002',
 					path: '/session/book-two.pdf',
-					fileName: 'Supplemental PDF 2.pdf',
+					fileName: secondaryPdfFileName,
 					sizeBytes: 64,
 					sha256: 'pdf-sha-two',
 				},
