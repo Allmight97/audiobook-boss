@@ -3,7 +3,9 @@ use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
-use abb_media_core::{has_pdf_magic, sha256_hex, MAX_SUPPLEMENTAL_PDF_BYTES};
+use abb_media_core::{
+    SupplementalPdfIdentity, SupplementalPdfIdentityBuilder, MAX_SUPPLEMENTAL_PDF_BYTES,
+};
 
 use super::{
     generated_staging_path, title_ref, AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS,
@@ -165,7 +167,7 @@ async fn download_supplemental_pdf_with_client(
         job_id: request.job_id,
         title_id: request.title_id,
     };
-    let bytes = fetch_pdf_to_partial(
+    let identity = fetch_pdf_to_partial(
         client,
         &cookie,
         log,
@@ -176,35 +178,32 @@ async fn download_supplemental_pdf_with_client(
     )
     .await?;
 
-    if bytes == 0 {
+    if identity.size_bytes == 0 {
         return Err(SupplementalPdfFailure::new("empty", None));
+    }
+    if !identity.has_pdf_magic {
+        return Err(SupplementalPdfFailure::new("pdf_magic", None));
     }
     tokio::fs::rename(staged.partial_path(), staged.final_path())
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let contents = tokio::fs::read(staged.final_path())
-        .await
-        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    if !has_pdf_magic(&contents) {
-        return Err(SupplementalPdfFailure::new("pdf_magic", None));
-    }
     let canonical = canonicalize_staged_pdf(staged.final_path())?;
     staged.commit();
-    log_supplemental_pdf_download_complete(request.job_id, request.title_id, bytes);
+    log_supplemental_pdf_download_complete(request.job_id, request.title_id, identity.size_bytes);
     Ok(SupplementalAsset {
         asset_id: uuid::Uuid::new_v4().to_string(),
         input_id: request.input_id.to_string(),
         title_id: request.title_id.to_string(),
         path: canonical,
         file_name: request.file_name.to_string(),
-        size_bytes: bytes,
-        sha256: sha256_hex(&contents),
+        size_bytes: identity.size_bytes,
+        sha256: identity.sha256,
     })
 }
 
 /// Follow redirects and stream the companion-file PDF into `partial_path`,
-/// returning the bytes written. Cleanup of `partial_path` on failure is the
-/// caller's [`StagedTempFile`] guard responsibility.
+/// returning the bytes/hash/header facts. Cleanup of `partial_path` on failure is
+/// the caller's [`StagedTempFile`] guard responsibility.
 async fn fetch_pdf_to_partial(
     client: &reqwest::Client,
     cookie: &HeaderValue,
@@ -213,7 +212,7 @@ async fn fetch_pdf_to_partial(
     allow_insecure_for_test: bool,
     partial_path: &Path,
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<u64, SupplementalPdfFailure> {
+) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut url = start_url;
     let mut redirect_count = 0_usize;
     loop {
@@ -285,17 +284,17 @@ async fn fetch_pdf_to_partial(
             return Err(SupplementalPdfFailure::new("size_limit", None));
         }
 
-        let bytes_downloaded = stream_pdf_body(response, partial_path, is_cancelled).await?;
+        let identity = stream_pdf_body(response, partial_path, is_cancelled).await?;
         log_supplemental_pdf_request_status(
             log.job_id,
             log.title_id,
             status,
             redirect_count,
             final_https,
-            bytes_downloaded,
+            identity.size_bytes,
             true,
         );
-        return Ok(bytes_downloaded);
+        return Ok(identity);
     }
 }
 
@@ -306,7 +305,7 @@ async fn stream_pdf_body(
     mut response: reqwest::Response,
     partial_path: &Path,
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<u64, SupplementalPdfFailure> {
+) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -314,7 +313,7 @@ async fn stream_pdf_body(
         .open(partial_path)
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let mut bytes_downloaded = 0_u64;
+    let mut identity = SupplementalPdfIdentityBuilder::new();
     while let Some(chunk) = response
         .chunk()
         .await
@@ -326,10 +325,14 @@ async fn stream_pdf_body(
         if chunk.is_empty() {
             continue;
         }
-        bytes_downloaded += chunk.len() as u64;
-        if bytes_downloaded > MAX_SUPPLEMENTAL_PDF_BYTES {
+        let next_size = identity
+            .size_bytes()
+            .checked_add(chunk.len() as u64)
+            .ok_or_else(|| SupplementalPdfFailure::new("size_limit", None))?;
+        if next_size > MAX_SUPPLEMENTAL_PDF_BYTES {
             return Err(SupplementalPdfFailure::new("size_limit", None));
         }
+        identity.update(&chunk);
         file.write_all(&chunk)
             .await
             .map_err(|_| SupplementalPdfFailure::new("file", None))?;
@@ -337,7 +340,7 @@ async fn stream_pdf_body(
     file.sync_all()
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    Ok(bytes_downloaded)
+    Ok(identity.finalize())
 }
 
 fn canonicalize_staged_pdf(path: &Path) -> std::result::Result<PathBuf, SupplementalPdfFailure> {
@@ -417,6 +420,7 @@ mod tests {
     use audible_api::auth::{localization, Auth};
     use serde_json::json;
     use std::net::SocketAddr;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::time::{timeout, Duration};
@@ -625,7 +629,7 @@ mod tests {
             "Being You - A New Science of Consciousness - Supplemental PDF.pdf"
         );
         assert_eq!(asset.size_bytes, pdf_bytes.len() as u64);
-        assert_eq!(asset.sha256, sha256_hex(pdf_bytes));
+        assert_eq!(asset.sha256, abb_media_core::sha256_hex(pdf_bytes));
         assert_eq!(std::fs::read(&asset.path).expect("read pdf"), pdf_bytes);
     }
 
@@ -766,6 +770,16 @@ mod tests {
         assert_eq!(failure.category, "pdf_magic");
         assert!(!message.contains("B000000001"));
         assert!(!message.contains("http://"));
+        assert!(
+            std::fs::read_dir(root.path())
+                .expect("read temp root")
+                .all(|entry| {
+                    let path = entry.expect("dir entry").path();
+                    let path = path.to_string_lossy();
+                    !path.ends_with(".pdf") && !path.ends_with(".partial")
+                }),
+            "non-PDF response should not leave staged PDF files"
+        );
     }
 
     #[tokio::test]
@@ -817,6 +831,61 @@ mod tests {
                     .to_string_lossy()
                     .ends_with(".partial")),
             "oversized PDF should not leave a partial file"
+        );
+    }
+
+    #[tokio::test]
+    async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let client = local_client(addr, None);
+        let pdf_bytes = b"%PDF-1.7\nbody";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: {}\r\n\r\n",
+            pdf_bytes.len()
+        );
+        let response = [response.as_bytes(), pdf_bytes].concat();
+        let server = tokio::spawn(async move { serve_one(&listener, &response).await });
+        let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
+        let root = tempfile::TempDir::new().expect("temp root");
+        let start_url = reqwest::Url::parse(&format!(
+            "http://www.audible.com:{}/companion-file/B000000001",
+            addr.port()
+        ))
+        .expect("url");
+        let cancel_checks = AtomicUsize::new(0);
+
+        let failure = download_supplemental_pdf_with_client(
+            &client,
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
+            start_url,
+            true,
+            &|| cancel_checks.fetch_add(1, Ordering::SeqCst) >= 3,
+        )
+        .await
+        .expect_err("stream cancellation should fail");
+        let _ = server.await.expect("server task");
+
+        assert_eq!(failure.category, "cancelled");
+        assert!(
+            std::fs::read_dir(root.path())
+                .expect("read temp root")
+                .all(|entry| !entry
+                    .expect("dir entry")
+                    .path()
+                    .to_string_lossy()
+                    .ends_with(".partial")),
+            "cancelled PDF should not leave a partial file"
         );
     }
 

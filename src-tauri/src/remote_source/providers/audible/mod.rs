@@ -1,30 +1,39 @@
+use std::collections::HashSet;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 
 use abb_audible_core::{
-    audible_decryption_material_from_license, classify_download_response_for_mode,
-    download_extension_for_strategy, find_first_string_for_key, find_first_string_for_keys,
-    remote_materialized_filename_stem, supplemental_pdf_display_file_name, title_ref,
-    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, DownloadResponseError,
+    download_extension_for_strategy, remote_materialized_filename_stem,
+    supplemental_pdf_display_file_name, title_ref, AudibleLicenseDecryptContext,
 };
 use abb_remote_source_core::{
-    acquisition_progress, acquisition_progress_for_current_title, choose_acquisition_strategy,
-    license_facts_from_value, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
-    LicenseFacts, MaterializedSourceKind,
+    acquisition_progress, acquisition_progress_for_current_title, AcquisitionProgress,
+    AcquisitionStage, AcquisitionStrategy, MaterializedSourceKind,
 };
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
-use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
-use tokio::io::AsyncWriteExt;
+use sha2::{Digest, Sha256};
 
+mod audio_download;
+mod diagnostics;
 mod library;
+mod license;
+mod materialization;
 mod supplemental_pdf;
 
+use audio_download::{cleanup_download_artifacts, download_audio};
+use diagnostics::AudibleAcquisitionError;
 use library::parse_library_titles;
+use license::{
+    license_decrypt_context_from_auth, lookup_title_details, provider_protocol_lane_message,
+    request_license_lane, strategy_label, AudibleTitleDetails, LicenseLane,
+};
+use materialization::materialize_protected_download;
 use supplemental_pdf::{
     download_supplemental_pdf, log_supplemental_pdf_failed, supplemental_pdf_failure_message,
     SupplementalPdfRequest,
@@ -32,17 +41,14 @@ use supplemental_pdf::{
 
 use crate::audio;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::remote_source::materializer::{
-    AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
-};
-use crate::remote_source::scoped_output::StagedTempFile;
+use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::staging;
 use crate::remote_source::vault::SecretVault;
 use crate::remote_source::{
     AccountRef, AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, ProviderId,
     RemoteAccountStatus, RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteAuthFlow,
     RemoteLibraryResponse, RemoteSourceAccountState, RemoteSourceDiagnostic,
-    RemoteSourceProviderCapabilities, SupplementalAsset,
+    RemoteSourceProviderCapabilities, RemoteTitle, SupplementalAsset,
 };
 
 const COUNTRY_CODE: &str = "us";
@@ -50,6 +56,8 @@ const DOMAIN: &str = "com";
 const MARKETPLACE_ID: &str = "ATVPDKIKX0DER";
 const ACCOUNT_ID: &str = "audible-us";
 const AUTH_SECRET_KEY: &str = "audible.us.auth";
+const AUDIBLE_LIBRARY_PAGE_SIZE: u16 = 1000;
+const MAX_AUDIBLE_LIBRARY_PAGES: u16 = 100;
 const MAX_DOWNLOAD_REDIRECTS: usize = 5;
 const MAX_DOWNLOAD_ATTEMPTS: usize = 4;
 const AUDIBLE_DOWNLOAD_USER_AGENT: &str = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0";
@@ -61,30 +69,13 @@ struct AcquiredTitle {
     diagnostics: Vec<RemoteSourceDiagnostic>,
 }
 
-struct LicenseLane {
-    content_url: String,
-    strategy: AcquisitionStrategy,
-    decryption_material: Option<AudibleDecryptionMaterial>,
-    supplemental_pdf_url: Option<String>,
-}
-
-struct AudibleTitleDetails {
-    title: Option<String>,
-    supplemental_pdf_url: Option<String>,
-}
+type AudibleAcquisitionResult<T> = std::result::Result<T, AudibleAcquisitionError>;
 
 #[derive(Clone, Copy)]
 struct TitleProgressContext<'a> {
     title_id: &'a str,
     item_index: u32,
     total_items: u32,
-}
-
-#[derive(Clone, Copy)]
-struct DownloadLogContext<'a> {
-    job_id: &'a str,
-    title_id: &'a str,
-    extension: &'a str,
 }
 
 /// Per-title request handed to `acquire_one`: the identity and policy inputs for
@@ -115,28 +106,6 @@ fn provider_private_failure(stage: &str) -> AppError {
     AppError::General(format!(
         "Audible {stage} failed. Provider-private details were withheld from UI and logs."
     ))
-}
-
-fn download_failure(stage: &str) -> AppError {
-    AppError::General(format!(
-        "Audible download {stage} failed. Provider-private details were withheld from UI and logs."
-    ))
-}
-
-fn download_status_failure(status: u16) -> AppError {
-    AppError::General(format!(
-        "Remote source download returned HTTP {status}. Check application logs for sanitized acquisition facts."
-    ))
-}
-
-fn map_download_response_error(error: DownloadResponseError) -> AppError {
-    match error {
-        DownloadResponseError::RedirectNotHttps => {
-            AppError::InvalidInput("Remote source download redirect must use https.".to_string())
-        }
-        DownloadResponseError::ContentRange => download_failure("content range"),
-        DownloadResponseError::UnexpectedStatus(status) => download_status_failure(status),
-    }
 }
 
 fn remote_acquisition_cancelled() -> AppError {
@@ -291,15 +260,7 @@ impl AudibleProvider {
         vault: &dyn SecretVault,
     ) -> Result<RemoteLibraryResponse> {
         let client = client_from_vault(vault)?;
-        let payload = client
-            .get_library(Some(json!({
-                "num_results": 100,
-                "response_groups": "product_desc,product_attrs,contributors,media,pdf_url,product_details",
-                "sort_by": "-PurchaseDate"
-            })))
-            .await
-            .map_err(|_| provider_private_failure("library request"))?;
-        let titles = parse_library_titles(&payload);
+        let titles = load_all_library_titles(&client).await?;
         Ok(RemoteLibraryResponse {
             provider_id: ProviderId::Audible,
             titles,
@@ -378,15 +339,11 @@ impl AudibleProvider {
                     });
                 }
                 Err(error) => {
-                    if matches!(error, AppError::Cancellation(_)) {
-                        return Err(error);
+                    if error.is_cancellation() {
+                        return Err(error.into_app_error());
                     }
-                    let kind = diagnostic_kind_for_acquire_error(&error);
-                    job.diagnostics.push(RemoteSourceDiagnostic {
-                        kind,
-                        title_id: Some(selection.title_id.clone()),
-                        message: error.to_string(),
-                    });
+                    job.diagnostics
+                        .push(error.into_diagnostic(Some(selection.title_id.clone())));
                 }
             }
         }
@@ -405,21 +362,87 @@ impl AudibleProvider {
     }
 }
 
-fn diagnostic_kind_for_acquire_error(error: &AppError) -> RemoteAcquisitionFailureKind {
-    let message = error.to_string();
-    if matches!(error, AppError::FileValidation(_)) {
-        return RemoteAcquisitionFailureKind::ValidationFailed;
+async fn load_all_library_titles(client: &AudibleClient) -> Result<Vec<RemoteTitle>> {
+    let mut titles = Vec::new();
+    let mut seen_title_ids = HashSet::new();
+
+    let first_payload = fetch_library_page(client, None).await?;
+    let (first_count, first_new_count) =
+        append_unique_library_titles(&mut titles, &mut seen_title_ids, &first_payload);
+    log::info!(
+        "remote_source audible stage=library_page page=default titles={} new_titles={}",
+        first_count,
+        first_new_count
+    );
+    if first_count < AUDIBLE_LIBRARY_PAGE_SIZE as usize {
+        return Ok(titles);
     }
-    if message.contains("Remote source download") || message.contains("Audible download") {
-        return RemoteAcquisitionFailureKind::DownloadFailed;
+
+    for page in 1..=MAX_AUDIBLE_LIBRARY_PAGES {
+        let payload = fetch_library_page(client, Some(page)).await?;
+        let (page_count, new_count) =
+            append_unique_library_titles(&mut titles, &mut seen_title_ids, &payload);
+        log::info!(
+            "remote_source audible stage=library_page page={} titles={} new_titles={}",
+            page,
+            page_count,
+            new_count
+        );
+
+        if !should_continue_library_pagination(page, page_count, new_count) {
+            return Ok(titles);
+        }
     }
-    if message.contains("Audible license") || message.contains("license response") {
-        return RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed;
+
+    Err(AppError::General(format!(
+        "Audible library scan exceeded ABB's pagination safety limit of {MAX_AUDIBLE_LIBRARY_PAGES} pages. No partial library was loaded."
+    )))
+}
+
+async fn fetch_library_page(client: &AudibleClient, page: Option<u16>) -> Result<Value> {
+    client
+        .get_library(Some(library_request_params(page)))
+        .await
+        .map_err(|_| provider_private_failure("library request"))
+}
+
+fn append_unique_library_titles(
+    titles: &mut Vec<RemoteTitle>,
+    seen_title_ids: &mut HashSet<String>,
+    payload: &Value,
+) -> (usize, usize) {
+    let page_titles = parse_library_titles(payload);
+    let page_count = page_titles.len();
+    let mut new_count = 0;
+
+    for title in page_titles {
+        if seen_title_ids.insert(title.title_id.clone()) {
+            titles.push(title);
+            new_count += 1;
+        }
     }
-    if message.contains("AAXClean") {
-        return RemoteAcquisitionFailureKind::MaterializationFailed;
+
+    (page_count, new_count)
+}
+
+fn should_continue_library_pagination(page: u16, page_count: usize, new_count: usize) -> bool {
+    if page_count < AUDIBLE_LIBRARY_PAGE_SIZE as usize {
+        return false;
     }
-    RemoteAcquisitionFailureKind::MaterializationFailed
+
+    page == 1 || new_count > 0
+}
+
+fn library_request_params(page: Option<u16>) -> Value {
+    let mut params = json!({
+        "num_results": AUDIBLE_LIBRARY_PAGE_SIZE,
+        "response_groups": "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,is_visible,is_playable,is_downloaded,is_finished,is_archived,is_returnable,origin_asin",
+        "sort_by": "-PurchaseDate"
+    });
+    if let Some(page) = page {
+        params["page"] = json!(page);
+    }
+    params
 }
 
 fn client_from_vault(vault: &dyn SecretVault) -> Result<AudibleClient> {
@@ -440,28 +463,6 @@ fn client_from_auth(auth: Auth) -> Result<AudibleClient> {
         .map_err(|error| AppError::General(format!("Failed to create Audible client: {error}")))
 }
 
-fn license_decrypt_context_from_auth(auth: &Auth) -> Option<AudibleLicenseDecryptContext> {
-    let device_type =
-        find_first_string_for_key(&auth.device_registration.device_info, "device_type")
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| AUDIBLE_IOS_DEVICE_TYPE.to_string());
-    let device_serial = find_first_string_for_key(
-        &auth.device_registration.device_info,
-        "device_serial_number",
-    )
-    .filter(|value| !value.is_empty())
-    .unwrap_or_else(|| auth.device_registration.device_serial.clone());
-    let amazon_account_id =
-        find_first_string_for_key(&auth.device_registration.customer_info, "user_id")
-            .filter(|value| !value.is_empty())?;
-
-    Some(AudibleLicenseDecryptContext {
-        device_type,
-        device_serial,
-        amazon_account_id,
-    })
-}
-
 fn extract_audible_auth_code(response_url: &str) -> Result<String> {
     extract_auth_code(response_url).map_err(|_| {
         AppError::InvalidInput(
@@ -478,8 +479,8 @@ async fn acquire_one(
     request: TitleAcquisitionRequest<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
-) -> Result<AcquiredTitle> {
-    ensure_not_cancelled(is_cancelled)?;
+) -> AudibleAcquisitionResult<AcquiredTitle> {
+    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
     let TitleAcquisitionRequest {
         title_id,
         include_pdf,
@@ -489,7 +490,8 @@ async fn acquire_one(
         progress_context,
     } = request;
     let item_id = uuid::Uuid::new_v4().to_string();
-    let item_dir = staging::create_item_dir(job_dir, &item_id)?;
+    let item_dir = staging::create_item_dir(job_dir, &item_id)
+        .map_err(AudibleAcquisitionError::materialization)?;
     let ctx = TitleAcquisitionCtx {
         job_id,
         title_id,
@@ -510,10 +512,13 @@ async fn acquire_one(
         None,
         None,
     ));
-    let title_details = lookup_title_details(client, ctx, include_pdf, is_cancelled).await?;
+    let title_details = lookup_title_details(client, ctx, include_pdf, is_cancelled)
+        .await
+        .map_err(AudibleAcquisitionError::provider_protocol)?;
     let title_name = title_details.title.as_deref();
-    let lane =
-        request_license_lane(client, ctx, license_decrypt_context, progress, is_cancelled).await?;
+    let lane = request_license_lane(client, ctx, license_decrypt_context, progress, is_cancelled)
+        .await
+        .map_err(AudibleAcquisitionError::provider_protocol)?;
     if let Some(unsupported) = unsupported_result_for_unmaterializable_lane(title_id, job_id, &lane)
     {
         return Ok(unsupported);
@@ -531,8 +536,9 @@ async fn acquire_one(
         progress,
         is_cancelled,
     )
-    .await?;
-    ensure_not_cancelled(is_cancelled)?;
+    .await
+    .map_err(AudibleAcquisitionError::download)?;
+    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
     progress(title_progress(
         progress_context,
         AcquisitionStage::Validation,
@@ -552,9 +558,11 @@ async fn acquire_one(
             progress,
             is_cancelled,
         )
-        .await?
+        .await
+        .map_err(AudibleAcquisitionError::materialization)?
     };
-    let file = validate_materialized_audio(&materialized_path, ctx, progress)?;
+    let file = validate_materialized_audio(&materialized_path, ctx, progress)
+        .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
         supplemental_pdf_hint_present_for_acquisition(include_pdf, &title_details, &lane);
     let (assets, diagnostics) = download_supplemental_pdf_if_requested(
@@ -571,103 +579,6 @@ async fn acquire_one(
         file: Some(file),
         assets,
         diagnostics,
-    })
-}
-
-async fn lookup_title_details(
-    client: &AudibleClient,
-    ctx: TitleAcquisitionCtx<'_>,
-    include_pdf: bool,
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<AudibleTitleDetails> {
-    ensure_not_cancelled(is_cancelled)?;
-    let metadata = client
-        .get_library_item_by_asin(
-            ctx.title_id,
-            Some(json!({
-                "response_groups": "product_desc,product_attrs,contributors,media,pdf_url,product_details"
-            })),
-        )
-        .await
-        .map_err(|_| provider_private_failure("title lookup"))?;
-    ensure_not_cancelled(is_cancelled)?;
-    let title =
-        find_first_string_for_key(&metadata, "title").filter(|value| !value.trim().is_empty());
-    let supplemental_pdf_url = include_pdf
-        .then(|| {
-            find_first_string_for_key(&metadata, "pdf_url")
-                .or_else(|| find_first_string_for_key(&metadata, "pdfUrl"))
-        })
-        .flatten();
-    Ok(AudibleTitleDetails {
-        title,
-        supplemental_pdf_url,
-    })
-}
-
-async fn request_license_lane(
-    client: &AudibleClient,
-    ctx: TitleAcquisitionCtx<'_>,
-    license_decrypt_context: Option<&AudibleLicenseDecryptContext>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<LicenseLane> {
-    let TitleAcquisitionCtx {
-        job_id,
-        title_id,
-        progress_context,
-        ..
-    } = ctx;
-    ensure_not_cancelled(is_cancelled)?;
-    progress(title_progress(
-        progress_context,
-        AcquisitionStage::License,
-        Some(0.45),
-        None,
-        None,
-    ));
-    let license_payload = license_request_payload();
-    let license = post_license_request_json(client, title_id, &license_payload, job_id).await?;
-    ensure_not_cancelled(is_cancelled)?;
-    let facts = license_facts_from_value(&license);
-    let strategy = choose_acquisition_strategy(&facts);
-    log_license_facts(job_id, title_id, &facts, strategy);
-    let Some(content_url) = facts.content_url.as_deref() else {
-        log::warn!(
-            "remote_source audible stage=license_classification job_id={} title_ref={} lane=provider_protocol_failed reason=missing_download_url",
-            job_id,
-            title_ref(title_id)
-        );
-        return Ok(LicenseLane {
-            content_url: String::new(),
-            strategy: AcquisitionStrategy::ProviderProtocolFailed,
-            decryption_material: None,
-            supplemental_pdf_url: facts.supplemental_pdf_url,
-        });
-    };
-
-    Ok(LicenseLane {
-        content_url: content_url.to_string(),
-        strategy,
-        decryption_material: {
-            let material = audible_decryption_material_from_license(
-                &license,
-                strategy,
-                title_id,
-                license_decrypt_context,
-            );
-            log_missing_license_material(
-                job_id,
-                title_id,
-                &license,
-                &facts,
-                strategy,
-                license_decrypt_context.is_some(),
-                material.is_some(),
-            );
-            material
-        },
-        supplemental_pdf_url: facts.supplemental_pdf_url,
     })
 }
 
@@ -725,16 +636,6 @@ fn unsupported_result_for_unmaterializable_lane(
     }
 }
 
-fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {
-    if strategy == AcquisitionStrategy::ProviderProtocolFailed {
-        return "Audible license response did not include a downloadable audio URL.".to_string();
-    }
-    format!(
-        "Audible returned {}; ABB cannot materialize this lane in the current build.",
-        strategy_label(strategy)
-    )
-}
-
 fn supplemental_pdf_hint_present_for_acquisition(
     include_pdf: bool,
     title_details: &AudibleTitleDetails,
@@ -744,83 +645,8 @@ fn supplemental_pdf_hint_present_for_acquisition(
         && (title_details.supplemental_pdf_url.is_some() || lane.supplemental_pdf_url.is_some())
 }
 
-async fn materialize_protected_download(
-    materializer: &AaxcleanMaterializer,
-    downloaded_path: &Path,
-    title_name: Option<&str>,
-    lane: &LicenseLane,
-    ctx: TitleAcquisitionCtx<'_>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<std::path::PathBuf> {
-    let TitleAcquisitionCtx {
-        job_id,
-        title_id,
-        item_id,
-        item_dir,
-        progress_context,
-    } = ctx;
-    let Some((helper_lane, secret)) = helper_material_from_audible_material(lane) else {
-        log::warn!(
-            "remote_source audible stage=materializer_failed job_id={} title_ref={} item_id={} category=decryption_material",
-            job_id,
-            title_ref(title_id),
-            item_id
-        );
-        cleanup_download_artifacts(downloaded_path)?;
-        return Err(provider_private_failure("AAXClean decryption material"));
-    };
-    progress(title_progress(
-        progress_context,
-        AcquisitionStage::Decryption,
-        Some(0.0),
-        None,
-        None,
-    ));
-    let output_path = staged_materialized_path(item_dir, title_name, title_id);
-    let output_temp_path = materializer_output_temp_path(&output_path);
-    let mut materializer_progress = |progress_event: AcquisitionProgress| {
-        progress(with_title_progress(progress_event, progress_context));
-    };
-    let result = materializer
-        .materialize(
-            MaterializationRequest {
-                job_id: job_id.to_string(),
-                operation_id: item_id.to_string(),
-                lane: helper_lane,
-                input_path: downloaded_path.to_path_buf(),
-                output_temp_path,
-                output_path: output_path.clone(),
-                secret,
-            },
-            &mut materializer_progress,
-            is_cancelled,
-        )
-        .await;
-    let protected_cleanup = cleanup_download_artifacts(downloaded_path);
-    match result {
-        Ok(path) => {
-            if protected_cleanup.is_err() {
-                let _ = cleanup_download_artifacts(&output_path);
-                return Err(provider_private_failure("staged protected cleanup"));
-            }
-            Ok(path)
-        }
-        Err(error) => {
-            let _ = protected_cleanup;
-            let _ = cleanup_download_artifacts(&output_path);
-            if matches!(error, AppError::Cancellation(_)) {
-                return Err(error);
-            }
-            log::warn!(
-                "remote_source audible stage=materialization_failed job_id={} title_ref={} lane={}",
-                job_id,
-                title_ref(title_id),
-                strategy_label(lane.strategy)
-            );
-            Err(error)
-        }
-    }
+fn requested_supplemental_pdf_is_required(include_pdf: bool, api_pdf_hint_present: bool) -> bool {
+    include_pdf && api_pdf_hint_present
 }
 
 fn validate_materialized_audio(
@@ -865,7 +691,7 @@ async fn download_supplemental_pdf_if_requested(
     api_pdf_hint_present: bool,
     ctx: TitleAcquisitionCtx<'_>,
     is_cancelled: &impl Fn() -> bool,
-) -> Result<(Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>)> {
+) -> AudibleAcquisitionResult<(Vec<SupplementalAsset>, Vec<RemoteSourceDiagnostic>)> {
     let TitleAcquisitionCtx {
         job_id,
         title_id,
@@ -873,13 +699,17 @@ async fn download_supplemental_pdf_if_requested(
         ..
     } = ctx;
     let mut assets = Vec::new();
-    let mut diagnostics = Vec::new();
+    let diagnostics = Vec::new();
     if !include_pdf {
-        ensure_not_cancelled(is_cancelled)?;
+        ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
         return Ok((assets, diagnostics));
     }
 
-    ensure_not_cancelled(is_cancelled)?;
+    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    if !requested_supplemental_pdf_is_required(include_pdf, api_pdf_hint_present) {
+        return Ok((assets, diagnostics));
+    }
+
     let supplemental_file_name = supplemental_pdf_display_file_name(title_name, title_id);
     match download_supplemental_pdf(
         SupplementalPdfRequest {
@@ -897,77 +727,29 @@ async fn download_supplemental_pdf_if_requested(
     {
         Ok(asset) => assets.push(asset),
         Err(failure) if failure.category == "cancelled" => {
-            return Err(remote_acquisition_cancelled())
+            return Err(AudibleAcquisitionError::cancellation(
+                remote_acquisition_cancelled(),
+            ))
         }
         Err(failure) => {
             log_supplemental_pdf_failed(job_id, title_id, failure);
-            diagnostics.push(RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::SupplementalPdfFailed,
-                title_id: Some(title_id.to_string()),
-                message: supplemental_pdf_failure_message(failure),
-            });
-            ensure_not_cancelled(is_cancelled)?;
-            return Ok((assets, diagnostics));
+            let _ = cleanup_download_artifacts(&file.path);
+            return Err(AudibleAcquisitionError::supplemental_pdf(
+                AppError::General(required_supplemental_pdf_failure_message(failure)),
+            ));
         }
     }
-    ensure_not_cancelled(is_cancelled)?;
+    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
     Ok((assets, diagnostics))
 }
 
-async fn download_audio(
-    content_url: &str,
-    path: &Path,
-    ctx: TitleAcquisitionCtx<'_>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<()> {
-    let TitleAcquisitionCtx {
-        job_id,
-        title_id,
-        progress_context,
-        ..
-    } = ctx;
-    ensure_not_cancelled(is_cancelled)?;
-    let extension = path
-        .extension()
-        .map(|value| value.to_string_lossy())
-        .unwrap_or_else(|| std::borrow::Cow::Borrowed("bin"));
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    log::info!(
-        "remote_source audible stage=download_start job_id={} title_ref={} extension={}",
-        job_id,
-        title_ref(title_id),
-        extension
-    );
-    let mut download_progress = |progress_event: AcquisitionProgress| {
-        progress(with_title_progress(progress_event, progress_context));
-    };
-    let bytes = download_to_path(
-        content_url,
-        path,
-        Some(DownloadLogContext {
-            job_id,
-            title_id,
-            extension: &extension,
-        }),
-        &mut download_progress,
-        is_cancelled,
+fn required_supplemental_pdf_failure_message(
+    failure: supplemental_pdf::SupplementalPdfFailure,
+) -> String {
+    format!(
+        "{} The audiobook was not imported because the requested Supplemental PDF is required for this Audible title.",
+        supplemental_pdf_failure_message(failure)
     )
-    .await?;
-    if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
-        cleanup_download_artifacts(path)?;
-        return Err(error);
-    }
-    log::info!(
-        "remote_source audible stage=download_complete job_id={} title_ref={} extension={} bytes={}",
-        job_id,
-        title_ref(title_id),
-        extension,
-        bytes
-    );
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1049,568 +831,89 @@ fn staged_materialized_path(
     ))
 }
 
-fn materializer_output_temp_path(path: &Path) -> std::path::PathBuf {
-    path.with_extension("m4b.partial")
-}
-
-fn helper_material_from_audible_material(
-    lane: &LicenseLane,
-) -> Option<(AaxcleanLane, AaxcleanSecret)> {
-    match lane.decryption_material.as_ref()? {
-        AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex,
-        } => Some((
-            AaxcleanLane::Aax,
-            AaxcleanSecret::Aax {
-                activation_bytes_hex: activation_bytes_hex.clone(),
-            },
-        )),
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => Some((
-            AaxcleanLane::Aaxc,
-            AaxcleanSecret::Aaxc {
-                key_hex: key_hex.clone(),
-                iv_hex: iv_hex.clone(),
-            },
-        )),
-    }
-}
-
-fn log_missing_license_material(
-    job_id: &str,
-    title_id: &str,
-    license: &Value,
-    facts: &LicenseFacts,
-    strategy: AcquisitionStrategy,
-    decrypt_context_present: bool,
-    material_present: bool,
-) {
-    if material_present {
-        return;
-    }
-    if !matches!(
-        strategy,
-        AcquisitionStrategy::DownloadThenDecryptAax | AcquisitionStrategy::DownloadThenDecryptAaxc
-    ) {
-        return;
-    }
-    log::warn!(
-        "remote_source audible stage=license_material_extraction job_id={} title_ref={} strategy={} provider_material_hint={} license_response_present={} content_license_asin_present={} decrypt_context_present={} material_extracted=false",
-        job_id,
-        title_ref(title_id),
-        strategy_label(strategy),
-        facts.decryption_material_present,
-        find_first_string_for_keys(license, &["license_response", "licenseResponse"]).is_some(),
-        find_first_string_for_keys(license, &["asin", "Asin"]).is_some(),
-        decrypt_context_present
-    );
-}
-
-fn cleanup_download_artifacts(path: &Path) -> Result<()> {
-    let partial_path = partial_download_path(path);
-    for candidate in [partial_path.as_path(), path] {
-        if candidate.exists() {
-            fs::remove_file(candidate)?;
-        }
-    }
-    Ok(())
-}
-
-async fn download_to_path(
-    url: &str,
-    path: &Path,
-    log_context: Option<DownloadLogContext<'_>>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<u64> {
-    ensure_not_cancelled(is_cancelled)?;
-    let parsed = reqwest::Url::parse(url).map_err(|_| provider_private_failure("download URL"))?;
-    if parsed.scheme() != "https" {
-        return Err(AppError::InvalidInput(
-            "Remote source download URL must use https.".to_string(),
-        ));
-    }
-
-    // Guard removes the partial on any early return; the final path only exists
-    // after the rename below, immediately before `commit`, so it is never left
-    // behind on error.
-    let staged = StagedTempFile::new(path);
-    let _ = tokio::fs::remove_file(staged.partial_path()).await;
-    let bytes = download_to_partial_path(
-        parsed,
-        staged.partial_path(),
-        log_context,
-        progress,
-        is_cancelled,
-    )
-    .await?;
-    ensure_not_cancelled(is_cancelled)?;
-    tokio::fs::rename(staged.partial_path(), path).await?;
-    staged.commit();
-    Ok(bytes)
-}
-
-fn license_request_payload() -> Value {
-    json!({
-        "quality": "High",
-        "response_groups": "last_position_heard,pdf_url,content_reference,chapter_info",
-        "consumption_type": "Download",
-        "tenant_id": "Audible",
-        "spatial": false,
-        "supported_media_features": {
-            "drm_types": ["Adrm", "Mpeg"],
-            "codecs": ["mp4a.40.2"],
-            "chapter_titles_type": "Tree",
-            "previews": false,
-            "catalog_samples": false
-        }
-    })
-}
-
-struct LicenseRequestSpec<'a> {
-    method: &'static str,
-    url: String,
-    body: &'a Value,
-}
-
-fn license_request_spec<'a>(title_id: &str, payload: &'a Value) -> LicenseRequestSpec<'a> {
-    LicenseRequestSpec {
-        method: "POST",
-        url: format!("https://api.audible.{DOMAIN}/1.0/content/{title_id}/licenserequest"),
-        body: payload,
-    }
-}
-
-fn build_license_request(title_id: &str, payload: &Value) -> Result<audible_reqwest::Request> {
-    let spec = license_request_spec(title_id, payload);
-    let request = match spec.method {
-        "POST" => audible_reqwest::Client::new()
-            .post(spec.url)
-            .json(spec.body),
-        _ => return Err(provider_private_failure("license request method")),
-    };
-    request
-        .build()
-        .map_err(|_| provider_private_failure("license request construction"))
-}
-
-async fn post_license_request_json(
-    client: &AudibleClient,
-    title_id: &str,
-    payload: &Value,
-    job_id: &str,
-) -> Result<Value> {
-    log::info!(
-        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json",
-        job_id,
-        title_ref(title_id)
-    );
-    let request = build_license_request(title_id, payload)?;
-    let response = client.send_request(request).await.map_err(|_| {
-        log::warn!(
-            "remote_source audible stage=license_request_failed job_id={} title_ref={} failure=send_request",
-            job_id,
-            title_ref(title_id)
-        );
-        provider_private_failure("license request")
-    })?;
-    let status = response.status();
-    log::info!(
-        "remote_source audible stage=license_request_status job_id={} title_ref={} http_status={}",
-        job_id,
-        title_ref(title_id),
-        status.as_u16()
-    );
-    if !status.is_success() {
-        return Err(AppError::General(format!(
-            "Audible license request returned HTTP {}. Check application logs for sanitized acquisition facts.",
-            status.as_u16()
-        )));
-    }
-    response.json().await.map_err(|_| {
-        log::warn!(
-            "remote_source audible stage=license_response_failed job_id={} title_ref={} failure=json_parse",
-            job_id,
-            title_ref(title_id)
-        );
-        provider_private_failure("license response parse")
-    })
-}
-
-fn log_license_facts(
-    job_id: &str,
-    title_id: &str,
-    facts: &LicenseFacts,
-    strategy: AcquisitionStrategy,
-) {
-    log::info!(
-        "remote_source audible stage=license_classification job_id={} title_ref={} content_url_present={} container={:?} protection={:?} drm={} decryption_material_present={} supplemental_pdf_present={} strategy={}",
-        job_id,
-        title_ref(title_id),
-        facts.content_url.is_some(),
-        facts.media_container,
-        facts.media_protection,
-        drm_log_label(facts.drm_kind.as_deref()),
-        facts.decryption_material_present,
-        facts.supplemental_pdf_url.is_some(),
-        strategy_label(strategy)
-    );
-}
-
-fn drm_log_label(drm_kind: Option<&str>) -> &'static str {
-    match drm_kind {
-        Some(kind) if kind.eq_ignore_ascii_case("widevine") => "widevine",
-        Some(_) => "present",
-        None => "absent",
-    }
-}
-
-fn strategy_label(strategy: AcquisitionStrategy) -> &'static str {
-    match strategy {
-        AcquisitionStrategy::DownloadImportReady => "import-ready-m4b",
-        AcquisitionStrategy::DownloadThenDecryptAax => "aax-requires-materializer",
-        AcquisitionStrategy::DownloadThenDecryptAaxc => "aaxc-requires-materializer",
-        AcquisitionStrategy::DownloadThenDecryptDash => "dash-requires-materializer",
-        AcquisitionStrategy::ProtectedUnsupported => "protected-unsupported",
-        AcquisitionStrategy::ProviderProtocolFailed => "provider-protocol-failed",
-    }
-}
-
-async fn download_to_partial_path(
-    url: reqwest::Url,
-    path: &Path,
-    log_context: Option<DownloadLogContext<'_>>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<u64> {
-    ensure_not_cancelled(is_cancelled)?;
-    let client = remote_download_client()?;
-    let mut state = DownloadProgress::default();
-    let can_resume = log_context.is_some();
-
-    for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
-        ensure_not_cancelled(is_cancelled)?;
-        let outcome = run_download_attempt(
-            &client,
-            &url,
-            path,
-            &mut state,
-            log_context,
-            progress,
-            is_cancelled,
-        )
-        .await?;
-        match outcome {
-            AttemptOutcome::Complete => return Ok(state.bytes_downloaded),
-            AttemptOutcome::ReadFailed => {
-                if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
-                    continue;
-                }
-                log_download_failed(
-                    log_context,
-                    "read",
-                    state.bytes_downloaded,
-                    state.bytes_total,
-                    None,
-                );
-                return Err(download_failure("read"));
-            }
-            AttemptOutcome::Incomplete => {
-                if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
-                    continue;
-                }
-                break;
-            }
-        }
-    }
-
-    log_download_failed(
-        log_context,
-        "incomplete",
-        state.bytes_downloaded,
-        state.bytes_total,
-        None,
-    );
-    Err(download_failure("incomplete"))
-}
-
-#[derive(Default)]
-struct DownloadProgress {
-    bytes_downloaded: u64,
-    bytes_total: Option<u64>,
-    first_bytes_logged: bool,
-}
-
-enum AttemptOutcome {
-    Complete,
-    ReadFailed,
-    Incomplete,
-}
-
-/// Run a single download attempt: send the (optionally ranged) request, classify
-/// the response, then stream the body into `path`. Returns the attempt outcome;
-/// `Err` is reserved for terminal failures (request/status/IO) that must not be
-/// retried.
-async fn run_download_attempt(
-    client: &reqwest::Client,
-    url: &reqwest::Url,
-    path: &Path,
-    state: &mut DownloadProgress,
-    log_context: Option<DownloadLogContext<'_>>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<AttemptOutcome> {
-    log_download_request_start(log_context, state.bytes_downloaded);
-    let request = if log_context.is_some() {
-        build_download_request(client, url.clone(), state.bytes_downloaded)
-    } else {
-        client.get(url.clone())
-    };
-    let mut response = match request.send().await {
-        Ok(response) => response,
-        Err(_) => {
-            log_download_failed(
-                log_context,
-                "request",
-                state.bytes_downloaded,
-                state.bytes_total,
-                None,
-            );
-            return Err(download_failure("request"));
-        }
-    };
-    ensure_not_cancelled(is_cancelled)?;
-
-    let status = response.status();
-    let content_range = response
-        .headers()
-        .get(CONTENT_RANGE)
-        .and_then(|value| value.to_str().ok());
-    let final_url_is_https = response.url().scheme() == "https";
-    let response_total = match classify_download_response_for_mode(
-        log_context.is_some(),
-        status.as_u16(),
-        final_url_is_https,
-        state.bytes_downloaded,
-        response.content_length(),
-        content_range,
-    ) {
-        Ok(total) => total,
-        Err(error) => {
-            log_download_failed(
-                log_context,
-                "status",
-                state.bytes_downloaded,
-                state.bytes_total,
-                Some(status),
-            );
-            return Err(map_download_response_error(error));
-        }
-    };
-    state.bytes_total = response_total.or(state.bytes_total);
-    log_download_request_status(
-        log_context,
-        status,
-        state.bytes_downloaded,
-        state.bytes_total,
-    );
-
-    let mut file = tokio::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .await?;
-    let read_failed = stream_download_chunks(
-        &mut response,
-        &mut file,
-        state,
-        log_context,
-        progress,
-        is_cancelled,
-    )
-    .await?;
-    file.sync_all().await?;
-    if read_failed {
-        return Ok(AttemptOutcome::ReadFailed);
-    }
-    ensure_not_cancelled(is_cancelled)?;
-    if state
-        .bytes_total
-        .is_none_or(|total| state.bytes_downloaded >= total)
-        && state.bytes_downloaded > 0
-    {
-        return Ok(AttemptOutcome::Complete);
-    }
-    Ok(AttemptOutcome::Incomplete)
-}
-
-/// Stream one HTTP response body into the append-mode `file`, updating progress
-/// and the running byte counters. Returns `true` if the body read failed midway
-/// (a resumable condition handled by the caller's retry loop).
-async fn stream_download_chunks(
-    response: &mut reqwest::Response,
-    file: &mut tokio::fs::File,
-    state: &mut DownloadProgress,
-    log_context: Option<DownloadLogContext<'_>>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-    is_cancelled: &impl Fn() -> bool,
-) -> Result<bool> {
-    loop {
-        let chunk = match response.chunk().await {
-            Ok(Some(chunk)) => chunk,
-            Ok(None) => break,
-            Err(_) => return Ok(true),
-        };
-        ensure_not_cancelled(is_cancelled)?;
-        if chunk.is_empty() {
-            continue;
-        }
-        state.bytes_downloaded += chunk.len() as u64;
-        if !state.first_bytes_logged {
-            state.first_bytes_logged = true;
-            log_download_progress_first_bytes(
-                log_context,
-                state.bytes_downloaded,
-                state.bytes_total,
-            );
-        }
-        file.write_all(&chunk).await?;
-        let fraction = state
-            .bytes_total
-            .filter(|total| *total > 0)
-            .map(|total| state.bytes_downloaded as f32 / total as f32)
-            .unwrap_or(0.2);
-        progress(acquisition_progress(
-            AcquisitionStage::Download,
-            Some(fraction),
-            Some(state.bytes_downloaded),
-            state.bytes_total,
-        ));
-    }
-    Ok(false)
-}
-
-fn build_download_request(
-    client: &reqwest::Client,
-    url: reqwest::Url,
-    offset: u64,
-) -> reqwest::RequestBuilder {
-    client
-        .get(url)
-        .header(USER_AGENT, AUDIBLE_DOWNLOAD_USER_AGENT)
-        .header(RANGE, format!("bytes={offset}-"))
-}
-
-fn log_download_request_start(context: Option<DownloadLogContext<'_>>, offset: u64) {
-    let Some(context) = context else {
-        return;
-    };
-    log::info!(
-        "remote_source audible stage=download_request_start job_id={} title_ref={} extension={} bytes={}",
-        context.job_id,
-        title_ref(context.title_id),
-        context.extension,
-        offset
-    );
-}
-
-fn log_download_request_status(
-    context: Option<DownloadLogContext<'_>>,
-    status: reqwest::StatusCode,
-    bytes_downloaded: u64,
-    bytes_total: Option<u64>,
-) {
-    let Some(context) = context else {
-        return;
-    };
-    log::info!(
-        "remote_source audible stage=download_request_status job_id={} title_ref={} extension={} http_status={} bytes={} bytes_total={}",
-        context.job_id,
-        title_ref(context.title_id),
-        context.extension,
-        status.as_u16(),
-        bytes_downloaded,
-        bytes_total.unwrap_or(0)
-    );
-}
-
-fn log_download_progress_first_bytes(
-    context: Option<DownloadLogContext<'_>>,
-    bytes_downloaded: u64,
-    bytes_total: Option<u64>,
-) {
-    let Some(context) = context else {
-        return;
-    };
-    log::info!(
-        "remote_source audible stage=download_progress_first_bytes job_id={} title_ref={} extension={} bytes={} bytes_total={}",
-        context.job_id,
-        title_ref(context.title_id),
-        context.extension,
-        bytes_downloaded,
-        bytes_total.unwrap_or(0)
-    );
-}
-
-fn log_download_failed(
-    context: Option<DownloadLogContext<'_>>,
-    category: &str,
-    bytes_downloaded: u64,
-    bytes_total: Option<u64>,
-    status: Option<reqwest::StatusCode>,
-) {
-    let Some(context) = context else {
-        return;
-    };
-    log::warn!(
-        "remote_source audible stage=download_failed job_id={} title_ref={} extension={} category={} http_status={} bytes={} bytes_total={}",
-        context.job_id,
-        title_ref(context.title_id),
-        context.extension,
-        category,
-        status.map(|status| status.as_u16()).unwrap_or(0),
-        bytes_downloaded,
-        bytes_total.unwrap_or(0)
-    );
-}
-
-fn remote_download_client() -> Result<reqwest::Client> {
-    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-        if attempt.previous().len() >= MAX_DOWNLOAD_REDIRECTS {
-            return attempt.error("remote source download exceeded redirect limit");
-        }
-        if attempt.url().scheme() != "https" {
-            return attempt.error("remote source download redirect must use https");
-        }
-        attempt.follow()
-    });
-    reqwest::Client::builder()
-        .redirect(redirect_policy)
-        .build()
-        .map_err(|_| provider_private_failure("download client"))
-}
-
 fn generated_staging_path(job_dir: &Path, extension: &str) -> std::path::PathBuf {
     job_dir.join(format!("{}.{}", uuid::Uuid::new_v4(), extension))
 }
 
-fn partial_download_path(path: &Path) -> std::path::PathBuf {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(|extension| format!("{extension}.partial"))
-        .unwrap_or_else(|| "partial".to_string());
-    path.with_extension(extension)
-}
-
 fn sha256_file(path: &Path) -> Result<String> {
-    let bytes = fs::read(path)?;
-    Ok(abb_media_core::sha256_hex(&bytes))
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let bytes_read = file.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]
 mod tests {
+    use super::audio_download::{
+        build_download_request, download_status_failure, download_to_path, partial_download_path,
+    };
+    use super::license::{license_request_payload, license_request_spec};
+    use super::materialization::helper_material_from_audible_material;
     use super::*;
+    use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret};
+    use abb_audible_core::audible_decryption_material_from_license;
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use reqwest::header::{RANGE, USER_AGENT};
+    use std::collections::HashMap;
+
+    fn fixture_auth_without_pdf_cookies() -> Auth {
+        Auth {
+            locale: localization::find_by_country_code(COUNTRY_CODE).expect("locale"),
+            device_registration: audible_api::auth::register::Registration {
+                device_serial: "device-serial".to_string(),
+                client_id: "client-id".to_string(),
+                adp_token: "adp-token".to_string(),
+                device_private_key: "device-private-key".to_string(),
+                access_token: "access-token".to_string(),
+                refresh_token: "refresh-token".to_string(),
+                expires: 0,
+                website_cookies: HashMap::new(),
+                store_authentication_cookie: String::new(),
+                device_info: json!({ "device_type": AUDIBLE_IOS_DEVICE_TYPE }),
+                customer_info: json!({ "user_id": "account-1" }),
+            },
+            authorization_code: "authorization-code".to_string(),
+            code_verifier: "code-verifier".to_string(),
+        }
+    }
+
+    fn materialized_source_file(path: std::path::PathBuf) -> MaterializedSourceFile {
+        MaterializedSourceFile {
+            input_id: "input-1".to_string(),
+            title_id: "B000000001".to_string(),
+            path,
+            size_bytes: b"audio-bytes".len() as u64,
+            sha256: abb_media_core::sha256_hex(b"audio-bytes"),
+        }
+    }
+
+    fn test_title_ctx<'a>(
+        job_dir: &'a Path,
+        progress_context: TitleProgressContext<'a>,
+    ) -> TitleAcquisitionCtx<'a> {
+        TitleAcquisitionCtx {
+            job_id: "job-1",
+            title_id: "B000000001",
+            item_id: "item-1",
+            item_dir: job_dir,
+            progress_context,
+        }
+    }
+
+    fn test_progress_context() -> TitleProgressContext<'static> {
+        TitleProgressContext {
+            title_id: "B000000001",
+            item_index: 1,
+            total_items: 1,
+        }
+    }
 
     #[test]
     fn capabilities_stay_provider_neutral() {
@@ -1627,6 +930,129 @@ mod tests {
         assert!(capabilities
             .known_unsupported_reasons
             .contains(&RemoteAcquisitionFailureKind::ProtectedUnsupported));
+    }
+
+    #[test]
+    fn library_request_uses_audible_max_page_size() {
+        let params = library_request_params(None);
+
+        assert_eq!(params["num_results"], AUDIBLE_LIBRARY_PAGE_SIZE);
+        assert!(params.get("page").is_none());
+        assert_eq!(params["sort_by"], "-PurchaseDate");
+        assert!(params["response_groups"]
+            .as_str()
+            .expect("response groups")
+            .contains("pdf_url"));
+    }
+
+    #[test]
+    fn library_request_includes_availability_fields_used_for_title_status() {
+        let params = library_request_params(None);
+        let response_groups = params["response_groups"].as_str().expect("response groups");
+
+        for required_group in ["is_playable", "is_visible", "is_downloaded"] {
+            assert!(
+                response_groups
+                    .split(',')
+                    .any(|group| group == required_group),
+                "library request must ask Audible for {required_group}"
+            );
+        }
+    }
+
+    #[test]
+    fn library_request_can_include_explicit_page() {
+        let params = library_request_params(Some(2));
+
+        assert_eq!(params["num_results"], AUDIBLE_LIBRARY_PAGE_SIZE);
+        assert_eq!(params["page"], 2);
+    }
+
+    #[test]
+    fn library_pagination_dedupes_titles_by_provider_id() {
+        let mut titles = Vec::new();
+        let mut seen_title_ids = HashSet::new();
+
+        let first = library_page_payload(&["B000000001", "B000000002"]);
+        let second = library_page_payload(&["B000000002", "B000000003"]);
+
+        assert_eq!(
+            append_unique_library_titles(&mut titles, &mut seen_title_ids, &first),
+            (2, 2)
+        );
+        assert_eq!(
+            append_unique_library_titles(&mut titles, &mut seen_title_ids, &second),
+            (2, 1)
+        );
+        assert_eq!(
+            titles
+                .iter()
+                .map(|title| title.title_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["B000000001", "B000000002", "B000000003"]
+        );
+    }
+
+    #[test]
+    fn library_pagination_handles_ambiguous_first_explicit_page() {
+        assert!(
+            should_continue_library_pagination(1, AUDIBLE_LIBRARY_PAGE_SIZE as usize, 0),
+            "explicit page 1 may duplicate the default first page on one-based APIs"
+        );
+        assert!(should_continue_library_pagination(
+            2,
+            AUDIBLE_LIBRARY_PAGE_SIZE as usize,
+            1
+        ));
+        assert!(!should_continue_library_pagination(
+            2,
+            AUDIBLE_LIBRARY_PAGE_SIZE as usize,
+            0
+        ));
+        assert!(!should_continue_library_pagination(
+            1,
+            AUDIBLE_LIBRARY_PAGE_SIZE as usize - 1,
+            AUDIBLE_LIBRARY_PAGE_SIZE as usize - 1
+        ));
+    }
+
+    fn library_page_payload(title_ids: &[&str]) -> Value {
+        json!({
+            "items": title_ids
+                .iter()
+                .map(|title_id| json!({
+                    "asin": title_id,
+                    "title": format!("Remote Book {title_id}")
+                }))
+                .collect::<Vec<_>>()
+        })
+    }
+
+    #[test]
+    fn library_probe_summary_reports_sanitized_counts() {
+        let payload = json!({
+            "count": 2,
+            "state_token": "provider-private-token",
+            "items": [
+                {
+                    "asin": "B000000001",
+                    "title": "Remote Book",
+                    "details": {"pdf_url": "https://example.test/book.pdf"}
+                },
+                {
+                    "asin": "B000000002",
+                    "title": "Remote Book Without PDF"
+                }
+            ]
+        });
+
+        let summary = library_probe_summary(&payload);
+
+        assert_eq!(summary.raw_items, 2);
+        assert_eq!(summary.parsed_titles, 2);
+        assert_eq!(summary.supplemental_pdf_available, 1);
+        assert_eq!(summary.total_hint, Some(2));
+        assert!(summary.state_token_present);
     }
 
     #[test]
@@ -1754,6 +1180,357 @@ mod tests {
             .starts_with(b"%PDF-"));
     }
 
+    #[tokio::test]
+    #[ignore = "uses local keychain Audible auth and real account library metadata"]
+    async fn audible_library_live_probe() {
+        let vault = crate::remote_source::vault::KeyringSecretVault;
+        let auth = auth_from_vault(&vault).expect("Audible account must be connected");
+        let client = client_from_auth(auth).expect("Audible client");
+
+        let loaded_titles = load_all_library_titles(&client)
+            .await
+            .expect("paginated Audible library load");
+        println!(
+            "abb_paginated titles={} supplemental_pdf_available={}",
+            loaded_titles.len(),
+            loaded_titles
+                .iter()
+                .filter(|title| title.supplemental_pdf_available)
+                .count()
+        );
+
+        for (label, params) in [
+            ("default_page", library_probe_params(None, None, None)),
+            ("explicit_page_1", library_probe_params(Some(1), None, None)),
+            ("explicit_page_2", library_probe_params(Some(2), None, None)),
+            ("active", library_probe_params(None, Some("Active"), None)),
+            ("revoked", library_probe_params(None, Some("Revoked"), None)),
+            (
+                "include_pending",
+                library_probe_params(None, None, Some(true)),
+            ),
+        ] {
+            let payload = client
+                .get_library(Some(params))
+                .await
+                .unwrap_or_else(|_| panic!("{label} request"));
+            let summary = library_probe_summary(&payload);
+            println!(
+                "{label} raw_items={} parsed_titles={} supplemental_pdf_available={} total_hint={} state_token_present={}",
+                summary.raw_items,
+                summary.parsed_titles,
+                summary.supplemental_pdf_available,
+                summary
+                    .total_hint
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "none".to_string()),
+                summary.state_token_present
+            );
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "uses local keychain Audible auth and real account revoked-library metadata"]
+    async fn audible_revoked_library_live_probe() {
+        let vault = crate::remote_source::vault::KeyringSecretVault;
+        let auth = auth_from_vault(&vault).expect("Audible account must be connected");
+        let client = client_from_auth(auth).expect("Audible client");
+        let mut params = library_probe_params(None, Some("Revoked"), None);
+        params["response_groups"] = json!(
+            "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,order_details,is_visible,is_returnable,is_playable,is_removable,is_downloaded,is_finished,is_archived,origin_asin"
+        );
+
+        let payload = client
+            .get_library(Some(params))
+            .await
+            .expect("revoked library request");
+        let titles = parse_library_titles(&payload);
+        println!(
+            "revoked_probe raw_items={} parsed_titles={} supplemental_pdf_available={}",
+            first_array_len_for_keys(&payload, &["items", "products"]).unwrap_or(0),
+            titles.len(),
+            titles
+                .iter()
+                .filter(|title| title.supplemental_pdf_available)
+                .count()
+        );
+        for field in [
+            "is_visible",
+            "is_returnable",
+            "is_playable",
+            "is_removable",
+            "is_downloaded",
+            "is_finished",
+            "is_archived",
+        ] {
+            let (true_count, false_count, missing_count) = bool_field_counts(&payload, field);
+            println!(
+                "revoked_probe field={field} true={true_count} false={false_count} missing={missing_count}"
+            );
+        }
+        println!(
+            "revoked_probe item_keys={}",
+            item_key_summary(&payload, &["items", "products"])
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "uses local keychain Audible auth and real catalog/library search metadata"]
+    async fn audible_catalog_vs_library_search_live_probe() {
+        let query =
+            std::env::var("ABB_AUDIBLE_SEARCH_PROBE").unwrap_or_else(|_| "Super Powereds".into());
+        let vault = crate::remote_source::vault::KeyringSecretVault;
+        let auth = auth_from_vault(&vault).expect("Audible account must be connected");
+        let client = client_from_auth(auth).expect("Audible client");
+
+        for (label, status) in [("library_active", "Active"), ("library_revoked", "Revoked")] {
+            let mut params = library_probe_params(None, Some(status), None);
+            params["title"] = json!(query);
+            params["response_groups"] = json!(
+                "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,order_details,is_visible,is_returnable,is_playable,is_removable,is_downloaded,is_finished,is_archived,origin_asin"
+            );
+            let payload = client
+                .get_library(Some(params))
+                .await
+                .unwrap_or_else(|_| panic!("{label} request"));
+            print_entitlement_rows(label, &payload);
+        }
+
+        for (label, params) in [
+            (
+                "catalog_title",
+                json!({
+                    "title": query,
+                    "num_results": 50,
+                    "response_groups": "contributors,media,product_attrs,product_desc,product_details,product_plan_details,product_plans,rights,customer_rights,sku,series"
+                }),
+            ),
+            (
+                "catalog_keywords",
+                json!({
+                    "keywords": query,
+                    "num_results": 50,
+                    "response_groups": "contributors,media,product_attrs,product_desc,product_details,product_plan_details,product_plans,rights,customer_rights,sku,series"
+                }),
+            ),
+        ] {
+            let payload = client
+                .get_products(Some(params))
+                .await
+                .unwrap_or_else(|_| panic!("{label} request"));
+            print_entitlement_rows(label, &payload);
+        }
+    }
+
+    struct LibraryProbeSummary {
+        raw_items: usize,
+        parsed_titles: usize,
+        supplemental_pdf_available: usize,
+        total_hint: Option<u64>,
+        state_token_present: bool,
+    }
+
+    fn library_probe_params(
+        page: Option<u16>,
+        status: Option<&str>,
+        include_pending: Option<bool>,
+    ) -> Value {
+        let mut params = library_request_params(page);
+        if let Some(status) = status {
+            params["status"] = json!(status);
+        }
+        if let Some(include_pending) = include_pending {
+            params["include_pending"] = json!(include_pending);
+        }
+        params
+    }
+
+    fn library_probe_summary(payload: &Value) -> LibraryProbeSummary {
+        let titles = parse_library_titles(payload);
+        LibraryProbeSummary {
+            raw_items: first_array_len_for_keys(payload, &["items", "products"]).unwrap_or(0),
+            parsed_titles: titles.len(),
+            supplemental_pdf_available: titles
+                .iter()
+                .filter(|title| title.supplemental_pdf_available)
+                .count(),
+            total_hint: first_u64_for_keys(
+                payload,
+                &[
+                    "total_results",
+                    "totalResults",
+                    "total_count",
+                    "totalCount",
+                    "num_results",
+                    "numResults",
+                    "count",
+                ],
+            ),
+            state_token_present: first_string_for_keys(payload, &["state_token", "stateToken"])
+                .is_some(),
+        }
+    }
+
+    fn first_array_len_for_keys(value: &Value, keys: &[&str]) -> Option<usize> {
+        match value {
+            Value::Object(map) => {
+                for key in keys {
+                    if let Some(array) = map.get(*key).and_then(Value::as_array) {
+                        return Some(array.len());
+                    }
+                }
+                map.values()
+                    .find_map(|entry| first_array_len_for_keys(entry, keys))
+            }
+            Value::Array(values) => values
+                .iter()
+                .find_map(|entry| first_array_len_for_keys(entry, keys)),
+            _ => None,
+        }
+    }
+
+    fn first_u64_for_keys(value: &Value, keys: &[&str]) -> Option<u64> {
+        match value {
+            Value::Object(map) => {
+                for key in keys {
+                    if let Some(found) = map.get(*key).and_then(Value::as_u64) {
+                        return Some(found);
+                    }
+                }
+                map.values()
+                    .find_map(|entry| first_u64_for_keys(entry, keys))
+            }
+            Value::Array(values) => values
+                .iter()
+                .find_map(|entry| first_u64_for_keys(entry, keys)),
+            _ => None,
+        }
+    }
+
+    fn first_string_for_keys(value: &Value, keys: &[&str]) -> Option<String> {
+        match value {
+            Value::Object(map) => {
+                for key in keys {
+                    if let Some(found) = map.get(*key).and_then(Value::as_str) {
+                        return Some(found.to_string());
+                    }
+                }
+                map.values()
+                    .find_map(|entry| first_string_for_keys(entry, keys))
+            }
+            Value::Array(values) => values
+                .iter()
+                .find_map(|entry| first_string_for_keys(entry, keys)),
+            _ => None,
+        }
+    }
+
+    fn bool_field_counts(payload: &Value, key: &str) -> (usize, usize, usize) {
+        let Some(items) = first_array_for_keys(payload, &["items", "products"]) else {
+            return (0, 0, 0);
+        };
+        let mut true_count = 0;
+        let mut false_count = 0;
+        let mut missing_count = 0;
+        for item in items {
+            match find_first_bool_for_key(item, key) {
+                Some(true) => true_count += 1,
+                Some(false) => false_count += 1,
+                None => missing_count += 1,
+            }
+        }
+        (true_count, false_count, missing_count)
+    }
+
+    fn first_array_for_keys<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Vec<Value>> {
+        match value {
+            Value::Object(map) => {
+                for key in keys {
+                    if let Some(array) = map.get(*key).and_then(Value::as_array) {
+                        return Some(array);
+                    }
+                }
+                map.values()
+                    .find_map(|entry| first_array_for_keys(entry, keys))
+            }
+            Value::Array(values) => values
+                .iter()
+                .find_map(|entry| first_array_for_keys(entry, keys)),
+            _ => None,
+        }
+    }
+
+    fn find_first_bool_for_key(value: &Value, key: &str) -> Option<bool> {
+        match value {
+            Value::Object(map) => {
+                if let Some(found) = map.get(key).and_then(Value::as_bool) {
+                    return Some(found);
+                }
+                map.values()
+                    .find_map(|entry| find_first_bool_for_key(entry, key))
+            }
+            Value::Array(values) => values
+                .iter()
+                .find_map(|entry| find_first_bool_for_key(entry, key)),
+            _ => None,
+        }
+    }
+
+    fn item_key_summary(payload: &Value, keys: &[&str]) -> String {
+        let Some(items) = first_array_for_keys(payload, keys) else {
+            return "none".to_string();
+        };
+        let mut item_keys = std::collections::BTreeSet::new();
+        for item in items {
+            if let Some(map) = item.as_object() {
+                item_keys.extend(map.keys().cloned());
+            }
+        }
+        item_keys.into_iter().collect::<Vec<_>>().join(",")
+    }
+
+    fn print_entitlement_rows(label: &str, payload: &Value) {
+        let Some(items) = first_array_for_keys(payload, &["items", "products"]) else {
+            println!("{label} raw_items=0");
+            return;
+        };
+        println!("{label} raw_items={}", items.len());
+        for item in items.iter().take(20) {
+            println!(
+                "{label} item title={} asin={} library_status={} status={} right_type={} is_visible={} is_playable={} is_listenable={} is_downloaded={} is_ayce={} is_buyable={} is_pdf_url_available={} customer_rights_present={} plans_present={}",
+                safe_probe_string(item, "title"),
+                safe_probe_string(item, "asin"),
+                safe_probe_string(item, "library_status"),
+                safe_probe_string(item, "status"),
+                safe_probe_string(item, "right_type"),
+                safe_probe_bool(item, "is_visible"),
+                safe_probe_bool(item, "is_playable"),
+                safe_probe_bool(item, "is_listenable"),
+                safe_probe_bool(item, "is_downloaded"),
+                safe_probe_bool(item, "is_ayce"),
+                safe_probe_bool(item, "is_buyable"),
+                safe_probe_bool(item, "is_pdf_url_available"),
+                item.get("customer_rights").is_some(),
+                item.get("plans").is_some() || item.get("participation_plans").is_some()
+            );
+        }
+    }
+
+    fn safe_probe_string(item: &Value, key: &str) -> String {
+        item.get(key)
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("none")
+            .to_string()
+    }
+
+    fn safe_probe_bool(item: &Value, key: &str) -> String {
+        item.get(key)
+            .and_then(Value::as_bool)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "missing".to_string())
+    }
+
     #[test]
     fn partial_download_path_keeps_final_extension_visible() {
         let path = Path::new("/tmp/book.m4b");
@@ -1761,6 +1538,35 @@ mod tests {
         assert_eq!(
             partial_download_path(path),
             Path::new("/tmp/book.m4b.partial")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn partial_download_path_handles_non_utf8_extension_lossily() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let root = tempfile::TempDir::new().expect("temp root");
+        let path = root
+            .path()
+            .join(OsString::from_vec(b"book.\xFFm4b".to_vec()));
+
+        assert!(partial_download_path(&path)
+            .to_string_lossy()
+            .ends_with(".partial"));
+    }
+
+    #[test]
+    fn sha256_file_streams_expected_digest() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let path = root.path().join("book.m4b");
+        let bytes = b"materialized-audio";
+        std::fs::write(&path, bytes).expect("write source");
+
+        assert_eq!(
+            sha256_file(&path).expect("hash file"),
+            abb_media_core::sha256_hex(bytes)
         );
     }
 
@@ -1814,15 +1620,135 @@ mod tests {
     }
 
     #[test]
-    fn download_status_errors_map_to_download_failure_kind() {
-        let error = download_status_failure(403);
+    fn typed_acquisition_errors_map_to_diagnostics_without_message_matching() {
+        let error = AudibleAcquisitionError::download(download_status_failure(403));
+
+        assert_eq!(error.kind(), RemoteAcquisitionFailureKind::DownloadFailed);
+        let diagnostic = error.into_diagnostic(Some("B000000001".to_string()));
 
         assert_eq!(
-            diagnostic_kind_for_acquire_error(&error),
+            diagnostic.kind,
             RemoteAcquisitionFailureKind::DownloadFailed
         );
-        assert!(!error.to_string().contains("token"));
-        assert!(!error.to_string().contains("license"));
+        assert_eq!(diagnostic.title_id.as_deref(), Some("B000000001"));
+        assert!(!diagnostic.message.contains("token"));
+        assert!(!diagnostic.message.contains("license"));
+    }
+
+    #[test]
+    fn requested_supplemental_pdf_is_required_only_when_audible_advertises_one() {
+        assert!(super::requested_supplemental_pdf_is_required(true, true));
+        assert!(!super::requested_supplemental_pdf_is_required(true, false));
+        assert!(!super::requested_supplemental_pdf_is_required(false, true));
+        assert!(!super::requested_supplemental_pdf_is_required(false, false));
+    }
+
+    #[test]
+    fn required_supplemental_pdf_failure_message_keeps_provider_details_redacted() {
+        let failure = supplemental_pdf::SupplementalPdfFailure {
+            category: "status",
+            status: Some(reqwest::StatusCode::FORBIDDEN),
+        };
+        let message = required_supplemental_pdf_failure_message(failure);
+
+        assert!(message.contains("requested Supplemental PDF is required"));
+        assert!(!message.contains("B000000001"));
+        assert!(!message.contains("https://"));
+        assert!(!message.contains("403"));
+    }
+
+    #[tokio::test]
+    async fn requested_advertised_supplemental_pdf_failure_blocks_audio_handoff() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let auth = fixture_auth_without_pdf_cookies();
+        let audio_path = root.path().join("Book.m4b");
+        std::fs::write(&audio_path, b"audio-bytes").expect("write audio");
+        let file = materialized_source_file(audio_path.clone());
+        let ctx = test_title_ctx(root.path(), test_progress_context());
+
+        let error = download_supplemental_pdf_if_requested(
+            &auth,
+            &file,
+            Some("Book"),
+            true,
+            true,
+            ctx,
+            &|| false,
+        )
+        .await
+        .expect_err("advertised requested Supplemental PDF failure should fail title");
+
+        assert_eq!(
+            error.kind(),
+            RemoteAcquisitionFailureKind::SupplementalPdfFailed
+        );
+        let diagnostic = error.into_diagnostic(Some("B000000001".to_string()));
+        assert_eq!(
+            diagnostic.kind,
+            RemoteAcquisitionFailureKind::SupplementalPdfFailed
+        );
+        assert!(diagnostic
+            .message
+            .contains("requested Supplemental PDF is required"));
+        assert!(!diagnostic.message.contains("https://"));
+        assert!(!diagnostic.message.contains("B000000001"));
+        assert!(
+            !audio_path.exists(),
+            "audio handoff file should be cleaned when required PDF fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn absent_or_non_requested_supplemental_pdf_does_not_block_audio_handoff() {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let auth = fixture_auth_without_pdf_cookies();
+        let first_audio = root.path().join("Absent.pdf-hint.m4b");
+        std::fs::write(&first_audio, b"audio-bytes").expect("write audio");
+        let file = materialized_source_file(first_audio.clone());
+        let ctx = test_title_ctx(root.path(), test_progress_context());
+
+        let (assets, diagnostics) = download_supplemental_pdf_if_requested(
+            &auth,
+            &file,
+            Some("Book"),
+            true,
+            false,
+            ctx,
+            &|| false,
+        )
+        .await
+        .expect("requested but absent Supplemental PDF should not fail");
+
+        assert!(assets.is_empty());
+        assert!(diagnostics.is_empty());
+        assert!(
+            first_audio.exists(),
+            "audio handoff must remain when no Supplemental PDF was advertised"
+        );
+
+        let second_audio = root.path().join("Not requested.m4b");
+        std::fs::write(&second_audio, b"audio-bytes").expect("write audio");
+        let file = materialized_source_file(second_audio.clone());
+        let ctx = test_title_ctx(root.path(), test_progress_context());
+
+        let (assets, diagnostics) = download_supplemental_pdf_if_requested(
+            &auth,
+            &file,
+            Some("Book"),
+            false,
+            true,
+            ctx,
+            &|| false,
+        )
+        .await
+        .expect("advertised but non-requested Supplemental PDF should not fail");
+
+        assert!(assets.is_empty());
+        assert!(diagnostics.is_empty());
+        assert!(
+            second_audio.exists(),
+            "audio handoff must remain when Supplemental PDF was not requested"
+        );
     }
 
     #[test]

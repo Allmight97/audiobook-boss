@@ -22,11 +22,7 @@ impl StagedTempFile {
     pub(crate) fn new(final_path: impl Into<PathBuf>) -> Self {
         let final_path = final_path.into();
         let partial_path = partial_sibling(&final_path);
-        Self {
-            final_path,
-            partial_path,
-            committed: false,
-        }
+        Self::from_paths(final_path, partial_path)
     }
 
     /// Guard a staged output with an explicit intermediate/temp path (e.g. the
@@ -35,9 +31,17 @@ impl StagedTempFile {
         final_path: impl Into<PathBuf>,
         partial_path: impl Into<PathBuf>,
     ) -> Self {
+        Self::from_paths(final_path.into(), partial_path.into())
+    }
+
+    fn from_paths(final_path: PathBuf, partial_path: PathBuf) -> Self {
+        debug_assert_ne!(
+            final_path, partial_path,
+            "StagedTempFile final and partial paths must be distinct"
+        );
         Self {
-            final_path: final_path.into(),
-            partial_path: partial_path.into(),
+            final_path,
+            partial_path,
             committed: false,
         }
     }
@@ -59,7 +63,9 @@ impl StagedTempFile {
 
 impl Drop for StagedTempFile {
     fn drop(&mut self) {
-        let _ = remove_if_present(&self.partial_path);
+        if self.partial_path != self.final_path {
+            let _ = remove_if_present(&self.partial_path);
+        }
         if !self.committed {
             let _ = remove_if_present(&self.final_path);
         }
@@ -77,7 +83,7 @@ fn remove_if_present(path: &Path) -> std::io::Result<()> {
 fn partial_sibling(path: &Path) -> PathBuf {
     let extension = path
         .extension()
-        .and_then(|value| value.to_str())
+        .map(|value| value.to_string_lossy())
         .map(|extension| format!("{extension}.partial"))
         .unwrap_or_else(|| "partial".to_string());
     path.with_extension(extension)
@@ -138,5 +144,32 @@ mod tests {
     fn no_extension_partial_is_named_partial() {
         let staged = StagedTempFile::new(Path::new("/tmp/source"));
         assert_eq!(staged.partial_path(), Path::new("/tmp/source.partial"));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "StagedTempFile final and partial paths must be distinct")]
+    fn with_partial_rejects_matching_paths_in_debug() {
+        let root = TempDir::new().expect("temp root");
+        let final_path = root.path().join("out.m4b");
+
+        let _staged = StagedTempFile::with_partial(&final_path, &final_path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_extension_still_gets_partial_suffix() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let root = TempDir::new().expect("temp root");
+        let file_name = OsString::from_vec(b"book.\xFFpdf".to_vec());
+        let final_path = root.path().join(file_name);
+        let staged = StagedTempFile::new(&final_path);
+
+        assert!(staged
+            .partial_path()
+            .to_string_lossy()
+            .ends_with(".partial"));
     }
 }

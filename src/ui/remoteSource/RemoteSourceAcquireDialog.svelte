@@ -8,6 +8,7 @@
 		ProviderId,
 		RemoteSourceAccountState,
 		RemoteTitle,
+		RemoteTitleAvailability,
 	} from '../../types/remoteSource';
 	import {
 		getImportedAudioPathsBlockedMessage,
@@ -32,6 +33,8 @@
 	let selectedTitleIds = $state<Set<string>>(new Set());
 	let includePdfByTitleId = $state<Record<string, boolean>>({});
 	let titleFilter = $state('');
+	let showSupplementalPdfOnly = $state(false);
+	let hideUnavailableTitles = $state(false);
 	let handoffPath = $state('');
 	let statusMessage = $state('');
 	let activeJob = $state<AcquisitionJobWithProgress | null>(null);
@@ -222,6 +225,14 @@
 		try {
 			const library = await tauriClient.loadRemoteSourceLibrary(providerId);
 			titles = library.titles;
+			const selectableTitleIds = new Set(
+				library.titles
+					.filter((title) => titleIsAcquirable(title))
+					.map((title) => title.titleId),
+			);
+			selectedTitleIds = new Set(
+				[...selectedTitleIds].filter((titleId) => selectableTitleIds.has(titleId)),
+			);
 			includePdfByTitleId = Object.fromEntries(
 				library.titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
 			);
@@ -236,7 +247,12 @@
 		}
 	}
 
+	function clearSelectedTitles(): void {
+		selectedTitleIds = new Set();
+	}
+
 	function toggleTitle(title: RemoteTitle): void {
+		if (!titleIsAcquirable(title)) return;
 		const next = new Set(selectedTitleIds);
 		if (next.has(title.titleId)) {
 			next.delete(title.titleId);
@@ -253,15 +269,55 @@
 		};
 	}
 
+	function titleAvailability(title: RemoteTitle): RemoteTitleAvailability {
+		return (
+			title.availability ?? {
+				status: title.unsupportedReasons.length > 0 ? 'providerUnavailable' : 'available',
+				acquirable: title.unsupportedReasons.length === 0,
+				label: title.unsupportedReasons.length > 0 ? 'Unavailable from Audible' : 'Available',
+				detail:
+					title.unsupportedReasons.length > 0
+						? 'Audible reports this title is not playable or downloadable for this account.'
+						: undefined,
+			}
+		);
+	}
+
+	function titleIsAcquirable(title: RemoteTitle): boolean {
+		return titleAvailability(title).acquirable;
+	}
+
 	function filteredTitles(): RemoteTitle[] {
 		const normalizedFilter = titleFilter.trim().toLowerCase();
-		if (!normalizedFilter) return titles;
-		return titles.filter((title) =>
+		let facetTitles = showSupplementalPdfOnly
+			? titles.filter((title) => title.supplementalPdfAvailable)
+			: titles;
+		if (hideUnavailableTitles) {
+			facetTitles = facetTitles.filter(titleIsAcquirable);
+		}
+		if (!normalizedFilter) return facetTitles;
+		return facetTitles.filter((title) =>
 			[title.title, title.authors.join(' '), title.narrators.join(' ')]
 				.join(' ')
 				.toLowerCase()
 				.includes(normalizedFilter),
 		);
+	}
+
+	function selectedOutsideFilterCount(): number {
+		if (!titleFilter.trim() && !showSupplementalPdfOnly && !hideUnavailableTitles) return 0;
+		const visibleTitleIds = new Set(filteredTitles().map((title) => title.titleId));
+		return [...selectedTitleIds].filter((titleId) => !visibleTitleIds.has(titleId)).length;
+	}
+
+	function selectedTitleSummary(): string {
+		const count = selectedTitleIds.size;
+		if (count === 0) return '0 selected';
+		const hiddenCount = selectedOutsideFilterCount();
+		const titleLabel = count === 1 ? 'title' : 'titles';
+		if (hiddenCount === 0) return `${count} ${titleLabel} selected`;
+		const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
+		return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
 	}
 
 	async function acquireSelected(): Promise<void> {
@@ -395,7 +451,11 @@
 						</button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button class="btn-pill btn-pill-primary" disabled={isBusy} onclick={() => void acquireSelected()}>
+						<button
+							class="btn-pill btn-pill-primary"
+							disabled={isBusy || selectedTitleIds.size === 0}
+							onclick={() => void acquireSelected()}
+						>
 							Acquire Selected
 						</button>
 					</div>
@@ -408,11 +468,39 @@
 							bind:value={titleFilter}
 						/>
 					</div>
+					<div class="app-modal-field app-modal-field-toggle remote-source-pdf-filter">
+						<label class="checkbox-label text-xs mb-0">
+							<input type="checkbox" bind:checked={showSupplementalPdfOnly} />
+							<span class="option-label">Supplemental PDF only</span>
+						</label>
+					</div>
+					<div class="app-modal-field app-modal-field-toggle remote-source-availability-filter">
+						<label class="checkbox-label text-xs mb-0">
+							<input type="checkbox" bind:checked={hideUnavailableTitles} />
+							<span class="option-label">Hide unavailable</span>
+						</label>
+					</div>
 				{/if}
 			</div>
 
 			{#if statusMessage}
 				<div class="remote-source-status text-xs" aria-live="polite">{statusMessage}</div>
+			{/if}
+
+			{#if accountState?.status === 'connected'}
+				<div class="remote-selection-summary" aria-live="polite">
+					<span>{selectedTitleSummary()}</span>
+					{#if selectedTitleIds.size > 0}
+						<button
+							class="remote-clear-selection"
+							type="button"
+							disabled={isBusy}
+							onclick={clearSelectedTitles}
+						>
+							Clear selection
+						</button>
+					{/if}
+				</div>
 			{/if}
 
 			{#if activeJob?.progress}
@@ -457,21 +545,31 @@
 						<div
 							class="remote-title-row"
 							class:selected={selectedTitleIds.has(title.titleId)}
+							class:unavailable={!titleIsAcquirable(title)}
 							role="option"
 							aria-selected={selectedTitleIds.has(title.titleId)}
+							aria-disabled={!titleIsAcquirable(title)}
 						>
 							<button
 								type="button"
 								class="remote-title-button"
+								disabled={!titleIsAcquirable(title)}
 								onclick={() => toggleTitle(title)}
 							>
 								<span class="remote-title-name">{title.title}</span>
 								<span class="remote-title-meta">{title.authors.join(', ')}</span>
+								{#if !titleIsAcquirable(title)}
+									<span class="remote-title-availability">{titleAvailability(title).label}</span>
+									{#if titleAvailability(title).detail}
+										<span class="remote-title-availability-detail">{titleAvailability(title).detail}</span>
+									{/if}
+								{/if}
 							</button>
 							{#if title.supplementalPdfAvailable}
 								<label class="remote-pdf-toggle">
 									<input
 										type="checkbox"
+										disabled={!titleIsAcquirable(title)}
 										checked={includePdfByTitleId[title.titleId] ?? true}
 										onchange={() => togglePdf(title)}
 									/>
@@ -504,6 +602,31 @@
 	.remote-source-status {
 		min-height: 1rem;
 		color: var(--text-secondary);
+	}
+
+	.remote-selection-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		min-height: 1.5rem;
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+	}
+
+	.remote-clear-selection {
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--accent-primary);
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.remote-clear-selection:disabled {
+		color: var(--text-muted);
+		cursor: default;
 	}
 
 	.remote-progress {
@@ -566,6 +689,10 @@
 		background-color: var(--bg-hover);
 	}
 
+	.remote-title-row.unavailable {
+		opacity: 0.7;
+	}
+
 	.remote-title-button {
 		display: flex;
 		min-width: 0;
@@ -580,8 +707,14 @@
 		cursor: pointer;
 	}
 
+	.remote-title-button:disabled {
+		cursor: default;
+	}
+
 	.remote-title-name,
-	.remote-title-meta {
+	.remote-title-meta,
+	.remote-title-availability,
+	.remote-title-availability-detail {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -593,9 +726,16 @@
 	}
 
 	.remote-title-meta,
-	.remote-pdf-toggle {
+	.remote-pdf-toggle,
+	.remote-title-availability,
+	.remote-title-availability-detail {
 		color: var(--text-muted);
 		font-size: 0.75rem;
+	}
+
+	.remote-title-availability {
+		font-weight: 600;
+		color: var(--text-secondary);
 	}
 
 	.remote-pdf-toggle {

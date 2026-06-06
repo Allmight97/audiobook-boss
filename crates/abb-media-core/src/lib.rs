@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::path::Path;
+
+const PDF_HEADER_BYTES: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -128,10 +131,64 @@ pub fn has_pdf_magic(bytes: &[u8]) -> bool {
     bytes.starts_with(b"%PDF-")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupplementalPdfIdentity {
+    pub size_bytes: u64,
+    pub sha256: String,
+    pub has_pdf_magic: bool,
+}
+
+pub struct SupplementalPdfIdentityBuilder {
+    hasher: Sha256,
+    size_bytes: u64,
+    header: [u8; PDF_HEADER_BYTES],
+    header_len: usize,
+}
+
+impl Default for SupplementalPdfIdentityBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SupplementalPdfIdentityBuilder {
+    pub fn new() -> Self {
+        Self {
+            hasher: Sha256::new(),
+            size_bytes: 0,
+            header: [0; PDF_HEADER_BYTES],
+            header_len: 0,
+        }
+    }
+
+    pub fn size_bytes(&self) -> u64 {
+        self.size_bytes
+    }
+
+    pub fn update(&mut self, chunk: &[u8]) {
+        if self.header_len < PDF_HEADER_BYTES {
+            let remaining = PDF_HEADER_BYTES - self.header_len;
+            let copy_len = remaining.min(chunk.len());
+            self.header[self.header_len..self.header_len + copy_len]
+                .copy_from_slice(&chunk[..copy_len]);
+            self.header_len += copy_len;
+        }
+        self.hasher.update(chunk);
+        self.size_bytes += chunk.len() as u64;
+    }
+
+    pub fn finalize(self) -> SupplementalPdfIdentity {
+        SupplementalPdfIdentity {
+            size_bytes: self.size_bytes,
+            sha256: format!("{:x}", self.hasher.finalize()),
+            has_pdf_magic: has_pdf_magic(&self.header[..self.header_len]),
+        }
+    }
+}
+
 /// Lowercase hex-encoded SHA-256 digest of the given bytes. Shared content
 /// identity fact used for supplemental-asset integrity checks.
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
@@ -244,5 +301,26 @@ mod tests {
             sha256_hex(b"abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn supplemental_pdf_streaming_identity_matches_chunked_pdf() {
+        let mut identity = SupplementalPdfIdentityBuilder::new();
+        identity.update(b"%P");
+        identity.update(b"DF-1.7\nbody");
+
+        let identity = identity.finalize();
+
+        assert_eq!(identity.size_bytes, 13);
+        assert!(identity.has_pdf_magic);
+        assert_eq!(identity.sha256, sha256_hex(b"%PDF-1.7\nbody"));
+    }
+
+    #[test]
+    fn supplemental_pdf_short_stream_is_not_pdf_magic() {
+        let mut identity = SupplementalPdfIdentityBuilder::new();
+        identity.update(b"%PDF");
+
+        assert!(!identity.finalize().has_pdf_magic);
     }
 }
