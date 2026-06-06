@@ -203,6 +203,165 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		expect(document.body.textContent).not.toContain('fake-secret');
 	});
 
+	it('shows selected title count, hidden filtered selections, and clear selection action', async () => {
+		const user = userEvent.setup();
+		context.loadRemoteSourceLibraryMock.mockResolvedValueOnce({
+			providerId: 'audible',
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Mock Audible Book',
+					authors: ['Mock Author'],
+					narrators: [],
+					durationSeconds: 3600,
+					coverUrl: undefined,
+					supplementalPdfAvailable: false,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+				{
+					providerId: 'audible',
+					titleId: 'B000000002',
+					title: 'Hidden Selection',
+					authors: ['Second Author'],
+					narrators: [],
+					durationSeconds: 4200,
+					coverUrl: undefined,
+					supplementalPdfAvailable: false,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+			],
+			diagnostics: [],
+		});
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		const acquireButton = await screen.findByRole('button', { name: 'Acquire Selected' });
+		expect((acquireButton as HTMLButtonElement).disabled).toBe(true);
+		expect(screen.getByText('0 selected')).toBeTruthy();
+
+		await user.click(await screen.findByText('Hidden Selection'));
+		expect(screen.getByText('1 title selected')).toBeTruthy();
+		expect((acquireButton as HTMLButtonElement).disabled).toBe(false);
+
+		await user.type(screen.getByPlaceholderText('Filter loaded titles'), 'Mock');
+		expect(screen.getByText('1 title selected (1 title hidden by filter)')).toBeTruthy();
+
+		await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+		expect(screen.getByText('0 selected')).toBeTruthy();
+		expect((acquireButton as HTMLButtonElement).disabled).toBe(true);
+	});
+
+	it('filters loaded titles to Supplemental PDF titles as a separate facet', async () => {
+		const user = userEvent.setup();
+		context.loadRemoteSourceLibraryMock.mockResolvedValueOnce({
+			providerId: 'audible',
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Standard Audible Book',
+					authors: ['General Author'],
+					narrators: [],
+					durationSeconds: 3600,
+					coverUrl: undefined,
+					supplementalPdfAvailable: false,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+				{
+					providerId: 'audible',
+					titleId: 'B000000002',
+					title: 'Companion Guide',
+					authors: ['Bob Example'],
+					narrators: [],
+					durationSeconds: 4200,
+					coverUrl: undefined,
+					supplementalPdfAvailable: true,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+				{
+					providerId: 'audible',
+					titleId: 'B000000003',
+					title: 'Supplemental Workbook',
+					authors: ['Another Author'],
+					narrators: [],
+					durationSeconds: 4800,
+					coverUrl: undefined,
+					supplementalPdfAvailable: true,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+			],
+			diagnostics: [],
+		});
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Standard Audible Book');
+		await user.click(screen.getByRole('button', { name: /Standard Audible Book/i }));
+		await user.click(screen.getByRole('checkbox', { name: 'Supplemental PDF only' }));
+
+		expect(screen.queryByText('Standard Audible Book')).toBeNull();
+		expect(screen.getByText('Companion Guide')).toBeTruthy();
+		expect(screen.getByText('Supplemental Workbook')).toBeTruthy();
+		expect(screen.getByText('1 title selected (1 title hidden by filter)')).toBeTruthy();
+
+		await user.type(screen.getByPlaceholderText('Filter loaded titles'), 'Bob');
+		expect(screen.getByText('Companion Guide')).toBeTruthy();
+		expect(screen.queryByText('Supplemental Workbook')).toBeNull();
+	});
+
+	it('shows non-playable Audible titles but does not allow selecting them for acquisition', async () => {
+		const user = userEvent.setup();
+		context.loadRemoteSourceLibraryMock.mockResolvedValueOnce({
+			providerId: 'audible',
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Subscription Visible Book',
+					authors: ['Visible Author'],
+					narrators: [],
+					durationSeconds: 3600,
+					coverUrl: undefined,
+					supplementalPdfAvailable: false,
+					acquired: false,
+					availability: {
+						status: 'catalogOnly',
+						acquirable: false,
+						label: 'Audible catalog title',
+						detail: 'Audible reports this title is not downloadable for this account.',
+					},
+					unsupportedReasons: ['protectedUnsupported'],
+				},
+			],
+			diagnostics: [],
+		});
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Subscription Visible Book');
+		expect(screen.getByText('Audible catalog title')).toBeTruthy();
+		expect(
+			screen.getByText('Audible reports this title is not downloadable for this account.'),
+		).toBeTruthy();
+		const titleButton = screen.getByRole('button', { name: /Subscription Visible Book/i });
+		expect((titleButton as HTMLButtonElement).disabled).toBe(true);
+
+		await user.click(titleButton);
+		expect(screen.getByText('0 selected')).toBeTruthy();
+		expect(
+			(screen.getByRole('button', { name: 'Acquire Selected' }) as HTMLButtonElement).disabled,
+		).toBe(true);
+
+		await user.click(screen.getByRole('checkbox', { name: 'Hide unavailable' }));
+		expect(screen.queryByText('Subscription Visible Book')).toBeNull();
+	});
+
 	it('clears stale terminal acquisition copy when a fresh acquisition starts', async () => {
 		const user = userEvent.setup();
 		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
@@ -288,6 +447,49 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		await screen.findByText(repeatedMessage);
 		const occurrenceCount = (document.body.textContent?.split(repeatedMessage).length ?? 1) - 1;
 		expect(occurrenceCount).toBe(1);
+	});
+
+	it('does not import or register assets when required Supplemental PDF acquisition fails', async () => {
+		const user = userEvent.setup();
+		const message =
+			'Audible Supplemental PDF could not be downloaded. The requested Supplemental PDF is required for this Audible title.';
+		context.startRemoteSourceAcquisitionMock.mockResolvedValueOnce(
+			acquisitionJob({
+				status: 'failed',
+				materializedFiles: [],
+				supplementalAssets: [],
+				progress: {
+					stage: 'failed',
+					percentage: 100,
+					message: 'Acquisition failed.',
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					currentTitleId: 'B000000001',
+					currentItemIndex: 1,
+					totalItems: 1,
+					terminal: true,
+				},
+				diagnostics: [
+					{
+						kind: 'supplementalPdfFailed',
+						titleId: 'B000000001',
+						message,
+					},
+				],
+			}),
+		);
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+
+		await screen.findByText(message);
+		expect(context.handleImportedAudioPathsMock).not.toHaveBeenCalled();
+		expect(context.registerRemoteSourceSupplementalAssetsMock).not.toHaveBeenCalled();
+		expect(context.purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
+		expect(document.body.textContent).not.toContain('acquired title imported');
 	});
 
 	it('redacts unknown provider-boundary errors from status text and console logs', async () => {

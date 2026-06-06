@@ -9,10 +9,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
+name = "abb-audible-core"
+version = "0.1.0"
+dependencies = [
+ "abb-media-core",
+ "abb-remote-source-core",
+ "aes",
+ "base64 0.22.1",
+ "cbc",
+ "secrecy",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "abb-media-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "sha2",
  "specta",
 ]
 
@@ -449,16 +464,16 @@ dependencies = [
 name = "audiobook-boss"
 version = "1.0.33"
 dependencies = [
+ "abb-audible-core",
+ "abb-media-core",
  "abb-metadata-core",
  "abb-output-artifact-core",
  "abb-processing-core",
  "abb-remote-source-core",
- "aes",
  "anyhow",
  "audible_api",
  "base64 0.22.1",
  "bogon",
- "cbc",
  "chrono",
  "clap",
  "env_logger",

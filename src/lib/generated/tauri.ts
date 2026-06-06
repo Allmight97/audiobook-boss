@@ -686,8 +686,18 @@ export type RemoteTitle = {
 	coverUrl: string | null,
 	supplementalPdfAvailable: boolean,
 	acquired: boolean,
+	availability: RemoteTitleAvailability,
 	unsupportedReasons: RemoteAcquisitionFailureKind[],
 };
+
+export type RemoteTitleAvailability = {
+	status: RemoteTitleAvailabilityStatus,
+	acquirable: boolean,
+	label: string,
+	detail: string | null,
+};
+
+export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
 export type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities,

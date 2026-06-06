@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/abb-audible-core",
     "crates/abb-media-core",
     "crates/abb-metadata-core",
     "crates/abb-output-artifact-core",

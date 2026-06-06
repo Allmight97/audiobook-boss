@@ -1,6 +1,9 @@
 use serde_json::Value;
 
-use crate::remote_source::{ProviderId, RemoteTitle};
+use crate::remote_source::{
+    ProviderId, RemoteAcquisitionFailureKind, RemoteTitle, RemoteTitleAvailability,
+    RemoteTitleAvailabilityStatus,
+};
 
 pub(super) fn parse_library_titles(payload: &Value) -> Vec<RemoteTitle> {
     let empty = Vec::new();
@@ -23,6 +26,7 @@ fn parse_title(value: &Value) -> Option<RemoteTitle> {
         .and_then(Value::as_str)
         .unwrap_or("Untitled Audible title")
         .to_string();
+    let availability = title_availability(value);
     Some(RemoteTitle {
         provider_id: ProviderId::Audible,
         title_id,
@@ -37,8 +41,62 @@ fn parse_title(value: &Value) -> Option<RemoteTitle> {
         supplemental_pdf_available: find_first_string_for_key(value, "pdf_url").is_some()
             || find_first_string_for_key(value, "pdfUrl").is_some(),
         acquired: false,
-        unsupported_reasons: Vec::new(),
+        unsupported_reasons: unsupported_reasons_for_availability(&availability),
+        availability,
     })
+}
+
+fn title_availability(value: &Value) -> RemoteTitleAvailability {
+    if find_first_string_for_key(value, "status").as_deref() == Some("Revoked") {
+        return RemoteTitleAvailability {
+            status: RemoteTitleAvailabilityStatus::Revoked,
+            acquirable: false,
+            label: "Returned/refunded in Audible".to_string(),
+            detail: Some(
+                "Audible reports this title is no longer playable or downloadable for this account."
+                    .to_string(),
+            ),
+        };
+    }
+
+    if find_first_bool_for_key(value, "is_playable") == Some(false) {
+        if find_first_bool_for_key(value, "is_ayce") == Some(true) {
+            return RemoteTitleAvailability {
+                status: RemoteTitleAvailabilityStatus::CatalogOnly,
+                acquirable: false,
+                label: "Audible catalog title".to_string(),
+                detail: Some(
+                    "Audible reports this title is not downloadable for this account.".to_string(),
+                ),
+            };
+        }
+        return RemoteTitleAvailability {
+            status: RemoteTitleAvailabilityStatus::ProviderUnavailable,
+            acquirable: false,
+            label: "Unavailable from Audible".to_string(),
+            detail: Some(
+                "Audible reports this title is not playable or downloadable for this account."
+                    .to_string(),
+            ),
+        };
+    }
+
+    RemoteTitleAvailability {
+        status: RemoteTitleAvailabilityStatus::Available,
+        acquirable: true,
+        label: "Available".to_string(),
+        detail: None,
+    }
+}
+
+fn unsupported_reasons_for_availability(
+    availability: &RemoteTitleAvailability,
+) -> Vec<RemoteAcquisitionFailureKind> {
+    if availability.acquirable {
+        Vec::new()
+    } else {
+        vec![RemoteAcquisitionFailureKind::ProtectedUnsupported]
+    }
 }
 
 fn collect_person_names(value: &Value, key: &str) -> Vec<String> {
@@ -107,6 +165,22 @@ fn find_first_u64_for_key(value: &Value, key: &str) -> Option<u64> {
     }
 }
 
+fn find_first_bool_for_key(value: &Value, key: &str) -> Option<bool> {
+    match value {
+        Value::Object(map) => {
+            if let Some(found) = map.get(key).and_then(Value::as_bool) {
+                return Some(found);
+            }
+            map.values()
+                .find_map(|entry| find_first_bool_for_key(entry, key))
+        }
+        Value::Array(values) => values
+            .iter()
+            .find_map(|entry| find_first_bool_for_key(entry, key)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +212,63 @@ mod tests {
         assert_eq!(title.narrators, vec!["Narrator One"]);
         assert_eq!(title.duration_seconds, Some(5_400));
         assert!(title.supplemental_pdf_available);
+        assert_eq!(
+            title.availability.status,
+            RemoteTitleAvailabilityStatus::Available
+        );
+        assert!(title.availability.acquirable);
         assert!(title.unsupported_reasons.is_empty());
+    }
+
+    #[test]
+    fn parse_library_titles_marks_non_playable_library_items_unsupported() {
+        let payload = json!({
+            "items": [
+                {
+                    "asin": "B000000001",
+                    "title": "Subscription Visible Book",
+                    "is_playable": false,
+                    "is_listenable": true,
+                    "is_ayce": true
+                }
+            ]
+        });
+
+        let titles = parse_library_titles(&payload);
+
+        assert_eq!(titles.len(), 1);
+        assert_eq!(
+            titles[0].unsupported_reasons,
+            vec![RemoteAcquisitionFailureKind::ProtectedUnsupported]
+        );
+        assert_eq!(
+            titles[0].availability.status,
+            RemoteTitleAvailabilityStatus::CatalogOnly
+        );
+        assert!(!titles[0].availability.acquirable);
+        assert_eq!(titles[0].availability.label, "Audible catalog title");
+    }
+
+    #[test]
+    fn parse_library_titles_marks_revoked_items_as_returned_or_refunded() {
+        let payload = json!({
+            "items": [
+                {
+                    "asin": "B000000001",
+                    "title": "Returned Book",
+                    "status": "Revoked",
+                    "is_playable": false
+                }
+            ]
+        });
+
+        let titles = parse_library_titles(&payload);
+
+        assert_eq!(titles.len(), 1);
+        assert_eq!(
+            titles[0].availability.status,
+            RemoteTitleAvailabilityStatus::Revoked
+        );
+        assert_eq!(titles[0].availability.label, "Returned/refunded in Audible");
     }
 }

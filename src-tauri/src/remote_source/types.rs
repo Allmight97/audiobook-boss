@@ -91,7 +91,26 @@ pub struct RemoteTitle {
     pub cover_url: Option<String>,
     pub supplemental_pdf_available: bool,
     pub acquired: bool,
+    pub availability: RemoteTitleAvailability,
     pub unsupported_reasons: Vec<RemoteAcquisitionFailureKind>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RemoteTitleAvailabilityStatus {
+    Available,
+    CatalogOnly,
+    Revoked,
+    ProviderUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteTitleAvailability {
+    pub status: RemoteTitleAvailabilityStatus,
+    pub acquirable: bool,
+    pub label: String,
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

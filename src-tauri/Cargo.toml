@@ -25,6 +25,8 @@ doctest = false
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
+abb-audible-core = { path = "../crates/abb-audible-core" }
+abb-media-core = { path = "../crates/abb-media-core" }
 abb-metadata-core = { path = "../crates/abb-metadata-core" }
 abb-output-artifact-core = { path = "../crates/abb-output-artifact-core" }
 abb-processing-core = { path = "../crates/abb-processing-core" }
@@ -62,9 +64,6 @@ secrecy = "0.10.3"
 sha2 = "0.10.9"
 zeroize = "1.8.2"
 audible_api = "0.1.0"
-base64 = "0.22.1"
-aes = "0.8.4"
-cbc = "0.1.2"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
@@ -79,3 +78,4 @@ bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
 tempfile = "3.27.0"
 tauri = { version = "2.10.3", features = ["test"] }
 futures = "0.3.32"
+base64 = "0.22.1"

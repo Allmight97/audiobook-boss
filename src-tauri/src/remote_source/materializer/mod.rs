@@ -11,6 +11,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 use crate::errors::{AppError, Result};
+use crate::remote_source::scoped_output::StagedTempFile;
 
 const HELPER_NAME: &str = "abb-aaxclean-helper";
 const HELPER_SIDECAR_FILE: &str = "abb-aaxclean-helper-aarch64-apple-darwin";
@@ -108,6 +109,12 @@ impl AaxcleanMaterializer {
         ensure_not_cancelled(&is_cancelled)?;
         ensure_helper_available(&self.helper_path)?;
         cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
+        // From here on, any early return / `?` drops `outputs`, which removes the
+        // temp + (uncommitted) final path. Replaces the per-branch cleanup calls.
+        let outputs = StagedTempFile::with_partial(
+            request.output_path.clone(),
+            request.output_temp_path.clone(),
+        );
         log::info!(
             "remote_source materializer stage=materializer_start job_id={} operation_id={} lane={}",
             request.job_id,
@@ -154,89 +161,20 @@ impl AaxcleanMaterializer {
             .take()
             .ok_or_else(|| materializer_failure("helper stdout"))?;
         let mut stdout = BufReader::new(stdout).lines();
-        let mut result_seen = false;
-        let mut helper_error: Option<String> = None;
-
-        while let Some(line) = match stdout.next_line().await {
-            Ok(line) => line,
-            Err(_) => {
-                cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-                return Err(materializer_failure("helper stdout read"));
-            }
-        } {
-            if let Err(error) = ensure_not_cancelled(&is_cancelled) {
-                cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-                return Err(error);
-            }
-            let message = match parse_helper_message(&line) {
-                Ok(message) => message,
-                Err(error) => {
-                    cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-                    return Err(error);
-                }
-            };
-            if message.operation_id != request.operation_id {
-                cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-                return Err(materializer_failure("helper operation id"));
-            }
-
-            match message.message_type.as_str() {
-                "progress" => {
-                    progress(acquisition_progress(
-                        AcquisitionStage::Decryption,
-                        message.fraction,
-                        None,
-                        None,
-                    ));
-                }
-                "result" => {
-                    result_seen = message.bytes_written.is_some_and(|bytes| bytes > 0);
-                    if let Some(bytes_written) = message.bytes_written {
-                        log::info!(
-                            "remote_source materializer stage=materializer_result job_id={} operation_id={} bytes={}",
-                            request.job_id,
-                            request.operation_id,
-                            bytes_written
-                        );
-                    }
-                    break;
-                }
-                "error" => {
-                    log::warn!(
-                        "remote_source materializer stage=materializer_failed job_id={} operation_id={} category={}",
-                        request.job_id,
-                        request.operation_id,
-                        message.category.as_deref().unwrap_or("materialization_failed")
-                    );
-                    helper_error = Some(safe_helper_error_message(
-                        message.category.as_deref(),
-                        message.message.as_deref(),
-                    ));
-                    break;
-                }
-                _ => {
-                    cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-                    return Err(materializer_failure("helper protocol"));
-                }
-            }
-        }
+        let outcome =
+            consume_helper_messages(&mut stdout, &request, &mut progress, &is_cancelled).await?;
 
         let status = child
             .wait()
             .await
             .map_err(|_| materializer_failure("helper wait"))?;
         let _ = stderr_task.await;
-        if let Err(error) = ensure_not_cancelled(&is_cancelled) {
-            cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-            return Err(error);
-        }
+        ensure_not_cancelled(&is_cancelled)?;
 
-        if let Some(error) = helper_error {
-            cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
+        if let Some(error) = outcome.helper_error {
             return Err(AppError::General(error));
         }
-        if !status.success() || !result_seen {
-            cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
+        if !status.success() || !outcome.result_seen {
             log::warn!(
                 "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=helper_result",
                 request.job_id,
@@ -255,8 +193,75 @@ impl AaxcleanMaterializer {
                 );
                 materializer_failure("helper output commit")
             })?;
+        outputs.commit();
         Ok(request.output_path)
     }
+}
+
+#[derive(Default)]
+struct HelperStreamOutcome {
+    result_seen: bool,
+    helper_error: Option<String>,
+}
+
+/// Drive the helper's newline-delimited stdout protocol, forwarding progress and
+/// capturing the terminal `result`/`error` message. The caller keeps ownership of
+/// the line reader so the stdout pipe stays open until `child.wait()`.
+async fn consume_helper_messages(
+    stdout: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+    request: &MaterializationRequest,
+    progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
+) -> Result<HelperStreamOutcome> {
+    let mut outcome = HelperStreamOutcome::default();
+    while let Some(line) = match stdout.next_line().await {
+        Ok(line) => line,
+        Err(_) => return Err(materializer_failure("helper stdout read")),
+    } {
+        ensure_not_cancelled(is_cancelled)?;
+        let message = parse_helper_message(&line)?;
+        if message.operation_id != request.operation_id {
+            return Err(materializer_failure("helper operation id"));
+        }
+
+        match message.message_type.as_str() {
+            "progress" => {
+                progress(acquisition_progress(
+                    AcquisitionStage::Decryption,
+                    message.fraction,
+                    None,
+                    None,
+                ));
+            }
+            "result" => {
+                outcome.result_seen = message.bytes_written.is_some_and(|bytes| bytes > 0);
+                if let Some(bytes_written) = message.bytes_written {
+                    log::info!(
+                        "remote_source materializer stage=materializer_result job_id={} operation_id={} bytes={}",
+                        request.job_id,
+                        request.operation_id,
+                        bytes_written
+                    );
+                }
+                break;
+            }
+            "error" => {
+                log::warn!(
+                    "remote_source materializer stage=materializer_failed job_id={} operation_id={} category={}",
+                    request.job_id,
+                    request.operation_id,
+                    message.category.as_deref().unwrap_or("materialization_failed")
+                );
+                outcome.helper_error = Some(safe_helper_error_message(
+                    message.category.as_deref(),
+                    message.message.as_deref(),
+                ));
+                break;
+            }
+            _ => return Err(materializer_failure("helper protocol")),
+        }
+    }
+    Ok(outcome)
 }
 
 impl MaterializerProcessRegistry {
