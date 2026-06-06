@@ -2,6 +2,32 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.34] - 2026-06-06
+
+### Added
+
+- Added Audible library pagination up to the API page limit so larger accounts
+  can load beyond the previous first 100 titles.
+- Added Audible title availability labels, unavailable-title filtering, selected
+  count copy, and a Supplemental PDF-only filter in the acquisition dialog.
+
+### Changed
+
+- Requested Supplemental PDFs are now treated as required companion artifacts
+  once selected; processing no longer reports success unless the audiobook and
+  requested Supplemental PDF both commit.
+- Audible acquisition internals now split license selection, audio download,
+  materialization handoff, diagnostics, and Supplemental PDF handling into
+  clearer backend-owned boundaries.
+
+### Fixed
+
+- Audible catalog/subscription-visible titles that are not downloadable are now
+  shown as unavailable instead of allowing acquisition to fail later with a
+  missing license URL.
+- Supplemental PDF identity checks now reject oversize, symlink, and stale-file
+  cases before final output copy.
+
 ## [1.0.33] - 2026-06-04
 
 ### Added
