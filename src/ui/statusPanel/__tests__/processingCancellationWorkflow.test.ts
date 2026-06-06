@@ -38,12 +38,14 @@ describe('ProcessingCancellationWorkflow', () => {
 		await runAppEffect(
 			processingCancellationWorkflowExecution({
 				type: 'cancelAll',
+				jobIds: ['job-1', 'job-2'],
 				getCurrentStatus: activeStatus,
 				updateStatus,
 			}).pipe(Effect.provide(harness.layer)),
 		);
 
-		expect(harness.services.cancelProcessing).toHaveBeenCalledWith();
+		expect(harness.services.cancelProcessing).toHaveBeenCalledWith('job-1');
+		expect(harness.services.cancelProcessing).toHaveBeenCalledWith('job-2');
 		expect(harness.services.setCancelAllButtonPending).toHaveBeenNthCalledWith(1, true);
 		expect(harness.services.setCancelAllButtonPending).toHaveBeenLastCalledWith(false);
 		expect(updateStatus).toHaveBeenCalledWith({
@@ -65,6 +67,7 @@ describe('ProcessingCancellationWorkflow', () => {
 		await runAppEffect(
 			processingCancellationWorkflowExecution({
 				type: 'cancelAll',
+				jobIds: ['job-1'],
 				getCurrentStatus: activeStatus,
 				updateStatus,
 			}).pipe(Effect.provide(harness.layer)),

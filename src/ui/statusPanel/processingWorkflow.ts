@@ -29,6 +29,7 @@ import {
 	validInputFilePaths,
 } from './processingWorkflowPreparation';
 import {
+	purgeRemoteSourceSessionsForInputIds,
 	purgeSuccessfulRemoteSourceSessions,
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
@@ -153,6 +154,23 @@ function workflowPromise<A>(
 	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
+function toProcessingWorkflowError(cause: unknown): ProcessingWorkflowError {
+	const normalized = normalizeAppError(cause);
+	const wasCancelled =
+		isAppErrorCategory(cause, 'cancellation') ||
+		normalized.message.toLowerCase().includes('cancelled');
+	if (wasCancelled) {
+		return new ProcessingWorkflowCancelled({
+			message: normalized.message,
+			cause,
+		});
+	}
+	return new ProcessingWorkflowFailed({
+		message: normalized.message,
+		cause,
+	});
+}
+
 function processingCommand(
 	services: ProcessingWorkflowServices,
 	request: {
@@ -168,22 +186,7 @@ function processingCommand(
 				metadataIntent: request.metadataIntentByPath,
 				previewSeconds: request.previewSeconds,
 			}),
-		catch: (cause) => {
-			const normalized = normalizeAppError(cause);
-			const wasCancelled =
-				isAppErrorCategory(cause, 'cancellation') ||
-				normalized.message.toLowerCase().includes('cancelled');
-			if (wasCancelled) {
-				return new ProcessingWorkflowCancelled({
-					message: normalized.message,
-					cause,
-				});
-			}
-			return new ProcessingWorkflowFailed({
-				message: normalized.message,
-				cause,
-			});
-		},
+		catch: toProcessingWorkflowError,
 	});
 }
 
@@ -202,22 +205,7 @@ function submitProcessingCommand(
 				metadataIntent: request.metadataIntentByPath,
 				previewSeconds: request.previewSeconds,
 			}),
-		catch: (cause) => {
-			const normalized = normalizeAppError(cause);
-			const wasCancelled =
-				isAppErrorCategory(cause, 'cancellation') ||
-				normalized.message.toLowerCase().includes('cancelled');
-			if (wasCancelled) {
-				return new ProcessingWorkflowCancelled({
-					message: normalized.message,
-					cause,
-				});
-			}
-			return new ProcessingWorkflowFailed({
-				message: normalized.message,
-				cause,
-			});
-		},
+		catch: toProcessingWorkflowError,
 	});
 }
 
@@ -233,9 +221,18 @@ function submitRetainedProcessingCommand(
 		yield* Effect.sync(() => retainRemoteSourceSessionsForInputIds(request.inputIds));
 		return yield* submitProcessingCommand(services, request).pipe(
 			Effect.catchAll((error) =>
-				Effect.sync(() => {
-					releaseRemoteSourceSessionRetainers(request.inputIds);
-				}).pipe(Effect.flatMap(() => Effect.fail(error))),
+				Effect.tryPromise({
+					try: async () => {
+						const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(request.inputIds);
+						if (pendingPurgeInputIds.length > 0) {
+							await purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
+						}
+					},
+					catch: () => undefined,
+				}).pipe(
+					Effect.catchAll(() => Effect.succeed(undefined)),
+					Effect.flatMap(() => Effect.fail(error)),
+				),
 			),
 		);
 	});

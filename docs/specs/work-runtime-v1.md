@@ -26,6 +26,11 @@ operation independently, and verify terminal summaries against disk truth.
   IPC contract, and new Work Center UI, and acquisition needs its own remote
   runtime/inbox UX slice to avoid leaking provider concerns or bloating the
   existing modal.
+- [x] 2026-06-06: Address PR review feedback for V1A overlap correctness:
+  operation-scoped WorkRuntime jobs no longer honor legacy global cancel,
+  Status Panel ignores WorkRuntime-scoped legacy queue/progress events, Work
+  Center terminal source cleanup is race-guarded, and retained remote-source
+  sessions are purged when background submission fails after a deferred purge.
 
 ## Surprises & Discoveries
 
@@ -38,6 +43,11 @@ operation independently, and verify terminal summaries against disk truth.
   Evidence: `remote_source/mod.rs` ~779 LOC, `processing/run.rs` ~837 LOC,
   `RemoteSourceAcquireDialog.svelte` ~755 LOC, `statusPanel/controller.ts`
   ~476 LOC at spec creation.
+- Observation: Work Center still consumes legacy progress events as an overlay
+  on backend operation snapshots.
+  Evidence: `src/ui/workCenter/model.ts` re-derives progress/child status from
+  `processing-progress` while WorkRuntime snapshots remain canonical terminal
+  truth.
 
 ## Decision Log
 
@@ -175,6 +185,20 @@ Manual evidence:
 - Operation cancel does not cancel unrelated operation.
 - Output files and terminal summaries match disk truth.
 - Acquisition + Source Inbox scenarios if V1B lands.
+
+## Deferred Triggers
+
+- Next WorkRuntime slice that changes progress semantics: move Work Center to
+  backend-authored operation snapshots only and delete the frontend legacy
+  progress reducer.
+- Next change to `processing/run.rs`: split by processing dispatch/cohesion
+  before adding new operation-kind behavior.
+- Next change to `processingWorkflow.ts`: split foreground preview execution
+  from background submit/retain/error mapping if either path grows again.
+- V1B acquisition/inbox: implement in a dedicated branch or PR unless a V1A
+  correctness dependency appears.
+- Feedback/review tooling: do not spawn sub-agents or child threads unless the
+  owner re-enables that route for a narrow, high-signal task.
 
 ## Cleanup Trigger
 

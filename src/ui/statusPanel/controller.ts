@@ -163,12 +163,18 @@ export class StatusPanelRuntime {
 	}
 
 	public async requestCancelAll(): Promise<void> {
+		const jobIds = this.cancellableForegroundJobIds();
+		if (jobIds.length === 0) {
+			return;
+		}
 		const preparedCancelAll = enterCancelAllCancellationWorkflow(
 			liveProcessingCancellationWorkflowServices,
+			jobIds,
 		);
 		await runProcessingCancellationWorkflow(
 			{
 				type: 'cancelAll',
+				jobIds,
 				getCurrentStatus: () => this.model.currentStatus,
 				updateStatus: (status) => this.updateStatus(status),
 			},
@@ -258,6 +264,16 @@ export class StatusPanelRuntime {
 		}
 
 		return 'Processing';
+	}
+
+	private cancellableForegroundJobIds(): string[] {
+		return Array.from(
+			new Set(
+				Array.from(this.model.jobProgress.values())
+					.filter((job) => job.status === 'processing' && job.jobId)
+					.map((job) => job.jobId as string),
+			),
+		);
 	}
 
 	private buildMergeOutputLabel(): string {

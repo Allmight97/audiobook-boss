@@ -22,12 +22,13 @@ export {
 } from './processingCancellationWorkflowServices';
 
 export interface PreparedCancelAllRequest {
-	readonly request: ReturnType<ProcessingCancellationWorkflowServices['cancelProcessing']>;
+	readonly request: Promise<readonly unknown[]>;
 }
 
 export type ProcessingCancellationWorkflowAction =
 	| {
 			type: 'cancelAll';
+			jobIds: readonly string[];
 			getCurrentStatus: () => ProcessingStatus;
 			updateStatus: (status: ProcessingStatus) => void;
 	  }
@@ -72,11 +73,16 @@ function cancelAll(
 ): AppEffect<void, never, ProcessingCancellationWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* ProcessingCancellationWorkflowServicesTag;
+		if (action.jobIds.length === 0) {
+			return;
+		}
 		if (!preparedRequest) {
 			services.setCancelAllButtonPending(true);
 		}
 		yield* workflowPromise(
-			() => preparedRequest?.request ?? services.cancelProcessing(),
+			() =>
+				preparedRequest?.request ??
+				Promise.all(action.jobIds.map((jobId) => services.cancelProcessing(jobId))),
 			'Failed to cancel processing.',
 		).pipe(
 			Effect.tap(() =>
@@ -128,12 +134,13 @@ function processingCancellationWorkflowBody(
 
 export function enterCancelAllCancellationWorkflow(
 	services: ProcessingCancellationWorkflowServices,
+	jobIds: readonly string[],
 ): PreparedCancelAllRequest {
 	services.setCancelAllButtonPending(true);
 	try {
-		return { request: services.cancelProcessing() };
+		return { request: Promise.all(jobIds.map((jobId) => services.cancelProcessing(jobId))) };
 	} catch (cause) {
-		return { request: Promise.reject(cause) as ReturnType<typeof services.cancelProcessing> };
+		return { request: Promise.reject(cause) };
 	}
 }
 

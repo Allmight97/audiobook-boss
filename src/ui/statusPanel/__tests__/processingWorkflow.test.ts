@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { tauriClient } from '../../../lib/tauri/client';
 import {
 	makeProcessingWorkflowServicesLayer,
 	startProcessing,
@@ -19,8 +20,10 @@ import type { AcquisitionJob } from '../../../types/remoteSource';
 import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
 import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
 import {
+	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
 	removeRemoteSourceSupplementalAssets,
+	supplementalAssetsForInputIds,
 } from '../../remoteSource/sessionAssets.svelte';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
@@ -385,5 +388,38 @@ describe('ProcessingWorkflow', () => {
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
+	});
+
+	it('purges retained remote-source sessions that were pending purge when submission fails', async () => {
+		const currentFileList: FileListInfo = {
+			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
+			selectedDecoders: [null],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		};
+		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
+		const purgeSpy = vi.spyOn(tauriClient, 'purgeRemoteSourceSession').mockResolvedValue(undefined);
+		const ctx = workflowContext();
+		const { services, feedback } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+			getJobType: vi.fn((): JobType => 'batch'),
+			submitProcessingOperation: vi.fn(async () => {
+				await purgeRemoteSourceSessionsForInputIds(['current-input-1']);
+				throw {
+					code: 'decoder_unavailable',
+					category: 'toolchain',
+					message: 'Decoder unavailable.',
+					detail: null,
+				};
+			}),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+		expect(purgeSpy).toHaveBeenCalledWith('remote-job-1');
+		expect(supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
 	});
 });

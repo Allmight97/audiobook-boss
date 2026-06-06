@@ -1,5 +1,5 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { EVENTS, type ProcessingProgressEvent, type ProcessingQueueEvent } from '../../types/events';
+import { EVENTS, type ProcessingProgressEvent } from '../../types/events';
 import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
@@ -7,7 +7,6 @@ import {
 } from '../remoteSource/sessionAssets.svelte';
 import {
 	applyProgress,
-	applyQueue,
 	isTerminalOperationStatus,
 	replaceOperations,
 	upsertOperation,
@@ -42,31 +41,41 @@ export function initializeWorkCenter(): Promise<void> {
 	}
 
 	initializationPromise = (async () => {
-		const [snapshotUnlisten, listUnlisten, progressUnlisten, queueUnlisten] = await Promise.all([
-			tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, ({ payload }) => {
-				applyOperationSnapshot(payload.snapshot);
-			}),
-			tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-				const model = replaceOperations(workCenterState, { operations: payload.operations });
-				workCenterState.operations = model.operations;
-				for (const operation of workCenterState.operations) {
-					void purgeRemoteSessionsForTerminalOperation(operation);
-				}
-			}),
-			tauriClient.listen(EVENTS.PROGRESS, ({ payload }) => {
-				applyProcessingProgress(payload);
-			}),
-			tauriClient.listen(EVENTS.QUEUE, ({ payload }) => {
-				applyProcessingQueue(payload);
-			}),
-		]);
-		unlisteners = [snapshotUnlisten, listUnlisten, progressUnlisten, queueUnlisten];
+		const nextUnlisteners: Unlisten[] = [];
+		try {
+			nextUnlisteners.push(
+				await tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, ({ payload }) => {
+					applyOperationSnapshot(payload.snapshot);
+				}),
+			);
+			nextUnlisteners.push(
+				await tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
+					const model = replaceOperations(workCenterState, { operations: payload.operations });
+					workCenterState.operations = model.operations;
+					for (const operation of workCenterState.operations) {
+						void purgeRemoteSessionsForTerminalOperation(operation);
+					}
+				}),
+			);
+			nextUnlisteners.push(
+				await tauriClient.listen(EVENTS.PROGRESS, ({ payload }) => {
+					applyProcessingProgress(payload);
+				}),
+			);
+			unlisteners = nextUnlisteners;
 
-		const list = await tauriClient.listWorkOperations();
-		const model = replaceOperations(workCenterState, list);
-		workCenterState.operations = model.operations;
-		workCenterState.initialized = true;
-		workCenterState.errorMessage = null;
+			const list = await tauriClient.listWorkOperations();
+			const model = replaceOperations(workCenterState, list);
+			workCenterState.operations = model.operations;
+			workCenterState.initialized = true;
+			workCenterState.errorMessage = null;
+		} catch (error) {
+			disposeUnlisteners(nextUnlisteners);
+			if (unlisteners === nextUnlisteners) {
+				unlisteners = [];
+			}
+			throw error;
+		}
 	})().catch((error) => {
 		workCenterState.errorMessage = `Failed to initialize Work Center: ${String(error)}`;
 		initializationPromise = null;
@@ -85,9 +94,7 @@ function isTauriRuntimeAvailable(): boolean {
 }
 
 export function disposeWorkCenter(): void {
-	for (const unlisten of unlisteners) {
-		unlisten();
-	}
+	disposeUnlisteners(unlisteners);
 	unlisteners = [];
 	initializationPromise = null;
 	workCenterState.initialized = false;
@@ -101,11 +108,6 @@ export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 
 export function applyProcessingProgress(event: ProcessingProgressEvent): void {
 	const model = applyProgress(workCenterState, event);
-	workCenterState.operations = model.operations;
-}
-
-export function applyProcessingQueue(event: ProcessingQueueEvent): void {
-	const model = applyQueue(workCenterState, event);
 	workCenterState.operations = model.operations;
 }
 
@@ -136,6 +138,7 @@ async function purgeRemoteSessionsForTerminalOperation(
 ): Promise<void> {
 	if (!isTerminalOperationStatus(operation.status)) return;
 	if (purgedOperationIds.has(operation.operationId)) return;
+	purgedOperationIds.add(operation.operationId);
 
 	const operationInputIds =
 		operation.sourceInputIds.length > 0
@@ -144,16 +147,23 @@ async function purgeRemoteSessionsForTerminalOperation(
 					.map((child) => child.inputId)
 					.filter((inputId): inputId is string => Boolean(inputId));
 	const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(operationInputIds);
-	const completedInputIds = operation.children
-		.filter((child) => child.status === 'completed')
-		.map((child) => child.inputId)
-		.filter((inputId): inputId is string => Boolean(inputId));
+	const completedInputIds =
+		operation.status === 'completed'
+			? operationInputIds
+			: operation.children
+					.filter((child) => child.status === 'completed')
+					.map((child) => child.inputId)
+					.filter((inputId): inputId is string => Boolean(inputId));
 	const purgeInputIds = Array.from(new Set([...completedInputIds, ...pendingPurgeInputIds]));
 	if (purgeInputIds.length === 0) {
-		purgedOperationIds.add(operation.operationId);
 		return;
 	}
 
 	await purgeRemoteSourceSessionsForInputIds(purgeInputIds);
-	purgedOperationIds.add(operation.operationId);
+}
+
+function disposeUnlisteners(listeners: Unlisten[]): void {
+	for (const unlisten of listeners.splice(0)) {
+		unlisten();
+	}
 }

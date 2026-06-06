@@ -106,10 +106,9 @@ fn new_child(
 fn basename(path: &str) -> String {
     Path::new(path)
         .file_name()
-        .and_then(|value| value.to_str())
+        .map(|value| value.to_string_lossy().into_owned())
         .filter(|value| !value.is_empty())
-        .unwrap_or(path)
-        .to_string()
+        .unwrap_or_else(|| path.to_string())
 }
 
 fn merge_label(input_files: &[String]) -> String {

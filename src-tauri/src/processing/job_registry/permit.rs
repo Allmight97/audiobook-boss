@@ -21,16 +21,21 @@ impl JobRegistry {
         &self,
         external_cancel: Option<Arc<AtomicBool>>,
     ) -> Result<(JobId, OwnedSemaphorePermit)> {
-        if self.global_cancel.load(Ordering::SeqCst) || external_cancelled(&external_cancel) {
+        let honor_global = external_cancel.is_none();
+        if (honor_global && self.global_cancel.load(Ordering::SeqCst))
+            || external_cancelled(&external_cancel)
+        {
             return Err(AppError::cancelled());
         }
 
         let semaphore = { self.semaphore.read().await.clone() };
         let permit = self
-            .acquire_permit_with_external_cancel(semaphore, external_cancel.clone())
+            .acquire_permit_with_external_cancel(semaphore, external_cancel.clone(), honor_global)
             .await?;
 
-        if self.global_cancel.load(Ordering::SeqCst) || external_cancelled(&external_cancel) {
+        if (honor_global && self.global_cancel.load(Ordering::SeqCst))
+            || external_cancelled(&external_cancel)
+        {
             drop(permit);
             return Err(AppError::cancelled());
         }
@@ -52,12 +57,15 @@ impl JobRegistry {
         &self,
         semaphore: Arc<Semaphore>,
         external_cancel: Option<Arc<AtomicBool>>,
+        honor_global: bool,
     ) -> Result<OwnedSemaphorePermit> {
         let acquire = semaphore.acquire_owned();
         tokio::pin!(acquire);
 
         loop {
-            if self.global_cancel.load(Ordering::SeqCst) || external_cancelled(&external_cancel) {
+            if (honor_global && self.global_cancel.load(Ordering::SeqCst))
+                || external_cancelled(&external_cancel)
+            {
                 return Err(AppError::cancelled());
             }
 

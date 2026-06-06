@@ -1,4 +1,4 @@
-import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import type { ProcessingProgressEvent } from '../../types/events';
 import type {
 	ChildJobSnapshot,
 	ChildJobStatus,
@@ -29,13 +29,19 @@ export function isTerminalOperationStatus(status: WorkOperationStatus): boolean 
 	return TERMINAL_OPERATION_STATUSES.has(status);
 }
 
-export function replaceOperations(_model: WorkCenterModel, list: OperationListSnapshot): WorkCenterModel {
+export function replaceOperations(
+	_model: WorkCenterModel,
+	list: OperationListSnapshot,
+): WorkCenterModel {
 	return {
 		operations: [...list.operations].sort(sortBySequenceDesc),
 	};
 }
 
-export function upsertOperation(model: WorkCenterModel, snapshot: OperationSnapshot): WorkCenterModel {
+export function upsertOperation(
+	model: WorkCenterModel,
+	snapshot: OperationSnapshot,
+): WorkCenterModel {
 	const next = model.operations.filter(
 		(operation) => operation.operationId !== snapshot.operationId,
 	);
@@ -44,7 +50,10 @@ export function upsertOperation(model: WorkCenterModel, snapshot: OperationSnaps
 	return { operations: next };
 }
 
-export function applyProgress(model: WorkCenterModel, event: ProcessingProgressEvent): WorkCenterModel {
+export function applyProgress(
+	model: WorkCenterModel,
+	event: ProcessingProgressEvent,
+): WorkCenterModel {
 	const operationId = event.operation_id;
 	if (!operationId) return model;
 
@@ -53,29 +62,6 @@ export function applyProgress(model: WorkCenterModel, event: ProcessingProgressE
 		if (operation.operationId !== operationId) return operation;
 		changed = true;
 		return applyProgressToOperation(operation, event);
-	});
-	return changed ? { operations } : model;
-}
-
-export function applyQueue(model: WorkCenterModel, event: ProcessingQueueEvent): WorkCenterModel {
-	const operationId = event.operation_id;
-	if (!operationId) return model;
-
-	let changed = false;
-	const operations = model.operations.map((operation) => {
-		if (operation.operationId !== operationId) return operation;
-		changed = true;
-		const children = operation.children.map((child) => {
-			if (typeof child.inputIndex !== 'number') return child;
-			const queueItem = event.items.find((item) => item.input_index === child.inputIndex);
-			if (!queueItem) return child;
-			return {
-				...child,
-				label: basename(queueItem.file_path),
-				status: child.status === 'queued' ? child.status : child.status,
-			};
-		});
-		return { ...operation, children };
 	});
 	return changed ? { operations } : model;
 }
@@ -106,17 +92,13 @@ function applyProgressToOperation(
 			message: event.message,
 		};
 	});
-	const nextStatus = operationStatusFromEvent(
-		event,
-		operation.status,
-		childScopedBatchEvent,
-	);
+	const nextStatus = operationStatusFromEvent(event, operation.status, childScopedBatchEvent);
 	const nextProgress = {
 		...operation.progress,
-		stage: childScopedBatchEvent ? inFlightStage(operation.progress.stage) : workStageFromEvent(event.stage),
-		percentage: childScopedBatchEvent
-			? aggregateChildProgress(children)
-			: event.percentage,
+		stage: childScopedBatchEvent
+			? inFlightStage(operation.progress.stage)
+			: workStageFromEvent(event.stage),
+		percentage: childScopedBatchEvent ? aggregateChildProgress(children) : event.percentage,
 		message: event.message,
 		etaSeconds: event.eta_seconds,
 	};
@@ -186,8 +168,4 @@ function aggregateChildProgress(children: ChildJobSnapshot[]): number {
 
 function sortBySequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
 	return right.sequence - left.sequence;
-}
-
-function basename(path: string): string {
-	return path.split(/[\\/]/).pop() || path;
 }

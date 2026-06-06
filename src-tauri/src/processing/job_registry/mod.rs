@@ -221,6 +221,7 @@ impl JobRegistry {
             job_flag,
             global_flag: self.global_cancel.clone(),
             operation_flag: None,
+            honor_global: true,
         }
     }
 

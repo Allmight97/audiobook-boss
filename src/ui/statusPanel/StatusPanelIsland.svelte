@@ -69,10 +69,14 @@
 		return `${activeItems.length} ${label}`;
 	}
 
-	function handleCancelJob(item: (typeof statusPanelViewState.jobItems)[number]): void {
-		if (!item.canCancel || !item.cancelId || !item.onCancel) return;
-		item.onCancel(item.cancelId);
-	}
+    function handleCancelJob(item: (typeof statusPanelViewState.jobItems)[number]): void {
+      if (!item.canCancel || !item.cancelId || !item.onCancel) return;
+      item.onCancel(item.cancelId);
+    }
+
+    function hasCancellableForegroundJob(): boolean {
+      return statusPanelViewState.jobItems.some((item) => item.canCancel && item.cancelId);
+    }
 </script>
 
 <div class="panel status-panel">
@@ -179,7 +183,11 @@
       <button
         id="cancel-all-button"
         class="btn-pill btn-pill-secondary"
-        disabled={statusPanelViewState.cancelAllPending || !statusPanelViewState.isProcessing}
+        disabled={
+          statusPanelViewState.cancelAllPending ||
+          !statusPanelViewState.isProcessing ||
+          !hasCancellableForegroundJob()
+        }
         onclick={handleCancelAllClick}
       >
         Cancel
