@@ -17,7 +17,7 @@
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
-- Use cleanup guards and deterministic teardown for temp artifacts.
+- Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
 - Preserve finalize behavior that completes filesystem operations before success is reported.
 - Keep external FDK internals split by private mechanism under
   `external_fdk/`; callers should only use the adapter entrypoint.
@@ -28,14 +28,14 @@
 - Processor code must not directly perform final artifact `rename`, `copy`, or
   `hard_link`; final artifact commit truth lives in `output_artifact`.
 - External FDK and native engine paths must use the shared finalization handoff;
-  adapter-specific code may stage media and write metadata, but final artifact
+  adapter-specific code may stage media locally and write metadata, but final artifact
   commit and success wording remain centralized.
 - Preview artifacts intentionally omit chapter passthrough/preview chapters
   unless a future product decision wires real chapter emission and proves it
   against actual artifact metadata.
 - Drop probe/inspection contexts before reopening the same path for decoder trials, processing, replacement, or another library.
 - Cancellation is checked at critical boundaries, including post-move and pre-success paths.
-- Terminal paths clean temporary resources to avoid residue across retries.
+- Terminal paths clean app-owned temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
 
 ## Stage-Coupling Traps

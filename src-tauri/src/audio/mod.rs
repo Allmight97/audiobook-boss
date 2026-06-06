@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod buffer;
 mod cleanup;
@@ -122,3 +122,13 @@ pub use toolchain::{detect_encoder_availability, EncoderAvailability, EncoderCap
 
 // Crate-internal cleanup strip used by owned backend boundaries.
 pub(crate) use cleanup::CleanupGuard;
+
+pub(crate) fn processing_workspace_root(cache_dir: &Path) -> PathBuf {
+    processor::processing_workspace_root(cache_dir)
+}
+
+pub(crate) fn cleanup_abandoned_processing_workspaces(
+    cache_dir: &Path,
+) -> crate::errors::Result<()> {
+    processor::cleanup_abandoned_processing_workspaces(cache_dir)
+}

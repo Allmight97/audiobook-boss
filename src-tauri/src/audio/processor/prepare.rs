@@ -37,15 +37,12 @@ pub(crate) fn validate_processing_inputs(
     Ok(())
 }
 
-/// Creates a session-specific temporary directory.
+/// Creates a session-specific local processing workspace.
 pub(crate) fn create_temp_directory_with_session(
     session_id: Uuid,
-    final_artifact_path: &Path,
+    workspace_root: &Path,
 ) -> Result<PathBuf> {
-    crate::audio::processor::staging::create_destination_staging_dir(
-        session_id,
-        final_artifact_path,
-    )
+    crate::audio::processor::staging::create_processing_workspace_dir(session_id, workspace_root)
 }
 
 /// Emits initial progress + validates inputs with cancellation awareness.
@@ -72,8 +69,10 @@ pub(crate) fn prepare_workspace(
     let mut emitter = ProgressReporter::new(1);
     emitter.set_stage(ProcessingStage::Analyzing);
 
-    let temp_dir =
-        create_temp_directory_with_session(context.session.uuid(), context.output.artifact_path())?;
+    let temp_dir = create_temp_directory_with_session(
+        context.session.uuid(),
+        context.processing_workspace_root(),
+    )?;
 
     // Single engine: no concat file needed
 

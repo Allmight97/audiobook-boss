@@ -7,8 +7,8 @@
   I/O and final commit behavior.
 
 ## Private Cluster
-- Files: `artifact.rs`, `collision.rs`, `commit.rs`, `naming.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
-- The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation, final artifact commit behavior, and final-sidecar Supplemental PDF commit behavior.
+- Files: `artifact.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `naming.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
+- The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 
 ## Allowed Agent Edits Without Escalation
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.

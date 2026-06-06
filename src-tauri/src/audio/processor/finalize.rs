@@ -2,10 +2,12 @@
 //!
 //! Output artifact commit policy lives in `output_artifact`; this module
 //! sequences processor progress, cleanup registration, and success emission.
-//! Metadata is written during mux, so `write_metadata_stage` is a no-op.
+//! Native muxing may write initial metadata; finalized MP4-family metadata can
+//! still be written here before artifact commit.
 //! Cancellation checks run after each sub-step to avoid unnecessary work.
 
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use crate::audio::CleanupGuard;
 use crate::errors::{AppError, Result};
@@ -40,7 +42,13 @@ pub(crate) fn write_metadata_stage(
     let ui = _context.new_emitter();
     reporter.set_stage(ProcessingStage::WritingMetadata);
     ui.emit_metadata_start("Writing metadata...");
+    let started = Instant::now();
     crate::metadata::write_finalized_metadata(merged_output, &metadata)?;
+    log::info!(
+        "finalized_metadata_write status=ok elapsed_ms={} path={}",
+        started.elapsed().as_millis(),
+        merged_output.display()
+    );
     ui.emit_finalizing("Finalizing...");
     Ok(())
 }

@@ -128,6 +128,10 @@ pub fn run() {
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
+            let app_cache_dir = app.path().app_cache_dir().map_err(|error| {
+                errors::AppError::General(format!("Failed to resolve app cache directory: {error}"))
+            })?;
+            audio::cleanup_abandoned_processing_workspaces(&app_cache_dir)?;
             let remote_runtime = remote_source::RemoteSourceRuntime::new(app.handle())?;
             remote_runtime.cleanup_abandoned_sessions()?;
             app.manage(remote_runtime);

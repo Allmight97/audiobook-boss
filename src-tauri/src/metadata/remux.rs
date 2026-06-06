@@ -2,6 +2,7 @@ use super::passthrough::PassthroughMetadata;
 use super::{AudiobookMetadata, MetadataWritePlan};
 use crate::errors::Result;
 use ffmpeg_next as ff;
+use std::time::Instant;
 
 use super::cover_art::embedding::{
     add_cover_art_stream_pre_header, write_cover_art_packet_post_header,
@@ -40,6 +41,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
 ) -> Result<()> {
     use crate::errors::AppError;
 
+    let started = Instant::now();
     ff::init().map_err(AppError::Ffmpeg)?;
     let mut ictx = ff::format::input(input_path).map_err(AppError::Ffmpeg)?;
     let temp_path = build_temp_output_path(input_path)?;
@@ -93,6 +95,11 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     drop(ictx);
 
     crate::file_replace::replace_file(&temp_path, input_path).map_err(AppError::Io)?;
+    log::info!(
+        "metadata_remux status=ok elapsed_ms={} path={}",
+        started.elapsed().as_millis(),
+        input_path.display()
+    );
     Ok(())
 }
 

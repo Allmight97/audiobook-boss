@@ -11,6 +11,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Window;
 
+fn default_processing_workspace_root() -> PathBuf {
+    std::env::temp_dir()
+        .join("audiobook-boss")
+        .join("processing")
+        .join("sessions")
+}
+
 /// Output configuration derived from user input
 #[derive(Debug, Clone)]
 pub struct OutputConfig {
@@ -86,6 +93,8 @@ pub struct ProcessingContext {
     pub sample_rate: SampleRateConfig,
     /// Output configuration
     pub output: OutputConfig,
+    /// App-owned local workspace root for in-flight processing artifacts.
+    workspace_root: PathBuf,
     /// Optional preview configuration (when present, processing should early-stop)
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
@@ -105,12 +114,31 @@ impl ProcessingContext {
         sample_rate: SampleRateConfig,
         output: OutputConfig,
     ) -> Self {
+        Self::new_with_workspace_root(
+            window,
+            session,
+            encoder_settings,
+            sample_rate,
+            output,
+            default_processing_workspace_root(),
+        )
+    }
+
+    pub fn new_with_workspace_root(
+        window: Window,
+        session: Arc<ProcessingSession>,
+        encoder_settings: EncoderSettings,
+        sample_rate: SampleRateConfig,
+        output: OutputConfig,
+        workspace_root: PathBuf,
+    ) -> Self {
         Self {
             window: Some(window),
             session,
             encoder_settings,
             sample_rate,
             output,
+            workspace_root,
             preview: None,
             job_id: None,
             input_index: None,
@@ -125,12 +153,29 @@ impl ProcessingContext {
         sample_rate: SampleRateConfig,
         output: OutputConfig,
     ) -> Self {
+        Self::new_headless_with_workspace_root(
+            session,
+            encoder_settings,
+            sample_rate,
+            output,
+            default_processing_workspace_root(),
+        )
+    }
+
+    pub fn new_headless_with_workspace_root(
+        session: Arc<ProcessingSession>,
+        encoder_settings: EncoderSettings,
+        sample_rate: SampleRateConfig,
+        output: OutputConfig,
+        workspace_root: PathBuf,
+    ) -> Self {
         Self {
             window: None,
             session,
             encoder_settings,
             sample_rate,
             output,
+            workspace_root,
             preview: None,
             job_id: None,
             input_index: None,
@@ -206,6 +251,10 @@ impl ProcessingContext {
         }
     }
 
+    pub(crate) fn processing_workspace_root(&self) -> &Path {
+        &self.workspace_root
+    }
+
     /// Returns the effective bitrate in kbps
     pub fn effective_bitrate_kbps(&self) -> u32 {
         self.encoder_settings.bitrate_kbps as u32
@@ -233,6 +282,7 @@ pub struct ProcessingContextBuilder {
     job_id: Option<String>,
     input_index: Option<usize>,
     operation_kind: OperationKind,
+    workspace_root: Option<PathBuf>,
 }
 
 impl ProcessingContextBuilder {
@@ -295,6 +345,11 @@ impl ProcessingContextBuilder {
         self
     }
 
+    pub fn workspace_root(mut self, workspace_root: PathBuf) -> Self {
+        self.workspace_root = Some(workspace_root);
+        self
+    }
+
     /// Builds the ProcessingContext
     ///
     /// # Errors
@@ -330,6 +385,9 @@ impl ProcessingContextBuilder {
                     .to_string(),
             )
         })?;
+        let workspace_root = self
+            .workspace_root
+            .unwrap_or_else(default_processing_workspace_root);
 
         Ok(ProcessingContext {
             window: Some(window),
@@ -337,6 +395,7 @@ impl ProcessingContextBuilder {
             encoder_settings,
             sample_rate,
             output,
+            workspace_root,
             preview: self.preview,
             job_id: self.job_id,
             input_index: self.input_index,

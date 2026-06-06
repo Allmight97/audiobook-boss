@@ -4,6 +4,7 @@ use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 fn collision_state_changed_error(final_path: &Path) -> AppError {
     AppError::FileValidation(format!(
@@ -12,7 +13,79 @@ fn collision_state_changed_error(final_path: &Path) -> AppError {
     ))
 }
 
+fn remove_copied_temp_output_with<H, R>(
+    temp_output: &Path,
+    final_path: &Path,
+    source_handle: H,
+    remove_file: R,
+) -> Result<()>
+where
+    R: FnOnce(&Path) -> std::io::Result<()>,
+{
+    // SMB/NAS mounts can reject deleting a file while ABB still holds a read
+    // handle. Close the copied source before removing the staged output.
+    drop(source_handle);
+    remove_file(temp_output).map_err(|error| {
+        AppError::FileValidation(format!(
+            "Created final output '{}' but failed to remove temporary file: {}",
+            sanitize_path_for_display(final_path),
+            error
+        ))
+    })
+}
+
+fn remove_copied_temp_output<H>(
+    temp_output: &Path,
+    final_path: &Path,
+    source_handle: H,
+) -> Result<()> {
+    remove_copied_temp_output_with(temp_output, final_path, source_handle, |path| {
+        std::fs::remove_file(path)
+    })
+}
+
+fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -> Result<()> {
+    let mut source = std::fs::File::open(temp_output).map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot open temporary output '{}' for final copy: {}",
+            sanitize_path_for_display(temp_output),
+            error
+        ))
+    })?;
+    let mut destination = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination_path)
+        .map_err(|error| {
+            if error.kind() == ErrorKind::AlreadyExists {
+                return collision_state_changed_error(destination_path);
+            }
+            AppError::FileValidation(format!(
+                "Cannot create final output '{}': {}",
+                sanitize_path_for_display(destination_path),
+                error
+            ))
+        })?;
+    std::io::copy(&mut source, &mut destination).map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot copy file to final location '{}': {}",
+            sanitize_path_for_display(destination_path),
+            error
+        ))
+    })?;
+    destination.sync_all().map_err(|error| {
+        AppError::FileValidation(format!(
+            "Failed to flush final output '{}': {}",
+            sanitize_path_for_display(destination_path),
+            error
+        ))
+    })?;
+    drop(source);
+    Ok(())
+}
+
 fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
+    let started = Instant::now();
     if path_entry_exists(final_path)? {
         return Err(collision_state_changed_error(final_path));
     }
@@ -27,8 +100,9 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
                 ))
             })?;
             log::info!(
-                "finalize_move method=hard-link status=ok dest={}",
-                final_path.display()
+                "finalize_move method=hard-link status=ok elapsed_ms={} dest={}",
+                started.elapsed().as_millis(),
+                final_path.display(),
             );
             return Ok(final_path.to_path_buf());
         }
@@ -54,15 +128,15 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
         }
     }
 
-    let mut source = std::fs::File::open(temp_output).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Cannot open temporary output '{}' for final copy: {}",
-            sanitize_path_for_display(temp_output),
-            error
-        ))
-    })?;
     let mut created_destination = false;
     let copy_result = (|| -> Result<()> {
+        let mut source = std::fs::File::open(temp_output).map_err(|error| {
+            AppError::FileValidation(format!(
+                "Cannot open temporary output '{}' for final copy: {}",
+                sanitize_path_for_display(temp_output),
+                error
+            ))
+        })?;
         let mut destination = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -92,6 +166,7 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
                 error
             ))
         })?;
+        remove_copied_temp_output(temp_output, final_path, source)?;
         Ok(())
     })();
 
@@ -102,18 +177,110 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
         return Err(error);
     }
 
-    std::fs::remove_file(temp_output).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Created final output '{}' but failed to remove temporary file: {}",
-            sanitize_path_for_display(final_path),
-            error
-        ))
-    })?;
     log::info!(
-        "finalize_move method=copy-create-new status=ok dest={}",
+        "finalize_move method=copy-create-new status=ok elapsed_ms={} dest={}",
+        started.elapsed().as_millis(),
         final_path.display()
     );
     Ok(final_path.to_path_buf())
+}
+
+fn destination_replacement_temp_path(final_path: &Path) -> Result<PathBuf> {
+    let parent = final_path.parent().ok_or_else(|| {
+        AppError::FileValidation(format!(
+            "Output path '{}' has no parent directory.",
+            sanitize_path_for_display(final_path)
+        ))
+    })?;
+    let file_name = final_path.file_name().ok_or_else(|| {
+        AppError::FileValidation(format!(
+            "Output path '{}' has no file name.",
+            sanitize_path_for_display(final_path)
+        ))
+    })?;
+    Ok(parent.join(format!(
+        ".abb_replace_install_{}_{}",
+        uuid::Uuid::new_v4(),
+        file_name.to_string_lossy()
+    )))
+}
+
+fn replace_existing_from_staged_output_with<R>(
+    temp_output: &Path,
+    final_path: &Path,
+    mut replace_file: R,
+) -> Result<PathBuf>
+where
+    R: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
+    let started = Instant::now();
+    match replace_file(temp_output, final_path) {
+        Ok(()) => {
+            log::info!(
+                "finalize_move method=rename-replace status=ok elapsed_ms={} dest={}",
+                started.elapsed().as_millis(),
+                final_path.display()
+            );
+            return Ok(final_path.to_path_buf());
+        }
+        Err(rename_err) if matches!(rename_err.kind(), ErrorKind::CrossesDevices) => {
+            log::info!(
+                "finalize_move method=rename-replace status=cross-device-fallback dest={}",
+                final_path.display()
+            );
+        }
+        Err(rename_err) => {
+            log::warn!(
+                "finalize_move method=rename status=err elapsed_ms={} dest={} err={}",
+                started.elapsed().as_millis(),
+                final_path.display(),
+                rename_err
+            );
+            return Err(AppError::FileValidation(format!(
+                "Cannot replace final output '{}' with staged output: {}",
+                sanitize_path_for_display(final_path),
+                rename_err
+            )));
+        }
+    }
+
+    let destination_temp = destination_replacement_temp_path(final_path)?;
+    if let Err(error) = copy_staged_output_to_new_file(temp_output, &destination_temp) {
+        let _ = std::fs::remove_file(&destination_temp);
+        return Err(error);
+    }
+
+    match replace_file(&destination_temp, final_path) {
+        Ok(()) => {
+            std::fs::remove_file(temp_output).map_err(|error| {
+                AppError::FileValidation(format!(
+                    "Created final output '{}' but failed to remove temporary file: {}",
+                    sanitize_path_for_display(final_path),
+                    error
+                ))
+            })?;
+            log::info!(
+                "finalize_move method=copy-replace status=ok elapsed_ms={} dest={}",
+                started.elapsed().as_millis(),
+                final_path.display()
+            );
+            Ok(final_path.to_path_buf())
+        }
+        Err(error) => {
+            let _ = std::fs::remove_file(&destination_temp);
+            Err(AppError::FileValidation(format!(
+                "Cannot replace final output '{}' with staged output: {}",
+                sanitize_path_for_display(final_path),
+                error
+            )))
+        }
+    }
+}
+
+fn replace_existing_from_staged_output(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
+    replace_existing_from_staged_output_with(temp_output, final_path, |source, destination| {
+        crate::file_replace::replace_file(source, destination)
+    })
 }
 
 fn commit_temp_output_to_artifact(
@@ -141,27 +308,7 @@ fn commit_temp_output_to_artifact(
             )));
         }
     }
-    match crate::file_replace::replace_file(&temp_output, final_path) {
-        Ok(()) => {
-            log::info!(
-                "finalize_move method=rename-replace status=ok dest={}",
-                final_path.display()
-            );
-            Ok(final_path.to_path_buf())
-        }
-        Err(rename_err) => {
-            log::warn!(
-                "finalize_move method=rename status=err dest={} err={}",
-                final_path.display(),
-                rename_err
-            );
-            Err(AppError::FileValidation(format!(
-                "Cannot replace final output '{}' with staged output: {}",
-                sanitize_path_for_display(final_path),
-                rename_err
-            )))
-        }
-    }
+    replace_existing_from_staged_output(&temp_output, final_path)
 }
 
 pub(crate) struct OutputCommitOutcome {
@@ -270,165 +417,5 @@ pub(crate) fn finalized_output_success(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use tempfile::TempDir;
-
-    #[test]
-    fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
-        let root = TempDir::new().expect("temp root");
-        let temp_dir = root.path().join("worker-temp");
-        std::fs::create_dir_all(&temp_dir).expect("create worker temp dir");
-
-        let temp_output = temp_dir.join("worker-output.m4b");
-        std::fs::write(&temp_output, b"payload").expect("write temp output");
-
-        let final_output = root.path().join("final-output.m4b");
-
-        let cancelled = AtomicBool::new(false);
-        let mut cleanup_guard = CleanupGuard::new("commit-test".to_string());
-        cleanup_guard.add_path(&temp_dir);
-        cleanup_guard.add_path(&temp_output);
-
-        let request = OutputCommitRequest::new(&final_output, PlannedOutputAction::Write);
-        let outcome = commit_output_artifact_after_move(
-            request,
-            temp_output,
-            &mut cleanup_guard,
-            || {
-                cancelled.store(true, Ordering::Release);
-            },
-            || cancelled.load(Ordering::Acquire),
-        )
-        .expect("commit should succeed");
-
-        assert!(outcome.cancelled, "expected cancellation after move");
-        assert!(final_output.exists(), "moved output should be preserved");
-        assert!(
-            !temp_dir.exists(),
-            "temp directory should still be cleaned after post-move cancellation"
-        );
-    }
-
-    #[test]
-    fn finalized_output_success_keeps_success_messages_after_post_commit_cancel() {
-        let output = Path::new("/tmp/final-output.m4b");
-
-        let preview = finalized_output_success(OutputKind::Preview, output, true);
-        assert_eq!(preview.ui_message, "Preview created successfully");
-        assert_eq!(
-            preview.result_message,
-            "Successfully created preview: /tmp/final-output.m4b"
-        );
-
-        let full = finalized_output_success(OutputKind::Final, output, true);
-        assert_eq!(full.ui_message, "Processing complete");
-        assert_eq!(
-            full.result_message,
-            "Successfully created audiobook: /tmp/final-output.m4b"
-        );
-    }
-
-    #[test]
-    fn commit_temp_output_rejects_existing_destination_for_write_action() {
-        let root = TempDir::new().expect("temp root");
-        let temp_output = root.path().join("temp-output.m4b");
-        let final_output = root.path().join("final-output.m4b");
-        std::fs::write(&temp_output, b"new").expect("write temp output");
-        std::fs::write(&final_output, b"existing").expect("write existing output");
-
-        let err = commit_temp_output_to_artifact(
-            temp_output.clone(),
-            &final_output,
-            PlannedOutputAction::Write,
-        )
-        .expect_err("existing destination should fail");
-
-        assert!(err.to_string().contains("Review collisions and try again"));
-        assert_eq!(
-            std::fs::read(&final_output).expect("read final output"),
-            b"existing"
-        );
-        assert_eq!(
-            std::fs::read(&temp_output).expect("read temp output"),
-            b"new"
-        );
-    }
-
-    #[test]
-    fn commit_temp_output_replaces_existing_destination_for_replace_existing_action() {
-        let root = TempDir::new().expect("temp root");
-        let temp_output = root.path().join("temp-output.m4b");
-        let final_output = root.path().join("final-output.m4b");
-        std::fs::write(&temp_output, b"new").expect("write temp output");
-        std::fs::write(&final_output, b"existing").expect("write existing output");
-
-        let committed = commit_temp_output_to_artifact(
-            temp_output.clone(),
-            &final_output,
-            PlannedOutputAction::ReplaceExisting,
-        )
-        .expect("replace action should succeed");
-
-        assert_eq!(committed, final_output);
-        assert_eq!(
-            std::fs::read(&final_output).expect("read final output"),
-            b"new"
-        );
-        assert!(!temp_output.exists(), "temp output should be removed");
-    }
-
-    #[test]
-    fn commit_temp_output_preserves_outputs_when_replace_rename_fails() {
-        let root = TempDir::new().expect("temp root");
-        let temp_output = root.path().join("temp-output.m4b");
-        let final_output = root.path().join("final-output.m4b");
-        std::fs::write(&temp_output, b"new").expect("write temp output");
-        std::fs::create_dir(&final_output).expect("create occupied destination directory");
-
-        let err = commit_temp_output_to_artifact(
-            temp_output.clone(),
-            &final_output,
-            PlannedOutputAction::ReplaceExisting,
-        )
-        .expect_err("rename into occupied directory should fail");
-
-        assert!(err.to_string().contains("Cannot replace final output"));
-        assert!(final_output.is_dir(), "existing destination should remain");
-        assert_eq!(
-            std::fs::read(&temp_output).expect("read temp output"),
-            b"new",
-            "staged output should remain for cleanup after commit failure"
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn commit_temp_output_rejects_dangling_symlink_destination_for_write_action() {
-        let root = TempDir::new().expect("temp root");
-        let temp_output = root.path().join("temp-output.m4b");
-        let final_output = root.path().join("final-output.m4b");
-        let missing_target = root.path().join("missing-output.m4b");
-        std::fs::write(&temp_output, b"new").expect("write temp output");
-        std::os::unix::fs::symlink(&missing_target, &final_output)
-            .expect("create dangling symlink");
-
-        let err = commit_temp_output_to_artifact(
-            temp_output.clone(),
-            &final_output,
-            PlannedOutputAction::Write,
-        )
-        .expect_err("dangling symlink should fail");
-
-        assert!(err.to_string().contains("Review collisions and try again"));
-        assert_eq!(
-            std::fs::read_link(&final_output).expect("read symlink"),
-            missing_target
-        );
-        assert_eq!(
-            std::fs::read(&temp_output).expect("read temp output"),
-            b"new"
-        );
-    }
-}
+#[path = "commit_tests.rs"]
+mod tests;

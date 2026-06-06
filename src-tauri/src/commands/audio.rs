@@ -20,6 +20,7 @@ pub use crate::processing::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -197,10 +198,21 @@ pub async fn process_audiobook_files(
     if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
         registry.reset_global_cancel();
     }
+    let cache_dir = window
+        .app_handle()
+        .path()
+        .app_cache_dir()
+        .map_err(|error| {
+            AppError::General(format!(
+                "Failed to resolve processing workspace root: {error}"
+            ))
+        })?;
+    let workspace_root = audio::processing_workspace_root(&cache_dir);
 
     Ok(run::process_payload(
         window,
         registry.inner().clone(),
+        workspace_root,
         payload,
         metadata,
         preview_seconds,

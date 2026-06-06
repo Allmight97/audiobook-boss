@@ -4,7 +4,7 @@
 //!   - prepare.rs   : validation and workspace setup
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
-//!   - staging.rs   : destination-adjacent temp output directories
+//!   - staging.rs   : app-cache local processing workspace directories
 //!   - adapter.rs   : native vs external processor adapter resolution
 //!
 //! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
@@ -74,6 +74,15 @@ pub fn validate_audio_engine_inputs(
 ) -> Result<()> {
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)
+}
+
+pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::path::PathBuf {
+    staging::workspace_root_for_app_cache(cache_dir)
+}
+
+pub(crate) fn cleanup_abandoned_processing_workspaces(cache_dir: &std::path::Path) -> Result<()> {
+    let root = processing_workspace_root(cache_dir);
+    staging::cleanup_abandoned_processing_sessions(&root)
 }
 
 pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<String> {

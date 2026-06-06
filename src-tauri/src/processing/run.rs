@@ -34,11 +34,20 @@ pub(crate) struct ProcessingRun;
 pub(crate) async fn process_payload(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
     payload: ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
-    ProcessingRun::execute(window, registry, payload, metadata, preview_seconds).await
+    ProcessingRun::execute(
+        window,
+        registry,
+        workspace_root,
+        payload,
+        metadata,
+        preview_seconds,
+    )
+    .await
 }
 
 pub(crate) fn preflight_payload(
@@ -53,6 +62,7 @@ impl ProcessingRun {
     pub(crate) async fn execute(
         window: tauri::Window,
         registry: crate::ManagedJobRegistry,
+        workspace_root: PathBuf,
         payload: ProcessPayload,
         metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
         preview_seconds: Option<f64>,
@@ -64,8 +74,12 @@ impl ProcessingRun {
         let plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
 
         match plan.job_type {
-            JobType::Merge => dispatch_merge_job(window, registry, &payload, plan).await,
-            JobType::Batch => dispatch_batch_jobs(window, registry, &payload, plan).await,
+            JobType::Merge => {
+                dispatch_merge_job(window, registry, workspace_root, &payload, plan).await
+            }
+            JobType::Batch => {
+                dispatch_batch_jobs(window, registry, workspace_root, &payload, plan).await
+            }
         }
     }
 
@@ -164,6 +178,7 @@ fn finalize_batch_results(
 async fn dispatch_merge_job(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
 ) -> Result<ProcessCommandResult> {
@@ -180,6 +195,7 @@ async fn dispatch_merge_job(
     let result = run_processing_job(ProcessingJobRequest {
         window,
         registry,
+        workspace_root,
         encoder_settings: payload.settings.clone(),
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
@@ -199,6 +215,7 @@ async fn dispatch_merge_job(
 async fn dispatch_batch_jobs(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
 ) -> Result<ProcessCommandResult> {
@@ -240,6 +257,7 @@ async fn dispatch_batch_jobs(
         let md_cloned = planned_job.metadata.clone();
         let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
+        let workspace_root_cloned = workspace_root.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
         let path = planned_job.input_path.clone().ok_or_else(|| {
@@ -252,6 +270,7 @@ async fn dispatch_batch_jobs(
             run_processing_job(ProcessingJobRequest {
                 window: window_cloned,
                 registry: registry_cloned,
+                workspace_root: workspace_root_cloned,
                 encoder_settings: settings_cloned,
                 sample_rate: sr_cloned,
                 input_index,
@@ -276,6 +295,7 @@ async fn dispatch_batch_jobs(
 struct ProcessingJobRequest {
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
     encoder_settings: EncoderSettings,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
@@ -302,6 +322,7 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
         input_index: request.input_index,
         operation_kind: request.operation_kind,
         output_plan: request.output_plan.clone(),
+        workspace_root: request.workspace_root,
         preview_seconds: request.preview_seconds,
     });
     let preview_path = (request.output_plan.kind == OutputKind::Preview)
@@ -458,18 +479,20 @@ struct ProcessingContextRequest {
     input_index: Option<usize>,
     operation_kind: OperationKind,
     output_plan: ResolvedOutputPlan,
+    workspace_root: PathBuf,
     preview_seconds: Option<f64>,
 }
 
 fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
     let session =
         ProcessingSession::from_job_registry(request.job_id.0, request.cancellation_checker);
-    let mut context = ProcessingContext::new(
+    let mut context = ProcessingContext::new_with_workspace_root(
         request.window,
         std::sync::Arc::new(session),
         request.encoder_settings,
         request.sample_rate,
         OutputConfig::from_plan(request.output_plan),
+        request.workspace_root,
     );
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;

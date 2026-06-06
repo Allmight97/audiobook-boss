@@ -13,6 +13,7 @@ use crate::metadata::passthrough::merge_passthrough_cover_art;
 use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 use std::path::PathBuf;
+use std::time::Instant;
 
 pub(super) async fn process_audiobook_with_external_fdk(
     context: ProcessingContext,
@@ -87,11 +88,16 @@ pub(super) async fn process_audiobook_with_external_fdk(
 
     if effective_metadata.is_some() || passthrough.is_some() {
         ui.emit_metadata_start("Re-applying metadata and cover art...");
+        let metadata_started = Instant::now();
         rewrite_metadata_with_ffmpeg(
             &temp_output,
             effective_metadata.as_ref(),
             passthrough.as_ref(),
         )?;
+        log::info!(
+            "external_fdk_metadata_rewrite status=ok elapsed_ms={}",
+            metadata_started.elapsed().as_millis()
+        );
         ui.emit_finalizing("Finalizing metadata...");
     }
 
@@ -99,9 +105,9 @@ pub(super) async fn process_audiobook_with_external_fdk(
 }
 
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {
-    crate::audio::processor::staging::create_destination_staging_dir(
+    crate::audio::processor::staging::create_processing_workspace_dir(
         context.session.uuid(),
-        context.output.artifact_path(),
+        context.processing_workspace_root(),
     )
 }
 
@@ -115,4 +121,47 @@ fn expected_duration_seconds(
 
     let total: f64 = files.iter().filter_map(|file| file.duration).sum();
     total.max(1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::{
+        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+    };
+    use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    fn encoder_settings() -> EncoderSettings {
+        EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Cbr,
+            channels: ChannelConfig::Auto,
+            afterburner: false,
+            threads: ThreadSetting::Auto,
+            twoloop: true,
+        }
+    }
+
+    #[test]
+    fn external_fdk_temp_dir_uses_processing_workspace_root() {
+        let local = TempDir::new().expect("local workspace");
+        let destination = TempDir::new().expect("destination");
+        let workspace_root = local.path().join("processing").join("sessions");
+        let final_output = destination.path().join("Book.m4b");
+        let context = ProcessingContext::new_headless_with_workspace_root(
+            Arc::new(ProcessingSession::new()),
+            encoder_settings(),
+            SampleRateConfig::Auto,
+            OutputConfig::new(&final_output),
+            workspace_root.clone(),
+        );
+
+        let temp_dir = create_temp_dir(&context).expect("temp dir");
+
+        assert!(temp_dir.starts_with(&workspace_root));
+        assert!(!temp_dir.starts_with(destination.path()));
+    }
 }
