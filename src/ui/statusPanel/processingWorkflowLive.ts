@@ -43,6 +43,7 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	validateMetadataIntentPatch: tauriClient.validateMetadataIntentPatch,
 	readAudioMetadata: tauriClient.readAudioMetadata,
 	processAudiobookFiles: tauriClient.processAudiobookFiles,
+	submitProcessingOperation: tauriClient.submitProcessingOperation,
 	runOutputPlanReviewWorkflow,
 	openGeneratedPreviewIfSingle,
 	feedback,

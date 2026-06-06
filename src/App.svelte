@@ -5,6 +5,7 @@
 	import EncoderPanelIsland from './ui/encoderPanel/EncoderPanelIsland.svelte';
 	import OutputPanelIsland from './ui/outputPanel/OutputPanelIsland.svelte';
 	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
+	import { WorkCenterIsland } from './ui/workCenter';
 	import {
 		onClearCoverArt,
 		onLoadCoverArtFromFilePicker,
@@ -153,6 +154,7 @@
 		</div>
 
 		<StatusPanelIsland />
+		<WorkCenterIsland />
 	</div>
 </div>
 <MetadataLookupIsland />

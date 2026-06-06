@@ -15,6 +15,8 @@ pub struct ProgressEmitter {
     operation_kind: OperationKind,
     /// Optional Tauri window for event emission (None in headless/test runs)
     window: Option<Window>,
+    /// Optional WorkRuntime operation identifier
+    operation_id: Option<String>,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
     /// Optional input index for batch processing
@@ -32,6 +34,7 @@ impl ProgressEmitter {
         Self {
             operation_kind,
             window: Some(window),
+            operation_id: None,
             job_id: None,
             input_index: None,
         }
@@ -42,6 +45,7 @@ impl ProgressEmitter {
         Self {
             operation_kind: OperationKind::ProcessingBatch,
             window: Some(window),
+            operation_id: None,
             job_id: Some(job_id),
             input_index: None,
         }
@@ -51,12 +55,14 @@ impl ProgressEmitter {
     pub fn with_context(
         window: Window,
         operation_kind: OperationKind,
+        operation_id: Option<String>,
         job_id: Option<String>,
         input_index: Option<usize>,
     ) -> Self {
         Self {
             operation_kind,
             window: Some(window),
+            operation_id,
             job_id,
             input_index,
         }
@@ -72,6 +78,7 @@ impl ProgressEmitter {
         Self {
             operation_kind,
             window: None,
+            operation_id: None,
             job_id: None,
             input_index: None,
         }
@@ -84,6 +91,7 @@ impl ProgressEmitter {
 
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
         ProgressEvent {
+            operation_id: self.operation_id.clone(),
             operation_kind: self.operation_kind,
             stage,
             percentage: if stage == EventStage::Skipped {
@@ -242,6 +250,7 @@ impl ProgressEmitter {
         eta_seconds: Option<f64>,
     ) {
         let event = ProgressEvent {
+            operation_id: self.operation_id.clone(),
             operation_kind: self.operation_kind,
             stage: EventStage::from(&stage),
             percentage,
@@ -267,6 +276,7 @@ mod tests {
         let emitter = ProgressEmitter {
             operation_kind: OperationKind::ProcessingBatch,
             window: None,
+            operation_id: Some("op-123".to_string()),
             job_id: Some("job-123".to_string()),
             input_index: Some(7),
         };
@@ -281,6 +291,9 @@ mod tests {
         assert_eq!(failed.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(cancelled.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(skipped.operation_kind, OperationKind::ProcessingBatch);
+        assert_eq!(failed.operation_id, Some("op-123".to_string()));
+        assert_eq!(cancelled.operation_id, Some("op-123".to_string()));
+        assert_eq!(skipped.operation_id, Some("op-123".to_string()));
         assert_eq!(failed.percentage, 0.0);
         assert_eq!(cancelled.percentage, 0.0);
         assert_eq!(skipped.percentage, 100.0);

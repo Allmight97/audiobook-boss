@@ -12,6 +12,10 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
+type ProcessPayloadForTest = {
+	inputFiles?: string[];
+	jobType?: 'batch' | 'merge' | null;
+};
 const eventListeners = new Map<string, Set<TestEventHandler>>();
 let mockJobCounter = 0;
 
@@ -21,6 +25,67 @@ function emitTestEvent(event: string, payload: unknown): void {
 	for (const handler of handlers) {
 		handler({ event, id: Date.now(), payload });
 	}
+}
+
+function mockOperationSnapshot(
+	operationId: string,
+	kind: 'processingBatch' | 'processingMerge',
+	inputFiles: string[],
+) {
+	return {
+		operationId,
+		sequence: mockJobCounter,
+		kind,
+		status: 'accepted',
+		title:
+			kind === 'processingMerge'
+				? `Merge encode (${inputFiles.length} files)`
+				: `Batch encode (${inputFiles.length} files)`,
+		createdAtMs: Date.now(),
+		startedAtMs: null,
+		finishedAtMs: null,
+		cancellable: true,
+		cancelRequested: false,
+		lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+		sourceInputIds: [],
+		progress: {
+			stage: 'pending',
+			percentage: 0,
+			message: 'Accepted.',
+			currentItemIndex: null,
+			totalItems: inputFiles.length,
+			bytesDownloaded: null,
+			bytesTotal: null,
+			etaSeconds: null,
+		},
+		children: inputFiles.map((path, index) => ({
+			childJobId: `input-${index}`,
+			operationId,
+			label: path.split(/[\\/]/).pop() || path,
+			status: 'queued',
+			lane: 'encodeCpu',
+			progress: {
+				stage: 'pending',
+				percentage: 0,
+				message: 'Queued.',
+				currentItemIndex: null,
+				totalItems: inputFiles.length,
+				bytesDownloaded: null,
+				bytesTotal: null,
+				etaSeconds: null,
+			},
+			sourcePath: path,
+			inputIndex: index,
+			inputId: null,
+			jobId: null,
+			cancellable: false,
+			cancelRequested: false,
+			message: null,
+		})),
+		terminalSummary: null,
+		warnings: [],
+		errors: [],
+	};
 }
 
 // Mock Tauri's invoke API
@@ -148,6 +213,40 @@ vi.mock('@tauri-apps/api/core', () => ({
 							previewActualSeconds: null,
 						},
 					],
+				});
+			}
+			case 'submit_processing_operation': {
+				const args = _args as
+					| {
+							request?: {
+								payload?: ProcessPayloadForTest;
+							};
+					  }
+					| undefined;
+				const operationId = `mock-operation-${++mockJobCounter}`;
+				const inputFiles = args?.request?.payload?.inputFiles ?? [];
+				const kind =
+					args?.request?.payload?.jobType === 'merge' ? 'processingMerge' : 'processingBatch';
+				const snapshot = mockOperationSnapshot(operationId, kind, inputFiles);
+				emitTestEvent('work-operation-snapshot', { snapshot });
+				emitTestEvent('work-operation-list-snapshot', { operations: [snapshot] });
+				return Promise.resolve({ operationId, snapshot });
+			}
+			case 'list_work_operations':
+				return Promise.resolve({ operations: [] });
+			case 'get_work_operation': {
+				const args = _args as { operationId?: string } | undefined;
+				const operationId = args?.operationId ?? 'mock-operation';
+				return Promise.resolve(mockOperationSnapshot(operationId, 'processingBatch', []));
+			}
+			case 'cancel_work_operation': {
+				const args = _args as { operationId?: string } | undefined;
+				const operationId = args?.operationId ?? 'mock-operation';
+				return Promise.resolve({
+					...mockOperationSnapshot(operationId, 'processingBatch', []),
+					status: 'cancelling',
+					cancelRequested: true,
+					cancellable: false,
 				});
 			}
 			case 'save_metadata_batch': {

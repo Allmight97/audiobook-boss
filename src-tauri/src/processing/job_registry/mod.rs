@@ -4,6 +4,9 @@
 //! to limit simultaneous processing operations.
 
 mod cancel;
+mod permit;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use crate::errors::{AppError, Result};
@@ -11,7 +14,7 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::sync::{RwLock, Semaphore};
 use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
@@ -189,42 +192,6 @@ impl JobRegistry {
         BatchScheduler::new(self)
     }
 
-    /// Registers a new job and acquires a semaphore permit
-    ///
-    /// This method will block if max_concurrent jobs are already running.
-    /// Returns the JobId and an owned permit that must be held for the
-    /// duration of processing.
-    pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
-        if self.global_cancel.load(Ordering::SeqCst) {
-            return Err(AppError::cancelled());
-        }
-
-        // Acquire semaphore permit (blocks if at capacity)
-        let semaphore = { self.semaphore.read().await.clone() };
-        let permit = semaphore
-            .acquire_owned()
-            .await
-            .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string()))?;
-
-        if self.global_cancel.load(Ordering::SeqCst) {
-            drop(permit);
-            return Err(AppError::cancelled());
-        }
-
-        let job_id = JobId::new();
-        let mut job = Job::new(job_id);
-        job.state = JobState::Running;
-
-        // Insert job into registry
-        {
-            let mut jobs = self.jobs.write().await;
-            jobs.insert(job_id.0, job);
-        }
-
-        log::info!("Job {} registered and started", job_id);
-        Ok((job_id, permit))
-    }
-
     /// Gets the cancellation flag for a specific job
     pub async fn get_cancel_flag(&self, job_id: JobId) -> Arc<AtomicBool> {
         let jobs = self.jobs.read().await;
@@ -253,6 +220,7 @@ impl JobRegistry {
         CancellationChecker {
             job_flag,
             global_flag: self.global_cancel.clone(),
+            operation_flag: None,
         }
     }
 

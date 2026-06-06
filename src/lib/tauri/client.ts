@@ -14,6 +14,8 @@ import {
 	type OpenedAudioFilesEvent,
 	type ProcessingProgressEvent,
 	type ProcessingQueueEvent,
+	type WorkOperationListSnapshotEvent,
+	type WorkOperationSnapshotEvent,
 } from '../../types/events';
 import type {
 	EncoderSettings,
@@ -40,8 +42,20 @@ import type {
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
+import type {
+	OperationId,
+	OperationListSnapshot,
+	OperationSnapshot,
+	SubmitProcessingOperationRequest,
+	WorkSubmissionAccepted,
+} from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
-import { normalizeProgressEvent, normalizeQueueEvent } from './normalizers';
+import {
+	normalizeOperationListSnapshot,
+	normalizeOperationSnapshot,
+	normalizeProgressEvent,
+	normalizeQueueEvent,
+} from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
@@ -49,6 +63,10 @@ type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
 type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
 type OpenedAudioFilesHandler = (event: { payload: OpenedAudioFilesEvent }) => void;
+type WorkOperationSnapshotHandler = (event: { payload: WorkOperationSnapshotEvent }) => void;
+type WorkOperationListSnapshotHandler = (event: {
+	payload: WorkOperationListSnapshotEvent;
+}) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -69,11 +87,37 @@ async function listenOpenedAudioFiles(handler: OpenedAudioFilesHandler): Promise
 	});
 }
 
+async function listenWorkOperationSnapshot(
+	handler: WorkOperationSnapshotHandler,
+): Promise<UnlistenFn> {
+	return generatedEvents.workOperationSnapshot.listen((event) => {
+		handler({ payload: { snapshot: normalizeOperationSnapshot(event.payload.snapshot) } });
+	});
+}
+
+async function listenWorkOperationListSnapshot(
+	handler: WorkOperationListSnapshotHandler,
+): Promise<UnlistenFn> {
+	return generatedEvents.workOperationListSnapshot.listen((event) => {
+		handler({
+			payload: normalizeOperationListSnapshot({ operations: event.payload.operations }),
+		});
+	});
+}
+
 function listen(event: typeof EVENTS.PROGRESS, handler: ProgressEventHandler): Promise<UnlistenFn>;
 function listen(event: typeof EVENTS.QUEUE, handler: QueueEventHandler): Promise<UnlistenFn>;
 function listen(
 	event: typeof EVENTS.OPENED_AUDIO_FILES,
 	handler: OpenedAudioFilesHandler,
+): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.WORK_OPERATION_SNAPSHOT,
+	handler: WorkOperationSnapshotHandler,
+): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
+	handler: WorkOperationListSnapshotHandler,
 ): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
@@ -85,6 +129,8 @@ function listen(
 		| ProgressEventHandler
 		| QueueEventHandler
 		| OpenedAudioFilesHandler
+		| WorkOperationSnapshotHandler
+		| WorkOperationListSnapshotHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -97,6 +143,14 @@ function listen(
 
 	if (event === EVENTS.OPENED_AUDIO_FILES) {
 		return listenOpenedAudioFiles(handler as OpenedAudioFilesHandler);
+	}
+
+	if (event === EVENTS.WORK_OPERATION_SNAPSHOT) {
+		return listenWorkOperationSnapshot(handler as WorkOperationSnapshotHandler);
+	}
+
+	if (event === EVENTS.WORK_OPERATION_LIST_SNAPSHOT) {
+		return listenWorkOperationListSnapshot(handler as WorkOperationListSnapshotHandler);
 	}
 
 	return tauriListen(
@@ -227,6 +281,14 @@ export const tauriClient = {
 		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
+	submitProcessingOperation: (
+		args: SubmitProcessingOperationRequest,
+	): Promise<WorkSubmissionAccepted> => commandSpecs.submit_processing_operation(args),
+	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
+	getWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
+		commandSpecs.get_work_operation({ operationId }),
+	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
+		commandSpecs.cancel_work_operation({ operationId }),
 	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>
 		jobId === undefined
 			? commandSpecs.cancel_processing()
@@ -248,6 +310,8 @@ export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'processing-progress',
 	'processing-queue',
 	'opened-audio-files',
+	'work-operation-snapshot',
+	'work-operation-list-snapshot',
 ] as const);
 
 export type { TauriCommand };

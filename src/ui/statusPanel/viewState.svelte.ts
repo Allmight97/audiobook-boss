@@ -9,6 +9,7 @@ type StatusPanelViewState = {
 	stepText: string;
 	stepColor: string;
 	concurrencyText: string;
+	isProcessing: boolean;
 	cancelAllPending: boolean;
 };
 
@@ -21,6 +22,7 @@ const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 	stepText: 'Current Step: Waiting for files...',
 	stepColor: 'var(--text-primary)',
 	concurrencyText: '',
+	isProcessing: false,
 	cancelAllPending: false,
 };
 
@@ -120,6 +122,10 @@ export function setStatusPanelConcurrencyText(value: string): void {
 	statusPanelViewState.concurrencyText = value;
 }
 
+export function setStatusPanelIsProcessing(isProcessing: boolean): void {
+	statusPanelViewState.isProcessing = isProcessing;
+}
+
 export function setStatusPanelCancelAllPending(isPending: boolean): void {
 	statusPanelViewState.cancelAllPending = isPending;
 }
@@ -134,6 +140,7 @@ export function resetStatusPanelViewState(): void {
 	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
 	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
 	statusPanelViewState.concurrencyText = DEFAULT_STATUS_PANEL_VIEW_STATE.concurrencyText;
+	statusPanelViewState.isProcessing = DEFAULT_STATUS_PANEL_VIEW_STATE.isProcessing;
 	statusPanelViewState.cancelAllPending = DEFAULT_STATUS_PANEL_VIEW_STATE.cancelAllPending;
 
 	if (statusMessageLockTimeoutId !== null) {

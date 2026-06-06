@@ -16,6 +16,7 @@ import {
 	type JobType,
 } from '../../../types/audio';
 import type { AcquisitionJob } from '../../../types/remoteSource';
+import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
 import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
 import {
 	registerRemoteSourceSupplementalAssets,
@@ -94,6 +95,40 @@ function successResult(jobType: ProcessCommandResult['jobType'] = 'merge'): Proc
 				previewActualSeconds: undefined,
 			},
 		],
+	};
+}
+
+function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted {
+	return {
+		operationId: 'operation-1',
+		snapshot: {
+			operationId: 'operation-1',
+			sequence: 1,
+			kind: jobType === 'batch' ? 'processingBatch' : 'processingMerge',
+			status: 'accepted',
+			title: jobType === 'batch' ? 'Batch encode (1 file)' : 'Merge encode (1 file)',
+			createdAtMs: 1,
+			startedAtMs: undefined,
+			finishedAtMs: undefined,
+			cancellable: true,
+			cancelRequested: false,
+			lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+			sourceInputIds: ['current-input-1'],
+			progress: {
+				stage: 'pending',
+				percentage: 0,
+				message: 'Accepted.',
+				currentItemIndex: undefined,
+				totalItems: 1,
+				bytesDownloaded: undefined,
+				bytesTotal: undefined,
+				etaSeconds: undefined,
+			},
+			children: [],
+			terminalSummary: undefined,
+			warnings: [],
+			errors: [],
+		},
 	};
 }
 
@@ -185,6 +220,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		})),
 		readAudioMetadata: vi.fn(async () => ({})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
+		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
 		feedback,
@@ -227,8 +263,8 @@ describe('ProcessingWorkflow', () => {
 		expect(services.setJobControlsEnabled).toHaveBeenCalledWith(false);
 		expect(services.setFileOrderLocked).toHaveBeenCalledWith(true);
 		expect(ctx.updateArtThumbnail).toHaveBeenCalledTimes(1);
-		expect(ctx.startProgressListener).toHaveBeenCalledTimes(1);
-		expect(services.processAudiobookFiles).toHaveBeenCalledWith({
+		expect(ctx.startProgressListener).not.toHaveBeenCalled();
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
 				inputFiles: ['/books/a.m4b'],
 				preflightSignature: 'preflight-approved',
@@ -236,7 +272,11 @@ describe('ProcessingWorkflow', () => {
 			metadataIntent: null,
 			previewSeconds: undefined,
 		});
-		expect(ctx.reconcileProcessResult).toHaveBeenCalledWith(successResult());
+		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
+		expect(ctx.reconcileProcessResult).not.toHaveBeenCalled();
+		expect(ctx.setProcessingState).toHaveBeenLastCalledWith(false);
+		expect(services.setJobControlsEnabled).toHaveBeenLastCalledWith(true);
+		expect(services.setFileOrderLocked).toHaveBeenLastCalledWith(false);
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
@@ -259,7 +299,7 @@ describe('ProcessingWorkflow', () => {
 
 		await runWithServices(ctx, services);
 
-		expect(services.processAudiobookFiles).toHaveBeenCalledWith({
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
 				inputFiles: ['/session/book.m4b'],
 				inputIds: ['current-input-1'],
@@ -301,13 +341,14 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.setProcessingState).not.toHaveBeenCalled();
 		expect(ctx.startProgressListener).not.toHaveBeenCalled();
 		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
+		expect(services.submitProcessingOperation).not.toHaveBeenCalled();
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('routes structured cancellation failures to cancellation handling instead of error reset', async () => {
 		const ctx = workflowContext();
 		const { services, feedback } = workflowServices({
-			processAudiobookFiles: vi.fn(async () => {
+			submitProcessingOperation: vi.fn(async () => {
 				throw {
 					code: 'cancelled',
 					category: 'cancellation',
@@ -328,7 +369,7 @@ describe('ProcessingWorkflow', () => {
 	it('surfaces failed processing commands through typed workflow failure handling', async () => {
 		const ctx = workflowContext();
 		const { services, feedback } = workflowServices({
-			processAudiobookFiles: vi.fn(async () => {
+			submitProcessingOperation: vi.fn(async () => {
 				throw {
 					code: 'decoder_unavailable',
 					category: 'toolchain',

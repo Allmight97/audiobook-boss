@@ -7,7 +7,7 @@ export const MERGE_SKIP_HOLD_MS = 1500;
 export const PROGRESS_THROTTLE_MS = 1000;
 
 export type CompletionFeedbackKind = 'success' | 'error' | 'info';
-export type StatusPanelWorkKind = 'merge' | 'batch' | 'metadataSave';
+export type StatusPanelWorkKind = 'merge' | 'batch' | 'remoteAcquisition' | 'metadataSave';
 
 export function workKindFromOperationKind(operationKind: OperationKind): StatusPanelWorkKind {
 	switch (operationKind) {
@@ -15,6 +15,8 @@ export function workKindFromOperationKind(operationKind: OperationKind): StatusP
 			return 'merge';
 		case 'processingBatch':
 			return 'batch';
+		case 'remoteAcquisition':
+			return 'remoteAcquisition';
 		case 'metadataSave':
 			return 'metadataSave';
 	}

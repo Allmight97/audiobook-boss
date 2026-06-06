@@ -40,6 +40,10 @@ vi.mock('../../lib/tauri/client', () => ({
 			invalidCount: 0,
 		})),
 		readAudioMetadata: vi.fn(async () => ({})),
+		listWorkOperations: vi.fn(async () => ({ operations: [] })),
+		getWorkOperation: vi.fn(),
+		cancelWorkOperation: vi.fn(),
+		submitProcessingOperation: vi.fn(),
 	},
 }));
 

@@ -443,31 +443,25 @@ export function initStatusPanel(): StatusPanelRuntime {
 	}
 	return statusPanelInstance;
 }
-
 export function isStatusPanelProcessing(): boolean {
 	return Boolean(statusPanelInstance?.isCurrentlyProcessing);
 }
-
 export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {
 	void initStatusPanel().startProcessing(options);
 }
-
 export function triggerCancelAllFromStatusPanel(): void {
+	if (!statusPanelInstance?.isCurrentlyProcessing) return;
 	void statusPanelInstance?.requestCancelAll();
 }
-
 export function beginMetadataSaveInStatusPanel(): Promise<void> {
 	return initStatusPanel().beginMetadataSave();
 }
-
 export function completeMetadataSaveInStatusPanel(result: MetadataSaveBatchResult): void {
 	initStatusPanel().completeMetadataSave(result);
 }
-
 export function failMetadataSaveInStatusPanel(message?: string): void {
 	initStatusPanel().failMetadataSave(message);
 }
-
 export function pushStatusPanelTransientStatus(
 	message: string,
 	options?: { ttlMs?: number },

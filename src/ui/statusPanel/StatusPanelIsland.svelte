@@ -179,7 +179,7 @@
       <button
         id="cancel-all-button"
         class="btn-pill btn-pill-secondary"
-        disabled={statusPanelViewState.cancelAllPending}
+        disabled={statusPanelViewState.cancelAllPending || !statusPanelViewState.isProcessing}
         onclick={handleCancelAllClick}
       >
         Cancel

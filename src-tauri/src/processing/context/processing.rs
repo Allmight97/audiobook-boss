@@ -99,6 +99,8 @@ pub struct ProcessingContext {
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
+    /// Optional WorkRuntime operation identifier
+    pub operation_id: Option<String>,
     /// Optional index of the input file in the original request
     pub input_index: Option<usize>,
     /// Backend operation family for lifecycle events emitted by this context
@@ -141,6 +143,7 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
+            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
         }
@@ -178,6 +181,7 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
+            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
         }
@@ -244,6 +248,7 @@ impl ProcessingContext {
             Some(window) => crate::processing::progress::ProgressEmitter::with_context(
                 window.clone(),
                 self.operation_kind,
+                self.operation_id.clone(),
                 self.job_id.clone(),
                 self.input_index,
             ),
@@ -280,6 +285,7 @@ pub struct ProcessingContextBuilder {
     output: Option<OutputConfig>,
     preview: Option<PreviewConfig>,
     job_id: Option<String>,
+    operation_id: Option<String>,
     input_index: Option<usize>,
     operation_kind: OperationKind,
     workspace_root: Option<PathBuf>,
@@ -330,6 +336,12 @@ impl ProcessingContextBuilder {
     /// Sets the job ID
     pub fn job_id(mut self, job_id: String) -> Self {
         self.job_id = Some(job_id);
+        self
+    }
+
+    /// Sets the WorkRuntime operation ID
+    pub fn operation_id(mut self, operation_id: String) -> Self {
+        self.operation_id = Some(operation_id);
         self
     }
 
@@ -398,6 +410,7 @@ impl ProcessingContextBuilder {
             workspace_root,
             preview: self.preview,
             job_id: self.job_id,
+            operation_id: self.operation_id,
             input_index: self.input_index,
             operation_kind: self.operation_kind,
         })

@@ -27,9 +27,25 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::OwnedSemaphorePermit;
 
 pub(crate) struct ProcessingRun;
+
+#[derive(Clone, Default)]
+pub(crate) struct ProcessingRunOptions {
+    pub(crate) operation_id: Option<String>,
+    pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
+}
+
+impl ProcessingRunOptions {
+    fn is_operation_cancelled(&self) -> bool {
+        self.operation_cancel
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
+    }
+}
 
 pub(crate) async fn process_payload(
     window: tauri::Window,
@@ -39,6 +55,27 @@ pub(crate) async fn process_payload(
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessCommandResult> {
+    process_payload_with_options(
+        window,
+        registry,
+        workspace_root,
+        payload,
+        metadata,
+        preview_seconds,
+        ProcessingRunOptions::default(),
+    )
+    .await
+}
+
+pub(crate) async fn process_payload_with_options(
+    window: tauri::Window,
+    registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
+    payload: ProcessPayload,
+    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+    options: ProcessingRunOptions,
+) -> Result<ProcessCommandResult> {
     ProcessingRun::execute(
         window,
         registry,
@@ -46,6 +83,7 @@ pub(crate) async fn process_payload(
         payload,
         metadata,
         preview_seconds,
+        options,
     )
     .await
 }
@@ -66,6 +104,7 @@ impl ProcessingRun {
         payload: ProcessPayload,
         metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
         preview_seconds: Option<f64>,
+        options: ProcessingRunOptions,
     ) -> Result<ProcessCommandResult> {
         validate_encoder_settings(&payload.settings)?;
         validate_external_processing_contract(&payload)?;
@@ -75,10 +114,10 @@ impl ProcessingRun {
 
         match plan.job_type {
             JobType::Merge => {
-                dispatch_merge_job(window, registry, workspace_root, &payload, plan).await
+                dispatch_merge_job(window, registry, workspace_root, &payload, plan, options).await
             }
             JobType::Batch => {
-                dispatch_batch_jobs(window, registry, workspace_root, &payload, plan).await
+                dispatch_batch_jobs(window, registry, workspace_root, &payload, plan, options).await
             }
         }
     }
@@ -135,6 +174,7 @@ fn emit_batch_queue_event(
     window: &tauri::Window,
     registry: &crate::ManagedJobRegistry,
     input_files: &[String],
+    operation_id: Option<&str>,
 ) {
     let queue_items: Vec<QueueItem> = input_files
         .iter()
@@ -148,7 +188,8 @@ fn emit_batch_queue_event(
         OperationKind::ProcessingBatch,
         queue_items,
         registry.max_concurrent(),
-    );
+    )
+    .with_operation_id(operation_id.map(|value| value.to_string()));
     emit_queue_event(window, &queue_event);
 }
 
@@ -156,6 +197,7 @@ fn finalize_batch_results(
     window: &tauri::Window,
     payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
+    operation_id: Option<&str>,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
     log::debug!(
@@ -166,6 +208,7 @@ fn finalize_batch_results(
         emit_terminal_failed_event(
             window,
             OperationKind::ProcessingBatch,
+            operation_id,
             event.input_index,
             event.job_id.as_deref(),
             &event.message,
@@ -181,7 +224,12 @@ async fn dispatch_merge_job(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
+    options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
+    if options.is_operation_cancelled() {
+        return Err(AppError::cancelled());
+    }
+
     let planned_job = plan.jobs.into_iter().next().ok_or_else(|| {
         AppError::InvalidInput("No output plan entries were built for merge processing".to_string())
     })?;
@@ -200,6 +248,8 @@ async fn dispatch_merge_job(
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
         operation_kind: OperationKind::ProcessingMerge,
+        operation_id: options.operation_id.clone(),
+        operation_cancel: options.operation_cancel.clone(),
         output_plan: planned_job.output,
         file_info,
         metadata: planned_job.metadata,
@@ -218,6 +268,7 @@ async fn dispatch_batch_jobs(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
+    options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
@@ -229,7 +280,12 @@ async fn dispatch_batch_jobs(
         return Ok(result);
     }
 
-    emit_batch_queue_event(&window, &registry, &payload.input_files);
+    emit_batch_queue_event(
+        &window,
+        &registry,
+        &payload.input_files,
+        options.operation_id.as_deref(),
+    );
 
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
@@ -242,6 +298,7 @@ async fn dispatch_batch_jobs(
             emit_terminal_skipped_event(
                 &window,
                 OperationKind::ProcessingBatch,
+                options.operation_id.as_deref(),
                 skipped_entry.input_index,
                 skipped_entry.job_id.as_deref(),
                 &skipped_entry.message,
@@ -258,6 +315,8 @@ async fn dispatch_batch_jobs(
         let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
         let workspace_root_cloned = workspace_root.clone();
+        let operation_id = options.operation_id.clone();
+        let operation_cancel = options.operation_cancel.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
         let path = planned_job.input_path.clone().ok_or_else(|| {
@@ -266,6 +325,12 @@ async fn dispatch_batch_jobs(
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
 
         scheduled_jobs.push(Box::pin(async move {
+            if operation_cancel
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Acquire))
+            {
+                return Err(AppError::cancelled());
+            }
             let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
             run_processing_job(ProcessingJobRequest {
                 window: window_cloned,
@@ -275,6 +340,8 @@ async fn dispatch_batch_jobs(
                 sample_rate: sr_cloned,
                 input_index,
                 operation_kind: OperationKind::ProcessingBatch,
+                operation_id,
+                operation_cancel,
                 output_plan: output,
                 file_info,
                 metadata: md_cloned,
@@ -287,7 +354,8 @@ async fn dispatch_batch_jobs(
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
-    let finalized_results = finalize_batch_results(&window, payload, outcomes)?;
+    let finalized_results =
+        finalize_batch_results(&window, payload, outcomes, options.operation_id.as_deref())?;
 
     Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
 }
@@ -300,6 +368,8 @@ struct ProcessingJobRequest {
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
+    operation_id: Option<String>,
+    operation_cancel: Option<Arc<AtomicBool>>,
     output_plan: ResolvedOutputPlan,
     file_info: FileListInfo,
     metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -309,9 +379,14 @@ struct ProcessingJobRequest {
 }
 
 async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
-    let (job_id, _permit, cancellation_checker) =
-        register_job_and_validate_output(&request.registry, &request.output_plan.resolved_path)
-            .await?;
+    let (job_id, _permit, cancellation_checker) = register_job_and_validate_output(
+        &request.registry,
+        &request.output_plan.resolved_path,
+        request.operation_cancel.clone(),
+    )
+    .await?;
+    let cancellation_checker =
+        cancellation_checker.with_operation_flag(request.operation_cancel.clone());
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
         window: request.window,
@@ -321,6 +396,7 @@ async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResu
         sample_rate: request.sample_rate,
         input_index: request.input_index,
         operation_kind: request.operation_kind,
+        operation_id: request.operation_id.clone(),
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
         preview_seconds: request.preview_seconds,
@@ -453,8 +529,11 @@ fn commit_supplemental_assets_for_output(
 async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
+    operation_cancel: Option<Arc<AtomicBool>>,
 ) -> Result<(JobId, OwnedSemaphorePermit, CancellationChecker)> {
-    let (job_id, permit) = registry.register_job().await?;
+    let (job_id, permit) = registry
+        .register_job_with_external_cancel(operation_cancel)
+        .await?;
     log::info!(
         "Job {} started for output: {}",
         job_id,
@@ -478,6 +557,7 @@ struct ProcessingContextRequest {
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
+    operation_id: Option<String>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
     preview_seconds: Option<f64>,
@@ -497,6 +577,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;
     context.operation_kind = request.operation_kind;
+    context.operation_id = request.operation_id;
 
     let preview_seconds_resolved = request.preview_seconds;
     if let Some(seconds) = preview_seconds_resolved {
@@ -583,11 +664,11 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
         let invalid_output = temp_dir.path().join("output.mp3");
 
-        let error = match super::register_job_and_validate_output(&registry, &invalid_output).await
-        {
-            Ok(_) => panic!("invalid extension should fail validation"),
-            Err(error) => error,
-        };
+        let error =
+            match super::register_job_and_validate_output(&registry, &invalid_output, None).await {
+                Ok(_) => panic!("invalid extension should fail validation"),
+                Err(error) => error,
+            };
 
         assert!(
             error

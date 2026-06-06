@@ -6,6 +6,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'analyzeAudioFiles',
 	'cancelProcessing',
 	'cancelRemoteSourceAcquisition',
+	'cancelWorkOperation',
 	'completeRemoteSourceAuth',
 	'discoverAudioImportPaths',
 	'echo',
@@ -15,8 +16,10 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'getRemoteSourceAcquisitionStatus',
 	'getRuntimeSettingsCapabilities',
 	'getSupportedAudioImportMetadata',
+	'getWorkOperation',
 	'listen',
 	'listRemoteSourceProviders',
+	'listWorkOperations',
 	'loadCoverArtFile',
 	'loadCoverArtFromUrl',
 	'loadRemoteSourceLibrary',
@@ -41,6 +44,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'setMaxConcurrentJobs',
 	'startRemoteSourceAcquisition',
 	'startRemoteSourceAuth',
+	'submitProcessingOperation',
 	'takeOpenedAudioFiles',
 	'updateAppSettings',
 	'validateEncoderSettings',
@@ -68,10 +72,16 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('take_opened_audio_files');
 		expect(TAURI_COMMAND_NAMES).toContain('list_remote_source_providers');
 		expect(TAURI_COMMAND_NAMES).toContain('start_remote_source_acquisition');
+		expect(TAURI_COMMAND_NAMES).toContain('submit_processing_operation');
+		expect(TAURI_COMMAND_NAMES).toContain('list_work_operations');
+		expect(TAURI_COMMAND_NAMES).toContain('get_work_operation');
+		expect(TAURI_COMMAND_NAMES).toContain('cancel_work_operation');
 		expect([...TAURI_APP_EVENT_NAMES]).toEqual([
 			'processing-progress',
 			'processing-queue',
 			'opened-audio-files',
+			'work-operation-snapshot',
+			'work-operation-list-snapshot',
 		]);
 	});
 });

@@ -44,6 +44,7 @@ export interface ProcessingWorkflowServices {
 	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
 	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
+	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
 	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: Pick<typeof feedback, 'showError'>;
