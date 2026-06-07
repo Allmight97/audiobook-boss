@@ -1,5 +1,5 @@
 use audiobook_boss_lib::processing::job_registry::{
-    AggregateJobStatus, JobId, JobRegistry, JobState, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
+    AggregateJobStatus, JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
 };
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -438,11 +438,4 @@ fn aggregate_job_status_struct() {
     assert_eq!(status.active_jobs, 1);
     assert_eq!(status.total_jobs, 2);
     assert_eq!(status.max_concurrent, 3);
-}
-
-#[test]
-fn job_state_variants_exist() {
-    assert_eq!(JobState::Running, JobState::Running);
-    assert_ne!(JobState::Running, JobState::Completed);
-    assert_ne!(JobState::Completed, JobState::Cancelled);
 }

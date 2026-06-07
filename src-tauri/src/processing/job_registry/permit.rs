@@ -1,4 +1,4 @@
-use super::{Job, JobId, JobRegistry, JobState};
+use super::{Job, JobId, JobRegistry};
 use crate::errors::{AppError, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -41,8 +41,7 @@ impl JobRegistry {
         }
 
         let job_id = JobId::new();
-        let mut job = Job::new(job_id);
-        job.state = JobState::Running;
+        let job = Job::new(job_id);
 
         {
             let mut jobs = self.jobs.write().await;

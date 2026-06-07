@@ -94,7 +94,22 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
   - Core helpers: `src-tauri/src/processing/run.rs`, `src-tauri/src/processing/plan.rs`, `src-tauri/src/processing/job_registry/`
   - Lifecycle helpers: `src-tauri/src/processing/lifecycle.rs`, `src-tauri/src/processing/progress/`
   - Audio execution: call the `crate::audio` public API; native `ffmpeg-next` and external FFmpeg/FDK adapter selection remain private under `src-tauri/src/audio/processor/`
-  - Use: queueing, processing, cancellation, batch orchestration
+  - Use: queueing, processing, cancellation, batch orchestration. `process_audiobook_files` is the direct execution command; preview still uses it. Final submission is the Work Runtime path below.
+
+- `preflight_processing_plan`
+  - Rust: `src-tauri/src/commands/audio.rs`
+  - Core helpers: `src-tauri/src/processing/plan.rs`
+  - Frontend: `src/ui/outputPanel/outputPlanWorkflow.ts` through `src/lib/tauri/client.ts`
+  - Use: shared, side-effect-free preflight planning used by the output-plan review step that precedes both the legacy `process_audiobook_files` and the Work Runtime `submit_processing_operation` paths
+
+### Work Runtime (Work Center)
+
+- `submit_processing_operation`, `list_work_operations`, `get_work_operation`, `cancel_work_operation`
+  - Rust: `src-tauri/src/commands/work_runtime.rs`
+  - Owner: `src-tauri/src/work_runtime/` (operation identity, immutable accepted submissions, operation snapshots, operation-scoped cancellation, Work Center event truth)
+  - Executor boundary: wraps `crate::processing::run`; operation terminal status is derived from the canonical `abb_processing_core::classify_run_terminal` classifier, not a parallel rule
+  - Frontend: `src/ui/workCenter/` through `src/lib/tauri/client.ts`
+  - Use: accept long-running batch/merge processing as background operations, return the file list to drafting immediately after acceptance, and surface multiple operations with independent cancellation
 
 ### Metadata
 
@@ -117,16 +132,24 @@ It is intentionally not a full contract dump. Use it to find the owning code qui
 - `processing-progress`
 - `processing-queue`
 - `opened-audio-files`
+- `work-operation-snapshot`
+- `work-operation-list-snapshot`
 
 Source files:
 
 - Rust event export: `src-tauri/src/ipc_contract.rs`
-- Rust event types: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`
-- Rust event names: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`
+- Rust event types: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`, `src-tauri/src/work_runtime/types.rs`
+- Rust event names: `src-tauri/src/processing/progress/mod.rs`, `src-tauri/src/opened_audio.rs`, `src-tauri/src/work_runtime/types.rs`
 - Rust operation vocabulary: `src-tauri/src/processing/lifecycle.rs`
-- Frontend event contract: `src/types/events.ts`
+- Frontend event contract: `src/types/events.ts`, `src/types/workRuntime.ts`
 - Frontend listener boundary: `src/lib/tauri/client.ts`
-- Main UI consumers: `src/ui/statusPanel/events.ts`, `src/ui/fileImport/handlers.ts`
+- Main UI consumers: `src/ui/statusPanel/events.ts`, `src/ui/fileImport/handlers.ts`, `src/ui/workCenter/state.svelte.ts`
+
+The `work-operation-*` events carry backend-authored operation snapshots
+(`src-tauri/src/work_runtime/`). Work Center is the background-operation
+consumer; it still overlays legacy `processing-progress` for fine-grained
+progress until that reducer is retired (see
+`docs/specs/work-runtime-lifecycle-retirement.md`).
 
 Lifecycle event payloads carry `operation_kind` so Status Panel can distinguish
 merge processing, batch processing, and metadata save from backend truth instead

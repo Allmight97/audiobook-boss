@@ -15,6 +15,11 @@
 - Use `processing::run` as the processing executor boundary. Do not import audio
   processor internals, output-artifact internals, or remote-source private
   provider/materializer modules.
+- Derive operation terminal status from the canonical
+  `crate::processing::classify_run_terminal` (`abb_processing_core`) classifier.
+  Do not reintroduce a parallel terminal-classification rule from snapshot
+  counts; map the canonical `RunTerminalClass` to `WorkOperationStatus` instead.
+  `WorkProgressStage` remains a work_runtime-owned display vocabulary.
 - Keep Tauri command handlers in `src-tauri/src/commands/work_runtime.rs`.
 - Keep provider secrets, raw provider payloads, protected intermediates, and
   remote staging mechanics inside `remote_source`.

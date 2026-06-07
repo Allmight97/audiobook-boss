@@ -100,3 +100,80 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     assert_eq!(snapshot.children[1].status, ChildJobStatus::Failed);
     assert_eq!(snapshot.children[1].job_id.as_deref(), Some("job-2"));
 }
+
+fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry {
+    ProcessResultEntry {
+        input_index: Some(input_index),
+        status,
+        message: format!("item {input_index}"),
+        error: None,
+        preview_file_path: None,
+        preview_actual_seconds: None,
+        job_id: Some(format!("job-{input_index}")),
+    }
+}
+
+#[test]
+fn success_plus_skipped_resolves_to_mixed_matching_canonical_classifier() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let result = ProcessCommandResult::new(
+        JobType::Batch,
+        vec![
+            entry(0, ProcessResultStatus::Success),
+            entry(1, ProcessResultStatus::Skipped),
+        ],
+    );
+
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
+    assert_eq!(
+        snapshot.terminal_summary.as_ref().expect("summary").message,
+        "Finished with 1 succeeded and 1 skipped."
+    );
+}
+
+#[test]
+fn skipped_plus_cancelled_reports_mixed_message_counts() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let result = ProcessCommandResult::new(
+        JobType::Batch,
+        vec![
+            entry(0, ProcessResultStatus::Skipped),
+            entry(1, ProcessResultStatus::Cancelled),
+        ],
+    );
+
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
+    assert_eq!(
+        snapshot.terminal_summary.as_ref().expect("summary").message,
+        "Finished with 1 skipped and 1 cancelled."
+    );
+}
+
+#[test]
+fn skipped_only_resolves_to_completed() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let result = ProcessCommandResult::new(
+        JobType::Batch,
+        vec![
+            entry(0, ProcessResultStatus::Skipped),
+            entry(1, ProcessResultStatus::Skipped),
+        ],
+    );
+
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Completed);
+}

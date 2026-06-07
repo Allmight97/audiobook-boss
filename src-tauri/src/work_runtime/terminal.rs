@@ -1,39 +1,46 @@
 use super::types::{
     ChildJobStatus, OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
 };
-use crate::processing::{OperationResultSummary, ProcessCommandResult, ProcessResultStatus};
+use crate::processing::{
+    classify_run_terminal, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
+    RunTerminalClass,
+};
 
-pub(crate) fn terminal_summary_from_process_result(
-    result: &ProcessCommandResult,
+pub(crate) fn operation_terminal_summary(
+    summary: &OperationResultSummary,
+    message: String,
 ) -> OperationTerminalSummary {
-    let summary = &result.summary;
     OperationTerminalSummary {
         total: summary.total,
         succeeded: summary.succeeded,
         skipped: summary.skipped,
         cancelled: summary.cancelled,
         failed: summary.failed,
-        message: terminal_message(summary),
+        message,
     }
 }
 
-pub(crate) fn status_from_terminal_summary(
-    summary: &OperationTerminalSummary,
+pub(crate) fn terminal_summary_from_process_result(
+    result: &ProcessCommandResult,
+) -> OperationTerminalSummary {
+    operation_terminal_summary(&result.summary, terminal_message(&result.summary))
+}
+
+pub(crate) fn work_status_from_process_result(
+    result: &ProcessCommandResult,
 ) -> WorkOperationStatus {
-    if summary.failed > 0 && (summary.succeeded > 0 || summary.skipped > 0 || summary.cancelled > 0)
-    {
-        return WorkOperationStatus::Mixed;
+    work_status_from_terminal_class(classify_run_terminal(&result.summary))
+}
+
+fn work_status_from_terminal_class(class: RunTerminalClass) -> WorkOperationStatus {
+    match class {
+        RunTerminalClass::Empty | RunTerminalClass::Success | RunTerminalClass::Skipped => {
+            WorkOperationStatus::Completed
+        }
+        RunTerminalClass::Cancelled => WorkOperationStatus::Cancelled,
+        RunTerminalClass::Failed => WorkOperationStatus::Failed,
+        RunTerminalClass::Mixed => WorkOperationStatus::Mixed,
     }
-    if summary.failed > 0 {
-        return WorkOperationStatus::Failed;
-    }
-    if summary.cancelled > 0 && (summary.succeeded > 0 || summary.skipped > 0) {
-        return WorkOperationStatus::Mixed;
-    }
-    if summary.cancelled > 0 {
-        return WorkOperationStatus::Cancelled;
-    }
-    WorkOperationStatus::Completed
 }
 
 pub(crate) fn child_status_from_result_status(status: ProcessResultStatus) -> ChildJobStatus {
@@ -84,9 +91,27 @@ fn terminal_message(summary: &OperationResultSummary) -> String {
         );
     }
     if summary.cancelled > 0 {
+        if summary.skipped > 0 {
+            if summary.succeeded == 0 {
+                return format!(
+                    "Finished with {} skipped and {} cancelled.",
+                    summary.skipped, summary.cancelled
+                );
+            }
+            return format!(
+                "Finished with {} succeeded, {} skipped, {} cancelled.",
+                summary.succeeded, summary.skipped, summary.cancelled
+            );
+        }
         return format!(
             "Finished with {} succeeded and {} cancelled.",
             summary.succeeded, summary.cancelled
+        );
+    }
+    if summary.skipped > 0 && summary.succeeded > 0 {
+        return format!(
+            "Finished with {} succeeded and {} skipped.",
+            summary.succeeded, summary.skipped
         );
     }
     if summary.skipped > 0 && summary.succeeded == 0 {

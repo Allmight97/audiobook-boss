@@ -20,6 +20,32 @@ pub struct OperationResultSummary {
     pub failed: usize,
 }
 
+impl OperationResultSummary {
+    /// Summary for a whole-operation failure that produced no per-item results.
+    pub fn all_failed(total: usize) -> Self {
+        let total = total.max(1);
+        Self {
+            total,
+            succeeded: 0,
+            skipped: 0,
+            cancelled: 0,
+            failed: total,
+        }
+    }
+
+    /// Summary for a whole-operation cancellation that produced no per-item results.
+    pub fn all_cancelled(total: usize) -> Self {
+        let total = total.max(1);
+        Self {
+            total,
+            succeeded: 0,
+            skipped: 0,
+            cancelled: total,
+            failed: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ProcessResultStatus {
@@ -118,9 +144,25 @@ pub fn summarize_result_statuses(
 pub fn classify_terminal_statuses(
     statuses: impl IntoIterator<Item = ProcessResultStatus>,
 ) -> RunTerminalClass {
+    classify_run_terminal(&summarize_result_statuses(statuses))
+}
+
+/// Classifies a run from its aggregate counts, sharing the exact rule used by
+/// `classify_terminal_statuses` so the status-iterator and count-summary paths
+/// can never diverge.
+pub fn classify_run_terminal(summary: &OperationResultSummary) -> RunTerminalClass {
     let mut classifier = RunTerminalClassifier::default();
-    for status in statuses {
-        classifier.observe_status(status);
+    if summary.succeeded > 0 {
+        classifier.observe_status(ProcessResultStatus::Success);
+    }
+    if summary.skipped > 0 {
+        classifier.observe_status(ProcessResultStatus::Skipped);
+    }
+    if summary.cancelled > 0 {
+        classifier.observe_cancelled();
+    }
+    if summary.failed > 0 {
+        classifier.observe_failure();
     }
     classifier.class()
 }
@@ -169,6 +211,61 @@ mod tests {
                 ProcessResultStatus::Skipped,
             ]),
             RunTerminalClass::Mixed
+        );
+    }
+
+    #[test]
+    fn classify_run_terminal_agrees_with_status_path() {
+        let cases = [
+            vec![],
+            vec![ProcessResultStatus::Success],
+            vec![ProcessResultStatus::Skipped],
+            vec![ProcessResultStatus::Cancelled],
+            vec![ProcessResultStatus::Failed],
+            vec![ProcessResultStatus::Success, ProcessResultStatus::Skipped],
+            vec![ProcessResultStatus::Success, ProcessResultStatus::Failed],
+            vec![
+                ProcessResultStatus::Skipped,
+                ProcessResultStatus::Cancelled,
+                ProcessResultStatus::Failed,
+            ],
+        ];
+
+        for case in cases {
+            let summary = summarize_result_statuses(case.clone());
+            assert_eq!(
+                classify_run_terminal(&summary),
+                classify_terminal_statuses(case),
+            );
+        }
+    }
+
+    #[test]
+    fn classify_run_terminal_treats_success_plus_skipped_as_mixed() {
+        let summary =
+            summarize_result_statuses([ProcessResultStatus::Success, ProcessResultStatus::Skipped]);
+        assert_eq!(classify_run_terminal(&summary), RunTerminalClass::Mixed);
+    }
+
+    #[test]
+    fn classify_run_terminal_treats_skipped_only_as_skipped() {
+        let summary = summarize_result_statuses([ProcessResultStatus::Skipped]);
+        assert_eq!(classify_run_terminal(&summary), RunTerminalClass::Skipped);
+    }
+
+    #[test]
+    fn whole_operation_summary_constructors_are_consistent() {
+        let failed = OperationResultSummary::all_failed(3);
+        assert_eq!(failed.total, 3);
+        assert_eq!(failed.failed, 3);
+        assert_eq!(classify_run_terminal(&failed), RunTerminalClass::Failed);
+
+        let cancelled = OperationResultSummary::all_cancelled(0);
+        assert_eq!(cancelled.total, 1);
+        assert_eq!(cancelled.cancelled, 1);
+        assert_eq!(
+            classify_run_terminal(&cancelled),
+            RunTerminalClass::Cancelled
         );
     }
 
