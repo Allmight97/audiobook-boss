@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { encoderPanelState } from './state.svelte';
 	import { outputPanelState } from '../outputPanel/state.svelte';
 	import {
 		handleBitrateModeChange,
@@ -13,87 +12,32 @@
 		handleSampleRateSelectionChange,
 		initializeEncoderPanelLogic,
 	} from './logic';
+	import { encoderPanelState } from './state.svelte';
+	import {
+		bitrateModeLabel,
+		channelLabel,
+		channelsDetailText,
+		encoderLabel,
+		encoderOptionDisabled,
+		qualityLabel,
+		sampleRateDetailText,
+		sampleRateLabel,
+	} from './view';
 
 	onMount(() => {
 		initializeEncoderPanelLogic();
 	});
-
-	function encoderLabel(value: string): string {
-		switch (value) {
-			case 'auto':
-				return encoderPanelState.autoOptionLabel;
-			case 'fdk_he_aac':
-				return 'FDK AAC';
-			case 'aac_at':
-				return 'Apple AAC';
-			case 'native_aac':
-				return 'Native AAC (FFmpeg)';
-			default:
-				return value;
-		}
-	}
-
-	function bitrateModeLabel(value: string): string {
-		return value.toUpperCase();
-	}
-
-	function qualityLabel(value: number): string {
-		if (value === encoderPanelState.capabilities?.vbrLevelMin) return `${value} (Smallest)`;
-		if (value === encoderPanelState.capabilities?.vbrLevelDefault) return `${value} (Recommended)`;
-		if (value === encoderPanelState.capabilities?.vbrLevelMax) return `${value} (Largest)`;
-		return String(value);
-	}
-
-	function sampleRateLabel(value: string): string {
-		return value === 'auto' ? 'Auto' : `${value} Hz`;
-	}
-
-	function channelLabel(value: string): string {
-		switch (value) {
-			case 'auto':
-				return 'Auto';
-			case 'mono':
-				return 'Mono';
-			case 'stereo':
-				return 'Stereo';
-			default:
-				return value;
-		}
-	}
-
-	function sampleRateDetailText(): string {
-		if (encoderPanelState.sampleRateSelection === 'auto') {
-			return encoderPanelState.sampleRateAutoHint;
-		}
-		return `Using ${sampleRateLabel(encoderPanelState.sampleRateSelection)}.`;
-	}
-
-	function channelsDetailText(): string {
-		if (encoderPanelState.channelsSelection === 'auto') {
-			return encoderPanelState.channelsAutoHint;
-		}
-		return `Using ${channelLabel(encoderPanelState.channelsSelection ?? 'auto')}.`;
-	}
-
-	function encoderOptionDisabled(value: string): boolean {
-		if (value === 'auto') return false;
-		return Boolean(
-			encoderPanelState.disabledEncoderOptions[
-				value as keyof typeof encoderPanelState.disabledEncoderOptions
-			],
-		);
-	}
 </script>
 
-<div id="encoder-settings-panel" class="section-divider" data-testid="encoder-settings-panel">
-	<div class="section-header">
+<div id="encoder-settings-panel" class="encoder-settings-panel section-divider" data-testid="encoder-settings-panel">
+	<div class="section-header encoder-panel-header">
 		<h3>Audio Encoder Settings</h3>
 		<span class="inline-info">
 			(<span id="estimated-size" data-testid="estimated-size">{outputPanelState.estimatedSizeText}</span>)
 		</span>
 	</div>
 
-	<div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
+	<div class="encoder-control-grid">
 		<div>
 			<label for="adv-encoder">Encoder</label>
 			<select
@@ -228,7 +172,7 @@
 		</div>
 	</div>
 
-	<div class="grid grid-cols-4 gap-x-3 gap-y-2 mb-2">
+	<div class="encoder-control-grid">
 		<div>
 			<label for="output-samplerate">Sample Rate</label>
 			<select
@@ -275,6 +219,21 @@
 </div>
 
 <style>
+	.encoder-settings-panel {
+		min-width: 0;
+	}
+
+	.encoder-panel-header {
+		justify-content: space-between;
+	}
+
+	.encoder-control-grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.5rem 0.75rem;
+		margin-bottom: 0.5rem;
+	}
+
 	.profile-display {
 		padding: 0.5rem 0.75rem;
 		border: 1px solid var(--border-primary);
@@ -299,4 +258,5 @@
 		margin-top: 0;
 		align-items: center;
 	}
+
 </style>
