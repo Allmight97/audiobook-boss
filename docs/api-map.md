@@ -146,9 +146,10 @@ Source files:
 - Main UI consumers: `src/ui/statusPanel/events.ts`, `src/ui/fileImport/handlers.ts`, `src/ui/workCenter/state.svelte.ts`
 
 The `work-operation-*` events carry backend-authored operation snapshots
-(`src-tauri/src/work_runtime/`). The Work Center is the V1 consumer; it still
-overlays legacy `processing-progress` for fine-grained progress until that
-reducer is retired (see `docs/specs/work-runtime-v1.md`).
+(`src-tauri/src/work_runtime/`). Work Center is the background-operation
+consumer; it still overlays legacy `processing-progress` for fine-grained
+progress until that reducer is retired (see
+`docs/specs/work-runtime-lifecycle-retirement.md`).
 
 Lifecycle event payloads carry `operation_kind` so Status Panel can distinguish
 merge processing, batch processing, and metadata save from backend truth instead
