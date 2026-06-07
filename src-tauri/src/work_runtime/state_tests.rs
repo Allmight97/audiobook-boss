@@ -130,6 +130,33 @@ fn success_plus_skipped_resolves_to_mixed_matching_canonical_classifier() {
         .expect("complete");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
+    assert_eq!(
+        snapshot.terminal_summary.as_ref().expect("summary").message,
+        "Finished with 1 succeeded and 1 skipped."
+    );
+}
+
+#[test]
+fn skipped_plus_cancelled_reports_mixed_message_counts() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let result = ProcessCommandResult::new(
+        JobType::Batch,
+        vec![
+            entry(0, ProcessResultStatus::Skipped),
+            entry(1, ProcessResultStatus::Cancelled),
+        ],
+    );
+
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
+    assert_eq!(
+        snapshot.terminal_summary.as_ref().expect("summary").message,
+        "Finished with 1 skipped and 1 cancelled."
+    );
 }
 
 #[test]

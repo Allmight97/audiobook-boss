@@ -91,9 +91,27 @@ fn terminal_message(summary: &OperationResultSummary) -> String {
         );
     }
     if summary.cancelled > 0 {
+        if summary.skipped > 0 {
+            if summary.succeeded == 0 {
+                return format!(
+                    "Finished with {} skipped and {} cancelled.",
+                    summary.skipped, summary.cancelled
+                );
+            }
+            return format!(
+                "Finished with {} succeeded, {} skipped, {} cancelled.",
+                summary.succeeded, summary.skipped, summary.cancelled
+            );
+        }
         return format!(
             "Finished with {} succeeded and {} cancelled.",
             summary.succeeded, summary.cancelled
+        );
+    }
+    if summary.skipped > 0 && summary.succeeded > 0 {
+        return format!(
+            "Finished with {} succeeded and {} skipped.",
+            summary.succeeded, summary.skipped
         );
     }
     if summary.skipped > 0 && summary.succeeded == 0 {

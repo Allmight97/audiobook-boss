@@ -242,10 +242,8 @@ mod tests {
 
     #[test]
     fn classify_run_terminal_treats_success_plus_skipped_as_mixed() {
-        let summary = summarize_result_statuses([
-            ProcessResultStatus::Success,
-            ProcessResultStatus::Skipped,
-        ]);
+        let summary =
+            summarize_result_statuses([ProcessResultStatus::Success, ProcessResultStatus::Skipped]);
         assert_eq!(classify_run_terminal(&summary), RunTerminalClass::Mixed);
     }
 
