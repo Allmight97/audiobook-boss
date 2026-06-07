@@ -2,13 +2,29 @@
 	import { tick } from 'svelte';
 	import { normalizeAppError } from '../../lib/tauri/appError';
 	import { tauriClient } from '../../lib/tauri/client';
+	import {
+		AcquisitionJobWithProgress,
+		acquisitionPollDelayMs,
+		bytesLabel,
+		countSelectedOutsideFilter,
+		filterTitles,
+		delay,
+		isAcquisitionTerminal,
+		isTitleAcquirable,
+		titleAvailability,
+		progressPercent,
+		progressTitleLabel,
+		selectedTitleSummary,
+		statusFromAcquisitionJob,
+		toggleTitleSelection,
+		uniqueDiagnosticMessage,
+		withClearedHandoffJob,
+	} from './remoteSourceAcquireDialogHelpers';
 	import type {
 		AcquisitionJob,
-		AcquisitionProgress,
 		ProviderId,
 		RemoteSourceAccountState,
 		RemoteTitle,
-		RemoteTitleAvailability,
 	} from '../../types/remoteSource';
 	import {
 		getImportedAudioPathsBlockedMessage,
@@ -19,12 +35,6 @@
 	import { registerRemoteSourceSupplementalAssets } from './sessionAssets.svelte';
 
 	const providerId: ProviderId = 'audible';
-	const acquisitionPollDelayMs = 100;
-
-	type AcquisitionJobWithProgress = AcquisitionJob & {
-		progress?: AcquisitionProgress;
-	};
-	type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
 
 	let isBusy = $state(false);
 	let didHydrateOpenDialog = $state(false);
@@ -46,73 +56,6 @@
 		statusMessage = error.code === 'unknown_error' ? fallback : error.message;
 	}
 
-	function delay(ms: number): Promise<void> {
-		return new Promise((resolve) => window.setTimeout(resolve, ms));
-	}
-
-	function acquisitionJobIsTerminal(job: AcquisitionJobWithProgress): boolean {
-		return (
-			job.progress?.terminal === true ||
-			job.status === 'failed' ||
-			job.status === 'cancelled' ||
-			job.status === 'validated' ||
-			job.status === 'importedToFileList'
-		);
-	}
-
-	function diagnosticStatus(diagnostics: RemoteSourceDiagnostic[]): string {
-		const uniqueMessages: string[] = [];
-		const seenMessages = new Set<string>();
-		for (const diagnostic of diagnostics) {
-			const message = diagnostic.message.trim();
-			if (!message || seenMessages.has(message)) continue;
-			seenMessages.add(message);
-			uniqueMessages.push(message);
-		}
-		return uniqueMessages.join(' ');
-	}
-
-	function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): string {
-		const diagnostics = diagnosticStatus(job.diagnostics);
-		if (job.progress?.terminal && diagnostics) return diagnostics;
-		if (job.progress?.message) return job.progress.message;
-		return diagnostics || 'Audible acquisition is running.';
-	}
-
-	function progressPercent(job: AcquisitionJobWithProgress): number {
-		return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
-	}
-
-	function clearedHandoffJob(job: AcquisitionJobWithProgress): AcquisitionJobWithProgress {
-		return {
-			...job,
-			materializedFiles: [],
-			supplementalAssets: [],
-		};
-	}
-
-	function bytesLabel(progress: AcquisitionProgress): string | null {
-		if (progress.bytesDownloaded == null) return null;
-		const downloadedMb = progress.bytesDownloaded / (1024 * 1024);
-		if (progress.bytesTotal == null || progress.bytesTotal <= 0) {
-			return `${downloadedMb.toFixed(1)} MB downloaded`;
-		}
-		const totalMb = progress.bytesTotal / (1024 * 1024);
-		return `${downloadedMb.toFixed(1)} / ${totalMb.toFixed(1)} MB`;
-	}
-
-	function progressTitleLabel(progress: AcquisitionProgress): string {
-		const title = titles.find((candidate) => candidate.titleId === progress.currentTitleId);
-		const ordinal =
-			progress.currentItemIndex != null && progress.totalItems != null
-				? `${progress.currentItemIndex}/${progress.totalItems}`
-				: null;
-		const titleLabel = title?.title ?? (progress.currentTitleId ? 'Selected title' : null);
-		const context = [ordinal, titleLabel].filter(Boolean).join(' - ');
-		if (!context) return progress.message;
-		return `${progress.message.replace(/\.$/, '')}: ${context}`;
-	}
-
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
 			closeRemoteSourceAcquire();
@@ -123,7 +66,7 @@
 		initialJob: AcquisitionJobWithProgress,
 	): Promise<AcquisitionJobWithProgress> {
 		let currentJob = initialJob;
-		while (!acquisitionJobIsTerminal(currentJob)) {
+		while (!isAcquisitionTerminal(currentJob)) {
 			await delay(acquisitionPollDelayMs);
 			currentJob = (await tauriClient.getRemoteSourceAcquisitionStatus(
 				currentJob.jobId,
@@ -141,7 +84,7 @@
 			const importResult = await handleImportedAudioPaths(materializedPaths);
 			if (importResult.status !== 'imported') {
 				await tauriClient.purgeRemoteSourceSession(job.jobId);
-				const cleanedJob = clearedHandoffJob(job);
+				const cleanedJob = withClearedHandoffJob(job);
 				activeJob = cleanedJob;
 				lastJob = cleanedJob;
 				statusMessage = `${importResult.message} Staged remote files were removed; retry acquisition after processing completes.`;
@@ -151,8 +94,8 @@
 			statusMessage = `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`;
 		} else {
 			statusMessage =
-				diagnosticStatus(job.diagnostics) ||
-				'Audible acquisition did not materialize an importable file.';
+				uniqueDiagnosticMessage(job.diagnostics) ||
+					'Audible acquisition did not materialize an importable file.';
 		}
 	}
 
@@ -226,9 +169,7 @@
 			const library = await tauriClient.loadRemoteSourceLibrary(providerId);
 			titles = library.titles;
 			const selectableTitleIds = new Set(
-				library.titles
-					.filter((title) => titleIsAcquirable(title))
-					.map((title) => title.titleId),
+				library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
 			);
 			selectedTitleIds = new Set(
 				[...selectedTitleIds].filter((titleId) => selectableTitleIds.has(titleId)),
@@ -238,7 +179,7 @@
 			);
 			statusMessage =
 				library.diagnostics.length > 0
-					? diagnosticStatus(library.diagnostics)
+					? uniqueDiagnosticMessage(library.diagnostics)
 					: `${library.titles.length} Audible titles loaded.`;
 		} catch (cause) {
 			setError(cause, 'Failed to load Audible library.');
@@ -252,14 +193,8 @@
 	}
 
 	function toggleTitle(title: RemoteTitle): void {
-		if (!titleIsAcquirable(title)) return;
-		const next = new Set(selectedTitleIds);
-		if (next.has(title.titleId)) {
-			next.delete(title.titleId);
-		} else {
-			next.add(title.titleId);
-		}
-		selectedTitleIds = next;
+		if (!isTitleAcquirable(title)) return;
+		selectedTitleIds = toggleTitleSelection(selectedTitleIds, title);
 	}
 
 	function togglePdf(title: RemoteTitle): void {
@@ -269,55 +204,20 @@
 		};
 	}
 
-	function titleAvailability(title: RemoteTitle): RemoteTitleAvailability {
-		return (
-			title.availability ?? {
-				status: title.unsupportedReasons.length > 0 ? 'providerUnavailable' : 'available',
-				acquirable: title.unsupportedReasons.length === 0,
-				label: title.unsupportedReasons.length > 0 ? 'Unavailable from Audible' : 'Available',
-				detail:
-					title.unsupportedReasons.length > 0
-						? 'Audible reports this title is not playable or downloadable for this account.'
-						: undefined,
-			}
-		);
-	}
-
-	function titleIsAcquirable(title: RemoteTitle): boolean {
-		return titleAvailability(title).acquirable;
-	}
-
-	function filteredTitles(): RemoteTitle[] {
-		const normalizedFilter = titleFilter.trim().toLowerCase();
-		let facetTitles = showSupplementalPdfOnly
-			? titles.filter((title) => title.supplementalPdfAvailable)
-			: titles;
-		if (hideUnavailableTitles) {
-			facetTitles = facetTitles.filter(titleIsAcquirable);
-		}
-		if (!normalizedFilter) return facetTitles;
-		return facetTitles.filter((title) =>
-			[title.title, title.authors.join(' '), title.narrators.join(' ')]
-				.join(' ')
-				.toLowerCase()
-				.includes(normalizedFilter),
-		);
+	function visibleTitles(): RemoteTitle[] {
+		return filterTitles(titles, {
+			titleFilter,
+			showSupplementalPdfOnly,
+			hideUnavailableTitles,
+		});
 	}
 
 	function selectedOutsideFilterCount(): number {
-		if (!titleFilter.trim() && !showSupplementalPdfOnly && !hideUnavailableTitles) return 0;
-		const visibleTitleIds = new Set(filteredTitles().map((title) => title.titleId));
-		return [...selectedTitleIds].filter((titleId) => !visibleTitleIds.has(titleId)).length;
+		return countSelectedOutsideFilter(titles, selectedTitleIds, visibleTitles());
 	}
 
-	function selectedTitleSummary(): string {
-		const count = selectedTitleIds.size;
-		if (count === 0) return '0 selected';
-		const hiddenCount = selectedOutsideFilterCount();
-		const titleLabel = count === 1 ? 'title' : 'titles';
-		if (hiddenCount === 0) return `${count} ${titleLabel} selected`;
-		const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
-		return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
+	function selectedSummaryText(): string {
+		return selectedTitleSummary(selectedTitleIds, selectedOutsideFilterCount());
 	}
 
 	async function acquireSelected(): Promise<void> {
@@ -358,11 +258,9 @@
 	}
 
 	async function cancelActiveAcquisition(): Promise<void> {
-		if (!activeJob || acquisitionJobIsTerminal(activeJob)) return;
+		if (!activeJob || isAcquisitionTerminal(activeJob)) return;
 		try {
-			const cancelledJob = (await tauriClient.cancelRemoteSourceAcquisition(
-				activeJob.jobId,
-			)) as AcquisitionJobWithProgress;
+			const cancelledJob = (await tauriClient.cancelRemoteSourceAcquisition(activeJob.jobId)) as AcquisitionJobWithProgress;
 			activeJob = cancelledJob;
 			lastJob = cancelledJob;
 			statusMessage = statusFromAcquisitionJob(cancelledJob);
@@ -489,7 +387,7 @@
 
 			{#if accountState?.status === 'connected'}
 				<div class="remote-selection-summary" aria-live="polite">
-					<span>{selectedTitleSummary()}</span>
+					<span>{selectedSummaryText()}</span>
 					{#if selectedTitleIds.size > 0}
 						<button
 							class="remote-clear-selection"
@@ -516,13 +414,13 @@
 						<span style={`width: ${progressPercent(activeJob)}%;`}></span>
 					</div>
 					<div class="remote-progress-copy">
-						<span>{progressTitleLabel(activeJob.progress)}</span>
+						<span>{progressTitleLabel(activeJob.progress, titles)}</span>
 						<span>{Math.round(progressPercent(activeJob))}%</span>
 					</div>
 					{#if bytesLabel(activeJob.progress)}
 						<p class="remote-progress-bytes">{bytesLabel(activeJob.progress)}</p>
 					{/if}
-					{#if !acquisitionJobIsTerminal(activeJob)}
+					{#if !isAcquisitionTerminal(activeJob)}
 						<button
 							class="btn-pill btn-pill-secondary remote-progress-cancel"
 							type="button"
@@ -541,24 +439,24 @@
 					aria-label="Audible titles"
 					aria-multiselectable="true"
 				>
-					{#each filteredTitles() as title (title.titleId)}
+					{#each visibleTitles() as title (title.titleId)}
 						<div
 							class="remote-title-row"
 							class:selected={selectedTitleIds.has(title.titleId)}
-							class:unavailable={!titleIsAcquirable(title)}
+							class:unavailable={!isTitleAcquirable(title)}
 							role="option"
 							aria-selected={selectedTitleIds.has(title.titleId)}
-							aria-disabled={!titleIsAcquirable(title)}
+							aria-disabled={!isTitleAcquirable(title)}
 						>
 							<button
 								type="button"
 								class="remote-title-button"
-								disabled={!titleIsAcquirable(title)}
+								disabled={!isTitleAcquirable(title)}
 								onclick={() => toggleTitle(title)}
 							>
 								<span class="remote-title-name">{title.title}</span>
 								<span class="remote-title-meta">{title.authors.join(', ')}</span>
-								{#if !titleIsAcquirable(title)}
+								{#if !isTitleAcquirable(title)}
 									<span class="remote-title-availability">{titleAvailability(title).label}</span>
 									{#if titleAvailability(title).detail}
 										<span class="remote-title-availability-detail">{titleAvailability(title).detail}</span>
@@ -569,7 +467,7 @@
 								<label class="remote-pdf-toggle">
 									<input
 										type="checkbox"
-										disabled={!titleIsAcquirable(title)}
+										disabled={!isTitleAcquirable(title)}
 										checked={includePdfByTitleId[title.titleId] ?? true}
 										onchange={() => togglePdf(title)}
 									/>

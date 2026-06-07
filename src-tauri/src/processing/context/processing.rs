@@ -7,6 +7,7 @@ use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan
 use crate::processing::lifecycle::OperationKind;
 use crate::processing::preview_config::PreviewConfig;
 use crate::processing::session::ProcessingSession;
+use crate::processing::ProgressEvent;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Window;
@@ -17,6 +18,8 @@ fn default_processing_workspace_root() -> PathBuf {
         .join("processing")
         .join("sessions")
 }
+
+pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 /// Output configuration derived from user input
 #[derive(Debug, Clone)]
@@ -81,7 +84,7 @@ impl OutputConfig {
 ///
 /// This context contains the essential components needed for audio processing,
 /// reducing the need to pass multiple parameters through function calls.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ProcessingContext {
     /// Optional Tauri window for event emission (None in headless/test runs)
     pub window: Option<Window>,
@@ -105,6 +108,7 @@ pub struct ProcessingContext {
     pub input_index: Option<usize>,
     /// Backend operation family for lifecycle events emitted by this context
     pub operation_kind: OperationKind,
+    pub(crate) progress_listener: Option<ProgressEventListener>,
 }
 
 impl ProcessingContext {
@@ -146,6 +150,7 @@ impl ProcessingContext {
             operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
+            progress_listener: None,
         }
     }
 
@@ -184,6 +189,7 @@ impl ProcessingContext {
             operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
+            progress_listener: None,
         }
     }
 
@@ -244,7 +250,7 @@ impl ProcessingContext {
 
     /// Creates a progress emitter scoped to this processing context
     pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
-        match &self.window {
+        let emitter = match &self.window {
             Some(window) => crate::processing::progress::ProgressEmitter::with_context(
                 window.clone(),
                 self.operation_kind,
@@ -253,7 +259,9 @@ impl ProcessingContext {
                 self.input_index,
             ),
             None => crate::processing::progress::ProgressEmitter::headless_for(self.operation_kind),
-        }
+        };
+
+        emitter.with_progress_listener(self.progress_listener.clone())
     }
 
     pub(crate) fn processing_workspace_root(&self) -> &Path {
@@ -289,6 +297,7 @@ pub struct ProcessingContextBuilder {
     input_index: Option<usize>,
     operation_kind: OperationKind,
     workspace_root: Option<PathBuf>,
+    progress_listener: Option<ProgressEventListener>,
 }
 
 impl ProcessingContextBuilder {
@@ -348,6 +357,11 @@ impl ProcessingContextBuilder {
     /// Sets the input index
     pub fn input_index(mut self, input_index: usize) -> Self {
         self.input_index = Some(input_index);
+        self
+    }
+
+    pub fn progress_listener(mut self, progress_listener: ProgressEventListener) -> Self {
+        self.progress_listener = Some(progress_listener);
         self
     }
 
@@ -413,6 +427,7 @@ impl ProcessingContextBuilder {
             operation_id: self.operation_id,
             input_index: self.input_index,
             operation_kind: self.operation_kind,
+            progress_listener: self.progress_listener,
         })
     }
 }

@@ -96,18 +96,15 @@ describe('Work Center state', () => {
         (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
         const snapshotUnlisten = vi.fn();
         const listUnlisten = vi.fn();
-        const progressUnlisten = vi.fn();
         vi.spyOn(tauriClient, 'listen')
             .mockResolvedValueOnce(snapshotUnlisten)
-            .mockResolvedValueOnce(listUnlisten)
-            .mockResolvedValueOnce(progressUnlisten);
+            .mockResolvedValueOnce(listUnlisten);
         vi.spyOn(tauriClient, 'listWorkOperations').mockRejectedValueOnce(new Error('list failed'));
 
         await expect(initializeWorkCenter()).rejects.toThrow('list failed');
 
         expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
         expect(listUnlisten).toHaveBeenCalledTimes(1);
-        expect(progressUnlisten).toHaveBeenCalledTimes(1);
     });
 
     it('purges completed merge operation source ids even when the merge child has no input id', async () => {

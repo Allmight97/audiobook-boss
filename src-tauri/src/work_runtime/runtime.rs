@@ -5,10 +5,12 @@ use super::types::{
     WorkOperationListSnapshotEvent, WorkOperationSnapshotEvent, WorkSubmissionAccepted,
 };
 use crate::errors::{AppError, Result};
+use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
 use crate::processing::JobType;
+use crate::processing::ProgressEvent;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -85,6 +87,17 @@ impl WorkRuntime {
 
         let runtime = self.clone();
         let operation_id_for_task = operation_id.clone();
+        let progress_runtime = runtime.clone();
+        let progress_operation_id = operation_id_for_task.clone();
+        let progress_window = window.clone();
+        let progress_listener: Option<ProgressEventListener> =
+            Some(std::sync::Arc::new(move |event: &ProgressEvent| {
+                progress_runtime.apply_progress_and_emit(
+                    &progress_window,
+                    &progress_operation_id,
+                    event,
+                );
+            }));
         tokio::spawn(async move {
             runtime.mark_running_and_emit(&window, &operation_id_for_task);
             let result = process_payload_with_options(
@@ -97,6 +110,7 @@ impl WorkRuntime {
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.0.clone()),
                     operation_cancel: Some(cancel_flag),
+                    progress_listener,
                 },
             )
             .await;
@@ -108,6 +122,24 @@ impl WorkRuntime {
             operation_id,
             snapshot,
         })
+    }
+
+    fn apply_progress_and_emit(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        event: &ProgressEvent,
+    ) {
+        match lock_state(&self.inner.state)
+            .and_then(|mut state| state.apply_progress_event(operation_id, event))
+        {
+            Ok(snapshot) => self.emit_snapshot(window, &snapshot),
+            Err(error) => log::warn!(
+                "Failed to apply progress event for operation {}: {}",
+                operation_id,
+                error
+            ),
+        }
     }
 
     pub fn list_operations(&self) -> Result<OperationListSnapshot> {

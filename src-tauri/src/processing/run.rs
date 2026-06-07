@@ -1,38 +1,26 @@
-use super::output_parent_cleanup::finalize_output_parent_cleanup;
-use super::plan::{
-    prepare_execution_plan, resolve_preflight_plan, ExecutionProcessingPlan, ResolvedProcessingPlan,
-};
-use super::terminal_outcomes::{
-    build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
-    emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
-    terminal_failure_result, ProcessingJobTerminalOutcome,
-};
-use crate::audio;
-use crate::audio::{
-    validate_encoder_settings, AudioExecutionRequest, EncoderSettings, FileListInfo,
-};
-use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::CoverArtPassthroughPolicy;
-use crate::output_artifact::{
-    commit_supplemental_output_asset, OutputKind, ResolvedOutputPlan,
-    SupplementalOutputAssetCommitRequest,
-};
-use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::audio::validate_encoder_settings;
+use crate::errors::Result;
+use crate::processing::context::processing::ProgressEventListener;
+use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
 use crate::processing::{
-    emit_queue_event, OperationKind, OutputConfig, PreviewConfig, ProcessingContext,
-    ProcessingSession, QueueEvent, QueueItem,
+    JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
 };
-use crate::processing::{
-    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessingPreflightPlan, SupplementalProcessingAsset,
-};
-use std::collections::HashMap;
-use std::future::Future;
-use std::path::{Path, PathBuf};
-use std::pin::Pin;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::OwnedSemaphorePermit;
+use std::collections::HashMap;
+mod run_dispatch;
+mod run_job;
+mod run_validation;
+
+// Re-exports used by tests below; unused in production builds
+#[allow(unused_imports)]
+pub(crate) use run_job::{
+    commit_supplemental_assets_for_output, register_job_and_validate_output,
+    supplemental_assets_for_input, supplemental_commit_failure,
+};
+
+pub(crate) use run_validation::{log_encoder_summary, validate_external_processing_contract};
 
 pub(crate) struct ProcessingRun;
 
@@ -40,6 +28,7 @@ pub(crate) struct ProcessingRun;
 pub(crate) struct ProcessingRunOptions {
     pub(crate) operation_id: Option<String>,
     pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
+    pub(crate) progress_listener: Option<ProgressEventListener>,
 }
 
 impl ProcessingRunOptions {
@@ -118,7 +107,7 @@ impl ProcessingRun {
 
         match job_type {
             JobType::Merge => {
-                dispatch_merge_job(
+                run_dispatch::dispatch_merge_job(
                     window,
                     registry,
                     workspace_root,
@@ -129,7 +118,7 @@ impl ProcessingRun {
                 .await
             }
             JobType::Batch => {
-                dispatch_batch_jobs(
+                run_dispatch::dispatch_batch_jobs(
                     window,
                     registry,
                     workspace_root,
@@ -154,516 +143,14 @@ impl ProcessingRun {
     }
 }
 
-fn log_encoder_summary(payload: &ProcessPayload) {
-    log::info!(
-        "encoder summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
-        payload.settings.encoder_type,
-        payload.settings.bitrate_kbps,
-        payload.settings.bitrate_mode,
-        payload.settings.channels,
-        payload.sample_rate,
-        payload.settings.afterburner,
-        payload.settings.threads
-    );
-}
-
-fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::SampleRateConfig> {
-    let sample_rate = payload
-        .sample_rate
-        .clone()
-        .unwrap_or(audio::SampleRateConfig::Auto);
-    audio::validate_sample_rate_config(&sample_rate)?;
-    Ok(sample_rate)
-}
-
-fn validate_external_processing_contract(payload: &ProcessPayload) -> Result<()> {
-    let input_paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&input_paths)?;
-    validate_external_processing_contract_with_file_info(payload, &file_info)
-}
-
-fn validate_external_processing_contract_with_file_info(
-    payload: &ProcessPayload,
-    file_info: &FileListInfo,
-) -> Result<()> {
-    audio::validate_audio_engine_inputs(&payload.settings, file_info)?;
-    Ok(())
-}
-
-fn emit_batch_queue_event(
-    window: &tauri::Window,
-    registry: &crate::ManagedJobRegistry,
-    input_files: &[String],
-    operation_id: Option<&str>,
-) {
-    let queue_items: Vec<QueueItem> = input_files
-        .iter()
-        .enumerate()
-        .map(|(index, input)| QueueItem {
-            input_index: index,
-            file_path: input.clone(),
-        })
-        .collect();
-    let queue_event = QueueEvent::new(
-        OperationKind::ProcessingBatch,
-        queue_items,
-        registry.max_concurrent(),
-    )
-    .with_operation_id(operation_id.map(|value| value.to_string()));
-    emit_queue_event(window, &queue_event);
-}
-
-fn finalize_batch_results(
-    window: &tauri::Window,
-    payload: &ProcessPayload,
-    outcomes: Vec<Result<ProcessResultEntry>>,
-    operation_id: Option<&str>,
-) -> Result<Vec<ProcessResultEntry>> {
-    let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
-    log::debug!(
-        "batch terminal classification: {:?}",
-        finalized.terminal_class
-    );
-    for event in finalized.failure_events {
-        emit_terminal_failed_event(
-            window,
-            OperationKind::ProcessingBatch,
-            operation_id,
-            event.input_index,
-            event.job_id.as_deref(),
-            &event.message,
-        );
-    }
-
-    Ok(finalized.results)
-}
-
-async fn dispatch_merge_job(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    execution_plan: ExecutionProcessingPlan,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    let ExecutionProcessingPlan {
-        plan,
-        output_parent_cleanup,
-    } = execution_plan;
-    let result =
-        dispatch_merge_plan(window, registry, workspace_root, payload, plan, options).await;
-    finalize_output_parent_cleanup(result, output_parent_cleanup)
-}
-
-async fn dispatch_merge_plan(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    plan: ResolvedProcessingPlan,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    if options.is_operation_cancelled() {
-        return Err(AppError::cancelled());
-    }
-
-    let planned_job = plan.jobs.into_iter().next().ok_or_else(|| {
-        AppError::InvalidInput("No output plan entries were built for merge processing".to_string())
-    })?;
-
-    if let Some(skipped) = no_write_skipped_result(None, None, &planned_job.output) {
-        return Ok(ProcessCommandResult::new(JobType::Merge, vec![skipped]));
-    }
-
-    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&paths)?;
-    let result = run_processing_job(ProcessingJobRequest {
-        window,
-        registry,
-        workspace_root,
-        encoder_settings: payload.settings.clone(),
-        sample_rate: resolve_sample_rate(payload)?,
-        input_index: None,
-        operation_kind: OperationKind::ProcessingMerge,
-        operation_id: options.operation_id.clone(),
-        operation_cancel: options.operation_cancel.clone(),
-        output_plan: planned_job.output,
-        file_info,
-        metadata: planned_job.metadata,
-        cover_art_passthrough: planned_job.cover_art_passthrough,
-        preview_seconds: plan.preview_seconds,
-        supplemental_assets: Vec::new(),
-    })
-    .await?;
-
-    Ok(ProcessCommandResult::new(JobType::Merge, vec![result]))
-}
-
-async fn dispatch_batch_jobs(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    execution_plan: ExecutionProcessingPlan,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    let ExecutionProcessingPlan {
-        plan,
-        output_parent_cleanup,
-    } = execution_plan;
-    let result =
-        dispatch_batch_plan(window, registry, workspace_root, payload, plan, options).await;
-    finalize_output_parent_cleanup(result, output_parent_cleanup)
-}
-
-async fn dispatch_batch_plan(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    plan: ResolvedProcessingPlan,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    if payload.input_files.is_empty() {
-        return Err(AppError::InvalidInput(
-            "No input files provided for batch processing".to_string(),
-        ));
-    }
-
-    if let Some(result) = build_all_skipped_batch_result(&plan) {
-        return Ok(result);
-    }
-
-    emit_batch_queue_event(
-        &window,
-        &registry,
-        &payload.input_files,
-        options.operation_id.as_deref(),
-    );
-
-    let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
-        Vec::new();
-    let preview_seconds = plan.preview_seconds;
-    let sample_rate = resolve_sample_rate(payload)?;
-    for planned_job in plan.jobs {
-        if let Some(skipped_entry) =
-            no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
-        {
-            emit_terminal_skipped_event(
-                &window,
-                OperationKind::ProcessingBatch,
-                options.operation_id.as_deref(),
-                skipped_entry.input_index,
-                skipped_entry.job_id.as_deref(),
-                &skipped_entry.message,
-            );
-            scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
-            continue;
-        }
-
-        let window_cloned = window.clone();
-        let registry_cloned = registry.clone();
-        let settings_cloned = payload.settings.clone();
-        let sr_cloned = sample_rate.clone();
-        let md_cloned = planned_job.metadata.clone();
-        let cover_art_passthrough = planned_job.cover_art_passthrough;
-        let preview_cloned = preview_seconds;
-        let workspace_root_cloned = workspace_root.clone();
-        let operation_id = options.operation_id.clone();
-        let operation_cancel = options.operation_cancel.clone();
-        let input_index = planned_job.input_index;
-        let output = planned_job.output.clone();
-        let path = planned_job.input_path.clone().ok_or_else(|| {
-            AppError::InvalidInput("Missing batch input path in output plan".to_string())
-        })?;
-        let supplemental_assets = supplemental_assets_for_input(payload, input_index);
-
-        scheduled_jobs.push(Box::pin(async move {
-            if operation_cancel
-                .as_ref()
-                .is_some_and(|flag| flag.load(Ordering::Acquire))
-            {
-                return Err(AppError::cancelled());
-            }
-            let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
-            run_processing_job(ProcessingJobRequest {
-                window: window_cloned,
-                registry: registry_cloned,
-                workspace_root: workspace_root_cloned,
-                encoder_settings: settings_cloned,
-                sample_rate: sr_cloned,
-                input_index,
-                operation_kind: OperationKind::ProcessingBatch,
-                operation_id,
-                operation_cancel,
-                output_plan: output,
-                file_info,
-                metadata: md_cloned,
-                cover_art_passthrough,
-                preview_seconds: preview_cloned,
-                supplemental_assets,
-            })
-            .await
-        }));
-    }
-
-    let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
-    let finalized_results =
-        finalize_batch_results(&window, payload, outcomes, options.operation_id.as_deref())?;
-
-    Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
-}
-
-struct ProcessingJobRequest {
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    encoder_settings: EncoderSettings,
-    sample_rate: audio::SampleRateConfig,
-    input_index: Option<usize>,
-    operation_kind: OperationKind,
-    operation_id: Option<String>,
-    operation_cancel: Option<Arc<AtomicBool>>,
-    output_plan: ResolvedOutputPlan,
-    file_info: FileListInfo,
-    metadata: Option<crate::metadata::AudiobookMetadata>,
-    cover_art_passthrough: CoverArtPassthroughPolicy,
-    preview_seconds: Option<f64>,
-    supplemental_assets: Vec<SupplementalProcessingAsset>,
-}
-
-async fn run_processing_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
-    let (job_id, _permit, cancellation_checker) = register_job_and_validate_output(
-        &request.registry,
-        &request.output_plan.resolved_path,
-        request.operation_cancel.clone(),
-    )
-    .await?;
-    let cancellation_checker =
-        cancellation_checker.with_operation_flag(request.operation_cancel.clone());
-
-    let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
-        window: request.window,
-        cancellation_checker,
-        job_id,
-        encoder_settings: request.encoder_settings.clone(),
-        sample_rate: request.sample_rate,
-        input_index: request.input_index,
-        operation_kind: request.operation_kind,
-        operation_id: request.operation_id.clone(),
-        output_plan: request.output_plan.clone(),
-        workspace_root: request.workspace_root,
-        preview_seconds: request.preview_seconds,
-    });
-    let preview_path = (request.output_plan.kind == OutputKind::Preview)
-        .then(|| request.output_plan.resolved_path.display().to_string());
-    let result = match execute_processing_job(
-        context,
-        request.file_info,
-        request.metadata,
-        request.cover_art_passthrough,
-        request.encoder_settings,
-    )
-    .await
-    {
-        Ok(message) => match commit_supplemental_assets_for_output(
-            request.output_plan.kind,
-            &request.supplemental_assets,
-            &request.output_plan.resolved_path,
-        ) {
-            Ok(()) => ProcessingJobTerminalOutcome::Success {
-                message,
-                preview_file_path: preview_path,
-                preview_actual_seconds: preview_seconds_resolved,
-            },
-            Err(error) => classify_processing_error(supplemental_commit_failure(
-                &request.output_plan.resolved_path,
-                error,
-            )),
-        },
-        Err(error) => classify_processing_error(error),
-    };
-
-    match result {
-        ProcessingJobTerminalOutcome::Success {
-            message,
-            preview_file_path,
-            preview_actual_seconds,
-        } => {
-            request.registry.complete_job(job_id).await;
-            log::info!("Job {} completed successfully", job_id);
-            Ok(ProcessResultEntry {
-                input_index: request.input_index,
-                status: ProcessResultStatus::Success,
-                message,
-                error: None,
-                preview_file_path,
-                preview_actual_seconds,
-                job_id: Some(job_id.to_string()),
-            })
-        }
-        ProcessingJobTerminalOutcome::Cancelled(error) => {
-            request.registry.complete_job(job_id).await;
-            log::warn!("Job {} cancelled: {}", job_id, error);
-            Err(error)
-        }
-        ProcessingJobTerminalOutcome::Failed(envelope) => {
-            request
-                .registry
-                .fail_job(job_id, envelope.message.clone())
-                .await;
-            log::error!("Job {} failed: {}", job_id, envelope.message);
-            Ok(terminal_failure_result(
-                request.input_index,
-                Some(job_id.to_string()),
-                envelope,
-            ))
-        }
-    }
-}
-
-fn supplemental_assets_for_input(
-    payload: &ProcessPayload,
-    input_index: Option<usize>,
-) -> Vec<SupplementalProcessingAsset> {
-    let Some(index) = input_index else {
-        return Vec::new();
-    };
-    let Some(input_id) = payload
-        .input_ids
-        .as_ref()
-        .and_then(|ids| ids.get(index))
-        .and_then(|value| value.as_ref())
-    else {
-        return Vec::new();
-    };
-    payload
-        .supplemental_assets_by_input_id
-        .as_ref()
-        .and_then(|assets| assets.get(input_id))
-        .cloned()
-        .unwrap_or_default()
-}
-
-fn commit_supplemental_assets(
-    assets: &[SupplementalProcessingAsset],
-    final_audio_path: &Path,
-) -> Result<()> {
-    for asset in assets {
-        commit_supplemental_output_asset(
-            SupplementalOutputAssetCommitRequest::new(&asset.path, final_audio_path)
-                .with_expected_identity(asset.size_bytes, &asset.sha256),
-        )?;
-    }
-    Ok(())
-}
-
-fn supplemental_commit_failure(final_audio_path: &Path, error: AppError) -> AppError {
-    let detail = match error {
-        AppError::FileValidation(message) => message,
-        other => other.to_string(),
-    };
-    AppError::FileValidation(format!(
-        "Audiobook output '{}' was created, but the requested Supplemental PDF could not be committed: {detail}",
-        sanitize_path_for_display(final_audio_path)
-    ))
-}
-
-fn commit_supplemental_assets_for_output(
-    output_kind: OutputKind,
-    assets: &[SupplementalProcessingAsset],
-    output_path: &Path,
-) -> Result<()> {
-    if output_kind != OutputKind::Final {
-        return Ok(());
-    }
-    commit_supplemental_assets(assets, output_path)
-}
-
-async fn register_job_and_validate_output(
-    registry: &crate::ManagedJobRegistry,
-    output_path: &Path,
-    operation_cancel: Option<Arc<AtomicBool>>,
-) -> Result<(JobId, OwnedSemaphorePermit, CancellationChecker)> {
-    let (job_id, permit) = registry
-        .register_job_with_external_cancel(operation_cancel)
-        .await?;
-    log::info!(
-        "Job {} started for output: {}",
-        job_id,
-        output_path.display()
-    );
-    let cancellation_checker = registry.cancellation_checker(job_id).await;
-
-    if let Err(error) = audio::validate_output_path(output_path) {
-        registry.fail_job(job_id, error.to_string()).await;
-        return Err(error);
-    }
-
-    Ok((job_id, permit, cancellation_checker))
-}
-
-struct ProcessingContextRequest {
-    window: tauri::Window,
-    cancellation_checker: crate::processing::job_registry::CancellationChecker,
-    job_id: crate::processing::job_registry::JobId,
-    encoder_settings: EncoderSettings,
-    sample_rate: audio::SampleRateConfig,
-    input_index: Option<usize>,
-    operation_kind: OperationKind,
-    operation_id: Option<String>,
-    output_plan: ResolvedOutputPlan,
-    workspace_root: PathBuf,
-    preview_seconds: Option<f64>,
-}
-
-fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
-    let session =
-        ProcessingSession::from_job_registry(request.job_id.0, request.cancellation_checker);
-    let mut context = ProcessingContext::new_with_workspace_root(
-        request.window,
-        std::sync::Arc::new(session),
-        request.encoder_settings,
-        request.sample_rate,
-        OutputConfig::from_plan(request.output_plan),
-        request.workspace_root,
-    );
-    context.job_id = Some(request.job_id.to_string());
-    context.input_index = request.input_index;
-    context.operation_kind = request.operation_kind;
-    context.operation_id = request.operation_id;
-
-    let preview_seconds_resolved = request.preview_seconds;
-    if let Some(seconds) = preview_seconds_resolved {
-        context.preview = Some(PreviewConfig::new(seconds));
-        log::info!("Preview requested: total_seconds={:.3}", seconds);
-    }
-
-    (context, preview_seconds_resolved)
-}
-
-async fn execute_processing_job(
-    context: ProcessingContext,
-    file_info: FileListInfo,
-    metadata: Option<crate::metadata::AudiobookMetadata>,
-    cover_art_passthrough: CoverArtPassthroughPolicy,
-    encoder_settings: EncoderSettings,
-) -> Result<String> {
-    audio::execute_audio_engine(AudioExecutionRequest::new(
-        context,
-        file_info,
-        metadata,
-        cover_art_passthrough,
-        encoder_settings,
-    ))
-    .await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
-    use crate::processing::{JobType, ProcessPayload};
+    use crate::errors::AppError;
+    use crate::output_artifact::OutputKind;
+    use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
+    use crate::processing::terminal_outcomes::{classify_processing_error, ProcessingJobTerminalOutcome};
     use std::collections::HashMap;
     use tempfile::TempDir;
 
