@@ -3,6 +3,7 @@ import type {
 	ProcessPayload,
 	ProcessingRequestConfig,
 } from '../../types/audio';
+import type { WorkSubmissionAccepted } from '../../types/workRuntime';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError';
 import {
@@ -27,7 +28,11 @@ import {
 	validInputIds,
 	validInputFilePaths,
 } from './processingWorkflowPreparation';
-import { purgeSuccessfulRemoteSourceSessions } from '../remoteSource/sessionAssets.svelte';
+import {
+	purgeRemoteSourceSessionsForInputIds,
+	releaseRemoteSourceSessionRetainers,
+	retainRemoteSourceSessionsForInputIds,
+} from '../remoteSource/sessionAssets.svelte';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -148,6 +153,23 @@ function workflowPromise<A>(
 	return workflowTryPromise(evaluate, message, workflowFailure);
 }
 
+function toProcessingWorkflowError(cause: unknown): ProcessingWorkflowError {
+	const normalized = normalizeAppError(cause);
+	const wasCancelled =
+		isAppErrorCategory(cause, 'cancellation') ||
+		normalized.message.toLowerCase().includes('cancelled');
+	if (wasCancelled) {
+		return new ProcessingWorkflowCancelled({
+			message: normalized.message,
+			cause,
+		});
+	}
+	return new ProcessingWorkflowFailed({
+		message: normalized.message,
+		cause,
+	});
+}
+
 function processingCommand(
 	services: ProcessingWorkflowServices,
 	request: {
@@ -163,22 +185,55 @@ function processingCommand(
 				metadataIntent: request.metadataIntentByPath,
 				previewSeconds: request.previewSeconds,
 			}),
-		catch: (cause) => {
-			const normalized = normalizeAppError(cause);
-			const wasCancelled =
-				isAppErrorCategory(cause, 'cancellation') ||
-				normalized.message.toLowerCase().includes('cancelled');
-			if (wasCancelled) {
-				return new ProcessingWorkflowCancelled({
-					message: normalized.message,
-					cause,
-				});
-			}
-			return new ProcessingWorkflowFailed({
-				message: normalized.message,
-				cause,
-			});
-		},
+		catch: toProcessingWorkflowError,
+	});
+}
+
+function submitProcessingCommand(
+	services: ProcessingWorkflowServices,
+	request: {
+		payload: ProcessPayload;
+		metadataIntentByPath: MetadataIntentByPath | null;
+		previewSeconds?: number;
+	},
+): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
+	return Effect.tryPromise({
+		try: () =>
+			services.submitProcessingOperation({
+				payload: request.payload,
+				metadataIntent: request.metadataIntentByPath,
+				previewSeconds: request.previewSeconds,
+			}),
+		catch: toProcessingWorkflowError,
+	});
+}
+
+function submitRetainedProcessingCommand(
+	services: ProcessingWorkflowServices,
+	request: {
+		payload: ProcessPayload;
+		metadataIntentByPath: MetadataIntentByPath | null;
+		inputIds: readonly (string | undefined)[];
+	},
+): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
+	return Effect.gen(function* () {
+		yield* Effect.sync(() => retainRemoteSourceSessionsForInputIds(request.inputIds));
+		return yield* submitProcessingCommand(services, request).pipe(
+			Effect.catchAll((error) =>
+				Effect.tryPromise({
+					try: async () => {
+						const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(request.inputIds);
+						if (pendingPurgeInputIds.length > 0) {
+							await purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
+						}
+					},
+					catch: () => undefined,
+				}).pipe(
+					Effect.catchAll(() => Effect.succeed(undefined)),
+					Effect.flatMap(() => Effect.fail(error)),
+				),
+			),
+		);
 	});
 }
 
@@ -232,8 +287,6 @@ function completeProcessingExecution(
 	context: ProcessingWorkflowContext,
 	result: ProcessCommandResult,
 	filePaths: string[],
-	inputIds: readonly (string | undefined)[],
-	shouldPurgeRemoteSessions: boolean,
 ): AppEffect<void, ProcessingWorkflowFailed> {
 	return Effect.gen(function* () {
 		yield* Effect.sync(() => {
@@ -245,12 +298,25 @@ function completeProcessingExecution(
 			() => services.openGeneratedPreviewIfSingle(result),
 			'Failed to open generated preview.',
 		);
-		if (shouldPurgeRemoteSessions) {
-			yield* workflowPromise(
-				() => purgeSuccessfulRemoteSourceSessions(result, inputIds),
-				'Failed to purge remote source session.',
-			);
-		}
+	});
+}
+
+function completeAcceptedSubmission(
+	services: ProcessingWorkflowServices,
+	context: ProcessingWorkflowContext,
+	accepted: WorkSubmissionAccepted,
+): AppEffect<void> {
+	return Effect.sync(() => {
+		services.console.log('Processing operation accepted:', accepted);
+		context.setProcessingState(false);
+		context.updateStatus({
+			stage: 'completed',
+			percentage: 100,
+			message: 'Submitted to Work Center.',
+		});
+		services.setJobControlsEnabled(true);
+		services.setFileOrderLocked(false);
+		context.setBatchCompletionMessage(null);
 	});
 }
 
@@ -360,22 +426,26 @@ export function processingWorkflowProgram(
 		}
 
 		yield* beginProcessingExecution(services, context);
-		yield* startProcessingRuntime(context);
 
-		const result = yield* processingCommand(services, {
+		if (options?.previewSeconds != null) {
+			yield* startProcessingRuntime(context);
+			const result = yield* processingCommand(services, {
+				payload: reviewResult.payload,
+				metadataIntentByPath,
+				previewSeconds: options.previewSeconds,
+			});
+
+			yield* completeProcessingExecution(services, context, result, filePaths);
+			return;
+		}
+
+		yield* workflowPromise(() => context.updateArtThumbnail(), 'Failed to update art thumbnail.');
+		const accepted = yield* submitRetainedProcessingCommand(services, {
 			payload: reviewResult.payload,
-			metadataIntentByPath,
-			previewSeconds: options?.previewSeconds,
+			metadataIntentByPath: metadataIntentByPath,
+			inputIds: inputIds,
 		});
-
-		yield* completeProcessingExecution(
-			services,
-			context,
-			result,
-			filePaths,
-			inputIds,
-			options?.previewSeconds == null,
-		);
+		yield* completeAcceptedSubmission(services, context, accepted);
 	}).pipe(
 		Effect.catchAll((error) =>
 			Effect.gen(function* () {

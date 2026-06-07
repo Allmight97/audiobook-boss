@@ -7,6 +7,7 @@ import * as feedback from '../feedback';
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
 	processAudiobookFilesMock: vi.fn(),
+	submitProcessingOperationMock: vi.fn(),
 	validateMetadataIntentPatchMock: vi.fn(async () => ({
 		isValid: true,
 		metadataPatch: {},
@@ -35,6 +36,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		preflightProcessingPlan: context.preflightProcessingPlanMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
+		submitProcessingOperation: context.submitProcessingOperationMock,
 		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
 		readAudioMetadata: context.readAudioMetadataMock,
 		openPath: context.openPathMock,
@@ -119,6 +121,7 @@ describe('startProcessing metadata staging', () => {
 	beforeEach(() => {
 		context.preflightProcessingPlanMock.mockReset();
 		context.processAudiobookFilesMock.mockReset();
+		context.submitProcessingOperationMock.mockReset();
 		context.validateMetadataIntentPatchMock.mockClear();
 		context.readAudioMetadataMock.mockReset();
 		context.openPathMock.mockReset();
@@ -178,6 +181,37 @@ describe('startProcessing metadata staging', () => {
 			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
+		context.submitProcessingOperationMock.mockResolvedValue({
+			operationId: 'operation-1',
+			snapshot: {
+				operationId: 'operation-1',
+				sequence: 1,
+				kind: 'processingMerge',
+				status: 'accepted',
+				title: 'Merge encode (2 files)',
+				createdAtMs: 1,
+				startedAtMs: undefined,
+				finishedAtMs: undefined,
+				cancellable: true,
+				cancelRequested: false,
+				lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+				sourceInputIds: ['input-1', 'input-2'],
+				progress: {
+					stage: 'pending',
+					percentage: 0,
+					message: 'Accepted.',
+					currentItemIndex: undefined,
+					totalItems: 1,
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					etaSeconds: undefined,
+				},
+				children: [],
+				terminalSummary: undefined,
+				warnings: [],
+				errors: [],
+			},
+		});
 		context.readAudioMetadataMock.mockResolvedValue({});
 		context.seriesPartValidationErrorMock.mockReturnValue(null);
 		context.subseriesPartValidationErrorMock.mockReturnValue(null);
@@ -191,7 +225,7 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: null,
 			}),
@@ -219,7 +253,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'set', value: 'Edited Title' } },
@@ -237,7 +271,7 @@ describe('startProcessing metadata staging', () => {
 		expect(context.stageMetadataToSelectionMock).toHaveBeenCalledWith({
 			showStatus: false,
 		});
-		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
+		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
 		expect(feedback.showError).toHaveBeenCalledWith(
 			'Fix metadata validation errors before processing.',
 		);
@@ -254,7 +288,7 @@ describe('startProcessing metadata staging', () => {
 			expect.objectContaining({ isValid: true }),
 		);
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
-		expect(context.processAudiobookFilesMock).not.toHaveBeenCalled();
+		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
 		expect(feedback.showError).toHaveBeenCalledWith('Series part must be a number');
 	});
 
@@ -275,7 +309,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'clear' } },
@@ -301,7 +335,7 @@ describe('startProcessing metadata staging', () => {
 				markPending: true,
 			},
 		);
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { cover_art: { op: 'clear' } },
@@ -321,7 +355,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'clear' } },
@@ -331,7 +365,7 @@ describe('startProcessing metadata staging', () => {
 		);
 	});
 
-	it('summarizes structured batch failures from error envelopes', async () => {
+	it('does not build a synchronous batch failure summary after background submission', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
 		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
@@ -361,12 +395,10 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(ctx);
 
-		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith(
-			'No files were processed successfully. Failed: decoder unavailable',
-		);
+		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith(null);
 	});
 
-	it('summarizes mixed batch success and cancellation truthfully', async () => {
+	it('does not build a synchronous mixed batch summary after background submission', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
 		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
@@ -405,7 +437,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(ctx);
 
-		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
+		expect(ctx.setBatchCompletionMessage).toHaveBeenCalledWith(null);
 	});
 
 	it('treats structured cancellation errors as cancellation instead of failures', async () => {
@@ -413,7 +445,7 @@ describe('startProcessing metadata staging', () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
 		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.getAllMetadataIntentPatchesMock.mockReturnValue({});
-		context.processAudiobookFilesMock.mockRejectedValueOnce({
+		context.submitProcessingOperationMock.mockRejectedValueOnce({
 			code: 'cancelled',
 			category: 'cancellation',
 			message: 'Processing was cancelled.',
@@ -442,7 +474,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: {
 					'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
@@ -463,7 +495,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.processAudiobookFilesMock).toHaveBeenCalledWith(
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: null,
 			}),

@@ -85,7 +85,8 @@ fn output_artifact_parent_dir_contract_only_creates_writable_destinations() {
         .expect("skip plan");
     skip_plan.action = PlannedOutputAction::SkipExisting;
 
-    ensure_output_parent_dirs([&write_plan, &skip_plan]).expect("ensure parents");
+    let _cleanup = ensure_output_parent_dirs(temp_dir.path(), [&write_plan, &skip_plan])
+        .expect("ensure parents");
 
     assert!(temp_dir.path().join("write").exists());
     assert!(!temp_dir.path().join("skip").exists());

@@ -22,6 +22,7 @@ import type {
 	ProviderId,
 	RemoteAuthCompletionRequest,
 } from '../../types/remoteSource';
+import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeMetadata,
@@ -32,8 +33,11 @@ import {
 	normalizeMetadata,
 	normalizeMetadataSaveBatchResult,
 	normalizeNullish,
+	normalizeOperationListSnapshot,
+	normalizeOperationSnapshot,
 	normalizeProcessResult,
 	normalizeRuntimeSettingsCapabilities,
+	normalizeWorkSubmissionAccepted,
 } from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -290,6 +294,28 @@ export const commandSpecs = {
 				args.previewSeconds ?? null,
 			),
 			normalizeProcessResult,
+		),
+	submit_processing_operation: (args: SubmitProcessingOperationRequest) =>
+		runGeneratedCommand(
+			generatedCommands.submitProcessingOperation({
+				payload: denormalizeProcessPayload(args.payload),
+				metadata: compileMetadataIntentMap(args.metadataIntent),
+				previewSeconds: args.previewSeconds ?? null,
+				title: args.title ?? null,
+			}),
+			normalizeWorkSubmissionAccepted,
+		),
+	list_work_operations: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
+	get_work_operation: (args: { operationId: OperationId }) =>
+		runGeneratedCommand(
+			generatedCommands.getWorkOperation(args.operationId),
+			normalizeOperationSnapshot,
+		),
+	cancel_work_operation: (args: { operationId: OperationId }) =>
+		runGeneratedCommand(
+			generatedCommands.cancelWorkOperation(args.operationId),
+			normalizeOperationSnapshot,
 		),
 	cancel_processing: (args?: { job_id?: string | null }) =>
 		runGeneratedCommand(generatedCommands.cancelProcessing(args?.job_id ?? null)),

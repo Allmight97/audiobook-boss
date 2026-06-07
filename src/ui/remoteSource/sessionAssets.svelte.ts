@@ -6,6 +6,8 @@ import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource
 
 let supplementalAssetsByInputId = $state<Record<string, SupplementalProcessingAsset[]>>({});
 let jobIdsByInputId = $state<Record<string, string>>({});
+let retainedInputIdCounts = $state<Record<string, number>>({});
+let pendingPurgeInputIds = $state<Record<string, true>>({});
 
 export type CompanionAssetSummary = {
 	text: string;
@@ -80,6 +82,45 @@ export function hasSupplementalAssetsForInputId(inputId: string | undefined): bo
 	return supplementalAssetsForInputId(inputId).length > 0;
 }
 
+function uniqueInputIds(inputIds: readonly (string | undefined)[]): string[] {
+	return Array.from(new Set(inputIds.filter((inputId): inputId is string => Boolean(inputId))));
+}
+
+export function retainRemoteSourceSessionsForInputIds(
+	inputIds: readonly (string | undefined)[],
+): void {
+	const next = { ...retainedInputIdCounts };
+	for (const inputId of uniqueInputIds(inputIds)) {
+		next[inputId] = (next[inputId] ?? 0) + 1;
+	}
+	retainedInputIdCounts = next;
+}
+
+export function releaseRemoteSourceSessionRetainers(
+	inputIds: readonly (string | undefined)[],
+): string[] {
+	const next = { ...retainedInputIdCounts };
+	const pendingToPurge: string[] = [];
+	const nextPending = { ...pendingPurgeInputIds };
+
+	for (const inputId of uniqueInputIds(inputIds)) {
+		const count = (next[inputId] ?? 0) - 1;
+		if (count > 0) {
+			next[inputId] = count;
+			continue;
+		}
+		delete next[inputId];
+		if (nextPending[inputId]) {
+			pendingToPurge.push(inputId);
+			delete nextPending[inputId];
+		}
+	}
+
+	retainedInputIdCounts = next;
+	pendingPurgeInputIds = nextPending;
+	return pendingToPurge;
+}
+
 export function companionSummaryForInputIds(
 	inputIds: readonly (string | undefined)[],
 ): CompanionAssetSummary {
@@ -120,14 +161,20 @@ export function removeRemoteSourceSupplementalAssets(
 ): void {
 	const next = { ...supplementalAssetsByInputId };
 	const nextJobs = { ...jobIdsByInputId };
+	const nextRetained = { ...retainedInputIdCounts };
+	const nextPending = { ...pendingPurgeInputIds };
 	for (const inputId of inputIds) {
 		if (inputId) {
 			delete next[inputId];
 			delete nextJobs[inputId];
+			delete nextRetained[inputId];
+			delete nextPending[inputId];
 		}
 	}
 	supplementalAssetsByInputId = next;
 	jobIdsByInputId = nextJobs;
+	retainedInputIdCounts = nextRetained;
+	pendingPurgeInputIds = nextPending;
 }
 
 function registeredInputIdsForJob(jobId: string): string[] {
@@ -147,13 +194,23 @@ function jobIsReadyForSessionPurge(jobId: string, inputIdsToRemove: Set<string>)
 export async function purgeRemoteSourceSessionsForInputIds(
 	inputIds: readonly (string | undefined)[],
 ): Promise<void> {
-	const ids = Array.from(
-		new Set(inputIds.filter((inputId): inputId is string => Boolean(inputId))),
-	);
-	const idsToRemove = new Set(ids);
+	const ids = uniqueInputIds(inputIds);
+	const purgeableIds: string[] = [];
+	const nextPending = { ...pendingPurgeInputIds };
+	for (const inputId of ids) {
+		if ((retainedInputIdCounts[inputId] ?? 0) > 0) {
+			nextPending[inputId] = true;
+		} else {
+			purgeableIds.push(inputId);
+		}
+	}
+	pendingPurgeInputIds = nextPending;
+	if (purgeableIds.length === 0) return;
+
+	const purgeableIdsToRemove = new Set(purgeableIds);
 	const jobIds = Array.from(
-		new Set(ids.flatMap((inputId) => jobIdsByInputId[inputId] ?? [])),
-	).filter((jobId) => jobIsReadyForSessionPurge(jobId, idsToRemove));
+		new Set(purgeableIds.flatMap((inputId) => jobIdsByInputId[inputId] ?? [])),
+	).filter((jobId) => jobIsReadyForSessionPurge(jobId, purgeableIdsToRemove));
 	for (const jobId of jobIds) {
 		try {
 			await tauriClient.purgeRemoteSourceSession(jobId);
@@ -164,7 +221,7 @@ export async function purgeRemoteSourceSessionsForInputIds(
 			);
 		}
 	}
-	removeRemoteSourceSupplementalAssets(ids);
+	removeRemoteSourceSupplementalAssets(purgeableIds);
 }
 
 export async function purgeSuccessfulRemoteSourceSessions(

@@ -13,6 +13,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'analyze_audio_files',
 	'cancel_processing',
 	'cancel_remote_source_acquisition',
+	'cancel_work_operation',
 	'complete_remote_source_auth',
 	'discover_audio_import_paths',
 	'echo',
@@ -22,7 +23,9 @@ const EXPECTED_COMMAND_NAMES = [
 	'get_remote_source_acquisition_status',
 	'get_runtime_settings_capabilities',
 	'get_supported_audio_import_metadata',
+	'get_work_operation',
 	'list_remote_source_providers',
+	'list_work_operations',
 	'load_cover_art_file',
 	'load_cover_art_from_url',
 	'load_remote_source_library',
@@ -41,6 +44,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'set_max_concurrent_jobs',
 	'start_remote_source_acquisition',
 	'start_remote_source_auth',
+	'submit_processing_operation',
 	'take_opened_audio_files',
 	'update_app_settings',
 	'validate_encoder_settings',
@@ -73,6 +77,8 @@ describe('compatibility guards', () => {
 			EVENTS.PROGRESS,
 			EVENTS.QUEUE,
 			EVENTS.OPENED_AUDIO_FILES,
+			EVENTS.WORK_OPERATION_SNAPSHOT,
+			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
 		]);
 	});
 });

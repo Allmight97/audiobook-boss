@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { tauriClient } from '../../../lib/tauri/client';
 import {
 	makeProcessingWorkflowServicesLayer,
 	startProcessing,
@@ -16,10 +17,13 @@ import {
 	type JobType,
 } from '../../../types/audio';
 import type { AcquisitionJob } from '../../../types/remoteSource';
+import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
 import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
 import {
+	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
 	removeRemoteSourceSupplementalAssets,
+	supplementalAssetsForInputIds,
 } from '../../remoteSource/sessionAssets.svelte';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
@@ -94,6 +98,40 @@ function successResult(jobType: ProcessCommandResult['jobType'] = 'merge'): Proc
 				previewActualSeconds: undefined,
 			},
 		],
+	};
+}
+
+function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted {
+	return {
+		operationId: 'operation-1',
+		snapshot: {
+			operationId: 'operation-1',
+			sequence: 1,
+			kind: jobType === 'batch' ? 'processingBatch' : 'processingMerge',
+			status: 'accepted',
+			title: jobType === 'batch' ? 'Batch encode (1 file)' : 'Merge encode (1 file)',
+			createdAtMs: 1,
+			startedAtMs: undefined,
+			finishedAtMs: undefined,
+			cancellable: true,
+			cancelRequested: false,
+			lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+			sourceInputIds: ['current-input-1'],
+			progress: {
+				stage: 'pending',
+				percentage: 0,
+				message: 'Accepted.',
+				currentItemIndex: undefined,
+				totalItems: 1,
+				bytesDownloaded: undefined,
+				bytesTotal: undefined,
+				etaSeconds: undefined,
+			},
+			children: [],
+			terminalSummary: undefined,
+			warnings: [],
+			errors: [],
+		},
 	};
 }
 
@@ -185,6 +223,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		})),
 		readAudioMetadata: vi.fn(async () => ({})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
+		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
 		feedback,
@@ -227,8 +266,8 @@ describe('ProcessingWorkflow', () => {
 		expect(services.setJobControlsEnabled).toHaveBeenCalledWith(false);
 		expect(services.setFileOrderLocked).toHaveBeenCalledWith(true);
 		expect(ctx.updateArtThumbnail).toHaveBeenCalledTimes(1);
-		expect(ctx.startProgressListener).toHaveBeenCalledTimes(1);
-		expect(services.processAudiobookFiles).toHaveBeenCalledWith({
+		expect(ctx.startProgressListener).not.toHaveBeenCalled();
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
 				inputFiles: ['/books/a.m4b'],
 				preflightSignature: 'preflight-approved',
@@ -236,7 +275,11 @@ describe('ProcessingWorkflow', () => {
 			metadataIntent: null,
 			previewSeconds: undefined,
 		});
-		expect(ctx.reconcileProcessResult).toHaveBeenCalledWith(successResult());
+		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
+		expect(ctx.reconcileProcessResult).not.toHaveBeenCalled();
+		expect(ctx.setProcessingState).toHaveBeenLastCalledWith(false);
+		expect(services.setJobControlsEnabled).toHaveBeenLastCalledWith(true);
+		expect(services.setFileOrderLocked).toHaveBeenLastCalledWith(false);
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
@@ -259,7 +302,7 @@ describe('ProcessingWorkflow', () => {
 
 		await runWithServices(ctx, services);
 
-		expect(services.processAudiobookFiles).toHaveBeenCalledWith({
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
 				inputFiles: ['/session/book.m4b'],
 				inputIds: ['current-input-1'],
@@ -301,13 +344,14 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.setProcessingState).not.toHaveBeenCalled();
 		expect(ctx.startProgressListener).not.toHaveBeenCalled();
 		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
+		expect(services.submitProcessingOperation).not.toHaveBeenCalled();
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('routes structured cancellation failures to cancellation handling instead of error reset', async () => {
 		const ctx = workflowContext();
 		const { services, feedback } = workflowServices({
-			processAudiobookFiles: vi.fn(async () => {
+			submitProcessingOperation: vi.fn(async () => {
 				throw {
 					code: 'cancelled',
 					category: 'cancellation',
@@ -328,7 +372,7 @@ describe('ProcessingWorkflow', () => {
 	it('surfaces failed processing commands through typed workflow failure handling', async () => {
 		const ctx = workflowContext();
 		const { services, feedback } = workflowServices({
-			processAudiobookFiles: vi.fn(async () => {
+			submitProcessingOperation: vi.fn(async () => {
 				throw {
 					code: 'decoder_unavailable',
 					category: 'toolchain',
@@ -344,5 +388,38 @@ describe('ProcessingWorkflow', () => {
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
+	});
+
+	it('purges retained remote-source sessions that were pending purge when submission fails', async () => {
+		const currentFileList: FileListInfo = {
+			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
+			selectedDecoders: [null],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		};
+		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
+		const purgeSpy = vi.spyOn(tauriClient, 'purgeRemoteSourceSession').mockResolvedValue(undefined);
+		const ctx = workflowContext();
+		const { services, feedback } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+			getJobType: vi.fn((): JobType => 'batch'),
+			submitProcessingOperation: vi.fn(async () => {
+				await purgeRemoteSourceSessionsForInputIds(['current-input-1']);
+				throw {
+					code: 'decoder_unavailable',
+					category: 'toolchain',
+					message: 'Decoder unavailable.',
+					detail: null,
+				};
+			}),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+		expect(purgeSpy).toHaveBeenCalledWith('remote-job-1');
+		expect(supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
 	});
 });

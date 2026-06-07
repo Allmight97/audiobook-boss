@@ -13,6 +13,7 @@ mod opened_audio;
 pub mod output_artifact;
 pub mod processing;
 pub mod remote_source;
+pub mod work_runtime;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::{
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
@@ -113,6 +114,7 @@ pub fn run() {
 
     // Initialize job registry with auto-detected concurrency (num_cpus / 2)
     let job_registry: ManagedJobRegistry = Arc::new(processing::JobRegistry::auto());
+    let work_runtime = work_runtime::WorkRuntime::default();
     log::info!(
         "Job registry initialized: max_concurrent = {}",
         job_registry.max_concurrent()
@@ -124,6 +126,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(job_registry)
+        .manage(work_runtime)
         .manage(opened_audio::OpenedAudioFileQueue::default())
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {

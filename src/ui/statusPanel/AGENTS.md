@@ -3,7 +3,7 @@
 - Exports: `beginMetadataSaveInStatusPanel`, `completeMetadataSaveInStatusPanel`, `failMetadataSaveInStatusPanel`, `initStatusPanel`, `isStatusPanelProcessing`, `pushStatusPanelTransientStatus`, `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`, `updateStatusPanelConcurrencyStatus`, `StatusPanelIsland`.
 
 ## Private Cluster
-- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `feedback.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflowLive.ts`, `processingWorkflowServices.ts`, `processingCancellationWorkflow.ts`, `processingCancellationWorkflowLive.ts`, `processingCancellationWorkflowServices.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `feedback.ts`, `metadataSaveFeedback.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflowPreparation.ts`, `processingWorkflowLive.ts`, `processingWorkflowServices.ts`, `processingCancellationWorkflow.ts`, `processingCancellationWorkflowLive.ts`, `processingCancellationWorkflowServices.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request

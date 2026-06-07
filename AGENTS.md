@@ -89,7 +89,7 @@
 | Change | Verification |
 | --- | --- |
 | Docs/guidance/reference edits | Coherence check, stale-reference removal, source/subtree presence when relevant, and `git diff --check` |
-| Edited skills | Run the touched skill validator, including `quick_validate.py` where applicable |
+| Edited skills | Run the touched skill validator where one exists |
 | Owned module import/export surface changes | Update nearest `AGENTS.md` and matching contract tests for intentional surface changes |
 | Tooling/scripts local only | Targeted script/test for the touched surface first |
 | Runtime/IPC/contracts/build/deps | Owner-scoped command menu in `README.md`/`scripts/AGENTS.md`, plus focused contract/regression coverage |

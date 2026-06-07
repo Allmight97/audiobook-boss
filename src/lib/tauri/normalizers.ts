@@ -25,6 +25,9 @@ import type {
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
 	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
+	OperationListSnapshot as GeneratedOperationListSnapshot,
+	OperationSnapshot as GeneratedOperationSnapshot,
+	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../generated/tauri';
 import type {
 	EncoderAvailability,
@@ -41,6 +44,11 @@ import type {
 } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { NullToOptionalDeep } from '../../types/ipc';
+import type {
+	OperationListSnapshot,
+	OperationSnapshot,
+	WorkSubmissionAccepted,
+} from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
@@ -249,4 +257,26 @@ export function normalizeProgressEvent(payload: GeneratedProgressEvent): Process
 
 export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
 	return normalizeNullish(payload);
+}
+
+export function normalizeOperationSnapshot(
+	payload: GeneratedOperationSnapshot,
+): OperationSnapshot {
+	return normalizeNullish(payload) as OperationSnapshot;
+}
+
+export function normalizeOperationListSnapshot(
+	payload: GeneratedOperationListSnapshot,
+): OperationListSnapshot {
+	return normalizeNullish(payload) as OperationListSnapshot;
+}
+
+export function normalizeWorkSubmissionAccepted(
+	payload: GeneratedWorkSubmissionAccepted,
+): WorkSubmissionAccepted {
+	const normalized = normalizeNullish(payload) as WorkSubmissionAccepted;
+	return {
+		...normalized,
+		snapshot: normalizeOperationSnapshot(payload.snapshot),
+	};
 }

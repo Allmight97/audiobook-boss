@@ -5,6 +5,7 @@ import {
 	setStatusPanelConcurrencyText,
 	setStatusPanelCoverArtDataUrl,
 	setStatusPanelJobItems,
+	setStatusPanelIsProcessing,
 	setStatusPanelProgressPercentage,
 	setStatusPanelStatusText,
 	setStatusPanelStepColor,
@@ -33,8 +34,8 @@ export function updateConcurrencyStatus(message: string): void {
 	setStatusPanelConcurrencyText(message);
 }
 
-export function updateProcessButton(_isProcessing: boolean): void {
-	// Process button label/style are static in the island.
+export function updateProcessButton(isProcessing: boolean): void {
+	setStatusPanelIsProcessing(isProcessing);
 }
 
 export function displayCoverArt(dataUrl: string): void {

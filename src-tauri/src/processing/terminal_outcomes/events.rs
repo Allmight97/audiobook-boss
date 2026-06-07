@@ -3,6 +3,7 @@ use crate::processing::{OperationKind, ProgressEmitter};
 pub(in crate::processing) fn emit_terminal_failed_event(
     window: &tauri::Window,
     operation_kind: OperationKind,
+    operation_id: Option<&str>,
     input_index: Option<usize>,
     job_id: Option<&str>,
     message: &str,
@@ -10,6 +11,7 @@ pub(in crate::processing) fn emit_terminal_failed_event(
     let emitter = ProgressEmitter::with_context(
         window.clone(),
         operation_kind,
+        operation_id.map(|value| value.to_string()),
         job_id.map(|value| value.to_string()),
         input_index,
     );
@@ -19,6 +21,7 @@ pub(in crate::processing) fn emit_terminal_failed_event(
 pub(in crate::processing) fn emit_terminal_skipped_event(
     window: &tauri::Window,
     operation_kind: OperationKind,
+    operation_id: Option<&str>,
     input_index: Option<usize>,
     job_id: Option<&str>,
     message: &str,
@@ -26,6 +29,7 @@ pub(in crate::processing) fn emit_terminal_skipped_event(
     let emitter = ProgressEmitter::with_context(
         window.clone(),
         operation_kind,
+        operation_id.map(|value| value.to_string()),
         job_id.map(|value| value.to_string()),
         input_index,
     );

@@ -6,6 +6,7 @@ pub enum OperationKind {
     ProcessingMerge,
     #[default]
     ProcessingBatch,
+    RemoteAcquisition,
     MetadataSave,
 }
 

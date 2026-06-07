@@ -52,7 +52,7 @@ describe('statusPanel state machine', () => {
 		expect(next.currentStatus).not.toHaveProperty('etaSeconds');
 	});
 
-	it('uses backend operation identity to classify lifecycle work kind', () => {
+    it('uses backend operation identity to classify lifecycle work kind', () => {
 		const queuedMetadataSave: ProcessingQueueEvent = {
 			operation_kind: 'metadataSave',
 			items: [{ input_index: 0, file_path: '/books/a.m4b' }],
@@ -73,7 +73,36 @@ describe('statusPanel state machine', () => {
 		expect(afterProgress.model.currentWorkKind).toBe('merge');
 	});
 
-	it('handles progress events that arrive before queue snapshot', () => {
+	it('ignores WorkRuntime-scoped queue and progress events', () => {
+		const model = createStatusPanelModel();
+		const backgroundQueue: ProcessingQueueEvent = {
+			operation_id: 'op-1',
+			operation_kind: 'processingBatch',
+			items: [{ input_index: 0, file_path: '/books/background.m4b' }],
+			max_concurrent: 1,
+		};
+		const afterQueue = applyQueueSnapshot(model, backgroundQueue, 1_000);
+
+		expect(afterQueue.model).toBe(model);
+		expect(afterQueue.model.jobProgress.size).toBe(0);
+
+		const backgroundProgress: ProcessingProgressEvent = {
+			operation_id: 'op-1',
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-1',
+			stage: 'converting',
+			percentage: 50,
+			message: 'Background operation progress',
+		};
+		const afterProgress = applyProgress(model, backgroundProgress, 1_100);
+
+		expect(afterProgress.model).toBe(model);
+		expect(afterProgress.model.jobProgress.size).toBe(0);
+		expect(afterProgress.intents).toEqual([]);
+	});
+
+    it('handles progress events that arrive before queue snapshot', () => {
 		const model = createStatusPanelModel();
 		const earlyProgress: ProcessingProgressEvent = {
 			operation_kind: 'processingBatch',

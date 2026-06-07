@@ -44,10 +44,10 @@
 
 ## Private Cluster
 
-- Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
-  `constants.rs`, `file_list.rs`, `imports.rs`, `metrics.rs`,
-  `path_validation.rs`, `processor/`, `settings.rs`, `settings_encoder.rs`,
-  and `toolchain.rs`.
+- Files: `buffer.rs`, `cleanup/`, `extensions.rs`,
+  `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
+  `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
+  `settings_encoder.rs`, and `toolchain.rs`.
 - The cluster owns local audio import metadata/discovery, decoder/toolchain
   selection, media inspection, decode/resample/encode/mux internals, staging,
   cleanup, and media execution facts. Processing owns lifecycle orchestration

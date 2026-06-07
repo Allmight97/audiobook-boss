@@ -123,6 +123,10 @@ export const commands = {
 	 *  Sets the global cancellation flag in the job registry
 	 */
 	cancelProcessing: (jobId: string | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("cancel_processing", { jobId })),
+	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),
+	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
+	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),
+	cancelWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId })),
 };
 
 /** Events */
@@ -130,6 +134,8 @@ export const events = {
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	processingProgress: makeEvent<ProgressEvent>("processing-progress"),
 	processingQueue: makeEvent<QueueEvent>("processing-queue"),
+	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
+	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
 };
 
 /* Types */
@@ -253,6 +259,24 @@ export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
 
 // Channel selection strategy
 export type ChannelConfig = "auto" | "mono" | "stereo";
+
+export type ChildJobSnapshot = {
+	childJobId: string,
+	operationId: OperationId,
+	label: string,
+	status: ChildJobStatus,
+	lane: ResourceLane,
+	progress: ProgressSnapshot,
+	sourcePath: string | null,
+	inputIndex: number | null,
+	inputId: string | null,
+	jobId: string | null,
+	cancellable: boolean,
+	cancelRequested: boolean,
+	message: string | null,
+};
+
+export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
@@ -462,7 +486,13 @@ export type OnlineMetadataResult = {
 
 export type OpenedAudioFilesEvent = Record<string, never>;
 
-export type OperationKind = "processingMerge" | "processingBatch" | "metadataSave";
+export type OperationId = string;
+
+export type OperationKind = "processingMerge" | "processingBatch" | "remoteAcquisition" | "metadataSave";
+
+export type OperationListSnapshot = {
+	operations: OperationSnapshot[],
+};
 
 export type OperationResultSummary = {
 	total: number,
@@ -470,6 +500,35 @@ export type OperationResultSummary = {
 	skipped: number,
 	cancelled: number,
 	failed: number,
+};
+
+export type OperationSnapshot = {
+	operationId: OperationId,
+	sequence: number,
+	kind: OperationKind,
+	status: WorkOperationStatus,
+	title: string,
+	createdAtMs: number,
+	startedAtMs: number | null,
+	finishedAtMs: number | null,
+	cancellable: boolean,
+	cancelRequested: boolean,
+	lanes: ResourceLane[],
+	sourceInputIds: string[],
+	progress: ProgressSnapshot,
+	children: ChildJobSnapshot[],
+	terminalSummary: OperationTerminalSummary | null,
+	warnings: string[],
+	errors: string[],
+};
+
+export type OperationTerminalSummary = {
+	total: number,
+	succeeded: number,
+	skipped: number,
+	cancelled: number,
+	failed: number,
+	message: string,
 };
 
 export type OutputCollisionInfo = {
@@ -570,6 +629,8 @@ export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Deserialize = {
+	// WorkRuntime operation identifier when this event belongs to accepted work
+	operation_id: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -590,6 +651,8 @@ export type ProgressEvent_Deserialize = {
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Serialize = {
+	// WorkRuntime operation identifier when this event belongs to accepted work
+	operation_id?: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -608,10 +671,33 @@ export type ProgressEvent_Serialize = {
 	input_index?: number | null,
 };
 
+export type ProgressSnapshot = {
+	stage: WorkProgressStage,
+	percentage: number,
+	message: string,
+	currentItemIndex: number | null,
+	totalItems: number | null,
+	bytesDownloaded: number | null,
+	bytesTotal: number | null,
+	etaSeconds: number | null,
+};
+
 export type ProviderId = "audible";
 
 // Batch queue snapshot for frontend communication
-export type QueueEvent = {
+export type QueueEvent = QueueEvent_Serialize | QueueEvent_Deserialize;
+
+// Batch queue snapshot for frontend communication
+export type QueueEvent_Deserialize = {
+	operation_id: string | null,
+	operation_kind: OperationKind,
+	items: QueueItem[],
+	max_concurrent: number,
+};
+
+// Batch queue snapshot for frontend communication
+export type QueueEvent_Serialize = {
+	operation_id?: string | null,
 	operation_kind: OperationKind,
 	items: QueueItem[],
 	max_concurrent: number,
@@ -699,6 +785,8 @@ export type RemoteTitleAvailability = {
 
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
+export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
+
 export type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities,
 	maxConcurrentJobs: MaxConcurrentJobsCapabilities,
@@ -710,6 +798,13 @@ export type SampleRateConfig =
 "auto" |
 // Explicit sample rate in Hz
 { explicit: number };
+
+export type SubmitProcessingOperationRequest = {
+	payload: ProcessPayload,
+	metadata: { [key in string]: MetadataIntentPatch } | null,
+	previewSeconds: number | null,
+	title: string | null,
+};
 
 export type SupplementalAsset = {
 	assetId: string,
@@ -751,6 +846,23 @@ export type ThreadSetting =
 { mode: "off" } |
 // Fixed number of threads
 { mode: "fixed"; value: number };
+
+export type WorkOperationListSnapshotEvent = {
+	operations: OperationSnapshot[],
+};
+
+export type WorkOperationSnapshotEvent = {
+	snapshot: OperationSnapshot,
+};
+
+export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";
+
+export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "downloading" | "decrypting" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
+
+export type WorkSubmissionAccepted = {
+	operationId: OperationId,
+	snapshot: OperationSnapshot,
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

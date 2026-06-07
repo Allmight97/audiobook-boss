@@ -43,11 +43,17 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::set_max_concurrent_jobs,
             crate::commands::process_audiobook_files,
             crate::commands::cancel_processing,
+            crate::commands::submit_processing_operation,
+            crate::commands::list_work_operations,
+            crate::commands::get_work_operation,
+            crate::commands::cancel_work_operation,
         ])
         .events(tauri_specta::collect_events![
             crate::processing::ProgressEvent,
             crate::processing::QueueEvent,
-            crate::opened_audio::OpenedAudioFilesEvent
+            crate::opened_audio::OpenedAudioFilesEvent,
+            crate::work_runtime::WorkOperationSnapshotEvent,
+            crate::work_runtime::WorkOperationListSnapshotEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
 }

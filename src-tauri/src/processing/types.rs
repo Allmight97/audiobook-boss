@@ -26,7 +26,7 @@ impl From<JobType> for OperationKind {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessPayload {
     pub input_files: Vec<String>,

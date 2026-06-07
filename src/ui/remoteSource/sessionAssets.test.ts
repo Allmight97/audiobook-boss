@@ -216,6 +216,43 @@ describe('remote source session assets', () => {
 		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
 	});
 
+	it('defers draft cleanup purge while an accepted work operation retains the input', async () => {
+		const module = await import('./sessionAssets.svelte');
+		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
+		module.retainRemoteSourceSessionsForInputIds(['current-input-1']);
+
+		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
+
+		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
+		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeDefined();
+
+		const pendingPurgeInputIds = module.releaseRemoteSourceSessionRetainers(['current-input-1']);
+		await module.purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
+
+		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
+		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+	});
+
+	it('does not purge a shared acquired session while a retained sibling remains in flight', async () => {
+		const module = await import('./sessionAssets.svelte');
+		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
+		module.retainRemoteSourceSessionsForInputIds(['current-input-1', 'current-input-2']);
+
+		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1', 'current-input-2']);
+		const firstPendingPurge = module.releaseRemoteSourceSessionRetainers(['current-input-1']);
+		await module.purgeRemoteSourceSessionsForInputIds(firstPendingPurge);
+
+		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
+		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toBeDefined();
+
+		const secondPendingPurge = module.releaseRemoteSourceSessionRetainers(['current-input-2']);
+		await module.purgeRemoteSourceSessionsForInputIds(secondPendingPurge);
+
+		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
+		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toBeUndefined();
+	});
+
 	it('waits to purge shared acquisition sessions until every registered input is removable', async () => {
 		const module = await import('./sessionAssets.svelte');
 		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
