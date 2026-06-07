@@ -34,26 +34,14 @@ impl std::fmt::Display for JobId {
     }
 }
 
-/// State of a processing job
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JobState {
-    /// Job is actively processing
-    Running,
-    /// Job completed successfully
-    Completed,
-    /// Job was cancelled by user
-    Cancelled,
-    /// Job failed with an error
-    Failed(String),
-}
-
-/// Represents a single processing job
+/// Represents a single active processing job.
+///
+/// Presence in the registry map is the job's only lifecycle state: a tracked
+/// job is running, and terminal paths (`complete_job`/`fail_job`) remove it.
 #[derive(Debug)]
 pub struct Job {
     /// Unique job identifier
     pub id: JobId,
-    /// Current job state
-    pub state: JobState,
     /// Per-job cancellation flag
     pub cancel_flag: Arc<AtomicBool>,
 }
@@ -63,7 +51,6 @@ impl Job {
     pub fn new(id: JobId) -> Self {
         Self {
             id,
-            state: JobState::Running,
             cancel_flag: Arc::new(AtomicBool::new(false)),
         }
     }

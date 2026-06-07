@@ -25,6 +25,8 @@ prefer local prose or delete it.
 | **Media Contract** | Backend-neutral media facts, progress, error, and provenance vocabulary that does not expose FFmpeg, AAXClean, provider payloads, or metadata-tool internals. | provider response shape |
 | **Supplemental Asset** | Non-audio sidecar acquired with a remote title, currently Supplemental PDF. It never enters audio processing. | audio input |
 | **Backend Lifecycle** | Processing sub-owner for operation identity, queue/progress vocabulary, cancellation checks, and terminal-summary truth. | status UI owner |
+| **Work Operation** | A WorkRuntime-owned background processing submission with a stable id, immutable accepted inputs, an operation snapshot, and operation-scoped cancellation. | UI job row |
+| **Work Center** | The UI surface (`src/ui/workCenter/`) that renders backend-authored Work Operation snapshots. It expresses operation truth; it does not invent terminal status. | status panel clone |
 | **Operation Kind** | Backend-declared operation identity on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | UI-only mode |
 | **Operation Result Summary** | Terminal counts for backend operations: total, succeeded, skipped, cancelled, and failed. | UI completion guess |
 | **Terminal Outcome** | Final per-job status after backend ambiguity resolves: `success`, `skipped`, `cancelled`, or `failed`. | progress stage |

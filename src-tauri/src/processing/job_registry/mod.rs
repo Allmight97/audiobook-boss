@@ -19,7 +19,7 @@ use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
-pub use types::{AggregateJobStatus, Job, JobId, JobState, MaxConcurrentJobsCapabilities};
+pub use types::{AggregateJobStatus, Job, JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;
 pub const MAX_CONCURRENT_JOBS: usize = 8;
@@ -267,14 +267,11 @@ impl JobRegistry {
     /// Gets aggregate progress information
     pub async fn get_aggregate_status(&self) -> AggregateJobStatus {
         let jobs = self.jobs.read().await;
-        let active = jobs
-            .values()
-            .filter(|j| j.state == JobState::Running)
-            .count();
+        // Every tracked job is active; terminal paths remove it from the map.
         let total = jobs.len();
 
         AggregateJobStatus {
-            active_jobs: active,
+            active_jobs: total,
             total_jobs: total,
             max_concurrent: self.max_concurrent(),
         }
@@ -283,10 +280,7 @@ impl JobRegistry {
     /// Lists all active job IDs
     pub async fn list_active_jobs(&self) -> Vec<JobId> {
         let jobs = self.jobs.read().await;
-        jobs.values()
-            .filter(|j| j.state == JobState::Running)
-            .map(|j| j.id)
-            .collect()
+        jobs.values().map(|j| j.id).collect()
     }
 
     /// Returns the maximum concurrency setting

@@ -46,9 +46,9 @@ pub enum ProcessingStage {
 
 pub use context::{OutputConfig, ProcessingContext, ProcessingContextBuilder};
 pub use job_registry::{
-    AggregateJobStatus, CancellationChecker, JobId, JobRegistry, JobState,
-    MaxConcurrentJobsCapabilities,
+    AggregateJobStatus, CancellationChecker, JobId, JobRegistry, MaxConcurrentJobsCapabilities,
 };
+pub use abb_processing_core::{classify_run_terminal, RunTerminalClass};
 pub use lifecycle::{OperationKind, OperationResultSummary};
 pub use preview_config::PreviewConfig;
 pub use progress::{

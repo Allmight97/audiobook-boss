@@ -85,6 +85,11 @@ ownership or verification.
   files before normal file-list import; provider auth, sessions, acquisition
   jobs, Supplemental Assets, and purge behavior stay behind `RemoteSourceRuntime`.
 - Run orchestration owns dispatch and side effects; terminal outcome helpers own final status normalization.
+- WorkRuntime (`src-tauri/src/work_runtime/`) owns Work Center operation truth:
+  operation identity, immutable accepted submissions, operation snapshots, and
+  operation-scoped cancellation. It wraps `processing::run` as the executor and
+  derives operation terminal status from the canonical
+  `abb_processing_core::classify_run_terminal` classifier, never a parallel rule.
 - Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
 - Processing adapters produce media artifacts; final results report what actually happened.
 

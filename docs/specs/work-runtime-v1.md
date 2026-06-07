@@ -35,6 +35,14 @@ operation independently, and verify terminal summaries against disk truth.
   now tracks ABB-created final parent directories and prunes only empty created
   parents after failed/cancelled processing; preexisting or non-empty output
   directories are preserved.
+- [x] 2026-06-07: Backend terminal-truth consolidation (WB-A Phase 1). WorkRuntime
+  no longer re-derives terminal status; it uses the single canonical
+  `abb_processing_core::classify_run_terminal` classifier (fixing the prior
+  success+skipped divergence) and routes fail/cancel summaries through core
+  constructors. Dead `JobState` variants collapsed to the registry map-presence
+  model. Distilled into `system-map.md`, `ubiquitous-language.md`, `api-map.md`,
+  `work_runtime/AGENTS.md`, `job_registry/AGENTS.md`. Frontend legacy-channel
+  migration remains deferred (see Deferred Triggers).
 
 ## Surprises & Discoveries
 
@@ -192,9 +200,10 @@ Manual evidence:
 
 ## Deferred Triggers
 
-- Next WorkRuntime slice that changes progress semantics: move Work Center to
-  backend-authored operation snapshots only and delete the frontend legacy
-  progress reducer.
+- Move Work Center to backend-authored operation snapshots only and delete the
+  frontend legacy progress reducer (`src/ui/workCenter/model.ts`). Backend
+  terminal truth is now canonical (WB-A Phase 1); this remaining step needs
+  richer backend progress granularity before the reducer can be removed.
 - Next change to `processing/run.rs`: split by processing dispatch/cohesion
   before adding new operation-kind behavior.
 - Next change to `processingWorkflow.ts`: split foreground preview execution

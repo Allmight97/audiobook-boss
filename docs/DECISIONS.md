@@ -1,5 +1,18 @@
 # Decisions
 
+## 2026-06-07 - WorkRuntime Backend Terminal Truth Is Canonical
+
+- WorkRuntime derives operation terminal status from the single
+  `abb_processing_core::classify_run_terminal` classifier; the parallel
+  `status_from_terminal_summary` rule was deleted (it diverged on success+skipped).
+- `classify_terminal_statuses` and `classify_run_terminal` share one rule via
+  `RunTerminalClassifier`, so the status-iterator and count-summary paths cannot drift.
+- `JobState` collapsed to the registry map-presence model: a tracked job is active,
+  and `complete_job`/`fail_job` remove it. Evidence: `src-tauri/src/work_runtime/terminal.rs`,
+  `crates/abb-processing-core/src/lib.rs`, `src-tauri/src/processing/job_registry/`.
+- Guardrail: do not reintroduce a count-based terminal-classification rule in WorkRuntime;
+  map the canonical `RunTerminalClass` to `WorkOperationStatus` instead.
+
 ## 2026-06-03 - AAXClean AAX/AAXC Materializer
 
 - Bundle a `.NET 8` AAXClean sidecar as the first Audible AAX/AAXC materializer; `RemoteSourceRuntime` owns helper invocation, provider-secret containment, staged protected files, cancellation, cleanup, and final M4B validation.

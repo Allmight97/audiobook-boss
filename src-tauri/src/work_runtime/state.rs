@@ -1,14 +1,15 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot,
-    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
+    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot, WorkOperationStatus,
+    WorkProgressStage,
 };
 use crate::errors::{AppError, Result};
-use crate::processing::ProcessCommandResult;
+use crate::processing::{OperationResultSummary, ProcessCommandResult};
 use std::collections::BTreeMap;
 
 use super::terminal::{
-    child_status_from_result_status, is_terminal, stage_from_child_status, stage_from_status,
-    status_from_terminal_summary, terminal_summary_from_process_result,
+    child_status_from_result_status, is_terminal, operation_terminal_summary,
+    stage_from_child_status, stage_from_status, terminal_summary_from_process_result,
+    work_status_from_process_result,
 };
 
 #[derive(Default)]
@@ -24,7 +25,7 @@ impl WorkRuntimeState {
 
     pub(crate) fn list(&self) -> OperationListSnapshot {
         let mut operations = self.operations.values().cloned().collect::<Vec<_>>();
-        operations.sort_by(|left, right| right.sequence.cmp(&left.sequence));
+        operations.sort_by_key(|operation| std::cmp::Reverse(operation.sequence));
         OperationListSnapshot { operations }
     }
 
@@ -88,7 +89,7 @@ impl WorkRuntimeState {
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
         let summary = terminal_summary_from_process_result(result);
-        snapshot.status = status_from_terminal_summary(&summary);
+        snapshot.status = work_status_from_process_result(result);
         snapshot.finished_at_ms = Some(now_ms);
         snapshot.cancellable = false;
         snapshot.progress.stage = stage_from_status(snapshot.status);
@@ -130,14 +131,8 @@ impl WorkRuntimeState {
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
         snapshot.errors.push(message.clone());
-        snapshot.terminal_summary = Some(OperationTerminalSummary {
-            total: snapshot.children.len(),
-            succeeded: 0,
-            skipped: 0,
-            cancelled: 0,
-            failed: snapshot.children.len().max(1),
-            message,
-        });
+        let summary = OperationResultSummary::all_failed(snapshot.children.len());
+        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
         for child in &mut snapshot.children {
             if !matches!(
                 child.status,
@@ -164,14 +159,8 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Cancelled;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
-        snapshot.terminal_summary = Some(OperationTerminalSummary {
-            total: snapshot.children.len(),
-            succeeded: 0,
-            skipped: 0,
-            cancelled: snapshot.children.len().max(1),
-            failed: 0,
-            message,
-        });
+        let summary = OperationResultSummary::all_cancelled(snapshot.children.len());
+        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
         for child in &mut snapshot.children {
             if !matches!(
                 child.status,

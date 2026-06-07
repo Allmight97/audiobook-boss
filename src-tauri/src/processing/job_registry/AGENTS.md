@@ -14,7 +14,8 @@
 
 - Register processing work through `register_job` before work starts.
 - Use `BatchScheduler` to coordinate batch execution and preserve result ordering.
-- Transition job state through `complete_job` or `fail_job` on every terminal path.
+- Presence in the registry map is the job's only lifecycle state: a tracked job
+  is active, and `complete_job`/`fail_job` remove it on every terminal path.
 - Change concurrency via `update_max_concurrent` only when registry state is idle.
 
 ## Hard Invariants
