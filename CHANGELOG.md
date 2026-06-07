@@ -2,6 +2,46 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.35] - 2026-06-07
+
+### Added
+
+- Work Runtime: backend owner for accepted operation identity, immutable
+  submissions, operation snapshots, operation-scoped cancellation, and terminal
+  summaries for batch and merge processing.
+- Work Center UI: multiple background operations with child rows, progress,
+  operation cancel, terminal summaries, and source actions.
+- FileList now unlocks after accepted submit, allowing continued
+  editing/importing/reordering while background operations run.
+- Encode-permit acquisition with external cancel flag so operation-scoped jobs
+  ignore legacy global cancel, including while waiting for permits.
+- Output parent directory cleanup tracks only ABB-created empty parent dirs;
+  cancelled/failed operations prune those dirs while preserving preexisting,
+  non-empty, and symlinked paths.
+
+### Changed
+
+- Final batch/merge processing routes through accepted background submissions
+  (Work Runtime); preview processing stays on the legacy foreground path.
+- Status Panel ignores WorkRuntime-scoped legacy queue/progress events and
+  its Cancel action fans out only to visible foreground job IDs.
+- Remote-source sessions are retained while accepted processing operations are
+  in flight so FileList cleanup cannot purge source/PDF assets out from under
+  background work; terminal cleanup purges deferred sessions.
+- Path basename handling uses `to_string_lossy()` for non-UTF-8 path
+  components.
+
+### Fixed
+
+- WorkRuntime operation-scoped jobs ignore legacy global cancel.
+- Work Center initialization cleans up registered listeners if initial
+  operation listing fails.
+- Terminal remote-source cleanup is race-guarded, includes merge
+  `sourceInputIds`, and purges deferred sessions if background submission
+  fails after retain.
+- AGENTS.md file lists and crate test commands aligned with current repo
+  state.
+
 ## [1.0.34] - 2026-06-06
 
 ### Added
