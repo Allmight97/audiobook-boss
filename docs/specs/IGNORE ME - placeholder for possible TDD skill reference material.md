@@ -1,6 +1,4 @@
-> This is an intentional future forward roadmap to enhance testing in certain key areas of ABB.
-
-# Vertical-Slice TDD Roadmap
+# IGNORE ME - placeholder for possible TDD skill reference material
 
 ## Purpose
 
