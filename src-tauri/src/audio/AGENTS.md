@@ -59,8 +59,9 @@
   only `crate::audio`.
 - Private-cluster invariants may use source-tree unit tests, including sibling
   `*_tests.rs` files declared from the owning module with `#[cfg(test)]` and
-  `#[path = "..._tests.rs"]`, when moving them to `src-tauri/tests` would widen
-  the Public API Strip or force test-only exports.
+  `#[path = "..._tests.rs"]`. Prefer source-tree tests over a separate
+  integration-test directory when the move would widen the Public API Strip
+  or force test-only exports.
 - Keep small tests inline when they clarify the nearby code; move bulky private
   test blocks to sibling test files when readability is the real issue.
 

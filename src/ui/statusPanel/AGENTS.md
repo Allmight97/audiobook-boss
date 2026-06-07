@@ -1,3 +1,5 @@
+# Status Panel
+
 ## Public API Strip
 - Import status runtime symbols from `src/ui/statusPanel` unless a local exception is documented.
 - Exports: `beginMetadataSaveInStatusPanel`, `completeMetadataSaveInStatusPanel`, `failMetadataSaveInStatusPanel`, `initStatusPanel`, `isStatusPanelProcessing`, `pushStatusPanelTransientStatus`, `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`, `updateStatusPanelConcurrencyStatus`, `StatusPanelIsland`.

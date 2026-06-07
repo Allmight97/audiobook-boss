@@ -1,3 +1,5 @@
+# Encoder Panel
+
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
 - Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,

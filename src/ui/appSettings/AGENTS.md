@@ -1,3 +1,5 @@
+# App Settings UI
+
 ## Public API Strip
 
 - Import app settings hydration and persistence helpers from `src/ui/appSettings`.

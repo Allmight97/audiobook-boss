@@ -1,3 +1,5 @@
+# Processing Lifecycle Boundary
+
 ## Public API Strip
 - Processing Plan: import from `crate::processing::plan`, not private helpers.
   Functions: `resolve_preflight_plan`, `prepare_execution_plan`. Types:

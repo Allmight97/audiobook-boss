@@ -10,8 +10,9 @@
   rather than importing processor files directly.
 - Private processor tests that assert execution-cluster invariants may live in
   sibling `*_tests.rs` files declared from the owning module with `#[cfg(test)]`
-  and `#[path = "..._tests.rs"]`. Do not move private execution tests to
-  `src-tauri/tests` if that would require making processor internals public.
+  and `#[path = "..._tests.rs"]`. Do not move private execution tests to a
+  separate integration-test directory if that would require making processor
+  internals public.
 
 ## Preferred Path
 

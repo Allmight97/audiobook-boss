@@ -1,3 +1,5 @@
+# Output Panel
+
 ## Public API Strip
 - Import output panel runtime symbols from `src/ui/outputPanel`.
 - Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`, `getState`,

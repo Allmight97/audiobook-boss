@@ -1,3 +1,5 @@
+# Metadata Boundary
+
 ## Public API Strip
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
