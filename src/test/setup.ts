@@ -18,7 +18,6 @@ import type {
 	OperationListSnapshot,
 	OperationSnapshot,
 	ProcessCommandResult,
-	RuntimeSettingsCapabilities,
 	SupportedAudioImportMetadata,
 	WorkSubmissionAccepted,
 } from '../lib/generated/tauri';
@@ -124,10 +123,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 			}
 			case 'take_opened_audio_files':
 				return Promise.resolve([] as string[]);
+			case 'get_max_concurrent_jobs':
+				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(
 					runtimeSettingsCapabilitiesFixture(),
-				) as Promise<RuntimeSettingsCapabilities>;
+				);
 			case 'analyze_audio_files':
 				return Promise.resolve({
 					files: [
