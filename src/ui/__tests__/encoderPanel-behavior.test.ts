@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
-import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
+import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
 import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
 import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
-import { outputPanelState } from '../outputPanel/state.svelte';
+import { outputPanelState } from '../outputPanel';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
@@ -84,7 +84,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -122,7 +122,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -167,7 +167,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -202,7 +202,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -251,7 +251,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -298,7 +298,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -329,7 +329,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -373,7 +373,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -404,7 +404,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -433,7 +433,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -461,7 +461,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -490,7 +490,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {

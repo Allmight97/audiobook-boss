@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
-import EncoderPanelIsland from '../encoderPanel/EncoderPanelIsland.svelte';
+import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
 import { resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import {
 	encoderAvailabilityFixture,
@@ -48,7 +48,7 @@ describe('encoder panel native AAC warning', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -79,7 +79,7 @@ describe('encoder panel native AAC warning', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -104,7 +104,7 @@ describe('encoder panel native AAC warning', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -131,7 +131,7 @@ describe('encoder panel native AAC warning', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -163,7 +163,7 @@ describe('encoder panel native AAC warning', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(EncoderPanelIsland);
+		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {

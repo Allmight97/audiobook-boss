@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EncodingWorkbenchIsland from '../encodingWorkbench/EncodingWorkbenchIsland.svelte';
-import { outputPanelState } from '../outputPanel/state.svelte';
+import { outputPanelState } from '../outputPanel';
 
 const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 	encoderLogicMocks: {

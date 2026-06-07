@@ -1,4 +1,4 @@
-import { updateEstimatedSize } from '../outputPanel/preview';
+import { updateEstimatedSize } from '../outputPanel';
 import {
 	applyEncoderDefaults,
 	encoderPanelState,
@@ -301,7 +301,6 @@ export const initializeEncoderPanelLogic = (): void => {
 export const applyEncodingDefaults = (defaults: EncoderDefaults): void => {
 	applyEncoderDefaults(defaults);
 	syncAfterStateChange();
-	void hydrateEncoderAvailability();
 };
 
 export const handleFlavorChange = (event: Event): void => {
