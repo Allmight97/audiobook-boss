@@ -30,7 +30,6 @@ import {
 } from './processingWorkflowPreparation';
 import {
 	purgeRemoteSourceSessionsForInputIds,
-	purgeSuccessfulRemoteSourceSessions,
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
 } from '../remoteSource/sessionAssets.svelte';
@@ -288,8 +287,6 @@ function completeProcessingExecution(
 	context: ProcessingWorkflowContext,
 	result: ProcessCommandResult,
 	filePaths: string[],
-	inputIds: readonly (string | undefined)[],
-	shouldPurgeRemoteSessions: boolean,
 ): AppEffect<void, ProcessingWorkflowFailed> {
 	return Effect.gen(function* () {
 		yield* Effect.sync(() => {
@@ -301,12 +298,6 @@ function completeProcessingExecution(
 			() => services.openGeneratedPreviewIfSingle(result),
 			'Failed to open generated preview.',
 		);
-		if (shouldPurgeRemoteSessions) {
-			yield* workflowPromise(
-				() => purgeSuccessfulRemoteSourceSessions(result, inputIds),
-				'Failed to purge remote source session.',
-			);
-		}
 	});
 }
 
@@ -444,7 +435,7 @@ export function processingWorkflowProgram(
 				previewSeconds: options.previewSeconds,
 			});
 
-			yield* completeProcessingExecution(services, context, result, filePaths, inputIds, false);
+			yield* completeProcessingExecution(services, context, result, filePaths);
 			return;
 		}
 

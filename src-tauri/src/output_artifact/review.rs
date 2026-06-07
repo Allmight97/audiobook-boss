@@ -1,4 +1,4 @@
-use super::plan::{action_requires_output_write, plan_is_hard_block};
+use super::plan::plan_is_hard_block;
 use super::types::{CollisionPolicy, OutputCollisionKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
@@ -6,27 +6,6 @@ pub(crate) struct OutputPlanReview<'a> {
     pub(crate) expected_signature: Option<&'a str>,
     pub(crate) current_signature: &'a str,
     pub(crate) collision_policy: CollisionPolicy,
-}
-
-pub(crate) fn ensure_output_parent_dirs<'a>(
-    outputs: impl IntoIterator<Item = &'a ResolvedOutputPlan>,
-) -> Result<()> {
-    for output in outputs {
-        if !action_requires_output_write(output.action) {
-            continue;
-        }
-        if let Some(parent) = output.resolved_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| {
-                AppError::FileValidation(format!(
-                    "Cannot create output directory '{}': {}",
-                    sanitize_path_for_display(parent),
-                    error
-                ))
-            })?;
-        }
-    }
-
-    Ok(())
 }
 
 fn output_plan_review_message(output: &ResolvedOutputPlan) -> String {
@@ -224,23 +203,5 @@ mod tests {
         .expect_err("hard block should fail");
 
         assert!(err.to_string().contains("targets an input source file"));
-    }
-
-    #[test]
-    fn creates_parent_dirs_for_writable_outputs_only() {
-        let temp_dir = TempDir::new().expect("temp dir");
-        let writable = output_plan(
-            PlannedOutputAction::Write,
-            temp_dir.path().join("created").join("book.m4b"),
-        );
-        let skipped = output_plan(
-            PlannedOutputAction::SkipExisting,
-            temp_dir.path().join("skipped").join("book.m4b"),
-        );
-
-        ensure_output_parent_dirs([&writable, &skipped]).expect("parent dirs");
-
-        assert!(temp_dir.path().join("created").exists());
-        assert!(!temp_dir.path().join("skipped").exists());
     }
 }

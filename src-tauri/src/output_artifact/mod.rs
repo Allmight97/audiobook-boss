@@ -2,6 +2,7 @@ mod artifact;
 mod collision;
 mod commit;
 mod naming;
+mod parent_dirs;
 mod plan;
 mod review;
 mod supplemental;
@@ -17,9 +18,10 @@ pub(crate) use commit::{commit_output_artifact, finalized_output_success, Output
 #[cfg_attr(not(test), allow(unused_imports))]
 pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;
+pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 #[allow(unused_imports)]
 pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};
-pub(crate) use review::{enforce_output_plan_review, ensure_output_parent_dirs, OutputPlanReview};
+pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
 pub(crate) use supplemental::{
     commit_supplemental_output_asset, SupplementalOutputAssetCommitRequest,
 };

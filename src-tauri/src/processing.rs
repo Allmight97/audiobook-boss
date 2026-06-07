@@ -1,6 +1,7 @@
 pub mod context;
 pub mod job_registry;
 pub mod lifecycle;
+mod output_parent_cleanup;
 pub(crate) mod plan;
 pub mod preview_config;
 pub mod progress;

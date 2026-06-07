@@ -6,8 +6,8 @@ use crate::metadata::{
 };
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
-    CollisionPolicy, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
-    ResolvedOutputPlan,
+    CollisionPolicy, OutputKind, OutputParentDirCleanup, OutputPlanLedger, OutputPlanReview,
+    PlannedOutputAction, ResolvedOutputPlan,
 };
 use crate::processing::{JobType, OutputNamingConfig, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
@@ -35,6 +35,11 @@ pub(crate) struct ResolvedProcessingPlan {
     pub(crate) collision_policy: CollisionPolicy,
     pub(crate) plan_signature: String,
     pub(crate) jobs: Vec<PlannedProcessingJob>,
+}
+
+pub(crate) struct ExecutionProcessingPlan {
+    pub(crate) plan: ResolvedProcessingPlan,
+    pub(crate) output_parent_cleanup: OutputParentDirCleanup,
 }
 
 fn resolve_output_dir(output_dir: &str, create_if_missing: bool) -> Result<PathBuf> {
@@ -248,7 +253,7 @@ pub(crate) fn prepare_execution_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
-) -> Result<ResolvedProcessingPlan> {
+) -> Result<ExecutionProcessingPlan> {
     let inputs = build_processing_inputs(payload, true, preview_seconds)?;
     let plan = build_processing_plan(payload, metadata, &inputs)?;
     log_output_plan("process", payload, &plan);
@@ -260,8 +265,14 @@ pub(crate) fn prepare_execution_plan(
         },
         plan.jobs.iter().map(|job| &job.output),
     )?;
-    ensure_output_parent_dirs(plan.jobs.iter().map(|job| &job.output))?;
-    Ok(plan)
+    let output_parent_cleanup = ensure_output_parent_dirs(
+        &inputs.base_output_dir,
+        plan.jobs.iter().map(|job| &job.output),
+    )?;
+    Ok(ExecutionProcessingPlan {
+        plan,
+        output_parent_cleanup,
+    })
 }
 
 fn build_merge_processing_job(

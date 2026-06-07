@@ -31,6 +31,10 @@ operation independently, and verify terminal summaries against disk truth.
   Status Panel ignores WorkRuntime-scoped legacy queue/progress events, Work
   Center terminal source cleanup is race-guarded, and retained remote-source
   sessions are purged when background submission fails after a deferred purge.
+- [x] 2026-06-06: Address manual cancellation cleanup feedback: output artifact
+  now tracks ABB-created final parent directories and prunes only empty created
+  parents after failed/cancelled processing; preexisting or non-empty output
+  directories are preserved.
 
 ## Surprises & Discoveries
 

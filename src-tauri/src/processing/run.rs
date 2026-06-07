@@ -1,4 +1,7 @@
-use super::plan::{prepare_execution_plan, resolve_preflight_plan, ResolvedProcessingPlan};
+use super::output_parent_cleanup::finalize_output_parent_cleanup;
+use super::plan::{
+    prepare_execution_plan, resolve_preflight_plan, ExecutionProcessingPlan, ResolvedProcessingPlan,
+};
 use super::terminal_outcomes::{
     build_all_skipped_batch_result, classify_processing_error, collect_batch_results,
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
@@ -110,14 +113,31 @@ impl ProcessingRun {
         validate_external_processing_contract(&payload)?;
         log_encoder_summary(&payload);
 
-        let plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
+        let execution_plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
+        let job_type = execution_plan.plan.job_type;
 
-        match plan.job_type {
+        match job_type {
             JobType::Merge => {
-                dispatch_merge_job(window, registry, workspace_root, &payload, plan, options).await
+                dispatch_merge_job(
+                    window,
+                    registry,
+                    workspace_root,
+                    &payload,
+                    execution_plan,
+                    options,
+                )
+                .await
             }
             JobType::Batch => {
-                dispatch_batch_jobs(window, registry, workspace_root, &payload, plan, options).await
+                dispatch_batch_jobs(
+                    window,
+                    registry,
+                    workspace_root,
+                    &payload,
+                    execution_plan,
+                    options,
+                )
+                .await
             }
         }
     }
@@ -223,6 +243,23 @@ async fn dispatch_merge_job(
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
+    execution_plan: ExecutionProcessingPlan,
+    options: ProcessingRunOptions,
+) -> Result<ProcessCommandResult> {
+    let ExecutionProcessingPlan {
+        plan,
+        output_parent_cleanup,
+    } = execution_plan;
+    let result =
+        dispatch_merge_plan(window, registry, workspace_root, payload, plan, options).await;
+    finalize_output_parent_cleanup(result, output_parent_cleanup)
+}
+
+async fn dispatch_merge_plan(
+    window: tauri::Window,
+    registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
+    payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
@@ -263,6 +300,23 @@ async fn dispatch_merge_job(
 }
 
 async fn dispatch_batch_jobs(
+    window: tauri::Window,
+    registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
+    payload: &ProcessPayload,
+    execution_plan: ExecutionProcessingPlan,
+    options: ProcessingRunOptions,
+) -> Result<ProcessCommandResult> {
+    let ExecutionProcessingPlan {
+        plan,
+        output_parent_cleanup,
+    } = execution_plan;
+    let result =
+        dispatch_batch_plan(window, registry, workspace_root, payload, plan, options).await;
+    finalize_output_parent_cleanup(result, output_parent_cleanup)
+}
+
+async fn dispatch_batch_plan(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
