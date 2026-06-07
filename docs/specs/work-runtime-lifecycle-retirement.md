@@ -24,8 +24,12 @@ lifecycle truth.
   `abb_processing_core::classify_run_terminal`, WorkRuntime status mapping,
   honest fail/cancel summaries, dead `JobState` removal, and API-map/system
   doc updates.
-- [ ] After PR #362 lands: finish the remaining frontend and lifecycle-channel
-  retirement as one coherent workblock, not a string of small PRs.
+- [x] 2026-06-07: PR #362 merged into `main`.
+- [ ] Current consolidated-roadmap planning: this spec is not done yet. Delete
+  it only after Work Center no longer consumes legacy progress overlays,
+  Status Panel/preview/metadata-save lifecycle consumers are classified, stale
+  API-map references are updated, and linked issue state such as #307 is
+  accurate.
 
 ## Surprises & Discoveries
 
@@ -44,6 +48,18 @@ lifecycle truth.
 
 ## Decision Log
 
+- Decision: keep this spec active at the start of the WB-B branch.
+  Rationale: current code still has Work Center listening to
+  `processing-progress` and applying legacy progress into operation snapshots,
+  while Status Panel, preview, and metadata-save still use or classify
+  processing-owned lifecycle channels.
+  Date: 2026-06-07.
+- Decision: this spec may be removed in the consolidated roadmap branch only
+  when the deletion gate is satisfied.
+  Rationale: deleting temporary spec state is correct when repo truth no
+  longer needs it; deleting it before the legacy lifecycle consumers are
+  changed would hide active ownership work.
+  Date: 2026-06-07.
 - Decision: PR #362 is WB-A backend terminal truth, not the full lifecycle
   retirement.
   Rationale: contract-neutral backend consolidation removes drift first and

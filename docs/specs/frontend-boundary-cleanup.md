@@ -18,6 +18,9 @@ moved into owners or explicitly justified.
 
 ## Progress
 
+- [x] 2026-06-07: planning refreshed after PR #362 landed. GitHub issue #361
+  was updated to mark PR #362 merged and to keep WB-A open until repo evidence
+  supports deleting `docs/specs/work-runtime-lifecycle-retirement.md`.
 - [ ] Delete the orphaned encoder panel component and tests.
 - [ ] Replace output-panel private-state reach-through with the output panel
   Public API Strip.
@@ -39,9 +42,44 @@ moved into owners or explicitly justified.
 - Observation: runtime capability loading can be initiated from app settings,
   encoder panel, and job controls.
   Evidence: GitHub issue #348.
+- Observation: `src/ui/encoderPanel/logic.ts` imports `updateEstimatedSize`
+  from `../outputPanel/preview`, another output-panel private-cluster
+  reach-through. The output panel index already exports `updateEstimatedSize`.
+  Evidence: `src/ui/encoderPanel/logic.ts`,
+  `src/ui/outputPanel/index.ts`, `src/ui/outputPanel/AGENTS.md`.
+- Observation: `src/ui/jobControls.ts` is both a touched runtime capability
+  owner and a loose file shadowing `src/ui/jobControls/`.
+  Evidence: `src/ui/jobControls.ts`, `src/ui/jobControls/JobControlsIsland.svelte`.
+- Observation: the safe trivial cleanup candidates are
+  `src/effect-smoke.test.ts` and the unused
+  `normalizeEncoderAvailability` export. `experiments/` is not a tracked repo
+  item in the current checkout, and output-artifact test-only exports belong
+  with the WB-D Rust module-boundary cleanup.
+  Evidence: GitHub issue #361, `src/effect-smoke.test.ts`,
+  `src/lib/tauri/normalizers.ts`, `docs/specs/module-cohesion-decomposition.md`.
 
 ## Decision Log
 
+- Decision: use a consolidated roadmap branch if the code remains reviewable
+  by owner-scoped commits and targeted checks.
+  Rationale: WB-B is the next entry point, but current repo evidence says
+  WB-A lifecycle closure is still real work. A single branch can finish the
+  roadmap without staging process theater; split only if review feedback,
+  generated-binding churn, or owner collision becomes an implementation risk.
+  Date: 2026-06-07.
+- Decision: do not delete
+  `docs/specs/work-runtime-lifecycle-retirement.md` at branch start.
+  Rationale: Work Center still consumes legacy `processing-progress`, and
+  Status Panel/preview/metadata-save lifecycle paths still need final
+  classification. Delete the spec only after those repo facts are changed or
+  explicitly recorded as deliberate adapters.
+  Date: 2026-06-07.
+- Decision: include `src/effect-smoke.test.ts` and unused runtime-boundary
+  normalizer cleanup in this branch when verification remains local.
+  Rationale: they are trivial, current-truth cleanups that reduce later PR
+  churn. Output-artifact test-only export cleanup stays with WB-D because it
+  touches a Rust module-boundary surface.
+  Date: 2026-06-07.
 - Decision: treat encoder cleanup, output-panel reach-through, and runtime
   capability ownership as one frontend-boundary workblock.
   Rationale: the same user-facing controls expose ownership drift between
@@ -99,30 +137,88 @@ Constraints:
 
 ## Plan Of Work
 
-Edits:
+Implementation order:
 
-- Confirm runtime import tree for the canonical encoder workbench component.
-- Remove old encoder island and orphan tests.
-- Replace private output-panel state imports with Public API Strip access.
-- Decide and implement runtime capability load/cache/apply ownership.
-- Move or justify loose UI module files that shadow folders when touched.
-- Update `src/ui/encoderPanel/AGENTS.md`, `src/ui/outputPanel/AGENTS.md`, and
-  related tests if public strips change.
+1. Tracker and spec alignment.
+   - Keep GitHub issue #361 current at the start of the work session and when
+     the branch is pushed for review.
+   - Keep this spec as the tactical plan for the frontend-boundary entry point.
+   - Keep `docs/specs/work-runtime-lifecycle-retirement.md` active until the
+     Work Runtime deletion gate is satisfied.
+
+2. Canonical encoder shell.
+   - Confirm `src/App.svelte` renders `EncodingWorkbenchIsland`, which composes
+     `src/ui/encoderPanel/EncoderWorkbenchIsland.svelte`.
+   - Delete `src/ui/encoderPanel/EncoderPanelIsland.svelte`.
+   - Retarget encoder behavior/native-warning/island tests from
+     `EncoderPanelIsland` to the canonical workbench component or delete tests
+     that only preserve the dead shell.
+   - Update `src/ui/__tests__/svelte-event-directives.test.ts` and
+     `src/ui/encoderPanel/AGENTS.md` so no ownership doc lists the deleted file.
+
+3. Output panel Public API Strip repair.
+   - Replace encoder component imports of `../outputPanel/state.svelte` with
+     output-panel index access. Prefer existing `getState` unless a narrower
+     estimated-size reader is needed for Svelte reactivity.
+   - Replace `src/ui/encoderPanel/logic.ts` import from
+     `../outputPanel/preview` with `../outputPanel`.
+   - Update `src/ui/outputPanel/AGENTS.md` only if the Public API Strip changes.
+
+4. Runtime settings capability ownership.
+   - Make `src/ui/runtimeSettingsCapabilities.svelte.ts` the owner of
+     load/cache/refresh semantics for runtime settings capabilities.
+   - Keep pending-load de-duplication, add completed-result caching, and expose
+     an explicit refresh route for future settings changes.
+   - Remove duplicate sequential loads from `applyEncodingDefaults`,
+     `initializeEncoderPanelLogic`, `applyMaxConcurrentPreference`, and
+     `initJobControls`; panel logic should consume capabilities from the store
+     owner and apply slices, not start separate lifecycle chains for the same
+     event.
+   - Add focused call-count tests around app settings hydration, encoder
+     defaults, job controls startup, and explicit refresh.
+
+5. Loose UI module cleanup on the touched path.
+   - Move `src/ui/jobControls.ts` into `src/ui/jobControls/index.ts` if imports
+     remain stable through `../jobControls` / `./jobControls`.
+   - Add `src/ui/jobControls/AGENTS.md` if the move creates a real owned module
+     surface worth documenting.
+   - Do not sweep unrelated loose files such as `coverArt.ts`,
+     `metadataForm.ts`, `metadataLookup.ts`, or `tagPreview.ts` unless the
+     implementation touches them for the same ownership reason.
+
+6. Trivial cleanup pull-forward.
+   - Delete `src/effect-smoke.test.ts` after targeted frontend tests cover the
+     real Effect workflow surfaces already in the repo.
+   - Remove unused `normalizeEncoderAvailability` from
+     `src/lib/tauri/normalizers.ts` if `rg` still finds no caller.
+   - Leave output-artifact test-only export cleanup for WB-D.
+
+7. Work Runtime lifecycle deletion gate.
+   - Before calling the Work Runtime lifecycle spec done, finish or explicitly
+     record the remaining repo facts from
+     `docs/specs/work-runtime-lifecycle-retirement.md`: snapshot-only Work
+     Center progress, Status Panel/preview/metadata-save classification,
+     stale `docs/api-map.md` references, and linked issue #307 state.
+   - Delete `docs/specs/work-runtime-lifecycle-retirement.md` only in the commit
+     that satisfies that gate.
 
 Verification steps:
 
 - Focused encoder panel and encoding workbench Vitest coverage.
 - Output panel tests for estimated-size display if touched.
-- Runtime capability/job controls tests for call count and settled state.
+- Runtime capability/job controls tests for call count, cache behavior, refresh
+  behavior, and settled state.
+- App Settings hydration tests for single ownership of capability loads.
 - `bun scripts/check-tauri-runtime-boundary.ts`.
-- Public API Strip checks if command exists for the touched surface.
 - `git diff --check`.
 
 Expected repo-visible outcome:
 
-- One PR that removes the dead encoder shell, fixes the reach-through import,
-  and leaves runtime capability ownership explicit enough for future settings
-  work.
+- A branch that starts with WB-B, removes the dead encoder shell, fixes
+  output-panel reach-through imports, gives runtime capability loading one
+  owner, pulls forward safe trivial frontend/runtime cleanup, and either
+  deletes the Work Runtime lifecycle spec after satisfying its deletion gate or
+  leaves the spec visibly active with current repo evidence.
 
 ## Interfaces And Dependencies
 
@@ -140,6 +236,8 @@ Targeted checks:
 - `bun run test -- src/ui/__tests__/encodingWorkbench-island.test.ts`
 - `bun run test -- src/ui/__tests__/outputPanel-store-driven.test.ts`
 - `bun run test -- src/ui/__tests__/jobControls-info.test.ts`
+- `bun run test -- src/ui/__tests__/runtimeSettingsCapabilities.test.ts`
+- `bun run test -- src/ui/appSettings/appSettings.test.ts`
 - Add/narrow tests based on the exact files touched.
 - `bun scripts/check-tauri-runtime-boundary.ts`
 - `git diff --check`
