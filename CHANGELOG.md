@@ -2,6 +2,22 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.36] - 2026-06-07
+
+### Changed
+
+- Reworked the authoring workspace into separate metadata, encoding, output,
+  tags, input, and file-inspector zones to reduce scrolling and keep `App.svelte`
+  as shell composition.
+- Updated the default app window to a 1600x1000 logical canvas with a 1440x900
+  minimum and monitor-fit startup sizing for high-DPI displays.
+- Renamed the main processing action to "Start Processing".
+
+### Fixed
+
+- `bun run app:dev:log` now replaces an existing ABB-owned dev server on port
+  1420 instead of failing with a stale-port error.
+
 ## [1.0.35] - 2026-06-07
 
 ### Added
