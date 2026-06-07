@@ -1,60 +1,89 @@
 <script lang="ts">
-	import { tick } from 'svelte';
-	import { normalizeAppError } from '../../lib/tauri/appError';
-	import { tauriClient } from '../../lib/tauri/client';
+	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
+
+	// provider-neutral state shape (owned by acquisitionState.svelte.ts)
+	import { createInitialAcquisitionState } from './acquisitionState.svelte';
+
+	// account / library lifecycle controller (owned by acquisitionAccount.ts)
+	import { createAccountController } from './acquisitionAccount';
+
+	// acquisition workflow controller (owned by acquisitionWorkflow.ts)
+	import { createAcquisitionWorkflow } from './acquisitionWorkflow';
+
+	// pure rendering utilities (owned by remoteSourceAcquireDialogHelpers.ts)
 	import {
-		AcquisitionJobWithProgress,
-		acquisitionPollDelayMs,
 		bytesLabel,
-		countSelectedOutsideFilter,
-		filterTitles,
-		delay,
 		isAcquisitionTerminal,
 		isTitleAcquirable,
 		titleAvailability,
 		progressPercent,
 		progressTitleLabel,
-		selectedTitleSummary,
-		statusFromAcquisitionJob,
-		toggleTitleSelection,
-		uniqueDiagnosticMessage,
-		withClearedHandoffJob,
 	} from './remoteSourceAcquireDialogHelpers';
-	import type {
-		AcquisitionJob,
-		ProviderId,
-		RemoteSourceAccountState,
-		RemoteTitle,
-	} from '../../types/remoteSource';
-	import {
-		getImportedAudioPathsBlockedMessage,
-		handleImportedAudioPaths,
-	} from '../fileImport/handlers';
-	import { getCurrentFileList } from '../fileList/state.svelte';
-	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
-	import { registerRemoteSourceSupplementalAssets } from './sessionAssets.svelte';
 
-	const providerId: ProviderId = 'audible';
+	// -- per-instance reactive state --
 
-	let isBusy = $state(false);
-	let didHydrateOpenDialog = $state(false);
-	let accountState = $state<RemoteSourceAccountState | null>(null);
-	let titles = $state<RemoteTitle[]>([]);
-	let selectedTitleIds = $state<Set<string>>(new Set());
-	let includePdfByTitleId = $state<Record<string, boolean>>({});
-	let titleFilter = $state('');
-	let showSupplementalPdfOnly = $state(false);
-	let hideUnavailableTitles = $state(false);
-	let handoffPath = $state('');
-	let statusMessage = $state('');
-	let activeJob = $state<AcquisitionJobWithProgress | null>(null);
-	let lastJob = $state<AcquisitionJobWithProgress | null>(null);
+	let acquisition = $state(createInitialAcquisitionState());
 
-	function setError(cause: unknown, fallback: string): void {
-		const error = normalizeAppError(cause, fallback);
-		console.error(`${fallback} code=${error.code} category=${error.category}`);
-		statusMessage = error.code === 'unknown_error' ? fallback : error.message;
+	// -- controller / workflow instances bound to this component's state --
+
+	const account = createAccountController(acquisition);
+	const workflow = createAcquisitionWorkflow(acquisition);
+
+	// -- selection / derived helpers (component-local because they close over view state) --
+
+	function clearSelectedTitles(): void {
+		acquisition.selectedTitleIds = new Set();
 	}
+
+	function toggleTitle(title: typeof acquisition.titles[number]): void {
+		if (!isTitleAcquirable(title)) return;
+		const next = new Set(acquisition.selectedTitleIds);
+		if (next.has(title.titleId)) {
+			next.delete(title.titleId);
+		} else {
+			next.add(title.titleId);
+		}
+		acquisition.selectedTitleIds = next;
+	}
+
+	function togglePdf(title: typeof acquisition.titles[number]): void {
+		acquisition.includePdfByTitleId = {
+			...acquisition.includePdfByTitleId,
+			[title.titleId]: !acquisition.includePdfByTitleId[title.titleId],
+		};
+	}
+
+	function visibleTitles(): typeof acquisition.titles {
+		const { titles, titleFilter, showSupplementalPdfOnly, hideUnavailableTitles } = acquisition;
+		const normalizedFilter = titleFilter.trim().toLowerCase();
+		let facetTitles = showSupplementalPdfOnly
+			? titles.filter((title) => title.supplementalPdfAvailable)
+			: titles;
+		if (hideUnavailableTitles) {
+			facetTitles = facetTitles.filter(isTitleAcquirable);
+		}
+		if (!normalizedFilter) return facetTitles;
+		return facetTitles.filter((title) =>
+			[title.title, title.authors.join(' '), title.narrators.join(' ')]
+				.join(' ')
+				.toLowerCase()
+				.includes(normalizedFilter),
+		);
+	}
+
+	function selectedSummaryText(): string {
+		const { selectedTitleIds } = acquisition;
+		const count = selectedTitleIds.size;
+		if (count === 0) return '0 selected';
+		const visibleIds = new Set(visibleTitles().map((title) => title.titleId));
+		const hiddenCount = [...selectedTitleIds].filter((id) => !visibleIds.has(id)).length;
+		const titleLabel = count === 1 ? 'title' : 'titles';
+		if (hiddenCount === 0) return `${count} ${titleLabel} selected`;
+		const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
+		return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
+	}
+
+	// -- modal lifecycle --
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -62,220 +91,13 @@
 		}
 	}
 
-	async function pollAcquisitionToTerminal(
-		initialJob: AcquisitionJobWithProgress,
-	): Promise<AcquisitionJobWithProgress> {
-		let currentJob = initialJob;
-		while (!isAcquisitionTerminal(currentJob)) {
-			await delay(acquisitionPollDelayMs);
-			currentJob = (await tauriClient.getRemoteSourceAcquisitionStatus(
-				currentJob.jobId,
-			)) as AcquisitionJobWithProgress;
-			activeJob = currentJob;
-			lastJob = currentJob;
-			statusMessage = statusFromAcquisitionJob(currentJob);
-		}
-		return currentJob;
-	}
-
-	async function finishAcquisitionJob(job: AcquisitionJobWithProgress): Promise<void> {
-		const materializedPaths = job.materializedFiles.map((file) => file.path);
-		if (materializedPaths.length > 0) {
-			const importResult = await handleImportedAudioPaths(materializedPaths);
-			if (importResult.status !== 'imported') {
-				await tauriClient.purgeRemoteSourceSession(job.jobId);
-				const cleanedJob = withClearedHandoffJob(job);
-				activeJob = cleanedJob;
-				lastJob = cleanedJob;
-				statusMessage = `${importResult.message} Staged remote files were removed; retry acquisition after processing completes.`;
-				return;
-			}
-			registerRemoteSourceSupplementalAssets(job, getCurrentFileList());
-			statusMessage = `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`;
-		} else {
-			statusMessage =
-				uniqueDiagnosticMessage(job.diagnostics) ||
-					'Audible acquisition did not materialize an importable file.';
-		}
-	}
-
-	async function refreshAccountState(): Promise<void> {
-		accountState = await tauriClient.getRemoteSourceAccountState(providerId);
-	}
-
-	async function hydrateOpenDialog(): Promise<void> {
-		isBusy = true;
-		try {
-			await refreshAccountState();
-			if (accountState?.status === 'connected') {
-				await loadLibrary();
-			}
-		} catch (cause) {
-			setError(cause, 'Failed to load remote source state.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	async function startAuth(): Promise<void> {
-		isBusy = true;
-		try {
-			const response = await tauriClient.startRemoteSourceAuth(providerId);
-			statusMessage = response.message;
-			await tauriClient.openUrl(response.authorizationUrl);
-		} catch (cause) {
-			setError(cause, 'Failed to start Audible auth.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	async function completeAuth(): Promise<void> {
-		isBusy = true;
-		try {
-			accountState = await tauriClient.completeRemoteSourceAuth({
-				providerId,
-				responseUrlHandoffPath: handoffPath.trim() || undefined,
-			});
-			statusMessage = 'Audible connected.';
-			await loadLibrary();
-		} catch (cause) {
-			setError(cause, 'Failed to complete Audible auth.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	async function logout(): Promise<void> {
-		isBusy = true;
-		try {
-			accountState = await tauriClient.logoutRemoteSourceAccount(providerId);
-			titles = [];
-			selectedTitleIds = new Set();
-			includePdfByTitleId = {};
-			activeJob = null;
-			lastJob = null;
-			statusMessage = 'Audible disconnected.';
-		} catch (cause) {
-			setError(cause, 'Failed to disconnect Audible.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	async function loadLibrary(): Promise<void> {
-		isBusy = true;
-		try {
-			const library = await tauriClient.loadRemoteSourceLibrary(providerId);
-			titles = library.titles;
-			const selectableTitleIds = new Set(
-				library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
-			);
-			selectedTitleIds = new Set(
-				[...selectedTitleIds].filter((titleId) => selectableTitleIds.has(titleId)),
-			);
-			includePdfByTitleId = Object.fromEntries(
-				library.titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
-			);
-			statusMessage =
-				library.diagnostics.length > 0
-					? uniqueDiagnosticMessage(library.diagnostics)
-					: `${library.titles.length} Audible titles loaded.`;
-		} catch (cause) {
-			setError(cause, 'Failed to load Audible library.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	function clearSelectedTitles(): void {
-		selectedTitleIds = new Set();
-	}
-
-	function toggleTitle(title: RemoteTitle): void {
-		if (!isTitleAcquirable(title)) return;
-		selectedTitleIds = toggleTitleSelection(selectedTitleIds, title);
-	}
-
-	function togglePdf(title: RemoteTitle): void {
-		includePdfByTitleId = {
-			...includePdfByTitleId,
-			[title.titleId]: !includePdfByTitleId[title.titleId],
-		};
-	}
-
-	function visibleTitles(): RemoteTitle[] {
-		return filterTitles(titles, {
-			titleFilter,
-			showSupplementalPdfOnly,
-			hideUnavailableTitles,
-		});
-	}
-
-	function selectedOutsideFilterCount(): number {
-		return countSelectedOutsideFilter(titles, selectedTitleIds, visibleTitles());
-	}
-
-	function selectedSummaryText(): string {
-		return selectedTitleSummary(selectedTitleIds, selectedOutsideFilterCount());
-	}
-
-	async function acquireSelected(): Promise<void> {
-		if (selectedTitleIds.size === 0) {
-			statusMessage = 'Select at least one Audible title.';
-			return;
-		}
-
-		const blockedMessage = getImportedAudioPathsBlockedMessage();
-		if (blockedMessage) {
-			statusMessage = blockedMessage;
-			return;
-		}
-
-		isBusy = true;
-		try {
-			activeJob = null;
-			lastJob = null;
-			statusMessage = 'Starting Audible acquisition.';
-			const startedJob = (await tauriClient.startRemoteSourceAcquisition({
-				providerId,
-				selections: [...selectedTitleIds].map((titleId) => ({
-					titleId,
-					includeSupplementalPdf: includePdfByTitleId[titleId] ?? false,
-				})),
-			})) as AcquisitionJobWithProgress;
-			activeJob = startedJob;
-			lastJob = startedJob;
-			statusMessage = statusFromAcquisitionJob(startedJob);
-			await tick();
-			const terminalJob = await pollAcquisitionToTerminal(startedJob);
-			await finishAcquisitionJob(terminalJob);
-		} catch (cause) {
-			setError(cause, 'Failed to acquire selected Audible titles.');
-		} finally {
-			isBusy = false;
-		}
-	}
-
-	async function cancelActiveAcquisition(): Promise<void> {
-		if (!activeJob || isAcquisitionTerminal(activeJob)) return;
-		try {
-			const cancelledJob = (await tauriClient.cancelRemoteSourceAcquisition(activeJob.jobId)) as AcquisitionJobWithProgress;
-			activeJob = cancelledJob;
-			lastJob = cancelledJob;
-			statusMessage = statusFromAcquisitionJob(cancelledJob);
-		} catch (cause) {
-			setError(cause, 'Failed to cancel Audible acquisition.');
-		}
-	}
-
 	$effect(() => {
-		if (remoteSourceAcquireState.isOpen && !didHydrateOpenDialog) {
-			didHydrateOpenDialog = true;
-			void hydrateOpenDialog();
+		if (remoteSourceAcquireState.isOpen && !acquisition.didHydrateOpenDialog) {
+			acquisition.didHydrateOpenDialog = true;
+			void account.hydrateOpenDialog();
 		}
 		if (!remoteSourceAcquireState.isOpen) {
-			didHydrateOpenDialog = false;
+			acquisition.didHydrateOpenDialog = false;
 		}
 	});
 </script>
@@ -297,8 +119,8 @@
 		<div class="app-modal-header">
 			<h3 id="remote-source-title">Acquire Audiobooks</h3>
 			<div class="remote-source-header-actions">
-				{#if accountState?.status === 'connected'}
-					<button class="btn-pill btn-pill-secondary" disabled={isBusy} onclick={() => void logout()}>
+				{#if acquisition.accountState?.status === 'connected'}
+					<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.logout()}>
 						Logout
 					</button>
 				{/if}
@@ -322,9 +144,9 @@
 					</select>
 				</div>
 
-				{#if accountState?.status !== 'connected'}
+				{#if acquisition.accountState?.status !== 'connected'}
 					<div class="app-modal-field app-modal-field-button">
-						<button class="btn-pill btn-pill-primary" disabled={isBusy} onclick={() => void startAuth()}>
+						<button class="btn-pill btn-pill-primary" disabled={acquisition.isBusy} onclick={() => void account.startAuth()}>
 							Connect Audible
 						</button>
 					</div>
@@ -334,25 +156,25 @@
 							id="remote-source-handoff"
 							type="text"
 							placeholder="Final Amazon URL or handoff file path"
-							bind:value={handoffPath}
+							bind:value={acquisition.handoffPath}
 						/>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button class="btn-pill btn-pill-secondary" disabled={isBusy} onclick={() => void completeAuth()}>
+						<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.completeAuth()}>
 							Complete Auth
 						</button>
 					</div>
 				{:else}
 					<div class="app-modal-field app-modal-field-button">
-						<button class="btn-pill btn-pill-secondary" disabled={isBusy} onclick={() => void loadLibrary()}>
+						<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.loadLibrary()}>
 							Refresh Library
 						</button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
 						<button
 							class="btn-pill btn-pill-primary"
-							disabled={isBusy || selectedTitleIds.size === 0}
-							onclick={() => void acquireSelected()}
+							disabled={acquisition.isBusy || acquisition.selectedTitleIds.size === 0}
+							onclick={() => void workflow.acquireSelected()}
 						>
 							Acquire Selected
 						</button>
@@ -363,36 +185,36 @@
 							id="remote-source-filter"
 							type="search"
 							placeholder="Filter loaded titles"
-							bind:value={titleFilter}
+							bind:value={acquisition.titleFilter}
 						/>
 					</div>
 					<div class="app-modal-field app-modal-field-toggle remote-source-pdf-filter">
 						<label class="checkbox-label text-xs mb-0">
-							<input type="checkbox" bind:checked={showSupplementalPdfOnly} />
+							<input type="checkbox" bind:checked={acquisition.showSupplementalPdfOnly} />
 							<span class="option-label">Supplemental PDF only</span>
 						</label>
 					</div>
 					<div class="app-modal-field app-modal-field-toggle remote-source-availability-filter">
 						<label class="checkbox-label text-xs mb-0">
-							<input type="checkbox" bind:checked={hideUnavailableTitles} />
+							<input type="checkbox" bind:checked={acquisition.hideUnavailableTitles} />
 							<span class="option-label">Hide unavailable</span>
 						</label>
 					</div>
 				{/if}
 			</div>
 
-			{#if statusMessage}
-				<div class="remote-source-status text-xs" aria-live="polite">{statusMessage}</div>
+			{#if acquisition.statusMessage}
+				<div class="remote-source-status text-xs" aria-live="polite">{acquisition.statusMessage}</div>
 			{/if}
 
-			{#if accountState?.status === 'connected'}
+			{#if acquisition.accountState?.status === 'connected'}
 				<div class="remote-selection-summary" aria-live="polite">
 					<span>{selectedSummaryText()}</span>
-					{#if selectedTitleIds.size > 0}
+					{#if acquisition.selectedTitleIds.size > 0}
 						<button
 							class="remote-clear-selection"
 							type="button"
-							disabled={isBusy}
+							disabled={acquisition.isBusy}
 							onclick={clearSelectedTitles}
 						>
 							Clear selection
@@ -401,7 +223,7 @@
 				</div>
 			{/if}
 
-			{#if activeJob?.progress}
+			{#if acquisition.activeJob?.progress}
 				<div class="remote-progress" role="status" aria-live="polite">
 					<div
 						class="remote-progress-bar"
@@ -409,22 +231,22 @@
 						aria-label="Acquisition progress"
 						aria-valuemin="0"
 						aria-valuemax="100"
-						aria-valuenow={Math.round(progressPercent(activeJob))}
+						aria-valuenow={Math.round(progressPercent(acquisition.activeJob))}
 					>
-						<span style={`width: ${progressPercent(activeJob)}%;`}></span>
+						<span style={`width: ${progressPercent(acquisition.activeJob)}%;`}></span>
 					</div>
 					<div class="remote-progress-copy">
-						<span>{progressTitleLabel(activeJob.progress, titles)}</span>
-						<span>{Math.round(progressPercent(activeJob))}%</span>
+						<span>{progressTitleLabel(acquisition.activeJob.progress, acquisition.titles)}</span>
+						<span>{Math.round(progressPercent(acquisition.activeJob))}%</span>
 					</div>
-					{#if bytesLabel(activeJob.progress)}
-						<p class="remote-progress-bytes">{bytesLabel(activeJob.progress)}</p>
+					{#if bytesLabel(acquisition.activeJob.progress)}
+						<p class="remote-progress-bytes">{bytesLabel(acquisition.activeJob.progress)}</p>
 					{/if}
-					{#if !isAcquisitionTerminal(activeJob)}
+					{#if !isAcquisitionTerminal(acquisition.activeJob)}
 						<button
 							class="btn-pill btn-pill-secondary remote-progress-cancel"
 							type="button"
-							onclick={() => void cancelActiveAcquisition()}
+							onclick={() => void workflow.cancelActiveAcquisition()}
 						>
 							Cancel Acquisition
 						</button>
@@ -432,7 +254,7 @@
 				</div>
 			{/if}
 
-			{#if accountState?.status === 'connected'}
+			{#if acquisition.accountState?.status === 'connected'}
 				<div
 					class="app-modal-results remote-title-list"
 					role="listbox"
@@ -442,10 +264,10 @@
 					{#each visibleTitles() as title (title.titleId)}
 						<div
 							class="remote-title-row"
-							class:selected={selectedTitleIds.has(title.titleId)}
+							class:selected={acquisition.selectedTitleIds.has(title.titleId)}
 							class:unavailable={!isTitleAcquirable(title)}
 							role="option"
-							aria-selected={selectedTitleIds.has(title.titleId)}
+							aria-selected={acquisition.selectedTitleIds.has(title.titleId)}
 							aria-disabled={!isTitleAcquirable(title)}
 						>
 							<button
@@ -468,7 +290,7 @@
 									<input
 										type="checkbox"
 										disabled={!isTitleAcquirable(title)}
-										checked={includePdfByTitleId[title.titleId] ?? true}
+										checked={acquisition.includePdfByTitleId[title.titleId] ?? true}
 										onchange={() => togglePdf(title)}
 									/>
 									PDF
