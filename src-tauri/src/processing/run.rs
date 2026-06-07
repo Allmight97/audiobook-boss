@@ -1,43 +1,21 @@
 use crate::audio::validate_encoder_settings;
 use crate::errors::Result;
-use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
 use crate::processing::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
 };
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::collections::HashMap;
+
 mod run_dispatch;
 mod run_job;
+mod run_options;
 mod run_validation;
 
-// Re-exports used by tests below; unused in production builds
-#[allow(unused_imports)]
-pub(crate) use run_job::{
-    commit_supplemental_assets_for_output, register_job_and_validate_output,
-    supplemental_assets_for_input, supplemental_commit_failure,
-};
-
-pub(crate) use run_validation::{log_encoder_summary, validate_external_processing_contract};
+pub(crate) use run_options::ProcessingRunOptions;
+use run_validation::{log_encoder_summary, validate_external_processing_contract};
 
 pub(crate) struct ProcessingRun;
-
-#[derive(Clone, Default)]
-pub(crate) struct ProcessingRunOptions {
-    pub(crate) operation_id: Option<String>,
-    pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
-}
-
-impl ProcessingRunOptions {
-    fn is_operation_cancelled(&self) -> bool {
-        self.operation_cancel
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Acquire))
-    }
-}
 
 pub(crate) async fn process_payload(
     window: tauri::Window,
@@ -145,12 +123,17 @@ impl ProcessingRun {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::run_job::{
+        commit_supplemental_assets_for_output, register_job_and_validate_output,
+        supplemental_assets_for_input, supplemental_commit_failure,
+    };
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
     use crate::errors::AppError;
     use crate::output_artifact::OutputKind;
     use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
-    use crate::processing::terminal_outcomes::{classify_processing_error, ProcessingJobTerminalOutcome};
+    use crate::processing::terminal_outcomes::{
+        classify_processing_error, ProcessingJobTerminalOutcome,
+    };
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -206,7 +189,7 @@ mod tests {
         let invalid_output = temp_dir.path().join("output.mp3");
 
         let error =
-            match super::register_job_and_validate_output(&registry, &invalid_output, None).await {
+            match register_job_and_validate_output(&registry, &invalid_output, None).await {
                 Ok(_) => panic!("invalid extension should fail validation"),
                 Err(error) => error,
             };
@@ -327,7 +310,7 @@ mod tests {
     #[test]
     fn supplemental_commit_failure_message_preserves_audio_output_truth() {
         let final_audio = std::path::Path::new("/tmp/final/Book.m4b");
-        let error = super::supplemental_commit_failure(
+        let error = supplemental_commit_failure(
             final_audio,
             AppError::FileValidation(
                 "Supplemental PDF source hash changed before output commit.".to_string(),
@@ -356,7 +339,7 @@ mod tests {
     #[test]
     fn supplemental_commit_failure_classifies_processing_as_terminal_failed() {
         let final_audio = std::path::Path::new("/tmp/final/Book.m4b");
-        let outcome = classify_processing_error(super::supplemental_commit_failure(
+        let outcome = classify_processing_error(supplemental_commit_failure(
             final_audio,
             AppError::FileValidation(
                 "Supplemental PDF source size changed before output commit.".to_string(),
