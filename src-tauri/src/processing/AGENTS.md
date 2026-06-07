@@ -14,7 +14,7 @@
 ## Private Cluster
 - Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes/`,
   `lifecycle.rs`, `context/`, `job_registry/`, `output_parent_cleanup.rs`,
-  `progress/`, `preview_config.rs`, `session.rs`, `contract_tests.rs`.
+  `progress/`, `preview_config.rs`, `session.rs`, `types.rs`.
 - The cluster owns preflight planning, execution-plan preparation, runner
   orchestration, processing context/session state, backend lifecycle
   vocabulary, job lifecycle, queue/progress event types, terminal result

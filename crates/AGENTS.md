@@ -20,6 +20,7 @@ Core crates must not depend on:
 
 ## Direct Tests
 
+- Audible: `cargo nextest run -p abb-audible-core`
 - Metadata: `cargo nextest run -p abb-metadata-core`
 - Media contract: `cargo nextest run -p abb-media-core`
 - Output Artifact: `cargo nextest run -p abb-output-artifact-core`
