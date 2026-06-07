@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import appSource from '../../App.svelte?raw';
 import importIslandSource from '../fileImport/FileImportIsland.svelte?raw';
+import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
 
 const fsPromisesSpecifier = 'node:fs/promises';
 const { readFile } = (await import(fsPromisesSpecifier)) as {
@@ -27,9 +27,12 @@ function cssRule(source: string, selector: string): string {
 
 describe('file import layout', () => {
 	it('constrains the input file list to the scrollable work area', () => {
-		expect(appSource).toContain('class="input-workflow flex flex-col gap-2 mb-2"');
+		expect(inputWorkflowSource).toContain(
+			'class="left-column-panel input-workflow input-workflow-panel flex flex-col gap-2 mb-2"',
+		);
 		expect(cssRule(globalCss, '.input-panel')).toContain('overflow: hidden;');
-		const inputWorkflowRule = cssRule(globalCss, '.input-workflow');
+		expect(cssRule(globalCss, '.left-column-wrapper')).toContain('overflow: hidden;');
+		const inputWorkflowRule = cssRule(globalCss, '.input-workflow-panel');
 		expect(inputWorkflowRule).toContain('flex: 1 1 auto;');
 		expect(inputWorkflowRule).toContain('min-height: 0;');
 		expect(inputWorkflowRule).toContain('overflow: hidden;');

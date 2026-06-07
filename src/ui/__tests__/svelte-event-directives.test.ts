@@ -19,13 +19,20 @@ const productionSvelteFiles = [
 	'src/App.svelte',
 	'src/ui/collisionDialog/CollisionDialogIsland.svelte',
 	'src/ui/coverArt/CoverArtIsland.svelte',
+	'src/ui/encodingWorkbench/EncodingWorkbenchIsland.svelte',
 	'src/ui/encoderPanel/EncoderPanelIsland.svelte',
+	'src/ui/encoderPanel/EncoderWorkbenchIsland.svelte',
 	'src/ui/fileImport/FileImportIsland.svelte',
+	'src/ui/leftColumn/FileInspectorPanel.svelte',
+	'src/ui/leftColumn/InputWorkflowPanel.svelte',
+	'src/ui/leftColumn/LeftColumnIsland.svelte',
 	'src/ui/metadataForm/MetadataFormFieldsIsland.svelte',
+	'src/ui/metadataManager/MetadataManagerIsland.svelte',
 	'src/ui/metadataLookup/MetadataLookupIsland.svelte',
 	'src/ui/outputPanel/OutputPanelIsland.svelte',
 	'src/ui/previewAudio/PreviewAudioControls.svelte',
 	'src/ui/statusPanel/StatusPanelIsland.svelte',
+	'src/ui/tagPreview/TagPreviewIsland.svelte',
 ] as const;
 
 describe('Svelte 5 event attributes', () => {

@@ -1,119 +1,155 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { initTagPreview } from "../tagPreview";
-  import { tagPreviewValues, type TagField } from "./state.svelte";
+  import { tagPreviewValues } from "./state.svelte";
+  import { compactRows, leftRows, rightRows } from "./rows";
 
-  type TagRow = {
-    field: TagField;
-    label: string;
-    title: string;
-  };
+  let { variant = "full" }: { variant?: "full" | "workbench" } = $props();
 
-  const leftRows: TagRow[] = [
-    {
-      field: "title",
-      label: "Title (Book Title)",
-      title:
-        "The audiobook's title. Displayed as track/episode name in most players.",
-    },
-    {
-      field: "album",
-      label: "Album (Book Title)",
-      title:
-        "Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.",
-    },
-    {
-      field: "artist",
-      label: "Artist (Author)",
-      title: "The book's author. Shows as primary artist in most players.",
-    },
-    {
-      field: "albumArtist",
-      label: "Album Artist (Author)",
-      title:
-        "Used for library grouping. Keeps all books by an author together.",
-    },
-    {
-      field: "composer",
-      label: "Composer (Narrator)",
-      title:
-        "Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.",
-    },
-  ];
-
-  const rightRows: TagRow[] = [
-    {
-      field: "series",
-      label: "SERIES (Series)",
-      title:
-        "Series name tag (series). Written to freeform SERIES (----:com.apple.iTunes:SERIES) for ABS/Plex-compatible scanners.",
-    },
-    {
-      field: "part",
-      label: "SERIES-PART (Book #)",
-      title:
-        "Series number tag (series-part). Written to freeform SERIES-PART (----:com.apple.iTunes:SERIES-PART) for ABS/Plex-compatible scanners.",
-    },
-    {
-      field: "subseries",
-      label: "SERIES (Sub-series)",
-      title:
-        "Secondary series name. Stored as the second entry in the SERIES list for ABS/Plex.",
-    },
-    {
-      field: "subpart",
-      label: "SERIES-PART (Sub-series #)",
-      title:
-        "Secondary series number. Stored as the second entry in SERIES-PART for ABS/Plex.",
-    },
-    {
-      field: "tsoa",
-      label: "TSOA (Title Sort Order)",
-      title:
-        "Auto-generated sort key. Forces Plex to sort by series, then book number, then title.",
-    },
-    {
-      field: "year",
-      label: "©day (Publication Date)",
-      title: "Publication date stored as YYYY or YYYY-MM when available.",
-    },
-    {
-      field: "genre",
-      label: "TCON (Genre)",
-      title: "Genre tag. Used for library filtering and display.",
-    },
-  ];
+  let showAllTags = $state(false);
 
   onMount(() => {
     initTagPreview();
   });
 </script>
 
-<div class="tag-grid mb-2">
-  <div class="tag-column">
-    {#each leftRows as row}
-      <div class="tag-row" title={row.title}>
-        <span class="tag-name">{row.label}</span>
-        <span class="tag-value" data-field={row.field}>
-          {tagPreviewValues[row.field] || "—"}
-        </span>
-      </div>
-    {/each}
-  </div>
+{#if variant === "workbench"}
+  <div class="tag-preview-workbench">
+    <div class="tag-compact-table" aria-label="Basic metadata tags">
+      {#each compactRows as row}
+        <div class="tag-compact-row" title={row.title}>
+          <span class="tag-compact-name">{row.label}</span>
+          <span
+            class="tag-compact-value"
+            class:tag-value-empty={!tagPreviewValues[row.field]}
+            data-field={row.field}
+          >
+            {tagPreviewValues[row.field] || "—"}
+          </span>
+        </div>
+      {/each}
+    </div>
 
-  <div class="tag-column">
-    {#each rightRows as row}
-      <div class="tag-row" title={row.title}>
-        <span class="tag-name">{row.label}</span>
-        <span class="tag-value" data-field={row.field}>
-          {tagPreviewValues[row.field] || "—"}
-        </span>
+    {#if showAllTags}
+      <div class="tag-expanded" data-testid="all-tags-expanded">
+        <div class="tag-grid">
+          <div class="tag-column">
+            {#each leftRows as row}
+              <div class="tag-row" title={row.title}>
+                <span class="tag-name">{row.label}</span>
+                <span class="tag-value" data-field={`all-${row.field}`}>
+                  {tagPreviewValues[row.field] || "—"}
+                </span>
+              </div>
+            {/each}
+          </div>
+
+          <div class="tag-column">
+            {#each rightRows as row}
+              <div class="tag-row" title={row.title}>
+                <span class="tag-name">{row.label}</span>
+                <span class="tag-value" data-field={`all-${row.field}`}>
+                  {tagPreviewValues[row.field] || "—"}
+                </span>
+              </div>
+            {/each}
+          </div>
+        </div>
       </div>
-    {/each}
+    {/if}
+
+    <button
+      type="button"
+      class="show-all-tags-button"
+      data-testid="show-all-tags-button"
+      aria-expanded={showAllTags}
+      onclick={() => {
+        showAllTags = !showAllTags;
+      }}
+    >
+      {showAllTags ? "Hide Extra Tags" : "Show All Tags"}
+    </button>
   </div>
-</div>
+{:else}
+  <div class="tag-grid mb-2">
+    <div class="tag-column">
+      {#each leftRows as row}
+        <div class="tag-row" title={row.title}>
+          <span class="tag-name">{row.label}</span>
+          <span class="tag-value" data-field={row.field}>
+            {tagPreviewValues[row.field] || "—"}
+          </span>
+        </div>
+      {/each}
+    </div>
+
+    <div class="tag-column">
+      {#each rightRows as row}
+        <div class="tag-row" title={row.title}>
+          <span class="tag-name">{row.label}</span>
+          <span class="tag-value" data-field={row.field}>
+            {tagPreviewValues[row.field] || "—"}
+          </span>
+        </div>
+      {/each}
+    </div>
+  </div>
+{/if}
 
 <style>
+	.tag-preview-workbench {
+		min-width: 0;
+	}
+
+	.tag-compact-table {
+		overflow: hidden;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background: var(--bg-input);
+	}
+
+	.tag-compact-row {
+		display: grid;
+		grid-template-columns: minmax(3.75rem, 0.36fr) minmax(0, 1fr);
+		align-items: center;
+		min-height: 1.55rem;
+		border-bottom: 1px solid var(--border-primary);
+		font-size: 0.75rem;
+		line-height: 1.25;
+	}
+
+	.tag-compact-row:last-child {
+		border-bottom: 0;
+	}
+
+	.tag-compact-name {
+		padding: 0.25rem 0.5rem;
+		color: var(--text-muted);
+	}
+
+	.tag-compact-value {
+		min-width: 0;
+		margin: 0.1875rem 0.5rem 0.1875rem 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--text-primary);
+	}
+
+	.tag-compact-value:not(.tag-value-empty) {
+		width: fit-content;
+		max-width: calc(100% - 0.5rem);
+		padding: 0.0625rem 0.375rem;
+		border-radius: 9999px;
+		background: rgba(16, 185, 129, 0.14);
+		color: #60d394;
+	}
+
+	.tag-expanded {
+		margin-top: 0.375rem;
+		min-width: 0;
+	}
+
 	.tag-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -122,6 +158,15 @@
 		border: 1px solid var(--border-primary);
 		border-radius: 0.375rem;
 		background: var(--bg-input);
+	}
+
+	.tag-preview-workbench .tag-grid {
+		grid-template-columns: 1fr;
+		gap: 0.25rem;
+		max-height: 4.75rem;
+		overflow: auto;
+		padding-top: 0.375rem;
+		padding-bottom: 0.375rem;
 	}
 
 	.tag-column {
@@ -134,8 +179,13 @@
 		display: flex;
 		align-items: baseline;
 		gap: 0.5rem;
+		min-width: 0;
 		font-size: 0.7rem;
 		line-height: 1.4;
+	}
+
+	.tag-preview-workbench .tag-row {
+		gap: 0.375rem;
 	}
 
 	.tag-name {
@@ -145,11 +195,37 @@
 		white-space: nowrap;
 	}
 
+	.tag-preview-workbench .tag-name {
+		flex: 0 1 8.25rem;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
 	.tag-value {
 		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		color: var(--text-primary);
+	}
+
+	.show-all-tags-button {
+		width: 100%;
+		margin-top: 0.375rem;
+		padding: 0.4rem 0.75rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background: var(--bg-input);
+		color: var(--text-secondary);
+		font-size: 0.8125rem;
+		font-weight: 600;
+	}
+
+	.show-all-tags-button:hover {
+		border-color: var(--border-secondary);
+		background: var(--bg-hover);
 		color: var(--text-primary);
 	}
 </style>

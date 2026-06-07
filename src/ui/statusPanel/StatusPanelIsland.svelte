@@ -178,7 +178,7 @@
         class="btn-pill btn-pill-primary"
         onclick={handleProcessClick}
       >
-        Process Audiobook
+        Start Processing
       </button>
       <button
         id="cancel-all-button"

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import { calculateTSOA, initTagPreview, updateTagPreview } from '../tagPreview';
 import {
 	resetMetadataFormPreviewState,
@@ -7,7 +7,10 @@ import {
 } from '../metadataForm/previewState.svelte';
 import TagPreviewIsland from '../tagPreview/TagPreviewIsland.svelte';
 
-function setupDom(initialValues: Record<string, string> = {}): void {
+function setupDom(
+	initialValues: Record<string, string> = {},
+	variant: 'full' | 'workbench' = 'full',
+): void {
 	const value = (id: string): string => initialValues[id] ?? '';
 
 	document.body.innerHTML = `
@@ -41,7 +44,7 @@ function setupDom(initialValues: Record<string, string> = {}): void {
 		setMetadataFormPreviewValueByInputId(inputId, element.value);
 	}
 
-	render(TagPreviewIsland);
+	render(TagPreviewIsland, { variant });
 }
 
 function getFieldValue(field: string): string {
@@ -176,5 +179,67 @@ describe('tagPreview', () => {
 		await flushRender();
 
 		expect(getFieldValue('title')).toBe('Dune');
+	});
+
+	it('renders workbench compact rows without technical tags by default', async () => {
+		setupDom(
+			{
+				'meta-title': 'The Way of Kings',
+				'meta-author': 'Brandon Sanderson',
+				'meta-narrator': 'Michael Kramer, Kate Reading',
+				'meta-series': 'The Stormlight Archive',
+				'meta-series-part': '1',
+				'meta-year': '2010',
+				'meta-genre': 'Fantasy',
+			},
+			'workbench',
+		);
+
+		initTagPreview();
+		await flushRender();
+
+		expect(getFieldValue('title')).toBe('The Way of Kings');
+		expect(getFieldValue('artist')).toBe('Brandon Sanderson');
+		expect(getFieldValue('composer')).toBe('Michael Kramer, Kate Reading');
+		expect(getFieldValue('series')).toBe('The Stormlight Archive');
+		expect(getFieldValue('part')).toBe('1');
+		expect(getFieldValue('genre')).toBe('Fantasy');
+		expect(getFieldValue('year')).toBe('2010');
+		expect(document.querySelector('[data-field="album"]')).toBeNull();
+		expect(document.querySelector('[data-testid="all-tags-expanded"]')).toBeNull();
+	});
+
+	it('reveals the full tag list inline from the workbench preview', async () => {
+		setupDom(
+			{
+				'meta-title': 'The Way of Kings',
+				'meta-author': 'Brandon Sanderson',
+				'meta-series': 'The Stormlight Archive',
+				'meta-series-part': '1',
+			},
+			'workbench',
+		);
+
+		initTagPreview();
+		await flushRender();
+
+		const showButton = document.querySelector(
+			'[data-testid="show-all-tags-button"]',
+		) as HTMLButtonElement | null;
+		if (!showButton) {
+			throw new Error('Missing Show All Tags button');
+		}
+
+		await fireEvent.click(showButton);
+		await flushRender();
+
+		expect(document.querySelector('[data-testid="all-tags-expanded"]')).toBeTruthy();
+		expect(document.querySelector('[data-field="all-album"]')?.textContent).toBe(
+			'The Way of Kings',
+		);
+		expect(document.querySelector('[data-field="all-tsoa"]')?.textContent).toBe(
+			'The Stormlight Archive 01 - The Way of Kings',
+		);
+		expect(showButton.getAttribute('aria-expanded')).toBe('true');
 	});
 });

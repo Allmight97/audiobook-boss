@@ -40,35 +40,45 @@ pub use errors::{
 };
 
 use std::sync::Arc;
-use tauri::{Emitter, Manager, PhysicalSize, Size, WebviewWindow};
+use tauri::{Emitter, LogicalSize, Manager, Size, WebviewWindow};
 
 /// Type alias for managed JobRegistry state
 pub type ManagedJobRegistry = Arc<processing::JobRegistry>;
 
-const STARTUP_MAX_MONITOR_RATIO: f64 = 0.88;
+const STARTUP_MAX_MONITOR_RATIO: f64 = 0.94;
 const STARTUP_TARGET_ASPECT_RATIO: f64 = 16.0 / 10.0;
-const STARTUP_PREFERRED_WIDTH: u32 = 1600;
-const STARTUP_MIN_WIDTH: u32 = 1200;
-const STARTUP_MIN_HEIGHT: u32 = 760;
+const STARTUP_PREFERRED_WIDTH: f64 = 1600.0;
+const STARTUP_MIN_WIDTH: f64 = 1440.0;
+const STARTUP_MIN_HEIGHT: f64 = 900.0;
 
-fn monitor_fit_window_size(work_area_width: u32, work_area_height: u32) -> Option<(u32, u32)> {
+fn monitor_fit_window_size(
+    work_area_width: u32,
+    work_area_height: u32,
+    scale_factor: f64,
+) -> Option<(f64, f64)> {
     if work_area_width == 0 || work_area_height == 0 {
         return None;
     }
+    if !scale_factor.is_finite() || scale_factor <= 0.0 {
+        return None;
+    }
 
-    let max_width = ((work_area_width as f64) * STARTUP_MAX_MONITOR_RATIO).floor() as u32;
-    let max_height = ((work_area_height as f64) * STARTUP_MAX_MONITOR_RATIO).floor() as u32;
+    let logical_work_area_width = (work_area_width as f64) / scale_factor;
+    let logical_work_area_height = (work_area_height as f64) / scale_factor;
 
-    if max_width == 0 || max_height == 0 {
+    let max_width = (logical_work_area_width * STARTUP_MAX_MONITOR_RATIO).floor();
+    let max_height = (logical_work_area_height * STARTUP_MAX_MONITOR_RATIO).floor();
+
+    if max_width == 0.0 || max_height == 0.0 {
         return None;
     }
 
     let mut width = max_width.min(STARTUP_PREFERRED_WIDTH);
-    let mut height = ((width as f64) / STARTUP_TARGET_ASPECT_RATIO).round() as u32;
+    let mut height = (width / STARTUP_TARGET_ASPECT_RATIO).round();
 
     if height > max_height {
         height = max_height;
-        width = ((height as f64) * STARTUP_TARGET_ASPECT_RATIO).round() as u32;
+        width = (height * STARTUP_TARGET_ASPECT_RATIO).round();
     }
 
     width = width.min(max_width);
@@ -79,7 +89,7 @@ fn monitor_fit_window_size(work_area_width: u32, work_area_height: u32) -> Optio
         height = max_height;
     }
 
-    Some((width.max(1), height.max(1)))
+    Some((width.max(1.0), height.max(1.0)))
 }
 
 fn configure_startup_window(window: &WebviewWindow) -> Result<(), tauri::Error> {
@@ -89,14 +99,17 @@ fn configure_startup_window(window: &WebviewWindow) -> Result<(), tauri::Error> 
     };
 
     let monitor_size = monitor.size();
-    if let Some((width, height)) = monitor_fit_window_size(monitor_size.width, monitor_size.height)
+    let scale_factor = monitor.scale_factor();
+    if let Some((width, height)) =
+        monitor_fit_window_size(monitor_size.width, monitor_size.height, scale_factor)
     {
-        window.set_size(Size::Physical(PhysicalSize::new(width, height)))?;
+        window.set_size(Size::Logical(LogicalSize::new(width, height)))?;
         window.center()?;
         log::info!(
-            "Startup window fit to monitor: monitor={}x{}, window={}x{}",
+            "Startup window fit to monitor: monitor={}x{} @{}x, window={}x{} logical",
             monitor_size.width,
             monitor_size.height,
+            scale_factor,
             width,
             height
         );
@@ -189,31 +202,41 @@ mod tests {
     // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_returns_none_for_zero_inputs() {
-        assert_eq!(monitor_fit_window_size(0, 1080), None);
-        assert_eq!(monitor_fit_window_size(1920, 0), None);
+        assert_eq!(monitor_fit_window_size(0, 1080, 1.0), None);
+        assert_eq!(monitor_fit_window_size(1920, 0, 1.0), None);
+        assert_eq!(monitor_fit_window_size(1920, 1080, 0.0), None);
     }
 
     // EXCEPTION: tiny helper inline test.
     #[test]
-    fn monitor_fit_window_size_caps_to_monitor_budget() {
-        let Some((width, height)) = monitor_fit_window_size(1920, 1080) else {
+    fn monitor_fit_window_size_prefers_1600_by_1000_when_budget_allows() {
+        let Some((width, height)) = monitor_fit_window_size(2560, 1600, 1.0) else {
             panic!("expected window size");
         };
 
-        assert!(width <= 1689);
-        assert!(height <= 950);
-        assert!(width >= 1200);
-        assert!(height >= 760);
+        assert_eq!(width, 1600.0);
+        assert_eq!(height, 1000.0);
+    }
+
+    // EXCEPTION: tiny helper inline test.
+    #[test]
+    fn monitor_fit_window_size_uses_logical_dimensions_for_high_dpi_monitors() {
+        let Some((width, height)) = monitor_fit_window_size(3456, 2234, 2.0) else {
+            panic!("expected window size");
+        };
+
+        assert_eq!(width, 1600.0);
+        assert_eq!(height, 1000.0);
     }
 
     // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_uses_available_space_on_small_monitors() {
-        let Some((width, height)) = monitor_fit_window_size(1024, 640) else {
+        let Some((width, height)) = monitor_fit_window_size(1024, 640, 1.0) else {
             panic!("expected window size");
         };
 
-        assert_eq!(width, 901);
-        assert_eq!(height, 563);
+        assert_eq!(width, 962.0);
+        assert_eq!(height, 601.0);
     }
 }

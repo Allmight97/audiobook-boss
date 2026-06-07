@@ -9,6 +9,8 @@
 	import { initOutputPanel } from './index';
 	import { outputPanelState } from './state.svelte';
 
+	let { variant = 'default' }: { variant?: 'default' | 'workbench' } = $props();
+
 	const customTemplatePlaceholder = '{author}/{series}/Book {seriesPart} - {title}';
 
 	function handleBrowseClick(): void {
@@ -35,22 +37,34 @@
 	});
 </script>
 
-<div>
+<div
+	class="output-panel"
+	class:output-panel-workbench={variant === 'workbench'}
+	data-testid="output-panel"
+>
   <div class="section-header">
-    <h3>Output Directory</h3>
+    <h3>{variant === 'workbench' ? 'Output' : 'Output Directory'}</h3>
   </div>
-  <div class="mb-2">
+  <div class="output-panel-body">
+    {#if variant === 'workbench'}
+      <label for="output-dir-browse" class="output-subtitle">Output Directory</label>
+    {/if}
     <div class="output-preview-box">
       <div
-        id="output-preview-text"
+        id={variant === 'workbench' ? 'output-dir-text' : 'output-preview-text'}
         class="output-path-text"
-        title={outputPanelState.previewTitle}
+        title={variant === 'workbench'
+          ? outputPanelState.outputDirectory || outputPanelState.previewTitle
+          : outputPanelState.previewTitle}
+        data-testid={variant === 'workbench' ? 'output-directory-value' : 'output-preview-value'}
       >
-        {outputPanelState.previewText}
+        {variant === 'workbench'
+          ? outputPanelState.outputDirectory || 'Select output directory...'
+          : outputPanelState.previewText}
       </div>
       <button
         id="output-dir-browse"
-        class="btn-pill btn-pill-primary-soft"
+        class="btn-pill btn-pill-primary-soft output-browse-button"
         onclick={handleBrowseClick}
       >
         Browse…
@@ -111,11 +125,36 @@
           {outputPanelState.absHintText}
         </span>
       </div>
+      {#if variant === 'workbench'}
+        <div class="output-example" data-testid="output-example">
+          <span class="output-example-label">Example:</span>
+          <span class="output-example-path" title={outputPanelState.previewTitle}>
+            {outputPanelState.previewText}
+          </span>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
 
 <style>
+	.output-panel {
+		min-width: 0;
+	}
+
+	.output-panel-body {
+		margin-bottom: 0.5rem;
+	}
+
+	.output-panel-workbench .section-header {
+		margin-bottom: 0.5rem;
+	}
+
+	.output-subtitle {
+		margin-top: 0;
+		margin-bottom: 0.25rem;
+	}
+
 	.output-preview-box {
 		display: flex;
 		align-items: center;
@@ -129,12 +168,20 @@
 		color: var(--text-primary);
 	}
 
+	.output-panel-workbench .output-preview-box {
+		padding: 0.425rem 0.5rem 0.425rem 0.625rem;
+	}
+
 	.output-path-text {
 		flex: 1;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		color: var(--text-muted);
+	}
+
+	.output-panel-workbench .output-path-text {
+		color: var(--text-primary);
 	}
 
 	.btn-pill-primary-soft {
@@ -146,6 +193,10 @@
 		background-color: #5b93e7;
 	}
 
+	.output-browse-button {
+		padding: 0.375rem 0.75rem;
+	}
+
 	.output-options-panel {
 		margin-top: 0.25rem;
 		padding: 0.5rem 0.75rem;
@@ -154,10 +205,40 @@
 		background-color: var(--bg-input);
 	}
 
+	.output-panel-workbench .output-options-panel {
+		padding: 0.5rem 0.625rem;
+	}
+
 	.path-option-row {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.25rem 0;
+	}
+
+	.output-panel-workbench .path-option-row {
+		flex-wrap: wrap;
+	}
+
+	.output-example {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.375rem;
+		margin-top: 0.5rem;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		line-height: 1.35;
+	}
+
+	.output-example-label {
+		color: var(--text-secondary);
+		font-weight: 500;
+	}
+
+	.output-example-path {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 </style>
