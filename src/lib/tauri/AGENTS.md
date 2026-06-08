@@ -3,6 +3,9 @@
 ## Public API Strip
 - Public module exports: `tauriClient`, `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, `TauriCommand`.
 - `tauriClient` methods are pinned by `src/lib/tauri-public-api.contract.test.ts`; add methods only as deliberate boundary changes.
+- Public-strip tests must pin an independent expected surface. Do not derive the
+  expected method, command, or event list from `commands.ts` or generated
+  bindings.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
 
 ## Private Cluster

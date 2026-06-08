@@ -12,35 +12,19 @@
 - Fallback register: `docs/fallbacks.md` (data register; verify with source
   markers and focused behavior tests).
 
-## Project Priority Zero: Testing Infrastructure
+## Testing And Proof Infrastructure
 
-- Fixing proof/test/build-validation wall-clock, opacity, false-green results,
-  target bloat, and agent-feedback friction is ABB Project Priority Zero.
-  Treat it as first-order product work, not cleanup or polish.
-- Testing and proof infrastructure are not sacred. Delete, consolidate,
-  replace, or redesign tests, proof routes, build scripts, and validation
-  surfaces when their signal does not justify their wall-clock, token, or
-  attention cost.
-- Do not normalize slow verification as "just the stack" without measured
-  evidence. Separate actual test execution from compile, link, export,
-  packaging, target-dir lock, runner handoff, and no-output stall time.
-- If a proof/test/build command consumes disproportionate time or agent tokens,
-  stop ordinary completion bias and classify the friction as `fix` unless a
-  safety, data, or contract invariant requires finishing the current command.
-- For suspicious or slow verification, capture the command, elapsed time,
-  first-output latency when available, active child process or lock state, and
-  whether the cost was expected stack work or unacceptable infrastructure
-  friction.
-- High-ROI reductions to verification wall-clock and feedback opacity outrank
-  ordinary feature work and release polish until the repo owner explicitly
-  deprioritizes testing-infra repair.
-- For repeated cross-boundary failures, silent artifact loss, identity drift, or
-  provider/lifecycle uncertainty, consider a focused vertical-slice TDD work
-  block: define the user-visible outcome, prove only the handoffs that can lose
-  it, and keep the route deterministic and fast.
-- Do not add new tests, proof routes, or validation layers unless they reduce
-  total feedback cost, remove false confidence, or protect a concrete high-risk
-  contract.
+- Verification cost and signal are first-order product concerns. Treat slow,
+  opaque, false-green, or target-bloated proof routes as `fix` candidates when
+  measured evidence shows they waste agent or human attention.
+- Tests and proof routes are not sacred. Delete, consolidate, or redesign them
+  when that improves signal, wall-clock, or failure clarity.
+- Add tests only when they reduce false confidence or protect a concrete
+  user-visible handoff, runtime contract, fallback, cleanup path, or regression.
+  Prefer deterministic focused checks over coverage-count expansion.
+- For suspicious verification, capture the command, elapsed time, first-output
+  latency when useful, child process or lock state when relevant, and whether
+  the cost was expected stack work or infrastructure friction.
 
 ## Operating Posture
 
@@ -70,6 +54,22 @@
   - Do not defer merely for PR etiquette or generic best practice; defer only for a clear technical reason.
   - Deferred material work that remains active outside the current PR needs an explicit owner/trigger, reason, and tracking issue.
   - Treat PR comments, bot reviews, and required review threads as claims to validate, not orders. Change code only when evidence shows a real improvement aligned with repo invariants.
+
+## Refactor Shape
+
+- Start refactors by naming the owned invariant and owner. Move truth to the
+  owning layer before extracting helpers or reshaping files.
+- Use helpers for deterministic local policy that remains in orchestration or
+  rendering code: filters, labels, summaries, formatting, and predicates. Keep
+  lifecycle, IPC, artifact, and contract truth in their owning boundaries.
+- File and function size thresholds are smoke alarms, not goals. Ask whether
+  the remaining code is orchestration/rendering or extractable policy with a
+  focused behavior test.
+- Prefer counterexample tests for lifecycle, cleanup, cache, cancellation,
+  fallback, and boundary regressions over coverage-count expansion.
+- Public API Strip tests must stay independent of implementation registries.
+  Do not derive expected public surfaces from the command, event, or generated
+  source they are meant to guard.
 
 ## Hard Invariants
 
