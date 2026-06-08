@@ -11,7 +11,10 @@ import {
 	setJobTypeSelection,
 } from '../jobControls';
 import { jobControlsState } from '../jobControls/state.svelte';
-import { runtimeSettingsCapabilitiesState } from '../runtimeSettingsCapabilities.svelte';
+import {
+	runtimeSettingsCapabilitiesState,
+	setRuntimeSettingsCapabilities,
+} from '../runtimeSettingsCapabilities.svelte';
 import { tauriClient } from '../../lib/tauri/client';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 
@@ -126,8 +129,7 @@ describe('Job controls merge toggle', () => {
 		jobControlsState.maxConcurrentCapabilities = null;
 		jobControlsState.effectiveMaxConcurrent = null;
 		jobControlsState.effectiveLabel = '';
-		runtimeSettingsCapabilitiesState.capabilities = null;
-		runtimeSettingsCapabilitiesState.loadError = null;
+		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;
 		setupDomRoot();
 	});

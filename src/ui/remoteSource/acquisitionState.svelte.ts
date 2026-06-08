@@ -1,5 +1,8 @@
-import type { RemoteSourceAccountState, RemoteTitle } from '../../types/remoteSource';
+import type { ProviderId, RemoteSourceAccountState, RemoteTitle } from '../../types/remoteSource';
+import { normalizeAppError } from '../../lib/tauri/appError';
 import type { AcquisitionJobWithProgress } from './remoteSourceAcquireDialogHelpers';
+
+export const remoteSourceProviderId: ProviderId = 'audible';
 
 /**
  * Provider-neutral acquisition dialog state shape.
@@ -38,4 +41,10 @@ export function createInitialAcquisitionState(): AcquisitionState {
 		activeJob: null,
 		lastJob: null,
 	};
+}
+
+export function setAcquisitionError(s: AcquisitionState, cause: unknown, fallback: string): void {
+	const error = normalizeAppError(cause, fallback);
+	console.error(`${fallback} code=${error.code} category=${error.category}`);
+	s.statusMessage = error.code === 'unknown_error' ? fallback : error.message;
 }

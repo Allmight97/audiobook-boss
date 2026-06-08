@@ -26,7 +26,7 @@ processing. It is the single source of truth for:
 Work Center (`src/ui/workCenter/`) renders WorkRuntime-authored snapshot
 events (`work-operation-snapshot`, `work-operation-list-snapshot`) as the
 sole progress source for accepted background operations. Work Center does
-**not** subscribe to `processing-progress` events or apply legacy progress
+**not** subscribe to `processing-progress` events or apply client-authored progress
 overlays.
 
 Submission path: `submitProcessingOperation` (Tauri command
@@ -158,7 +158,7 @@ All `processing-progress` and `processing-queue` events carry
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/processing/plan.rs`
   - Frontend: `src/ui/outputPanel/outputPlanWorkflow.ts` through `src/lib/tauri/client.ts`
-  - Use: shared, side-effect-free preflight planning used by the output-plan review step that precedes both the legacy `process_audiobook_files` and the Work Runtime `submit_processing_operation` paths
+  - Use: shared, side-effect-free preflight planning used by the output-plan review step that precedes both the direct `process_audiobook_files` and WorkRuntime `submit_processing_operation` paths
 
 ### Work Runtime (Work Center) — Background Operations
 

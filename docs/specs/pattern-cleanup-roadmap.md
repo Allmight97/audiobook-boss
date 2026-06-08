@@ -25,41 +25,40 @@ open.
 GitHub issue #361 remains the tracker. This document is the context-restoration
 packet for long implementation sessions.
 
-## Evidence Baseline
+## Current Branch Evidence
 
-Validated on 2026-06-07 against current repo state and current library
-references.
+Validated on 2026-06-07 against the consolidated roadmap branch.
 
 Repo evidence:
 
 - PR #362 is merged into `main`; WorkRuntime backend terminal truth landed.
-- `docs/api-map.md` still says Work Center overlays legacy
-  `processing-progress` for fine-grained progress.
-- `src/ui/workCenter/state.svelte.ts` still listens to WorkRuntime snapshot
-  events and legacy `EVENTS.PROGRESS`.
-- `src/ui/workCenter/model.ts` still applies `ProcessingProgressEvent` into
-  operation snapshots.
+- Work Center consumes WorkRuntime operation snapshots and does not subscribe to
+  direct `processing-progress` events.
+- Backend processing progress events update WorkRuntime operation snapshots
+  before the frontend observes them.
 - `src/ui/statusPanel/domain/stateMachine.ts` ignores `operation_id` events,
-  preserving Status Panel as a legacy/foreground lifecycle consumer.
+  preserving Status Panel as a direct foreground lifecycle consumer.
 - Preview execution still uses `process_audiobook_files` through
   `src/ui/statusPanel/processingWorkflow.ts`.
 - Metadata batch save still emits processing lifecycle events from
   `src-tauri/src/commands/metadata/save_batch.rs`.
 - `src/App.svelte` renders `EncodingWorkbenchIsland`; that workbench composes
   `src/ui/encoderPanel/EncoderWorkbenchIsland.svelte`.
-- `src/ui/encoderPanel/EncoderPanelIsland.svelte` is still present and kept
-  alive by tests.
-- Encoder UI still reaches through into output-panel private files:
-  `src/ui/encoderPanel/EncoderWorkbenchIsland.svelte` imports
-  `../outputPanel/state.svelte`, and `src/ui/encoderPanel/logic.ts` imports
-  `../outputPanel/preview`.
-- Runtime capability loading still has multiple initiators:
-  `src/ui/appSettings/hydration.ts`, `src/ui/encoderPanel/index.ts`,
-  `src/ui/encoderPanel/logic.ts`, and `src/ui/jobControls.ts`.
-- `src/effect-smoke.test.ts` is still a dependency smoke test.
-- `normalizeEncoderAvailability` is still exported from
-  `src/lib/tauri/normalizers.ts` with no current caller.
-- `src/ui/jobControls.ts` still shadows the `src/ui/jobControls/` folder.
+- The dead encoder panel shell and dependency-only Effect smoke test are
+  deleted.
+- Encoder UI uses the output-panel Public API Strip instead of private
+  output-panel modules.
+- Runtime settings capability loading is owned by
+  `src/ui/runtimeSettingsCapabilities.svelte.ts`.
+- `src/ui/jobControls/index.ts` is the job-controls public strip entry point.
+- `normalizeEncoderAvailability` is removed.
+- `src-tauri/src/processing/run.rs` is split into dispatch, job, options, and
+  validation owner modules.
+- Remote-source UI state/account/workflow/helpers are split from
+  `RemoteSourceAcquireDialog.svelte`; backend session lifecycle and Audible
+  probe code have owned modules.
+- Output-artifact false public/test-only exports were stripped where callers did
+  not need the public strip.
 
 Library/source evidence:
 
@@ -110,19 +109,19 @@ Do not pull forward:
 ### 2. Work Runtime Lifecycle Closure
 
 Purpose: make WorkRuntime and Work Center the single background-operation truth
-for accepted processing work, and classify every legacy survivor.
+for accepted processing work, and classify every direct foreground survivor.
 
 Deletion gate:
 
 - Work Center renders backend-authored operation snapshots without applying
-  legacy `processing-progress`.
+  direct `processing-progress` events.
 - Backend operation snapshots carry the progress detail needed by Work Center.
 - Status Panel is either a migrated operation consumer or a deliberately
   retained foreground/direct-execution adapter.
 - Preview execution and `process_audiobook_files` survival are explicit.
 - Metadata save is migrated to WorkRuntime or explicitly retained as a
   metadata-save adapter with #307 updated.
-- Legacy processing commands/events/fixtures are removed only when no runtime
+- Direct processing commands/events/fixtures are removed only when no runtime
   consumer remains.
 - `docs/api-map.md` no longer points at deleted lifecycle specs or stale
   overlay language.
@@ -223,7 +222,7 @@ Work Runtime lifecycle:
 
 Runtime boundary:
 
-- selected frontend typecheck command once added.
+- `bun run typecheck`.
 - `bun run test -- src/lib/behavior-contract.test.ts src/lib/tauri-public-api.contract.test.ts src/lib/tauri-client.test.ts`
 - `bun scripts/check-tauri-runtime-boundary.ts`
 - `bash scripts/check-generated-bindings.sh --mode local` when generated truth

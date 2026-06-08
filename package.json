@@ -8,6 +8,7 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc && vite build",
+		"typecheck": "tsc --noEmit",
 		"fmt": "bunx @biomejs/biome format --write --no-errors-on-unmatched . && bunx prettier --write \"src/**/*.svelte\"",
 		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched . && bunx prettier --check \"src/**/*.svelte\"",
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",

@@ -1,25 +1,19 @@
-import { normalizeAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { ProviderId } from '../../types/remoteSource';
 import { isTitleAcquirable, uniqueDiagnosticMessage } from './remoteSourceAcquireDialogHelpers';
-import type { AcquisitionState } from './acquisitionState.svelte';
-
-const providerId: ProviderId = 'audible';
-
-function setError(s: AcquisitionState, cause: unknown, fallback: string): void {
-	const error = normalizeAppError(cause, fallback);
-	console.error(`${fallback} code=${error.code} category=${error.category}`);
-	s.statusMessage = error.code === 'unknown_error' ? fallback : error.message;
-}
+import {
+	type AcquisitionState,
+	remoteSourceProviderId,
+	setAcquisitionError,
+} from './acquisitionState.svelte';
 
 async function refreshAccountState(s: AcquisitionState): Promise<void> {
-	s.accountState = await tauriClient.getRemoteSourceAccountState(providerId);
+	s.accountState = await tauriClient.getRemoteSourceAccountState(remoteSourceProviderId);
 }
 
 async function loadLibrary(s: AcquisitionState): Promise<void> {
 	s.isBusy = true;
 	try {
-		const library = await tauriClient.loadRemoteSourceLibrary(providerId);
+		const library = await tauriClient.loadRemoteSourceLibrary(remoteSourceProviderId);
 		s.titles = library.titles;
 		const selectableTitleIds = new Set(
 			library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
@@ -35,7 +29,7 @@ async function loadLibrary(s: AcquisitionState): Promise<void> {
 				? uniqueDiagnosticMessage(library.diagnostics)
 				: `${library.titles.length} Audible titles loaded.`;
 	} catch (cause) {
-		setError(s, cause, 'Failed to load Audible library.');
+		setAcquisitionError(s, cause, 'Failed to load Audible library.');
 	} finally {
 		s.isBusy = false;
 	}
@@ -53,7 +47,7 @@ export function createAccountController(s: AcquisitionState) {
 					await loadLibrary(s);
 				}
 			} catch (cause) {
-				setError(s, cause, 'Failed to load remote source state.');
+				setAcquisitionError(s, cause, 'Failed to load remote source state.');
 			} finally {
 				s.isBusy = false;
 			}
@@ -62,11 +56,11 @@ export function createAccountController(s: AcquisitionState) {
 		async startAuth(): Promise<void> {
 			s.isBusy = true;
 			try {
-				const response = await tauriClient.startRemoteSourceAuth(providerId);
+				const response = await tauriClient.startRemoteSourceAuth(remoteSourceProviderId);
 				s.statusMessage = response.message;
 				await tauriClient.openUrl(response.authorizationUrl);
 			} catch (cause) {
-				setError(s, cause, 'Failed to start Audible auth.');
+				setAcquisitionError(s, cause, 'Failed to start Audible auth.');
 			} finally {
 				s.isBusy = false;
 			}
@@ -76,13 +70,13 @@ export function createAccountController(s: AcquisitionState) {
 			s.isBusy = true;
 			try {
 				s.accountState = await tauriClient.completeRemoteSourceAuth({
-					providerId,
+					providerId: remoteSourceProviderId,
 					responseUrlHandoffPath: s.handoffPath.trim() || undefined,
 				});
 				s.statusMessage = 'Audible connected.';
 				await loadLibrary(s);
 			} catch (cause) {
-				setError(s, cause, 'Failed to complete Audible auth.');
+				setAcquisitionError(s, cause, 'Failed to complete Audible auth.');
 			} finally {
 				s.isBusy = false;
 			}
@@ -91,7 +85,7 @@ export function createAccountController(s: AcquisitionState) {
 		async logout(): Promise<void> {
 			s.isBusy = true;
 			try {
-				s.accountState = await tauriClient.logoutRemoteSourceAccount(providerId);
+				s.accountState = await tauriClient.logoutRemoteSourceAccount(remoteSourceProviderId);
 				s.titles = [];
 				s.selectedTitleIds = new Set();
 				s.includePdfByTitleId = {};
@@ -99,7 +93,7 @@ export function createAccountController(s: AcquisitionState) {
 				s.lastJob = null;
 				s.statusMessage = 'Audible disconnected.';
 			} catch (cause) {
-				setError(s, cause, 'Failed to disconnect Audible.');
+				setAcquisitionError(s, cause, 'Failed to disconnect Audible.');
 			} finally {
 				s.isBusy = false;
 			}

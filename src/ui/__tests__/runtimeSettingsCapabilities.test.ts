@@ -19,8 +19,7 @@ vi.mock('../../lib/tauri/client', () => ({
 describe('runtime settings capability hydration', () => {
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-		runtimeSettingsCapabilitiesState.capabilities = null;
-		runtimeSettingsCapabilitiesState.loadError = null;
+		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;
 	});
 
@@ -56,6 +55,17 @@ describe('runtime settings capability hydration', () => {
 		expect(runtimeSettingsCapabilitiesState.capabilities).toStrictEqual(capabilities);
 		expect(runtimeSettingsCapabilitiesState.loadError).toBeNull();
 		expect(runtimeSettingsCapabilitiesState.loading).toBe(false);
+	});
+
+	it('reuses a successful hydration result for later consumers', async () => {
+		const capabilities = runtimeSettingsCapabilitiesFixture();
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(capabilities);
+
+		await hydrateRuntimeSettingsCapabilities();
+		await hydrateRuntimeSettingsCapabilities();
+
+		expect(context.getRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
+		expect(runtimeSettingsCapabilitiesState.capabilities).toStrictEqual(capabilities);
 	});
 
 	it('sets error state on failed load and clears capabilities', async () => {

@@ -10,7 +10,7 @@ vi.mock('../encoderPanel/logic', () => ({
 	initializeEncoderPanelLogic: initializeMock,
 }));
 
-describe('EncoderWorkbench island mount', () => {
+describe('EncoderWorkbenchIsland mount', () => {
 	beforeEach(() => {
 		initializeMock.mockReset();
 	});

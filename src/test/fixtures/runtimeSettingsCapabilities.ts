@@ -17,16 +17,24 @@ export function encoderAvailabilityFixture(
 	const fdkAvailable = overrides.fdkAvailable ?? true;
 	const aacAtAvailable = overrides.aacAtAvailable ?? true;
 	const nativeAacAvailable = overrides.nativeAacAvailable ?? true;
-	return {
+	const base = {
 		fdkAvailable,
 		aacAtAvailable,
 		nativeAacAvailable,
-		fdkSource: fdkAvailable ? 'detected' : 'none',
-		autoEncoder: fdkAvailable ? 'fdk_he_aac' : aacAtAvailable ? 'aac_at' : 'native_aac',
-		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : undefined,
+		fdkSource: fdkAvailable ? ('detected' as const) : ('none' as const),
+		autoEncoder: fdkAvailable
+			? ('fdk_he_aac' as const)
+			: aacAtAvailable
+				? ('aac_at' as const)
+				: ('native_aac' as const),
+		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : null,
 		statusMessage: fdkAvailable
 			? 'FDK AAC detected and ready.'
 			: 'No external FFmpeg toolchain with libfdk_aac was detected.',
+	} satisfies GeneratedEncoderAvailability;
+	return {
+		...base,
+		detectedToolchainPath: base.detectedToolchainPath ?? undefined,
 		...overrides,
 	};
 }

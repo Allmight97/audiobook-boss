@@ -94,61 +94,6 @@ export function isTitleAcquirable(title: RemoteTitle): boolean {
 	return titleAvailability(title).acquirable;
 }
 
-export function filterTitles(
-	titles: RemoteTitle[],
-	filters: {
-		titleFilter: string;
-		showSupplementalPdfOnly: boolean;
-		hideUnavailableTitles: boolean;
-	},
-): RemoteTitle[] {
-	const normalizedFilter = filters.titleFilter.trim().toLowerCase();
-	let facetTitles = filters.showSupplementalPdfOnly
-		? titles.filter((title) => title.supplementalPdfAvailable)
-		: titles;
-	if (filters.hideUnavailableTitles) {
-		facetTitles = facetTitles.filter(isTitleAcquirable);
-	}
-	if (!normalizedFilter) return facetTitles;
-	return facetTitles.filter((title) =>
-		[title.title, title.authors.join(' '), title.narrators.join(' ')]
-			.join(' ')
-			.toLowerCase()
-			.includes(normalizedFilter),
-	);
-}
-
-export function countSelectedOutsideFilter(
-	titles: RemoteTitle[],
-	selectedTitleIds: Set<string>,
-	filteredTitles: RemoteTitle[],
-): number {
-	if (!selectedTitleIds.size) return 0;
-	if (!titles.length) return 0;
-	if (!filteredTitles.length) return selectedTitleIds.size;
-	const visibleTitleIds = new Set(filteredTitles.map((title) => title.titleId));
-	return [...selectedTitleIds].filter((titleId) => !visibleTitleIds.has(titleId)).length;
-}
-
-export function selectedTitleSummary(selectedTitleIds: Set<string>, hiddenCount: number): string {
-	const count = selectedTitleIds.size;
-	if (count === 0) return '0 selected';
-	const titleLabel = count === 1 ? 'title' : 'titles';
-	if (hiddenCount === 0) return `${count} ${titleLabel} selected`;
-	const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
-	return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
-}
-
 export function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-export function toggleTitleSelection(titles: Set<string>, title: RemoteTitle): Set<string> {
-	const next = new Set(titles);
-	if (next.has(title.titleId)) {
-		next.delete(title.titleId);
-		return next;
-	}
-	next.add(title.titleId);
-	return next;
 }

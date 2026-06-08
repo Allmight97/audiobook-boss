@@ -4,10 +4,12 @@ import {
 	getImportedAudioPathsBlockedMessage,
 	handleImportedAudioPaths,
 } from '../fileImport/handlers';
-import { normalizeAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { ProviderId } from '../../types/remoteSource';
-import type { AcquisitionState } from './acquisitionState.svelte';
+import {
+	type AcquisitionState,
+	remoteSourceProviderId,
+	setAcquisitionError,
+} from './acquisitionState.svelte';
 import type { AcquisitionJobWithProgress } from './remoteSourceAcquireDialogHelpers';
 import {
 	acquisitionPollDelayMs,
@@ -18,14 +20,6 @@ import {
 	withClearedHandoffJob,
 } from './remoteSourceAcquireDialogHelpers';
 import { registerRemoteSourceSupplementalAssets } from './sessionAssets.svelte';
-
-const providerId: ProviderId = 'audible';
-
-function setError(s: AcquisitionState, cause: unknown, fallback: string): void {
-	const error = normalizeAppError(cause, fallback);
-	console.error(`${fallback} code=${error.code} category=${error.category}`);
-	s.statusMessage = error.code === 'unknown_error' ? fallback : error.message;
-}
 
 async function pollAcquisitionToTerminal(
 	s: AcquisitionState,
@@ -90,7 +84,7 @@ export function createAcquisitionWorkflow(s: AcquisitionState) {
 				s.lastJob = null;
 				s.statusMessage = 'Starting Audible acquisition.';
 				const startedJob = (await tauriClient.startRemoteSourceAcquisition({
-					providerId,
+					providerId: remoteSourceProviderId,
 					selections: [...s.selectedTitleIds].map((titleId) => ({
 						titleId,
 						includeSupplementalPdf: s.includePdfByTitleId[titleId] ?? false,
@@ -103,7 +97,7 @@ export function createAcquisitionWorkflow(s: AcquisitionState) {
 				const terminalJob = await pollAcquisitionToTerminal(s, startedJob);
 				await finishAcquisitionJob(s, terminalJob);
 			} catch (cause) {
-				setError(s, cause, 'Failed to acquire selected Audible titles.');
+				setAcquisitionError(s, cause, 'Failed to acquire selected Audible titles.');
 			} finally {
 				s.isBusy = false;
 			}
@@ -119,7 +113,7 @@ export function createAcquisitionWorkflow(s: AcquisitionState) {
 				s.lastJob = cancelledJob;
 				s.statusMessage = statusFromAcquisitionJob(cancelledJob);
 			} catch (cause) {
-				setError(s, cause, 'Failed to cancel Audible acquisition.');
+				setAcquisitionError(s, cause, 'Failed to cancel Audible acquisition.');
 			}
 		},
 	};

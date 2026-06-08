@@ -42,7 +42,7 @@ function mockOperationSnapshot(
 	operationId: string,
 	kind: 'processingBatch' | 'processingMerge',
 	inputFiles: string[],
-) {
+): OperationSnapshot {
 	return {
 		operationId,
 		sequence: mockJobCounter,
@@ -123,7 +123,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 				} satisfies SupportedAudioImportMetadata);
 			case 'discover_audio_import_paths': {
 				const args = _args as { inputPaths?: string[] } | undefined;
-				return Promise.resolve(args?.inputPaths ?? []) as Promise<string[]>;
+				return Promise.resolve((args?.inputPaths ?? []) satisfies string[]);
 			}
 			case 'take_opened_audio_files':
 				return Promise.resolve([] as string[]);
@@ -272,8 +272,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 				const args = _args as { operationId?: string } | undefined;
 				const operationId = args?.operationId ?? 'mock-operation';
 				return Promise.resolve(
-					mockOperationSnapshot(operationId, 'processingBatch', []),
-				) as Promise<OperationSnapshot>;
+					mockOperationSnapshot(operationId, 'processingBatch', []) satisfies OperationSnapshot,
+				);
 			}
 			case 'cancel_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
@@ -369,7 +369,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 					job_id: args?.jobId ?? null,
 					input_index: null,
 				});
-				return Promise.resolve('cancel requested' satisfies string);
+				// Generated type for cancelProcessing returns string; no narrower shape exists for satisfies.
+				return Promise.resolve('cancel requested');
 			}
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);

@@ -10,7 +10,10 @@ import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
 } from '../../test/fixtures/runtimeSettingsCapabilities';
-import { runtimeSettingsCapabilitiesState } from '../runtimeSettingsCapabilities.svelte';
+import {
+	runtimeSettingsCapabilitiesState,
+	setRuntimeSettingsCapabilities,
+} from '../runtimeSettingsCapabilities.svelte';
 
 const context = vi.hoisted(() => ({
 	getRuntimeSettingsCapabilitiesMock: vi.fn(),
@@ -57,8 +60,7 @@ describe('encoder panel behavior controls', () => {
 			totalDuration: 3600,
 		});
 		resetEncoderPanelState();
-		runtimeSettingsCapabilitiesState.capabilities = null;
-		runtimeSettingsCapabilitiesState.loadError = null;
+		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;
 		outputPanelState.estimatedSizeText = '~ --- MB';
 	});

@@ -21,7 +21,7 @@
   carry in-flight progress detail, child-job state, cancellability, and
   terminal summaries.
 - Work Center does **not** subscribe to `processing-progress` events, import
-  `ProcessingProgressEvent`, or apply legacy progress overlays for accepted
+  `ProcessingProgressEvent`, or apply client-authored progress overlays for accepted
   background operations. The `OperationSnapshot` is the sole progress source.
 - Terminal operation status is backend-canonical through
   `abb_processing_core::classify_run_terminal`. Work Center does not
