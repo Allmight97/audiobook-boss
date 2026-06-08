@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::remote_source::vault::KeyringSecretVault;
-use abb_audible_core::{find_first_string_for_keys, supplemental_pdf_display_file_name};
+use abb_audible_core::supplemental_pdf_display_file_name;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
