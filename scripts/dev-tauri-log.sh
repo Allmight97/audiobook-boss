@@ -4,7 +4,243 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_dir="$repo_root/.logs"
 log_file="$log_dir/tauri-dev.log"
+summary_file="$log_dir/tauri-dev-summary.md"
+encoding_log="$log_dir/encoding.log"
 dev_port="1420"
+run_id="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
+start_epoch="$(date +%s)"
+start_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+summary_written="false"
+rust_log_source="unset"
+declare -a port_notes=()
+
+timestamp_utc() {
+	date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+note_port_action() {
+	port_notes+=("$*")
+	printf '%s\n' "$*"
+}
+
+command_or_unavailable() {
+	local output
+
+	if output="$("$@" 2>/dev/null)"; then
+		printf '%s' "${output:-ok}"
+	else
+		printf 'unavailable'
+	fi
+}
+
+git_dirty_summary() {
+	local status
+
+	status="$(git status --short 2>/dev/null || true)"
+	if [[ -n "$status" ]]; then
+		printf '%s\n' "$status"
+	else
+		printf 'clean\n'
+	fi
+}
+
+package_declared_version() {
+	local package_name="$1"
+	node -e 'const fs = require("fs"); const pkgName = process.argv[1]; const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")); console.log(pkg.dependencies?.[pkgName] ?? pkg.devDependencies?.[pkgName] ?? pkg.peerDependencies?.[pkgName] ?? "not declared");' "$package_name" 2>/dev/null || printf 'unavailable'
+}
+
+package_installed_version() {
+	local package_name="$1"
+	node -e 'const fs = require("fs"); const pkgName = process.argv[1]; const path = `node_modules/${pkgName}/package.json`; if (!fs.existsSync(path)) { console.log("not installed"); process.exit(0); } console.log(JSON.parse(fs.readFileSync(path, "utf8")).version ?? "unknown");' "$package_name" 2>/dev/null || printf 'unavailable'
+}
+
+cargo_lock_version() {
+	local crate_name="$1"
+	awk -v target="$crate_name" '
+		$0 == "[[package]]" {
+			if (name == target) {
+				print version
+				printed = 1
+				exit
+			}
+			name = ""
+			version = ""
+			next
+		}
+		/^name = / {
+			name = $0
+			sub(/^name = "/, "", name)
+			sub(/"$/, "", name)
+		}
+		/^version = / {
+			version = $0
+			sub(/^version = "/, "", version)
+			sub(/"$/, "", version)
+		}
+		END {
+			if (!printed && name == target) {
+				print version
+				printed = 1
+			}
+			if (!printed) {
+				print "not locked"
+			}
+		}
+	' Cargo.lock 2>/dev/null || printf 'unavailable'
+}
+
+print_version_matrix() {
+	local package_name crate_name
+	local -a js_packages=(
+		"@tauri-apps/api"
+		"@tauri-apps/cli"
+		"@tauri-apps/plugin-dialog"
+		"@tauri-apps/plugin-opener"
+	)
+	local -a rust_crates=(
+		"tauri"
+		"tauri-build"
+		"tauri-utils"
+		"tauri-runtime"
+		"tauri-runtime-wry"
+		"wry"
+		"tao"
+		"tauri-plugin-dialog"
+		"tauri-plugin-opener"
+	)
+
+	printf 'Bun: %s\n' "$(command_or_unavailable bun --version)"
+	printf 'Node: %s\n' "$(command_or_unavailable node --version)"
+	printf 'Rust: %s\n' "$(command_or_unavailable rustc --version)"
+	printf 'Cargo: %s\n' "$(command_or_unavailable cargo --version)"
+	printf '\nJS Tauri packages:\n'
+	for package_name in "${js_packages[@]}"; do
+		printf -- '- %s declared=%s installed=%s\n' \
+			"$package_name" \
+			"$(package_declared_version "$package_name")" \
+			"$(package_installed_version "$package_name")"
+	done
+	printf '\nCargo.lock Tauri crates:\n'
+	for crate_name in "${rust_crates[@]}"; do
+		printf -- '- %s %s\n' "$crate_name" "$(cargo_lock_version "$crate_name")"
+	done
+}
+
+print_process_snapshot() {
+	ps -axo pid,ppid,stat,command 2>/dev/null | awk '
+		$4 == "awk" { next }
+		NR == 1 ||
+		/bun run tauri dev/ ||
+		/node_modules\/.bin\/tauri dev/ ||
+		/target\/debug\/audiobook-boss/ ||
+		/node_modules\/.bin\/vite/ ||
+		/[[:space:]]vite[[:space:]]/
+	'
+}
+
+print_log_matches() {
+	local source_file="$1"
+	local pattern='version mismatched|panicked|panic|thread .* panicked|error|failed|capabilit(y|ies)|ipc|forbidden|denied|ffmpeg|external fdk|warn'
+
+	if [[ ! -s "$source_file" ]]; then
+		printf 'no log content\n'
+		return 0
+	fi
+
+	if command -v rg >/dev/null 2>&1; then
+		rg -n -i "$pattern" "$source_file" 2>/dev/null | rg -v 'RUST_LOG:' | tail -n 80 || true
+	else
+		grep -nEi "$pattern" "$source_file" 2>/dev/null | grep -v 'RUST_LOG:' | tail -n 80 || true
+	fi
+}
+
+encoding_log_summary() {
+	local line_count section_count
+
+	if [[ ! -s "$encoding_log" ]]; then
+		printf 'No encoder entries were written. This is expected if no encode ran.\n'
+		return 0
+	fi
+
+	line_count="$(wc -l < "$encoding_log" | tr -d ' ')"
+	section_count="$(grep -c '^--- external-fdk run' "$encoding_log" 2>/dev/null || true)"
+	printf 'lines=%s external_fdk_sections=%s\n' "$line_count" "${section_count:-0}"
+}
+
+write_summary() {
+	local status="$1"
+	local end_epoch duration end_iso
+	end_epoch="$(date +%s)"
+	duration="$((end_epoch - start_epoch))"
+	end_iso="$(timestamp_utc)"
+
+	{
+		printf '# Tauri Dev Run Summary\n\n'
+		printf -- '- Run ID: `%s`\n' "$run_id"
+		printf -- '- Started: `%s`\n' "$start_iso"
+		printf -- '- Ended: `%s`\n' "$end_iso"
+		printf -- '- Duration: `%ss`\n' "$duration"
+		printf -- '- Exit status: `%s`\n' "$status"
+		printf -- '- Main log: `%s`\n' "$log_file"
+		printf -- '- Encoder log: `%s`\n' "$encoding_log"
+		printf '\n## Git\n\n'
+		printf -- '- Branch: `%s`\n' "$(command_or_unavailable git branch --show-current)"
+		printf -- '- HEAD: `%s`\n' "$(command_or_unavailable git rev-parse --short HEAD)"
+		printf '\n```text\n'
+		git_dirty_summary
+		printf '```\n'
+		printf '\n## Runtime Matrix\n\n```text\n'
+		print_version_matrix
+		printf '```\n'
+		printf '\n## Environment\n\n'
+		printf -- '- RUST_LOG: `%s`\n' "${RUST_LOG:-unset}"
+		printf -- '- RUST_LOG source: `%s`\n' "${rust_log_source:-unset}"
+		printf -- '- ABB_RUN_ID: `%s`\n' "${ABB_RUN_ID:-unset}"
+		printf -- '- ABB_ENCODING_LOG: `%s`\n' "${ABB_ENCODING_LOG:-unset}"
+		printf '\n## Port Handling\n\n'
+		if ((${#port_notes[@]} > 0)); then
+			printf '```text\n'
+			printf '%s\n' "${port_notes[@]}"
+			printf '```\n'
+		else
+			printf 'No pre-existing ABB dev server was replaced.\n'
+		fi
+		printf '\n## Process Snapshot At Exit\n\n```text\n'
+		print_process_snapshot
+		printf '```\n'
+		printf '\n## Main Log Matches\n\n'
+		printf 'Recent lines matching panic/error/warning/Tauri/IPC/FFmpeg patterns:\n\n'
+		printf '```text\n'
+		local matches
+		matches="$(print_log_matches "$log_file")"
+		if [[ -n "$matches" ]]; then
+			printf '%s\n' "$matches"
+		else
+			printf 'none\n'
+		fi
+		printf '```\n'
+		printf '\n## Encoder Log\n\n```text\n'
+		encoding_log_summary
+		printf '```\n'
+	} > "$summary_file"
+
+	summary_written="true"
+}
+
+finish_run() {
+	local status="$?"
+	set +e
+	if [[ "$summary_written" != "true" ]]; then
+		write_summary "$status"
+	fi
+	printf '\n=== ABB Tauri dev log finished ===\n'
+	printf 'Run ID: %s\n' "$run_id"
+	printf 'Ended: %s\n' "$(timestamp_utc)"
+	printf 'Exit status: %s\n' "$status"
+	printf 'Summary: %s\n' "$summary_file"
+	printf 'Encoder log: %s\n' "$encoding_log"
+	return "$status"
+}
 
 port_listener_pids() {
 	lsof -tiTCP:"$dev_port" -sTCP:LISTEN 2>/dev/null | sort -u
@@ -90,15 +326,17 @@ reclaim_dev_port() {
 		if ! is_repo_dev_listener "$pid"; then
 			command="$(process_command "$pid")"
 			cwd="$(process_cwd "$pid")"
-			printf 'Port %s is already in use by a non-ABB process; not killing it.\n' "$dev_port" >&2
-			printf 'PID: %s\nCWD: %s\nCommand: %s\n' "$pid" "${cwd:-unknown}" "${command:-unknown}" >&2
-			printf 'Stop that process or free port %s, then rerun bun run app:dev:log.\n' "$dev_port" >&2
+			note_port_action "Port $dev_port is already in use by a non-ABB process; not killing it."
+			note_port_action "PID: $pid"
+			note_port_action "CWD: ${cwd:-unknown}"
+			note_port_action "Command: ${command:-unknown}"
+			note_port_action "Stop that process or free port $dev_port, then rerun bun run app:dev:log."
 			exit 1
 		fi
 		collect_repo_dev_processes_from_pid "$pid"
 	done
 
-	printf 'Port %s is already held by ABB dev process(es): %s. Replacing them.\n' "$dev_port" "${dev_process_pids[*]}"
+	note_port_action "Port $dev_port is already held by ABB dev process(es): ${dev_process_pids[*]}. Replacing them."
 	for pid in "${dev_process_pids[@]}"; do
 		kill "$pid" 2>/dev/null || true
 	done
@@ -127,13 +365,61 @@ reclaim_dev_port() {
 
 mkdir -p "$log_dir"
 : > "$log_file"
+: > "$summary_file"
+: > "$encoding_log"
 
-echo "Writing Tauri dev log to $log_file"
+cat > "$encoding_log" <<EOF
+# ABB encoding log
+run_id=$run_id
+started=$start_iso
+main_log=$log_file
+
+EOF
+
+exec > >(tee -a "$log_file") 2>&1
+trap finish_run EXIT
+
 cd "$repo_root"
+export ABB_RUN_ID="$run_id"
+export ABB_ENCODING_LOG="$encoding_log"
+default_rust_log="audiobook_boss_lib=info,tauri=warn,wry=warn"
+if [[ -n "${ABB_DEV_RUST_LOG:-}" ]]; then
+	export RUST_LOG="$ABB_DEV_RUST_LOG"
+	rust_log_source="ABB_DEV_RUST_LOG"
+elif [[ "${ABB_DEV_USE_EXISTING_RUST_LOG:-}" == "1" && -n "${RUST_LOG:-}" ]]; then
+	rust_log_source="RUST_LOG"
+else
+	export RUST_LOG="$default_rust_log"
+	rust_log_source="dev-log default"
+fi
+
+printf '=== ABB Tauri dev log ===\n'
+printf 'Run ID: %s\n' "$run_id"
+printf 'Started: %s\n' "$start_iso"
+printf 'Repo: %s\n' "$repo_root"
+printf 'Main log: %s\n' "$log_file"
+printf 'Summary: %s\n' "$summary_file"
+printf 'Encoder log: %s\n' "$encoding_log"
+printf 'RUST_LOG: %s\n' "$RUST_LOG"
+printf 'RUST_LOG source: %s\n' "$rust_log_source"
+printf '\n=== Git ===\n'
+printf 'Branch: %s\n' "$(command_or_unavailable git branch --show-current)"
+printf 'HEAD: %s\n' "$(command_or_unavailable git rev-parse --short HEAD)"
+printf 'Dirty files:\n'
+git_dirty_summary
+printf '\n=== Runtime matrix ===\n'
+print_version_matrix
+printf '\n=== Port preflight ===\n'
 reclaim_dev_port
+if ((${#port_notes[@]} == 0)); then
+	printf 'Port %s is available.\n' "$dev_port"
+fi
+printf '\n=== Process snapshot before launch ===\n'
+print_process_snapshot
+printf '\n=== Tauri output ===\n'
 
 set +e
-bun run tauri dev 2>&1 | tee "$log_file"
-status="${PIPESTATUS[0]}"
+bun run tauri dev
+status="$?"
 set -e
 exit "$status"

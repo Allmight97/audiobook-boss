@@ -8,18 +8,25 @@ use std::borrow::Cow;
 use std::sync::{Once, OnceLock};
 
 pub(super) fn encoder_log(message: &str) {
-    static LOG_PATH: OnceLock<Option<String>> = OnceLock::new();
+    static LOG_TARGET: OnceLock<Option<EncoderLogTarget>> = OnceLock::new();
     static TRUNCATE: Once = Once::new();
 
-    let path = LOG_PATH.get_or_init(|| std::env::var("ABB_LOG_FILE").ok());
-    if let Some(p) = path {
-        TRUNCATE.call_once(|| {
-            let _ = std::fs::remove_file(p);
-        });
+    let target = LOG_TARGET.get_or_init(|| {
+        encoder_log_target_from_env(
+            std::env::var("ABB_ENCODING_LOG").ok(),
+            std::env::var("ABB_LOG_FILE").ok(),
+        )
+    });
+    if let Some(target) = target {
+        if matches!(target, EncoderLogTarget::Legacy(_)) {
+            TRUNCATE.call_once(|| {
+                let _ = std::fs::remove_file(target.path());
+            });
+        }
         if let Ok(mut file) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(p)
+            .open(target.path())
         {
             use std::io::Write;
             let _ = writeln!(file, "{}", message);
@@ -27,6 +34,34 @@ pub(super) fn encoder_log(message: &str) {
     }
 
     log::debug!("{}", message);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EncoderLogTarget {
+    Shared(String),
+    Legacy(String),
+}
+
+impl EncoderLogTarget {
+    fn path(&self) -> &str {
+        match self {
+            Self::Shared(path) | Self::Legacy(path) => path,
+        }
+    }
+}
+
+fn encoder_log_target_from_env(
+    shared_encoding_log: Option<String>,
+    legacy_log: Option<String>,
+) -> Option<EncoderLogTarget> {
+    shared_encoding_log
+        .filter(|path| !path.is_empty())
+        .map(EncoderLogTarget::Shared)
+        .or_else(|| {
+            legacy_log
+                .filter(|path| !path.is_empty())
+                .map(EncoderLogTarget::Legacy)
+        })
 }
 
 pub(super) fn resolve_plan_encoder_settings<'a>(
@@ -189,5 +224,21 @@ mod tests {
             .expect_err("auto must be resolved before frame planning");
 
         assert!(err.to_string().contains("resolved encoder type"));
+    }
+
+    #[test]
+    fn shared_encoding_log_takes_precedence_without_legacy_truncate() {
+        assert_eq!(
+            encoder_log_target_from_env(
+                Some("/tmp/encoding.log".to_string()),
+                Some("/tmp/legacy.log".to_string()),
+            ),
+            Some(EncoderLogTarget::Shared("/tmp/encoding.log".to_string()))
+        );
+        assert_eq!(
+            encoder_log_target_from_env(None, Some("/tmp/legacy.log".to_string())),
+            Some(EncoderLogTarget::Legacy("/tmp/legacy.log".to_string()))
+        );
+        assert_eq!(encoder_log_target_from_env(Some(String::new()), None), None);
     }
 }
