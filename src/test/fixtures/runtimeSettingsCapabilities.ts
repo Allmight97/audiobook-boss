@@ -62,8 +62,16 @@ export function runtimeSettingsCapabilitiesFixture(
 					allowedModes: ['vbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
 				},
-				{ encoderType: 'aac_at' as const, allowedModes: ['cvbr' as const], defaultMode: { mode: 'cvbr' as const } },
-				{ encoderType: 'native_aac' as const, allowedModes: ['cbr' as const], defaultMode: { mode: 'cbr' as const } },
+				{
+					encoderType: 'aac_at' as const,
+					allowedModes: ['cvbr' as const],
+					defaultMode: { mode: 'cvbr' as const },
+				},
+				{
+					encoderType: 'native_aac' as const,
+					allowedModes: ['cbr' as const],
+					defaultMode: { mode: 'cbr' as const },
+				},
 			],
 			vbrLevelMin: 1,
 			vbrLevelMax: 5,

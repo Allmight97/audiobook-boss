@@ -52,7 +52,7 @@ describe('statusPanel state machine', () => {
 		expect(next.currentStatus).not.toHaveProperty('etaSeconds');
 	});
 
-    it('uses backend operation identity to classify lifecycle work kind', () => {
+	it('uses backend operation identity to classify lifecycle work kind', () => {
 		const queuedMetadataSave: ProcessingQueueEvent = {
 			operation_kind: 'metadataSave',
 			items: [{ input_index: 0, file_path: '/books/a.m4b' }],
@@ -102,7 +102,7 @@ describe('statusPanel state machine', () => {
 		expect(afterProgress.intents).toEqual([]);
 	});
 
-    it('handles progress events that arrive before queue snapshot', () => {
+	it('handles progress events that arrive before queue snapshot', () => {
 		const model = createStatusPanelModel();
 		const earlyProgress: ProcessingProgressEvent = {
 			operation_kind: 'processingBatch',

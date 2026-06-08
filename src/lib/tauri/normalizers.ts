@@ -251,9 +251,7 @@ export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQue
 	return normalizeNullish(payload);
 }
 
-export function normalizeOperationSnapshot(
-	payload: GeneratedOperationSnapshot,
-): OperationSnapshot {
+export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {
 	return normalizeNullish(payload) as OperationSnapshot;
 }
 

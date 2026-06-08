@@ -64,10 +64,7 @@ export function bytesLabel(progress: AcquisitionProgress): string | null {
 	return `${downloadedMb.toFixed(1)} / ${totalMb.toFixed(1)} MB`;
 }
 
-export function progressTitleLabel(
-	progress: AcquisitionProgress,
-	titles: RemoteTitle[],
-): string {
+export function progressTitleLabel(progress: AcquisitionProgress, titles: RemoteTitle[]): string {
 	const title = titles.find((candidate) => candidate.titleId === progress.currentTitleId);
 	const ordinal =
 		progress.currentItemIndex != null && progress.totalItems != null
@@ -80,15 +77,17 @@ export function progressTitleLabel(
 }
 
 export function titleAvailability(title: RemoteTitle): RemoteTitleAvailability {
-	return title.availability ?? {
-		status: title.unsupportedReasons.length > 0 ? 'providerUnavailable' : 'available',
-		acquirable: title.unsupportedReasons.length === 0,
-		label: title.unsupportedReasons.length > 0 ? 'Unavailable from Audible' : 'Available',
-		detail:
-			title.unsupportedReasons.length > 0
-				? 'Audible reports this title is not playable or downloadable for this account.'
-				: undefined,
-	};
+	return (
+		title.availability ?? {
+			status: title.unsupportedReasons.length > 0 ? 'providerUnavailable' : 'available',
+			acquirable: title.unsupportedReasons.length === 0,
+			label: title.unsupportedReasons.length > 0 ? 'Unavailable from Audible' : 'Available',
+			detail:
+				title.unsupportedReasons.length > 0
+					? 'Audible reports this title is not playable or downloadable for this account.'
+					: undefined,
+		}
+	);
 }
 
 export function isTitleAcquirable(title: RemoteTitle): boolean {
@@ -144,10 +143,7 @@ export function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-export function toggleTitleSelection(
-	titles: Set<string>,
-	title: RemoteTitle,
-): Set<string> {
+export function toggleTitleSelection(titles: Set<string>, title: RemoteTitle): Set<string> {
 	const next = new Set(titles);
 	if (next.has(title.titleId)) {
 		next.delete(title.titleId);

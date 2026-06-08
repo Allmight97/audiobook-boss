@@ -46,23 +46,23 @@ describe('StatusPanel island mount', () => {
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
 	});
 
-    it('wires process and cancel buttons to status-panel actions', async () => {
-        render(StatusPanelIsland);
-        statusPanelViewState.isProcessing = true;
-        statusPanelViewState.jobItems = [
-            {
-                key: 'processing',
-                label: 'Book.m4b',
-                status: 'processing',
-                statusText: 'Converting',
-                canCancel: true,
-                cancelId: 'job-1',
-            },
-        ];
-        await tick();
+	it('wires process and cancel buttons to status-panel actions', async () => {
+		render(StatusPanelIsland);
+		statusPanelViewState.isProcessing = true;
+		statusPanelViewState.jobItems = [
+			{
+				key: 'processing',
+				label: 'Book.m4b',
+				status: 'processing',
+				statusText: 'Converting',
+				canCancel: true,
+				cancelId: 'job-1',
+			},
+		];
+		await tick();
 
-        const processButton = document.getElementById('process-button');
-        const cancelButton = document.getElementById('cancel-all-button');
+		const processButton = document.getElementById('process-button');
+		const cancelButton = document.getElementById('cancel-all-button');
 
 		processButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		cancelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

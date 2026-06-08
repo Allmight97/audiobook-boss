@@ -64,7 +64,7 @@ async function finishAcquisitionJob(
 	} else {
 		s.statusMessage =
 			uniqueDiagnosticMessage(job.diagnostics) ||
-				'Audible acquisition did not materialize an importable file.';
+			'Audible acquisition did not materialize an importable file.';
 	}
 }
 
@@ -112,7 +112,9 @@ export function createAcquisitionWorkflow(s: AcquisitionState) {
 		async cancelActiveAcquisition(): Promise<void> {
 			if (!s.activeJob || isAcquisitionTerminal(s.activeJob)) return;
 			try {
-				const cancelledJob = (await tauriClient.cancelRemoteSourceAcquisition(s.activeJob.jobId)) as AcquisitionJobWithProgress;
+				const cancelledJob = (await tauriClient.cancelRemoteSourceAcquisition(
+					s.activeJob.jobId,
+				)) as AcquisitionJobWithProgress;
 				s.activeJob = cancelledJob;
 				s.lastJob = cancelledJob;
 				s.statusMessage = statusFromAcquisitionJob(cancelledJob);

@@ -27,8 +27,12 @@ function cssRule(source: string, selector: string): string {
 
 describe('right column sibling layout', () => {
 	it('renders metadata, encoding, status, and work center as sibling zones', () => {
-		const metadataIndex = appSource.indexOf('class="panel right-column-panel metadata-manager-panel"');
-		const workbenchIndex = appSource.indexOf('class="panel right-column-panel encoding-workbench-panel"');
+		const metadataIndex = appSource.indexOf(
+			'class="panel right-column-panel metadata-manager-panel"',
+		);
+		const workbenchIndex = appSource.indexOf(
+			'class="panel right-column-panel encoding-workbench-panel"',
+		);
 		const statusIndex = appSource.indexOf('<StatusPanelIsland />');
 		const workCenterIndex = appSource.indexOf('<WorkCenterIsland />');
 

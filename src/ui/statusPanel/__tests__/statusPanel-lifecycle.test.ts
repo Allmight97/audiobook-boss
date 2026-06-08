@@ -86,27 +86,27 @@ describe('StatusPanel lifecycle', () => {
 		vi.restoreAllMocks();
 	});
 
-        it('disables cancel-all while cancel request is in flight and restores on success', async () => {
-            const controller = new StatusPanelRuntime();
+	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
+		const controller = new StatusPanelRuntime();
 
 		let resolveCancel!: (value: string) => void;
 		const inFlightCancel = new Promise<string>((resolve) => {
 			resolveCancel = resolve;
 		});
-            const cancelSpy = vi
-                .spyOn(tauriClient, 'cancelProcessing')
-                .mockImplementation(() => inFlightCancel);
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                job_id: 'job-1',
-                stage: STAGES.converting,
-                percentage: 25,
-                message: 'Converting...',
-            });
+		const cancelSpy = vi
+			.spyOn(tauriClient, 'cancelProcessing')
+			.mockImplementation(() => inFlightCancel);
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			job_id: 'job-1',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting...',
+		});
 
-            const cancelRequest = controller.requestCancelAll();
-            expect(cancelSpy).toHaveBeenCalledWith('job-1');
-            expect(statusPanelViewState.cancelAllPending).toBe(true);
+		const cancelRequest = controller.requestCancelAll();
+		expect(cancelSpy).toHaveBeenCalledWith('job-1');
+		expect(statusPanelViewState.cancelAllPending).toBe(true);
 
 		resolveCancel('cancel requested');
 		await cancelRequest;
@@ -116,29 +116,29 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toContain('Cancellation requested…');
 	});
 
-        it('preserves latest progress when cancel-all resolves after progress advances', async () => {
-            const controller = new StatusPanelRuntime();
+	it('preserves latest progress when cancel-all resolves after progress advances', async () => {
+		const controller = new StatusPanelRuntime();
 
 		let resolveCancel!: (value: string) => void;
 		const inFlightCancel = new Promise<string>((resolve) => {
 			resolveCancel = resolve;
-            });
-            vi.spyOn(tauriClient, 'cancelProcessing').mockImplementation(() => inFlightCancel);
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                job_id: 'job-1',
-                stage: STAGES.converting,
-                percentage: 25,
-                message: 'Converting...',
-            });
+		});
+		vi.spyOn(tauriClient, 'cancelProcessing').mockImplementation(() => inFlightCancel);
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			job_id: 'job-1',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting...',
+		});
 
-            const cancelRequest = controller.requestCancelAll();
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                job_id: 'job-1',
-                stage: STAGES.writing,
-                percentage: 68,
-                message: 'Writing metadata',
+		const cancelRequest = controller.requestCancelAll();
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			job_id: 'job-1',
+			stage: STAGES.writing,
+			percentage: 68,
+			message: 'Writing metadata',
 		});
 
 		resolveCancel('cancel requested');
@@ -155,18 +155,18 @@ describe('StatusPanel lifecycle', () => {
 	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
 		const controller = new StatusPanelRuntime();
 		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-            vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
-                new Error('tauriClient cancellation failed'),
-            );
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                job_id: 'job-1',
-                stage: STAGES.converting,
-                percentage: 25,
-                message: 'Converting...',
-            });
+		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
+			new Error('tauriClient cancellation failed'),
+		);
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			job_id: 'job-1',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting...',
+		});
 
-            await controller.requestCancelAll();
+		await controller.requestCancelAll();
 
 		expect(statusPanelViewState.cancelAllPending).toBe(false);
 		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
@@ -208,8 +208,8 @@ describe('StatusPanel lifecycle', () => {
 		const showErrorSpy = vi.spyOn(feedback, 'showError');
 		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
 
-            controller.applyQueueSnapshot({
-                operation_kind: 'processingBatch',
+		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
 			items: [
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
@@ -573,26 +573,26 @@ describe('StatusPanel lifecycle', () => {
 				{ input_index: 0, file_path: '/books/alpha.m4b' },
 				{ input_index: 1, file_path: '/books/beta.m4b' },
 			],
-                max_concurrent: 2,
-            });
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                input_index: 0,
-                job_id: 'job-0',
-                stage: STAGES.converting,
-                percentage: 25,
-                message: 'Converting alpha',
-            });
-            controller.applyProgress({
-                operation_kind: 'processingBatch',
-                input_index: 1,
-                job_id: 'job-1',
-                stage: STAGES.converting,
-                percentage: 25,
-                message: 'Converting beta',
-            });
+			max_concurrent: 2,
+		});
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting alpha',
+		});
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 1,
+			job_id: 'job-1',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting beta',
+		});
 
-            await controller.requestCancelAll();
+		await controller.requestCancelAll();
 		expect(getStepText()).toContain('Cancellation requested…');
 		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
 

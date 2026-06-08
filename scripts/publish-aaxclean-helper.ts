@@ -1,12 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-	chmodSync,
-	copyFileSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	statSync,
-} from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -46,10 +39,7 @@ export function resolveAaxcleanHelperPaths(repoRoot: string): AaxcleanHelperPath
 		publishDir,
 		publishedExecutablePath: path.join(publishDir, aaxcleanHelperBaseName),
 		sidecarDir,
-		sidecarPath: path.join(
-			sidecarDir,
-			`${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`,
-		),
+		sidecarPath: path.join(sidecarDir, `${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`),
 	};
 }
 

@@ -15,7 +15,8 @@ export const leftRows: TagRow[] = [
 	{
 		field: 'album',
 		label: 'Album (Book Title)',
-		title: 'Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.',
+		title:
+			'Groups all chapters under one album. Plex and Audiobookshelf use this for the book name.',
 	},
 	{
 		field: 'artist',
@@ -30,7 +31,8 @@ export const leftRows: TagRow[] = [
 	{
 		field: 'composer',
 		label: 'Composer (Narrator)',
-		title: 'Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.',
+		title:
+			'Stores the narrator. Plex shows this in audiobook details; Audiobookshelf displays it as narrator.',
 	},
 ];
 

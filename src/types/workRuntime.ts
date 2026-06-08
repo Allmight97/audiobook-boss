@@ -27,10 +27,7 @@ export type ResourceLane = GeneratedResourceLane;
 export type ProgressSnapshot = NullToOptionalDeep<GeneratedProgressSnapshot>;
 export type ChildJobSnapshot = NullToOptionalDeep<GeneratedChildJobSnapshot>;
 export type OperationTerminalSummary = NullToOptionalDeep<GeneratedOperationTerminalSummary>;
-export type OperationSnapshot = Omit<
-	NullToOptionalDeep<GeneratedOperationSnapshot>,
-	'children'
-> & {
+export type OperationSnapshot = Omit<NullToOptionalDeep<GeneratedOperationSnapshot>, 'children'> & {
 	children: ChildJobSnapshot[];
 };
 export type OperationListSnapshot = Omit<

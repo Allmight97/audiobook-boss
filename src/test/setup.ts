@@ -57,7 +57,11 @@ function mockOperationSnapshot(
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		lanes: ['analysis', 'encodeCpu', 'outputCommit'] as ('analysis' | 'encodeCpu' | 'outputCommit')[],
+		lanes: ['analysis', 'encodeCpu', 'outputCommit'] as (
+			| 'analysis'
+			| 'encodeCpu'
+			| 'outputCommit'
+		)[],
 		sourceInputIds: [],
 		progress: {
 			stage: 'pending' as const,
@@ -126,9 +130,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 			case 'get_max_concurrent_jobs':
 				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
-				return Promise.resolve(
-					runtimeSettingsCapabilitiesFixture(),
-				);
+				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
 			case 'analyze_audio_files':
 				return Promise.resolve({
 					files: [
