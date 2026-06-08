@@ -1,7 +1,5 @@
 use crate::audio;
-use crate::audio::{
-    AudioExecutionRequest, EncoderSettings, FileListInfo,
-};
+use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
@@ -11,13 +9,13 @@ use crate::output_artifact::{
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
-    OperationKind, OutputConfig, PreviewConfig, ProcessingContext, ProcessingSession,
-    ProcessPayload, ProcessResultEntry, ProcessResultStatus, SupplementalProcessingAsset,
+    OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
+    ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::OwnedSemaphorePermit;
-use std::sync::atomic::{AtomicBool};
 
 use crate::processing::terminal_outcomes::{
     classify_processing_error, terminal_failure_result, ProcessingJobTerminalOutcome,
@@ -171,10 +169,7 @@ pub(crate) fn commit_supplemental_assets(
     Ok(())
 }
 
-pub(crate) fn supplemental_commit_failure(
-    final_audio_path: &Path,
-    error: AppError,
-) -> AppError {
+pub(crate) fn supplemental_commit_failure(final_audio_path: &Path, error: AppError) -> AppError {
     let detail = match error {
         AppError::FileValidation(message) => message,
         other => other.to_string(),
@@ -234,9 +229,7 @@ struct ProcessingContextRequest {
     preview_seconds: Option<f64>,
 }
 
-fn build_processing_context(
-    request: ProcessingContextRequest,
-) -> (ProcessingContext, Option<f64>) {
+fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
     let session =
         ProcessingSession::from_job_registry(request.job_id.0, request.cancellation_checker);
     let mut context = ProcessingContext::new_with_workspace_root(

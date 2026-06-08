@@ -1,11 +1,9 @@
 use crate::audio::validate_encoder_settings;
 use crate::errors::Result;
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
-use crate::processing::{
-    JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan,
-};
-use std::path::PathBuf;
+use crate::processing::{JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 mod run_dispatch;
 mod run_job;
@@ -130,10 +128,10 @@ mod tests {
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
     use crate::errors::AppError;
     use crate::output_artifact::OutputKind;
-    use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
     use crate::processing::terminal_outcomes::{
         classify_processing_error, ProcessingJobTerminalOutcome,
     };
+    use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -188,11 +186,10 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
         let invalid_output = temp_dir.path().join("output.mp3");
 
-        let error =
-            match register_job_and_validate_output(&registry, &invalid_output, None).await {
-                Ok(_) => panic!("invalid extension should fail validation"),
-                Err(error) => error,
-            };
+        let error = match register_job_and_validate_output(&registry, &invalid_output, None).await {
+            Ok(_) => panic!("invalid extension should fail validation"),
+            Err(error) => error,
+        };
 
         assert!(
             error

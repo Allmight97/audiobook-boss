@@ -1,7 +1,7 @@
 mod artifact;
 mod collision;
 mod commit;
-mod naming;
+pub(crate) mod naming;
 mod parent_dirs;
 mod plan;
 mod review;
@@ -15,22 +15,18 @@ use crate::errors::AppError;
 
 pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
-#[cfg_attr(not(test), allow(unused_imports))]
-pub(crate) use naming::build_output_path;
 pub use naming::build_output_path_preview;
 pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
-#[allow(unused_imports)]
-pub(crate) use plan::{action_requires_output_write, plan_is_hard_block, OutputPlanLedger};
+pub(crate) use plan::OutputPlanLedger;
 pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
 pub(crate) use supplemental::{
     commit_supplemental_output_asset, SupplementalOutputAssetCommitRequest,
 };
+pub(crate) use types::ResolvedOutputPlan;
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
-#[allow(unused_imports)]
-pub(crate) use types::{OutputCollision, ResolvedOutputPlan};
 
 impl From<abb_output_artifact_core::OutputArtifactCoreError> for AppError {
     fn from(error: abb_output_artifact_core::OutputArtifactCoreError) -> Self {
