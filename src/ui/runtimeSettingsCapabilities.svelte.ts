@@ -8,7 +8,6 @@ export const runtimeSettingsCapabilitiesState = $state({
 });
 
 const pendingLoads = new Map<string, Promise<RuntimeSettingsCapabilities | null>>();
-let lastSuccessfulResult: RuntimeSettingsCapabilities | null = null;
 let latestLoadKey: string | null = null;
 
 export function setRuntimeSettingsCapabilities(
@@ -16,7 +15,6 @@ export function setRuntimeSettingsCapabilities(
 ): void {
 	runtimeSettingsCapabilitiesState.capabilities = capabilities;
 	runtimeSettingsCapabilitiesState.loadError = null;
-	lastSuccessfulResult = capabilities;
 }
 
 export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSettingsCapabilities | null> {
@@ -26,11 +24,8 @@ export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSetti
 		return existing;
 	}
 
-	// Serve cached successful result for sequential calls after the first
-	// successful hydration. `setRuntimeSettingsCapabilities(null)` clears it.
-	if (lastSuccessfulResult) {
-		runtimeSettingsCapabilitiesState.capabilities = lastSuccessfulResult;
-		return lastSuccessfulResult;
+	if (runtimeSettingsCapabilitiesState.capabilities) {
+		return runtimeSettingsCapabilitiesState.capabilities;
 	}
 
 	latestLoadKey = key;

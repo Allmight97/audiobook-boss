@@ -61,6 +61,41 @@ fn mark_running_does_not_overwrite_pending_cancellation() {
 }
 
 #[test]
+fn late_progress_does_not_overwrite_pending_cancellation() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    state
+        .request_cancel(&operation_id, 200)
+        .expect("request cancel");
+
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                operation_id: Some(operation_id.0.clone()),
+                operation_kind: OperationKind::ProcessingBatch,
+                stage: EventStage::Converting,
+                percentage: 60.0,
+                message: "Converting after cancel".to_string(),
+                current_file: Some("/tmp/first.m4b".to_string()),
+                eta_seconds: None,
+                job_id: Some("job-1".to_string()),
+                input_index: Some(0),
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Cancelling);
+    assert_eq!(snapshot.progress.stage, WorkProgressStage::Cleaning);
+    assert_eq!(snapshot.progress.message, "Cancellation requested.");
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Running);
+    assert_eq!(
+        snapshot.children[0].progress.message,
+        "Converting after cancel"
+    );
+}
+
+#[test]
 fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");

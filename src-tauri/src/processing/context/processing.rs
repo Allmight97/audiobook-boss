@@ -111,6 +111,25 @@ pub struct ProcessingContext {
     pub(crate) progress_listener: Option<ProgressEventListener>,
 }
 
+impl std::fmt::Debug for ProcessingContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessingContext")
+            .field("window", &self.window)
+            .field("session", &self.session)
+            .field("encoder_settings", &self.encoder_settings)
+            .field("sample_rate", &self.sample_rate)
+            .field("output", &self.output)
+            .field("workspace_root", &self.workspace_root)
+            .field("preview", &self.preview)
+            .field("job_id", &self.job_id)
+            .field("operation_id", &self.operation_id)
+            .field("input_index", &self.input_index)
+            .field("operation_kind", &self.operation_kind)
+            .field("progress_listener", &self.progress_listener.is_some())
+            .finish()
+    }
+}
+
 impl ProcessingContext {
     /// Creates a new ProcessingContext with the given components
     pub fn new(

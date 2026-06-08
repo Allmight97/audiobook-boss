@@ -476,4 +476,52 @@ mod tests {
         assert!(!unmaterialized_job_dir.exists());
         assert!(runtime.inner.jobs.lock().expect("jobs lock").is_empty());
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn logout_cleanup_attempts_remaining_sessions_after_purge_failure() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let bad_job_id = "a-broken-session";
+        let good_job_id = "z-good-session";
+        let good_job_dir = runtime
+            .inner
+            .staging
+            .create_job_dir(good_job_id)
+            .expect("good job dir");
+        std::fs::write(good_job_dir.join("source.aax"), b"protected")
+            .expect("write protected source");
+
+        let outside_target = root.path().join("outside-target");
+        std::fs::create_dir_all(&outside_target).expect("outside target");
+        std::fs::create_dir_all(runtime.inner.staging.session_root()).expect("session root");
+        std::os::unix::fs::symlink(
+            &outside_target,
+            runtime.inner.staging.session_root().join(bad_job_id),
+        )
+        .expect("create bad session symlink");
+
+        let mut jobs = runtime.inner.jobs.lock().expect("jobs lock");
+        jobs.insert(
+            bad_job_id.to_string(),
+            acquisition_job(bad_job_id, types::RemoteAcquisitionStatus::Acquiring),
+        );
+        jobs.insert(
+            good_job_id.to_string(),
+            acquisition_job(good_job_id, types::RemoteAcquisitionStatus::Acquiring),
+        );
+        drop(jobs);
+
+        let error = runtime
+            .cleanup_logout_sessions_without_handoff()
+            .expect_err("bad session should report cleanup error");
+
+        assert!(error
+            .to_string()
+            .contains("Refusing to cleanup path outside"));
+        assert!(
+            !good_job_dir.exists(),
+            "cleanup should continue after the bad session and remove later stale sessions"
+        );
+    }
 }

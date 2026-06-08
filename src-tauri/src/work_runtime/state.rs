@@ -106,6 +106,10 @@ impl WorkRuntimeState {
             return Ok(snapshot.clone());
         }
 
+        if snapshot.cancel_requested || snapshot.status == WorkOperationStatus::Cancelling {
+            return Ok(snapshot.clone());
+        }
+
         snapshot.progress.stage = if child_scoped_batch_event {
             in_flight_stage(snapshot.progress.stage)
         } else {

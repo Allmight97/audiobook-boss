@@ -11,7 +11,7 @@ use super::{RemoteProviderId, RemoteSourceRuntime};
 
 impl RemoteSourceRuntime {
     pub(super) fn cleanup_logout_sessions_without_handoff(&self) -> crate::errors::Result<()> {
-        let job_ids = self
+        let mut job_ids = self
             .inner
             .jobs
             .lock()
@@ -20,9 +20,22 @@ impl RemoteSourceRuntime {
             .filter(|job| job.materialized_files.is_empty())
             .map(|job| job.job_id.clone())
             .collect::<Vec<_>>();
+        job_ids.sort();
 
+        let mut last_error = None;
         for job_id in job_ids {
-            self.inner.staging.purge_session(&job_id)?;
+            if let Err(error) = self.inner.staging.purge_session(&job_id) {
+                log::warn!(
+                    "remote_source logout cleanup failed job_id={} error={}",
+                    job_id,
+                    error
+                );
+                last_error = Some(error);
+            }
+        }
+
+        if let Some(error) = last_error {
+            return Err(error);
         }
 
         Ok(())
