@@ -1,11 +1,11 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { ConcurrencyPreference } from '../../types/appSettings';
-import type { JobType } from '../../types/audio';
+import type { JobType, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import { flushSync } from 'svelte';
 import { jobControlsState } from './state.svelte';
 import { updateOutputPath } from '../outputPanel';
 import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
-import { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
+import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 export function initJobControls(): void {
 	void initializeRuntimeCapabilities();
@@ -13,7 +13,7 @@ export function initJobControls(): void {
 }
 
 async function initializeRuntimeCapabilities(): Promise<void> {
-	const capabilities = await hydrateRuntimeSettingsCapabilities();
+	const capabilities = await loadRuntimeSettingsCapabilities();
 	jobControlsState.maxConcurrentCapabilities = capabilities?.maxConcurrentJobs ?? null;
 }
 
@@ -59,8 +59,9 @@ export function getMaxConcurrentStatus(): {
 
 export async function applyMaxConcurrentPreference(
 	preference: ConcurrencyPreference,
+	capabilities: MaxConcurrentJobsCapabilities | null,
 ): Promise<void> {
-	await initializeRuntimeCapabilities();
+	jobControlsState.maxConcurrentCapabilities = capabilities;
 	const selection = preference.mode === 'fixed' ? String(preference.value) : 'auto';
 	const previousSelection = jobControlsState.maxConcurrentSelection;
 	jobControlsState.maxConcurrentSelection = selection;

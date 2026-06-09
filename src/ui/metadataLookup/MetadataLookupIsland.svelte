@@ -195,7 +195,7 @@
 					<div class="app-modal-result">
 						<div class="metadata-lookup-cover">
 							{#if result.coverUrl}
-								<img src={result.coverUrl} alt={`${result.title} cover art`} loading="lazy" />
+								<span data-testid="metadata-lookup-cover-available">Art Available</span>
 							{:else}
 								<span>No Art</span>
 							{/if}
@@ -260,12 +260,6 @@
 		color: var(--text-muted);
 		font-size: 0.7rem;
 		text-align: center;
-	}
-
-	.metadata-lookup-cover img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
 	}
 
 	.metadata-lookup-details {

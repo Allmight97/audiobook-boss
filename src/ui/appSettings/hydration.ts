@@ -3,6 +3,7 @@ import type { AppSettings } from '../../types/appSettings';
 import { applyEncodingDefaults } from '../encoderPanel';
 import { applyMaxConcurrentPreference } from '../jobControls';
 import { applyOutputDefaultsFromSettings } from '../outputPanel';
+import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 let hydrationPromise: Promise<void> | null = null;
 
@@ -21,8 +22,10 @@ async function hydrateOnce(): Promise<void> {
 		return;
 	}
 
+	const capabilities = await loadRuntimeSettingsCapabilities();
+
 	try {
-		await applyEncodingDefaults(settings.encoderDefaults);
+		await applyEncodingDefaults(settings.encoderDefaults, capabilities?.encoder ?? null);
 	} catch (error) {
 		console.warn('Failed to hydrate encoding defaults:', error);
 	}
@@ -34,7 +37,10 @@ async function hydrateOnce(): Promise<void> {
 	}
 
 	try {
-		await applyMaxConcurrentPreference(settings.maxConcurrentJobs);
+		await applyMaxConcurrentPreference(
+			settings.maxConcurrentJobs,
+			capabilities?.maxConcurrentJobs ?? null,
+		);
 	} catch (error) {
 		console.warn('Failed to hydrate max concurrency preference:', error);
 	}

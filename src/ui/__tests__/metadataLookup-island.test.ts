@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { render, waitFor } from '@testing-library/svelte';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -46,6 +46,7 @@ vi.mock('../metadataState', () => ({
 }));
 
 import { initMetadataLookup } from '../metadataLookup';
+import { metadataLookupState } from '../metadataLookup/state.svelte';
 
 describe('MetadataLookup island mount', () => {
 	beforeEach(() => {
@@ -61,5 +62,52 @@ describe('MetadataLookup island mount', () => {
 		expect(document.getElementById('metadata-lookup-modal')).toBeTruthy();
 		expect(document.getElementById('metadata-lookup-search-btn')).toBeTruthy();
 		expect(document.getElementById('metadata-lookup-skip-btn')).toBeTruthy();
+	});
+
+	it('does not render provider cover URLs as image sources', async () => {
+		initMetadataLookup();
+		metadataLookupState.results = [
+			{
+				source: 'audnexus',
+				sourceId: 'audnexus:private',
+				title: 'Private Cover',
+				authors: ['Author One'],
+				narrators: ['Narrator One'],
+				series: undefined,
+				seriesPart: undefined,
+				subseries: undefined,
+				subseriesPart: undefined,
+				description: 'Description',
+				publishedDate: '2020-07',
+				durationSeconds: 3600,
+				audibleOnly: false,
+				coverUrl: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+			},
+			{
+				source: 'openlibrary',
+				sourceId: 'openlibrary:loopback',
+				title: 'Loopback Cover',
+				authors: ['Author Two'],
+				narrators: ['Narrator Two'],
+				series: undefined,
+				seriesPart: undefined,
+				subseries: undefined,
+				subseriesPart: undefined,
+				description: 'Description',
+				publishedDate: '2021-08',
+				durationSeconds: 7200,
+				audibleOnly: false,
+				coverUrl: 'http://127.0.0.1:8080/private-cover.jpg',
+			},
+		];
+
+		await waitFor(() => {
+			expect(
+				document.querySelectorAll('[data-testid="metadata-lookup-cover-available"]'),
+			).toHaveLength(2);
+		});
+		expect(document.querySelectorAll('#metadata-lookup-results img')).toHaveLength(0);
+		expect(document.querySelector('[src*="169.254.169.254"]')).toBeNull();
+		expect(document.querySelector('[src*="127.0.0.1"]')).toBeNull();
 	});
 });
