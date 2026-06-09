@@ -62,10 +62,11 @@ Repo evidence:
 
 Library/source evidence:
 
-- Installed frontend stack: Svelte 5.55.9, Effect 3.21.2, Tauri API 2.10.1,
-  Vitest 4.1.5, TypeScript 6.0.3 in `package.json` and `bun.lock`.
-- Installed Rust Tauri stack: `tauri` 2.10.3 plus current Specta/
-  `tauri-specta` bindings in `src-tauri/Cargo.toml`.
+- Installed frontend stack: Svelte 5.55.9, Effect 3.21.2, Tauri API 2.11.0,
+  Tauri CLI 2.11.2, Vitest 4.1.5, TypeScript 6.0.3 in `package.json` and
+  `bun.lock`.
+- Rust Tauri stack: `src-tauri/Cargo.toml` declares and `Cargo.lock` resolves
+  `tauri` 2.11.2 plus current Specta/`tauri-specta` bindings.
 - Svelte docs validate `.svelte.ts` rune modules as real shared reactive state
   modules; ABB should still treat ownership as an app boundary decision.
 - Effect docs validate workflows, typed failures, services/context, and layers
