@@ -1,5 +1,16 @@
 import { tauriClient } from '../lib/tauri/client';
 import { normalizeAppError } from '../lib/tauri/appError';
+import type { MetadataIntentPatch } from '../types/metadataIntent';
+import { jobControlsState } from './jobControls/state.svelte';
+import { getSelectedFiles } from './fileList/state.svelte';
+import { getCurrentFileList } from './fileList/state.svelte';
+import { applyMetadataDraftIntent } from './metadataDraft';
+import { getMetadataForFile, setMetadataForFile } from './metadataState';
+import {
+	effectiveCoverForFile,
+	resolveCoverDisplayPath,
+	resolveCoverOwnerPaths,
+} from './coverArt/coverOwner';
 import {
 	clearCoverArtMessageState,
 	clearCoverArtSession,
@@ -17,11 +28,59 @@ import {
 
 let coverArtMessageTimeoutId: number | null = null;
 
+function readJobType() {
+	return jobControlsState.jobType;
+}
+
 export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;
 const COVER_ART_IMAGE_EXTENSION_HINT_PATTERN = new RegExp(
 	`\\.(${COVER_ART_IMAGE_EXTENSION_HINTS.join('|')})$`,
 	'i',
 );
+
+function buildCoverArtIntentPatch(
+	coverArtBytes: number[] | null,
+	markRemoval: boolean,
+): MetadataIntentPatch {
+	if (markRemoval || !coverArtBytes || coverArtBytes.length === 0) {
+		return { cover_art: { op: 'clear' } };
+	}
+	return { cover_art: { op: 'set', value: [...coverArtBytes] } };
+}
+
+function commitCoverArtToOwners(coverArtBytes: number[] | null, markRemoval: boolean): void {
+	const ownerPaths = resolveCoverOwnerPaths(
+		readJobType(),
+		getCurrentFileList(),
+		getSelectedFiles(),
+	);
+	if (ownerPaths.length === 0) {
+		return;
+	}
+
+	const intentPatch = buildCoverArtIntentPatch(coverArtBytes, markRemoval);
+	for (const filePath of ownerPaths) {
+		const existing = getMetadataForFile(filePath) ?? {};
+		const merged = applyMetadataDraftIntent(existing, intentPatch);
+		setMetadataForFile(filePath, merged, {
+			markPending: true,
+			intentPatch,
+		});
+	}
+}
+
+export function refreshCoverArtDisplay(): void {
+	const displayPath = resolveCoverDisplayPath(
+		readJobType(),
+		getCurrentFileList(),
+		getSelectedFiles(),
+	);
+	if (!displayPath) {
+		displayCoverArt(null);
+		return;
+	}
+	displayCoverArt(effectiveCoverForFile(displayPath));
+}
 
 /**
  * Handles the Clear Cover Art action
@@ -113,14 +172,10 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
 }
 
 function applyLoadedCoverArt(imageData: number[]): void {
-	setCoverArtSession(imageData);
-	setHasCustomCoverArt(true);
-	setCoverArtRemovalRequested(false);
-
-	displayCoverArt(imageData);
+	setCustomCoverArt(imageData);
 }
 
-function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
+export function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
 	const uint8Array = new Uint8Array(coverArtBytes);
 	const chunkSize = 0x8000;
 	let binary = '';
@@ -227,9 +282,16 @@ function parseCoverArtUrl(raw: string): URL | null {
 	}
 }
 
-// Global Exports
 export function getCurrentCoverArt(): number[] | null {
-	return coverArtSessionState.currentCoverArt;
+	const displayPath = resolveCoverDisplayPath(
+		readJobType(),
+		getCurrentFileList(),
+		getSelectedFiles(),
+	);
+	if (!displayPath) {
+		return null;
+	}
+	return effectiveCoverForFile(displayPath);
 }
 
 export function getHasCustomCoverArt(): boolean {
@@ -249,20 +311,31 @@ export function setCoverArt(coverArtBytes: number[] | null): void {
 }
 
 export function setCustomCoverArt(coverArtBytes: number[] | null): void {
+	if (!coverArtBytes || coverArtBytes.length === 0) {
+		clearCoverArt({ markRemoval: true });
+		return;
+	}
+
+	commitCoverArtToOwners(coverArtBytes, false);
 	setCoverArtSession(coverArtBytes);
-	setHasCustomCoverArt(Boolean(coverArtBytes && coverArtBytes.length > 0));
+	setHasCustomCoverArt(true);
 	setCoverArtRemovalRequested(false);
-	displayCoverArt(coverArtBytes);
+	refreshCoverArtDisplay();
 }
 
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {
 	const markRemoval = options?.markRemoval ?? false;
+
+	if (markRemoval || coverArtSessionState.hasCustomCoverArt) {
+		commitCoverArtToOwners(null, markRemoval);
+	}
+
 	clearCoverArtSession();
-	displayCoverArt(null);
 	setCoverArtRemovalRequested(markRemoval);
 	setHasCustomCoverArt(false);
 	setCoverArtUrlInputValue('');
 	clearCoverArtMessage();
 	setCoverArtDragOver(false);
 	setCoverArtHovered(false);
+	refreshCoverArtDisplay();
 }

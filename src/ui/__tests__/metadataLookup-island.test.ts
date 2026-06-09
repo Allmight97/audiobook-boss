@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
+
+const { loadCoverArtFromUrlMock } = vi.hoisted(() => ({
+	loadCoverArtFromUrlMock: vi.fn(),
+}));
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		searchOnlineMetadata: vi.fn(),
-		loadCoverArtFromUrl: vi.fn(),
+		loadCoverArtFromUrl: loadCoverArtFromUrlMock,
 	},
 }));
 
@@ -38,6 +43,9 @@ vi.mock('../coverArt', () => ({
 	clearCoverArt: vi.fn(),
 	setCoverArt: vi.fn(),
 	setCustomCoverArt: vi.fn(),
+	refreshCoverArtDisplay: vi.fn(),
+	coverArtBytesToDataUrl: (bytes: number[]) =>
+		`data:image/jpeg;base64,${btoa(String.fromCharCode(...bytes))}`,
 }));
 
 vi.mock('../metadataState', () => ({
@@ -45,11 +53,16 @@ vi.mock('../metadataState', () => ({
 	setMetadataForFile: vi.fn(),
 }));
 
+import { tick } from 'svelte';
 import { initMetadataLookup } from '../metadataLookup';
 import { metadataLookupState } from '../metadataLookup/state.svelte';
+import { clearMetadataLookupCoverPreviewCache } from '../metadataLookup/metadataLookupCoverPreview.svelte';
 
 describe('MetadataLookup island mount', () => {
 	beforeEach(() => {
+		clearMetadataLookupCoverPreviewCache();
+		loadCoverArtFromUrlMock.mockReset();
+		loadCoverArtFromUrlMock.mockResolvedValue([0xff, 0xd8, 0xff]);
 		document.body.innerHTML = `
       <button id="metadata-lookup-btn">Open</button>
     `;
@@ -64,8 +77,10 @@ describe('MetadataLookup island mount', () => {
 		expect(document.getElementById('metadata-lookup-skip-btn')).toBeTruthy();
 	});
 
-	it('does not render provider cover URLs as image sources', async () => {
+	it('loads cover previews through the backend without exposing provider URLs', async () => {
 		initMetadataLookup();
+		metadataLookupState.isOpen = true;
+		metadataLookupState.hasSearched = true;
 		metadataLookupState.results = [
 			{
 				source: 'audnexus',
@@ -81,7 +96,7 @@ describe('MetadataLookup island mount', () => {
 				publishedDate: '2020-07',
 				durationSeconds: 3600,
 				audibleOnly: false,
-				coverUrl: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+				coverUrl: 'https://covers.example.com/private-cover.jpg',
 			},
 			{
 				source: 'openlibrary',
@@ -97,16 +112,32 @@ describe('MetadataLookup island mount', () => {
 				publishedDate: '2021-08',
 				durationSeconds: 7200,
 				audibleOnly: false,
-				coverUrl: 'http://127.0.0.1:8080/private-cover.jpg',
+				coverUrl: 'https://covers.example.com/loopback-cover.jpg',
 			},
 		];
 
+		await tick();
+
+		const coverAreas = document.querySelectorAll('.metadata-lookup-cover');
+		expect(coverAreas.length).toBe(2);
+
+		await userEvent.hover(coverAreas[0] as Element);
+
 		await waitFor(() => {
-			expect(
-				document.querySelectorAll('[data-testid="metadata-lookup-cover-available"]'),
-			).toHaveLength(2);
+			expect(loadCoverArtFromUrlMock).toHaveBeenCalledWith(
+				'https://covers.example.com/private-cover.jpg',
+			);
 		});
-		expect(document.querySelectorAll('#metadata-lookup-results img')).toHaveLength(0);
+
+		await waitFor(() => {
+			expect(document.querySelector('[data-testid="metadata-lookup-cover-image"]')).toBeTruthy();
+		});
+
+		const image = document.querySelector(
+			'[data-testid="metadata-lookup-cover-image"]',
+		) as HTMLImageElement | null;
+		expect(image?.src.startsWith('data:image/jpeg;base64,')).toBe(true);
+		expect(image?.src).not.toContain('covers.example.com');
 		expect(document.querySelector('[src*="169.254.169.254"]')).toBeNull();
 		expect(document.querySelector('[src*="127.0.0.1"]')).toBeNull();
 	});

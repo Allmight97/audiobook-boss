@@ -29,8 +29,10 @@ const context = vi.hoisted(() => ({
 	updateOutputPathMock: vi.fn(),
 	updateTagPreviewMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
+	refreshCoverArtDisplayMock: vi.fn(),
 	getHasCustomCoverArtMock: vi.fn(() => false),
 	setCoverArtMock: vi.fn(),
+	getMetadataIntentPatchForFileMock: vi.fn(),
 	renderAutoResolutionHintsMock: vi.fn(),
 	resetAutoResolutionHintsMock: vi.fn(),
 }));
@@ -44,6 +46,7 @@ vi.mock('../../lib/tauri/client', () => ({
 vi.mock('../metadataState', () => ({
 	getMetadataForFile: context.getMetadataForFileMock,
 	setMetadataForFile: context.setMetadataForFileMock,
+	getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
 }));
 
 vi.mock('../metadataForm', () => ({
@@ -65,6 +68,7 @@ vi.mock('../coverArt', () => ({
 	clearCoverArt: context.clearCoverArtMock,
 	getHasCustomCoverArt: context.getHasCustomCoverArtMock,
 	setCoverArt: context.setCoverArtMock,
+	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 }));
 
 vi.mock('../encoderPanel/autoResolutionHints', () => ({
@@ -212,7 +216,7 @@ describe('metadata panel race guards', () => {
 		coverRequest.resolve({ cover_art: [1, 2, 3] });
 		await pending;
 
-		expect(context.setCoverArtMock).not.toHaveBeenCalled();
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 	});
 
 	it('drops auto-cover results from an outdated file list generation', async () => {
@@ -229,6 +233,6 @@ describe('metadata panel race guards', () => {
 		coverRequest.resolve({ cover_art: [9, 9, 9] });
 		await pending;
 
-		expect(context.setCoverArtMock).not.toHaveBeenCalled();
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 	});
 });

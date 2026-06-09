@@ -1,4 +1,4 @@
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 
 type FileListSessionState = {
 	currentFileList: FileListInfo | null;
@@ -53,6 +53,16 @@ export function getSelectedFileIndex(): number {
 
 export function getSelectedFileIndices(): Set<number> {
 	return new Set(fileListSessionState.selectedFileIndices);
+}
+
+export function getSelectedFiles(): AudioFile[] {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return [];
+	}
+	return Array.from(getSelectedFileIndices())
+		.map((index) => fileList.files[index])
+		.filter((file): file is AudioFile => Boolean(file));
 }
 
 export function setSelectedFileIndices(indices: Set<number> | number[]): void {

@@ -344,6 +344,46 @@ describe('startProcessing metadata staging', () => {
 		);
 	});
 
+	it('mirrors merge cover intent onto the merge key when a non-first file is selected', async () => {
+		context.getSelectedFileIndexMock.mockReturnValue(1);
+		context.getSelectedFileIndicesMock.mockReturnValue(new Set([1]));
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ cover_art: [7, 7, 7] });
+		context.getMetadataForFileMock.mockReturnValue({});
+		context.getMetadataIntentPatchForFileMock.mockImplementation((filePath: string) => {
+			if (filePath === '/books/a.m4b') {
+				return { cover_art: { op: 'set', value: [7, 7, 7] } };
+			}
+			return undefined;
+		});
+
+		await startProcessing(processingContext());
+
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/b.m4b',
+			expect.any(Object),
+			expect.objectContaining({
+				intentPatch: { cover_art: { op: 'set', value: [7, 7, 7] } },
+				markPending: true,
+			}),
+		);
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+			'/books/a.m4b',
+			expect.any(Object),
+			expect.objectContaining({
+				intentPatch: { cover_art: { op: 'set', value: [7, 7, 7] } },
+				markPending: true,
+			}),
+		);
+		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadataIntent: {
+					'/books/a.m4b': { cover_art: { op: 'set', value: [7, 7, 7] } },
+				},
+			}),
+		);
+	});
+
 	it('keeps batch metadata intent entries, including clear-intent values', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);

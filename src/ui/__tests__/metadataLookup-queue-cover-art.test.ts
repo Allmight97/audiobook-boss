@@ -12,6 +12,7 @@ const context = vi.hoisted(() => ({
 	applyMetadataToFormMock: vi.fn(),
 	setCustomCoverArtMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
+	refreshCoverArtDisplayMock: vi.fn(),
 	setCoverArtMock: vi.fn(),
 	updateOutputPathMock: vi.fn(),
 	updateEstimatedSizeMock: vi.fn(),
@@ -66,6 +67,7 @@ vi.mock('../metadataForm', () => ({
 
 vi.mock('../coverArt', () => ({
 	clearCoverArt: context.clearCoverArtMock,
+	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 	setCoverArt: context.setCoverArtMock,
 	setCustomCoverArt: context.setCustomCoverArtMock,
 }));
@@ -278,7 +280,7 @@ describe('metadata lookup queue cover art isolation', () => {
 			expect.objectContaining({ cover_art: [2, 2, 2] }),
 		);
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
-		expect(context.setCoverArtMock).toHaveBeenLastCalledWith([2, 2, 2]);
+		expect(context.refreshCoverArtDisplayMock).toHaveBeenCalled();
 	});
 
 	it('does not mutate metadata when skipping queue item', async () => {

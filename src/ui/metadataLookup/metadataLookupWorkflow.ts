@@ -28,6 +28,9 @@ import {
 	type MetadataLookupWorkflowServices,
 	type MetadataLookupWorkflowServicesId,
 } from './metadataLookupWorkflowServices';
+import {
+	getCachedMetadataLookupCoverBytes,
+} from './metadataLookupCoverPreview.svelte';
 
 export {
 	MetadataLookupWorkflowServicesTag,
@@ -132,7 +135,7 @@ async function advanceQueue(
 	const nextIndex = index + 1;
 	const nextItem = queue[nextIndex];
 
-	services.clearCoverArt();
+	services.refreshCoverArtDisplay();
 
 	if (nextItem) {
 		await services.selectFile(
@@ -162,10 +165,13 @@ async function advanceQueue(
 async function applyCoverArt(
 	services: MetadataLookupWorkflowServices,
 	result: OnlineMetadataResult,
+	resultIndex: number,
 ): Promise<CoverArtApplyResult> {
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
-		const coverBytes = await services.loadCoverArtFromUrl(result.coverUrl);
+		const cachedBytes = getCachedMetadataLookupCoverBytes(resultIndex);
+		const coverBytes =
+			cachedBytes ?? (await services.loadCoverArtFromUrl(result.coverUrl));
 		services.setCustomCoverArt(coverBytes);
 		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {
@@ -177,6 +183,7 @@ async function applyCoverArt(
 async function applyResult(
 	services: MetadataLookupWorkflowServices,
 	result: OnlineMetadataResult,
+	resultIndex: number,
 ): Promise<void> {
 	const queue = services.getQueueState().queue;
 	if (queue.length === 0) {
@@ -200,7 +207,7 @@ async function applyResult(
 	let queueCoverState: QueueCoverState = { intent: 'keep' };
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
-		const coverArtResult = await applyCoverArt(services, result);
+		const coverArtResult = await applyCoverArt(services, result, resultIndex);
 		if (coverArtResult.status === 'applied' && coverArtResult.bytes.length > 0) {
 			queueCoverState = { intent: 'replace', bytes: coverArtResult.bytes };
 		} else if (coverArtResult.status === 'failed') {
@@ -342,7 +349,7 @@ function metadataLookupWorkflowBody(
 				yield* workflowPromise(async () => {
 					const result = services.getLookupState().results[action.index];
 					if (!result) return;
-					await applyResult(services, result);
+					await applyResult(services, result, action.index);
 				}, 'Failed to apply metadata lookup result.');
 				return;
 			}

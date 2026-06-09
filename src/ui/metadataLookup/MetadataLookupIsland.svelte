@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { tauriClient } from '../../lib/tauri/client';
 	import {
 		applyMetadataLookupResult,
 		closeMetadataLookup,
@@ -8,6 +9,10 @@
 		skipMetadataLookupQueueItem,
 		useManualMetadataEntryFromLookup,
 	} from '../metadataLookup';
+	import {
+		fetchMetadataLookupCoverPreview,
+		getMetadataLookupCoverPreviewState,
+	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
 
 	function handleBackdropClick(event: MouseEvent): void {
@@ -48,6 +53,11 @@
 			);
 		}
 		return parts.length ? parts.join(' • ') : 'Series: —';
+	}
+
+	function requestCoverPreview(index: number, coverUrl: string | null | undefined): void {
+		if (!coverUrl) return;
+		void fetchMetadataLookupCoverPreview(index, coverUrl, tauriClient.loadCoverArtFromUrl);
 	}
 
 	onMount(() => {
@@ -193,9 +203,27 @@
 					{/if}
 				{#each metadataLookupState.results as result, index}
 					<div class="app-modal-result">
-						<div class="metadata-lookup-cover">
+						<div
+							class="metadata-lookup-cover"
+							role="presentation"
+							onmouseenter={() => requestCoverPreview(index, result.coverUrl)}
+							onfocusin={() => requestCoverPreview(index, result.coverUrl)}
+						>
 							{#if result.coverUrl}
-								<span data-testid="metadata-lookup-cover-available">Art Available</span>
+								{@const preview = getMetadataLookupCoverPreviewState(index)}
+								{#if preview.status === 'ready'}
+									<img
+										src={preview.dataUrl}
+										alt={`${result.title} cover art`}
+										data-testid="metadata-lookup-cover-image"
+									/>
+								{:else if preview.status === 'loading'}
+									<span data-testid="metadata-lookup-cover-loading">Loading…</span>
+								{:else if preview.status === 'error'}
+									<span data-testid="metadata-lookup-cover-error">Preview failed</span>
+								{:else}
+									<span data-testid="metadata-lookup-cover-available">Art Available</span>
+								{/if}
 							{:else}
 								<span>No Art</span>
 							{/if}
@@ -260,6 +288,12 @@
 		color: var(--text-muted);
 		font-size: 0.7rem;
 		text-align: center;
+	}
+
+	.metadata-lookup-cover img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.metadata-lookup-details {

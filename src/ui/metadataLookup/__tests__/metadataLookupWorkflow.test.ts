@@ -8,6 +8,10 @@ import type {
 	OnlineMetadataResult,
 } from '../../../types/metadata';
 import {
+	fetchMetadataLookupCoverPreview,
+	clearMetadataLookupCoverPreviewCache,
+} from '../metadataLookupCoverPreview.svelte';
+import {
 	makeMetadataLookupWorkflowServicesLayer,
 	MetadataLookupWorkflowFailed,
 	metadataLookupWorkflowExecution,
@@ -143,6 +147,7 @@ function makeHarness(options?: {
 	const clearCoverArt = vi.fn();
 	const setCoverArt = vi.fn();
 	const setCustomCoverArt = vi.fn();
+	const refreshCoverArtDisplay = vi.fn();
 	const searchOnlineMetadata = vi.fn(
 		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
@@ -171,6 +176,7 @@ function makeHarness(options?: {
 		clearCoverArt,
 		setCoverArt,
 		setCustomCoverArt,
+		refreshCoverArtDisplay,
 		searchOnlineMetadata,
 		loadCoverArtFromUrl,
 		focusElementById,
@@ -200,6 +206,7 @@ function makeHarness(options?: {
 			clearCoverArt,
 			setCoverArt,
 			setCustomCoverArt,
+			refreshCoverArtDisplay,
 			searchOnlineMetadata,
 			loadCoverArtFromUrl,
 			focusElementById,
@@ -211,6 +218,25 @@ function makeHarness(options?: {
 }
 
 describe('MetadataLookupWorkflow', () => {
+	it('reuses cached lookup cover bytes when applying metadata', async () => {
+		clearMetadataLookupCoverPreviewCache();
+		const result = lookupResult({ coverUrl: 'https://example.com/cover.jpg' });
+		const harness = makeHarness({
+			lookupState: { results: [result], replaceCoverArt: true, isOpen: true },
+			queueState: {
+				queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }],
+				index: 0,
+			},
+			loadCoverArtFromUrl: async () => [9, 9, 9],
+		});
+
+		await fetchMetadataLookupCoverPreview(0, result.coverUrl!, harness.mocks.loadCoverArtFromUrl);
+		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+
+		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
+		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([9, 9, 9]);
+	});
+
 	it('opens with an error when no selected files are valid', async () => {
 		const harness = makeHarness({
 			selectedIndices: new Set<number>([0]),
@@ -510,8 +536,8 @@ describe('MetadataLookupWorkflow', () => {
 
 		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
 
-		expect(harness.mocks.clearCoverArt).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.setCoverArt).toHaveBeenCalledWith([2]);
+		expect(harness.mocks.refreshCoverArtDisplay).toHaveBeenCalledTimes(1);
+		expect(harness.mocks.setCoverArt).not.toHaveBeenCalled();
 		expect(harness.lookupState.statusMessage).toBe('Queue complete.');
 	});
 

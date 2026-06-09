@@ -77,6 +77,41 @@ function stageMultiSelectionMetadata(
 	});
 }
 
+function stageMetadataIntentForFile(
+	services: ProcessingWorkflowServices,
+	filePath: string,
+	intentPatch: MetadataIntentPatch,
+): void {
+	const existing = services.getMetadataForFile(filePath) ?? {};
+	const currentMetadata = applyMetadataDraftIntent(existing, intentPatch);
+	services.setMetadataForFile(filePath, currentMetadata, {
+		markPending: true,
+		intentPatch,
+	});
+}
+
+function ensureMergeCoverIntentOnMergeKey(
+	services: ProcessingWorkflowServices,
+	fileList: FileListInfo,
+	intentPatch: MetadataIntentPatch,
+	activeFilePath: string | undefined,
+): void {
+	if (services.getJobType() !== 'merge') {
+		return;
+	}
+	const coverIntent = intentPatch.cover_art;
+	if (!coverIntent || coverIntent.op === 'noop') {
+		return;
+	}
+
+	const mergeKey = validInputFilePaths(fileList)[0];
+	if (!mergeKey || activeFilePath === mergeKey) {
+		return;
+	}
+
+	stageMetadataIntentForFile(services, mergeKey, { cover_art: coverIntent });
+}
+
 function stageSingleSelectionMetadata(
 	services: ProcessingWorkflowServices,
 	fileList: FileListInfo,
@@ -106,14 +141,8 @@ function stageSingleSelectionMetadata(
 				? fileList.files[selectedFileIndex]
 				: fileList.files.find((file) => file.isValid);
 		if (activeFile?.isValid && hasActionableMetadataDraftIntent(intentPatch)) {
-			const existing = services.getMetadataForFile(activeFile.path) ?? {};
-			const currentMetadata = applyMetadataDraftIntent(existing, intentPatch);
-			yield* Effect.sync(() =>
-				services.setMetadataForFile(activeFile.path, currentMetadata, {
-					markPending: true,
-					intentPatch,
-				}),
-			);
+			stageMetadataIntentForFile(services, activeFile.path, intentPatch);
+			ensureMergeCoverIntentOnMergeKey(services, fileList, intentPatch, activeFile.path);
 		}
 
 		return true;

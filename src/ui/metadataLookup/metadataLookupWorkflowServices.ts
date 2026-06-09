@@ -36,6 +36,7 @@ export interface MetadataLookupWorkflowServices {
 	clearCoverArt: () => void;
 	setCoverArt: (coverArtBytes: number[] | null) => void;
 	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
+	refreshCoverArtDisplay: () => void;
 	searchOnlineMetadata: typeof tauriClient.searchOnlineMetadata;
 	loadCoverArtFromUrl: typeof tauriClient.loadCoverArtFromUrl;
 	focusElementById: (id: string) => void;

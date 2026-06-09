@@ -3,7 +3,7 @@ import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
 	isCoverArtRemovalRequested,
-	setCoverArt,
+	refreshCoverArtDisplay,
 } from './coverArt';
 import {
 	resetMetadataFormPreviewState,
@@ -128,10 +128,7 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 		setMetadataFormPreviewValueByInputId(field.inputId, value);
 	}
 
-	if (!getHasCustomCoverArt()) {
-		setCoverArt(metadata.cover_art || null);
-	}
-
+	refreshCoverArtDisplay();
 	resetDirtyState();
 	updateTagPreview();
 }
@@ -176,10 +173,7 @@ export function populateMetadataFormMulti(
 		setMetadataFormPreviewValueByInputId(field.inputId, '');
 	}
 
-	if (!getHasCustomCoverArt()) {
-		setCoverArt(null);
-	}
-
+	refreshCoverArtDisplay();
 	resetDirtyState();
 	updateTagPreview();
 }
