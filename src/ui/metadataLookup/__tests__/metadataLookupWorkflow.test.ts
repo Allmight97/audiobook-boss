@@ -10,6 +10,7 @@ import type {
 import {
 	fetchMetadataLookupCoverPreview,
 	clearMetadataLookupCoverPreviewCache,
+	scheduleMetadataLookupCoverPreviews,
 } from '../metadataLookupCoverPreview.svelte';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
@@ -69,6 +70,27 @@ function lookupResponse(
 		diagnostics: [],
 		...overrides,
 	};
+}
+
+type Deferred<T> = {
+	promise: Promise<T>;
+	resolve: (value: T) => void;
+	reject: (reason?: unknown) => void;
+};
+
+function createDeferred<T>(): Deferred<T> {
+	let resolve!: (value: T) => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
+}
+
+async function flushAsync(): Promise<void> {
+	await Promise.resolve();
+	await Promise.resolve();
 }
 
 function defaultLookupState(overrides: Partial<MetadataLookupState> = {}): MetadataLookupState {
@@ -259,6 +281,34 @@ describe('MetadataLookupWorkflow', () => {
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
 		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([2, 2, 2]);
+	});
+
+	it('joins an in-flight eager lookup cover preview when applying metadata', async () => {
+		clearMetadataLookupCoverPreviewCache();
+		const result = lookupResult({ coverUrl: 'https://example.com/in-flight.jpg' });
+		const request = createDeferred<number[]>();
+		const loadCoverArtFromUrl = vi.fn(() => request.promise);
+		const harness = makeHarness({
+			lookupState: { results: [result], replaceCoverArt: true, isOpen: true },
+			queueState: {
+				queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }],
+				index: 0,
+			},
+			loadCoverArtFromUrl,
+		});
+
+		scheduleMetadataLookupCoverPreviews([result.coverUrl!], harness.mocks.loadCoverArtFromUrl);
+		await flushAsync();
+		const pendingApply = runMetadataLookupWorkflow(harness.layer, {
+			type: 'applyResult',
+			index: 0,
+		});
+		await flushAsync();
+		request.resolve([8, 8, 8]);
+		await pendingApply;
+
+		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
+		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([8, 8, 8]);
 	});
 
 	it('opens with an error when no selected files are valid', async () => {

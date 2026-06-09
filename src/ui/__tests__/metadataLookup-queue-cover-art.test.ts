@@ -246,7 +246,8 @@ describe('metadata lookup queue cover art isolation', () => {
 		await runSearchAndApply();
 
 		await waitForStatus('Metadata applied. Found 1 results.');
-		expect(context.loadCoverArtFromUrlMock).not.toHaveBeenCalled();
+		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
+		expect(context.setCustomCoverArtMock).not.toHaveBeenCalled();
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.objectContaining({ cover_art: [1, 1, 1] }),
@@ -279,7 +280,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		expect(writesByPath.get('/books/beta.m4b')).toEqual(
 			expect.objectContaining({ cover_art: [2, 2, 2] }),
 		);
-		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
+		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(2);
 		expect(context.refreshCoverArtDisplayMock).toHaveBeenCalled();
 	});
 

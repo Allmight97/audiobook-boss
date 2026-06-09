@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, waitFor } from '@testing-library/svelte';
+import { render, waitFor } from '@testing-library/svelte';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
 const { loadCoverArtFromUrlMock } = vi.hoisted(() => ({
@@ -76,7 +76,7 @@ describe('MetadataLookup island mount', () => {
 		expect(document.getElementById('metadata-lookup-skip-btn')).toBeTruthy();
 	});
 
-	it('loads cover previews through the backend without exposing provider URLs', async () => {
+	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
 		initMetadataLookup();
 		metadataLookupState.isOpen = true;
 		metadataLookupState.hasSearched = true;
@@ -119,13 +119,13 @@ describe('MetadataLookup island mount', () => {
 
 		const coverAreas = document.querySelectorAll('.metadata-lookup-cover');
 		expect(coverAreas.length).toBe(2);
-		expect(loadCoverArtFromUrlMock).not.toHaveBeenCalled();
-
-		await fireEvent.mouseEnter(coverAreas[0]);
 
 		await waitFor(() => {
 			expect(loadCoverArtFromUrlMock).toHaveBeenCalledWith(
 				'https://covers.example.com/private-cover.jpg',
+			);
+			expect(loadCoverArtFromUrlMock).toHaveBeenCalledWith(
+				'https://covers.example.com/loopback-cover.jpg',
 			);
 		});
 

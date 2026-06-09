@@ -9,9 +9,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Cover art ownership now follows output mode consistently: merge cover updates
   commit to the merge key, batch updates apply only to one selected file, and
   batch multi-select ignores cover-art commits.
-- Metadata lookup cover previews stay backend-proxied and URL-keyed while
-  loading lazily on preview hover/focus to avoid stale thumbnails and eager
-  result-list fetches.
+- Metadata lookup cover previews now load automatically through a bounded,
+  backend-proxied scheduler while preserving URL-keyed cache and stale-result
+  guards.
+- Audible acquisition validation now moves materialized audio probing and hash
+  work off the async executor.
 
 ## [1.1.0] - 2026-06-09
 
