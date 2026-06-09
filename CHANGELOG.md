@@ -2,6 +2,21 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Runtime settings capability loading now has explicit cache, refresh, and
+  invalidation semantics so App Settings can pass one capability snapshot into
+  encoder and job controls.
+
+### Fixed
+
+- Metadata lookup results no longer render provider-controlled cover URLs
+  directly; selected cover art still loads through the backend-validated
+  cover-art URL path.
+- Pages deployment actions are pinned to audited commit SHAs.
+
 ## [1.0.37] - 2026-06-09
 
 ### Changed
