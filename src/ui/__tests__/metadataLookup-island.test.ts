@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import MetadataLookupIsland from '../metadataLookup/MetadataLookupIsland.svelte';
 
 const { loadCoverArtFromUrlMock } = vi.hoisted(() => ({
@@ -118,16 +117,14 @@ describe('MetadataLookup island mount', () => {
 
 		await tick();
 
-		const coverAreas = document.querySelectorAll('.metadata-lookup-cover');
-		expect(coverAreas.length).toBe(2);
-
-		await userEvent.hover(coverAreas[0] as Element);
-
 		await waitFor(() => {
 			expect(loadCoverArtFromUrlMock).toHaveBeenCalledWith(
 				'https://covers.example.com/private-cover.jpg',
 			);
 		});
+
+		const coverAreas = document.querySelectorAll('.metadata-lookup-cover');
+		expect(coverAreas.length).toBe(2);
 
 		await waitFor(() => {
 			expect(document.querySelector('[data-testid="metadata-lookup-cover-image"]')).toBeTruthy();

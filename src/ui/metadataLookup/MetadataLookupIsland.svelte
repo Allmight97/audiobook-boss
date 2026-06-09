@@ -11,9 +11,17 @@
 	} from '../metadataLookup';
 	import {
 		fetchMetadataLookupCoverPreview,
-		getMetadataLookupCoverPreviewState,
+		metadataLookupCoverPreviewByIndex,
+		prefetchMetadataLookupCoverPreviews,
 	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
+
+	$effect(() => {
+		prefetchMetadataLookupCoverPreviews(
+			metadataLookupState.results,
+			tauriClient.loadCoverArtFromUrl,
+		);
+	});
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -210,7 +218,7 @@
 							onfocusin={() => requestCoverPreview(index, result.coverUrl)}
 						>
 							{#if result.coverUrl}
-								{@const preview = getMetadataLookupCoverPreviewState(index)}
+								{@const preview = metadataLookupCoverPreviewByIndex[index] ?? { status: 'idle' }}
 								{#if preview.status === 'ready'}
 									<img
 										src={preview.dataUrl}

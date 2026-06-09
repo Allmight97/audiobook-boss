@@ -63,3 +63,15 @@ export async function fetchMetadataLookupCoverPreview(
 	inflightByIndex.set(index, promise);
 	return promise;
 }
+
+export function prefetchMetadataLookupCoverPreviews(
+	results: ReadonlyArray<{ coverUrl: string | null | undefined }>,
+	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+): void {
+	for (const [index, result] of results.entries()) {
+		if (!result.coverUrl) {
+			continue;
+		}
+		void fetchMetadataLookupCoverPreview(index, result.coverUrl, loadCoverArtFromUrl);
+	}
+}
