@@ -2,6 +2,35 @@
 
 All notable changes to AudioBook Boss™ will be documented in this file.
 
+## [1.0.37] - 2026-06-09
+
+### Changed
+
+- Work Center now uses backend-authored WorkRuntime snapshots as the background
+  operation truth, with Status Panel retained for preview, metadata save, and
+  direct foreground cancellation.
+- Tightened frontend runtime-boundary validation so Tauri command mocks and
+  runtime settings capability state fail typecheck when generated IPC shapes
+  drift.
+- Split processing run, remote-source acquisition dialog, Audible probe, and
+  remote-source session lifecycle internals into clearer ownership modules.
+- Enhanced `bun run app:dev:log` with run summaries, Tauri package/runtime
+  matrix output, port handling, and a separate encoder log.
+- Updated Tauri frontend/Rust dependency declarations to the 2.11 runtime
+  family resolved by the lockfiles.
+
+### Fixed
+
+- WorkRuntime cancellation now preserves the visible cancelling state when late
+  processing progress arrives before terminal cancellation.
+- Remote-source logout and cancellation cleanup now purge stale sessions more
+  reliably without deleting already materialized handoff sessions.
+
+### Removed
+
+- Removed the stale encoder panel shell, dependency-only Effect smoke test, and
+  completed pattern-cleanup roadmap packet.
+
 ## [1.0.36] - 2026-06-07
 
 ### Changed
