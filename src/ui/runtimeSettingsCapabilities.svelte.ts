@@ -7,39 +7,54 @@ export const runtimeSettingsCapabilitiesState = $state({
 	loading: false,
 });
 
-const pendingLoads = new Map<string, Promise<RuntimeSettingsCapabilities | null>>();
-let latestLoadKey: string | null = null;
+let pendingLoad: Promise<RuntimeSettingsCapabilities | null> | null = null;
+let latestLoadId = 0;
 
 export function setRuntimeSettingsCapabilities(
 	capabilities: RuntimeSettingsCapabilities | null,
 ): void {
 	runtimeSettingsCapabilitiesState.capabilities = capabilities;
 	runtimeSettingsCapabilitiesState.loadError = null;
+	runtimeSettingsCapabilitiesState.loading = false;
 }
 
-export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSettingsCapabilities | null> {
-	const key = 'auto-detect';
-	const existing = pendingLoads.get(key);
-	if (existing) {
-		return existing;
+export function invalidateRuntimeSettingsCapabilities(): void {
+	latestLoadId += 1;
+	pendingLoad = null;
+	runtimeSettingsCapabilitiesState.capabilities = null;
+	runtimeSettingsCapabilitiesState.loadError = null;
+	runtimeSettingsCapabilitiesState.loading = false;
+}
+
+export function refreshRuntimeSettingsCapabilities(): Promise<RuntimeSettingsCapabilities | null> {
+	return loadRuntimeSettingsCapabilities({ refresh: true });
+}
+
+export async function loadRuntimeSettingsCapabilities(
+	options: { refresh?: boolean } = {},
+): Promise<RuntimeSettingsCapabilities | null> {
+	const refresh = options.refresh === true;
+	if (pendingLoad) {
+		return pendingLoad;
 	}
 
-	if (runtimeSettingsCapabilitiesState.capabilities) {
+	if (!refresh && runtimeSettingsCapabilitiesState.capabilities) {
 		return runtimeSettingsCapabilitiesState.capabilities;
 	}
 
-	latestLoadKey = key;
+	const loadId = latestLoadId + 1;
+	latestLoadId = loadId;
 	runtimeSettingsCapabilitiesState.loading = true;
-	const promise = tauriClient
+	pendingLoad = tauriClient
 		.getRuntimeSettingsCapabilities()
 		.then((capabilities) => {
-			if (latestLoadKey === key) {
+			if (latestLoadId === loadId) {
 				setRuntimeSettingsCapabilities(capabilities);
 			}
 			return capabilities;
 		})
 		.catch((error: unknown) => {
-			if (latestLoadKey === key) {
+			if (latestLoadId === loadId) {
 				runtimeSettingsCapabilitiesState.capabilities = null;
 				runtimeSettingsCapabilitiesState.loadError = error;
 			}
@@ -47,12 +62,11 @@ export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSetti
 			return null;
 		})
 		.finally(() => {
-			pendingLoads.delete(key);
-			if (latestLoadKey === key) {
+			if (latestLoadId === loadId) {
+				pendingLoad = null;
 				runtimeSettingsCapabilitiesState.loading = false;
 			}
 		});
 
-	pendingLoads.set(key, promise);
-	return promise;
+	return pendingLoad;
 }

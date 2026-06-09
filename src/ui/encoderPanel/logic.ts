@@ -12,7 +12,7 @@ import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../typ
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 import { persistEncoderDefaults } from '../appSettings/persistence';
-import { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
+import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -287,7 +287,7 @@ export const setRuntimeEncoderSettingsCapabilities = (
 };
 
 const hydrateEncoderAvailability = async (): Promise<void> => {
-	const capabilities = await hydrateRuntimeSettingsCapabilities();
+	const capabilities = await loadRuntimeSettingsCapabilities();
 	setRuntimeEncoderSettingsCapabilities(capabilities?.encoder ?? null);
 };
 

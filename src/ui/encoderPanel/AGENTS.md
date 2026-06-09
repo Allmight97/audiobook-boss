@@ -4,6 +4,8 @@
 - Import encoder request configuration from `src/ui/encoderPanel`.
 - Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,
   `readEncodingRequestConfig`.
+- `applyEncodingDefaults(defaults, capabilities)` accepts an already-loaded
+  Runtime Settings Capabilities encoder slice from App Settings hydration.
 - Composition-only UI shells may import `EncoderWorkbenchIsland.svelte`; do not
   use the main encoder index for renderer exports because it must stay
   side-effect-light for config consumers.

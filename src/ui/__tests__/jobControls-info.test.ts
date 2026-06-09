@@ -188,7 +188,10 @@ describe('Job controls merge toggle', () => {
 	it('applies a hydrated fixed max concurrency preference and updates indicator + status text', async () => {
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
 
-		await applyMaxConcurrentPreference({ mode: 'fixed', value: 3 });
+		await applyMaxConcurrentPreference(
+			{ mode: 'fixed', value: 3 },
+			runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
+		);
 		await flushAsync();
 
 		expect(getMaxConcurrentSelect().value).toBe('3');

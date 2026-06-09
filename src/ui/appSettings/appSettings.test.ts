@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	getAppSettingsMock: vi.fn(),
@@ -7,6 +8,7 @@ const context = vi.hoisted(() => ({
 	applyEncodingDefaultsMock: vi.fn(),
 	applyOutputDefaultsFromSettingsMock: vi.fn(),
 	applyMaxConcurrentPreferenceMock: vi.fn(),
+	loadRuntimeSettingsCapabilitiesMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -26,6 +28,10 @@ vi.mock('../outputPanel', () => ({
 
 vi.mock('../jobControls', () => ({
 	applyMaxConcurrentPreference: context.applyMaxConcurrentPreferenceMock,
+}));
+
+vi.mock('../runtimeSettingsCapabilities.svelte', () => ({
+	loadRuntimeSettingsCapabilities: context.loadRuntimeSettingsCapabilitiesMock,
 }));
 
 const settingsFixture = (): AppSettings => ({
@@ -56,21 +62,33 @@ describe('app settings control plane', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		context.updateAppSettingsMock.mockResolvedValue(settingsFixture());
+		context.loadRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture(),
+		);
 	});
 
 	it('hydrates existing control owners from backend App Settings', async () => {
 		const settings = settingsFixture();
+		const capabilities = runtimeSettingsCapabilitiesFixture({
+			maxConcurrentJobs: { fixedOptions: [1, 2, 3] },
+		});
 		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+		context.loadRuntimeSettingsCapabilitiesMock.mockResolvedValueOnce(capabilities);
 
 		const { hydrateAppSettings } = await import('./hydration');
 		await hydrateAppSettings();
 
-		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(settings.encoderDefaults);
+		expect(context.loadRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(
+			settings.encoderDefaults,
+			capabilities.encoder,
+		);
 		expect(context.applyOutputDefaultsFromSettingsMock).toHaveBeenCalledWith(
 			settings.outputDefaults,
 		);
 		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
 			settings.maxConcurrentJobs,
+			capabilities.maxConcurrentJobs,
 		);
 	});
 
@@ -82,12 +100,33 @@ describe('app settings control plane', () => {
 		const { hydrateAppSettings } = await import('./hydration');
 		await hydrateAppSettings();
 
-		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(settings.encoderDefaults);
+		expect(context.loadRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(
+			settings.encoderDefaults,
+			expect.any(Object),
+		);
 		expect(context.applyOutputDefaultsFromSettingsMock).toHaveBeenCalledWith(
 			settings.outputDefaults,
 		);
 		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
 			settings.maxConcurrentJobs,
+			expect.any(Object),
+		);
+	});
+
+	it('delegates null capability slices when runtime capability loading fails', async () => {
+		const settings = settingsFixture();
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+		context.loadRuntimeSettingsCapabilitiesMock.mockResolvedValueOnce(null);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(context.loadRuntimeSettingsCapabilitiesMock).toHaveBeenCalledTimes(1);
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(settings.encoderDefaults, null);
+		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
+			settings.maxConcurrentJobs,
+			null,
 		);
 	});
 
