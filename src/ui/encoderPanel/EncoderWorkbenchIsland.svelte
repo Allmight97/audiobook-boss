@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { outputPanelState } from '../outputPanel/state.svelte';
+	import { outputPanelState } from '../outputPanel';
 	import {
 		handleBitrateModeChange,
 		handleBitrateValueChange,

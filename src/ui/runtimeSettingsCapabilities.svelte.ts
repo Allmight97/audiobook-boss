@@ -24,6 +24,10 @@ export async function hydrateRuntimeSettingsCapabilities(): Promise<RuntimeSetti
 		return existing;
 	}
 
+	if (runtimeSettingsCapabilitiesState.capabilities) {
+		return runtimeSettingsCapabilitiesState.capabilities;
+	}
+
 	latestLoadKey = key;
 	runtimeSettingsCapabilitiesState.loading = true;
 	const promise = tauriClient

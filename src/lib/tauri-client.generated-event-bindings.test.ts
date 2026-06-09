@@ -33,7 +33,11 @@ describe('tauriClient generated event bindings', () => {
 		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.PROGRESS, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(2, EVENTS.QUEUE, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(3, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(4, EVENTS.WORK_OPERATION_SNAPSHOT, expect.any(Function));
+		expect(tauriListen).toHaveBeenNthCalledWith(
+			4,
+			EVENTS.WORK_OPERATION_SNAPSHOT,
+			expect.any(Function),
+		);
 		expect(tauriListen).toHaveBeenNthCalledWith(
 			5,
 			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,

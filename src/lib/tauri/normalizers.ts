@@ -15,7 +15,6 @@
 
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
-	EncoderAvailability as GeneratedEncoderAvailability,
 	FileListInfo as GeneratedFileListInfo,
 	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
 	MetadataLookupResponse as GeneratedMetadataLookupResponse,
@@ -30,7 +29,6 @@ import type {
 	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../generated/tauri';
 import type {
-	EncoderAvailability,
 	FileListInfo,
 	ProcessCommandResult,
 	ProcessPayload,
@@ -184,12 +182,6 @@ export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
 	return normalizeNullish(info);
 }
 
-export function normalizeEncoderAvailability(
-	availability: GeneratedEncoderAvailability,
-): EncoderAvailability {
-	return normalizeNullish(availability);
-}
-
 export function normalizeRuntimeSettingsCapabilities(
 	capabilities: GeneratedRuntimeSettingsCapabilities,
 ): RuntimeSettingsCapabilities {
@@ -259,9 +251,7 @@ export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQue
 	return normalizeNullish(payload);
 }
 
-export function normalizeOperationSnapshot(
-	payload: GeneratedOperationSnapshot,
-): OperationSnapshot {
+export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {
 	return normalizeNullish(payload) as OperationSnapshot;
 }
 

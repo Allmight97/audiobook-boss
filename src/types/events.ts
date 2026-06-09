@@ -56,8 +56,7 @@ export type ProcessingProgressEvent = NullToOptionalDeep<GeneratedProgressEvent>
 export type ProcessingQueueItem = NullToOptionalDeep<GeneratedQueueEvent>['items'][number];
 export type ProcessingQueueEvent = NullToOptionalDeep<GeneratedQueueEvent>;
 export type OpenedAudioFilesEvent = NullToOptionalDeep<GeneratedOpenedAudioFilesEvent>;
-export type WorkOperationSnapshotEvent =
-	NullToOptionalDeep<GeneratedWorkOperationSnapshotEvent>;
+export type WorkOperationSnapshotEvent = NullToOptionalDeep<GeneratedWorkOperationSnapshotEvent>;
 export type WorkOperationListSnapshotEvent =
 	NullToOptionalDeep<GeneratedWorkOperationListSnapshotEvent>;
 

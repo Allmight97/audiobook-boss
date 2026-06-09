@@ -1,8 +1,9 @@
 use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
-use super::{ChildJobStatus, OperationId, WorkOperationStatus};
+use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
-    JobType, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+    EventStage, JobType, OperationKind, ProcessCommandResult, ProcessResultEntry,
+    ProcessResultStatus, ProgressEvent,
 };
 
 fn accepted_state() -> (WorkRuntimeState, OperationId) {
@@ -60,6 +61,41 @@ fn mark_running_does_not_overwrite_pending_cancellation() {
 }
 
 #[test]
+fn late_progress_does_not_overwrite_pending_cancellation() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    state
+        .request_cancel(&operation_id, 200)
+        .expect("request cancel");
+
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                operation_id: Some(operation_id.0.clone()),
+                operation_kind: OperationKind::ProcessingBatch,
+                stage: EventStage::Converting,
+                percentage: 60.0,
+                message: "Converting after cancel".to_string(),
+                current_file: Some("/tmp/first.m4b".to_string()),
+                eta_seconds: None,
+                job_id: Some("job-1".to_string()),
+                input_index: Some(0),
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Cancelling);
+    assert_eq!(snapshot.progress.stage, WorkProgressStage::Cleaning);
+    assert_eq!(snapshot.progress.message, "Cancellation requested.");
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Running);
+    assert_eq!(
+        snapshot.children[0].progress.message,
+        "Converting after cancel"
+    );
+}
+
+#[test]
 fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
@@ -111,6 +147,155 @@ fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry 
         preview_actual_seconds: None,
         job_id: Some(format!("job-{input_index}")),
     }
+}
+
+#[test]
+fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+
+    let first_update = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                operation_id: Some(operation_id.0.clone()),
+                operation_kind: OperationKind::ProcessingBatch,
+                stage: EventStage::Converting,
+                percentage: 25.0,
+                message: "Converting file 1".to_string(),
+                current_file: Some("/tmp/first.m4b".to_string()),
+                eta_seconds: None,
+                job_id: Some("job-1".to_string()),
+                input_index: Some(0),
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(first_update.status, WorkOperationStatus::Running);
+    assert_eq!(first_update.progress.percentage, 12.5);
+    assert_eq!(first_update.progress.stage, WorkProgressStage::Converting);
+    assert_eq!(
+        first_update.children[0].status,
+        ChildJobStatus::Running,
+        "first child should become running"
+    );
+
+    let terminal_update = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                operation_id: Some(operation_id.0.clone()),
+                operation_kind: OperationKind::ProcessingBatch,
+                stage: EventStage::Completed,
+                percentage: 100.0,
+                message: "first complete".to_string(),
+                current_file: Some("/tmp/first.m4b".to_string()),
+                eta_seconds: None,
+                job_id: Some("job-1".to_string()),
+                input_index: Some(0),
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(terminal_update.status, WorkOperationStatus::Running);
+    assert_eq!(terminal_update.progress.percentage, 50.0);
+    assert_eq!(
+        terminal_update.progress.stage,
+        WorkProgressStage::Converting
+    );
+    assert_eq!(
+        terminal_update.children[0].status,
+        ChildJobStatus::Completed
+    );
+}
+
+#[test]
+fn apply_single_child_progress_stages_operation_stage_without_terminaling_operation() {
+    let (mut state, operation_id) = accepted_state();
+    let single = OperationId("single-op".to_string());
+    let mut single_snapshot = state.get(&operation_id).expect("snapshot");
+    single_snapshot.children = vec![single_snapshot.children.remove(0)];
+    single_snapshot.operation_id = single.clone();
+    state.insert_operation(single_snapshot);
+
+    let snapshot = state
+        .apply_progress_event(
+            &single,
+            &ProgressEvent {
+                operation_id: Some(single.0.clone()),
+                operation_kind: OperationKind::ProcessingMerge,
+                stage: EventStage::Completed,
+                percentage: 100.0,
+                message: "done".to_string(),
+                current_file: None,
+                eta_seconds: None,
+                job_id: Some("single-job".to_string()),
+                input_index: None,
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
+    assert_eq!(snapshot.progress.stage, WorkProgressStage::Complete);
+    assert_eq!(snapshot.children.len(), 1);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
+}
+
+#[test]
+fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                operation_id: Some(operation_id.0.clone()),
+                operation_kind: OperationKind::ProcessingBatch,
+                stage: EventStage::Failed,
+                percentage: 0.0,
+                message: "first failed".to_string(),
+                current_file: Some("/tmp/first.m4b".to_string()),
+                eta_seconds: None,
+                job_id: Some("job-1".to_string()),
+                input_index: Some(0),
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Failed);
+}
+
+#[test]
+fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
+    let (mut state, operation_id) = accepted_state();
+    let single = OperationId("single-op".to_string());
+    let mut single_snapshot = state.get(&operation_id).expect("snapshot");
+    single_snapshot.children = vec![single_snapshot.children.remove(0)];
+    single_snapshot.operation_id = single.clone();
+    state.insert_operation(single_snapshot);
+
+    let snapshot = state
+        .apply_progress_event(
+            &single,
+            &ProgressEvent {
+                operation_id: Some(single.0.clone()),
+                operation_kind: OperationKind::ProcessingMerge,
+                stage: EventStage::Failed,
+                percentage: 0.0,
+                message: "done".to_string(),
+                current_file: None,
+                eta_seconds: None,
+                job_id: Some("single-job".to_string()),
+                input_index: None,
+            },
+        )
+        .expect("progress");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Failed);
+    assert_eq!(snapshot.children.len(), 1);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Failed);
 }
 
 #[test]

@@ -74,8 +74,9 @@ pub(crate) fn enforce_output_plan_review<'a>(
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::OutputCollision;
     use super::*;
-    use crate::output_artifact::{OutputCollision, OutputCollisionKind, OutputKind};
+    use crate::output_artifact::{OutputCollisionKind, OutputKind};
     use std::path::PathBuf;
     use tempfile::TempDir;
 

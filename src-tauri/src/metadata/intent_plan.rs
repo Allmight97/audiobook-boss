@@ -101,7 +101,8 @@ mod tests {
         plan_metadata_write, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
         PatchOp,
     };
-    use crate::output_artifact::{build_output_path, OutputNamingConfig};
+    use crate::output_artifact::naming::build_output_path;
+    use crate::output_artifact::OutputNamingConfig;
     use std::path::Path;
 
     fn sample_source_metadata() -> AudiobookMetadata {

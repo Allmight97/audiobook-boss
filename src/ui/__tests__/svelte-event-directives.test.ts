@@ -20,7 +20,6 @@ const productionSvelteFiles = [
 	'src/ui/collisionDialog/CollisionDialogIsland.svelte',
 	'src/ui/coverArt/CoverArtIsland.svelte',
 	'src/ui/encodingWorkbench/EncodingWorkbenchIsland.svelte',
-	'src/ui/encoderPanel/EncoderPanelIsland.svelte',
 	'src/ui/encoderPanel/EncoderWorkbenchIsland.svelte',
 	'src/ui/fileImport/FileImportIsland.svelte',
 	'src/ui/leftColumn/FileInspectorPanel.svelte',

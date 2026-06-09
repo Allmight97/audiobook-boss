@@ -1,11 +1,11 @@
-import { tauriClient } from '../lib/tauri/client';
-import type { ConcurrencyPreference } from '../types/appSettings';
-import type { JobType } from '../types/audio';
+import { tauriClient } from '../../lib/tauri/client';
+import type { ConcurrencyPreference } from '../../types/appSettings';
+import type { JobType } from '../../types/audio';
 import { flushSync } from 'svelte';
-import { jobControlsState } from './jobControls/state.svelte';
-import { updateOutputPath } from './outputPanel';
-import { updateStatusPanelConcurrencyStatus } from './statusPanel';
-import { hydrateRuntimeSettingsCapabilities } from './runtimeSettingsCapabilities.svelte';
+import { jobControlsState } from './state.svelte';
+import { updateOutputPath } from '../outputPanel';
+import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
+import { hydrateRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 export function initJobControls(): void {
 	void initializeRuntimeCapabilities();

@@ -9,9 +9,8 @@
   side-effect-light for config consumers.
 
 ## Private Cluster
-- Files: `EncoderPanelIsland.svelte`, `EncoderWorkbenchIsland.svelte`,
-  `autoResolutionHints.ts`, `logic.ts`, `state.svelte.ts`, `view.ts`,
-  `__tests__/`.
+- Files: `EncoderWorkbenchIsland.svelte`, `autoResolutionHints.ts`, `logic.ts`,
+  `state.svelte.ts`, `view.ts`, `__tests__/`.
 - The cluster owns audio encoder UI state, resolved encoder availability,
   sample-rate/channel state, and encoding request configuration truth.
   Selectable validity facts for encoder options, bitrate modes, bitrates, VBR

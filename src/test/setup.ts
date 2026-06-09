@@ -10,6 +10,17 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
+import type {
+	FileListInfo,
+	MetadataIntentValidationResult,
+	MetadataLookupResponse,
+	MetadataSaveBatchResult,
+	OperationListSnapshot,
+	OperationSnapshot,
+	ProcessCommandResult,
+	SupportedAudioImportMetadata,
+	WorkSubmissionAccepted,
+} from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 type ProcessPayloadForTest = {
@@ -31,12 +42,12 @@ function mockOperationSnapshot(
 	operationId: string,
 	kind: 'processingBatch' | 'processingMerge',
 	inputFiles: string[],
-) {
+): OperationSnapshot {
 	return {
 		operationId,
 		sequence: mockJobCounter,
 		kind,
-		status: 'accepted',
+		status: 'accepted' as const,
 		title:
 			kind === 'processingMerge'
 				? `Merge encode (${inputFiles.length} files)`
@@ -46,10 +57,14 @@ function mockOperationSnapshot(
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+		lanes: ['analysis', 'encodeCpu', 'outputCommit'] as (
+			| 'analysis'
+			| 'encodeCpu'
+			| 'outputCommit'
+		)[],
 		sourceInputIds: [],
 		progress: {
-			stage: 'pending',
+			stage: 'pending' as const,
 			percentage: 0,
 			message: 'Accepted.',
 			currentItemIndex: null,
@@ -62,10 +77,10 @@ function mockOperationSnapshot(
 			childJobId: `input-${index}`,
 			operationId,
 			label: path.split(/[\\/]/).pop() || path,
-			status: 'queued',
-			lane: 'encodeCpu',
+			status: 'queued' as const,
+			lane: 'encodeCpu' as const,
 			progress: {
-				stage: 'pending',
+				stage: 'pending' as const,
 				percentage: 0,
 				message: 'Queued.',
 				currentItemIndex: null,
@@ -105,13 +120,15 @@ vi.mock('@tauri-apps/api/core', () => ({
 					extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
 					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
-				});
+				} satisfies SupportedAudioImportMetadata);
 			case 'discover_audio_import_paths': {
 				const args = _args as { inputPaths?: string[] } | undefined;
-				return Promise.resolve(args?.inputPaths ?? []);
+				return Promise.resolve((args?.inputPaths ?? []) satisfies string[]);
 			}
 			case 'take_opened_audio_files':
-				return Promise.resolve([]);
+				return Promise.resolve([] as string[]);
+			case 'get_max_concurrent_jobs':
+				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
 			case 'analyze_audio_files':
@@ -126,6 +143,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 							bitrate: 64,
 							sampleRate: 44100,
 							channels: 1,
+							format: 'mp3',
+							codecLabel: 'MP3',
+							selectedDecoder: 'ffmpeg',
+							error: null,
 						},
 						{
 							inputId: 'mock-input-2',
@@ -136,13 +157,21 @@ vi.mock('@tauri-apps/api/core', () => ({
 							bitrate: 64,
 							sampleRate: 44100,
 							channels: 1,
+							format: 'mp3',
+							codecLabel: 'MP3',
+							selectedDecoder: 'ffmpeg',
+							error: null,
 						},
+					],
+					selectedDecoders: [
+						{ decoderId: 'ffmpeg_mp3', decoderLabel: 'FFmpeg MP3' },
+						{ decoderId: 'ffmpeg_mp3', decoderLabel: 'FFmpeg MP3' },
 					],
 					totalDuration: 700,
 					totalSize: 35 * 1024 * 1024,
 					validCount: 2,
 					invalidCount: 0,
-				});
+				} satisfies FileListInfo);
 			case 'search_online_metadata':
 				return Promise.resolve({
 					results: [
@@ -164,7 +193,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						},
 					],
 					diagnostics: [],
-				});
+				} satisfies MetadataLookupResponse);
 			case 'process_audiobook_files': {
 				mockJobCounter += 1;
 				const jobId = `mock-job-${mockJobCounter}`;
@@ -205,7 +234,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					results: [
 						{
 							inputIndex: 0,
-							status: 'success',
+							status: 'success' as const,
 							message: 'Processing started (mock)',
 							jobId,
 							error: null,
@@ -213,7 +242,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 							previewActualSeconds: null,
 						},
 					],
-				});
+				} satisfies ProcessCommandResult);
 			}
 			case 'submit_processing_operation': {
 				const args = _args as
@@ -230,24 +259,31 @@ vi.mock('@tauri-apps/api/core', () => ({
 				const snapshot = mockOperationSnapshot(operationId, kind, inputFiles);
 				emitTestEvent('work-operation-snapshot', { snapshot });
 				emitTestEvent('work-operation-list-snapshot', { operations: [snapshot] });
-				return Promise.resolve({ operationId, snapshot });
+				return Promise.resolve({
+					operationId,
+					snapshot,
+				} satisfies WorkSubmissionAccepted);
 			}
 			case 'list_work_operations':
-				return Promise.resolve({ operations: [] });
+				return Promise.resolve({
+					operations: [],
+				} satisfies OperationListSnapshot);
 			case 'get_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
 				const operationId = args?.operationId ?? 'mock-operation';
-				return Promise.resolve(mockOperationSnapshot(operationId, 'processingBatch', []));
+				return Promise.resolve(
+					mockOperationSnapshot(operationId, 'processingBatch', []) satisfies OperationSnapshot,
+				);
 			}
 			case 'cancel_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
 				const operationId = args?.operationId ?? 'mock-operation';
 				return Promise.resolve({
 					...mockOperationSnapshot(operationId, 'processingBatch', []),
-					status: 'cancelling',
+					status: 'cancelling' as const,
 					cancelRequested: true,
 					cancellable: false,
-				});
+				} satisfies OperationSnapshot);
 			}
 			case 'save_metadata_batch': {
 				mockJobCounter += 1;
@@ -303,11 +339,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 					results: items.map((item, index) => ({
 						inputIndex: index,
 						filePath: item.filePath,
-						status: 'success',
+						status: 'success' as const,
 						message: 'Metadata saved',
 						error: null,
 					})),
-				});
+				} satisfies MetadataSaveBatchResult);
 			}
 			case 'validate_metadata_intent_patch': {
 				const args = _args as
@@ -319,7 +355,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					isValid: true,
 					metadataPatch: args?.metadataPatch ?? {},
 					fieldErrors: [],
-				});
+				} satisfies MetadataIntentValidationResult);
 			}
 			case 'cancel_processing': {
 				const args = _args as { jobId?: string | null } | undefined;
@@ -333,6 +369,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 					job_id: args?.jobId ?? null,
 					input_index: null,
 				});
+				// Generated type for cancelProcessing returns string; no narrower shape exists for satisfies.
 				return Promise.resolve('cancel requested');
 			}
 			default:

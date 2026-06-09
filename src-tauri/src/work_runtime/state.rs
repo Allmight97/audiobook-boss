@@ -3,7 +3,8 @@ use super::types::{
     WorkProgressStage,
 };
 use crate::errors::{AppError, Result};
-use crate::processing::{OperationResultSummary, ProcessCommandResult};
+use crate::processing::ProgressEvent;
+use crate::processing::{EventStage, OperationResultSummary, ProcessCommandResult};
 use std::collections::BTreeMap;
 
 use super::terminal::{
@@ -11,6 +12,13 @@ use super::terminal::{
     stage_from_child_status, stage_from_status, terminal_summary_from_process_result,
     work_status_from_process_result,
 };
+
+const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
+    ChildJobStatus::Completed,
+    ChildJobStatus::Skipped,
+    ChildJobStatus::Cancelled,
+    ChildJobStatus::Failed,
+];
 
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
@@ -56,6 +64,70 @@ impl WorkRuntimeState {
                 }
             }
         }
+        Ok(snapshot.clone())
+    }
+
+    pub(crate) fn apply_progress_event(
+        &mut self,
+        operation_id: &OperationId,
+        event: &ProgressEvent,
+    ) -> Result<OperationSnapshot> {
+        let snapshot = self.snapshot_mut(operation_id)?;
+        if is_terminal(snapshot.status) {
+            return Ok(snapshot.clone());
+        }
+
+        let child_count = snapshot.children.len();
+        let mut matched_child = false;
+        let mut child_scoped_batch_event = false;
+
+        for child in &mut snapshot.children {
+            if !progress_matches_child(child, event, child_count) {
+                continue;
+            }
+            matched_child = true;
+            child_scoped_batch_event = child_count > 1;
+
+            let child_status = child_status_from_event_stage(event.stage);
+            if let Some(job_id) = event.job_id.as_deref() {
+                child.job_id = Some(job_id.to_string());
+            }
+            child.status = child_status;
+            child.progress.stage = work_stage_from_event_stage(event.stage);
+            child.progress.percentage = event.percentage.clamp(0.0, 100.0);
+            child.progress.message = event.message.clone();
+            child.progress.eta_seconds = event.eta_seconds;
+            child.cancellable =
+                matches!(child_status, ChildJobStatus::Running) && event.job_id.is_some();
+            child.message = Some(event.message.clone());
+        }
+
+        if !matched_child {
+            return Ok(snapshot.clone());
+        }
+
+        if snapshot.cancel_requested || snapshot.status == WorkOperationStatus::Cancelling {
+            return Ok(snapshot.clone());
+        }
+
+        snapshot.progress.stage = if child_scoped_batch_event {
+            in_flight_stage(snapshot.progress.stage)
+        } else {
+            work_stage_from_event_stage(event.stage)
+        };
+        snapshot.progress.percentage = if child_scoped_batch_event {
+            aggregate_child_progress(&snapshot.children)
+        } else {
+            event.percentage.clamp(0.0, 100.0)
+        };
+        snapshot.progress.message = event.message.clone();
+        snapshot.progress.eta_seconds = event.eta_seconds;
+        snapshot.status = operation_status_from_event_stage(
+            event.stage,
+            snapshot.status,
+            child_scoped_batch_event,
+        );
+
         Ok(snapshot.clone())
     }
 
@@ -178,5 +250,95 @@ impl WorkRuntimeState {
         self.operations
             .get_mut(operation_id.as_str())
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
+    }
+}
+
+fn progress_matches_child(
+    child: &super::types::ChildJobSnapshot,
+    event: &ProgressEvent,
+    child_count: usize,
+) -> bool {
+    if let Some(job_id) = event.job_id.as_deref() {
+        if let Some(existing_job_id) = child.job_id.as_deref() {
+            return Some(job_id) == Some(existing_job_id);
+        }
+    }
+
+    if let Some(input_index) = event.input_index {
+        return child.input_index == Some(input_index);
+    }
+
+    child_count == 1
+}
+
+fn aggregate_child_progress(children: &[super::types::ChildJobSnapshot]) -> f32 {
+    if children.is_empty() {
+        return 0.0;
+    }
+
+    let total = children
+        .iter()
+        .map(|child| {
+            let percentage = if TERMINAL_CHILD_STATUSES.contains(&child.status) {
+                100.0
+            } else {
+                child.progress.percentage.clamp(0.0, 100.0)
+            };
+            percentage
+        })
+        .sum::<f32>();
+
+    total / children.len() as f32
+}
+
+fn in_flight_stage(current: WorkProgressStage) -> WorkProgressStage {
+    if matches!(
+        current,
+        WorkProgressStage::Pending | WorkProgressStage::Analyzing
+    ) {
+        WorkProgressStage::Converting
+    } else {
+        current
+    }
+}
+
+fn child_status_from_event_stage(stage: EventStage) -> ChildJobStatus {
+    match stage {
+        EventStage::Completed => ChildJobStatus::Completed,
+        EventStage::Skipped => ChildJobStatus::Skipped,
+        EventStage::Failed => ChildJobStatus::Failed,
+        EventStage::Cancelled => ChildJobStatus::Cancelled,
+        _ => ChildJobStatus::Running,
+    }
+}
+
+fn work_stage_from_event_stage(stage: EventStage) -> WorkProgressStage {
+    match stage {
+        EventStage::Analyzing => WorkProgressStage::Analyzing,
+        EventStage::Converting => WorkProgressStage::Converting,
+        EventStage::Writing => WorkProgressStage::Writing,
+        EventStage::Completed | EventStage::Skipped => WorkProgressStage::Complete,
+        EventStage::Failed => WorkProgressStage::Failed,
+        EventStage::Cancelled => WorkProgressStage::Cancelled,
+    }
+}
+
+fn operation_status_from_event_stage(
+    stage: EventStage,
+    current: WorkOperationStatus,
+    child_scoped_batch_event: bool,
+) -> WorkOperationStatus {
+    if is_terminal(current) {
+        return current;
+    }
+
+    if child_scoped_batch_event {
+        return WorkOperationStatus::Running;
+    }
+
+    match stage {
+        EventStage::Failed => WorkOperationStatus::Failed,
+        EventStage::Cancelled => WorkOperationStatus::Cancelled,
+        _ => WorkOperationStatus::Running,
     }
 }

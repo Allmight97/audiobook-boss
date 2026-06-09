@@ -40,6 +40,7 @@ commands over invoking internals directly.
   `bun run app:dev:log`; inspect `.logs/tauri-dev.log` before asking for pasted
   terminal output. The file is overwritten on each fresh run.
 - Frontend owner: `bun run test -- <owner test files>`.
+- Frontend type validation: `bun run typecheck`.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local` and targeted
   `tauriClient`/contract Vitest files.

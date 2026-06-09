@@ -7,7 +7,10 @@ use super::{
 };
 use crate::processing::OperationKind;
 use crate::processing::ProcessingStage;
+use std::sync::Arc;
 use tauri::Window;
+
+type ProgressListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
@@ -21,6 +24,7 @@ pub struct ProgressEmitter {
     job_id: Option<String>,
     /// Optional input index for batch processing
     input_index: Option<usize>,
+    progress_listener: Option<ProgressListener>,
 }
 
 impl ProgressEmitter {
@@ -37,6 +41,7 @@ impl ProgressEmitter {
             operation_id: None,
             job_id: None,
             input_index: None,
+            progress_listener: None,
         }
     }
 
@@ -48,6 +53,7 @@ impl ProgressEmitter {
             operation_id: None,
             job_id: Some(job_id),
             input_index: None,
+            progress_listener: None,
         }
     }
 
@@ -65,6 +71,7 @@ impl ProgressEmitter {
             operation_id,
             job_id,
             input_index,
+            progress_listener: None,
         }
     }
 
@@ -81,7 +88,16 @@ impl ProgressEmitter {
             operation_id: None,
             job_id: None,
             input_index: None,
+            progress_listener: None,
         }
+    }
+
+    pub(crate) fn with_progress_listener(
+        mut self,
+        progress_listener: Option<ProgressListener>,
+    ) -> Self {
+        self.progress_listener = progress_listener;
+        self
     }
 
     /// Returns the job ID if set
@@ -109,6 +125,7 @@ impl ProgressEmitter {
 
     fn emit_terminal_event(&self, stage: EventStage, message: &str) {
         let event = self.terminal_event(stage, message);
+        self.notify_listener(&event);
         if let Some(window) = &self.window {
             emit_progress_event(window, &event);
         }
@@ -261,8 +278,16 @@ impl ProgressEmitter {
             input_index: self.input_index,
         };
 
+        self.notify_listener(&event);
+
         if let Some(window) = &self.window {
             emit_progress_event(window, &event);
+        }
+    }
+
+    fn notify_listener(&self, event: &ProgressEvent) {
+        if let Some(listener) = &self.progress_listener {
+            listener(event);
         }
     }
 }
@@ -279,6 +304,7 @@ mod tests {
             operation_id: Some("op-123".to_string()),
             job_id: Some("job-123".to_string()),
             input_index: Some(7),
+            progress_listener: None,
         };
 
         let failed = emitter.terminal_event(EventStage::Failed, "failed");

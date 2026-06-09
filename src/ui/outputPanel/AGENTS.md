@@ -3,8 +3,9 @@
 ## Public API Strip
 - Import output panel runtime symbols from `src/ui/outputPanel`.
 - Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`, `getState`,
-  `readOutputDefaultsFromState`, `readOutputRequestConfig`, `updateOutputPath`,
-  `updateEstimatedSize`, `getCurrentMetadata`, `OutputPanelIsland`.
+  `outputPanelState`, `readOutputDefaultsFromState`, `readOutputRequestConfig`,
+  `updateOutputPath`, `updateEstimatedSize`, `getCurrentMetadata`,
+  `OutputPanelIsland`.
 
 ## Private Cluster
 - Files: `OutputPanelIsland.svelte`, `actions.ts`, `preview.ts`, `state.svelte.ts`, `outputPlanWorkflow.ts`, `outputPlanWorkflowLive.ts`, `outputPlanWorkflowServices.ts`, `__tests__/`.

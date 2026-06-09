@@ -1,12 +1,11 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { EVENTS, type ProcessingProgressEvent } from '../../types/events';
+import { EVENTS } from '../../types/events';
 import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
 } from '../remoteSource/sessionAssets.svelte';
 import {
-	applyProgress,
 	isTerminalOperationStatus,
 	replaceOperations,
 	upsertOperation,
@@ -57,11 +56,6 @@ export function initializeWorkCenter(): Promise<void> {
 					}
 				}),
 			);
-			nextUnlisteners.push(
-				await tauriClient.listen(EVENTS.PROGRESS, ({ payload }) => {
-					applyProcessingProgress(payload);
-				}),
-			);
 			unlisteners = nextUnlisteners;
 
 			const list = await tauriClient.listWorkOperations();
@@ -104,11 +98,6 @@ export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 	const model = upsertOperation(workCenterState, snapshot);
 	workCenterState.operations = model.operations;
 	void purgeRemoteSessionsForTerminalOperation(snapshot);
-}
-
-export function applyProcessingProgress(event: ProcessingProgressEvent): void {
-	const model = applyProgress(workCenterState, event);
-	workCenterState.operations = model.operations;
 }
 
 export async function cancelWorkOperation(operationId: OperationId): Promise<void> {
