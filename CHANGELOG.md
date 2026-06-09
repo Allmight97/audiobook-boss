@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-09
+
 ### Fixed
 
 - Cover art ownership now follows output mode consistently: merge cover updates
