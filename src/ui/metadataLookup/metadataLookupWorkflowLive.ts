@@ -1,5 +1,5 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { clearCoverArt, setCoverArt, setCustomCoverArt } from '../coverArt';
+import { clearCoverArt, refreshCoverArtDisplay, setCoverArt, setCustomCoverArt } from '../coverArt';
 import { selectFile } from '../fileList/actions';
 import { getCurrentFileList, getSelectedFileIndices } from '../fileList/state.svelte';
 import { applyMetadataToForm, readMetadataForm } from '../metadataForm';
@@ -37,6 +37,7 @@ const liveMetadataLookupWorkflowServices: MetadataLookupWorkflowServices = {
 	clearCoverArt,
 	setCoverArt,
 	setCustomCoverArt,
+	refreshCoverArtDisplay,
 	searchOnlineMetadata: tauriClient.searchOnlineMetadata,
 	loadCoverArtFromUrl: tauriClient.loadCoverArtFromUrl,
 	focusElementById: (id) => {

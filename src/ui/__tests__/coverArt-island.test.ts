@@ -4,13 +4,15 @@ import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
 import {
 	applyCoverArtDrop,
 	COVER_ART_IMAGE_EXTENSION_HINTS,
-	getCurrentCoverArt,
-	isCoverArtRemovalRequested,
 	onClearCoverArt,
 	onLoadCoverArtFromFilePicker,
 	onLoadCoverArtFromInput,
-	setCoverArt,
+	setCustomCoverArt,
+	getCurrentCoverArt,
+	isCoverArtRemovalRequested,
 } from '../coverArt';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state.svelte';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 
 const { openFileMock, loadCoverArtFileMock, loadCoverArtFromUrlMock } = vi.hoisted(() => ({
 	openFileMock: vi.fn(),
@@ -41,7 +43,17 @@ describe('CoverArt island mount + clear behavior', () => {
 	});
 
 	it('mounts from root and clears cover art through UI action', () => {
-		setCoverArt([0x89, 0x50, 0x4e, 0x47]);
+		setCurrentFileList({
+			files: [{ path: '/books/a.m4b', isValid: true, inputId: 'a' } as AudioFile],
+			validCount: 1,
+			invalidCount: 0,
+			totalDuration: 0,
+			totalSize: 0,
+		} as FileListInfo);
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+
+		setCustomCoverArt([0x89, 0x50, 0x4e, 0x47]);
 
 		const clearButton = document.getElementById('cover-art-clear-btn') as HTMLButtonElement | null;
 		expect(clearButton).toBeTruthy();

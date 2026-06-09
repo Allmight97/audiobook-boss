@@ -11,6 +11,7 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 } from '../fileList/state.svelte';
+import { jobControlsState } from '../jobControls/state.svelte';
 
 type Deferred<T> = {
 	promise: Promise<T>;
@@ -29,8 +30,10 @@ const context = vi.hoisted(() => ({
 	updateOutputPathMock: vi.fn(),
 	updateTagPreviewMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
+	refreshCoverArtDisplayMock: vi.fn(),
 	getHasCustomCoverArtMock: vi.fn(() => false),
 	setCoverArtMock: vi.fn(),
+	getMetadataIntentPatchForFileMock: vi.fn(),
 	renderAutoResolutionHintsMock: vi.fn(),
 	resetAutoResolutionHintsMock: vi.fn(),
 }));
@@ -44,6 +47,7 @@ vi.mock('../../lib/tauri/client', () => ({
 vi.mock('../metadataState', () => ({
 	getMetadataForFile: context.getMetadataForFileMock,
 	setMetadataForFile: context.setMetadataForFileMock,
+	getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
 }));
 
 vi.mock('../metadataForm', () => ({
@@ -65,6 +69,7 @@ vi.mock('../coverArt', () => ({
 	clearCoverArt: context.clearCoverArtMock,
 	getHasCustomCoverArt: context.getHasCustomCoverArtMock,
 	setCoverArt: context.setCoverArtMock,
+	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 }));
 
 vi.mock('../encoderPanel/autoResolutionHints', () => ({
@@ -120,9 +125,13 @@ describe('metadata panel race guards', () => {
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);
 		context.setCoverArtMock.mockReset();
+		context.refreshCoverArtDisplayMock.mockReset();
+		context.getMetadataIntentPatchForFileMock.mockReset();
+		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
 		context.renderAutoResolutionHintsMock.mockReset();
 		context.resetAutoResolutionHintsMock.mockReset();
 		context.getMetadataForFileMock.mockReturnValue(undefined);
+		jobControlsState.jobType = 'merge';
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
@@ -212,7 +221,7 @@ describe('metadata panel race guards', () => {
 		coverRequest.resolve({ cover_art: [1, 2, 3] });
 		await pending;
 
-		expect(context.setCoverArtMock).not.toHaveBeenCalled();
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 	});
 
 	it('drops auto-cover results from an outdated file list generation', async () => {
@@ -229,6 +238,23 @@ describe('metadata panel race guards', () => {
 		coverRequest.resolve({ cover_art: [9, 9, 9] });
 		await pending;
 
-		expect(context.setCoverArtMock).not.toHaveBeenCalled();
+		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+	});
+
+	it('auto-loads cover art for the selected batch file when it is not first valid', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+		jobControlsState.jobType = 'batch';
+		context.readAudioMetadataMock.mockResolvedValue({ cover_art: [4, 5, 6] });
+		setCurrentFileList(makeFileList(alpha, beta));
+		setSelectedFileIndices([1]);
+		setSelectedIndex(1);
+
+		await autoUpdateCoverArtFromFirstValidFile();
+
+		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/beta.m4b');
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith('/books/beta.m4b', {
+			cover_art: [4, 5, 6],
+		});
 	});
 });

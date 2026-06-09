@@ -5,6 +5,7 @@ import { flushSync } from 'svelte';
 import { jobControlsState } from './state.svelte';
 import { updateOutputPath } from '../outputPanel';
 import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
+import { refreshCoverArtDisplay } from '../coverArt';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 export function initJobControls(): void {
@@ -33,6 +34,7 @@ export function handleMaxConcurrentSelectionChange(value: string): void {
 
 function setJobType(jobType: JobType, emitChangeEvent: boolean): void {
 	jobControlsState.jobType = jobType;
+	refreshCoverArtDisplay();
 	if (emitChangeEvent) {
 		updateOutputPath('final');
 	}

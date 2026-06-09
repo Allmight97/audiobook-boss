@@ -38,6 +38,7 @@ const context = vi.hoisted(() => ({
 	updateTagPreviewMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
 	getHasCustomCoverArtMock: vi.fn(() => false),
+	refreshCoverArtDisplayMock: vi.fn(),
 	setCoverArtMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	renderAutoResolutionHintsMock: vi.fn(),
@@ -85,6 +86,7 @@ vi.mock('../tagPreview', () => ({
 vi.mock('../coverArt', () => ({
 	clearCoverArt: context.clearCoverArtMock,
 	getHasCustomCoverArt: context.getHasCustomCoverArtMock,
+	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 	setCoverArt: context.setCoverArtMock,
 }));
 
@@ -156,6 +158,7 @@ describe('file list reorder behavior', () => {
 		context.clearCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);
+		context.refreshCoverArtDisplayMock.mockReset();
 		context.setCoverArtMock.mockReset();
 		context.pushStatusPanelTransientStatusMock.mockReset();
 		context.renderAutoResolutionHintsMock.mockReset();

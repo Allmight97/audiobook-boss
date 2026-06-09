@@ -3,8 +3,14 @@ import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
-import { clearCoverArt, getHasCustomCoverArt, setCoverArt } from '../coverArt';
-import { getMetadataForFile, setMetadataForFile } from '../metadataState';
+import { clearCoverArt, getHasCustomCoverArt, refreshCoverArtDisplay } from '../coverArt';
+import { effectiveCoverForFile } from '../coverArt/coverOwner';
+import { jobControlsState } from '../jobControls/state.svelte';
+import {
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	setMetadataForFile,
+} from '../metadataState';
 import {
 	populateMetadataFormMulti,
 	populateMetadataFormSingle,
@@ -21,7 +27,12 @@ import {
 	setInspectorValues,
 } from './inspectorState.svelte';
 import { companionSummaryForInputIds } from '../remoteSource/sessionAssets.svelte';
-import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex } from './state.svelte';
+import {
+	getCurrentFileList,
+	getSelectedFileIndices,
+	getSelectedFileIndex,
+	getSelectedFiles,
+} from './state.svelte';
 
 let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
@@ -253,6 +264,7 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	populateMetadataFormMulti(metadataList, selectedFiles.length);
 	refreshOutputForMetadataChange();
 	updateTagPreview();
+	refreshCoverArtDisplay();
 }
 
 export function refreshSelectionPresentation(selectedFiles: AudioFile[]): void {
@@ -282,40 +294,64 @@ export function clearSelectionPanels(): void {
 export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 	const requestId = ++latestAutoCoverRequestId;
 	try {
-		if (getHasCustomCoverArt()) return;
 		const fileList = getCurrentFileList();
 		if (!fileList?.files.length) {
-			setCoverArt(null);
+			refreshCoverArtDisplay();
 			return;
 		}
-		const firstValid = fileList.files.find((f) => f.isValid);
-		if (!firstValid) {
-			setCoverArt(null);
+
+		const jobType = jobControlsState.jobType;
+		const selectedValid = getSelectedFiles().find((file) => file.isValid);
+		const firstValid = fileList.files.find((file) => file.isValid);
+		const targetPath =
+			jobType === 'merge' ? firstValid?.path : (selectedValid?.path ?? firstValid?.path);
+		if (!targetPath) {
+			refreshCoverArtDisplay();
 			return;
 		}
-		const metadata = await tauriClient.readAudioMetadata(firstValid.path);
+
+		if (
+			effectiveCoverForFile(targetPath) !== null ||
+			getMetadataIntentPatchForFile(targetPath)?.cover_art
+		) {
+			if (requestId === latestAutoCoverRequestId) {
+				refreshCoverArtDisplay();
+			}
+			return;
+		}
+
+		const metadata = await tauriClient.readAudioMetadata(targetPath);
+		const currentJobType = jobControlsState.jobType;
+		const currentFileList = getCurrentFileList();
+		const currentFirstValid = currentFileList?.files.find((file) => file.isValid);
+		const currentSelectedValid = getSelectedFiles().find((file) => file.isValid);
+		const currentTargetPath =
+			currentJobType === 'merge'
+				? currentFirstValid?.path
+				: (currentSelectedValid?.path ?? currentFirstValid?.path);
 		if (
 			requestId !== latestAutoCoverRequestId ||
 			getHasCustomCoverArt() ||
-			getCurrentFileList()?.files.find((file) => file.isValid)?.path !== firstValid.path
+			getMetadataIntentPatchForFile(targetPath)?.cover_art ||
+			currentJobType !== jobType ||
+			currentTargetPath !== targetPath
 		) {
 			return;
 		}
-		setCoverArt(metadata.cover_art || null);
+
+		const existing = getMetadataForFile(targetPath) ?? {};
+		setMetadataForFile(targetPath, {
+			...existing,
+			cover_art: metadata.cover_art || undefined,
+		});
+		refreshCoverArtDisplay();
 	} catch (error) {
-		if (requestId !== latestAutoCoverRequestId || getHasCustomCoverArt()) {
+		if (requestId !== latestAutoCoverRequestId) {
 			return;
 		}
-		setCoverArt(null);
+		refreshCoverArtDisplay();
 		console.warn('Failed to auto-load cover art:', error);
 	}
 }
 
-export function getSelectedFiles(): AudioFile[] {
-	const fileList = getCurrentFileList();
-	if (!fileList) return [];
-	const selectedIndices = getSelectedFileIndices();
-	return Array.from(selectedIndices)
-		.map((index) => fileList.files[index])
-		.filter((file): file is AudioFile => Boolean(file));
-}
+export { getSelectedFiles } from './state.svelte';

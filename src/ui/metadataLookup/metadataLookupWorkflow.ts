@@ -28,6 +28,7 @@ import {
 	type MetadataLookupWorkflowServices,
 	type MetadataLookupWorkflowServicesId,
 } from './metadataLookupWorkflowServices';
+import { getCachedMetadataLookupCoverBytes } from './metadataLookupCoverPreview.svelte';
 
 export {
 	MetadataLookupWorkflowServicesTag,
@@ -132,7 +133,7 @@ async function advanceQueue(
 	const nextIndex = index + 1;
 	const nextItem = queue[nextIndex];
 
-	services.clearCoverArt();
+	services.refreshCoverArtDisplay();
 
 	if (nextItem) {
 		await services.selectFile(
@@ -165,7 +166,8 @@ async function applyCoverArt(
 ): Promise<CoverArtApplyResult> {
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
-		const coverBytes = await services.loadCoverArtFromUrl(result.coverUrl);
+		const cachedBytes = getCachedMetadataLookupCoverBytes(result.coverUrl);
+		const coverBytes = cachedBytes ?? (await services.loadCoverArtFromUrl(result.coverUrl));
 		services.setCustomCoverArt(coverBytes);
 		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {

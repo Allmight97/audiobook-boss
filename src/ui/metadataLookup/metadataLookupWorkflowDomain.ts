@@ -2,6 +2,7 @@ import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { applyMetadataDraftIntent, buildMetadataDraftIntent } from '../metadataDraft';
+import { clearMetadataLookupCoverPreviewCache } from './metadataLookupCoverPreview.svelte';
 import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflowServices';
 
 export type ApplyMode = 'current' | 'queue';
@@ -75,6 +76,7 @@ export function resetResults(services: MetadataLookupWorkflowServices): void {
 	const state = services.getLookupState();
 	state.results = [];
 	state.hasSearched = false;
+	clearMetadataLookupCoverPreviewCache();
 }
 
 export function buildQueueMetadataPatch(
@@ -110,12 +112,9 @@ export function persistQueueMetadata(
 
 export function restoreCoverArtForFile(
 	services: MetadataLookupWorkflowServices,
-	file: AudioFile | null,
+	_file: AudioFile | null,
 ): void {
-	services.clearCoverArt();
-	if (!file?.isValid) return;
-	const stored = services.getMetadataForFile(file.path);
-	services.setCoverArt(stored?.cover_art ?? null);
+	services.refreshCoverArtDisplay();
 }
 
 export function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {
