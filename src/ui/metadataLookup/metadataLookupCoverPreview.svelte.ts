@@ -1,20 +1,44 @@
-import { coverArtBytesToDataUrl } from '../coverArt';
+export const MAX_METADATA_LOOKUP_PREVIEW_CONCURRENCY = 2;
+export const MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES = 64;
 
 export type MetadataLookupCoverPreviewState =
 	| { status: 'idle' }
+	| { status: 'queued' }
 	| { status: 'loading' }
 	| { status: 'ready'; bytes: number[]; dataUrl: string }
 	| { status: 'error' };
 
 const metadataLookupCoverPreviewByUrl = $state<Record<string, MetadataLookupCoverPreviewState>>({});
 
-const inflightByUrl = new Map<string, Promise<void>>();
+const inflightByUrl = new Map<string, Promise<number[]>>();
+const activePreviewTasks = new Set<number>();
+const cacheOrder: string[] = [];
+
+let nextPreviewTaskId = 0;
+let previewScheduleGeneration = 0;
+let queuedCoverUrls: string[] = [];
+let visibleCoverUrls = new Set<string>();
+let activeLoader: ((url: string) => Promise<number[]>) | null = null;
 
 export function clearMetadataLookupCoverPreviewCache(): void {
+	cancelMetadataLookupCoverPreviewSchedule();
 	for (const key of Object.keys(metadataLookupCoverPreviewByUrl)) {
 		delete metadataLookupCoverPreviewByUrl[key];
 	}
+	cacheOrder.length = 0;
 	inflightByUrl.clear();
+}
+
+export function cancelMetadataLookupCoverPreviewSchedule(): void {
+	previewScheduleGeneration += 1;
+	queuedCoverUrls = [];
+	visibleCoverUrls = new Set();
+	activeLoader = null;
+	for (const [coverUrl, state] of Object.entries(metadataLookupCoverPreviewByUrl)) {
+		if (state.status === 'queued' || state.status === 'loading') {
+			delete metadataLookupCoverPreviewByUrl[coverUrl];
+		}
+	}
 }
 
 export function getMetadataLookupCoverPreviewState(
@@ -31,36 +55,230 @@ export function getCachedMetadataLookupCoverBytes(coverUrl: string): number[] | 
 	return state?.status === 'ready' ? state.bytes : null;
 }
 
+export function scheduleMetadataLookupCoverPreviews(
+	coverUrls: ReadonlyArray<string | null | undefined>,
+	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+): void {
+	previewScheduleGeneration += 1;
+	activeLoader = loadCoverArtFromUrl;
+	const generation = previewScheduleGeneration;
+	const uniqueUrls = uniqueCoverUrls(coverUrls);
+	visibleCoverUrls = new Set(uniqueUrls);
+	queuedCoverUrls = [];
+
+	for (const coverUrl of Object.keys(metadataLookupCoverPreviewByUrl)) {
+		if (!visibleCoverUrls.has(coverUrl)) {
+			const state = metadataLookupCoverPreviewByUrl[coverUrl];
+			if (state.status === 'queued' || state.status === 'loading') {
+				delete metadataLookupCoverPreviewByUrl[coverUrl];
+			}
+		}
+	}
+
+	for (const coverUrl of uniqueUrls) {
+		const state = metadataLookupCoverPreviewByUrl[coverUrl];
+		if (state?.status === 'ready') {
+			touchCacheEntry(coverUrl);
+			continue;
+		}
+		const inflight = inflightByUrl.get(coverUrl);
+		if (inflight) {
+			metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'loading' };
+			attachScheduledInflightCompletion(coverUrl, inflight, generation);
+			continue;
+		}
+		metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'queued' };
+		queuedCoverUrls.push(coverUrl);
+	}
+
+	pumpPreviewQueue(generation);
+}
+
+export async function loadMetadataLookupCoverBytes(
+	coverUrl: string,
+	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+): Promise<number[]> {
+	const existing = metadataLookupCoverPreviewByUrl[coverUrl];
+	if (existing?.status === 'ready') {
+		touchCacheEntry(coverUrl);
+		return existing.bytes;
+	}
+	const inflight = inflightByUrl.get(coverUrl);
+	if (inflight) {
+		const generation = previewScheduleGeneration;
+		return inflight.then((bytes) => {
+			if (shouldCommitPreviewCompletion(coverUrl, generation, true)) {
+				commitReadyPreview(coverUrl, bytes);
+			}
+			return bytes;
+		});
+	}
+	return startPreviewFetch(coverUrl, loadCoverArtFromUrl, previewScheduleGeneration, true);
+}
+
 export async function fetchMetadataLookupCoverPreview(
 	coverUrl: string,
 	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
 ): Promise<void> {
-	const existing = metadataLookupCoverPreviewByUrl[coverUrl];
-	if (existing?.status === 'ready') {
-		return;
-	}
-	const inflight = inflightByUrl.get(coverUrl);
-	if (inflight) {
-		return inflight;
-	}
+	await loadMetadataLookupCoverBytes(coverUrl, loadCoverArtFromUrl);
+}
 
-	metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'loading' };
-	const promise = loadCoverArtFromUrl(coverUrl)
+function uniqueCoverUrls(coverUrls: ReadonlyArray<string | null | undefined>): string[] {
+	const unique = new Set<string>();
+	for (const coverUrl of coverUrls) {
+		if (coverUrl) {
+			unique.add(coverUrl);
+		}
+	}
+	return [...unique];
+}
+
+function attachScheduledInflightCompletion(
+	coverUrl: string,
+	inflight: Promise<number[]>,
+	generation: number,
+): void {
+	void inflight
 		.then((bytes) => {
-			metadataLookupCoverPreviewByUrl[coverUrl] = {
-				status: 'ready',
-				bytes,
-				dataUrl: coverArtBytesToDataUrl(bytes),
-			};
+			if (shouldCommitPreviewCompletion(coverUrl, generation, false)) {
+				commitReadyPreview(coverUrl, bytes);
+			}
 		})
 		.catch((error) => {
-			console.warn('Failed to load metadata lookup cover preview:', error);
-			metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'error' };
+			if (shouldCommitPreviewCompletion(coverUrl, generation, false)) {
+				console.warn('Failed to load metadata lookup cover preview:', error);
+				metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'error' };
+				touchCacheEntry(coverUrl);
+				prunePreviewCache();
+			}
+		});
+}
+
+function pumpPreviewQueue(generation: number): void {
+	if (!activeLoader || generation !== previewScheduleGeneration) {
+		return;
+	}
+	while (
+		activePreviewTasks.size < MAX_METADATA_LOOKUP_PREVIEW_CONCURRENCY &&
+		queuedCoverUrls.length > 0
+	) {
+		const coverUrl = queuedCoverUrls.shift();
+		if (!coverUrl || !visibleCoverUrls.has(coverUrl)) {
+			continue;
+		}
+		const state = metadataLookupCoverPreviewByUrl[coverUrl];
+		if (state?.status === 'ready' || inflightByUrl.has(coverUrl)) {
+			continue;
+		}
+		void startPreviewFetch(coverUrl, activeLoader, generation, false).catch(() => undefined);
+	}
+}
+
+function startPreviewFetch(
+	coverUrl: string,
+	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+	generation: number,
+	allowOffscreenCompletion: boolean,
+): Promise<number[]> {
+	metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'loading' };
+	const taskId = ++nextPreviewTaskId;
+	activePreviewTasks.add(taskId);
+	let promise!: Promise<number[]>;
+	promise = loadCoverArtFromUrl(coverUrl)
+		.then((bytes): number[] => {
+			if (shouldCommitPreviewCompletion(coverUrl, generation, allowOffscreenCompletion)) {
+				commitReadyPreview(coverUrl, bytes);
+			}
+			return bytes;
+		})
+		.catch((error): never => {
+			if (shouldCommitPreviewCompletion(coverUrl, generation, allowOffscreenCompletion)) {
+				console.warn('Failed to load metadata lookup cover preview:', error);
+				metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'error' };
+				touchCacheEntry(coverUrl);
+				prunePreviewCache();
+			}
+			throw error;
 		})
 		.finally(() => {
-			inflightByUrl.delete(coverUrl);
+			activePreviewTasks.delete(taskId);
+			if (inflightByUrl.get(coverUrl) === promise) {
+				inflightByUrl.delete(coverUrl);
+			}
+			pumpPreviewQueue(previewScheduleGeneration);
 		});
 
 	inflightByUrl.set(coverUrl, promise);
 	return promise;
+}
+
+function commitReadyPreview(coverUrl: string, bytes: number[]): void {
+	metadataLookupCoverPreviewByUrl[coverUrl] = {
+		status: 'ready',
+		bytes,
+		dataUrl: coverArtBytesToDataUrl(bytes),
+	};
+	touchCacheEntry(coverUrl);
+	prunePreviewCache();
+}
+
+function shouldCommitPreviewCompletion(
+	coverUrl: string,
+	generation: number,
+	allowOffscreenCompletion: boolean,
+): boolean {
+	return (
+		generation === previewScheduleGeneration &&
+		(allowOffscreenCompletion || visibleCoverUrls.has(coverUrl))
+	);
+}
+
+function touchCacheEntry(coverUrl: string): void {
+	const existingIndex = cacheOrder.indexOf(coverUrl);
+	if (existingIndex >= 0) {
+		cacheOrder.splice(existingIndex, 1);
+	}
+	cacheOrder.push(coverUrl);
+}
+
+function prunePreviewCache(): void {
+	while (cacheOrder.length > MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES) {
+		const coverUrl = cacheOrder.shift();
+		if (!coverUrl || inflightByUrl.has(coverUrl)) {
+			continue;
+		}
+		delete metadataLookupCoverPreviewByUrl[coverUrl];
+	}
+}
+
+function coverArtBytesToDataUrl(coverArtBytes: number[]): string {
+	const uint8Array = new Uint8Array(coverArtBytes);
+	const chunkSize = 0x8000;
+	let binary = '';
+	for (let offset = 0; offset < uint8Array.length; offset += chunkSize) {
+		binary += String.fromCharCode(...uint8Array.subarray(offset, offset + chunkSize));
+	}
+	const base64String = btoa(binary);
+
+	let mimeType = 'image/jpeg';
+	if (coverArtBytes.length >= 12) {
+		if (coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
+			mimeType = 'image/png';
+		} else if (
+			coverArtBytes[0] === 0x52 &&
+			coverArtBytes[1] === 0x49 &&
+			coverArtBytes[2] === 0x46 &&
+			coverArtBytes[3] === 0x46 &&
+			coverArtBytes[8] === 0x57 &&
+			coverArtBytes[9] === 0x45 &&
+			coverArtBytes[10] === 0x42 &&
+			coverArtBytes[11] === 0x50
+		) {
+			mimeType = 'image/webp';
+		}
+	} else if (coverArtBytes.length >= 2 && coverArtBytes[0] === 0x89 && coverArtBytes[1] === 0x50) {
+		mimeType = 'image/png';
+	}
+
+	return `data:${mimeType};base64,${base64String}`;
 }

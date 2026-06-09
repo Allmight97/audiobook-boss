@@ -10,7 +10,7 @@ use reqwest::header::CONTENT_TYPE;
 use std::io;
 use std::net::IpAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 pub(crate) mod save_batch;
@@ -118,47 +118,7 @@ pub async fn load_cover_art_file(file_path: String) -> CommandResult<Vec<u8>> {
 pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let url_for_log = validated_url.as_str().to_string();
-    let resolver = Arc::new(BogonFilteringResolver::new());
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
-        .dns_resolver(resolver)
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            let redirect_count = attempt.previous().len();
-            if redirect_count >= COVER_ART_MAX_REDIRECTS {
-                log::warn!(
-                    "Blocked redirect due to limit (count={}): {}",
-                    redirect_count,
-                    attempt.url()
-                );
-                return attempt.error("too many redirects");
-            }
-
-            let url = attempt.url();
-            if url.scheme() != "https" {
-                log::warn!("Blocked redirect to non-HTTPS URL: {}", url);
-                return attempt.error("Only HTTPS URLs are supported");
-            }
-
-            let Some(host) = url.host_str() else {
-                log::warn!("Blocked redirect without host: {}", url);
-                return attempt.error("Redirect URL has no host");
-            };
-
-            if let Ok(ip) = host.parse::<IpAddr>() {
-                if bogon::is_bogon(ip) {
-                    log::warn!("Blocked redirect to bogon IP {} for host {}", ip, host);
-                    return attempt.error("Redirect to private IP blocked");
-                }
-            }
-
-            attempt.follow()
-        }))
-        .user_agent("audiobook-boss/cover-art")
-        .build()
-        .map_err(|e| {
-            log::error!("Failed to configure HTTP client: {}", e);
-            AppError::General("Failed to configure HTTP client".to_string())
-        })?;
+    let client = cover_art_http_client()?;
 
     let mut response = client.get(validated_url).send().await.map_err(|e| {
         log::error!("Failed to fetch image URL {}: {}", url_for_log, e);
@@ -213,6 +173,60 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
 
     let optimized = optimize_cover_art(&downloaded)?;
     Ok(optimized)
+}
+
+static COVER_ART_HTTP_CLIENT: OnceLock<std::result::Result<reqwest::Client, String>> =
+    OnceLock::new();
+
+fn cover_art_http_client() -> Result<&'static reqwest::Client> {
+    COVER_ART_HTTP_CLIENT
+        .get_or_init(build_cover_art_http_client)
+        .as_ref()
+        .map_err(|message| {
+            log::error!("Failed to configure HTTP client: {}", message);
+            AppError::General("Failed to configure HTTP client".to_string())
+        })
+}
+
+fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String> {
+    let resolver = Arc::new(BogonFilteringResolver::new());
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
+        .dns_resolver(resolver)
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let redirect_count = attempt.previous().len();
+            if redirect_count >= COVER_ART_MAX_REDIRECTS {
+                log::warn!(
+                    "Blocked redirect due to limit (count={}): {}",
+                    redirect_count,
+                    attempt.url()
+                );
+                return attempt.error("too many redirects");
+            }
+
+            let url = attempt.url();
+            if url.scheme() != "https" {
+                log::warn!("Blocked redirect to non-HTTPS URL: {}", url);
+                return attempt.error("Only HTTPS URLs are supported");
+            }
+
+            let Some(host) = url.host_str() else {
+                log::warn!("Blocked redirect without host: {}", url);
+                return attempt.error("Redirect URL has no host");
+            };
+
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                if bogon::is_bogon(ip) {
+                    log::warn!("Blocked redirect to bogon IP {} for host {}", ip, host);
+                    return attempt.error("Redirect to private IP blocked");
+                }
+            }
+
+            attempt.follow()
+        }))
+        .user_agent("audiobook-boss/cover-art")
+        .build()
+        .map_err(|error| error.to_string())
 }
 
 /// Maximum dimension for cover art (width or height)

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
 	import {
 		applyMetadataLookupResult,
@@ -10,8 +10,9 @@
 		useManualMetadataEntryFromLookup,
 	} from '../metadataLookup';
 	import {
-		fetchMetadataLookupCoverPreview,
+		cancelMetadataLookupCoverPreviewSchedule,
 		getMetadataLookupCoverPreviewState,
+		scheduleMetadataLookupCoverPreviews,
 	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
 
@@ -55,13 +56,24 @@
 		return parts.length ? parts.join(' • ') : 'Series: —';
 	}
 
-	function requestCoverPreview(coverUrl: string | null | undefined): void {
-		if (!coverUrl) return;
-		void fetchMetadataLookupCoverPreview(coverUrl, tauriClient.loadCoverArtFromUrl);
-	}
-
 	onMount(() => {
 		initMetadataLookup();
+	});
+
+	$effect(() => {
+		if (!metadataLookupState.isOpen || !metadataLookupState.hasSearched) {
+			untrack(cancelMetadataLookupCoverPreviewSchedule);
+			return;
+		}
+
+		const coverUrls = metadataLookupState.results.map((result) => result.coverUrl);
+		untrack(() => {
+			scheduleMetadataLookupCoverPreviews(coverUrls, tauriClient.loadCoverArtFromUrl);
+		});
+
+		return () => {
+			untrack(cancelMetadataLookupCoverPreviewSchedule);
+		};
 	});
 </script>
 
@@ -206,8 +218,6 @@
 						<div
 							class="metadata-lookup-cover"
 							role="presentation"
-							onmouseenter={() => requestCoverPreview(result.coverUrl)}
-							onfocusin={() => requestCoverPreview(result.coverUrl)}
 						>
 							{#if result.coverUrl}
 								{@const preview = getMetadataLookupCoverPreviewState(result.coverUrl)}
@@ -217,7 +227,7 @@
 										alt={`${result.title} cover art`}
 										data-testid="metadata-lookup-cover-image"
 									/>
-								{:else if preview.status === 'loading'}
+								{:else if preview.status === 'loading' || preview.status === 'queued'}
 									<span data-testid="metadata-lookup-cover-loading">Loading…</span>
 								{:else if preview.status === 'error'}
 									<span data-testid="metadata-lookup-cover-error">Preview failed</span>

@@ -289,6 +289,7 @@ async fn acquire_one(
         .map_err(AudibleAcquisitionError::materialization)?
     };
     let file = validate_materialized_audio(&materialized_path, ctx, progress)
+        .await
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
         supplemental_pdf_hint_present_for_acquisition(include_pdf, &title_details, &lane);
@@ -379,7 +380,7 @@ pub(super) fn requested_supplemental_pdf_is_required(
     include_pdf && api_pdf_hint_present
 }
 
-fn validate_materialized_audio(
+async fn validate_materialized_audio(
     materialized_path: &Path,
     ctx: TitleAcquisitionCtx<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
@@ -389,10 +390,28 @@ fn validate_materialized_audio(
         progress_context,
         ..
     } = ctx;
-    let file = match materialized_file_from_path(title_id, materialized_path) {
+    let title_id = title_id.to_string();
+    let materialized_path = materialized_path.to_path_buf();
+    let validation_result =
+        tokio::task::spawn_blocking(move || {
+            match materialized_file_from_path(&title_id, &materialized_path) {
+                Ok(file) => Ok(file),
+                Err(error) => {
+                    cleanup_download_artifacts(&materialized_path)?;
+                    Err(error)
+                }
+            }
+        })
+        .await
+        .map_err(|error| {
+            AppError::General(format!(
+                "Materialized audio validation task failed: {error}"
+            ))
+        })?;
+
+    let file = match validation_result {
         Ok(file) => file,
         Err(error) => {
-            cleanup_download_artifacts(materialized_path)?;
             progress(title_progress(
                 progress_context,
                 AcquisitionStage::Failed,
