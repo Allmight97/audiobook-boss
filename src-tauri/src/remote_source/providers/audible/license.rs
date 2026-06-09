@@ -10,10 +10,8 @@ use audible_api::api::Client as AudibleClient;
 use audible_api::auth::Auth;
 use serde_json::{json, Value};
 
-use super::{
-    ensure_not_cancelled, provider_private_failure, title_progress, TitleAcquisitionCtx,
-    AUDIBLE_IOS_DEVICE_TYPE, DOMAIN,
-};
+use super::acquisition::{ensure_not_cancelled, title_progress, TitleAcquisitionCtx};
+use super::{provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE, DOMAIN};
 use crate::errors::{AppError, Result};
 
 pub(super) struct LicenseLane {

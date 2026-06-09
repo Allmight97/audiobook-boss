@@ -6,9 +6,10 @@ use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, Acquisit
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use tokio::io::AsyncWriteExt;
 
+use super::acquisition::{ensure_not_cancelled, with_title_progress, TitleAcquisitionCtx};
 use super::{
-    ensure_not_cancelled, provider_private_failure, with_title_progress, TitleAcquisitionCtx,
-    AUDIBLE_DOWNLOAD_USER_AGENT, MAX_DOWNLOAD_ATTEMPTS, MAX_DOWNLOAD_REDIRECTS,
+    provider_private_failure, AUDIBLE_DOWNLOAD_USER_AGENT, MAX_DOWNLOAD_ATTEMPTS,
+    MAX_DOWNLOAD_REDIRECTS,
 };
 use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::StagedTempFile;

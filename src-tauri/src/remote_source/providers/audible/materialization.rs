@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use abb_audible_core::{title_ref, AudibleDecryptionMaterial};
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 
+use super::acquisition::{
+    staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
+};
 use super::audio_download::cleanup_download_artifacts;
 use super::license::{strategy_label, LicenseLane};
-use super::{
-    provider_private_failure, staged_materialized_path, title_progress, with_title_progress,
-    TitleAcquisitionCtx,
-};
+use super::provider_private_failure;
 use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,

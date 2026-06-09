@@ -1,8 +1,6 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tokio::task::AbortHandle;
 
 use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 use tauri::Manager;
@@ -17,6 +15,7 @@ mod vault;
 
 use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
+use session_lifecycle::RemoteAcquisitionLifecycle;
 use staging::RemoteSourceStaging;
 use types::{
     AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
@@ -36,11 +35,8 @@ pub struct RemoteSourceRuntime {
 
 struct RemoteSourceRuntimeInner {
     vault: Box<dyn SecretVault>,
-    staging: RemoteSourceStaging,
-    materializer: AaxcleanMaterializer,
+    lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
-    jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
-    acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
 }
 
 impl RemoteSourceRuntime {
@@ -51,17 +47,17 @@ impl RemoteSourceRuntime {
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 vault: Box::<KeyringSecretVault>::default(),
-                staging: RemoteSourceStaging::new(cache_dir),
-                materializer: AaxcleanMaterializer::from_app(app),
+                lifecycle: RemoteAcquisitionLifecycle::new(
+                    RemoteSourceStaging::new(cache_dir),
+                    AaxcleanMaterializer::from_app(app),
+                ),
                 pending_audible_auth: Mutex::new(None),
-                jobs: Mutex::new(HashMap::new()),
-                acquisition_tasks: Mutex::new(HashMap::new()),
             }),
         })
     }
 
     pub fn cleanup_abandoned_sessions(&self) -> Result<()> {
-        self.inner.staging.cleanup_abandoned_sessions()
+        self.inner.lifecycle.cleanup_abandoned_sessions()
     }
 
     pub fn list_providers(&self) -> Vec<RemoteProviderCapabilities> {
@@ -115,16 +111,14 @@ impl RemoteSourceRuntime {
     }
 
     pub fn logout(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
-        self.abort_all_acquisition_tasks();
+        self.inner.lifecycle.abort_all_acquisition_tasks();
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
         }
-        self.cleanup_logout_sessions_without_handoff()?;
         self.inner
-            .jobs
-            .lock()
-            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .clear();
+            .lifecycle
+            .cleanup_logout_sessions_without_handoff()?;
+        self.inner.lifecycle.clear_jobs()?;
         *self
             .inner
             .pending_audible_auth
@@ -145,37 +139,10 @@ impl RemoteSourceRuntime {
         &self,
         plan: RemoteAcquisitionPlan,
     ) -> Result<RemoteAcquisitionJob> {
-        if plan.selections.is_empty() {
-            return Err(AppError::InvalidInput(
-                "Select at least one remote title to acquire.".to_string(),
-            ));
-        }
-        let job_id = uuid::Uuid::new_v4().to_string();
-        let job_dir = self.inner.staging.create_job_dir(&job_id)?;
-        let job = RemoteAcquisitionJob {
-            job_id: job_id.clone(),
-            provider_id: plan.provider_id,
-            status: types::RemoteAcquisitionStatus::Acquiring,
-            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-            materialized_files: Vec::new(),
-            supplemental_assets: Vec::new(),
-            diagnostics: Vec::new(),
-        };
         self.inner
-            .jobs
-            .lock()
-            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .insert(job_id, job.clone());
-        let runtime = self.clone();
-        let spawned_job_id = job.job_id.clone();
-        let abort_handle = tokio::spawn(async move {
-            runtime
-                .run_acquisition_job(plan, spawned_job_id, job_dir)
-                .await;
-        })
-        .abort_handle();
-        self.store_acquisition_task(&job.job_id, abort_handle);
-        Ok(job)
+            .lifecycle
+            .start_acquisition(self.clone(), plan)
+            .await
     }
 }
 
@@ -246,11 +213,11 @@ mod tests {
         RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 vault: Box::<TestSecretVault>::default(),
-                staging: RemoteSourceStaging::new(root.path().to_path_buf()),
-                materializer: AaxcleanMaterializer::for_tests(),
+                lifecycle: RemoteAcquisitionLifecycle::new(
+                    RemoteSourceStaging::new(root.path().to_path_buf()),
+                    AaxcleanMaterializer::for_tests(),
+                ),
                 pending_audible_auth: Mutex::new(None),
-                jobs: Mutex::new(HashMap::new()),
-                acquisition_tasks: Mutex::new(HashMap::new()),
             }),
         }
     }
@@ -321,23 +288,32 @@ mod tests {
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let job_id = "remote-job-1";
-        runtime.inner.jobs.lock().expect("jobs lock").insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
-        );
+        runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(
+                job_id.to_string(),
+                acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
+            );
 
         runtime
             .cancel_acquisition(job_id)
             .expect("cancel acquisition");
-        runtime.update_job_progress(
+        runtime.inner.lifecycle.update_job_progress(
             job_id,
             acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(5), Some(10)),
         );
-        runtime.replace_job_if_active(acquisition_job(
-            job_id,
-            types::RemoteAcquisitionStatus::Validated,
-        ));
-        runtime.mark_job_failed(
+        runtime
+            .inner
+            .lifecycle
+            .replace_job_if_active(acquisition_job(
+                job_id,
+                types::RemoteAcquisitionStatus::Validated,
+            ));
+        runtime.inner.lifecycle.mark_job_failed(
             job_id,
             RemoteProviderId::Audible,
             "late provider failure".to_string(),
@@ -377,6 +353,7 @@ mod tests {
         });
         runtime
             .inner
+            .lifecycle
             .jobs
             .lock()
             .expect("jobs lock")
@@ -401,16 +378,26 @@ mod tests {
         let job_id = "remote-job-2";
         let job_dir = runtime
             .inner
+            .lifecycle
             .staging
             .create_job_dir(job_id)
             .expect("job dir");
         std::fs::write(job_dir.join("download.m4b"), b"payload").expect("write staged file");
-        runtime.inner.jobs.lock().expect("jobs lock").insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Cancelled),
-        );
+        runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(
+                job_id.to_string(),
+                acquisition_job(job_id, types::RemoteAcquisitionStatus::Cancelled),
+            );
 
-        runtime.cleanup_cancelled_job_session(job_id);
+        runtime
+            .inner
+            .lifecycle
+            .cleanup_cancelled_job_session(job_id);
 
         assert!(!job_dir.exists());
         assert_eq!(
@@ -430,11 +417,13 @@ mod tests {
         let unmaterialized_job_id = "remote-job-unmaterialized";
         let materialized_job_dir = runtime
             .inner
+            .lifecycle
             .staging
             .create_job_dir(materialized_job_id)
             .expect("materialized job dir");
         let unmaterialized_job_dir = runtime
             .inner
+            .lifecycle
             .staging
             .create_job_dir(unmaterialized_job_id)
             .expect("unmaterialized job dir");
@@ -456,7 +445,7 @@ mod tests {
                 size_bytes: 5,
                 sha256: "abc123".to_string(),
             });
-        let mut jobs = runtime.inner.jobs.lock().expect("jobs lock");
+        let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
         jobs.insert(materialized_job_id.to_string(), materialized_job);
         jobs.insert(
             unmaterialized_job_id.to_string(),
@@ -474,7 +463,13 @@ mod tests {
         assert!(materialized_path.exists());
         assert!(materialized_job_dir.exists());
         assert!(!unmaterialized_job_dir.exists());
-        assert!(runtime.inner.jobs.lock().expect("jobs lock").is_empty());
+        assert!(runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .is_empty());
     }
 
     #[cfg(unix)]
@@ -486,6 +481,7 @@ mod tests {
         let good_job_id = "z-good-session";
         let good_job_dir = runtime
             .inner
+            .lifecycle
             .staging
             .create_job_dir(good_job_id)
             .expect("good job dir");
@@ -494,14 +490,20 @@ mod tests {
 
         let outside_target = root.path().join("outside-target");
         std::fs::create_dir_all(&outside_target).expect("outside target");
-        std::fs::create_dir_all(runtime.inner.staging.session_root()).expect("session root");
+        std::fs::create_dir_all(runtime.inner.lifecycle.staging.session_root())
+            .expect("session root");
         std::os::unix::fs::symlink(
             &outside_target,
-            runtime.inner.staging.session_root().join(bad_job_id),
+            runtime
+                .inner
+                .lifecycle
+                .staging
+                .session_root()
+                .join(bad_job_id),
         )
         .expect("create bad session symlink");
 
-        let mut jobs = runtime.inner.jobs.lock().expect("jobs lock");
+        let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
         jobs.insert(
             bad_job_id.to_string(),
             acquisition_job(bad_job_id, types::RemoteAcquisitionStatus::Acquiring),
@@ -513,6 +515,8 @@ mod tests {
         drop(jobs);
 
         let error = runtime
+            .inner
+            .lifecycle
             .cleanup_logout_sessions_without_handoff()
             .expect_err("bad session should report cleanup error");
 

@@ -1,18 +1,50 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
-use crate::errors::AppError;
-use crate::remote_source::{types, AcquisitionJob as RemoteAcquisitionJob};
 use abb_remote_source_core::{
     acquisition_progress, AcquisitionProgress as CoreAcquisitionProgress, AcquisitionStage,
 };
 use tokio::task::AbortHandle;
 
+use crate::errors::{AppError, Result};
+use crate::remote_source::materializer::AaxcleanMaterializer;
+use crate::remote_source::staging::RemoteSourceStaging;
+use crate::remote_source::{types, AcquisitionJob as RemoteAcquisitionJob};
+
 use super::{RemoteProviderId, RemoteSourceRuntime};
 
-impl RemoteSourceRuntime {
-    pub(super) fn cleanup_logout_sessions_without_handoff(&self) -> crate::errors::Result<()> {
+pub(super) struct RemoteAcquisitionLifecycle {
+    pub(super) staging: RemoteSourceStaging,
+    materializer: AaxcleanMaterializer,
+    pub(super) jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
+    acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
+}
+
+impl RemoteAcquisitionLifecycle {
+    pub(super) fn new(staging: RemoteSourceStaging, materializer: AaxcleanMaterializer) -> Self {
+        Self {
+            staging,
+            materializer,
+            jobs: Mutex::new(HashMap::new()),
+            acquisition_tasks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub(super) fn cleanup_abandoned_sessions(&self) -> Result<()> {
+        self.staging.cleanup_abandoned_sessions()
+    }
+
+    pub(super) fn clear_jobs(&self) -> Result<()> {
+        self.jobs
+            .lock()
+            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
+            .clear();
+        Ok(())
+    }
+
+    pub(super) fn cleanup_logout_sessions_without_handoff(&self) -> Result<()> {
         let mut job_ids = self
-            .inner
             .jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
@@ -24,7 +56,7 @@ impl RemoteSourceRuntime {
 
         let mut last_error = None;
         for job_id in job_ids {
-            if let Err(error) = self.inner.staging.purge_session(&job_id) {
+            if let Err(error) = self.staging.purge_session(&job_id) {
                 log::warn!(
                     "remote_source logout cleanup failed job_id={} error={}",
                     job_id,
@@ -41,8 +73,47 @@ impl RemoteSourceRuntime {
         Ok(())
     }
 
-    pub(super) async fn run_acquisition_job(
+    pub(super) async fn start_acquisition(
         &self,
+        runtime: RemoteSourceRuntime,
+        plan: super::AcquisitionPlan,
+    ) -> Result<RemoteAcquisitionJob> {
+        if plan.selections.is_empty() {
+            return Err(AppError::InvalidInput(
+                "Select at least one remote title to acquire.".to_string(),
+            ));
+        }
+        let job_id = uuid::Uuid::new_v4().to_string();
+        let job_dir = self.staging.create_job_dir(&job_id)?;
+        let job = RemoteAcquisitionJob {
+            job_id: job_id.clone(),
+            provider_id: plan.provider_id,
+            status: types::RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+        self.jobs
+            .lock()
+            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
+            .insert(job_id, job.clone());
+        let spawned_job_id = job.job_id.clone();
+        let abort_handle = tokio::spawn(async move {
+            runtime
+                .inner
+                .lifecycle
+                .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
+                .await;
+        })
+        .abort_handle();
+        self.store_acquisition_task(&job.job_id, abort_handle);
+        Ok(job)
+    }
+
+    async fn run_acquisition_job(
+        &self,
+        runtime: RemoteSourceRuntime,
         plan: super::AcquisitionPlan,
         job_id: String,
         job_dir: PathBuf,
@@ -50,8 +121,8 @@ impl RemoteSourceRuntime {
         let result = match plan.provider_id {
             super::RemoteProviderId::Audible => {
                 super::providers::audible::AudibleProvider::acquire(
-                    self.inner.vault.as_ref(),
-                    &self.inner.materializer,
+                    runtime.inner.vault.as_ref(),
+                    &self.materializer,
                     &plan,
                     &job_id,
                     &job_dir,
@@ -98,7 +169,7 @@ impl RemoteSourceRuntime {
     }
 
     pub(super) fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
-        if let Ok(mut jobs) = self.inner.jobs.lock() {
+        if let Ok(mut jobs) = self.jobs.lock() {
             if let Some(job) = jobs.get_mut(job_id) {
                 if job.status == types::RemoteAcquisitionStatus::Cancelled {
                     return;
@@ -109,7 +180,7 @@ impl RemoteSourceRuntime {
     }
 
     pub(super) fn replace_job_if_active(&self, job: RemoteAcquisitionJob) {
-        if let Ok(mut jobs) = self.inner.jobs.lock() {
+        if let Ok(mut jobs) = self.jobs.lock() {
             if jobs.get(&job.job_id).is_some_and(|existing| {
                 existing.status == types::RemoteAcquisitionStatus::Cancelled
             }) {
@@ -125,7 +196,7 @@ impl RemoteSourceRuntime {
         provider_id: RemoteProviderId,
         message: String,
     ) {
-        if let Ok(mut jobs) = self.inner.jobs.lock() {
+        if let Ok(mut jobs) = self.jobs.lock() {
             let job = jobs
                 .entry(job_id.to_string())
                 .or_insert_with(|| RemoteAcquisitionJob {
@@ -151,7 +222,7 @@ impl RemoteSourceRuntime {
     }
 
     pub(super) fn mark_job_cancelled(&self, job_id: &str, provider_id: RemoteProviderId) {
-        if let Ok(mut jobs) = self.inner.jobs.lock() {
+        if let Ok(mut jobs) = self.jobs.lock() {
             let job = jobs
                 .entry(job_id.to_string())
                 .or_insert_with(|| RemoteAcquisitionJob {
@@ -186,9 +257,8 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub(super) fn job_is_cancelled(&self, job_id: &str) -> bool {
-        self.inner
-            .jobs
+    fn job_is_cancelled(&self, job_id: &str) -> bool {
+        self.jobs
             .lock()
             .ok()
             .and_then(|jobs| {
@@ -198,9 +268,8 @@ impl RemoteSourceRuntime {
             .unwrap_or(false)
     }
 
-    pub(super) fn job_is_active(&self, job_id: &str) -> bool {
-        self.inner
-            .jobs
+    fn job_is_active(&self, job_id: &str) -> bool {
+        self.jobs
             .lock()
             .ok()
             .and_then(|jobs| {
@@ -216,8 +285,8 @@ impl RemoteSourceRuntime {
             .unwrap_or(false)
     }
 
-    pub(super) fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
-        let Ok(mut tasks) = self.inner.acquisition_tasks.lock() else {
+    fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
+        let Ok(mut tasks) = self.acquisition_tasks.lock() else {
             log::warn!(
                 "remote_source acquisition job_id={} task_registry_store_failed=true",
                 job_id
@@ -231,15 +300,15 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub(super) fn remove_acquisition_task(&self, job_id: &str) {
-        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+    fn remove_acquisition_task(&self, job_id: &str) {
+        if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             tasks.remove(job_id);
         }
     }
 
-    pub(super) fn abort_acquisition_task(&self, job_id: &str) {
-        self.inner.materializer.abort_job(job_id);
-        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+    fn abort_acquisition_task(&self, job_id: &str) {
+        self.materializer.abort_job(job_id);
+        if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             if let Some(handle) = tasks.remove(job_id) {
                 handle.abort();
                 log::info!(
@@ -251,8 +320,8 @@ impl RemoteSourceRuntime {
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {
-        self.inner.materializer.abort_all();
-        if let Ok(mut tasks) = self.inner.acquisition_tasks.lock() {
+        self.materializer.abort_all();
+        if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             for (job_id, handle) in tasks.drain() {
                 handle.abort();
                 log::info!(
@@ -264,7 +333,7 @@ impl RemoteSourceRuntime {
     }
 
     pub(super) fn cleanup_cancelled_job_session(&self, job_id: &str) {
-        if let Err(error) = self.inner.staging.purge_session(job_id) {
+        if let Err(error) = self.staging.purge_session(job_id) {
             log::warn!(
                 "remote_source acquisition job_id={} cancelled_session_cleanup_failed={}",
                 job_id,
@@ -273,9 +342,8 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub fn acquisition_status(&self, job_id: &str) -> crate::errors::Result<RemoteAcquisitionJob> {
-        self.inner
-            .jobs
+    fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
+        self.jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .get(job_id)
@@ -285,9 +353,8 @@ impl RemoteSourceRuntime {
             })
     }
 
-    pub fn cancel_acquisition(&self, job_id: &str) -> crate::errors::Result<RemoteAcquisitionJob> {
+    fn cancel_acquisition(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
         let mut jobs = self
-            .inner
             .jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?;
@@ -316,14 +383,27 @@ impl RemoteSourceRuntime {
         Ok(cancelled_job)
     }
 
-    pub fn purge_session(&self, job_id: &str) -> crate::errors::Result<()> {
+    fn purge_session(&self, job_id: &str) -> Result<()> {
         self.abort_acquisition_task(job_id);
-        self.inner.staging.purge_session(job_id)?;
-        self.inner
-            .jobs
+        self.staging.purge_session(job_id)?;
+        self.jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .remove(job_id);
         Ok(())
+    }
+}
+
+impl RemoteSourceRuntime {
+    pub fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
+        self.inner.lifecycle.acquisition_status(job_id)
+    }
+
+    pub fn cancel_acquisition(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
+        self.inner.lifecycle.cancel_acquisition(job_id)
+    }
+
+    pub fn purge_session(&self, job_id: &str) -> Result<()> {
+        self.inner.lifecycle.purge_session(job_id)
     }
 }
