@@ -11,6 +11,7 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 } from '../fileList/state.svelte';
+import { jobControlsState } from '../jobControls/state.svelte';
 
 type Deferred<T> = {
 	promise: Promise<T>;
@@ -124,9 +125,13 @@ describe('metadata panel race guards', () => {
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);
 		context.setCoverArtMock.mockReset();
+		context.refreshCoverArtDisplayMock.mockReset();
+		context.getMetadataIntentPatchForFileMock.mockReset();
+		context.getMetadataIntentPatchForFileMock.mockReturnValue(undefined);
 		context.renderAutoResolutionHintsMock.mockReset();
 		context.resetAutoResolutionHintsMock.mockReset();
 		context.getMetadataForFileMock.mockReturnValue(undefined);
+		jobControlsState.jobType = 'merge';
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
@@ -234,5 +239,22 @@ describe('metadata panel race guards', () => {
 		await pending;
 
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+	});
+
+	it('auto-loads cover art for the selected batch file when it is not first valid', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+		jobControlsState.jobType = 'batch';
+		context.readAudioMetadataMock.mockResolvedValue({ cover_art: [4, 5, 6] });
+		setCurrentFileList(makeFileList(alpha, beta));
+		setSelectedFileIndices([1]);
+		setSelectedIndex(1);
+
+		await autoUpdateCoverArtFromFirstValidFile();
+
+		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/beta.m4b');
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith('/books/beta.m4b', {
+			cover_art: [4, 5, 6],
+		});
 	});
 });

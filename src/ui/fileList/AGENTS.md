@@ -29,7 +29,8 @@
 - Selection/order changes must preserve the selected file identity when moving
   or appending files.
 - Cover-art preview/commit ownership is mode-keyed through `coverArt/coverOwner.ts`
-  (merge → first valid input; batch → selected file[s]); selection flows call
+  (merge → first valid input; batch → exactly one selected valid file; batch
+  multi-select ignores cover-art commits); selection flows call
   `refreshCoverArtDisplay()` rather than gating on a global custom-cover flag.
 - FileList mutations that can affect processing requests must refresh output
   estimates or previews through the output panel public surface.

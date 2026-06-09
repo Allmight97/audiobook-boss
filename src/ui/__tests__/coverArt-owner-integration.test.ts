@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { getCurrentCoverArt, refreshCoverArtDisplay, setCustomCoverArt } from '../coverArt';
+import {
+	clearCoverArt,
+	getCurrentCoverArt,
+	getHasCustomCoverArt,
+	refreshCoverArtDisplay,
+	setCustomCoverArt,
+} from '../coverArt';
 import { jobControlsState } from '../jobControls/state.svelte';
 import {
 	setCurrentFileList,
@@ -56,6 +62,18 @@ describe('coverArt owner integration', () => {
 		expect(getCurrentCoverArt()).toEqual([4, 5, 6]);
 	});
 
+	it('ignores custom cover art commits in batch multi-select', () => {
+		setSelectedFileIndices([0, 1]);
+		setSelectedIndex(0);
+
+		setCustomCoverArt([7, 8, 9]);
+
+		expect(getMetadataIntentPatchForFile('/books/a.m4b')?.cover_art).toBeUndefined();
+		expect(getMetadataIntentPatchForFile('/books/b.m4b')?.cover_art).toBeUndefined();
+		expect(getCurrentCoverArt()).toBeNull();
+		expect(getHasCustomCoverArt()).toBe(false);
+	});
+
 	it('commits merge cover art to the first valid file regardless of selection', () => {
 		jobControlsState.jobType = 'merge';
 		setSelectedFileIndices([1]);
@@ -68,6 +86,24 @@ describe('coverArt owner integration', () => {
 			value: [1, 2, 3],
 		});
 		expect(getMetadataIntentPatchForFile('/books/b.m4b')?.cover_art).toBeUndefined();
+	});
+
+	it('does not clear staged merge cover art during non-explicit panel resets', () => {
+		jobControlsState.jobType = 'merge';
+
+		setCustomCoverArt([9, 8, 7]);
+		clearCoverArt();
+
+		expect(getMetadataIntentPatchForFile('/books/a.m4b')?.cover_art).toEqual({
+			op: 'set',
+			value: [9, 8, 7],
+		});
+		expect(getCurrentCoverArt()).toEqual([9, 8, 7]);
+
+		clearCoverArt({ markRemoval: true });
+		expect(getMetadataIntentPatchForFile('/books/a.m4b')?.cover_art).toEqual({
+			op: 'clear',
+		});
 	});
 
 	it('refreshes batch preview when cycling selected files', () => {

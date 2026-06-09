@@ -48,14 +48,14 @@ function buildCoverArtIntentPatch(
 	return { cover_art: { op: 'set', value: [...coverArtBytes] } };
 }
 
-function commitCoverArtToOwners(coverArtBytes: number[] | null, markRemoval: boolean): void {
+function commitCoverArtToOwners(coverArtBytes: number[] | null, markRemoval: boolean): boolean {
 	const ownerPaths = resolveCoverOwnerPaths(
 		readJobType(),
 		getCurrentFileList(),
 		getSelectedFiles(),
 	);
 	if (ownerPaths.length === 0) {
-		return;
+		return false;
 	}
 
 	const intentPatch = buildCoverArtIntentPatch(coverArtBytes, markRemoval);
@@ -67,6 +67,7 @@ function commitCoverArtToOwners(coverArtBytes: number[] | null, markRemoval: boo
 			intentPatch,
 		});
 	}
+	return true;
 }
 
 export function refreshCoverArtDisplay(): void {
@@ -316,7 +317,14 @@ export function setCustomCoverArt(coverArtBytes: number[] | null): void {
 		return;
 	}
 
-	commitCoverArtToOwners(coverArtBytes, false);
+	const committed = commitCoverArtToOwners(coverArtBytes, false);
+	if (!committed) {
+		clearCoverArtSession();
+		setHasCustomCoverArt(false);
+		setCoverArtRemovalRequested(false);
+		refreshCoverArtDisplay();
+		return;
+	}
 	setCoverArtSession(coverArtBytes);
 	setHasCustomCoverArt(true);
 	setCoverArtRemovalRequested(false);
@@ -326,7 +334,7 @@ export function setCustomCoverArt(coverArtBytes: number[] | null): void {
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {
 	const markRemoval = options?.markRemoval ?? false;
 
-	if (markRemoval || coverArtSessionState.hasCustomCoverArt) {
+	if (markRemoval) {
 		commitCoverArtToOwners(null, markRemoval);
 	}
 

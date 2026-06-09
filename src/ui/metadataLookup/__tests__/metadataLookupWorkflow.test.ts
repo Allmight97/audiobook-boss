@@ -230,11 +230,35 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl: async () => [9, 9, 9],
 		});
 
-		await fetchMetadataLookupCoverPreview(0, result.coverUrl!, harness.mocks.loadCoverArtFromUrl);
+		await fetchMetadataLookupCoverPreview(result.coverUrl!, harness.mocks.loadCoverArtFromUrl);
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([9, 9, 9]);
+	});
+
+	it('does not reuse cached lookup cover bytes for a different URL at the same result index', async () => {
+		clearMetadataLookupCoverPreviewCache();
+		const firstCoverUrl = 'https://example.com/first.jpg';
+		const secondCoverUrl = 'https://example.com/second.jpg';
+		const result = lookupResult({ coverUrl: secondCoverUrl });
+		const loadCoverArtFromUrl = vi.fn(async (url: string) =>
+			url === firstCoverUrl ? [1, 1, 1] : [2, 2, 2],
+		);
+		const harness = makeHarness({
+			lookupState: { results: [result], replaceCoverArt: true, isOpen: true },
+			queueState: {
+				queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }],
+				index: 0,
+			},
+			loadCoverArtFromUrl,
+		});
+
+		await fetchMetadataLookupCoverPreview(firstCoverUrl, harness.mocks.loadCoverArtFromUrl);
+		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+
+		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
+		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([2, 2, 2]);
 	});
 
 	it('opens with an error when no selected files are valid', async () => {

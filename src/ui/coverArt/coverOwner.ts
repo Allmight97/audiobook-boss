@@ -20,7 +20,11 @@ export function resolveCoverOwnerPaths(
 		return mergeKey ? [mergeKey] : [];
 	}
 
-	return selectedFiles.filter((file) => file.isValid).map((file) => file.path);
+	const validSelected = selectedFiles.filter((file) => file.isValid);
+	if (validSelected.length !== 1) {
+		return [];
+	}
+	return [validSelected[0].path];
 }
 
 function coverBytesEqual(left: number[] | null, right: number[] | null): boolean {

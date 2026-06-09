@@ -11,17 +11,9 @@
 	} from '../metadataLookup';
 	import {
 		fetchMetadataLookupCoverPreview,
-		metadataLookupCoverPreviewByIndex,
-		prefetchMetadataLookupCoverPreviews,
+		getMetadataLookupCoverPreviewState,
 	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
-
-	$effect(() => {
-		prefetchMetadataLookupCoverPreviews(
-			metadataLookupState.results,
-			tauriClient.loadCoverArtFromUrl,
-		);
-	});
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -63,9 +55,9 @@
 		return parts.length ? parts.join(' • ') : 'Series: —';
 	}
 
-	function requestCoverPreview(index: number, coverUrl: string | null | undefined): void {
+	function requestCoverPreview(coverUrl: string | null | undefined): void {
 		if (!coverUrl) return;
-		void fetchMetadataLookupCoverPreview(index, coverUrl, tauriClient.loadCoverArtFromUrl);
+		void fetchMetadataLookupCoverPreview(coverUrl, tauriClient.loadCoverArtFromUrl);
 	}
 
 	onMount(() => {
@@ -214,11 +206,11 @@
 						<div
 							class="metadata-lookup-cover"
 							role="presentation"
-							onmouseenter={() => requestCoverPreview(index, result.coverUrl)}
-							onfocusin={() => requestCoverPreview(index, result.coverUrl)}
+							onmouseenter={() => requestCoverPreview(result.coverUrl)}
+							onfocusin={() => requestCoverPreview(result.coverUrl)}
 						>
 							{#if result.coverUrl}
-								{@const preview = metadataLookupCoverPreviewByIndex[index] ?? { status: 'idle' }}
+								{@const preview = getMetadataLookupCoverPreviewState(result.coverUrl)}
 								{#if preview.status === 'ready'}
 									<img
 										src={preview.dataUrl}

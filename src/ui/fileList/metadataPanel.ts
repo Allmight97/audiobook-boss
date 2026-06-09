@@ -6,7 +6,11 @@ import { updateTagPreview } from '../tagPreview';
 import { clearCoverArt, getHasCustomCoverArt, refreshCoverArtDisplay } from '../coverArt';
 import { effectiveCoverForFile } from '../coverArt/coverOwner';
 import { jobControlsState } from '../jobControls/state.svelte';
-import { getMetadataForFile, getMetadataIntentPatchForFile, setMetadataForFile } from '../metadataState';
+import {
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	setMetadataForFile,
+} from '../metadataState';
 import {
 	populateMetadataFormMulti,
 	populateMetadataFormSingle,
@@ -23,7 +27,12 @@ import {
 	setInspectorValues,
 } from './inspectorState.svelte';
 import { companionSummaryForInputIds } from '../remoteSource/sessionAssets.svelte';
-import { getCurrentFileList, getSelectedFileIndices, getSelectedFileIndex, getSelectedFiles } from './state.svelte';
+import {
+	getCurrentFileList,
+	getSelectedFileIndices,
+	getSelectedFileIndex,
+	getSelectedFiles,
+} from './state.svelte';
 
 let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
@@ -295,9 +304,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 		const selectedValid = getSelectedFiles().find((file) => file.isValid);
 		const firstValid = fileList.files.find((file) => file.isValid);
 		const targetPath =
-			jobType === 'merge'
-				? firstValid?.path
-				: (selectedValid?.path ?? firstValid?.path);
+			jobType === 'merge' ? firstValid?.path : (selectedValid?.path ?? firstValid?.path);
 		if (!targetPath) {
 			refreshCoverArtDisplay();
 			return;
@@ -314,12 +321,20 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 		}
 
 		const metadata = await tauriClient.readAudioMetadata(targetPath);
+		const currentJobType = jobControlsState.jobType;
+		const currentFileList = getCurrentFileList();
+		const currentFirstValid = currentFileList?.files.find((file) => file.isValid);
+		const currentSelectedValid = getSelectedFiles().find((file) => file.isValid);
+		const currentTargetPath =
+			currentJobType === 'merge'
+				? currentFirstValid?.path
+				: (currentSelectedValid?.path ?? currentFirstValid?.path);
 		if (
 			requestId !== latestAutoCoverRequestId ||
 			getHasCustomCoverArt() ||
 			getMetadataIntentPatchForFile(targetPath)?.cover_art ||
-			getCurrentFileList()?.files.find((file) => file.isValid)?.path !==
-				(jobType === 'merge' ? firstValid?.path : targetPath)
+			currentJobType !== jobType ||
+			currentTargetPath !== targetPath
 		) {
 			return;
 		}

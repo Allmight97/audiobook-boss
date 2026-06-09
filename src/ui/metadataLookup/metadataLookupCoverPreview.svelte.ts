@@ -6,72 +6,61 @@ export type MetadataLookupCoverPreviewState =
 	| { status: 'ready'; bytes: number[]; dataUrl: string }
 	| { status: 'error' };
 
-export const metadataLookupCoverPreviewByIndex = $state<Record<number, MetadataLookupCoverPreviewState>>(
-	{},
-);
+const metadataLookupCoverPreviewByUrl = $state<Record<string, MetadataLookupCoverPreviewState>>({});
 
-const inflightByIndex = new Map<number, Promise<void>>();
+const inflightByUrl = new Map<string, Promise<void>>();
 
 export function clearMetadataLookupCoverPreviewCache(): void {
-	for (const key of Object.keys(metadataLookupCoverPreviewByIndex)) {
-		delete metadataLookupCoverPreviewByIndex[Number(key)];
+	for (const key of Object.keys(metadataLookupCoverPreviewByUrl)) {
+		delete metadataLookupCoverPreviewByUrl[key];
 	}
-	inflightByIndex.clear();
+	inflightByUrl.clear();
 }
 
 export function getMetadataLookupCoverPreviewState(
-	index: number,
+	coverUrl: string | null | undefined,
 ): MetadataLookupCoverPreviewState {
-	return metadataLookupCoverPreviewByIndex[index] ?? { status: 'idle' };
+	if (!coverUrl) {
+		return { status: 'idle' };
+	}
+	return metadataLookupCoverPreviewByUrl[coverUrl] ?? { status: 'idle' };
 }
 
-export function getCachedMetadataLookupCoverBytes(index: number): number[] | null {
-	const state = metadataLookupCoverPreviewByIndex[index];
+export function getCachedMetadataLookupCoverBytes(coverUrl: string): number[] | null {
+	const state = metadataLookupCoverPreviewByUrl[coverUrl];
 	return state?.status === 'ready' ? state.bytes : null;
 }
 
 export async function fetchMetadataLookupCoverPreview(
-	index: number,
 	coverUrl: string,
 	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
 ): Promise<void> {
-	const existing = metadataLookupCoverPreviewByIndex[index];
+	const existing = metadataLookupCoverPreviewByUrl[coverUrl];
 	if (existing?.status === 'ready') {
 		return;
 	}
-	const inflight = inflightByIndex.get(index);
+	const inflight = inflightByUrl.get(coverUrl);
 	if (inflight) {
 		return inflight;
 	}
 
-	metadataLookupCoverPreviewByIndex[index] = { status: 'loading' };
+	metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'loading' };
 	const promise = loadCoverArtFromUrl(coverUrl)
 		.then((bytes) => {
-			metadataLookupCoverPreviewByIndex[index] = {
+			metadataLookupCoverPreviewByUrl[coverUrl] = {
 				status: 'ready',
 				bytes,
 				dataUrl: coverArtBytesToDataUrl(bytes),
 			};
 		})
-		.catch(() => {
-			metadataLookupCoverPreviewByIndex[index] = { status: 'error' };
+		.catch((error) => {
+			console.warn('Failed to load metadata lookup cover preview:', error);
+			metadataLookupCoverPreviewByUrl[coverUrl] = { status: 'error' };
 		})
 		.finally(() => {
-			inflightByIndex.delete(index);
+			inflightByUrl.delete(coverUrl);
 		});
 
-	inflightByIndex.set(index, promise);
+	inflightByUrl.set(coverUrl, promise);
 	return promise;
-}
-
-export function prefetchMetadataLookupCoverPreviews(
-	results: ReadonlyArray<{ coverUrl: string | null | undefined }>,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): void {
-	for (const [index, result] of results.entries()) {
-		if (!result.coverUrl) {
-			continue;
-		}
-		void fetchMetadataLookupCoverPreview(index, result.coverUrl, loadCoverArtFromUrl);
-	}
 }
