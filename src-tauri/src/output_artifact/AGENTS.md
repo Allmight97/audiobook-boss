@@ -2,8 +2,8 @@
 
 ## Public API Strip
 - Import from `crate::output_artifact`, not private child modules.
-- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_asset`, `commit_supplemental_output_assets_for_output`.
-- Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `SupplementalOutputAssetCommitRequest`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
+- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`.
+- Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
 - Pure naming/collision/review data facts are packaged in
   `abb-output-artifact-core`; `src-tauri/src/output_artifact` owns runtime file
   I/O and final commit behavior.

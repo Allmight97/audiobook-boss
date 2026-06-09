@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 use tauri::Manager;
 
 mod materializer;
@@ -189,6 +188,7 @@ pub use types::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
     use secrecy::SecretString;
     use tempfile::TempDir;
 
