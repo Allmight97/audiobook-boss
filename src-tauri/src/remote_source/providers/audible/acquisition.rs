@@ -397,7 +397,14 @@ async fn validate_materialized_audio(
             match materialized_file_from_path(&title_id, &materialized_path) {
                 Ok(file) => Ok(file),
                 Err(error) => {
-                    cleanup_download_artifacts(&materialized_path)?;
+                    if let Err(cleanup_error) = cleanup_download_artifacts(&materialized_path) {
+                        log::warn!(
+                            "remote_source audible stage=validation_cleanup_failed title_ref={} path={} error={}",
+                            title_ref(&title_id),
+                            sanitize_path_for_display(&materialized_path),
+                            cleanup_error
+                        );
+                    }
                     Err(error)
                 }
             }

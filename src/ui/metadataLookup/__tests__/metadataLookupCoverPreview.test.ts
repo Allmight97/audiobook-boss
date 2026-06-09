@@ -4,6 +4,7 @@ import {
 	clearMetadataLookupCoverPreviewCache,
 	getMetadataLookupCoverPreviewState,
 	loadMetadataLookupCoverBytes,
+	MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES,
 	scheduleMetadataLookupCoverPreviews,
 } from '../metadataLookupCoverPreview.svelte';
 
@@ -171,6 +172,22 @@ describe('metadata lookup cover preview scheduler', () => {
 		expect(getMetadataLookupCoverPreviewState('https://example.com/clear.jpg').status).toBe(
 			'idle',
 		);
+	});
+
+	it('caps cached previews by pruning the oldest ready entries', async () => {
+		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
+		const urls = Array.from(
+			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
+			(_, index) => `https://example.com/cache-${index}.jpg`,
+		);
+
+		for (const url of urls) {
+			await loadMetadataLookupCoverBytes(url, loadCoverArtFromUrl);
+		}
+		await flushAsync();
+
+		expect(getMetadataLookupCoverPreviewState(urls[0]).status).toBe('idle');
+		expect(getMetadataLookupCoverPreviewState(urls[urls.length - 1]).status).toBe('ready');
 	});
 
 	it('lets apply join an in-flight preview request', async () => {

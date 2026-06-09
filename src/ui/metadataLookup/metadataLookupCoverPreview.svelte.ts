@@ -242,9 +242,18 @@ function touchCacheEntry(coverUrl: string): void {
 }
 
 function prunePreviewCache(): void {
-	while (cacheOrder.length > MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES) {
+	let remainingCandidates = cacheOrder.length;
+	while (
+		cacheOrder.length > MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES &&
+		remainingCandidates > 0
+	) {
 		const coverUrl = cacheOrder.shift();
-		if (!coverUrl || inflightByUrl.has(coverUrl)) {
+		remainingCandidates -= 1;
+		if (!coverUrl) {
+			continue;
+		}
+		if (inflightByUrl.has(coverUrl)) {
+			cacheOrder.push(coverUrl);
 			continue;
 		}
 		delete metadataLookupCoverPreviewByUrl[coverUrl];
