@@ -1,10 +1,10 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
-use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::errors::Result;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
-    commit_supplemental_output_asset, OutputKind, ResolvedOutputPlan,
-    SupplementalOutputAssetCommitRequest,
+    commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
+    SupplementalOutputAssetsCommitRequest,
 };
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::job_registry::{CancellationChecker, JobId};
@@ -77,7 +77,7 @@ pub(crate) async fn run_processing_job(
     )
     .await
     {
-        Ok(message) => match commit_supplemental_assets_for_output(
+        Ok(message) => match commit_supplemental_assets(
             request.output_plan.kind,
             &request.supplemental_assets,
             &request.output_plan.resolved_path,
@@ -87,10 +87,7 @@ pub(crate) async fn run_processing_job(
                 preview_file_path: preview_path,
                 preview_actual_seconds: preview_seconds_resolved,
             },
-            Err(error) => classify_processing_error(supplemental_commit_failure(
-                &request.output_plan.resolved_path,
-                error,
-            )),
+            Err(error) => classify_processing_error(error),
         },
         Err(error) => classify_processing_error(error),
     };
@@ -157,38 +154,15 @@ pub(crate) fn supplemental_assets_for_input(
 }
 
 pub(crate) fn commit_supplemental_assets(
-    assets: &[SupplementalProcessingAsset],
-    final_audio_path: &Path,
-) -> Result<()> {
-    for asset in assets {
-        commit_supplemental_output_asset(
-            SupplementalOutputAssetCommitRequest::new(&asset.path, final_audio_path)
-                .with_expected_identity(asset.size_bytes, &asset.sha256),
-        )?;
-    }
-    Ok(())
-}
-
-pub(crate) fn supplemental_commit_failure(final_audio_path: &Path, error: AppError) -> AppError {
-    let detail = match error {
-        AppError::FileValidation(message) => message,
-        other => other.to_string(),
-    };
-    AppError::FileValidation(format!(
-        "Audiobook output '{}' was created, but the requested Supplemental PDF could not be committed: {detail}",
-        sanitize_path_for_display(final_audio_path)
-    ))
-}
-
-pub(crate) fn commit_supplemental_assets_for_output(
     output_kind: OutputKind,
     assets: &[SupplementalProcessingAsset],
     output_path: &Path,
 ) -> Result<()> {
-    if output_kind != OutputKind::Final {
-        return Ok(());
-    }
-    commit_supplemental_assets(assets, output_path)
+    let request = assets.iter().fold(
+        SupplementalOutputAssetsCommitRequest::new(output_kind, output_path),
+        |request, asset| request.with_asset(&asset.path, asset.size_bytes, &asset.sha256),
+    );
+    commit_supplemental_output_assets_for_output(request)
 }
 
 pub(crate) async fn register_job_and_validate_output(

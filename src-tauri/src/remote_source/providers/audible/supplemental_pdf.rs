@@ -3,13 +3,13 @@ use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
+use abb_audible_core::title_ref;
 use abb_media_core::{
     SupplementalPdfIdentity, SupplementalPdfIdentityBuilder, MAX_SUPPLEMENTAL_PDF_BYTES,
 };
 
-use super::{
-    generated_staging_path, title_ref, AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS,
-};
+use super::acquisition::generated_staging_path;
+use super::{AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS};
 use crate::remote_source::scoped_output::StagedTempFile;
 use crate::remote_source::SupplementalAsset;
 

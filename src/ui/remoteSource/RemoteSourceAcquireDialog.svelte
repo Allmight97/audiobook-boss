@@ -19,6 +19,12 @@
 		progressPercent,
 		progressTitleLabel,
 	} from './remoteSourceAcquireDialogHelpers';
+	import {
+		selectedRemoteTitleSummaryText,
+		toggledRemoteTitleSelection,
+		toggledSupplementalPdfPreference,
+		visibleRemoteTitles,
+	} from './remoteSourceSelection';
 
 	// -- per-instance reactive state --
 
@@ -29,58 +35,36 @@
 	const account = createAccountController(acquisition);
 	const workflow = createAcquisitionWorkflow(acquisition);
 
-	// -- selection / derived helpers (component-local because they close over view state) --
+	// -- selection / derived assignments delegate pure policy to helpers --
 
 	function clearSelectedTitles(): void {
 		acquisition.selectedTitleIds = new Set();
 	}
 
 	function toggleTitle(title: typeof acquisition.titles[number]): void {
-		if (!isTitleAcquirable(title)) return;
-		const next = new Set(acquisition.selectedTitleIds);
-		if (next.has(title.titleId)) {
-			next.delete(title.titleId);
-		} else {
-			next.add(title.titleId);
-		}
-		acquisition.selectedTitleIds = next;
-	}
-
-	function togglePdf(title: typeof acquisition.titles[number]): void {
-		acquisition.includePdfByTitleId = {
-			...acquisition.includePdfByTitleId,
-			[title.titleId]: !acquisition.includePdfByTitleId[title.titleId],
-		};
-	}
-
-	function visibleTitles(): typeof acquisition.titles {
-		const { titles, titleFilter, showSupplementalPdfOnly, hideUnavailableTitles } = acquisition;
-		const normalizedFilter = titleFilter.trim().toLowerCase();
-		let facetTitles = showSupplementalPdfOnly
-			? titles.filter((title) => title.supplementalPdfAvailable)
-			: titles;
-		if (hideUnavailableTitles) {
-			facetTitles = facetTitles.filter(isTitleAcquirable);
-		}
-		if (!normalizedFilter) return facetTitles;
-		return facetTitles.filter((title) =>
-			[title.title, title.authors.join(' '), title.narrators.join(' ')]
-				.join(' ')
-				.toLowerCase()
-				.includes(normalizedFilter),
+		acquisition.selectedTitleIds = toggledRemoteTitleSelection(
+			acquisition.selectedTitleIds,
+			title,
 		);
 	}
 
+	function togglePdf(title: typeof acquisition.titles[number]): void {
+		acquisition.includePdfByTitleId = toggledSupplementalPdfPreference(
+			acquisition.includePdfByTitleId,
+			title.titleId,
+		);
+	}
+
+	function visibleTitles(): typeof acquisition.titles {
+		return visibleRemoteTitles(acquisition.titles, {
+			titleFilter: acquisition.titleFilter,
+			showSupplementalPdfOnly: acquisition.showSupplementalPdfOnly,
+			hideUnavailableTitles: acquisition.hideUnavailableTitles,
+		});
+	}
+
 	function selectedSummaryText(): string {
-		const { selectedTitleIds } = acquisition;
-		const count = selectedTitleIds.size;
-		if (count === 0) return '0 selected';
-		const visibleIds = new Set(visibleTitles().map((title) => title.titleId));
-		const hiddenCount = [...selectedTitleIds].filter((id) => !visibleIds.has(id)).length;
-		const titleLabel = count === 1 ? 'title' : 'titles';
-		if (hiddenCount === 0) return `${count} ${titleLabel} selected`;
-		const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
-		return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
+		return selectedRemoteTitleSummaryText(acquisition.selectedTitleIds, visibleTitles());
 	}
 
 	// -- modal lifecycle --

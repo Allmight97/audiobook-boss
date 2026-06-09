@@ -8,6 +8,12 @@ use std::path::{Path, PathBuf};
 
 const FILE_HASH_BUFFER_BYTES: usize = 64 * 1024;
 
+pub(crate) struct SupplementalOutputAssetsCommitRequest<'a> {
+    output_kind: super::OutputKind,
+    final_audio_path: &'a Path,
+    assets: Vec<SupplementalOutputAssetCommitRequest<'a>>,
+}
+
 pub(crate) struct SupplementalOutputAssetCommitRequest<'a> {
     source_path: &'a Path,
     final_audio_path: &'a Path,
@@ -30,6 +36,29 @@ impl<'a> SupplementalOutputAssetCommitRequest<'a> {
 
     pub(crate) fn with_expected_identity(mut self, size_bytes: u64, sha256: &'a str) -> Self {
         self.expected_identity = Some(ExpectedSupplementalPdfIdentity { size_bytes, sha256 });
+        self
+    }
+}
+
+impl<'a> SupplementalOutputAssetsCommitRequest<'a> {
+    pub(crate) fn new(output_kind: super::OutputKind, final_audio_path: &'a Path) -> Self {
+        Self {
+            output_kind,
+            final_audio_path,
+            assets: Vec::new(),
+        }
+    }
+
+    pub(crate) fn with_asset(
+        mut self,
+        source_path: &'a Path,
+        size_bytes: u64,
+        sha256: &'a str,
+    ) -> Self {
+        self.assets.push(
+            SupplementalOutputAssetCommitRequest::new(source_path, self.final_audio_path)
+                .with_expected_identity(size_bytes, sha256),
+        );
         self
     }
 }
@@ -229,6 +258,32 @@ pub(crate) fn commit_supplemental_output_asset(
         .unwrap_or(0);
     log::info!("supplemental_pdf_commit status=ok bytes={committed_bytes}");
     Ok(destination)
+}
+
+fn supplemental_commit_failure(final_audio_path: &Path, error: AppError) -> AppError {
+    let detail = match error {
+        AppError::FileValidation(message) => message,
+        other => other.to_string(),
+    };
+    AppError::FileValidation(format!(
+        "Audiobook output '{}' was created, but one or more requested Supplemental PDFs could not be committed: {detail}",
+        sanitize_path_for_display(final_audio_path)
+    ))
+}
+
+pub(crate) fn commit_supplemental_output_assets_for_output(
+    request: SupplementalOutputAssetsCommitRequest<'_>,
+) -> Result<()> {
+    if request.output_kind != super::OutputKind::Final {
+        return Ok(());
+    }
+
+    for asset in request.assets {
+        commit_supplemental_output_asset(asset)
+            .map_err(|error| supplemental_commit_failure(request.final_audio_path, error))?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

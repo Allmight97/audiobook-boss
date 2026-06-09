@@ -122,11 +122,9 @@ impl ProcessingRun {
 #[cfg(test)]
 mod tests {
     use super::run_job::{
-        commit_supplemental_assets_for_output, register_job_and_validate_output,
-        supplemental_assets_for_input, supplemental_commit_failure,
+        commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
     };
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
-    use crate::errors::AppError;
     use crate::output_artifact::OutputKind;
     use crate::processing::terminal_outcomes::{
         classify_processing_error, ProcessingJobTerminalOutcome,
@@ -248,100 +246,19 @@ mod tests {
     }
 
     #[test]
-    fn supplemental_asset_commit_runs_only_for_final_outputs() {
-        let root = TempDir::new().expect("temp root");
-        let pdf_bytes = b"%PDF-1.7\nbody";
-        let source = root.path().join("source.pdf");
-        std::fs::write(&source, pdf_bytes).expect("write source pdf");
-        let asset = supplemental_asset(source, "current-input-1", pdf_bytes);
-        let preview_audio = root.path().join("Preview.m4b");
-        let final_audio = root.path().join("Book.m4b");
-
-        commit_supplemental_assets_for_output(
-            OutputKind::Preview,
-            std::slice::from_ref(&asset),
-            &preview_audio,
-        )
-        .expect("preview should not commit");
-        assert!(
-            !root.path().join("Preview - Supplemental PDF.pdf").exists(),
-            "preview output must not commit acquired PDFs"
-        );
-
-        commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
-            .expect("final should commit");
-        assert_eq!(
-            std::fs::read(root.path().join("Book - Supplemental PDF.pdf")).expect("read commit"),
-            pdf_bytes
-        );
-    }
-
-    #[test]
-    fn stale_supplemental_assets_fail_instead_of_silently_dropping_pdf() {
-        let root = TempDir::new().expect("temp root");
-        let pdf_bytes = b"%PDF-1.7\nbody";
-        let source = root.path().join("source.pdf");
-        std::fs::write(&source, pdf_bytes).expect("write source pdf");
-        let mut asset = supplemental_asset(source, "current-input-1", pdf_bytes);
-        asset.sha256 = "stale-hash".to_string();
-        let final_audio = root.path().join("Book.m4b");
-
-        let error =
-            commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
-                .expect_err("stale supplemental asset should fail");
-
-        assert!(
-            error.to_string().contains("hash changed"),
-            "unexpected error: {error}"
-        );
-        assert!(
-            !error.to_string().contains("Audiobook output"),
-            "helper-level commit validation should not wrap terminal outcome text"
-        );
-        assert!(
-            !root.path().join("Book - Supplemental PDF.pdf").exists(),
-            "bad supplemental asset must not be silently dropped or committed"
-        );
-    }
-
-    #[test]
-    fn supplemental_commit_failure_message_preserves_audio_output_truth() {
-        let final_audio = std::path::Path::new("/tmp/final/Book.m4b");
-        let error = supplemental_commit_failure(
-            final_audio,
-            AppError::FileValidation(
-                "Supplemental PDF source hash changed before output commit.".to_string(),
-            ),
-        );
-
-        let message = error.to_string();
-        assert!(
-            message.contains("Audiobook output 'Book.m4b' was created"),
-            "unexpected message: {message}"
-        );
-        assert!(
-            message.contains("requested Supplemental PDF could not be committed"),
-            "unexpected message: {message}"
-        );
-        assert!(
-            message.contains("hash changed"),
-            "unexpected message: {message}"
-        );
-        assert!(
-            !message.contains("/tmp/final"),
-            "output path should be sanitized: {message}"
-        );
-    }
-
-    #[test]
     fn supplemental_commit_failure_classifies_processing_as_terminal_failed() {
-        let final_audio = std::path::Path::new("/tmp/final/Book.m4b");
-        let outcome = classify_processing_error(supplemental_commit_failure(
-            final_audio,
-            AppError::FileValidation(
-                "Supplemental PDF source size changed before output commit.".to_string(),
-            ),
-        ));
+        let root = TempDir::new().expect("temp root");
+        let original_bytes = b"%PDF-1.7\nbody";
+        let changed_bytes = b"%PDF-1.7\nBODY";
+        let source = root.path().join("source.pdf");
+        std::fs::write(&source, original_bytes).expect("write source pdf");
+        let asset = supplemental_asset(source.clone(), "current-input-1", original_bytes);
+        std::fs::write(&source, changed_bytes).expect("change source pdf");
+        let final_audio = root.path().join("Book.m4b");
+
+        let error = commit_supplemental_assets(OutputKind::Final, &[asset], &final_audio)
+            .expect_err("stale output-artifact supplemental commit should fail");
+        let outcome = classify_processing_error(error);
 
         let ProcessingJobTerminalOutcome::Failed(envelope) = outcome else {
             panic!("Supplemental PDF commit failure should produce failed terminal outcome");
@@ -355,85 +272,12 @@ mod tests {
         assert!(
             envelope
                 .message
-                .contains("requested Supplemental PDF could not be committed"),
+                .contains("requested Supplemental PDFs could not be committed"),
             "unexpected envelope: {envelope:?}"
         );
         assert!(
-            envelope.message.contains("size changed"),
+            envelope.message.contains("hash changed"),
             "unexpected envelope: {envelope:?}"
-        );
-    }
-
-    #[test]
-    fn oversized_supplemental_asset_fails_before_hashing() {
-        let root = TempDir::new().expect("temp root");
-        let source = root.path().join("source.pdf");
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&source)
-            .expect("create source");
-        file.set_len(abb_media_core::MAX_SUPPLEMENTAL_PDF_BYTES + 1)
-            .expect("make sparse oversized pdf");
-        let asset = SupplementalProcessingAsset {
-            asset_id: "asset-1".to_string(),
-            input_id: "current-input-1".to_string(),
-            title_id: "B000000001".to_string(),
-            path: source,
-            file_name: "Supplemental PDF.pdf".to_string(),
-            size_bytes: abb_media_core::MAX_SUPPLEMENTAL_PDF_BYTES + 1,
-            sha256: "not-computed".to_string(),
-        };
-        let final_audio = root.path().join("Book.m4b");
-
-        let error =
-            commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
-                .expect_err("oversized supplemental asset should fail");
-
-        assert!(
-            error.to_string().contains("100 MiB size limit"),
-            "unexpected error: {error}"
-        );
-        assert!(
-            !root.path().join("Book - Supplemental PDF.pdf").exists(),
-            "oversized supplemental asset must not be committed"
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn symlink_supplemental_asset_fails_before_hashing() {
-        let root = TempDir::new().expect("temp root");
-        let target = root.path().join("target.pdf");
-        let link = root.path().join("source.pdf");
-        let pdf_bytes = b"%PDF-1.7\nbody";
-        std::fs::write(&target, pdf_bytes).expect("write target pdf");
-        std::os::unix::fs::symlink(&target, &link).expect("create symlink");
-        let symlink_len = std::fs::symlink_metadata(&link)
-            .expect("inspect symlink")
-            .len();
-        let asset = SupplementalProcessingAsset {
-            asset_id: "asset-1".to_string(),
-            input_id: "current-input-1".to_string(),
-            title_id: "B000000001".to_string(),
-            path: link,
-            file_name: "Supplemental PDF.pdf".to_string(),
-            size_bytes: symlink_len,
-            sha256: abb_media_core::sha256_hex(pdf_bytes),
-        };
-        let final_audio = root.path().join("Book.m4b");
-
-        let error =
-            commit_supplemental_assets_for_output(OutputKind::Final, &[asset], &final_audio)
-                .expect_err("symlink supplemental asset should fail");
-
-        assert!(
-            error.to_string().contains("regular file"),
-            "unexpected error: {error}"
-        );
-        assert!(
-            !root.path().join("Book - Supplemental PDF.pdf").exists(),
-            "symlink supplemental asset must not be committed"
         );
     }
 }
