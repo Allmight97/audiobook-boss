@@ -4,11 +4,16 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-09
+
 ### Changed
 
 - Runtime settings capability loading now has explicit cache, refresh, and
   invalidation semantics so App Settings can pass one capability snapshot into
   encoder and job controls.
+- Remote acquisition ownership is now split across tested UI selection policy,
+  backend runtime lifecycle, provider-private Audible per-title acquisition,
+  and output-artifact Supplemental PDF commit boundaries.
 
 ### Fixed
 
@@ -16,6 +21,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   directly; selected cover art still loads through the backend-validated
   cover-art URL path.
 - Pages deployment actions are pinned to audited commit SHAs.
+- Required Supplemental PDF output commits now report artifact-owned partial
+  failure truth while preserving the created audiobook output.
 
 ## [1.0.37] - 2026-06-09
 
