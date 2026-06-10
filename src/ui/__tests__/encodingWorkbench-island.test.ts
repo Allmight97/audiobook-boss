@@ -24,9 +24,11 @@ vi.mock('../core/actions', () => ({
 }));
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		previewOutputPath: vi.fn().mockResolvedValue(
-			'/Users/jstar/Projects/ABB Tests/output/Brandon Sanderson/The Stormlight Archive/1 - The Way of Kings.m4b',
-		),
+		previewOutputPath: vi
+			.fn()
+			.mockResolvedValue(
+				'/Users/jstar/Projects/ABB Tests/output/Brandon Sanderson/The Stormlight Archive/1 - The Way of Kings.m4b',
+			),
 		validateMetadataIntentPatch: vi.fn(async (metadataPatch: unknown) => ({
 			isValid: true,
 			metadataPatch,
@@ -74,7 +76,9 @@ describe('EncodingWorkbenchIsland', () => {
 		expect(outputBlock.querySelector('h3')?.textContent).toBe('Output');
 		expect(tagsBlock.querySelector('h3')?.textContent).toBe('Tags Preview');
 		await vi.waitFor(() => {
-			expect(screen.getByTestId('output-directory-value').textContent).toContain('ABB Tests/output');
+			expect(screen.getByTestId('output-directory-value').textContent).toContain(
+				'ABB Tests/output',
+			);
 			expect(screen.getByTestId('output-example').textContent).toContain('The Way of Kings.m4b');
 		});
 		expect(encoderLogicMocks.initializeEncoderPanelLogic).toHaveBeenCalledTimes(1);

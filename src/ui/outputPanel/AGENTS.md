@@ -5,8 +5,9 @@
 - Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`,
   `readEstimatedSizeText`, `readOutputDisplaySnapshot`,
   `readOutputDefaultsFromState`, `readOutputRequestConfig`, `updateOutputPath`,
-  `updateEstimatedSize`, `getCurrentMetadata`, `OutputPanelIsland`,
-  `OutputDisplaySnapshot` (type).
+  `updateEstimatedSize`, `getCurrentMetadata`, `runOutputPlanReviewWorkflow`,
+  `OutputPanelIsland`, `OutputDisplaySnapshot` (type),
+  `OutputPlanReviewResult` (type).
 - External Svelte consumers read display fields through `readEstimatedSizeText()`
   or `readOutputDisplaySnapshot()` inside reactive markup (`$derived(...)`).
 

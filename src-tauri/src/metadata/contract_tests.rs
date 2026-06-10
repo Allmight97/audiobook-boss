@@ -153,12 +153,12 @@ fn metadata_intent_validation_contract_preserves_invalid_date_for_validation() {
 fn metadata_passthrough_contract_synthesizes_chapters_from_source_facts() {
     let sources = vec![
         PassthroughSource {
-            path: std::path::PathBuf::from("/tmp/chapter-one.m4b"),
+            path: std::path::PathBuf::from("chapter-one.m4b"),
             duration: Some(60.0),
             is_valid: true,
         },
         PassthroughSource {
-            path: std::path::PathBuf::from("/tmp/chapter-two.m4b"),
+            path: std::path::PathBuf::from("chapter-two.m4b"),
             duration: Some(90.0),
             is_valid: true,
         },

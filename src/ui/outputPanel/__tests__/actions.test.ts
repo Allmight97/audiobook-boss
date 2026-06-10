@@ -5,30 +5,30 @@ import {
 	resetOutputPanelActions,
 	selectNamingPreset,
 	setAbsIncludeYear,
-} from '../outputPanel/actions';
-import { updateNamingOptionState, updateOutputPath } from '../outputPanel/preview';
+} from '../actions';
+import { updateNamingOptionState, updateOutputPath } from '../preview';
 import {
 	updateAbsIncludeYear,
 	updateNamingPreset,
 	updateNamingTemplate,
 	updateOutputDirectory,
-} from '../outputPanel/state.svelte';
-import { tauriClient } from '../../lib/tauri/client';
+} from '../state.svelte';
+import { tauriClient } from '../../../lib/tauri/client';
 
-vi.mock('../../lib/tauri/client', () => ({
+vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		openDirectory: vi.fn(),
 		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
-vi.mock('../outputPanel/preview', () => ({
+vi.mock('../preview', () => ({
 	updateOutputPath: vi.fn(),
 	updateNamingOptionState: vi.fn(),
 	showOutputError: vi.fn(),
 }));
 
-vi.mock('../outputPanel/state.svelte', () => ({
+vi.mock('../state.svelte', () => ({
 	readOutputDefaultsFromState: vi.fn(() => ({
 		outputDirectory: '/books/out',
 		outputNaming: { preset: 'absDefault', includeYear: false },

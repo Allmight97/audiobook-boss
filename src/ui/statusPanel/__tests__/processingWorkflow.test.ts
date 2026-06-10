@@ -18,7 +18,7 @@ import {
 } from '../../../types/audio';
 import type { AcquisitionJob } from '../../../types/remoteSource';
 import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
-import type { OutputPlanReviewResult } from '../../outputPanel/outputPlanWorkflow';
+import type { OutputPlanReviewResult } from '../../outputPanel';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,

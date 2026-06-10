@@ -11,7 +11,7 @@ import {
 	firstMetadataIntentValidationError,
 	validateMetadataDraftIntent,
 } from '../metadataValidation';
-import type { OutputPlanReviewResult } from '../outputPanel/outputPlanWorkflow';
+import type { OutputPlanReviewResult } from '../outputPanel';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
 import type { ProcessingWorkflowServices } from './processingWorkflowServices';
 import { supplementalAssetsForInputIds } from '../remoteSource/sessionAssets.svelte';

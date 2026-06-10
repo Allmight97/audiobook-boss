@@ -19,8 +19,7 @@ import type {
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
 } from '../metadataState';
-import type { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
-import type { updateOutputPath } from '../outputPanel';
+import type { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
 import type * as feedback from './feedback';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { readProcessingRequestConfig } from './processingConfig';

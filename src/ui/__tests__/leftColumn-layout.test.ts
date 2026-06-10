@@ -45,7 +45,7 @@ describe('left column sibling layout', () => {
 		}
 
 		expect(fileInspectorSource).toContain('inspectorState');
-		expect(fileInspectorSource).toContain('fileListViewState.combinedSizeText');
+		expect(fileInspectorSource).toContain('readCombinedSizeText');
 		expect(fileInspectorSource).toContain('data-testid="file-inspector-panel"');
 	});
 });

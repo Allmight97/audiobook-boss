@@ -14,8 +14,7 @@ import {
 	getMetadataIntentPatchForFile,
 	setMetadataForFile,
 } from '../metadataState';
-import { updateOutputPath } from '../outputPanel';
-import { runOutputPlanReviewWorkflow } from '../outputPanel/outputPlanWorkflow';
+import { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
 import * as feedback from './feedback';
 import { openGeneratedPreviewIfSingle } from './preview';
 import { readProcessingRequestConfig } from './processingConfig';

@@ -10,6 +10,7 @@ const EXPECTED_OUTPUT_PANEL_EXPORTS = [
 	'readOutputDefaultsFromState',
 	'readOutputDisplaySnapshot',
 	'readOutputRequestConfig',
+	'runOutputPlanReviewWorkflow',
 	'updateEstimatedSize',
 	'updateOutputPath',
 	'getCurrentMetadata',

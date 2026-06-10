@@ -418,14 +418,20 @@
 					</div>
 					<button
 						class="move-up-btn"
-						onclick={(event) => onFileListMoveUp(index, event)}
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListMoveUp(index, event);
+						}}
 						disabled={index === 0 || fileListViewState.orderLockVisible}
 					>
 						▲
 					</button>
 					<button
 						class="move-down-btn"
-						onclick={(event) => onFileListMoveDown(index, event)}
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListMoveDown(index, event);
+						}}
 						disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
 					>
 						▼
@@ -433,7 +439,10 @@
 					<button
 						class="remove-file-btn"
 						disabled={fileListViewState.orderLockVisible}
-						onclick={(event) => onFileListRemove(index, event)}
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListRemove(index, event);
+						}}
 					>
 						×
 					</button>

@@ -28,5 +28,6 @@ export {
 	readOutputDisplaySnapshot,
 	readOutputRequestConfig,
 } from './state.svelte';
+export { runOutputPlanReviewWorkflow, type OutputPlanReviewResult } from './outputPlanWorkflow';
 export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './preview';
 export { default as OutputPanelIsland } from './OutputPanelIsland.svelte';

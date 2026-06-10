@@ -8,11 +8,7 @@ import {
 	setCustomCoverArt,
 } from '../coverArt';
 import { jobControlsState } from '../jobControls/state.svelte';
-import {
-	setCurrentFileList,
-	setSelectedFileIndices,
-	setSelectedIndex,
-} from '../fileList';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList';
 import {
 	clearMetadataState,
 	getMetadataIntentPatchForFile,

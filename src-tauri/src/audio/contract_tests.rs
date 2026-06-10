@@ -19,10 +19,9 @@ fn audio_contract_supported_import_metadata_exposes_m4b_family() {
 
 #[test]
 fn audio_contract_rejects_missing_input_path() {
-    let err = validate_input_audio_path(Path::new(
-        "/definitely/not/a/real/audiobook-boss-input.m4b",
-    ))
-        .expect_err("missing path should fail validation");
+    let err =
+        validate_input_audio_path(Path::new("definitely-not-a-real-audiobook-boss-input.m4b"))
+            .expect_err("missing path should fail validation");
     let message = err.to_string().to_lowercase();
     assert!(
         message.contains("not found")
