@@ -4,13 +4,13 @@ import {
 	makeWorkflowLayer,
 	makeWorkflowServiceTag,
 } from '../../lib/effect/appEffect';
-import type { setFileOrderLocked } from '../fileList/actions';
-import type { stageMetadataToSelection } from '../fileList/metadataStaging';
 import type {
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
-} from '../fileList/state.svelte';
+	setFileOrderLocked,
+	stageMetadataToSelection,
+} from '../fileList';
 import type { getJobType, setJobControlsEnabled } from '../jobControls';
 import type { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import type {

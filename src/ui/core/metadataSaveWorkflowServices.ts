@@ -4,8 +4,7 @@ import {
 	makeWorkflowLayer,
 	makeWorkflowServiceTag,
 } from '../../lib/effect/appEffect';
-import type { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
-import type { getCurrentFileList } from '../fileList/state.svelte';
+import type { getCurrentFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
 import type { resetDirtyState } from '../metadataForm';
 import type {
 	clearPendingMetadataForFile,

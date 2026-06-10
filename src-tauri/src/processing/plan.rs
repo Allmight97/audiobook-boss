@@ -4,12 +4,13 @@ use crate::metadata::{
     plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
     NamingMetadata,
 };
+use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
     CollisionPolicy, OutputKind, OutputParentDirCleanup, OutputPlanLedger, OutputPlanReview,
     PlannedOutputAction, ResolvedOutputPlan,
 };
-use crate::processing::{JobType, OutputNamingConfig, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{JobType, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

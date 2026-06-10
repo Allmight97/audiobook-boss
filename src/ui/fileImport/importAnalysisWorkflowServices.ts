@@ -5,9 +5,11 @@ import {
 	makeWorkflowLayer,
 	makeWorkflowServiceTag,
 } from '../../lib/effect/appEffect';
-import type { appendFileList } from '../fileList/actions';
-import type { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
-import type { isOrderLocked } from '../fileList/state.svelte';
+import type {
+	appendFileList,
+	isOrderLocked,
+	persistPendingMetadataDraftsForCurrentSelection,
+} from '../fileList';
 import type { pushStatusPanelTransientStatus } from '../statusPanel';
 import type { clearFileImportError, setFileImportError } from './state.svelte';
 

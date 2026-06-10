@@ -1,6 +1,6 @@
 import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
-import { getCurrentFileList } from '../../fileList/state.svelte';
+import { getCurrentFileList } from '../../fileList';
 import * as feedback from '../feedback';
 import { convertBytesToDataUrl } from '../formatting';
 

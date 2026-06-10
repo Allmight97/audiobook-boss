@@ -21,10 +21,11 @@ export function applyOutputDefaultsFromSettings(defaults: OutputDefaults): void 
 	updateEstimatedSize();
 }
 
+export type { OutputDisplaySnapshot } from './state.svelte';
 export {
-	getState,
-	outputPanelState,
+	readEstimatedSizeText,
 	readOutputDefaultsFromState,
+	readOutputDisplaySnapshot,
 	readOutputRequestConfig,
 } from './state.svelte';
 export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './preview';

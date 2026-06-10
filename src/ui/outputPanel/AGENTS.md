@@ -2,10 +2,13 @@
 
 ## Public API Strip
 - Import output panel runtime symbols from `src/ui/outputPanel`.
-- Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`, `getState`,
-  `outputPanelState`, `readOutputDefaultsFromState`, `readOutputRequestConfig`,
-  `updateOutputPath`, `updateEstimatedSize`, `getCurrentMetadata`,
-  `OutputPanelIsland`.
+- Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`,
+  `readEstimatedSizeText`, `readOutputDisplaySnapshot`,
+  `readOutputDefaultsFromState`, `readOutputRequestConfig`, `updateOutputPath`,
+  `updateEstimatedSize`, `getCurrentMetadata`, `OutputPanelIsland`,
+  `OutputDisplaySnapshot` (type).
+- External Svelte consumers read display fields through `readEstimatedSizeText()`
+  or `readOutputDisplaySnapshot()` inside reactive markup (`$derived(...)`).
 
 ## Private Cluster
 - Files: `OutputPanelIsland.svelte`, `actions.ts`, `preview.ts`, `state.svelte.ts`, `outputPlanWorkflow.ts`, `outputPlanWorkflowLive.ts`, `outputPlanWorkflowServices.ts`, `__tests__/`.

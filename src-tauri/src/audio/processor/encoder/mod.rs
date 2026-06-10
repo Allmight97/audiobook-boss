@@ -14,7 +14,7 @@ mod context;
 pub mod options;
 mod write;
 
-// Tests moved to src-tauri/tests/contract/encoder.rs
+// Encoder boundary behavior pinned in src-tauri/src/audio/contract_tests.rs
 
 // Re-export public API (crate-internal)
 // Note: create_audio_encoder and finalize_encoding are internal to this module

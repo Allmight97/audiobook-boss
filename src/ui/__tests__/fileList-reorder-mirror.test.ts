@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { moveFileDown, moveFileUp, reorderFiles } from '../fileList/actions';
 import {
 	getSelectedFileIndices,
+	moveFileDown,
+	moveFileUp,
+	reorderFiles,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state.svelte';
+} from '../fileList';
 
 vi.mock('../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),

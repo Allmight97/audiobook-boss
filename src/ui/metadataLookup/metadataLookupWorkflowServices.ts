@@ -6,7 +6,7 @@ import {
 } from '../../lib/effect/appEffect';
 import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import type { selectFile } from '../fileList/actions';
+import type { selectFile } from '../fileList';
 import type { applyMetadataToForm, readMetadataForm } from '../metadataForm';
 import type { setMetadataForFile } from '../metadataState';
 import type { updateEstimatedSize, updateOutputPath } from '../outputPanel';

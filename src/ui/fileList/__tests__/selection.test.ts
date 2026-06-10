@@ -6,17 +6,17 @@ import {
 	reindexSelectionAfterRemoval,
 	reindexSelectionAfterMove,
 	swapSelectionIndices,
-} from '../fileList/selection';
+} from '../selection';
 import {
+	clearSelectedIndices,
 	getCurrentFileList,
 	getSelectedFileIndex,
-	setCurrentFileList,
-	setSelectedIndex,
-	setSelectedFileIndices,
-	clearSelectedIndices,
 	getSelectedFileIndices,
-} from '../fileList/state.svelte';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../state.svelte';
+import type { AudioFile, FileListInfo } from '../../../types/audio';
 
 const makeFileList = (count: number): FileListInfo => {
 	const files: AudioFile[] = Array.from({ length: count }, (_, index) => ({

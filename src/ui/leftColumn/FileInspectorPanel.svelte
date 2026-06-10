@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { readCombinedSizeText } from '../fileList';
 	import { inspectorState } from '../fileList/inspectorState.svelte';
-	import { fileListViewState } from '../fileList/viewState.svelte';
+
+	const combinedSizeText = $derived(readCombinedSizeText());
 </script>
 
 <section
@@ -35,7 +37,7 @@
 			title={inspectorState.companionsTitle}>{inspectorState.companionsText}</span
 		>
 		<span class="property-label">Combined Size:</span><span class="property-value"
-			>{fileListViewState.combinedSizeText}</span
+			>{combinedSizeText}</span
 		>
 	</div>
 </section>

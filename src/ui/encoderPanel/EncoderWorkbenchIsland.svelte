@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { outputPanelState } from '../outputPanel';
+	import { readEstimatedSizeText } from '../outputPanel';
 	import {
 		handleBitrateModeChange,
 		handleBitrateValueChange,
@@ -24,6 +24,8 @@
 		sampleRateLabel,
 	} from './view';
 
+	const estimatedSizeText = $derived(readEstimatedSizeText());
+
 	onMount(() => {
 		initializeEncoderPanelLogic();
 	});
@@ -33,7 +35,7 @@
 	<div class="encoder-workbench-header">
 		<h3>Encoder</h3>
 		<span class="inline-info">
-			(<span id="estimated-size" data-testid="estimated-size">{outputPanelState.estimatedSizeText}</span>)
+			(<span id="estimated-size" data-testid="estimated-size">{estimatedSizeText}</span>)
 		</span>
 	</div>
 

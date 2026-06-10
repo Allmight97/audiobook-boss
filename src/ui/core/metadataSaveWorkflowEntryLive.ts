@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 
-import { getCurrentFileList } from '../fileList/state.svelte';
+import { getCurrentFileList } from '../fileList';
 import { metadataSaveInProgressStore } from '../metadataSaveState';
 import {
 	initStatusPanel,

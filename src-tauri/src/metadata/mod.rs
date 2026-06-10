@@ -17,8 +17,8 @@ mod cover_art;
 mod ffi;
 mod ffmpeg_dict;
 mod intent_plan;
-pub mod mp4ameta_bridge;
-pub mod passthrough;
+mod mp4ameta_bridge;
+mod passthrough;
 mod remux;
 
 pub use abb_metadata_core::{
@@ -48,6 +48,12 @@ pub use cover_art::{
     CoverFormat,
 };
 pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
+pub use passthrough::{
+    add_chapters_to_output, extract_passthrough_metadata, PassthroughMetadata, PassthroughSource,
+};
+#[allow(unused_imports)]
+pub use passthrough::ChapterSpec;
+pub(crate) use passthrough::merge_passthrough_cover_art;
 pub use remux::rewrite_metadata_with_ffmpeg;
 
 pub(crate) fn save_metadata_with_plan(

@@ -116,6 +116,19 @@ nested ownership rules, narrow boundary checks, and contract tests.
 
 Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
 
+### Frontend Owner Strips
+
+| Strip | Entry | Owns |
+| --- | --- | --- |
+| Output Panel | `src/ui/outputPanel` | Output directory, naming presets, path preview, estimated-size display reads, and `OutputPanelIsland`. |
+| File List | `src/ui/fileList` | Pre-processing file list session, mutations, metadata staging hooks, `readCombinedSizeText()`, and `FileListIsland` rendering. |
+| File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
+| Status Panel | `src/ui/statusPanel` | Processing controls, concurrency display, and backend progress rendering. |
+| Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
+| App Settings | `src/ui/appSettings` | Settings hydration and durable preference coordination. |
+
+Exact export lists live in each strip's nearest `AGENTS.md`.
+
 Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
 packaging surfaces for pure domain logic inside these owners. They are not new
 Grey-Box Public APIs. `abb-media-core` is the first backend-neutral media

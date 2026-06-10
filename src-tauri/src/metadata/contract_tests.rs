@@ -1,7 +1,7 @@
 use crate::metadata::{
-    plan_metadata_outcome, plan_metadata_write, validate_metadata_intent_patch, AlbumSortPatchOp,
-    AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, MetadataOutcomeRequest,
-    PatchOp,
+    extract_passthrough_metadata, plan_metadata_outcome, plan_metadata_write,
+    validate_metadata_intent_patch, AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy,
+    MetadataIntentPatch, MetadataOutcomeRequest, PassthroughSource, PatchOp,
 };
 use abb_metadata_core::{MetadataIntentValidationCode, MetadataIntentValidationField};
 
@@ -147,6 +147,27 @@ fn metadata_intent_validation_contract_preserves_invalid_date_for_validation() {
         result.field_errors.first().map(|error| error.field),
         Some(MetadataIntentValidationField::Date)
     );
+}
+
+#[test]
+fn metadata_passthrough_contract_synthesizes_chapters_from_source_facts() {
+    let sources = vec![
+        PassthroughSource {
+            path: std::path::PathBuf::from("/tmp/chapter-one.m4b"),
+            duration: Some(60.0),
+            is_valid: true,
+        },
+        PassthroughSource {
+            path: std::path::PathBuf::from("/tmp/chapter-two.m4b"),
+            duration: Some(90.0),
+            is_valid: true,
+        },
+    ];
+
+    let passthrough = extract_passthrough_metadata(&sources);
+    assert_eq!(passthrough.chapters.len(), 2);
+    assert_eq!(passthrough.chapters[0].start_ms, 0);
+    assert_eq!(passthrough.chapters[1].start_ms, 60_000);
 }
 
 #[test]

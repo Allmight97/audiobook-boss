@@ -1,23 +1,22 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TauriFileDropEvents } from '../../types/events';
-import type { AcquisitionJob } from '../../types/remoteSource';
-import FileImportIsland from '../fileImport/FileImportIsland.svelte';
-import { clearFileImportError } from '../fileImport/state.svelte';
-import { clearSelectionPanels } from '../fileList/metadataPanel';
+import type { TauriFileDropEvents } from '../../../types/events';
+import type { AcquisitionJob } from '../../../types/remoteSource';
+import FileImportIsland from '../FileImportIsland.svelte';
+import { clearFileImportError } from '../state.svelte';
+import { clearSelectionPanels } from '../../fileList/metadataPanel';
 import {
 	getCurrentFileList,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state.svelte';
-import { fileListViewState } from '../fileList/viewState.svelte';
-import { resetFileListViewState } from '../fileList/viewState.svelte';
-import { clearMetadataState } from '../metadataState';
+} from '../../fileList/state.svelte';
+import { fileListViewState, resetFileListViewState } from '../../fileList/viewState.svelte';
+import { clearMetadataState } from '../../metadataState';
 import {
 	registerRemoteSourceSupplementalAssets,
 	removeRemoteSourceSupplementalAssets,
-} from '../remoteSource/sessionAssets.svelte';
+} from '../../remoteSource/sessionAssets.svelte';
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 type DragDropListener = (event: { payload: DragDropPayload }) => void;
@@ -47,7 +46,7 @@ const {
 	listeners: {} as Record<string, TauriListener>,
 }));
 
-vi.mock('../../lib/tauri/client', () => ({
+vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		listen: vi.fn((event: string, cb: TauriListener) => {
 			listeners[event] = cb;
@@ -63,7 +62,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../statusPanel', () => ({
+vi.mock('../../statusPanel', () => ({
 	pushStatusPanelTransientStatus: pushStatusPanelTransientStatusMock,
 }));
 

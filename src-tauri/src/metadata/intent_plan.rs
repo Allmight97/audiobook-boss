@@ -1,6 +1,6 @@
 use super::{AudiobookMetadata, MetadataIntentPatch, MetadataWritePlan, NamingMetadata};
 use crate::errors::Result;
-use crate::metadata::passthrough::PassthroughMetadata;
+use crate::metadata::PassthroughMetadata;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

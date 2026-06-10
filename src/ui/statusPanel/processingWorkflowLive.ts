@@ -1,11 +1,11 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { setFileOrderLocked } from '../fileList/actions';
-import { stageMetadataToSelection } from '../fileList/metadataStaging';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
-} from '../fileList/state.svelte';
+	setFileOrderLocked,
+	stageMetadataToSelection,
+} from '../fileList';
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {

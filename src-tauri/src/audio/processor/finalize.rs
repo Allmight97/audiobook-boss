@@ -26,7 +26,7 @@ pub(crate) fn write_metadata_stage(
     _context: &ProcessingContext,
     merged_output: &Path,
     metadata: Option<AudiobookMetadata>,
-    _passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
+    _passthrough: Option<&crate::metadata::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<()> {
     let Some(metadata) = metadata else {
@@ -126,7 +126,7 @@ pub(crate) async fn finalize_processing(
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
     metadata: Option<AudiobookMetadata>,
-    passthrough: Option<crate::metadata::passthrough::PassthroughMetadata>,
+    passthrough: Option<crate::metadata::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<String> {
     let passthrough_ref = passthrough.as_ref();

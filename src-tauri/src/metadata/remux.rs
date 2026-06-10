@@ -180,9 +180,7 @@ fn copy_chapters(
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
     if let Some(passthrough) = passthrough {
-        if let Err(error) =
-            crate::metadata::passthrough::add_chapters_to_output(octx, &passthrough.chapters)
-        {
+        if let Err(error) = crate::metadata::add_chapters_to_output(octx, &passthrough.chapters) {
             log::warn!(
                 "Could not preserve passthrough chapters during metadata remux: {}",
                 error

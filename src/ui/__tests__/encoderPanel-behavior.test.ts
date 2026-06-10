@@ -5,7 +5,7 @@ import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
 import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
-import { outputPanelState } from '../outputPanel';
+import { readEstimatedSizeText } from '../outputPanel';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
@@ -28,7 +28,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),
@@ -62,7 +62,6 @@ describe('encoder panel behavior controls', () => {
 		resetEncoderPanelState();
 		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;
-		outputPanelState.estimatedSizeText = '~ --- MB';
 	});
 
 	it('defaults to truthful default-on encoder behavior settings', () => {
@@ -346,17 +345,15 @@ describe('encoder panel behavior controls', () => {
 		changeSelectValue(bitrateSelect, '48');
 
 		await vi.waitFor(() => {
-			expect(outputPanelState.estimatedSizeText).not.toBe('~ --- MB');
+			expect(readEstimatedSizeText()).not.toBe('~ --- MB');
 		});
-		const lowValue = Number.parseFloat(outputPanelState.estimatedSizeText.replace(/[^\d.]+/g, ''));
+		const lowValue = Number.parseFloat(readEstimatedSizeText().replace(/[^\d.]+/g, ''));
 
 		const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
 		changeSelectValue(channelsSelect, 'stereo');
 
 		await vi.waitFor(() => {
-			const highValue = Number.parseFloat(
-				outputPanelState.estimatedSizeText.replace(/[^\d.]+/g, ''),
-			);
+			const highValue = Number.parseFloat(readEstimatedSizeText().replace(/[^\d.]+/g, ''));
 			expect(highValue).toBeGreaterThan(lowValue);
 		});
 	});

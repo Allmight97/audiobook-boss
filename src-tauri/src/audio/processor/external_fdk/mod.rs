@@ -9,7 +9,7 @@ use crate::audio::toolchain::ValidatedExternalToolchain;
 use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::passthrough::merge_passthrough_cover_art;
+use crate::metadata::merge_passthrough_cover_art;
 use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 use std::path::PathBuf;

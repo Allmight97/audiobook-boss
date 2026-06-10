@@ -8,6 +8,28 @@
 - FileList owns pre-processing workbench state after backend import analysis has
   returned `FileListInfo`.
 
+## Public API Strip
+
+- Import file list runtime symbols from `src/ui/fileList`.
+- Exports: `FileListIsland`, list mutation actions (`displayFileList`,
+  `appendFileList`, `selectFile`, `clearAllFiles`, `toggleFileSort`,
+  `setFileOrderLocked`, reorder/remove helpers), session accessors
+  (`getCurrentFileList`, `getSelectedFiles`, `getSelectedFileIndices`,
+  `isOrderLocked`, `onOrderLockChange`, setters used by workflows), metadata
+  staging/presentation entrypoints (`stageMetadataToSelection`,
+  `persistPendingMetadataDraftsForCurrentSelection`, `showSingleSelection`,
+  `clearSelectionPanels`), append helpers/types for import workflows, and
+  `readCombinedSizeText()`.
+- Do **not** export `fileListViewState`, `fileListSessionState`, DOM helpers,
+  selection internals, or event handlers from the index.
+
+## Private Cluster
+
+- Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
+  `viewState.svelte.ts`, `events.ts`, `dom.ts`, `selection.ts`,
+  `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
+  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+
 ## Preferred Path
 
 - Keep append/dedupe calculation in `appendResult.ts`. Import workflows may
@@ -17,6 +39,8 @@
   call it before changing selection when dirty drafts must be preserved.
 - Keep `actions.ts` focused on visible FileList mutations: display, append,
   select, reorder, remove, clear, lock, totals, and output refresh.
+- `FileListIsland.svelte` owns list rendering; `FileImportIsland` composes it
+  and owns import/drop/picker workflow.
 - Preserve `FileListInfo` truth from the backend. Do not add frontend-owned
   audio importability or supported-extension allowlists.
 
