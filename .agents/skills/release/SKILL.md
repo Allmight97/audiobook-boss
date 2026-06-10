@@ -32,7 +32,7 @@ a combined lane.
 | "public release", "GitHub Release", "tag and publish", "ship DMG" | Public Release | Prepare metadata, build/verify DMG, tag, push, and publish GitHub Release. |
 | "artifact release", "DMG only", "package only" | Artifact-Only | Build/verify DMG and stop before tag/publish. |
 | "release" with no qualifier | Confirm lane if the request is interactive; if the owner is asking to ship a new version, run Public Release plus Developer Install. |
-| "all", "public and dev", "public plus local" | Public Release + Developer Install | Install local app and publish the matching public version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
+| "all", "public and dev", "public plus local" | Public Release + Developer Install | Publish the verified DMG, then run a separate developer install so `/Applications/AudioBook Boss.app` matches the release version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
 
 Never build or open a DMG for Developer Install. Use `bun run app:dev:log` for
 temporary development testing instead of creating a local installed release.
@@ -133,14 +133,17 @@ bun run app:build:dmg
 bun scripts/resolve-release-dmg.ts --version <x.y.z>
 hdiutil verify "<resolved-dmg-path>"
 ```
-7. If the requested lane is Public Release + Developer Install, install the
-   already-built app so the local app matches the public artifact without a
-   second build:
+7. If the requested lane is Public Release + Developer Install, run a separate
+   developer install after DMG verification:
 ```bash
-bun run app:install-local:existing
+bun run app:install-local
 ```
-If the repo-local `.app` is missing, fall back to `bun run app:install-local`
-and state that the local install rebuilt.
+This rebuild is expected. The DMG lane may clean the intermediate repo-local
+`.app`, so do not use `bun run app:install-local:existing` after
+`bun run app:build:dmg`. Reserve `app:install-local:existing` for the narrow
+case where `bun run app:build` or another app-only build just produced
+`target/release/bundle/macos/AudioBook Boss.app` and no DMG build has cleaned
+it.
 8. Commit release metadata and code together when they are part of the same accepted release:
 ```bash
 git add -A
