@@ -4,6 +4,21 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-06-10
+
+### Changed
+
+- Tightened metadata passthrough and processing/output-artifact boundaries so
+  audio processing uses owner-specific public APIs with focused contract
+  coverage.
+- Moved FileList rendering and OutputPanel review workflow access behind their
+  public UI surfaces, reducing cross-panel state reach-through while preserving
+  existing import and processing workflows.
+
+### Fixed
+
+- File-list move and remove buttons no longer also select the clicked row.
+
 ## [1.1.1] - 2026-06-09
 
 ### Fixed
