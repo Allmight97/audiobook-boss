@@ -28,11 +28,6 @@ pub use metadata::{
     NamingMetadata, PatchOp,
 };
 
-// Test-facing passthrough helpers used by integration tests.
-pub use metadata::passthrough::{
-    add_chapters_to_output, extract_passthrough_metadata, ChapterSpec,
-};
-
 pub mod audio;
 pub use errors::{
     sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,

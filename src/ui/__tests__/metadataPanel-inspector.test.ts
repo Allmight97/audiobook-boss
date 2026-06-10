@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import {
 	clearSelectionPanels,
+	setCurrentFileList,
+	setSelectedIndex,
 	showMultiSelection,
 	showSingleSelection,
-} from '../fileList/metadataPanel';
+} from '../fileList';
 import { inspectorState } from '../fileList/inspectorState.svelte';
-import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),

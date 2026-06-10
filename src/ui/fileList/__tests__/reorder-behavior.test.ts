@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../../types/audio';
 import {
 	appendFileList,
 	displayFileList,
 	moveFileDown,
 	moveFileUp,
+	persistPendingMetadataDraftsForCurrentSelection,
 	reorderFiles,
 	toggleFileSort,
-} from '../fileList/actions';
-import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
-import { inspectorState } from '../fileList/inspectorState.svelte';
-import { showSingleSelection } from '../fileList/metadataPanel';
+} from '../index';
+import { inspectorState } from '../inspectorState.svelte';
+import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -18,8 +18,8 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 	setSortAscending,
-} from '../fileList/state.svelte';
-import { resetFileListViewState } from '../fileList/viewState.svelte';
+} from '../state.svelte';
+import { resetFileListViewState } from '../viewState.svelte';
 
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../../metadataState', () => ({
 	clearMetadataState: context.clearMetadataStateMock,
 	getMetadataForFile: context.getMetadataForFileMock,
 	metadataEqualsNullish: context.metadataEqualsNullishMock,
@@ -66,7 +66,7 @@ vi.mock('../metadataState', () => ({
 	setMetadataForFile: context.setMetadataForFileMock,
 }));
 
-vi.mock('../metadataForm', () => ({
+vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 	populateMetadataFormSingle: context.populateMetadataFormSingleMock,
 	populateMetadataFormMulti: context.populateMetadataFormMultiMock,
@@ -74,32 +74,32 @@ vi.mock('../metadataForm', () => ({
 	resetDirtyState: context.resetDirtyStateMock,
 }));
 
-vi.mock('../outputPanel', () => ({
+vi.mock('../../outputPanel', () => ({
 	updateEstimatedSize: context.updateEstimatedSizeMock,
 	updateOutputPath: context.updateOutputPathMock,
 }));
 
-vi.mock('../tagPreview', () => ({
+vi.mock('../../tagPreview', () => ({
 	updateTagPreview: context.updateTagPreviewMock,
 }));
 
-vi.mock('../coverArt', () => ({
+vi.mock('../../coverArt', () => ({
 	clearCoverArt: context.clearCoverArtMock,
 	getHasCustomCoverArt: context.getHasCustomCoverArtMock,
 	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 	setCoverArt: context.setCoverArtMock,
 }));
 
-vi.mock('../statusPanel', () => ({
+vi.mock('../../statusPanel', () => ({
 	pushStatusPanelTransientStatus: context.pushStatusPanelTransientStatusMock,
 }));
 
-vi.mock('../metadataValidation', () => ({
+vi.mock('../../metadataValidation', () => ({
 	firstMetadataIntentValidationError: context.validationErrorMock,
 	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
-vi.mock('../fileList/dom', () => ({
+vi.mock('../dom', () => ({
 	updateFileListDOM: vi.fn(),
 	updateTotalStats: vi.fn(),
 	updateSelection: vi.fn(),
@@ -109,7 +109,7 @@ vi.mock('../fileList/dom', () => ({
 	setOrderLockNotice: vi.fn(),
 }));
 
-vi.mock('../encoderPanel/autoResolutionHints', () => ({
+vi.mock('../../encoderPanel/autoResolutionHints', () => ({
 	renderAutoResolutionHints: context.renderAutoResolutionHintsMock,
 	resetAutoResolutionHints: context.resetAutoResolutionHintsMock,
 }));

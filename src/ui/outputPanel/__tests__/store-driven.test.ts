@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { updateEstimatedSize } from '../outputPanel/preview';
+import { updateEstimatedSize } from '../preview';
 import {
 	outputPanelState,
 	readOutputRequestConfig,
@@ -7,14 +7,14 @@ import {
 	updateNamingPreset,
 	updateNamingTemplate,
 	updateOutputDirectory,
-} from '../outputPanel/state.svelte';
-import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
+} from '../state.svelte';
+import { encoderPanelState, resetEncoderPanelState } from '../../encoderPanel/state.svelte';
 
 const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),

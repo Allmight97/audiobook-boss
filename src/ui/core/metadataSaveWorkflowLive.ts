@@ -1,8 +1,7 @@
 import { get } from 'svelte/store';
 
 import { tauriClient } from '../../lib/tauri/client';
-import { persistPendingMetadataDraftsForCurrentSelection } from '../fileList/metadataStaging';
-import { getCurrentFileList } from '../fileList/state.svelte';
+import { getCurrentFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
 import { resetDirtyState } from '../metadataForm';
 import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
 import { metadataSaveInProgressStore } from '../metadataSaveState';

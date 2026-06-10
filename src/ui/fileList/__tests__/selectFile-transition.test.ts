@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo } from '../../types/audio';
-import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
+import type { FileListInfo } from '../../../types/audio';
+import { setCurrentFileList, setSelectedIndex } from '../index';
 
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
@@ -21,13 +21,13 @@ const context = vi.hoisted(() => ({
 	clearSelectionMock: vi.fn(() => true),
 }));
 
-vi.mock('../metadataForm', () => ({
+vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => true),
 	readMetadataForm: context.readMetadataFormMock,
 	resetDirtyState: vi.fn(),
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../../metadataState', () => ({
 	clearMetadataState: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
 	metadataEqualsNullish: vi.fn(() => false),
@@ -35,17 +35,17 @@ vi.mock('../metadataState', () => ({
 	setMetadataForFile: context.setMetadataForFileMock,
 }));
 
-vi.mock('../outputPanel', () => ({
+vi.mock('../../outputPanel', () => ({
 	updateEstimatedSize: vi.fn(),
 	updateOutputPath: vi.fn(),
 }));
 
-vi.mock('../metadataValidation', () => ({
+vi.mock('../../metadataValidation', () => ({
 	firstMetadataIntentValidationError: context.validationErrorMock,
 	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
-vi.mock('../fileList/dom', () => ({
+vi.mock('../dom', () => ({
 	updateFileListDOM: vi.fn(),
 	updateTotalStats: vi.fn(),
 	updateSelection: vi.fn(),
@@ -55,12 +55,12 @@ vi.mock('../fileList/dom', () => ({
 	setOrderLockNotice: vi.fn(),
 }));
 
-vi.mock('../fileList/events', () => ({
+vi.mock('../events', () => ({
 	initFileListEvents: vi.fn(),
 	setupDragStartHandlers: vi.fn(),
 }));
 
-vi.mock('../fileList/selection', () => ({
+vi.mock('../selection', () => ({
 	clearSelection: context.clearSelectionMock,
 	handleSelection: context.handleSelectionMock,
 	reindexSelectionAfterMove: vi.fn(),
@@ -69,7 +69,7 @@ vi.mock('../fileList/selection', () => ({
 	swapSelectionIndices: vi.fn(),
 }));
 
-vi.mock('../fileList/metadataPanel', () => ({
+vi.mock('../metadataPanel', () => ({
 	autoUpdateCoverArtFromFirstValidFile: vi.fn(async () => undefined),
 	clearSelectionPanels: vi.fn(),
 	ensureMetadataForFiles: vi.fn(async () => undefined),
@@ -79,7 +79,7 @@ vi.mock('../fileList/metadataPanel', () => ({
 	showSingleSelection: context.showSingleSelectionMock,
 }));
 
-vi.mock('../statusPanel', () => ({
+vi.mock('../../statusPanel', () => ({
 	pushStatusPanelTransientStatus: context.pushStatusPanelTransientStatusMock,
 }));
 
@@ -144,7 +144,7 @@ describe('selectFile transition options', () => {
 	});
 
 	it('skips previous-file autosave for queue-managed transitions', async () => {
-		const { selectFile } = await import('../fileList/actions');
+		const { selectFile } = await import('../index');
 		await selectFile(1, { multi: false, range: false }, { skipPersistPrevious: true });
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('selectFile transition options', () => {
 	});
 
 	it('preserves default autosave behavior when transition option is omitted', async () => {
-		const { selectFile } = await import('../fileList/actions');
+		const { selectFile } = await import('../index');
 		await selectFile(1, { multi: false, range: false });
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
@@ -165,7 +165,7 @@ describe('selectFile transition options', () => {
 
 	it('keeps the current selection when staging validation fails', async () => {
 		context.validationErrorMock.mockReturnValue('Series part must be a number');
-		const { selectFile } = await import('../fileList/actions');
+		const { selectFile } = await import('../index');
 
 		await selectFile(1, { multi: false, range: false });
 
@@ -183,7 +183,7 @@ describe('selectFile transition options', () => {
 			{ path: '/books/alpha.m4b', isValid: true },
 			{ path: '/books/beta.m4b', isValid: true },
 		]);
-		const { clearSelectionAction } = await import('../fileList/actions');
+		const { clearSelectionAction } = await import('../index');
 
 		await clearSelectionAction();
 
@@ -200,7 +200,7 @@ describe('selectFile transition options', () => {
 			{ path: '/books/alpha.m4b', isValid: true },
 			{ path: '/books/beta.m4b', isValid: true },
 		]);
-		const { selectAll } = await import('../fileList/actions');
+		const { selectAll } = await import('../index');
 
 		await selectAll();
 

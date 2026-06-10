@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AudioFile, FileListInfo } from '../../types/audio';
-import {
-	setCurrentFileList,
-	setSelectedFileIndices,
-	setSelectedIndex,
-} from '../fileList/state.svelte';
+import type { AudioFile, FileListInfo } from '../../../types/audio';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../index';
 
 const context = vi.hoisted(() => ({
 	clearSelectionActionMock: vi.fn(),
@@ -16,7 +12,7 @@ const context = vi.hoisted(() => ({
 	selectFileMock: vi.fn(async () => undefined),
 }));
 
-vi.mock('../fileList/actions', () => ({
+vi.mock('../actions', () => ({
 	clearSelectionAction: context.clearSelectionActionMock,
 	moveFileDown: context.moveFileDownMock,
 	moveFileUp: context.moveFileUpMock,
@@ -80,7 +76,7 @@ describe('file list keyboard events', () => {
 	});
 
 	it('selects the first file from an empty selection on ArrowDown', async () => {
-		const { onFileListKeyDown } = await import('../fileList/events');
+		const { onFileListKeyDown } = await import('../events');
 		const event = keyboardEvent('ArrowDown');
 
 		onFileListKeyDown(event);
@@ -90,7 +86,7 @@ describe('file list keyboard events', () => {
 	});
 
 	it('jumps to the bottom of the file list on End', async () => {
-		const { onFileListKeyDown } = await import('../fileList/events');
+		const { onFileListKeyDown } = await import('../events');
 		setSelectedIndex(1);
 		setSelectedFileIndices([1]);
 		const event = keyboardEvent('End');
@@ -102,7 +98,7 @@ describe('file list keyboard events', () => {
 	});
 
 	it('does not reselect while already colliding with a list edge', async () => {
-		const { onFileListKeyDown } = await import('../fileList/events');
+		const { onFileListKeyDown } = await import('../events');
 		setSelectedIndex(4);
 		setSelectedFileIndices([4]);
 		const event = keyboardEvent('ArrowDown');
@@ -114,7 +110,7 @@ describe('file list keyboard events', () => {
 	});
 
 	it('leaves text input arrow handling alone', async () => {
-		const { onFileListKeyDown } = await import('../fileList/events');
+		const { onFileListKeyDown } = await import('../events');
 		const input = document.createElement('input');
 		const event = keyboardEvent('ArrowDown', { target: input });
 
@@ -125,7 +121,7 @@ describe('file list keyboard events', () => {
 	});
 
 	it('keeps existing file-list select all behavior inside the focused region', async () => {
-		const { onFileListKeyDown } = await import('../fileList/events');
+		const { onFileListKeyDown } = await import('../events');
 		const event = keyboardEvent('a', { metaKey: true });
 
 		onFileListKeyDown(event);

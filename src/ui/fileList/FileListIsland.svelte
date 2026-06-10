@@ -1,0 +1,453 @@
+<script lang="ts">
+	import { formatDuration, formatFileSize } from '../../types/audio';
+	import { clearAllFiles, toggleFileSort } from './actions';
+	import {
+		onFileListClick,
+		onFileListDragEnd,
+		onFileListDragOver,
+		onFileListDragStart,
+		onFileListDrop,
+		onFileListKeyDown,
+		onFileListMoveDown,
+		onFileListMoveUp,
+		onFileListRemove,
+	} from './events';
+	import { fileListViewState } from './viewState.svelte';
+	import { hasSupplementalAssetsForInputId } from '../remoteSource/sessionAssets.svelte';
+
+	interface Props {
+		isDragOver?: boolean;
+		hasFiles?: boolean;
+		supportText?: string;
+		onHeaderClick?: () => void;
+		onHeaderKeydown?: (event: KeyboardEvent) => void;
+		fileManagementContainer?: HTMLDivElement | null;
+	}
+
+	let {
+		isDragOver = false,
+		hasFiles = false,
+		supportText = '',
+		onHeaderClick,
+		onHeaderKeydown,
+		fileManagementContainer = $bindable(null),
+	}: Props = $props();
+
+	let fileListContent: HTMLDivElement | null = null;
+
+	function focusFileListContent(): void {
+		fileListContent?.focus({ preventScroll: true });
+	}
+
+	function handleFileListClick(index: number, event: MouseEvent): void {
+		focusFileListContent();
+		onFileListClick(index, event);
+	}
+
+	function handleSortClick(): void {
+		void toggleFileSort();
+	}
+
+	function handleClearClick(): void {
+		clearAllFiles();
+	}
+
+	function getFileName(path: string): string {
+		return path.split(/[\\/]/).pop() || path;
+	}
+
+	function formatFileDetails(file: (typeof fileListViewState.files)[number]): string {
+		if (file.isValid && file.duration && file.size) {
+			return `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}`;
+		}
+		return `Error: ${file.error || 'Invalid file'}`;
+	}
+
+	function scrollSelectedFileIntoView(index: number): void {
+		requestAnimationFrame(() => {
+			const selectedItem = fileListContent?.querySelector<HTMLElement>(
+				`[data-file-index="${index}"]`,
+			);
+			selectedItem?.scrollIntoView({ block: 'nearest' });
+		});
+	}
+
+	$effect(() => {
+		const selectedIndices = fileListViewState.selectedIndices;
+		const selectedIndex = selectedIndices[selectedIndices.length - 1];
+		if (typeof selectedIndex !== 'number') return;
+
+		scrollSelectedFileIntoView(selectedIndex);
+	});
+</script>
+
+<div class="flex flex-col gap-2 mb-2">
+	<div class="flex items-center justify-end gap-2">
+		<div class="flex items-center gap-2 mr-auto self-center pl-1">
+			<span class="text-xs muted-text italic" id="file-count-display">
+				{fileListViewState.files.length}
+				{fileListViewState.files.length === 1 ? 'file' : 'files'}
+			</span>
+			<span
+				class="text-xs muted-text italic"
+				id="file-order-lock"
+				style:display={fileListViewState.orderLockVisible ? 'inline' : 'none'}
+				data-testid="file-order-lock"
+			>
+				Order locked while processing
+			</span>
+		</div>
+		<button
+			id="sort-toggle-btn"
+			class="btn-pill btn-pill-secondary"
+			style:display={fileListViewState.showSortButton ? 'block' : 'none'}
+			disabled={fileListViewState.sortDisabled}
+			onclick={handleSortClick}
+		>
+			{fileListViewState.sortLabel}
+		</button>
+		<button
+			id="clear-files-btn"
+			class="btn-pill btn-pill-secondary"
+			style:display={fileListViewState.showClearButton ? 'block' : 'none'}
+			disabled={fileListViewState.clearDisabled}
+			onclick={handleClearClick}
+		>
+			Clear
+		</button>
+	</div>
+</div>
+
+<style>
+	.file-management-container {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		min-height: 8rem;
+		overflow: hidden;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.375rem;
+		background-color: var(--bg-input);
+	}
+
+	.file-list-content:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: -2px;
+	}
+
+	.drop-zone-header[data-has-files='false'] {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem 1rem;
+		border: 2px dashed var(--border-secondary);
+		background-color: var(--bg-drag-area);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.drop-zone-header[data-has-files='false']:hover,
+	.drop-zone-header[data-has-files='false'].drag-over {
+		border-color: var(--accent-primary);
+		background-color: var(--bg-hover);
+	}
+
+	.drop-zone-header[data-has-files='false'].drag-over {
+		transform: scale(1.02);
+	}
+
+	.drop-zone-header[data-has-files='false']:focus {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+	}
+
+	.drop-zone-header[data-has-files='true'] {
+		flex-shrink: 0;
+		min-height: 2.5rem;
+		padding: 0.5rem 1rem;
+		border-bottom: 1px solid var(--border-primary);
+		background-color: var(--bg-input);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.drop-zone-header[data-has-files='true']:hover {
+		background-color: var(--bg-hover);
+	}
+
+	.drop-zone-header[data-has-files='true']:focus {
+		outline: 2px solid var(--border-focus);
+		outline-offset: -2px;
+	}
+
+	.file-list-content {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	.file-list-item {
+		padding: 0.75rem;
+		border-bottom: 1px solid var(--border-primary);
+		cursor: pointer;
+		transition: background-color 0.2s ease;
+		user-select: none;
+	}
+
+	.file-list-item:last-child {
+		border-bottom: none;
+	}
+
+	.file-list-item:hover {
+		background-color: var(--bg-hover);
+	}
+
+	.file-list-item.selected {
+		background-color: var(--accent-primary);
+		color: var(--text-inverse);
+	}
+
+	.file-list-item.dragging {
+		opacity: 0.5;
+	}
+
+	.file-list-item.drag-over {
+		border-top: 2px solid var(--accent-primary);
+	}
+
+	.file-item-content {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		min-width: 0;
+	}
+
+	.file-status {
+		min-width: 1rem;
+		font-size: 1rem;
+		font-weight: bold;
+	}
+
+	.file-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.file-name-row {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		margin-bottom: 0.25rem;
+		min-width: 0;
+	}
+
+	.file-name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	.companion-chip {
+		flex: 0 0 auto;
+		padding: 0.0625rem 0.25rem;
+		border: 1px solid var(--accent-primary);
+		border-radius: 0.25rem;
+		background-color: rgb(59 130 246 / 0.12);
+		color: var(--accent-primary);
+		font-size: 0.625rem;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.file-list-item.selected .companion-chip {
+		border-color: rgb(255 255 255 / 0.7);
+		background-color: rgb(255 255 255 / 0.18);
+		color: var(--text-inverse);
+	}
+
+	.file-details {
+		overflow: hidden;
+		color: var(--text-muted);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.75rem;
+	}
+
+	.file-list-item.selected .file-details {
+		color: var(--text-inverse);
+		opacity: 0.9;
+	}
+
+	.remove-file-btn,
+	.move-up-btn,
+	.move-down-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.5rem;
+		height: 1.5rem;
+		padding: 0.25rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: none;
+		color: var(--text-muted);
+		font-size: 1.25rem;
+		font-weight: bold;
+		cursor: pointer;
+	}
+
+	.remove-file-btn:hover {
+		background-color: rgb(239 68 68 / 0.1);
+		color: #ef4444;
+	}
+
+	.move-up-btn:hover,
+	.move-down-btn:hover {
+		background-color: var(--bg-hover);
+		color: var(--accent-primary);
+		transform: translateY(-1px);
+	}
+
+	.move-up-btn:focus-visible,
+	.move-down-btn:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+	}
+
+	.move-up-btn:disabled,
+	.move-down-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.move-up-btn:disabled:hover,
+	.move-down-btn:disabled:hover {
+		background-color: transparent;
+		color: var(--text-muted);
+		transform: none;
+	}
+
+	.file-list-item.selected .remove-file-btn,
+	.file-list-item.selected .move-up-btn,
+	.file-list-item.selected .move-down-btn {
+		color: var(--text-inverse);
+		opacity: 0.8;
+	}
+
+	.file-list-item.selected .remove-file-btn:hover,
+	.file-list-item.selected .move-up-btn:hover,
+	.file-list-item.selected .move-down-btn:hover {
+		background-color: rgb(255 255 255 / 0.2);
+		color: var(--text-inverse);
+		opacity: 1;
+	}
+
+	.file-list-item.selected .move-up-btn:disabled,
+	.file-list-item.selected .move-down-btn:disabled {
+		color: var(--text-inverse);
+	}
+</style>
+
+<div
+	class="file-management-container mb-3"
+	role="region"
+	aria-label="File list"
+	bind:this={fileManagementContainer}
+>
+	<div
+		class="drop-zone-header"
+		class:drag-over={isDragOver}
+		data-has-files={hasFiles.toString()}
+		role="button"
+		aria-label="Add audio files"
+		tabindex="0"
+		onclick={() => onHeaderClick?.()}
+		onkeydown={(event) => onHeaderKeydown?.(event)}
+	>
+		<p class="text-sm muted-text">
+			Drop files or folders here, click to choose files, or use Add Folder
+		</p>
+		<p class="text-xs muted-text mt-1">{supportText}</p>
+	</div>
+
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div
+		bind:this={fileListContent}
+		class="file-list-content"
+		role="listbox"
+		aria-label="Audio files"
+		aria-multiselectable="true"
+		tabindex="0"
+		onkeydown={onFileListKeyDown}
+	>
+		{#each fileListViewState.files as file, index (file.inputId ?? file.path)}
+			<div
+				data-file-index={index}
+				class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
+				class:selected={fileListViewState.selectedIndices.includes(index)}
+				class:dragging={fileListViewState.draggedIndex === index}
+				class:drag-over={fileListViewState.hoveredIndex === index}
+				draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
+				role="option"
+				aria-selected={fileListViewState.selectedIndices.includes(index)}
+				aria-label={getFileName(file.path)}
+				tabindex="-1"
+				onclick={(event) => handleFileListClick(index, event)}
+				ondragstart={(event) => onFileListDragStart(index, event)}
+				ondragover={(event) => onFileListDragOver(index, event)}
+				ondrop={(event) => onFileListDrop(index, event)}
+				ondragend={onFileListDragEnd}
+			>
+				<div class="file-item-content">
+					<div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
+						{file.isValid ? '✓' : '✗'}
+					</div>
+					<div class="file-info">
+						<div class="file-name-row">
+							<div class="file-name">{getFileName(file.path)}</div>
+							{#if hasSupplementalAssetsForInputId(file.inputId)}
+								<span class="companion-chip" title="Supplemental PDF attached">PDF</span>
+							{/if}
+						</div>
+						<div class="file-details">{formatFileDetails(file)}</div>
+					</div>
+					<button
+						class="move-up-btn"
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListMoveUp(index, event);
+						}}
+						disabled={index === 0 || fileListViewState.orderLockVisible}
+					>
+						▲
+					</button>
+					<button
+						class="move-down-btn"
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListMoveDown(index, event);
+						}}
+						disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
+					>
+						▼
+					</button>
+					<button
+						class="remove-file-btn"
+						disabled={fileListViewState.orderLockVisible}
+						onclick={(event) => {
+							event.stopPropagation();
+							onFileListRemove(index, event);
+						}}
+					>
+						×
+					</button>
+				</div>
+			</div>
+		{/each}
+	</div>
+</div>

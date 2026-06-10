@@ -1,22 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo } from '../../types/audio';
+import type { FileListInfo } from '../../../types/audio';
 import {
+	getCurrentFileList,
 	isOrderLocked,
 	onOrderLockChange,
-	setOrderLocked,
 	setCurrentFileList,
-	getCurrentFileList,
-} from '../fileList/state.svelte';
-import { fileListViewState } from '../fileList/viewState.svelte';
+	setOrderLocked,
+} from '../state.svelte';
+import { fileListViewState } from '../viewState.svelte';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior
-vi.mock('../metadataForm', () => ({
+vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),
 	readMetadataForm: vi.fn(() => ({})),
 	resetDirtyState: vi.fn(),
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../../metadataState', () => ({
 	clearMetadataState: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
 	metadataEqualsNullish: vi.fn(() => false),
@@ -24,12 +24,12 @@ vi.mock('../metadataState', () => ({
 	setMetadataForFile: vi.fn(),
 }));
 
-vi.mock('../outputPanel', () => ({
+vi.mock('../../outputPanel', () => ({
 	updateEstimatedSize: vi.fn(),
 	updateOutputPath: vi.fn(),
 }));
 
-vi.mock('../metadataValidation', () => ({
+vi.mock('../../metadataValidation', () => ({
 	firstMetadataIntentValidationError: vi.fn(() => null),
 	validateMetadataDraftIntent: vi.fn(async () => ({
 		intentPatch: {},
@@ -37,12 +37,12 @@ vi.mock('../metadataValidation', () => ({
 	})),
 }));
 
-vi.mock('../fileList/events', () => ({
+vi.mock('../events', () => ({
 	initFileListEvents: vi.fn(),
 	setupDragStartHandlers: vi.fn(),
 }));
 
-vi.mock('../fileList/selection', () => ({
+vi.mock('../selection', () => ({
 	clearSelection: vi.fn(() => true),
 	handleSelection: vi.fn(() => ({ changed: true })),
 	reindexSelectionAfterMove: vi.fn(),
@@ -51,7 +51,7 @@ vi.mock('../fileList/selection', () => ({
 	swapSelectionIndices: vi.fn(),
 }));
 
-vi.mock('../fileList/metadataPanel', () => ({
+vi.mock('../metadataPanel', () => ({
 	autoUpdateCoverArtFromFirstValidFile: vi.fn(async () => undefined),
 	clearSelectionPanels: vi.fn(),
 	ensureMetadataForFiles: vi.fn(async () => undefined),
@@ -61,7 +61,7 @@ vi.mock('../fileList/metadataPanel', () => ({
 	showSingleSelection: vi.fn(async () => undefined),
 }));
 
-vi.mock('../fileImport', () => ({
+vi.mock('../../fileImport', () => ({
 	updateDropZoneState: vi.fn(),
 }));
 
@@ -98,14 +98,14 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('locks when setFileOrderLocked(true) is called', async () => {
-			const { setFileOrderLocked } = await import('../fileList/actions');
+			const { setFileOrderLocked } = await import('../index');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
 		});
 
 		it('unlocks when setFileOrderLocked(false) is called', async () => {
-			const { setFileOrderLocked } = await import('../fileList/actions');
+			const { setFileOrderLocked } = await import('../index');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
@@ -114,7 +114,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('is idempotent — double lock/unlock does not break state', async () => {
-			const { setFileOrderLocked } = await import('../fileList/actions');
+			const { setFileOrderLocked } = await import('../index');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			setFileOrderLocked(true);
@@ -142,7 +142,7 @@ describe('order lock lifecycle', () => {
 
 	describe('guard behavior — locked prevents mutations', () => {
 		it('clearAllFiles() no-ops when locked', async () => {
-			const { clearAllFiles, setFileOrderLocked } = await import('../fileList/actions');
+			const { clearAllFiles, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -154,7 +154,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('removeFile() no-ops when locked', async () => {
-			const { removeFile, setFileOrderLocked } = await import('../fileList/actions');
+			const { removeFile, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -166,7 +166,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileUp() no-ops when locked', async () => {
-			const { moveFileUp, setFileOrderLocked } = await import('../fileList/actions');
+			const { moveFileUp, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -179,7 +179,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileDown() no-ops when locked', async () => {
-			const { moveFileDown, setFileOrderLocked } = await import('../fileList/actions');
+			const { moveFileDown, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -192,7 +192,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('toggleFileSort() no-ops when locked', async () => {
-			const { toggleFileSort, setFileOrderLocked } = await import('../fileList/actions');
+			const { toggleFileSort, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -205,7 +205,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('reorderFiles() no-ops when locked', async () => {
-			const { reorderFiles, setFileOrderLocked } = await import('../fileList/actions');
+			const { reorderFiles, setFileOrderLocked } = await import('../index');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -220,7 +220,7 @@ describe('order lock lifecycle', () => {
 
 	describe('view state reflects lock', () => {
 		it('disables sort and clear controls when locked', async () => {
-			const { updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../dom');
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(true);
 
@@ -231,7 +231,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('enables sort and clear controls when unlocked', async () => {
-			const { updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../dom');
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(false);
 
@@ -242,7 +242,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('shows lock notice when locked', async () => {
-			const { setOrderLockNotice } = await import('../fileList/dom');
+			const { setOrderLockNotice } = await import('../dom');
 
 			setOrderLockNotice(true);
 
@@ -250,7 +250,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('hides lock notice when unlocked', async () => {
-			const { setOrderLockNotice } = await import('../fileList/dom');
+			const { setOrderLockNotice } = await import('../dom');
 			setOrderLockNotice(true);
 
 			setOrderLockNotice(false);
@@ -261,7 +261,7 @@ describe('order lock lifecycle', () => {
 
 	describe('round-trip: lock → unlock restores full interactivity', () => {
 		it('mutations work after lock/unlock cycle', async () => {
-			const { setFileOrderLocked, clearAllFiles } = await import('../fileList/actions');
+			const { setFileOrderLocked, clearAllFiles } = await import('../index');
 			setCurrentFileList(makeFileList(3));
 
 			// Lock then unlock
@@ -276,7 +276,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('view controls re-enabled after lock/unlock cycle', async () => {
-			const { updateButtonVisibility } = await import('../fileList/dom');
+			const { updateButtonVisibility } = await import('../dom');
 			setCurrentFileList(makeFileList(3));
 
 			// Lock

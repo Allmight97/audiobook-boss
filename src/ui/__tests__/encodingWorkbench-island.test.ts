@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EncodingWorkbenchIsland from '../encodingWorkbench/EncodingWorkbenchIsland.svelte';
-import { outputPanelState } from '../outputPanel';
+import { applyOutputDefaultsFromSettings, updateOutputPath } from '../outputPanel';
 
 const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 	encoderLogicMocks: {
@@ -21,6 +21,20 @@ const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 vi.mock('../encoderPanel/logic', () => encoderLogicMocks);
 vi.mock('../core/actions', () => ({
 	startPreviewAudio: startPreviewAudioMock,
+}));
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
+		previewOutputPath: vi
+			.fn()
+			.mockResolvedValue(
+				'/Users/jstar/Projects/ABB Tests/output/Brandon Sanderson/The Stormlight Archive/1 - The Way of Kings.m4b',
+			),
+		validateMetadataIntentPatch: vi.fn(async (metadataPatch: unknown) => ({
+			isValid: true,
+			metadataPatch,
+			fieldErrors: [],
+		})),
+	},
 }));
 
 function setupMetadataInputs(): void {
@@ -44,14 +58,15 @@ describe('EncodingWorkbenchIsland', () => {
 			mock.mockReset();
 		}
 		startPreviewAudioMock.mockReset();
-		outputPanelState.outputDirectory = '/Users/jstar/Projects/ABB Tests/output';
-		outputPanelState.previewText =
-			'/Users/jstar/Projects/ABB Tests/output/Brandon Sanderson/The Stormlight Archive/1 - The Way of Kings.m4b';
-		outputPanelState.previewTitle = outputPanelState.previewText;
 	});
 
-	it('renders encoder, output, and tags as one scoped workbench row', () => {
+	it('renders encoder, output, and tags as one scoped workbench row', async () => {
 		render(EncodingWorkbenchIsland);
+		applyOutputDefaultsFromSettings({
+			outputDirectory: '/Users/jstar/Projects/ABB Tests/output',
+			outputNaming: { preset: 'absDefault', includeYear: true, customTemplate: '' },
+		});
+		updateOutputPath('final');
 
 		expect(screen.getByTestId('encoding-workbench')).toBeTruthy();
 		const encoderBlock = screen.getByTestId('encoding-workbench-encoder');
@@ -60,8 +75,12 @@ describe('EncodingWorkbenchIsland', () => {
 		expect(encoderBlock.querySelector('h3')?.textContent).toBe('Encoder');
 		expect(outputBlock.querySelector('h3')?.textContent).toBe('Output');
 		expect(tagsBlock.querySelector('h3')?.textContent).toBe('Tags Preview');
-		expect(screen.getByTestId('output-directory-value').textContent).toContain('ABB Tests/output');
-		expect(screen.getByTestId('output-example').textContent).toContain('The Way of Kings.m4b');
+		await vi.waitFor(() => {
+			expect(screen.getByTestId('output-directory-value').textContent).toContain(
+				'ABB Tests/output',
+			);
+			expect(screen.getByTestId('output-example').textContent).toContain('The Way of Kings.m4b');
+		});
 		expect(encoderLogicMocks.initializeEncoderPanelLogic).toHaveBeenCalledTimes(1);
 	});
 

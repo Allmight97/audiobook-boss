@@ -24,7 +24,7 @@ pub(crate) async fn execute_processing(
     workflow: &ProcessingWorkflow,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
-    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
     let mut emitter = ProgressReporter::new(1); // Single logical processing unit
@@ -63,7 +63,7 @@ pub(crate) async fn merge_audio_files_with_context(
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
-    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<PathBuf> {
     let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
 

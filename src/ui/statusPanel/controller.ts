@@ -1,7 +1,6 @@
 import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { setFileOrderLocked } from '../fileList/actions';
-import { getCurrentFileList } from '../fileList/state.svelte';
+import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import * as feedback from './feedback';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';

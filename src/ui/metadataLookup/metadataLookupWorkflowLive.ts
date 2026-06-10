@@ -1,7 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { clearCoverArt, refreshCoverArtDisplay, setCoverArt, setCustomCoverArt } from '../coverArt';
-import { selectFile } from '../fileList/actions';
-import { getCurrentFileList, getSelectedFileIndices } from '../fileList/state.svelte';
+import { getCurrentFileList, getSelectedFileIndices, selectFile } from '../fileList';
 import { applyMetadataToForm, readMetadataForm } from '../metadataForm';
 import { getMetadataForFile, setMetadataForFile } from '../metadataState';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';

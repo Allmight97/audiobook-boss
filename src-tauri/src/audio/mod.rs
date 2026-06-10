@@ -132,3 +132,6 @@ pub(crate) fn cleanup_abandoned_processing_workspaces(
 ) -> crate::errors::Result<()> {
     processor::cleanup_abandoned_processing_workspaces(cache_dir)
 }
+
+#[cfg(test)]
+mod contract_tests;

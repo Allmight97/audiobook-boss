@@ -17,8 +17,10 @@ use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::AudioFile;
 use crate::errors::Result;
-use crate::metadata::passthrough::merge_passthrough_cover_art;
-use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::metadata::{
+    extract_passthrough_metadata, merge_passthrough_cover_art, AudiobookMetadata,
+    CoverArtPassthroughPolicy, PassthroughSource,
+};
 use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 use std::time::Duration;
 
@@ -83,6 +85,17 @@ pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::pat
 pub(crate) fn cleanup_abandoned_processing_workspaces(cache_dir: &std::path::Path) -> Result<()> {
     let root = processing_workspace_root(cache_dir);
     staging::cleanup_abandoned_processing_sessions(&root)
+}
+
+pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<PassthroughSource> {
+    files
+        .iter()
+        .map(|file| PassthroughSource {
+            path: file.path.clone(),
+            duration: file.duration,
+            is_valid: file.is_valid,
+        })
+        .collect()
 }
 
 pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<String> {
@@ -158,9 +171,9 @@ async fn process_audiobook_with_context(
     workflow_cleanup.add_path(&workflow_temp_dir);
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
-    let passthrough_metadata = cover_art_passthrough.apply_to_passthrough(
-        crate::metadata::passthrough::extract_passthrough_metadata(&files).into_option(),
-    );
+    let passthrough_sources = passthrough_sources_from_audio_files(&files);
+    let passthrough_metadata = cover_art_passthrough
+        .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
 
     let effective_metadata = merge_passthrough_cover_art(metadata, passthrough_metadata.as_ref());
 

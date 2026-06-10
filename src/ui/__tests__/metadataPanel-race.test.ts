@@ -3,14 +3,12 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	autoUpdateCoverArtFromFirstValidFile,
-	showMultiSelection,
-	showSingleSelection,
-} from '../fileList/metadataPanel';
-import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state.svelte';
+	showMultiSelection,
+	showSingleSelection,
+} from '../fileList';
 import { jobControlsState } from '../jobControls/state.svelte';
 
 type Deferred<T> = {

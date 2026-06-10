@@ -110,7 +110,7 @@ impl MediaProcessor for FfmpegNextProcessor {
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
         metadata: Option<&'a crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
+        passthrough: Option<&'a crate::metadata::PassthroughMetadata>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();

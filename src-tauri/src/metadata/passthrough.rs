@@ -3,11 +3,20 @@
 //! This module extracts metadata that should be copied from source files
 //! without re-encoding or rewriting (chapters and original cover art).
 
+use std::path::PathBuf;
+
 use ffmpeg_next as ff;
 
-use crate::audio::AudioFile as PipelineAudioFile;
 use crate::errors::Result;
 use crate::metadata::AudiobookMetadata;
+
+/// Metadata-owned facts needed to extract chapters and cover art from source files.
+#[derive(Debug, Clone)]
+pub struct PassthroughSource {
+    pub path: PathBuf,
+    pub duration: Option<f64>,
+    pub is_valid: bool,
+}
 
 /// Minimal chapter representation for passthrough (milliseconds time base).
 #[derive(Debug, Clone)]
@@ -66,7 +75,7 @@ pub(crate) fn merge_passthrough_cover_art(
     }
 }
 
-fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpec> {
+fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpec> {
     let mut chapters = Vec::new();
     let mut offset_ms: i64 = 0;
 
@@ -99,7 +108,7 @@ fn synthesize_chapters_from_files(files: &[PipelineAudioFile]) -> Vec<ChapterSpe
 /// Extract chapters and original cover art from all valid input files.
 /// Chapters are normalized to milliseconds and offset by cumulative durations
 /// to preserve ordering for multi-file merges.
-pub fn extract_passthrough_metadata(files: &[PipelineAudioFile]) -> PassthroughMetadata {
+pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughMetadata {
     // Ensure FFmpeg is initialized before probing chapters.
     let _ = ff::init();
 

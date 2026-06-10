@@ -2,7 +2,7 @@ import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile } from '../../types/audio';
 import { EVENTS, isFileDropEvent } from '../../types/events';
 import { applyCoverArtDrop } from '../coverArt';
-import { getCurrentFileList, onOrderLockChange } from '../fileList/state.svelte';
+import { getCurrentFileList, onOrderLockChange } from '../fileList';
 import {
 	setFileImportDragOver,
 	setFileImportError,

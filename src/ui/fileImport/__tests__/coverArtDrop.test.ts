@@ -1,23 +1,15 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TauriFileDropEvents } from '../../types/events';
-import type { AcquisitionJob } from '../../types/remoteSource';
-import FileImportIsland from '../fileImport/FileImportIsland.svelte';
-import { clearFileImportError } from '../fileImport/state.svelte';
-import { clearSelectionPanels } from '../fileList/metadataPanel';
-import {
-	getCurrentFileList,
-	setCurrentFileList,
-	setSelectedFileIndices,
-	setSelectedIndex,
-} from '../fileList/state.svelte';
-import { fileListViewState } from '../fileList/viewState.svelte';
-import { resetFileListViewState } from '../fileList/viewState.svelte';
-import { clearMetadataState } from '../metadataState';
+import type { TauriFileDropEvents } from '../../../types/events';
+import type { AcquisitionJob } from '../../../types/remoteSource';
+import FileImportIsland from '../FileImportIsland.svelte';
+import { clearFileImportError } from '../state.svelte';
+import { displayFileList, getCurrentFileList } from '../../fileList';
+import { clearMetadataState } from '../../metadataState';
 import {
 	registerRemoteSourceSupplementalAssets,
 	removeRemoteSourceSupplementalAssets,
-} from '../remoteSource/sessionAssets.svelte';
+} from '../../remoteSource/sessionAssets.svelte';
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 type DragDropListener = (event: { payload: DragDropPayload }) => void;
@@ -47,7 +39,7 @@ const {
 	listeners: {} as Record<string, TauriListener>,
 }));
 
-vi.mock('../../lib/tauri/client', () => ({
+vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		listen: vi.fn((event: string, cb: TauriListener) => {
 			listeners[event] = cb;
@@ -63,7 +55,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../statusPanel', () => ({
+vi.mock('../../statusPanel', () => ({
 	pushStatusPanelTransientStatus: pushStatusPanelTransientStatusMock,
 }));
 
@@ -176,15 +168,11 @@ describe('File import drop vs cover art drop isolation', () => {
 		clearMetadataState();
 		clearFileImportError();
 		removeRemoteSourceSupplementalAssets(['current-input-1']);
-		setCurrentFileList(null);
-		setSelectedFileIndices([]);
-		setSelectedIndex(-1);
-		clearSelectionPanels();
-		resetFileListViewState();
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
 		`;
 		render(FileImportIsland);
+		displayFileList(makeAnalyzedFileList([]));
 
 		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;
 		if (!dropZone) {
@@ -371,7 +359,7 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		await waitFor(() => {
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(2);
-			expect(fileListViewState.files.map((file) => file.path)).toEqual([
+			expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
 				'/tmp/book-a.mp3',
 				'/tmp/book-b.mp3',
 			]);
@@ -404,7 +392,7 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		await waitFor(() => {
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(2);
-			expect(fileListViewState.files.map((file) => file.path)).toEqual([
+			expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
 				'/tmp/book-a.mp3',
 				'/tmp/book-b.mp3',
 			]);
@@ -417,7 +405,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		);
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
 		await waitFor(() => {
-			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+			expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 		});
 
 		analyzeAudioFilesMock.mockResolvedValueOnce(
@@ -432,9 +420,9 @@ describe('File import drop vs cover art drop isolation', () => {
 
 		await waitFor(() => {
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
-			expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+			expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 		});
-		expect(fileListViewState.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual(['/tmp/book-a.mp3']);
 		await waitFor(() => {
 			expect(document.querySelector('#file-import-error')?.textContent).toContain(
 				'No new files added. All analyzed files were already in the list.',

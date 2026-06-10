@@ -1,20 +1,20 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tauriClient } from '../../lib/tauri/client';
-import OutputPanelIsland from '../outputPanel/OutputPanelIsland.svelte';
-import { setJobTypeSelection } from '../jobControls';
-import { populateMetadataFormMulti, populateMetadataFormSingle } from '../metadataForm';
-import { metadataFormState } from '../metadataForm/state.svelte';
-import { updateOutputPath } from '../outputPanel/preview';
+import { tauriClient } from '../../../lib/tauri/client';
+import OutputPanelIsland from '../OutputPanelIsland.svelte';
+import { setJobTypeSelection } from '../../jobControls';
+import { populateMetadataFormMulti, populateMetadataFormSingle } from '../../metadataForm';
+import { metadataFormState } from '../../metadataForm/state.svelte';
+import { updateOutputPath } from '../preview';
 import {
 	outputPanelState,
 	setOutputPreview,
 	updateOutputDirectory,
 	updateNamingPreset,
 	updateAbsIncludeYear,
-} from '../outputPanel/state.svelte';
+} from '../state.svelte';
 
-vi.mock('../../lib/tauri/client', () => ({
+vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		previewOutputPath: vi.fn(),
 		validateMetadataIntentPatch: vi.fn(async (metadataPatch) => ({

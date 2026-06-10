@@ -4,6 +4,19 @@ import type { OutputDefaults } from '../../types/appSettings';
 export type OutputNamingPreset = OutputNamingConfig['preset'];
 const DEFAULT_CUSTOM_TEMPLATE = '{author}/{title}';
 
+export type OutputDisplaySnapshot = {
+	outputDirectory: string;
+	previewText: string;
+	previewTitle: string;
+	namingPreset: OutputNamingPreset;
+	namingTemplate: string;
+	absIncludeYear: boolean;
+	absHintText: string;
+	absHintHidden: boolean;
+	templateRowHidden: boolean;
+	estimatedSizeText: string;
+};
+
 export interface OutputPanelState {
 	outputDirectory: string;
 	namingPreset: OutputNamingPreset;
@@ -49,6 +62,25 @@ export function isLatestOutputPreviewRequest(requestId: number): boolean {
 
 export function getState(): OutputPanelState {
 	return outputPanelState;
+}
+
+export function readEstimatedSizeText(): string {
+	return outputPanelState.estimatedSizeText;
+}
+
+export function readOutputDisplaySnapshot(): OutputDisplaySnapshot {
+	return {
+		outputDirectory: outputPanelState.outputDirectory,
+		previewText: outputPanelState.previewText,
+		previewTitle: outputPanelState.previewTitle,
+		namingPreset: outputPanelState.namingPreset,
+		namingTemplate: outputPanelState.namingTemplate,
+		absIncludeYear: outputPanelState.absIncludeYear,
+		absHintText: outputPanelState.absHintText,
+		absHintHidden: outputPanelState.absHintHidden,
+		templateRowHidden: outputPanelState.templateRowHidden,
+		estimatedSizeText: outputPanelState.estimatedSizeText,
+	};
 }
 
 export function getOutputNamingConfig(): OutputNamingConfig {

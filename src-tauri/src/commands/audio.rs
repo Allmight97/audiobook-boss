@@ -9,13 +9,15 @@ use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::metadata::{MetadataIntentPatch, NamingMetadata};
 use crate::opened_audio::OpenedAudioFileQueue;
-use crate::output_artifact::{build_output_path_preview, derive_output_artifact_path, OutputKind};
+use crate::output_artifact::{
+    build_output_path_preview, derive_output_artifact_path, OutputKind, OutputNamingConfig,
+};
 use crate::processing::job_registry::JobId;
 use crate::processing::run;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 pub use crate::processing::{
-    JobType, OutputNamingConfig, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
-    ProcessResultStatus, ProcessResultSummary, ProcessingPreflightPlan,
+    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
+    ProcessResultSummary, ProcessingPreflightPlan,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

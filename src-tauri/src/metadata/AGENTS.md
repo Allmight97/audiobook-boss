@@ -7,6 +7,10 @@
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   `plan_metadata_write`.
+- Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`, `ChapterSpec`,
+  `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
+  `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`
+  at call sites; metadata must not import `crate::audio::AudioFile`.
 - Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
 - Pure intent, validation, naming, and write-plan facts are packaged in
   `abb-metadata-core`; `src-tauri/src/metadata` owns container adapters and

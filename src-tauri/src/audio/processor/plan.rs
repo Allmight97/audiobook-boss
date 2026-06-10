@@ -53,6 +53,6 @@ pub trait MediaProcessor {
         plan: &'a MediaProcessingPlan,
         context: &'a ProcessingContext,
         metadata: Option<&'a crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&'a crate::metadata::passthrough::PassthroughMetadata>,
+        passthrough: Option<&'a crate::metadata::PassthroughMetadata>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }

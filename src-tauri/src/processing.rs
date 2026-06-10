@@ -58,8 +58,9 @@ pub use progress::{
 };
 pub use session::ProcessingSession;
 pub use types::{
-    CollisionPolicy, JobType, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
-    OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
-    ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
+    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset,
 };
+
+#[cfg(test)]
+mod contract_tests;

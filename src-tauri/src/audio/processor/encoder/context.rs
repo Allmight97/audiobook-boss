@@ -109,7 +109,7 @@ pub(crate) fn setup_encoder(
     plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     skip_chapter_passthrough: bool,
-    passthrough: Option<&crate::metadata::passthrough::PassthroughMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<(
     ff::format::context::Output,
     ff::codec::encoder::audio::Encoder,
@@ -209,7 +209,7 @@ pub(crate) fn setup_encoder(
     // Skip in preview mode since chapters won't align with shortened output
     if !skip_chapter_passthrough {
         if let Some(p) = passthrough {
-            match crate::metadata::passthrough::add_chapters_to_output(&mut octx, &p.chapters) {
+            match crate::metadata::add_chapters_to_output(&mut octx, &p.chapters) {
                 Ok(count) if count > 0 => {
                     log::info!("✓ Copied {} chapters from source files", count);
                 }

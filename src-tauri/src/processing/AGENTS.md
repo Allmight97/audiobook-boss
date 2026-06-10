@@ -12,6 +12,9 @@
   `ProgressEmitter`.
 - Pure lifecycle/terminal summary classification that has no runtime/media
   dependency is packaged in `abb-processing-core`.
+- Processing may consume `crate::output_artifact` types in payloads and plans;
+  it does not re-export output-artifact ownership. Command layers import
+  output-owned types from `crate::output_artifact` directly.
 
 ## Private Cluster
 - Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes/`,

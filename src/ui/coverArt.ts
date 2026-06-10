@@ -2,8 +2,7 @@ import { tauriClient } from '../lib/tauri/client';
 import { normalizeAppError } from '../lib/tauri/appError';
 import type { MetadataIntentPatch } from '../types/metadataIntent';
 import { jobControlsState } from './jobControls/state.svelte';
-import { getSelectedFiles } from './fileList/state.svelte';
-import { getCurrentFileList } from './fileList/state.svelte';
+import { getCurrentFileList, getSelectedFiles } from './fileList';
 import { applyMetadataDraftIntent } from './metadataDraft';
 import { getMetadataForFile, setMetadataForFile } from './metadataState';
 import {
