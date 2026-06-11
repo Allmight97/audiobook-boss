@@ -91,7 +91,7 @@
 - Keep sample format, channel layout, sample rate, frame size, and encoder selection explicit at the boundary where they are chosen.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.
-- Treat Native AAC as a compatibility path. Do not hide quality limitations behind silent fallback behavior.
+- Treat Native AAC as a compatibility path. Do not hide quality limitations behind silent downgrade behavior.
 
 ## Hard Invariants
 

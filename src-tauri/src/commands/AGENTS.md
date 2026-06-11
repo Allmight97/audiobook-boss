@@ -19,9 +19,8 @@
   async commands.
 - Keep provider-specific lookup code inside its command family and service
   modules; command functions should not grow into HTTP clients or mappers.
-- Metadata lookup provider substitution or degraded-result behavior must be
-  explicit in the command response, covered by focused tests, and registered in
-  `docs/fallbacks.md` with source-adjacent `FALLBACK[...]` markers.
+- Provider degradation behavior must be explicit in the command response and
+  covered by focused tests.
 
 ## Hard Invariants
 

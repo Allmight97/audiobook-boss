@@ -27,7 +27,7 @@
 - Preserve `set | clear | noop` semantics across save, processing projection,
   naming projection, write plans, validation/normalization, and cover-art
   handling.
-- Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
+- Preserve external audiobook tag interoperability.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
 ## Breaking-Change Triggers
@@ -35,4 +35,5 @@
 - Making clear intent partial, lossy, or dependent on sentinel frontend values.
 - Moving publication-date or series/subseries sequence validation out of the
   metadata boundary.
-- Changing canonical/mirrored/compatibility tag precedence, fallback behavior, or container routing without explicit evidence and doc updates.
+- Changing canonical/mirrored/compatibility tag precedence, provider-degradation
+  contract, or container routing without explicit evidence and doc updates.

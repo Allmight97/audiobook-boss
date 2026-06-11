@@ -49,7 +49,7 @@ Prefer:
 
 - outcome requests over caller-selected strategy paths
 - artifact and container truth over labels, suffixes, or optimistic UI state
-- explicit compatibility policy over ambient fallback behavior
+- explicit compatibility policy over silent workaround behavior
 - small public subsystem surfaces over scattered helper knowledge
 - verification that demonstrates user-visible truth, not just internal path selection
 
@@ -148,7 +148,7 @@ consumption.
 - UI renders backend terminal truth; it does not invent final status.
 - Metadata `set`, `clear`, and `preserve` intent stays distinct across the boundary.
 - Path validation remains active for file inputs, output locations, and artifact writes.
-- Fallbacks are explicit, observable, registered, and sunset-bound.
+- External provider partial failure stays explicit through typed diagnostics or terminal failure at the owning command.
 - Generated bindings are not hand-edited.
 
 ## Task Frame

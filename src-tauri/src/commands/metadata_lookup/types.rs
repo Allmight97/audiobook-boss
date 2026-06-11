@@ -10,9 +10,9 @@ pub enum MetadataSource {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum MetadataLookupDiagnosticKind {
-    AsinDirectLookupFallbackToTextSearch,
+    AsinDirectLookupUnavailableTextSearchUsed,
     SourceFailedPartialResults,
-    AudnexusDetailFallbackToAudibleOnly,
+    AudnexusDetailUnavailableAudibleOnlyResult,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]

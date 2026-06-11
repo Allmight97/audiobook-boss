@@ -1,6 +1,6 @@
 ---
 name: decision-alignment
-description: ABB-specific repo-grounded alignment for architecture, product, fallback/compat, domain-language, active spec, issue, doc, and verification-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Align decisions to ABB's clean, agent-first repo north star, inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
+description: ABB-specific repo-grounded alignment for architecture, product, external-file compatibility, domain-language, active spec, issue, doc, and verification-path decisions. Use when an Audiobook Boss discussion depends on current repo truth or may need an active spec, issue, doc update, decision note, or validation route. Align decisions to ABB's clean, agent-first repo north star, inspect repo artifacts first, ask no more than two action-changing questions, and route accepted decisions to the smallest ABB surface.
 ---
 
 # Decision Alignment
@@ -24,8 +24,7 @@ repo docs unless the user asks for the change.
 ## Boundary
 
 Use this for ABB-specific decisions that depend on current repo truth, domain
-language, fallback policy, active specs, issues, docs, code boundaries, or
-durable capture.
+language, active specs, issues, docs, code boundaries, or durable capture.
 
 Do not use this for generic pressure-testing, personal confidence calibration,
 non-ABB decisions, or strategy work whose primary need is a roadmap artifact.
@@ -37,7 +36,7 @@ non-ABB decisions, or strategy work whose primary need is a roadmap artifact.
    state, IPC contract, Backend lifecycle, or Artifact truth.
 3. Inspect repo elements before asking for facts the repo can answer: start
    with `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`,
-   `docs/fallbacks.md`, and owning code/docs for the touched boundary.
+   and owning code/docs for the touched boundary.
 4. Ask no more than two sharp questions aiming toward coherence, alignment, a locked decision, a verification path, or a concrete
    next action. Include recommended answers.
    Treat two questions as a hard cap: if more facts would help, combine them or
@@ -84,17 +83,14 @@ consult:
 | Outcome | Preferred home |
 | --- | --- |
 | Temporary multi-session planning, roadmap, architecture, or implementation state | `docs/specs/<task>.md` via Active Spec Handoff |
-| Fallback, shim, or compatibility behavior | `docs/fallbacks.md` plus source marker and focused behavior proof |
+| External provider degradation or multi-provider partial results | Owning command module, `docs/api-map.md`, and focused behavior tests |
+| External audiobook file or tag compatibility | `.agents/skills/audiobook-metadata` |
 | Stable product/system ownership shape | `docs/system-map.md` |
 | Canonical term or overloaded language fix | `docs/ubiquitous-language.md` |
 | Deferred work or revisit-later concept | GitHub issue |
 | Accepted durable rationale with no better home and value after active-spec cleanup | `docs/DECISIONS.md` escape hatch |
 | Personal learning | outside repo unless explicitly requested |
 | Discarded ideas or transient reasoning | keep out of repo docs |
-
-Keep `docs/fallbacks.md` separate from general decisions. Fallbacks need
-observable signals, source markers, sunset dates, renewal rules, and focused
-behavior proof from the owning surface.
 
 ## Tool Routing
 
@@ -151,7 +147,7 @@ active-spec cleanup and has no better home. It is not a normal docs surface,
 ADR tree, changelog, issue tracker, PR recap, historical archive, or learning
 log.
 
-Prefer existing homes first: active spec, `docs/fallbacks.md`,
+Prefer existing homes first: active spec, root Hard Invariants,
 `docs/system-map.md`, `docs/ubiquitous-language.md`, GitHub issue, release notes,
 or changelog.
 
