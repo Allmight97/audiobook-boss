@@ -1,3 +1,4 @@
+import { pathSegments } from '../../lib/path/basename';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 
 function assertNever(value: never): never {
@@ -46,44 +47,6 @@ export function formatAggregateMessage(
 	return 'Ready to process audiobook';
 }
 
-export function convertBytesToDataUrl(bytes: number[]): string {
-	const uint8Array = new Uint8Array(bytes);
-
-	let mimeType = 'image/jpeg'; // default fallback
-	if (uint8Array.length >= 4) {
-		// PNG: 89 50 4E 47
-		if (
-			uint8Array[0] === 0x89 &&
-			uint8Array[1] === 0x50 &&
-			uint8Array[2] === 0x4e &&
-			uint8Array[3] === 0x47
-		) {
-			mimeType = 'image/png';
-		}
-		// JPEG: FF D8 FF
-		else if (uint8Array[0] === 0xff && uint8Array[1] === 0xd8 && uint8Array[2] === 0xff) {
-			mimeType = 'image/jpeg';
-		}
-		// WebP: 52 49 46 46 ... 57 45 42 50
-		else if (
-			uint8Array[0] === 0x52 &&
-			uint8Array[1] === 0x49 &&
-			uint8Array[2] === 0x46 &&
-			uint8Array[3] === 0x46
-		) {
-			mimeType = 'image/webp';
-		}
-	}
-
-	let binary = '';
-	uint8Array.forEach((byte) => {
-		binary += String.fromCharCode(byte);
-	});
-	const base64 = btoa(binary);
-
-	return `data:${mimeType};base64,${base64}`;
-}
-
 export function extractFilenameFromProgress(label: string): string | null {
 	const trimmed = label.trim();
 	if (!trimmed) return null;
@@ -94,12 +57,8 @@ export function extractFilenameFromProgress(label: string): string | null {
 	return trimmed;
 }
 
-function splitPathSegments(path: string): string[] {
-	return path.split(/[\\/]/).filter(Boolean);
-}
-
 export function buildQueueLabels(paths: string[]): string[] {
-	const segmentsList = paths.map(splitPathSegments);
+	const segmentsList = paths.map(pathSegments);
 	const maxDepth = segmentsList.reduce((max, segments) => Math.max(max, segments.length), 0);
 
 	for (let depth = 1; depth <= maxDepth; depth += 1) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pathBasename } from '../../lib/path/basename';
 	import {
 		cancelCollisionDialog,
 		chooseCollisionPolicy,
@@ -33,8 +34,7 @@
 	}
 
 	function getBasename(path: string): string {
-		const segments = path.split(/[\\/]/).filter((segment) => segment.length > 0);
-		return segments[segments.length - 1] ?? path;
+		return pathBasename(path, { trimTrailingSeparators: true });
 	}
 
 	function getParentPath(path: string): string {

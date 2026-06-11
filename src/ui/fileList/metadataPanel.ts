@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import { type AudioFile, formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
@@ -51,7 +52,7 @@ function updatePropertiesContextSingle(file: AudioFile, index: number): void {
 		return;
 	}
 
-	const fileName = file.path.split(/[\\/]/).pop() || file.path;
+	const fileName = pathBasename(file.path);
 	setInspectorContext({
 		text: fileName,
 		variant: 'single',

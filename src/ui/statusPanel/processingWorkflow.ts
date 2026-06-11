@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import type {
 	ProcessCommandResult,
 	ProcessPayload,
@@ -105,7 +106,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 					if (typeof entry.inputIndex === 'number') {
 						const path = filePaths[entry.inputIndex];
 						if (path) {
-							return path.split(/[\\/]/).pop() || path;
+							return pathBasename(path);
 						}
 					}
 					if (entry.error != null) {

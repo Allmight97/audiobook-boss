@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pathBasename } from '../../lib/path/basename';
 	import { formatDuration, formatFileSize } from '../../types/audio';
 	import { clearAllFiles, toggleFileSort } from './actions';
 	import {
@@ -69,7 +70,7 @@
 	}
 
 	function getFileName(path: string): string {
-		return path.split(/[\\/]/).pop() || path;
+		return pathBasename(path);
 	}
 
 	function formatFileDetails(file: (typeof files)[number]): string {

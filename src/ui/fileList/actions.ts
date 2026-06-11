@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
@@ -293,8 +294,8 @@ export async function toggleFileSort(): Promise<void> {
 
 	const nextFiles = [...fileList.files];
 	nextFiles.sort((a, b) => {
-		const nameA = a.path.split(/[\\/]/).pop() || a.path;
-		const nameB = b.path.split(/[\\/]/).pop() || b.path;
+		const nameA = pathBasename(a.path);
+		const nameB = pathBasename(b.path);
 
 		if (getSortAscending()) {
 			return nameA.localeCompare(nameB);

@@ -1,7 +1,8 @@
+import { pathBasename } from '../../../lib/path/basename';
 import type { FileListInfo } from '../../../types/audio';
 
 function fileBasename(filePath: string): string {
-	return filePath.split(/[\\/]/).pop() || '';
+	return pathBasename(filePath, { fallback: 'empty' });
 }
 
 export function findFilePathByName(fileList: FileListInfo | null, filename: string): string | null {

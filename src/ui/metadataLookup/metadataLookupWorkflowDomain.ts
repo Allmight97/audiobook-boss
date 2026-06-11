@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
@@ -14,7 +15,7 @@ export type QueueItemState = {
 };
 
 function formatFileName(path: string): string {
-	return path.split(/[\\/]/).pop() ?? path;
+	return pathBasename(path);
 }
 
 function isTrackLikeTitle(value: string): boolean {
