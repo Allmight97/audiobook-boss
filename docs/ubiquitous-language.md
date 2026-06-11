@@ -42,8 +42,8 @@ prefer local prose or delete it.
 | **Metadata Outcome Plan** | Backend plan that validates/normalizes metadata intent, then produces effective metadata, naming metadata, write instructions, and cover-art policy. | metadata helper chain |
 | **Processing Preflight Plan** | Backend preview of how a processing request will execute before the long-running job starts. | dry guess |
 | **Output Path Preview** | Backend-owned intended output path before collision suffixing or final writes. | frontend filename guess |
-| **Fallback** | Registered temporary compatibility or integrity path with trigger, observable signal, and sunset condition. | silent shim |
-| **Fallback Register** | Currently empty; no active fallback rows. Temporary workarounds for unaddressed root causes should be registered here with source markers and focused behavior tests. | hidden legacy notes |
+| **Temporary Workaround** | A registered short-term compatibility or integrity path with: owner/issue, trigger, observable signal, source marker or metadata, sunset/removal condition, and focused tests. | silent shim |
+| **Fallback Register** | Currently empty. Temporary workarounds for unaddressed root causes should be registered here with source markers and focused behavior tests. | hidden legacy notes |
 
 ## Ownership
 

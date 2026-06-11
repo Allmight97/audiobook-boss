@@ -81,9 +81,9 @@
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
 - Greenfield default: do not preserve internal legacy payloads, aliases, or shims without repo evidence or explicit owner request.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.
-- No silent fallback/shim behavior. Every intentional fallback needs an explicit
-  trigger, observable signal, register row, and source marker/metadata.
-  Verify fallback behavior with focused tests for the owning surface.
+- No silent fallback/shim behavior. Every intentional temporary workaround needs an explicit
+  owner/issue, trigger, observable signal, source marker/metadata, sunset/removal condition,
+  and focused tests for the owning surface.
 
 ## Verification
 

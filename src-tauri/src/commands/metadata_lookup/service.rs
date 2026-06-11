@@ -7,7 +7,7 @@
 //!
 //! 1. **ASIN detail unavailable → text search used**: When a query contains a valid
 //!    ASIN, `search_online_metadata` tries `fetch_audnexus_book` first. If that
-//!    precise route fails, it falls back to the normal selected-provider search
+//!    precise route fails, it continues through the normal selected-provider search
 //!    path and emits an `AsinDirectLookupUnavailableTextSearchUsed` diagnostic.
 //!    Rationale: precise lookup is preferred, but graceful degradation keeps the
 //!    feature useful when the provider endpoint is down.
@@ -268,8 +268,8 @@ async fn fetch_audnexus_with_audible(
 
         for handle in handles {
             match handle.await {
-                Ok((result, used_audible_only_fallback)) => {
-                    if used_audible_only_fallback {
+                Ok((result, used_audible_only_provenance)) => {
+                    if used_audible_only_provenance {
                         push_audible_only_diagnostic_once(&mut diagnostics);
                     }
                     combined.push(result);

@@ -27,7 +27,7 @@
 - Preserve `set | clear | noop` semantics across save, processing projection,
   naming projection, write plans, validation/normalization, and cover-art
   handling.
-- Preserve external audiobook tag interoperability and fallback-register discipline for metadata read/write changes.
+- Preserve external audiobook tag interoperability. Temporary workarounds for unaddressed root causes must carry an owner/issue, trigger, observable signal, source marker/metadata, sunset/removal condition, and focused tests.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
 ## Breaking-Change Triggers
