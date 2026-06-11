@@ -9,8 +9,9 @@
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
-- Fallback register: `docs/fallbacks.md` (data register; verify with source
-  markers and focused behavior tests).
+- Canonical metadata lookup provider-degradation behavior is documented in the
+  `metadata_lookup` public surface. No active fallback register exists; only
+  true temporary workarounds for unaddressed root causes should be registered.
 
 ## Testing And Proof Infrastructure
 

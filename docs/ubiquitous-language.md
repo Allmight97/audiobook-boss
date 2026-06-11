@@ -43,7 +43,7 @@ prefer local prose or delete it.
 | **Processing Preflight Plan** | Backend preview of how a processing request will execute before the long-running job starts. | dry guess |
 | **Output Path Preview** | Backend-owned intended output path before collision suffixing or final writes. | frontend filename guess |
 | **Fallback** | Registered temporary compatibility or integrity path with trigger, observable signal, and sunset condition. | silent shim |
-| **Fallback Register** | Current fallback rows, triggers, signals, and sunsets in `docs/fallbacks.md`. | hidden legacy notes |
+| **Fallback Register** | Currently empty; no active fallback rows. Temporary workarounds for unaddressed root causes should be registered here with source markers and focused behavior tests. | hidden legacy notes |
 
 ## Ownership
 
