@@ -6,7 +6,7 @@ import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
 import { clearCoverArt, getHasCustomCoverArt, refreshCoverArtDisplay } from '../coverArt';
 import { effectiveCoverForFile } from '../coverArt/coverOwner';
-import { jobControlsState } from '../jobControls/state.svelte';
+import { getJobType } from '../jobControls';
 import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
@@ -27,7 +27,7 @@ import {
 	setInspectorContext,
 	setInspectorValues,
 } from './inspectorState.svelte';
-import { companionSummaryForInputIds } from '../remoteSource/sessionAssets.svelte';
+import { companionSummaryForInputIds } from '../remoteSource';
 import {
 	getCurrentFileList,
 	getSelectedFileIndices,
@@ -301,7 +301,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 			return;
 		}
 
-		const jobType = jobControlsState.jobType;
+		const jobType = getJobType();
 		const selectedValid = getSelectedFiles().find((file) => file.isValid);
 		const firstValid = fileList.files.find((file) => file.isValid);
 		const targetPath =
@@ -322,7 +322,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 		}
 
 		const metadata = await tauriClient.readAudioMetadata(targetPath);
-		const currentJobType = jobControlsState.jobType;
+		const currentJobType = getJobType();
 		const currentFileList = getCurrentFileList();
 		const currentFirstValid = currentFileList?.files.find((file) => file.isValid);
 		const currentSelectedValid = getSelectedFiles().find((file) => file.isValid);

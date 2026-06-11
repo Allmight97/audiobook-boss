@@ -18,7 +18,7 @@
 		readFileListSortLabel,
 		readFileListViewFiles,
 	} from './viewState.svelte';
-	import { hasSupplementalAssetsForInputId } from '../remoteSource/sessionAssets.svelte';
+	import { hasSupplementalAssetsForInputId } from '../remoteSource';
 
 	interface Props {
 		isDragOver?: boolean;

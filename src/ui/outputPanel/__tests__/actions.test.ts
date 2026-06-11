@@ -28,6 +28,10 @@ vi.mock('../preview', () => ({
 	showOutputError: vi.fn(),
 }));
 
+vi.mock('../../appSettings', () => ({
+	persistOutputDefaults: vi.fn(),
+}));
+
 vi.mock('../state.svelte', () => ({
 	readOutputDefaultsFromState: vi.fn(() => ({
 		outputDirectory: '/books/out',

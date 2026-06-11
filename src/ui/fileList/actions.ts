@@ -38,7 +38,7 @@ import {
 	type FileListAppendResult,
 } from './appendResult';
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
-import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource/sessionAssets.svelte';
+import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();

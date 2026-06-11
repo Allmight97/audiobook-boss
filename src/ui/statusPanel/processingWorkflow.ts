@@ -47,7 +47,7 @@ import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
-} from '../remoteSource/sessionAssets.svelte';
+} from '../remoteSource';
 import type * as feedback from './feedback';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { readProcessingRequestConfig } from './processingConfig';

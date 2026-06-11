@@ -1,16 +1,16 @@
-import { coverArtBytesToDataUrl } from '../lib/media/coverArtDataUrl';
-import { tauriClient } from '../lib/tauri/client';
-import { normalizeAppError } from '../lib/tauri/appError';
-import type { MetadataIntentPatch } from '../types/metadataIntent';
-import { jobControlsState } from './jobControls/state.svelte';
-import { getCurrentFileList, getSelectedFiles } from './fileList';
-import { applyMetadataDraftIntent } from './metadataDraft';
-import { getMetadataForFile, setMetadataForFile } from './metadataState';
+import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
+import { tauriClient } from '../../lib/tauri/client';
+import { normalizeAppError } from '../../lib/tauri/appError';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import { getJobType } from '../jobControls';
+import { getCurrentFileList, getSelectedFiles } from '../fileList';
+import { applyMetadataDraftIntent } from '../metadataDraft';
+import { getMetadataForFile, setMetadataForFile } from '../metadataState';
 import {
 	effectiveCoverForFile,
 	resolveCoverDisplayPath,
 	resolveCoverOwnerPaths,
-} from './coverArt/coverOwner';
+} from './coverOwner';
 import {
 	clearCoverArtMessageState,
 	clearCoverArtSession,
@@ -24,12 +24,12 @@ import {
 	setCoverArtMessage,
 	setCoverArtUrlInputValue,
 	coverArtSessionState,
-} from './coverArt/state.svelte';
+} from './state.svelte';
 
 let coverArtMessageTimeoutId: number | null = null;
 
 function readJobType() {
-	return jobControlsState.jobType;
+	return getJobType();
 }
 
 export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;

@@ -8,7 +8,7 @@ import {
 	type OutputNamingPreset,
 } from './state.svelte';
 import { updateOutputPath, updateNamingOptionState, showOutputError } from './preview';
-import { persistOutputDefaults } from '../appSettings/persistence';
+import { persistOutputDefaults } from '../appSettings';
 
 const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
 let templatePreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;

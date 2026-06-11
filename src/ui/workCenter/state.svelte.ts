@@ -4,7 +4,7 @@ import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
-} from '../remoteSource/sessionAssets.svelte';
+} from '../remoteSource';
 import {
 	isTerminalOperationStatus,
 	replaceOperations,
