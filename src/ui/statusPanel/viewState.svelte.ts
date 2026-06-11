@@ -130,6 +130,28 @@ export function setStatusPanelCancelAllPending(isPending: boolean): void {
 	statusPanelViewState.cancelAllPending = isPending;
 }
 
+export function showError(message: string): void {
+	setStatusPanelStepText(`Error: ${message}`);
+	setStatusPanelStepColor('var(--text-error, #ef4444)');
+}
+
+export function showSuccess(message: string): void {
+	setStatusPanelStepText(message);
+	setStatusPanelStepColor('var(--text-success, #10b981)');
+}
+
+export function showInfo(message: string): void {
+	setStatusPanelStepText(message);
+}
+
+export function pushTransientStatusMessage(message: string, ttlMs?: number): void {
+	pushStatusPanelUserMessageLock(message, ttlMs);
+}
+
+export function clearTransientStatusMessageLock(): void {
+	clearStatusPanelUserMessageLock();
+}
+
 export function resetStatusPanelViewState(): void {
 	statusPanelViewState.coverArtDataUrl = DEFAULT_STATUS_PANEL_VIEW_STATE.coverArtDataUrl;
 	statusPanelViewState.jobItems = [...DEFAULT_STATUS_PANEL_VIEW_STATE.jobItems];
