@@ -248,46 +248,8 @@ impl MetadataIntentPatch {
 
     pub fn apply_to_metadata(&self, mut base: AudiobookMetadata) -> Result<AudiobookMetadata> {
         let patch = self.normalized_or_error()?;
-
-        apply_processing_string_patch(&patch.title, &mut base.title);
-        apply_processing_string_patch(&patch.artist, &mut base.artist);
-        apply_processing_string_patch(&patch.album, &mut base.album);
-        apply_processing_string_patch(&patch.composer, &mut base.composer);
-        apply_processing_string_patch(&patch.genre, &mut base.genre);
-        apply_processing_string_patch(&patch.description, &mut base.description);
-        apply_processing_string_patch(&patch.series, &mut base.series);
-        apply_processing_string_patch(&patch.series_part, &mut base.series_part);
-        apply_processing_string_patch(&patch.subseries, &mut base.subseries);
-        apply_processing_string_patch(&patch.subseries_part, &mut base.subseries_part);
-
-        match &patch.date {
-            PatchOp::Set(date) => base.date = Some(date.clone()),
-            PatchOp::Clear => base.date = None,
-            PatchOp::Noop => {}
-        }
-
-        match &patch.cover_art {
-            PatchOp::Set(bytes) => base.cover_art = Some(bytes.clone()),
-            PatchOp::Clear => base.cover_art = None,
-            PatchOp::Noop => {}
-        }
-
-        if let Some(series_part) = base.series_part.as_deref() {
-            let trimmed = series_part.trim();
-            if !trimmed.is_empty() {
-                validate_series_part(trimmed)?;
-            }
-        }
-
-        if let Some(subseries_part) = base.subseries_part.as_deref() {
-            let trimmed = subseries_part.trim();
-            if !trimmed.is_empty() {
-                validate_series_part(trimmed)?;
-            }
-        }
-
+        apply_shared_metadata_patch_fields(&patch, &mut base, PatchFieldSemantics::Processing)?;
         apply_album_sort_patch(&patch.album_sort, &mut base);
-
         Ok(base)
     }
 
@@ -298,43 +260,7 @@ impl MetadataIntentPatch {
     pub fn to_write_plan(&self) -> Result<MetadataWritePlan> {
         let patch = self.normalized_or_error()?;
         let mut metadata = AudiobookMetadata::new();
-
-        apply_string_patch(&patch.title, &mut metadata.title);
-        apply_string_patch(&patch.artist, &mut metadata.artist);
-        apply_string_patch(&patch.album, &mut metadata.album);
-        apply_string_patch(&patch.composer, &mut metadata.composer);
-        apply_string_patch(&patch.genre, &mut metadata.genre);
-        apply_string_patch(&patch.description, &mut metadata.description);
-        apply_string_patch(&patch.series, &mut metadata.series);
-        apply_string_patch(&patch.series_part, &mut metadata.series_part);
-        apply_string_patch(&patch.subseries, &mut metadata.subseries);
-        apply_string_patch(&patch.subseries_part, &mut metadata.subseries_part);
-
-        match &patch.date {
-            PatchOp::Set(date) => metadata.date = Some(date.clone()),
-            PatchOp::Clear => metadata.date = Some(String::new()),
-            PatchOp::Noop => {}
-        }
-
-        match &patch.cover_art {
-            PatchOp::Set(bytes) => metadata.cover_art = Some(bytes.clone()),
-            PatchOp::Clear => metadata.cover_art = Some(Vec::new()),
-            PatchOp::Noop => {}
-        }
-
-        if let Some(series_part) = metadata.series_part.as_deref() {
-            let trimmed = series_part.trim();
-            if !trimmed.is_empty() {
-                validate_series_part(trimmed)?;
-            }
-        }
-
-        if let Some(subseries_part) = metadata.subseries_part.as_deref() {
-            let trimmed = subseries_part.trim();
-            if !trimmed.is_empty() {
-                validate_series_part(trimmed)?;
-            }
-        }
+        apply_shared_metadata_patch_fields(&patch, &mut metadata, PatchFieldSemantics::WritePlan)?;
 
         let album_sort = match &patch.album_sort {
             AlbumSortPatchOp::Set(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
@@ -628,6 +554,64 @@ fn validate_sequence_patch(
             message: message.to_string(),
         });
     }
+}
+
+#[derive(Clone, Copy)]
+enum PatchFieldSemantics {
+    Processing,
+    WritePlan,
+}
+
+fn apply_shared_metadata_patch_fields(
+    patch: &MetadataIntentPatch,
+    metadata: &mut AudiobookMetadata,
+    semantics: PatchFieldSemantics,
+) -> Result<()> {
+    let apply_string = match semantics {
+        PatchFieldSemantics::Processing => apply_processing_string_patch,
+        PatchFieldSemantics::WritePlan => apply_string_patch,
+    };
+
+    apply_string(&patch.title, &mut metadata.title);
+    apply_string(&patch.artist, &mut metadata.artist);
+    apply_string(&patch.album, &mut metadata.album);
+    apply_string(&patch.composer, &mut metadata.composer);
+    apply_string(&patch.genre, &mut metadata.genre);
+    apply_string(&patch.description, &mut metadata.description);
+    apply_string(&patch.series, &mut metadata.series);
+    apply_string(&patch.series_part, &mut metadata.series_part);
+    apply_string(&patch.subseries, &mut metadata.subseries);
+    apply_string(&patch.subseries_part, &mut metadata.subseries_part);
+
+    match (&patch.date, semantics) {
+        (PatchOp::Set(date), _) => metadata.date = Some(date.clone()),
+        (PatchOp::Clear, PatchFieldSemantics::Processing) => metadata.date = None,
+        (PatchOp::Clear, PatchFieldSemantics::WritePlan) => metadata.date = Some(String::new()),
+        (PatchOp::Noop, _) => {}
+    }
+
+    match (&patch.cover_art, semantics) {
+        (PatchOp::Set(bytes), _) => metadata.cover_art = Some(bytes.clone()),
+        (PatchOp::Clear, PatchFieldSemantics::Processing) => metadata.cover_art = None,
+        (PatchOp::Clear, PatchFieldSemantics::WritePlan) => metadata.cover_art = Some(Vec::new()),
+        (PatchOp::Noop, _) => {}
+    }
+
+    if let Some(series_part) = metadata.series_part.as_deref() {
+        let trimmed = series_part.trim();
+        if !trimmed.is_empty() {
+            validate_series_part(trimmed)?;
+        }
+    }
+
+    if let Some(subseries_part) = metadata.subseries_part.as_deref() {
+        let trimmed = subseries_part.trim();
+        if !trimmed.is_empty() {
+            validate_series_part(trimmed)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn apply_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {

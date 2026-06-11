@@ -1,19 +1,17 @@
-use std::fs;
-use std::io::Read;
 use std::path::Path;
 
+mod paths;
+mod progress;
+mod validation;
+
 use abb_audible_core::{
-    download_extension_for_strategy, remote_materialized_filename_stem,
     supplemental_pdf_display_file_name, title_ref, AudibleLicenseDecryptContext,
 };
 use abb_remote_source_core::{
-    acquisition_progress, acquisition_progress_for_current_title, AcquisitionProgress,
-    AcquisitionStage, AcquisitionStrategy, MaterializedSourceKind,
+    acquisition_progress, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
 };
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::Auth;
-use sha2::{Digest, Sha256};
-
 use super::audio_download::{cleanup_download_artifacts, download_audio};
 use super::diagnostics::AudibleAcquisitionError;
 use super::license::{
@@ -26,8 +24,7 @@ use super::supplemental_pdf::{
     SupplementalPdfRequest,
 };
 use super::{auth_from_vault, client_from_auth};
-use crate::audio;
-use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::staging;
 use crate::remote_source::vault::SecretVault;
@@ -45,12 +42,12 @@ pub(super) struct AcquiredTitle {
 
 type AudibleAcquisitionResult<T> = std::result::Result<T, AudibleAcquisitionError>;
 
-#[derive(Clone, Copy)]
-pub(super) struct TitleProgressContext<'a> {
-    pub(super) title_id: &'a str,
-    pub(super) item_index: u32,
-    pub(super) total_items: u32,
-}
+pub(in crate::remote_source::providers::audible) use paths::{
+    generated_staging_path, sha256_file, staged_materialized_path, staged_protected_source_path,
+};
+pub(in crate::remote_source::providers::audible) use progress::{
+    title_progress, with_title_progress, TitleProgressContext,
+};
 
 struct TitleAcquisitionRequest<'a> {
     title_id: &'a str,
@@ -62,7 +59,7 @@ struct TitleAcquisitionRequest<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct TitleAcquisitionCtx<'a> {
+pub(in crate::remote_source::providers::audible) struct TitleAcquisitionCtx<'a> {
     pub(super) job_id: &'a str,
     pub(super) title_id: &'a str,
     pub(super) item_id: &'a str,
@@ -163,34 +160,9 @@ pub(super) async fn acquire(
     Ok(job)
 }
 
-pub(super) use crate::remote_source::cancellation::{
+pub(in crate::remote_source::providers::audible) use crate::remote_source::cancellation::{
     ensure_not_cancelled, remote_acquisition_cancelled,
 };
-
-pub(super) fn title_progress(
-    context: TitleProgressContext<'_>,
-    stage: AcquisitionStage,
-    fraction: Option<f32>,
-    bytes_downloaded: Option<u64>,
-    bytes_total: Option<u64>,
-) -> AcquisitionProgress {
-    with_title_progress(
-        acquisition_progress(stage, fraction, bytes_downloaded, bytes_total),
-        context,
-    )
-}
-
-pub(super) fn with_title_progress(
-    progress: AcquisitionProgress,
-    context: TitleProgressContext<'_>,
-) -> AcquisitionProgress {
-    acquisition_progress_for_current_title(
-        progress,
-        context.title_id,
-        context.item_index,
-        context.total_items,
-    )
-}
 
 async fn acquire_one(
     client: &AudibleClient,
@@ -281,7 +253,7 @@ async fn acquire_one(
         .await
         .map_err(AudibleAcquisitionError::materialization)?
     };
-    let file = validate_materialized_audio(&materialized_path, ctx, progress)
+    let file = validation::validate_materialized_audio(&materialized_path, ctx, progress)
         .await
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
@@ -373,65 +345,6 @@ pub(super) fn requested_supplemental_pdf_is_required(
     include_pdf && api_pdf_hint_present
 }
 
-async fn validate_materialized_audio(
-    materialized_path: &Path,
-    ctx: TitleAcquisitionCtx<'_>,
-    progress: &mut impl FnMut(AcquisitionProgress),
-) -> Result<MaterializedSourceFile> {
-    let TitleAcquisitionCtx {
-        title_id,
-        progress_context,
-        ..
-    } = ctx;
-    let title_id = title_id.to_string();
-    let materialized_path = materialized_path.to_path_buf();
-    let validation_result =
-        tokio::task::spawn_blocking(move || {
-            match materialized_file_from_path(&title_id, &materialized_path) {
-                Ok(file) => Ok(file),
-                Err(error) => {
-                    if let Err(cleanup_error) = cleanup_download_artifacts(&materialized_path) {
-                        log::warn!(
-                            "remote_source audible stage=validation_cleanup_failed title_ref={} path={} error={}",
-                            title_ref(&title_id),
-                            sanitize_path_for_display(&materialized_path),
-                            cleanup_error
-                        );
-                    }
-                    Err(error)
-                }
-            }
-        })
-        .await
-        .map_err(|error| {
-            AppError::General(format!(
-                "Materialized audio validation task failed: {error}"
-            ))
-        })?;
-
-    let file = match validation_result {
-        Ok(file) => file,
-        Err(error) => {
-            progress(title_progress(
-                progress_context,
-                AcquisitionStage::Failed,
-                Some(1.0),
-                None,
-                None,
-            ));
-            return Err(error);
-        }
-    };
-    progress(title_progress(
-        progress_context,
-        AcquisitionStage::Validation,
-        Some(1.0),
-        None,
-        None,
-    ));
-    Ok(file)
-}
-
 pub(super) async fn download_supplemental_pdf_if_requested(
     auth: &Auth,
     file: &MaterializedSourceFile,
@@ -502,101 +415,7 @@ pub(super) fn required_supplemental_pdf_failure_message(
 }
 
 #[cfg(test)]
-pub(super) fn materialized_file_from_downloaded_path(
-    title_id: &str,
-    path: &Path,
-    strategy: AcquisitionStrategy,
-) -> Result<MaterializedSourceFile> {
-    let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-    if !abb_remote_source_core::strategy_allows_import_handoff(strategy, source_kind) {
-        return Err(AppError::FileValidation(format!(
-            "Downloaded Audible {} requires Audible decryption before ABB import handoff.",
-            kind_label(source_kind)
-        )));
-    }
-
-    materialized_file_from_path(title_id, path)
-}
-
-fn materialized_file_from_path(title_id: &str, path: &Path) -> Result<MaterializedSourceFile> {
-    let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-    if !abb_remote_source_core::materialized_source_is_import_ready(source_kind) {
-        return Err(AppError::FileValidation(format!(
-            "Materialized Audible {} requires Audible decryption before ABB import handoff.",
-            kind_label(source_kind)
-        )));
-    }
-
-    let metadata = fs::metadata(path)?;
-    let sha256 = sha256_file(path)?;
-
-    match audio::get_file_list_info(std::slice::from_ref(&path)) {
-        Ok(info) if info.valid_count == 1 => {
-            let accepted_file = &info.files[0];
-            Ok(MaterializedSourceFile {
-                input_id: accepted_file.input_id.clone(),
-                title_id: title_id.to_string(),
-                path: accepted_file.path.clone(),
-                size_bytes: metadata.len(),
-                sha256,
-            })
-        }
-        Ok(_) => Err(AppError::FileValidation(format!(
-            "Materialized Audible file was not accepted as audio: {}",
-            sanitize_path_for_display(path)
-        ))),
-        Err(error) => Err(error),
-    }
-}
-
-fn kind_label(kind: MaterializedSourceKind) -> &'static str {
-    match kind {
-        MaterializedSourceKind::ImportReadyM4b => "M4B",
-        MaterializedSourceKind::EncryptedAax => "AAX",
-        MaterializedSourceKind::EncryptedAaxc => "AAXC",
-        MaterializedSourceKind::SupplementalPdf => "PDF",
-        MaterializedSourceKind::Unsupported => "file",
-    }
-}
-
-pub(super) fn staged_protected_source_path(
-    job_dir: &Path,
-    strategy: AcquisitionStrategy,
-) -> std::path::PathBuf {
-    job_dir.join(format!(
-        "source.{}",
-        download_extension_for_strategy(strategy)
-    ))
-}
-
-pub(super) fn staged_materialized_path(
-    job_dir: &Path,
-    title_name: Option<&str>,
-    title_id: &str,
-) -> std::path::PathBuf {
-    job_dir.join(format!(
-        "{}.m4b",
-        remote_materialized_filename_stem(title_name, title_id)
-    ))
-}
-
-pub(super) fn generated_staging_path(job_dir: &Path, extension: &str) -> std::path::PathBuf {
-    job_dir.join(format!("{}.{}", uuid::Uuid::new_v4(), extension))
-}
-
-pub(super) fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let bytes_read = file.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..bytes_read]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
-}
+pub(super) use validation::materialized_file_from_downloaded_path;
 
 #[cfg(test)]
 mod tests {
