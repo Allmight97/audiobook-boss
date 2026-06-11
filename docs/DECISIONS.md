@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-06-11 - Metadata Lookup Provider Degradation Is Canonical
+
+- Audnexus ASIN detail failure continuing to text search, partial multi-provider
+  results, and Audible-only provenance when Audnexus detail enrichment fails are
+  canonical lookup contract behavior.
+- Typed diagnostics in `MetadataLookupResponse` are the observable signal;
+  behavior is documented in `src-tauri/src/commands/metadata_lookup/service.rs`.
+- Guardrail: external provider partial failure stays explicit in the owning
+  command; do not hide degradation or move substitute behavior to callers.
+
 ## 2026-06-07 - WorkRuntime Backend Terminal Truth Is Canonical
 
 - WorkRuntime derives operation terminal status from the single
@@ -45,7 +55,7 @@
 - Add `RemoteSourceRuntime` as the eighth Grey-Box Public API for provider-neutral acquisition, backend-only auth/secrets, staged materialized files, Supplemental Assets, and purge behavior.
 - Audible provider work may evaluate materializer dependencies, helper binaries, ports, reference implementations, or replacement implementations such as AAXClean. The selected shape requires an explicit design/licensing decision, including ownership, license posture, and distribution implications; do not accidentally absorb third-party implementation code, expose frontend credentials, or fake materialization success.
 - Supplemental PDFs attach to imported file-list `inputId`s and are copied only after matching final batch M4B success through output-artifact-owned naming/collision behavior.
-- Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent fallback.
+- Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent or undeclared degradation.
 
 ## 2026-05-28 - Bun Stable Runtime
 

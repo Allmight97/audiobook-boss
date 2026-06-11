@@ -42,8 +42,7 @@ prefer local prose or delete it.
 | **Metadata Outcome Plan** | Backend plan that validates/normalizes metadata intent, then produces effective metadata, naming metadata, write instructions, and cover-art policy. | metadata helper chain |
 | **Processing Preflight Plan** | Backend preview of how a processing request will execute before the long-running job starts. | dry guess |
 | **Output Path Preview** | Backend-owned intended output path before collision suffixing or final writes. | frontend filename guess |
-| **Temporary Workaround** | A registered short-term compatibility or integrity path with: owner/issue, trigger, observable signal, source marker or metadata, sunset/removal condition, and focused tests. | silent shim |
-| **Fallback Register** | Currently empty. Temporary workarounds for unaddressed root causes should be registered here with source markers and focused behavior tests. | hidden legacy notes |
+| **Provider Degradation** | Expected partial failure from external providers. The owning command returns usable results when possible plus typed diagnostics; hard-fail only when the selected contract cannot be satisfied. Canonical lookup behavior lives in `src-tauri/src/commands/metadata_lookup/service.rs`. | silent partial success, hidden substitute behavior |
 
 ## Ownership
 

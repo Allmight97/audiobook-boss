@@ -20,8 +20,7 @@
 - Keep provider-specific lookup code inside its command family and service
   modules; command functions should not grow into HTTP clients or mappers.
 - Provider degradation behavior must be explicit in the command response and
-  covered by focused tests. Only temporary fallback/shim behavior for an
-  unaddressed root cause belongs in a fallback register.
+  covered by focused tests.
 
 ## Hard Invariants
 

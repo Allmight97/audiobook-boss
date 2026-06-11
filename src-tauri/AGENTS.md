@@ -22,7 +22,7 @@
   `crate::remote_source`; provider-private details must not leak into
   processing, metadata, audio, output, logs, or IPC payloads.
 - Route metadata reads and writes through the public `metadata` boundary; outside callers should request metadata outcomes, not choose private MP4/FFmpeg strategy modules.
-- Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side fallback assumptions.
+- Let the metadata boundary choose MP4-family atom handling versus generic FFmpeg behavior from actual container classification, not filename suffix or caller-side substitute behavior.
 - Use `JobRegistry` as the central active-job and cancellation surface.
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
@@ -37,7 +37,7 @@
   `crate::audio::validate_input_audio_path()`.
 - Long-running stages must emit progress/failure states so UI status remains truthful.
 - Preserve external audiobook tag interoperability in metadata read/write behavior.
-- Fallbacks follow root policy and fallback-register discipline.
+- Provider degradation stays explicit in command responses and typed diagnostics.
 - Keep command and event shape parity with frontend boundary adapters.
 - Keep unsafe blocks narrow and owned by the FFmpeg/FFI boundary that requires
   them; do not let unsafe details leak into product orchestration or IPC shape.

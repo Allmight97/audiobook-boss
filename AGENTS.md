@@ -9,9 +9,8 @@
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
-- Canonical metadata lookup provider-degradation behavior is documented in the
-  `metadata_lookup` public surface. No active fallback register exists; only
-  true temporary workarounds for unaddressed root causes should be registered.
+- Canonical metadata lookup provider-degradation behavior is documented in
+  `src-tauri/src/commands/metadata_lookup/service.rs`.
 
 ## Testing And Proof Infrastructure
 
@@ -21,7 +20,7 @@
 - Tests and proof routes are not sacred. Delete, consolidate, or redesign them
   when that improves signal, wall-clock, or failure clarity.
 - Add tests only when they reduce false confidence or protect a concrete
-  user-visible handoff, runtime contract, fallback, cleanup path, or regression.
+  user-visible handoff, runtime contract, cleanup path, or regression.
   Prefer deterministic focused checks over coverage-count expansion.
 - For suspicious verification, capture the command, elapsed time, first-output
   latency when useful, child process or lock state when relevant, and whether
@@ -67,7 +66,7 @@
   the remaining code is orchestration/rendering or extractable policy with a
   focused behavior test.
 - Prefer counterexample tests for lifecycle, cleanup, cache, cancellation,
-  fallback, and boundary regressions over coverage-count expansion.
+  silent-behavior, and boundary regressions over coverage-count expansion.
 - Public API Strip tests must stay independent of implementation registries.
   Do not derive expected public surfaces from the command, event, or generated
   source they are meant to guard.
@@ -75,15 +74,14 @@
 ## Hard Invariants
 
 - Precedence: safety/data/contract invariants > explicit user request > completion bias > style.
-- Block and explain before changing when there is data-loss risk, ambiguous TS↔Rust contract parity, removed path-safety guarantees, or unregistered fallback/shim behavior.
+- Block and explain before changing when there is data-loss risk, ambiguous TS↔Rust contract parity, removed path-safety guarantees, or hidden bypass of an owning boundary.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
 - Metadata intent adaptation stays at the Tauri runtime boundary.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
-- Greenfield default: do not preserve internal legacy payloads, aliases, or shims without repo evidence or explicit owner request.
+- Greenfield default: do not preserve internal legacy payloads or aliases without repo evidence or explicit owner request.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.
-- No silent fallback/shim behavior. Every intentional temporary workaround needs an explicit
-  owner/issue, trigger, observable signal, source marker/metadata, sunset/removal condition,
-  and focused tests for the owning surface.
+- External provider partial failure is handled at the owning command with explicit typed diagnostics; hard-fail when the selected contract cannot be satisfied.
+- No silent, hidden, or caller-side substitute behavior across IPC, metadata, path, or lifecycle boundaries.
 
 ## Verification
 
@@ -147,6 +145,6 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 - Nearest relevant `AGENTS.md` was followed.
 - Root hard invariants still hold.
 - Changed paths comply with local ownership and allowed import/export surface rules.
-- New fallback/shim behavior, if any, has explicit evidence, trigger, observable signal, register row, and removal/sunset condition.
+- Changed behavior is owned, explicit, and covered by focused tests where the contract crosses a boundary.
 - Verification matched the changed surface and risk.
 - Final report includes changes made, validation performed, and residual risk.

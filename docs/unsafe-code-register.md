@@ -34,8 +34,9 @@ behavior can break if that invariant is wrong?
   surrounding code.
 - Update this register when production unsafe scope, purpose, or blast radius
   changes.
-- Do not expand unsafe code as a compatibility shim without the normal fallback
-  evidence, signal, and sunset discipline from `AGENTS.md`.
+- Do not expand unsafe code to bypass an owned safe boundary. Follow root Hard
+  Invariants and update this register when unsafe scope, purpose, or blast radius
+  changes.
 
 ## Current Production Unsafe
 
@@ -80,5 +81,5 @@ Then classify hits as:
 
 The current unsafe surface is expected for a desktop audio app that touches
 FFmpeg directly. The risk to watch is not that unsafe exists; the risk is unsafe
-logic spreading upward into product orchestration, UI contracts, fallback policy,
-or path/output decisions where ABB already has owned safe boundaries.
+logic spreading upward into product orchestration, UI contracts, or path/output
+decisions where ABB already has owned safe boundaries.

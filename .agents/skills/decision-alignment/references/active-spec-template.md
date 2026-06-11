@@ -80,7 +80,6 @@ When this effort is implemented, rejected, or superseded:
   - `docs/system-map.md`
   - `docs/ubiquitous-language.md`
   - `docs/api-map.md`
-  - `docs/fallbacks.md`
   - README/changelog/release notes (using release skills)
   - GitHub issue for deferred work (as aligned and agreed upon with repo admins/orchestrators)
 ```
