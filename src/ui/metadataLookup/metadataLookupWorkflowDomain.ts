@@ -4,7 +4,7 @@ import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '..
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { applyMetadataDraftIntent, buildMetadataDraftIntent } from '../metadataDraft';
 import { clearMetadataLookupCoverPreviewCache } from './metadataLookupCoverPreview.svelte';
-import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflowServices';
+import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflow';
 
 export type ApplyMode = 'current' | 'queue';
 export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };

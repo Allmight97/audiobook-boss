@@ -1,37 +1,87 @@
 import type { FileListInfo } from '../../types/audio';
 import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import { get } from 'svelte/store';
 import {
 	Data,
 	Effect,
+	type AppLayer,
 	type AppEffect,
+	makeWorkflowLayer,
+	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
 	workflowTrySync,
 } from '../../lib/effect/appEffect';
+import { tauriClient } from '../../lib/tauri/client';
+import { getCurrentFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
+import { resetDirtyState } from '../metadataForm';
+import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
+import { metadataSaveInProgressStore } from '../metadataSaveState';
 import {
-	MetadataSaveWorkflowServicesTag,
-	type MetadataSaveWorkflowLayer,
-	type MetadataSaveWorkflowServices,
-	type MetadataSaveWorkflowServicesId,
-} from './metadataSaveWorkflowServices';
+	beginMetadataSaveInStatusPanel,
+	completeMetadataSaveInStatusPanel,
+	failMetadataSaveInStatusPanel,
+	initStatusPanel,
+	isStatusPanelProcessing,
+	pushStatusPanelTransientStatus,
+} from '../statusPanel';
 
-export {
-	MetadataSaveWorkflowServicesTag,
-	makeMetadataSaveWorkflowServicesLayer,
-	type MetadataSaveWorkflowLayer,
-	type MetadataSaveWorkflowServices,
-	type MetadataSaveWorkflowServicesId,
-} from './metadataSaveWorkflowServices';
-
-export class MetadataSaveWorkflowFailed extends Data.TaggedError('MetadataSaveWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
-
-interface MetadataSaveRunState {
-	enteredSave: boolean;
+export interface MetadataSaveWorkflowServices {
+	getCurrentFileList: typeof getCurrentFileList;
+	initStatusPanel: typeof initStatusPanel;
+	isStatusPanelProcessing: typeof isStatusPanelProcessing;
+	pushStatusPanelTransientStatus: typeof pushStatusPanelTransientStatus;
+	isMetadataSaveInProgress: () => boolean;
+	setMetadataSaveInProgress: (isInProgress: boolean) => void;
+	persistPendingMetadataDraftsForCurrentSelection: typeof persistPendingMetadataDraftsForCurrentSelection;
+	getPendingMetadataIntentEntries: typeof getPendingMetadataIntentEntries;
+	saveMetadataBatch: typeof tauriClient.saveMetadataBatch;
+	clearPendingMetadataForFile: typeof clearPendingMetadataForFile;
+	resetDirtyState: typeof resetDirtyState;
+	beginMetadataSaveInStatusPanel: typeof beginMetadataSaveInStatusPanel;
+	completeMetadataSaveInStatusPanel: typeof completeMetadataSaveInStatusPanel;
+	failMetadataSaveInStatusPanel: typeof failMetadataSaveInStatusPanel;
+	console: Pick<Console, 'error' | 'log'>;
 }
+
+export type MetadataSaveWorkflowServicesId = 'Core/MetadataSaveWorkflowServices';
+export type MetadataSaveWorkflowLayer = AppLayer<MetadataSaveWorkflowServicesId>;
+
+export const MetadataSaveWorkflowServicesTag = makeWorkflowServiceTag<
+	MetadataSaveWorkflowServicesId,
+	MetadataSaveWorkflowServices
+>('Core/MetadataSaveWorkflowServices');
+
+export function makeMetadataSaveWorkflowServicesLayer(
+	services: MetadataSaveWorkflowServices,
+): MetadataSaveWorkflowLayer {
+	return makeWorkflowLayer(MetadataSaveWorkflowServicesTag, services);
+}
+
+const liveMetadataSaveWorkflowServices = {
+	getCurrentFileList,
+	initStatusPanel,
+	isStatusPanelProcessing,
+	pushStatusPanelTransientStatus,
+	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
+	setMetadataSaveInProgress: (isInProgress) => {
+		metadataSaveInProgressStore.set(isInProgress);
+	},
+	persistPendingMetadataDraftsForCurrentSelection,
+	getPendingMetadataIntentEntries,
+	saveMetadataBatch: tauriClient.saveMetadataBatch,
+	clearPendingMetadataForFile,
+	resetDirtyState,
+	beginMetadataSaveInStatusPanel,
+	completeMetadataSaveInStatusPanel,
+	failMetadataSaveInStatusPanel,
+	console,
+} satisfies MetadataSaveWorkflowServices;
+
+export const MetadataSaveWorkflowLive = makeMetadataSaveWorkflowServicesLayer(
+	liveMetadataSaveWorkflowServices,
+);
 
 export type MetadataSaveWorkflowEntryServices = Pick<
 	MetadataSaveWorkflowServices,
@@ -43,6 +93,27 @@ export type MetadataSaveWorkflowEntryServices = Pick<
 	| 'setMetadataSaveInProgress'
 	| 'console'
 >;
+
+export const liveMetadataSaveWorkflowEntryServices = {
+	getCurrentFileList,
+	initStatusPanel,
+	isStatusPanelProcessing,
+	pushStatusPanelTransientStatus,
+	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
+	setMetadataSaveInProgress: (isInProgress) => {
+		metadataSaveInProgressStore.set(isInProgress);
+	},
+	console,
+} satisfies MetadataSaveWorkflowEntryServices;
+
+export class MetadataSaveWorkflowFailed extends Data.TaggedError('MetadataSaveWorkflowFailed')<{
+	readonly message: string;
+	readonly cause: unknown;
+}> {}
+
+interface MetadataSaveRunState {
+	enteredSave: boolean;
+}
 
 export interface PreparedMetadataSaveWorkflowEntry {
 	readonly fileList: FileListInfo;

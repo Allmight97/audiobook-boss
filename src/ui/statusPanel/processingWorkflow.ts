@@ -10,16 +10,30 @@ import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError'
 import {
 	Data,
 	Effect,
+	type AppLayer,
 	type AppEffect,
+	makeWorkflowLayer,
+	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
-import {
-	ProcessingWorkflowServicesTag,
-	type ProcessingWorkflowLayer,
-	type ProcessingWorkflowServicesId,
-	type ProcessingWorkflowServices,
-} from './processingWorkflowServices';
+import type { tauriClient } from '../../lib/tauri/client';
+import type {
+	getCurrentFileList,
+	getSelectedFileIndex,
+	getSelectedFileIndices,
+	setFileOrderLocked,
+	stageMetadataToSelection,
+} from '../fileList';
+import type { getJobType, setJobControlsEnabled } from '../jobControls';
+import type { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
+import type {
+	getAllMetadataIntentPatches,
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	setMetadataForFile,
+} from '../metadataState';
+import type { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
 import {
 	buildMetadataIntentByPath,
 	buildProcessPayload,
@@ -34,17 +48,52 @@ import {
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
 } from '../remoteSource/sessionAssets.svelte';
+import type * as feedback from './feedback';
+import type { openGeneratedPreviewIfSingle } from './preview';
+import type { readProcessingRequestConfig } from './processingConfig';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 
-export {
-	ProcessingWorkflowServicesTag,
-	makeProcessingWorkflowServicesLayer,
-	type ProcessingWorkflowLayer,
-	type ProcessingWorkflowServicesId,
-	type ProcessingWorkflowServices,
-} from './processingWorkflowServices';
+export interface ProcessingWorkflowServices {
+	updateOutputPath: typeof updateOutputPath;
+	getCurrentFileList: typeof getCurrentFileList;
+	getSelectedFileIndex: typeof getSelectedFileIndex;
+	getSelectedFileIndices: typeof getSelectedFileIndices;
+	readProcessingRequestConfig: typeof readProcessingRequestConfig;
+	getJobType: typeof getJobType;
+	hasDirtyMetadataFields: typeof hasDirtyMetadataFields;
+	readMetadataForm: typeof readMetadataForm;
+	getAllMetadataIntentPatches: typeof getAllMetadataIntentPatches;
+	getMetadataForFile: typeof getMetadataForFile;
+	getMetadataIntentPatchForFile: typeof getMetadataIntentPatchForFile;
+	setMetadataForFile: typeof setMetadataForFile;
+	stageMetadataToSelection: typeof stageMetadataToSelection;
+	setJobControlsEnabled: typeof setJobControlsEnabled;
+	setFileOrderLocked: typeof setFileOrderLocked;
+	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
+	readAudioMetadata: typeof tauriClient.readAudioMetadata;
+	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
+	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
+	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
+	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
+	feedback: Pick<typeof feedback, 'showError'>;
+	console: Pick<Console, 'error' | 'log' | 'warn'>;
+}
+
+export type ProcessingWorkflowServicesId = 'StatusPanel/ProcessingWorkflowServices';
+export type ProcessingWorkflowLayer = AppLayer<ProcessingWorkflowServicesId>;
+
+export const ProcessingWorkflowServicesTag = makeWorkflowServiceTag<
+	ProcessingWorkflowServicesId,
+	ProcessingWorkflowServices
+>('StatusPanel/ProcessingWorkflowServices');
+
+export function makeProcessingWorkflowServicesLayer(
+	services: ProcessingWorkflowServices,
+): ProcessingWorkflowLayer {
+	return makeWorkflowLayer(ProcessingWorkflowServicesTag, services);
+}
 
 export interface ProcessingWorkflowContext {
 	updateStatus: (status: ProcessingStatus) => void;
@@ -472,7 +521,7 @@ export function startProcessing(
 ): Promise<void> {
 	return (async () => {
 		const workflowLayer =
-			layer ?? (await import('./processingWorkflowLive')).ProcessingWorkflowLive;
+			layer ?? (await import('./processingWorkflow.deps')).ProcessingWorkflowLive;
 		return runAppEffect(
 			processingWorkflowProgram(context, options).pipe(Effect.provide(workflowLayer)),
 		);

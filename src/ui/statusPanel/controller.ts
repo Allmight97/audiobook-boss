@@ -19,12 +19,10 @@ import {
 import { createProgressSubscription } from './services/progressSubscription';
 import {
 	enterCancelAllCancellationWorkflow,
+	liveProcessingCancellationWorkflowServices,
+	ProcessingCancellationWorkflowLive,
 	runProcessingCancellationWorkflow,
 } from './processingCancellationWorkflow';
-import {
-	ProcessingCancellationWorkflowLive,
-	liveProcessingCancellationWorkflowServices,
-} from './processingCancellationWorkflowLive';
 import {
 	applyCancellation,
 	applyProgress,

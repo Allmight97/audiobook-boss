@@ -1,5 +1,5 @@
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import type { ImportAnalysisWorkflowServices } from './importAnalysisWorkflowServices';
+import type { ImportAnalysisWorkflowServices } from './importAnalysisWorkflow';
 
 export function importOrderLockedMessage(): string {
 	return 'Order locked while processing. Wait for completion to add files.';

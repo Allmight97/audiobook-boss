@@ -1,6 +1,10 @@
 import { triggerProcessFromStatusPanel } from '../statusPanel';
-import { enterMetadataSaveWorkflow, runMetadataSaveWorkflow } from './metadataSaveWorkflow';
-import { liveMetadataSaveWorkflowEntryServices } from './metadataSaveWorkflowEntryLive';
+import {
+	enterMetadataSaveWorkflow,
+	liveMetadataSaveWorkflowEntryServices,
+	MetadataSaveWorkflowLive,
+	runMetadataSaveWorkflow,
+} from './metadataSaveWorkflow';
 
 export async function saveMetadataFromUI(): Promise<void> {
 	const preparedEntry = enterMetadataSaveWorkflow(liveMetadataSaveWorkflowEntryServices);
@@ -9,7 +13,6 @@ export async function saveMetadataFromUI(): Promise<void> {
 	}
 
 	try {
-		const { MetadataSaveWorkflowLive } = await import('./metadataSaveWorkflowLive');
 		await runMetadataSaveWorkflow(MetadataSaveWorkflowLive, preparedEntry);
 	} catch (error) {
 		liveMetadataSaveWorkflowEntryServices.setMetadataSaveInProgress(false);

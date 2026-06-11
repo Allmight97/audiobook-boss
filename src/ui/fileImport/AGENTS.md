@@ -10,7 +10,7 @@
 ## Preferred Path
 
 - Keep import orchestration in `importAnalysisWorkflow.ts` with injectable
-  services from `importAnalysisWorkflowServices.ts`.
+  services co-located in the same file.
 - Keep DOM/Tauri event wiring in `handlers.ts`; route all local audio ingress
   through the workflow instead of adding parallel import paths.
 - Use `tauriClient` through the live workflow services. Do not call generated

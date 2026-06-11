@@ -1,25 +1,50 @@
 import {
 	Data,
 	Effect,
+	type AppLayer,
 	type AppEffect,
+	makeWorkflowLayer,
+	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
+import { tauriClient } from '../../lib/tauri/client';
+import * as feedback from './feedback';
 import type { ProcessingStatus } from './state';
-import {
-	ProcessingCancellationWorkflowServicesTag,
-	type ProcessingCancellationWorkflowLayer,
-	type ProcessingCancellationWorkflowServices,
-	type ProcessingCancellationWorkflowServicesId,
-} from './processingCancellationWorkflowServices';
 
-export {
-	ProcessingCancellationWorkflowServicesTag,
-	makeProcessingCancellationWorkflowServicesLayer,
-	type ProcessingCancellationWorkflowLayer,
-	type ProcessingCancellationWorkflowServices,
-	type ProcessingCancellationWorkflowServicesId,
-} from './processingCancellationWorkflowServices';
+export interface ProcessingCancellationWorkflowServices {
+	cancelProcessing: typeof tauriClient.cancelProcessing;
+	setCancelAllButtonPending: typeof feedback.setCancelAllButtonPending;
+	showError: typeof feedback.showError;
+	console: Pick<Console, 'error'>;
+}
+
+export type ProcessingCancellationWorkflowServicesId =
+	'StatusPanel/ProcessingCancellationWorkflowServices';
+export type ProcessingCancellationWorkflowLayer =
+	AppLayer<ProcessingCancellationWorkflowServicesId>;
+
+export const ProcessingCancellationWorkflowServicesTag = makeWorkflowServiceTag<
+	ProcessingCancellationWorkflowServicesId,
+	ProcessingCancellationWorkflowServices
+>('StatusPanel/ProcessingCancellationWorkflowServices');
+
+export function makeProcessingCancellationWorkflowServicesLayer(
+	services: ProcessingCancellationWorkflowServices,
+): ProcessingCancellationWorkflowLayer {
+	return makeWorkflowLayer(ProcessingCancellationWorkflowServicesTag, services);
+}
+
+export const liveProcessingCancellationWorkflowServices = {
+	cancelProcessing: (jobId?: string | null) => tauriClient.cancelProcessing(jobId),
+	setCancelAllButtonPending: feedback.setCancelAllButtonPending,
+	showError: feedback.showError,
+	console,
+} satisfies ProcessingCancellationWorkflowServices;
+
+export const ProcessingCancellationWorkflowLive = makeProcessingCancellationWorkflowServicesLayer(
+	liveProcessingCancellationWorkflowServices,
+);
 
 export interface PreparedCancelAllRequest {
 	readonly request: Promise<readonly unknown[]>;
@@ -144,11 +169,6 @@ export function enterCancelAllCancellationWorkflow(
 	}
 }
 
-async function defaultProcessingCancellationWorkflowLayer(): Promise<ProcessingCancellationWorkflowLayer> {
-	const live = await import('./processingCancellationWorkflowLive');
-	return live.ProcessingCancellationWorkflowLive;
-}
-
 export function processingCancellationWorkflowExecution(
 	action: ProcessingCancellationWorkflowAction,
 ): AppEffect<void, never, ProcessingCancellationWorkflowServicesId> {
@@ -160,7 +180,7 @@ export async function runProcessingCancellationWorkflow(
 	layer?: ProcessingCancellationWorkflowLayer,
 	preparedCancelAll?: PreparedCancelAllRequest,
 ): Promise<void> {
-	const workflowLayer = layer ?? (await defaultProcessingCancellationWorkflowLayer());
+	const workflowLayer = layer ?? ProcessingCancellationWorkflowLive;
 	return runAppEffect(
 		processingCancellationWorkflowBody(action, preparedCancelAll).pipe(
 			Effect.provide(workflowLayer),

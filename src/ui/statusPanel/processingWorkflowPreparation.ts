@@ -13,7 +13,7 @@ import {
 } from '../metadataValidation';
 import type { OutputPlanReviewResult } from '../outputPanel';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
-import type { ProcessingWorkflowServices } from './processingWorkflowServices';
+import type { ProcessingWorkflowServices } from './processingWorkflow';
 import { supplementalAssetsForInputIds } from '../remoteSource/sessionAssets.svelte';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;

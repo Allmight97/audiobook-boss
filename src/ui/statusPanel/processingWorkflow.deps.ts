@@ -15,15 +15,15 @@ import {
 	setMetadataForFile,
 } from '../metadataState';
 import { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
-import * as feedback from './feedback';
-import { openGeneratedPreviewIfSingle } from './preview';
-import { readProcessingRequestConfig } from './processingConfig';
 import {
 	makeProcessingWorkflowServicesLayer,
 	type ProcessingWorkflowServices,
-} from './processingWorkflowServices';
+} from './processingWorkflow';
+import * as feedback from './feedback';
+import { openGeneratedPreviewIfSingle } from './preview';
+import { readProcessingRequestConfig } from './processingConfig';
 
-const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
+const liveProcessingWorkflowServices = {
 	updateOutputPath,
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -47,7 +47,7 @@ const liveProcessingWorkflowServices: ProcessingWorkflowServices = {
 	openGeneratedPreviewIfSingle,
 	feedback,
 	console,
-};
+} satisfies ProcessingWorkflowServices;
 
 export const ProcessingWorkflowLive = makeProcessingWorkflowServicesLayer(
 	liveProcessingWorkflowServices,
