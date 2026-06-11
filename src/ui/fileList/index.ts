@@ -1,8 +1,6 @@
 /**
  * File list module — pre-processing workbench file list state, actions, and rendering.
  */
-import { fileListViewState } from './viewState.svelte';
-
 export {
 	appendFileList,
 	clearAllFiles,
@@ -60,8 +58,6 @@ export {
 	normalizeFileListInfo,
 } from './appendResult';
 
-export function readCombinedSizeText(): string {
-	return fileListViewState.combinedSizeText;
-}
+export { readCombinedSizeText } from './viewState.svelte';
 
 export { default as FileListIsland } from './FileListIsland.svelte';

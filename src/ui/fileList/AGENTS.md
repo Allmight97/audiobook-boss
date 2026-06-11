@@ -20,13 +20,14 @@
   `persistPendingMetadataDraftsForCurrentSelection`, `showSingleSelection`,
   `clearSelectionPanels`), append helpers/types for import workflows, and
   `readCombinedSizeText()`.
-- Do **not** export `fileListViewState`, `fileListSessionState`, DOM helpers,
-  selection internals, or event handlers from the index.
+- Do **not** export `fileListSessionState`, selection internals, or event
+  handlers from the index. Cross-module reads use `readX()` accessors from
+  `viewState.svelte.ts` inside component `$derived(...)`.
 
 ## Private Cluster
 
 - Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
-  `viewState.svelte.ts`, `events.ts`, `dom.ts`, `selection.ts`,
+  `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
   `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
 

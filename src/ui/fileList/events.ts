@@ -7,7 +7,6 @@ import {
 	isOrderLocked,
 } from './state.svelte';
 import { metadataSaveInProgressStore } from '../metadataSaveState';
-import { setFileListDragState } from './viewState.svelte';
 import {
 	fileListNavigationCommandFromKey,
 	resolveFileListNavigationTarget,
@@ -22,21 +21,82 @@ import {
 	selectFile,
 } from './actions';
 
-let draggedIndex: number | null = null;
+export type FileListDragState = {
+	draggedIndex: number | null;
+	hoveredIndex: number | null;
+};
 
-function stopInteraction(event: Event): void {
-	event.stopPropagation();
-	event.preventDefault();
+export type FileListDragHandlers = {
+	onDragStart: (index: number, event: DragEvent) => void;
+	onDragOver: (index: number, event: DragEvent) => void;
+	onDrop: (index: number, event: DragEvent) => void;
+	onDragEnd: () => void;
+};
+
+export function createFileListDragHandlers(
+	setDragState: (state: FileListDragState) => void,
+): FileListDragHandlers {
+	let draggedIndex: number | null = null;
+
+	function resetDragState(): void {
+		draggedIndex = null;
+		setDragState({ draggedIndex: null, hoveredIndex: null });
+	}
+
+	return {
+		onDragStart(index: number, event: DragEvent) {
+			if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
+			if (!event.dataTransfer || !hasValidIndex(index)) return;
+
+			const item = event.currentTarget as HTMLElement | null;
+			if (!item) return;
+
+			draggedIndex = index;
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', index.toString());
+			setDragState({ draggedIndex: index, hoveredIndex: null });
+		},
+		onDragOver(index: number, event: DragEvent) {
+			if (get(metadataSaveInProgressStore)) return;
+			if (isOrderLocked()) return;
+			event.preventDefault();
+			if (!event.dataTransfer) return;
+
+			event.dataTransfer.dropEffect = 'move';
+			if (!hasValidIndex(index)) return;
+
+			setDragState({
+				draggedIndex,
+				hoveredIndex: draggedIndex === index ? null : index,
+			});
+		},
+		onDrop(index: number, event: DragEvent) {
+			if (get(metadataSaveInProgressStore)) return;
+			if (isOrderLocked()) return;
+			event.preventDefault();
+			event.stopPropagation();
+
+			if (draggedIndex === null || draggedIndex === index) {
+				resetDragState();
+				return;
+			}
+			if (!hasValidIndex(index)) {
+				resetDragState();
+				return;
+			}
+
+			reorderFiles(draggedIndex, index);
+			resetDragState();
+		},
+		onDragEnd() {
+			resetDragState();
+		},
+	};
 }
 
 function hasValidIndex(index: number): boolean {
 	const fileList = getCurrentFileList();
 	return Boolean(fileList && index >= 0 && index < fileList.files.length);
-}
-
-function resetDragState(): void {
-	draggedIndex = null;
-	setFileListDragState({ draggedIndex: null, hoveredIndex: null });
 }
 
 export function onFileListClick(index: number, event: MouseEvent): void {
@@ -76,6 +136,11 @@ export function onFileListRemove(index: number, event: MouseEvent): void {
 
 	stopInteraction(event);
 	void removeFile(index);
+}
+
+function stopInteraction(event: Event): void {
+	event.stopPropagation();
+	event.preventDefault();
 }
 
 function isCurrentSingleSelection(index: number): boolean {
@@ -132,55 +197,4 @@ function isTextInputTarget(target: EventTarget | null): boolean {
 	if (!target || !(target instanceof HTMLElement)) return false;
 	const tagName = target.tagName.toLowerCase();
 	return tagName === 'input' || tagName === 'textarea';
-}
-
-export function onFileListDragStart(index: number, e: DragEvent): void {
-	if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
-	if (!e.dataTransfer || !hasValidIndex(index)) return;
-
-	const item = e.currentTarget as HTMLElement | null;
-	if (!item) return;
-
-	draggedIndex = index;
-	e.dataTransfer.effectAllowed = 'move';
-	e.dataTransfer.setData('text/plain', index.toString());
-	setFileListDragState({ draggedIndex: index, hoveredIndex: null });
-}
-
-export function onFileListDragOver(index: number, e: DragEvent): void {
-	if (get(metadataSaveInProgressStore)) return;
-	if (isOrderLocked()) return;
-	e.preventDefault();
-	if (!e.dataTransfer) return;
-
-	e.dataTransfer.dropEffect = 'move';
-	if (!hasValidIndex(index)) return;
-
-	setFileListDragState({
-		draggedIndex,
-		hoveredIndex: draggedIndex === index ? null : index,
-	});
-}
-
-export function onFileListDrop(index: number, e: DragEvent): void {
-	if (get(metadataSaveInProgressStore)) return;
-	if (isOrderLocked()) return;
-	e.preventDefault();
-	e.stopPropagation();
-
-	if (draggedIndex === null || draggedIndex === index) {
-		resetDragState();
-		return;
-	}
-	if (!hasValidIndex(index)) {
-		resetDragState();
-		return;
-	}
-
-	reorderFiles(draggedIndex, index);
-	resetDragState();
-}
-
-export function onFileListDragEnd(): void {
-	resetDragState();
 }

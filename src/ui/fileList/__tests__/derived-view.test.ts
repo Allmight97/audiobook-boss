@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { AudioFile, FileListInfo } from '../../../types/audio';
+import { removeFile, reorderFiles } from '../actions';
+import { setCurrentFileList } from '../state.svelte';
+import { readFileListSelectedIndices, readFileListViewFiles } from '../viewState.svelte';
+
+function makeFile(path: string): AudioFile {
+	return {
+		path,
+		inputId: path,
+		isValid: true,
+		duration: 60,
+		size: 1024,
+		format: 'm4b',
+	};
+}
+
+function makeFileList(...files: AudioFile[]): FileListInfo {
+	return {
+		files,
+		validCount: files.length,
+		invalidCount: 0,
+		totalDuration: files.reduce((sum, file) => sum + (file.duration || 0), 0),
+		totalSize: files.reduce((sum, file) => sum + (file.size || 0), 0),
+		selectedDecoders: files.map(() => null),
+	};
+}
+
+describe('derived file list view accessors', () => {
+	beforeEach(() => {
+		setCurrentFileList(null);
+	});
+
+	it('reflects session reorder without manual view sync', () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+		const gamma = makeFile('/books/gamma.m4b');
+		setCurrentFileList(makeFileList(alpha, beta, gamma));
+
+		reorderFiles(0, 2);
+
+		expect(readFileListViewFiles().map((file) => file.path)).toEqual([
+			'/books/beta.m4b',
+			'/books/gamma.m4b',
+			'/books/alpha.m4b',
+		]);
+	});
+
+	it('reflects session remove without manual view sync', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const beta = makeFile('/books/beta.m4b');
+		setCurrentFileList(makeFileList(alpha, beta));
+
+		await removeFile(0);
+
+		expect(readFileListViewFiles().map((file) => file.path)).toEqual(['/books/beta.m4b']);
+		expect(readFileListSelectedIndices()).toEqual([]);
+	});
+});

@@ -62,7 +62,6 @@
 <FileListIsland
 	bind:fileManagementContainer
 	isDragOver={fileImportUiState.isDragOver}
-	hasFiles={fileImportUiState.hasFiles}
 	supportText={fileImportUiState.supportText}
 	onHeaderClick={handleHeaderClick}
 	onHeaderKeydown={handleHeaderKeydown}

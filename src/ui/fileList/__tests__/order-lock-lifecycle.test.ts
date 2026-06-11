@@ -7,7 +7,10 @@ import {
 	setCurrentFileList,
 	setOrderLocked,
 } from '../state.svelte';
-import { fileListViewState } from '../viewState.svelte';
+import {
+	readFileListControlsSnapshot,
+	readFileListOrderLockVisible,
+} from '../viewState.svelte';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior
 vi.mock('../../metadataForm', () => ({
@@ -219,43 +222,33 @@ describe('order lock lifecycle', () => {
 	});
 
 	describe('view state reflects lock', () => {
-		it('disables sort and clear controls when locked', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('disables sort and clear controls when locked', () => {
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(true);
 
-			updateButtonVisibility();
-
-			expect(fileListViewState.sortDisabled).toBe(true);
-			expect(fileListViewState.clearDisabled).toBe(true);
+			const controls = readFileListControlsSnapshot();
+			expect(controls.sortDisabled).toBe(true);
+			expect(controls.clearDisabled).toBe(true);
 		});
 
-		it('enables sort and clear controls when unlocked', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('enables sort and clear controls when unlocked', () => {
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(false);
 
-			updateButtonVisibility();
-
-			expect(fileListViewState.sortDisabled).toBe(false);
-			expect(fileListViewState.clearDisabled).toBe(false);
+			const controls = readFileListControlsSnapshot();
+			expect(controls.sortDisabled).toBe(false);
+			expect(controls.clearDisabled).toBe(false);
 		});
 
-		it('shows lock notice when locked', async () => {
-			const { setOrderLockNotice } = await import('../dom');
-
-			setOrderLockNotice(true);
-
-			expect(fileListViewState.orderLockVisible).toBe(true);
+		it('shows lock notice when locked', () => {
+			setOrderLocked(true);
+			expect(readFileListOrderLockVisible()).toBe(true);
 		});
 
-		it('hides lock notice when unlocked', async () => {
-			const { setOrderLockNotice } = await import('../dom');
-			setOrderLockNotice(true);
-
-			setOrderLockNotice(false);
-
-			expect(fileListViewState.orderLockVisible).toBe(false);
+		it('hides lock notice when unlocked', () => {
+			setOrderLocked(true);
+			setOrderLocked(false);
+			expect(readFileListOrderLockVisible()).toBe(false);
 		});
 	});
 
@@ -275,19 +268,14 @@ describe('order lock lifecycle', () => {
 			expect(current?.files.length).toBe(0);
 		});
 
-		it('view controls re-enabled after lock/unlock cycle', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('view controls re-enabled after lock/unlock cycle', () => {
 			setCurrentFileList(makeFileList(3));
 
-			// Lock
 			setOrderLocked(true);
-			updateButtonVisibility();
-			expect(fileListViewState.clearDisabled).toBe(true);
+			expect(readFileListControlsSnapshot().clearDisabled).toBe(true);
 
-			// Unlock
 			setOrderLocked(false);
-			updateButtonVisibility();
-			expect(fileListViewState.clearDisabled).toBe(false);
+			expect(readFileListControlsSnapshot().clearDisabled).toBe(false);
 		});
 	});
 });

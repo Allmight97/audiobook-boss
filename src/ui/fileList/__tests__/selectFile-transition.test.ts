@@ -45,16 +45,6 @@ vi.mock('../../metadataValidation', () => ({
 	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
-vi.mock('../dom', () => ({
-	updateFileListDOM: vi.fn(),
-	updateTotalStats: vi.fn(),
-	updateSelection: vi.fn(),
-	updateSortButtonText: vi.fn(),
-	updateButtonVisibility: vi.fn(),
-	showEmptyState: vi.fn(),
-	setOrderLockNotice: vi.fn(),
-}));
-
 vi.mock('../events', () => ({
 	initFileListEvents: vi.fn(),
 	setupDragStartHandlers: vi.fn(),
