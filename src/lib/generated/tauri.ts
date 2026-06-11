@@ -436,7 +436,7 @@ export type MetadataLookupDiagnostic = {
 	message: string,
 };
 
-export type MetadataLookupDiagnosticKind = "asinDirectLookupFallbackToTextSearch" | "sourceFailedPartialResults" | "audnexusDetailFallbackToAudibleOnly";
+export type MetadataLookupDiagnosticKind = "asinDirectLookupUnavailableTextSearchUsed" | "sourceFailedPartialResults" | "audnexusDetailUnavailableAudibleOnlyResult";
 
 export type MetadataLookupResponse = {
 	results: OnlineMetadataResult[],

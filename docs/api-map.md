@@ -196,9 +196,9 @@ All `processing-progress` and `processing-queue` events carry
   - Rust: `src-tauri/src/commands/metadata_lookup/`
   - Frontend: `src/lib/tauri/client.ts`
   - Use: external metadata lookup and normalization before UI application.
-    Returns results plus typed diagnostics for retained/degraded provider
-    behavior, such as ASIN-to-text-search fallback, partial provider failure,
-    or Audible-only result enrichment.
+    Returns results plus typed diagnostics for provider degradation:
+    ASIN detail unavailable with text search used, selected source failed with
+    partial results, and Audnexus detail unavailable with Audible-only provenance.
 
 ## Events
 

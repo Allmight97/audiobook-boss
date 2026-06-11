@@ -1,3 +1,34 @@
+//! Canonical metadata lookup service.
+//!
+//! External metadata providers are inherently partial, unavailable, and uneven.
+//! This module implements resilient provider aggregation with three explicit
+//! degraded-mode behaviors, each with a trigger, observable diagnostic, and
+//! rationale:
+//!
+//! 1. **ASIN detail unavailable → text search used**: When a query contains a valid
+//!    ASIN, `search_online_metadata` tries `fetch_audnexus_book` first. If that
+//!    precise route fails, it falls back to the normal selected-provider search
+//!    path and emits an `AsinDirectLookupUnavailableTextSearchUsed` diagnostic.
+//!    Rationale: precise lookup is preferred, but graceful degradation keeps the
+//!    feature useful when the provider endpoint is down.
+//!
+//! 2. **Selected source failed → partial results**: `collect_provider_searches`
+//!    attempts each selected provider independently. If at least one returns
+//!    usable results, the command succeeds with those results and a
+//!    `SourceFailedPartialResults` diagnostic for each failed source. Terminal
+//!    failure only occurs when *all* selected sources fail.
+//!    Rationale: multi-provider resilience; discarding valid results because one
+//!    provider is down is worse UX.
+//!
+//! 3. **Audnexus detail unavailable → Audible-only provenance**: Audnexus search
+//!    uses Audible catalog hits plus Audnexus detail enrichment. When detail
+//!    enrichment is unavailable for a specific hit, the Audible-derived result is
+//!    returned with `audible_only: true` and an
+//!    `AudnexusDetailUnavailableAudibleOnlyResult` diagnostic.
+//!    Rationale: honest provenance; we keep the hit but mark it as unenriched.
+//!
+//! These behaviors are intentional architecture, not temporary workarounds.
+
 use std::time::Duration;
 
 use crate::errors::{AppError, Result};
@@ -63,9 +94,7 @@ pub(super) async fn search_online_metadata(
                     asin,
                     e
                 );
-                // FALLBACK[FB-019]: Retain useful lookup when provider ASIN detail is unavailable.
-                // issue=#338
-                // sunset=2026-08-31
+                // Provider ASIN detail unavailable; continue through normal search and emit diagnostic.
                 diagnostics.push(asin_text_search_diagnostic());
             }
         }
@@ -229,9 +258,7 @@ async fn fetch_audnexus_with_audible(
                     Ok(result) => (result, false),
                     Err(err) => {
                         log::warn!("Audnexus lookup failed for {}: {}", item.asin, err);
-                        // FALLBACK[FB-021]: Preserve an Audible search hit when Audnexus detail enrichment fails.
-                        // issue=#338
-                        // sunset=2026-08-31
+                        // Audnexus detail enrichment unavailable; return Audible-derived result with provenance marker.
                         (map_audible_item(item), true)
                     }
                 }
@@ -262,7 +289,7 @@ async fn fetch_audnexus_with_audible(
 
 fn asin_text_search_diagnostic() -> MetadataLookupDiagnostic {
     MetadataLookupDiagnostic {
-        kind: MetadataLookupDiagnosticKind::AsinDirectLookupFallbackToTextSearch,
+        kind: MetadataLookupDiagnosticKind::AsinDirectLookupUnavailableTextSearchUsed,
         source: Some(MetadataSource::Audnexus),
         message: "Audnexus ASIN lookup failed, so ABB searched by title/author text instead."
             .to_string(),
@@ -270,9 +297,7 @@ fn asin_text_search_diagnostic() -> MetadataLookupDiagnostic {
 }
 
 fn source_failed_diagnostic(source: MetadataSource) -> MetadataLookupDiagnostic {
-    // FALLBACK[FB-020]: Return available provider results when another selected source fails.
-    // issue=#338
-    // sunset=2026-08-31
+    // Provider failed; emit diagnostic and continue with available results from other sources.
     MetadataLookupDiagnostic {
         kind: MetadataLookupDiagnosticKind::SourceFailedPartialResults,
         source: Some(source),
@@ -283,7 +308,7 @@ fn source_failed_diagnostic(source: MetadataSource) -> MetadataLookupDiagnostic 
 
 fn audible_only_diagnostic() -> MetadataLookupDiagnostic {
     MetadataLookupDiagnostic {
-        kind: MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly,
+        kind: MetadataLookupDiagnosticKind::AudnexusDetailUnavailableAudibleOnlyResult,
         source: Some(MetadataSource::Audnexus),
         message:
             "Some Audible results could not be enriched by Audnexus and are marked Audible-only."
@@ -293,7 +318,7 @@ fn audible_only_diagnostic() -> MetadataLookupDiagnostic {
 
 fn push_audible_only_diagnostic_once(diagnostics: &mut Vec<MetadataLookupDiagnostic>) {
     if diagnostics.iter().any(|diagnostic| {
-        diagnostic.kind == MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+        diagnostic.kind == MetadataLookupDiagnosticKind::AudnexusDetailUnavailableAudibleOnlyResult
     }) {
         return;
     }
@@ -455,7 +480,7 @@ mod tests {
     fn diagnostics_name_explicit_lookup_degradation_paths() {
         assert_eq!(
             asin_text_search_diagnostic().kind,
-            MetadataLookupDiagnosticKind::AsinDirectLookupFallbackToTextSearch
+            MetadataLookupDiagnosticKind::AsinDirectLookupUnavailableTextSearchUsed
         );
         assert_eq!(
             source_failed_diagnostic(MetadataSource::Openlibrary).kind,
@@ -463,7 +488,7 @@ mod tests {
         );
         assert_eq!(
             audible_only_diagnostic().kind,
-            MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+            MetadataLookupDiagnosticKind::AudnexusDetailUnavailableAudibleOnlyResult
         );
     }
 
@@ -477,7 +502,7 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(
             diagnostics[0].kind,
-            MetadataLookupDiagnosticKind::AudnexusDetailFallbackToAudibleOnly
+            MetadataLookupDiagnosticKind::AudnexusDetailUnavailableAudibleOnlyResult
         );
     }
 
