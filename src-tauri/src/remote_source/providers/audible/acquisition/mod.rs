@@ -43,7 +43,7 @@ pub(super) struct AcquiredTitle {
 type AudibleAcquisitionResult<T> = std::result::Result<T, AudibleAcquisitionError>;
 
 pub(in crate::remote_source::providers::audible) use paths::{
-    generated_staging_path, sha256_file, staged_materialized_path, staged_protected_source_path,
+    generated_staging_path, staged_materialized_path, staged_protected_source_path,
 };
 pub(in crate::remote_source::providers::audible) use progress::{
     title_progress, with_title_progress, TitleProgressContext,
@@ -415,11 +415,10 @@ pub(super) fn required_supplemental_pdf_failure_message(
 }
 
 #[cfg(test)]
-pub(super) use validation::materialized_file_from_downloaded_path;
-
-#[cfg(test)]
 mod tests {
     use super::*;
+    use abb_remote_source_core::MaterializedSourceKind;
+    use std::path::Path;
     use crate::remote_source::providers::audible::audio_download::{
         cleanup_download_artifacts, download_status_failure, partial_download_path,
     };
@@ -565,6 +564,32 @@ mod tests {
         assert!(!materialized_path.to_string_lossy().contains(title_id));
     }
 
+    fn materialized_source_kind_label(kind: MaterializedSourceKind) -> &'static str {
+        match kind {
+            MaterializedSourceKind::ImportReadyM4b => "M4B",
+            MaterializedSourceKind::EncryptedAax => "AAX",
+            MaterializedSourceKind::EncryptedAaxc => "AAXC",
+            MaterializedSourceKind::SupplementalPdf => "PDF",
+            MaterializedSourceKind::Unsupported => "file",
+        }
+    }
+
+    fn materialized_file_from_downloaded_path(
+        title_id: &str,
+        path: &Path,
+        strategy: AcquisitionStrategy,
+    ) -> Result<MaterializedSourceFile> {
+        let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
+        if !abb_remote_source_core::strategy_allows_import_handoff(strategy, source_kind) {
+            return Err(AppError::FileValidation(format!(
+                "Downloaded Audible {} requires Audible decryption before ABB import handoff.",
+                materialized_source_kind_label(source_kind)
+            )));
+        }
+
+        validation::materialized_file_from_path(title_id, path)
+    }
+
     #[test]
     fn sha256_file_streams_expected_digest() {
         let root = tempfile::TempDir::new().expect("temp root");
@@ -573,7 +598,7 @@ mod tests {
         std::fs::write(&path, bytes).expect("write source");
 
         assert_eq!(
-            sha256_file(&path).expect("hash file"),
+            paths::sha256_file(&path).expect("hash file"),
             abb_media_core::sha256_hex(bytes)
         );
     }

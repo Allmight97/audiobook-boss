@@ -83,4 +83,4 @@ explicitly accepts a public API change.
 - Plain local UI state, pure transforms, and single-boundary event handlers can
   stay vanilla TypeScript when Effect would not clarify ownership or testing.
 - Manual cover-art file, URL, drop, and clear loading remains vanilla in
-  `src/ui/coverArt.ts` until that flow proves it needs a workflow owner.
+  `src/ui/coverArt/index.ts` until that flow proves it needs a workflow owner.

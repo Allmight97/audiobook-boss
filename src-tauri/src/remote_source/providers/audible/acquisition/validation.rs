@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use abb_audible_core::title_ref;
-use abb_remote_source_core::{AcquisitionStrategy, MaterializedSourceKind};
+use abb_remote_source_core::MaterializedSourceKind;
 
 use super::paths::sha256_file;
 use super::progress::title_progress;
@@ -73,24 +73,7 @@ pub(super) async fn validate_materialized_audio(
     Ok(file)
 }
 
-#[cfg(test)]
-pub(in crate::remote_source::providers::audible) fn materialized_file_from_downloaded_path(
-    title_id: &str,
-    path: &Path,
-    strategy: AcquisitionStrategy,
-) -> Result<MaterializedSourceFile> {
-    let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-    if !abb_remote_source_core::strategy_allows_import_handoff(strategy, source_kind) {
-        return Err(AppError::FileValidation(format!(
-            "Downloaded Audible {} requires Audible decryption before ABB import handoff.",
-            kind_label(source_kind)
-        )));
-    }
-
-    materialized_file_from_path(title_id, path)
-}
-
-fn materialized_file_from_path(title_id: &str, path: &Path) -> Result<MaterializedSourceFile> {
+pub(super) fn materialized_file_from_path(title_id: &str, path: &Path) -> Result<MaterializedSourceFile> {
     let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
     if !abb_remote_source_core::materialized_source_is_import_ready(source_kind) {
         return Err(AppError::FileValidation(format!(

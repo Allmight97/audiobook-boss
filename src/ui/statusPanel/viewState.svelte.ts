@@ -142,6 +142,7 @@ export function showSuccess(message: string): void {
 
 export function showInfo(message: string): void {
 	setStatusPanelStepText(message);
+	setStatusPanelStepColor(DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor);
 }
 
 export function pushTransientStatusMessage(message: string, ttlMs?: number): void {

@@ -13,8 +13,8 @@
   services co-located in the same file.
 - Keep DOM/Tauri event wiring in `handlers.ts`; route all local audio ingress
   through the workflow instead of adding parallel import paths.
-- Use `tauriClient` through the live workflow services. Do not call generated
-  Tauri invokers directly.
+- Use `tauriClient` through co-located workflow services in
+  `importAnalysisWorkflow.ts`. Do not call generated Tauri invokers directly.
 - Preserve the Local Audio Import Boundary sequence: order-lock check,
   backend-supported import metadata/discovery, backend analysis, pending
   metadata draft staging, append to file list, visible status/error feedback.

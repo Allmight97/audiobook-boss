@@ -10,6 +10,7 @@ import { getJobType } from '../jobControls';
 import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
+	isUsableMetadataCache,
 	setMetadataForFile,
 } from '../metadataState';
 import {
@@ -112,7 +113,7 @@ async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMe
 	if (!file.isValid) return null;
 
 	const existing = getMetadataForFile(file.path);
-	if (existing) return existing;
+	if (isUsableMetadataCache(existing)) return existing;
 
 	try {
 		const metadata = await tauriClient.readAudioMetadata(file.path);
@@ -219,7 +220,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 	updateTagPreview();
 
 	const stored = getMetadataForFile(file.path);
-	if (stored) {
+	if (isUsableMetadataCache(stored)) {
 		if (!isCurrentSingleSelectionRequest(requestId, file.path)) {
 			return;
 		}
@@ -342,8 +343,9 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 
 		const existing = getMetadataForFile(targetPath) ?? {};
 		setMetadataForFile(targetPath, {
+			...metadata,
 			...existing,
-			cover_art: metadata.cover_art || undefined,
+			cover_art: metadata.cover_art || existing.cover_art,
 		});
 		refreshCoverArtDisplay();
 	} catch (error) {

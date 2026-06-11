@@ -126,6 +126,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | Status Panel | `src/ui/statusPanel` | Processing controls, concurrency display, and backend progress rendering. |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
 | App Settings | `src/ui/appSettings` | Settings hydration and durable preference coordination. |
+| Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |
 
 Exact export lists live in each strip's nearest `AGENTS.md`.
 

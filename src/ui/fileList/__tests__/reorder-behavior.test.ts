@@ -56,13 +56,17 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../metadataState', () => ({
-	clearMetadataState: context.clearMetadataStateMock,
-	getMetadataForFile: context.getMetadataForFileMock,
-	metadataEqualsNullish: context.metadataEqualsNullishMock,
-	removeMetadataForFile: context.removeMetadataForFileMock,
-	setMetadataForFile: context.setMetadataForFileMock,
-}));
+vi.mock('../../metadataState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../metadataState')>();
+	return {
+		...actual,
+		clearMetadataState: context.clearMetadataStateMock,
+		getMetadataForFile: context.getMetadataForFileMock,
+		metadataEqualsNullish: context.metadataEqualsNullishMock,
+		removeMetadataForFile: context.removeMetadataForFileMock,
+		setMetadataForFile: context.setMetadataForFileMock,
+	};
+});
 
 vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,

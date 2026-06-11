@@ -63,7 +63,7 @@ export function createFileListDragHandlers(
 			if (!event.dataTransfer) return;
 
 			event.dataTransfer.dropEffect = 'move';
-			if (!hasValidIndex(index)) return;
+			if (!hasValidIndex(index) || draggedIndex === null) return;
 
 			setDragState({
 				draggedIndex,
