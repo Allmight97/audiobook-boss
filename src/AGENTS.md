@@ -27,7 +27,7 @@
 - When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
 - When touching Effect workflow owners or the AppEffect kernel, open
   `src/lib/effect/AGENTS.md` first.
-- Treat function/file size as readability triggers: extract helpers when component scripts become hard to scan or test.
+- Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.
 
 ## Hard Invariants
 
@@ -40,9 +40,9 @@
 
 ### Frontend Shape Triggers
 
-- Prefer colocated, testable logic modules over large monolithic component scripts.
-- If a component or logic module approaches `~350` LOC, run a cohesion split check before extending it.
-- If a function becomes branch-heavy or exceeds comfortable scan size, split into named helpers by user-facing behavior.
+- Route shape questions through root Refactor Shape.
+- Split when scan cost, test cost, or ownership blur rises — at user-facing
+  behavior boundaries.
 - For linting upgrades, prioritize type-aware `typescript-eslint` rules that catch unsafe `any` propagation.
 
 ## Hidden Coupling Traps

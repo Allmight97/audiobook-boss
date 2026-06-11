@@ -44,9 +44,9 @@
 
 ### Backend Shape Triggers
 
-- Prefer modules under `~400` LOC for non-test Rust code; at `~350` LOC run responsibility split review.
-- Prefer focused functions; allow larger orchestrators when they keep stage boundaries explicit.
-- For functions exceeding `~80` LOC or `7` parameters, either refactor or annotate the boundary constraint with `// EXCEPTION: [reason]`.
+- Route Rust shape questions through root Refactor Shape.
+- Treat Clippy `too_many_lines` and `too_many_arguments` as prompts to re-check
+  cohesion, not as automatic split commands.
 - Keep clippy allowances local and justified; avoid broad crate-level suppressions for maintainability lints.
 
 ## Hidden Coupling Traps

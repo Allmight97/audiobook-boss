@@ -62,9 +62,16 @@
 - Use helpers for deterministic local policy that remains in orchestration or
   rendering code: filters, labels, summaries, formatting, and predicates. Keep
   lifecycle, IPC, artifact, and contract truth in their owning boundaries.
-- File and function size thresholds are smoke alarms, not goals. Ask whether
-  the remaining code is orchestration/rendering or extractable policy with a
-  focused behavior test.
+- Prefer modules and functions with one clear responsibility or one orchestration
+  pipeline. Large orchestrators are fine when one invariant owns the file and
+  stage boundaries stay explicit.
+- Before extending a large module, check whether it still has one owner and one
+  invariant, and whether policy can move to a helper with a focused behavior test
+  without smearing lifecycle or contract truth.
+- Split when scan cost, test cost, or ownership blur rises — at semantic
+  boundaries, not to satisfy a line count.
+- Prefer typed config objects over long parameter lists unless an external
+  signature is fixed.
 - Prefer counterexample tests for lifecycle, cleanup, cache, cancellation,
   silent-behavior, and boundary regressions over coverage-count expansion.
 - Public API Strip tests must stay independent of implementation registries.
@@ -118,15 +125,6 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 - When work is implemented, rejected, or superseded, delete the spec or distill only enduring rules into the owning canon surfaces.
 - Keep chat logs, presentation HTML, and review artifacts outside repo canon.
 - Do not add repo-local ticket ledgers or scratch task databases.
-
-## Code Shape Triggers
-
-- Prefer non-test files under 475 LOC; at ~350 LOC run a cohesion check before adding more.
-- Prefer focused functions around 70 LOC.
-- When a function exceeds ~80 LOC, split by semantic boundary or document why splitting would reduce clarity or violate an external contract.
-- Prefer typed config objects over functions with more than 7 parameters unless an external signature is fixed.
-- If nesting/branching becomes hard to scan in one pass, split into named helpers at semantic boundaries.
-- Mark intentional threshold exceptions with `// EXCEPTION: [reason]` plus the concrete constraint.
 
 ## Decisions
 
