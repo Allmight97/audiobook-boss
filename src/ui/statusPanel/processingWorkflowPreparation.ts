@@ -11,9 +11,10 @@ import {
 	firstMetadataIntentValidationError,
 	validateMetadataDraftIntent,
 } from '../metadataValidation';
+import { isUsableMetadataCache } from '../metadataState';
 import type { OutputPlanReviewResult } from '../outputPanel';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
-import type { ProcessingWorkflowServices } from './processingWorkflowServices';
+import type { ProcessingWorkflowServices } from './processingWorkflow';
 import { supplementalAssetsForInputIds } from '../remoteSource/sessionAssets.svelte';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -180,7 +181,7 @@ export function ensureBatchMetadataLoaded(
 		}
 
 		const missingMetadata = processPayload.inputFiles.filter(
-			(filePath) => !services.getMetadataForFile(filePath),
+			(filePath) => !isUsableMetadataCache(services.getMetadataForFile(filePath)),
 		);
 		if (missingMetadata.length === 0) {
 			return;

@@ -1,13 +1,24 @@
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
+import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	Data,
 	Effect,
+	type AppLayer,
 	type AppEffect,
+	makeWorkflowLayer,
+	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
 	workflowTrySync,
 } from '../../lib/effect/appEffect';
+import { tauriClient } from '../../lib/tauri/client';
+import { clearCoverArt, refreshCoverArtDisplay, setCoverArt, setCustomCoverArt } from '../coverArt';
+import { getCurrentFileList, getSelectedFileIndices, selectFile } from '../fileList';
+import { applyMetadataToForm, readMetadataForm } from '../metadataForm';
+import { getMetadataForFile, setMetadataForFile } from '../metadataState';
+import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
+import { updateTagPreview } from '../tagPreview';
 import {
 	buildQueueMetadataPatch,
 	deriveQueryFromFile,
@@ -22,21 +33,94 @@ import {
 	type QueueCoverState,
 	type QueueItemState,
 } from './metadataLookupWorkflowDomain';
-import {
-	MetadataLookupWorkflowServicesTag,
-	type MetadataLookupWorkflowLayer,
-	type MetadataLookupWorkflowServices,
-	type MetadataLookupWorkflowServicesId,
-} from './metadataLookupWorkflowServices';
 import { loadMetadataLookupCoverBytes } from './metadataLookupCoverPreview.svelte';
+import {
+	clearMetadataLookupQueue,
+	metadataLookupQueueState,
+	metadataLookupState,
+	setMetadataLookupQueue,
+	setMetadataLookupQueueIndex,
+	type MetadataLookupQueueItem,
+	type MetadataLookupQueueState,
+	type MetadataLookupState,
+} from './state.svelte';
 
-export {
-	MetadataLookupWorkflowServicesTag,
-	makeMetadataLookupWorkflowServicesLayer,
-	type MetadataLookupWorkflowLayer,
-	type MetadataLookupWorkflowServices,
-	type MetadataLookupWorkflowServicesId,
-} from './metadataLookupWorkflowServices';
+export interface MetadataLookupWorkflowServices {
+	getLookupState: () => MetadataLookupState;
+	getQueueState: () => MetadataLookupQueueState;
+	setMetadataLookupQueue: (queue: MetadataLookupQueueItem[]) => void;
+	clearMetadataLookupQueue: () => void;
+	setMetadataLookupQueueIndex: (index: number) => void;
+	getSelectedFileIndices: () => Set<number>;
+	getCurrentFileList: () => FileListInfo | null;
+	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
+	setMetadataForFile: typeof setMetadataForFile;
+	selectFile: typeof selectFile;
+	applyMetadataToForm: typeof applyMetadataToForm;
+	readMetadataForm: typeof readMetadataForm;
+	updateOutputPath: typeof updateOutputPath;
+	updateEstimatedSize: typeof updateEstimatedSize;
+	updateTagPreview: typeof updateTagPreview;
+	clearCoverArt: () => void;
+	setCoverArt: (coverArtBytes: number[] | null) => void;
+	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
+	refreshCoverArtDisplay: () => void;
+	searchOnlineMetadata: typeof tauriClient.searchOnlineMetadata;
+	loadCoverArtFromUrl: typeof tauriClient.loadCoverArtFromUrl;
+	focusElementById: (id: string) => void;
+	queueMicrotask: (callback: () => void) => void;
+	console: Pick<Console, 'error' | 'warn'>;
+}
+
+export type MetadataLookupWorkflowServicesId = 'MetadataLookup/WorkflowServices';
+export type MetadataLookupWorkflowLayer = AppLayer<MetadataLookupWorkflowServicesId>;
+
+export const MetadataLookupWorkflowServicesTag = makeWorkflowServiceTag<
+	MetadataLookupWorkflowServicesId,
+	MetadataLookupWorkflowServices
+>('MetadataLookup/WorkflowServices');
+
+export function makeMetadataLookupWorkflowServicesLayer(
+	services: MetadataLookupWorkflowServices,
+): MetadataLookupWorkflowLayer {
+	return makeWorkflowLayer(MetadataLookupWorkflowServicesTag, services);
+}
+
+const liveMetadataLookupWorkflowServices = {
+	getLookupState: () => metadataLookupState,
+	getQueueState: () => metadataLookupQueueState,
+	setMetadataLookupQueue,
+	clearMetadataLookupQueue,
+	setMetadataLookupQueueIndex,
+	getSelectedFileIndices,
+	getCurrentFileList,
+	getMetadataForFile,
+	setMetadataForFile,
+	selectFile,
+	applyMetadataToForm,
+	readMetadataForm,
+	updateOutputPath,
+	updateEstimatedSize,
+	updateTagPreview,
+	clearCoverArt,
+	setCoverArt,
+	setCustomCoverArt,
+	refreshCoverArtDisplay,
+	searchOnlineMetadata: tauriClient.searchOnlineMetadata,
+	loadCoverArtFromUrl: tauriClient.loadCoverArtFromUrl,
+	focusElementById: (id) => {
+		const element = document.getElementById(id);
+		if (element instanceof HTMLElement) {
+			element.focus();
+		}
+	},
+	queueMicrotask,
+	console,
+} satisfies MetadataLookupWorkflowServices;
+
+export const MetadataLookupWorkflowLive = makeMetadataLookupWorkflowServicesLayer(
+	liveMetadataLookupWorkflowServices,
+);
 
 const METADATA_TITLE_INPUT_ID = 'meta-title';
 

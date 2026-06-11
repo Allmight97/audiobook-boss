@@ -49,8 +49,6 @@ pub use cover_art::{
 };
 pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
 pub(crate) use passthrough::merge_passthrough_cover_art;
-#[allow(unused_imports)]
-pub use passthrough::ChapterSpec;
 pub use passthrough::{
     add_chapters_to_output, extract_passthrough_metadata, PassthroughMetadata, PassthroughSource,
 };

@@ -1,9 +1,10 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { applyMetadataDraftIntent, buildMetadataDraftIntent } from '../metadataDraft';
 import { clearMetadataLookupCoverPreviewCache } from './metadataLookupCoverPreview.svelte';
-import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflowServices';
+import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflow';
 
 export type ApplyMode = 'current' | 'queue';
 export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
@@ -14,7 +15,7 @@ export type QueueItemState = {
 };
 
 function formatFileName(path: string): string {
-	return path.split(/[\\/]/).pop() ?? path;
+	return pathBasename(path);
 }
 
 function isTrackLikeTitle(value: string): boolean {

@@ -21,13 +21,11 @@ export function applyOutputDefaultsFromSettings(defaults: OutputDefaults): void 
 	updateEstimatedSize();
 }
 
-export type { OutputDisplaySnapshot } from './state.svelte';
 export {
 	readEstimatedSizeText,
 	readOutputDefaultsFromState,
-	readOutputDisplaySnapshot,
 	readOutputRequestConfig,
 } from './state.svelte';
 export { runOutputPlanReviewWorkflow, type OutputPlanReviewResult } from './outputPlanWorkflow';
-export { updateOutputPath, updateEstimatedSize, getCurrentMetadata } from './preview';
+export { updateOutputPath, updateEstimatedSize } from './preview';
 export { default as OutputPanelIsland } from './OutputPanelIsland.svelte';

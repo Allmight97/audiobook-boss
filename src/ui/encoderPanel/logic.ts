@@ -11,7 +11,7 @@ import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
-import { persistEncoderDefaults } from '../appSettings/persistence';
+import { persistEncoderDefaults } from '../appSettings';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 const DEBUG = import.meta.env.DEV;

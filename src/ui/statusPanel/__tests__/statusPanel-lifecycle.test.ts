@@ -12,7 +12,12 @@ import {
 } from '../../jobControls';
 import * as feedback from '../feedback';
 import { StatusPanelRuntime } from '../controller';
-import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
+import {
+	resetStatusPanelViewState,
+	showError,
+	showInfo,
+	statusPanelViewState,
+} from '../viewState.svelte';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -56,6 +61,10 @@ function getStepText(): string {
 	return statusPanelViewState.stepText;
 }
 
+function getStepColor(): string {
+	return statusPanelViewState.stepColor;
+}
+
 function getJobRows(): string[] {
 	return statusPanelViewState.jobItems.map((item) => {
 		const percentage =
@@ -70,6 +79,17 @@ async function flushAsync(): Promise<void> {
 }
 
 describe('StatusPanel lifecycle', () => {
+	it('resets step color to primary after showInfo follows showError', () => {
+		resetStatusPanelViewState();
+
+		showError('Encoder failed');
+		expect(getStepColor()).toBe('var(--text-error, #ef4444)');
+
+		showInfo('Processing was cancelled.');
+		expect(getStepText()).toBe('Processing was cancelled.');
+		expect(getStepColor()).toBe('var(--text-primary)');
+	});
+
 	beforeEach(async () => {
 		setupDom();
 		resetStatusPanelViewState();

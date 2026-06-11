@@ -57,6 +57,7 @@ vi.mock('../processingConfig', () => ({
 
 vi.mock('../../outputPanel', () => ({
 	updateOutputPath: context.updateOutputPathMock,
+	runOutputPlanReviewWorkflow: vi.fn(async () => ({ action: 'continue' })),
 }));
 
 vi.mock('../../jobControls', () => ({
@@ -69,12 +70,16 @@ vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 }));
 
-vi.mock('../../metadataState', () => ({
-	getAllMetadataIntentPatches: context.getAllMetadataIntentPatchesMock,
-	getMetadataForFile: context.getMetadataForFileMock,
-	getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
-	setMetadataForFile: context.setMetadataForFileMock,
-}));
+vi.mock('../../metadataState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../metadataState')>();
+	return {
+		...actual,
+		getAllMetadataIntentPatches: context.getAllMetadataIntentPatchesMock,
+		getMetadataForFile: context.getMetadataForFileMock,
+		getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
+		setMetadataForFile: context.setMetadataForFileMock,
+	};
+});
 
 vi.mock('../../fileList/actions', () => ({
 	setFileOrderLocked: vi.fn(),
@@ -215,6 +220,28 @@ describe('startProcessing metadata staging', () => {
 		context.readAudioMetadataMock.mockResolvedValue({});
 		context.seriesPartValidationErrorMock.mockReturnValue(null);
 		context.subseriesPartValidationErrorMock.mockReturnValue(null);
+	});
+
+	it('loads batch metadata when cache only contains cover art', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.getMetadataForFileMock.mockImplementation((filePath: string) => {
+			if (filePath === '/books/a.m4b') {
+				return { cover_art: [1, 2, 3] };
+			}
+			if (filePath === '/books/b.m4b') {
+				return { title: 'Already Loaded' };
+			}
+			return undefined;
+		});
+		context.readAudioMetadataMock.mockResolvedValue({ title: 'Loaded From Disk' });
+
+		await startProcessing(processingContext());
+
+		expect(context.readAudioMetadataMock).toHaveBeenCalledTimes(1);
+		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/a.m4b');
+		expect(context.setMetadataForFileMock).toHaveBeenCalledWith('/books/a.m4b', {
+			title: 'Loaded From Disk',
+		});
 	});
 
 	it('does not snapshot empty metadata when no dirty form edits exist', async () => {

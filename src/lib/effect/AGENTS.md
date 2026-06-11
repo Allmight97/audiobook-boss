@@ -15,8 +15,11 @@ Keep Effect private to workflow owners:
 
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
-- Workflow owners expose a local service tag, live layer, typed errors, program,
-  and Promise bridge.
+- Workflow owners expose a local service interface, service tag, live layer
+  (co-located in the workflow file with `satisfies`), typed errors, program,
+  and Promise bridge. `ProcessingWorkflow` keeps live deps in
+  `processingWorkflow.deps.ts` (dynamic-imported) to preserve the file-list
+  cycle break.
 - Dependencies are injected through service objects so tests can provide fake
   layers without Svelte rendering or live Tauri.
 - State and event outputs stay explicit in the owner contract.
@@ -75,9 +78,9 @@ explicitly accepts a public API change.
 ## Future Workflow Ingress
 
 - New frontend work that coordinates multiple real boundaries should start with
-  an explicit workflow owner, service contract, live layer, and fake-layer
-  tests.
+  an explicit workflow owner, co-located service contract + live layer, and
+  fake-layer tests.
 - Plain local UI state, pure transforms, and single-boundary event handlers can
   stay vanilla TypeScript when Effect would not clarify ownership or testing.
 - Manual cover-art file, URL, drop, and clear loading remains vanilla in
-  `src/ui/coverArt.ts` until that flow proves it needs a workflow owner.
+  `src/ui/coverArt/index.ts` until that flow proves it needs a workflow owner.

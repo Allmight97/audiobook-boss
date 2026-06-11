@@ -1,14 +1,14 @@
-import type { AudiobookMetadata } from '../types/metadata';
+import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	getCurrentCoverArt,
 	getHasCustomCoverArt,
 	isCoverArtRemovalRequested,
 	refreshCoverArtDisplay,
-} from './coverArt';
+} from '../coverArt';
 import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
-} from './metadataForm/previewState.svelte';
+} from './previewState.svelte';
 import {
 	getMetadataFieldDefinitionByActionId,
 	getMetadataFieldDefinitionByInputId,
@@ -24,8 +24,8 @@ import {
 	type MetadataFieldId,
 	type MetadataFieldAction,
 	type MetadataFormMode,
-} from './metadataForm/state.svelte';
-import { updateTagPreview } from './tagPreview';
+} from './state.svelte';
+import { updateTagPreview } from '../tagPreview';
 
 function readFieldValue(inputId: MetadataFieldId): string {
 	return metadataFormState.fields[inputId].value;

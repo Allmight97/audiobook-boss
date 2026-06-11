@@ -5,13 +5,9 @@ use std::sync::Once;
 
 use ffmpeg_next as ff;
 
-use crate::audio::buffer::SampleAccumulator;
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::processor::frame_pipeline::{
-    flush_accumulator_tail, FramePipelineCtx, PreviewAction,
-};
+use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
-use crate::audio::processor::preview_state::PreviewState;
 use crate::audio::SampleRateConfig;
 use crate::errors::Result;
 use crate::processing::ProcessingContext;
@@ -22,13 +18,13 @@ pub struct FfmpegNextProcessor;
 impl FfmpegNextProcessor {
     /// Processes a single input file through the decode/resample/encode pipeline
     /// Returns PreviewAction to signal adaptive preview transitions
-    fn process_input_file(
+    pub(crate) fn process_input_file(
         input_path: &Path,
         encoder: &mut ff::codec::encoder::audio::Encoder,
         output_context: &mut ff::format::context::Output,
         file_index: usize,
-        ctx: &mut FramePipelineCtx,
-        accumulator: &mut SampleAccumulator,
+        ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
+        accumulator: &mut crate::audio::buffer::SampleAccumulator,
     ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
@@ -102,9 +98,6 @@ impl FfmpegNextProcessor {
 }
 
 impl MediaProcessor for FfmpegNextProcessor {
-    // EXCEPTION: Orchestration function for media processing pipeline requires cohesive control flow.
-    // Breaking into smaller pieces would fragment related preview/encoding logic unnecessarily.
-    #[allow(clippy::too_many_lines)]
     fn execute<'a>(
         &'a self,
         plan: &'a MediaProcessingPlan,
@@ -142,123 +135,18 @@ impl MediaProcessor for FfmpegNextProcessor {
             let mut cleanup_guard = CleanupGuard::new(context.session.id());
             cleanup_guard.add_path(&plan.output_path);
 
-            // Initialize processing state
-            let mut running_pts: i64 = 0; // in encoder time_base units
-            let mut last_emit = std::time::Instant::now();
             let emitter = context.new_emitter();
-
-            // Construct context struct to reduce parameter passing
-            let mut input_samples_total: u64 = 0;
-            let mut encoded_samples_total: u64 = 0;
-            let mut preview_early_stop = false;
-            let file_count = plan.input_file_paths.len();
-            // Only enable adaptive preview splitting when there are multiple files.
-            let mut preview_state_storage = context
-                .preview
-                .as_ref()
-                .filter(|_| file_count > 1)
-                .map(|cfg| {
-                    let per_file_sec = cfg.per_file_seconds(file_count);
-                    log::info!(
-                        "Adaptive preview: {} files × {:.3}s/file = {:.3}s total",
-                        file_count,
-                        per_file_sec,
-                        per_file_sec * file_count as f64
-                    );
-                    PreviewState::new(file_count, per_file_sec)
-                });
-
-            let mut ctx = FramePipelineCtx {
+            if super::engine_orchestrator::process_input_files(
+                plan,
                 context,
-                emitter: &emitter,
-                total_duration: plan.total_duration.max(0.001),
-                total_files: file_count,
+                &mut enc_ctx,
+                &mut octx,
+                ost_index,
+                ost_time_base,
                 target_sample_rate,
-                output_stream_index: ost_index,
-                output_time_base: ost_time_base,
-                running_pts: &mut running_pts,
-                last_emit: &mut last_emit,
-                current_file_index: 0,
-                current_stream_index: 0,
-                current_file_name: String::new(),
-                input_samples_total: &mut input_samples_total,
-                encoded_samples_total: &mut encoded_samples_total,
-                early_stop: &mut preview_early_stop,
-                preview_state: preview_state_storage.as_mut(),
-            };
-
-            let mut accumulator = SampleAccumulator::new(
-                enc_ctx.channel_layout().channels() as usize,
                 frame_plan.samples_per_frame(),
-                enc_ctx.rate(),
-                enc_ctx.channel_layout(),
-                enc_ctx.format(),
-            )?;
-
-            // Process each input file
-            log::info!(
-                "Starting audio processing for {} input files",
-                plan.input_file_paths.len()
-            );
-            tokio::task::block_in_place(|| -> Result<()> {
-                for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
-                    let file_label = in_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown");
-                    ctx.current_file_name = file_label.to_string();
-                    log::info!(
-                        "Processing input file {}/{}: {}",
-                        idx + 1,
-                        plan.input_file_paths.len(),
-                        in_path.display()
-                    );
-                    let action = Self::process_input_file(
-                        in_path,
-                        &mut enc_ctx,
-                        &mut octx,
-                        idx,
-                        &mut ctx,
-                        &mut accumulator,
-                    )?;
-                    log::info!(
-                        "✓ Completed processing input file {}/{}",
-                        idx + 1,
-                        plan.input_file_paths.len()
-                    );
-
-                    if *ctx.early_stop {
-                        log::info!(
-                            "Preview boundary reached after file {}; stopping further input processing",
-                            idx + 1
-                        );
-                        break;
-                    }
-
-                    // Handle adaptive preview actions
-                    match action {
-                        PreviewAction::StopAll => {
-                            log::info!(
-                                "Adaptive preview complete after file {}; stopping further input processing",
-                                idx + 1
-                            );
-                            break;
-                        }
-                        PreviewAction::NextFile => {
-                            log::info!(
-                                "Adaptive preview: file {} excerpt complete, continuing to next file",
-                                idx + 1
-                            );
-                            // Continue to next file in loop
-                        }
-                        PreviewAction::Continue => {}
-                    }
-                }
-                Ok(())
-            })?;
-            log::info!("✓ All input files processed successfully");
-
-            if flush_accumulator_tail(&mut enc_ctx, &mut octx, &mut ctx, &mut accumulator)? {
+                &emitter,
+            )? {
                 log::info!("✓ Flushed final accumulator tail frame");
             }
 

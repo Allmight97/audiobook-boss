@@ -9,6 +9,9 @@ const context = vi.hoisted(() => {
 });
 
 vi.mock('../statusPanel/index', () => ({
+	beginMetadataSaveInStatusPanel: vi.fn(),
+	completeMetadataSaveInStatusPanel: vi.fn(),
+	failMetadataSaveInStatusPanel: vi.fn(),
 	initStatusPanel: context.initStatusPanelMock,
 	isStatusPanelProcessing: context.isStatusPanelProcessingMock,
 	pushStatusPanelTransientStatus: vi.fn(),

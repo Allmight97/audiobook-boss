@@ -1,12 +1,21 @@
 import {
 	Data,
 	Effect,
+	type AppLayer,
 	type AppEffect,
+	makeWorkflowLayer,
+	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
+import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { ImportAnalysisWorkflowLive } from './importAnalysisWorkflowLive';
+import {
+	appendFileList,
+	isOrderLocked,
+	persistPendingMetadataDraftsForCurrentSelection,
+} from '../fileList';
+import { pushStatusPanelTransientStatus } from '../statusPanel';
 import {
 	duplicateOnlyImportMessage,
 	importOrderLockedMessage,
@@ -18,24 +27,62 @@ import {
 	reportOpenFolderDialogFailure,
 	unsupportedImportMessage,
 } from './importAnalysisWorkflowFeedback';
-import {
-	ImportAnalysisWorkflowServicesTag,
-	type ImportAnalysisWorkflowAction,
-	type ImportAnalysisWorkflowLayer,
-	type ImportAnalysisWorkflowServices,
-	type ImportAnalysisWorkflowServicesId,
-} from './importAnalysisWorkflowServices';
+import { clearFileImportError, setFileImportError } from './state.svelte';
+
+export interface ImportAnalysisWorkflowServices {
+	isOrderLocked: typeof isOrderLocked;
+	getSupportedAudioImportMetadata: typeof tauriClient.getSupportedAudioImportMetadata;
+	openFiles: typeof tauriClient.openFiles;
+	openDirectory: typeof tauriClient.openDirectory;
+	discoverAudioImportPaths: typeof tauriClient.discoverAudioImportPaths;
+	analyzeAudioFiles: typeof tauriClient.analyzeAudioFiles;
+	persistPendingMetadataDraftsForCurrentSelection: typeof persistPendingMetadataDraftsForCurrentSelection;
+	appendFileList: typeof appendFileList;
+	pushStatusPanelTransientStatus: typeof pushStatusPanelTransientStatus;
+	setFileImportError: typeof setFileImportError;
+	clearFileImportError: typeof clearFileImportError;
+	console: Pick<Console, 'error'>;
+}
+
+export type ImportAnalysisWorkflowAction =
+	| { type: 'clickToSelect'; existingFiles: AudioFile[] }
+	| { type: 'clickToSelectFolder'; existingFiles: AudioFile[] }
+	| { type: 'importPaths'; paths: string[]; existingFiles: AudioFile[] };
+
+export type ImportAnalysisWorkflowServicesId = 'FileImport/ImportAnalysisWorkflowServices';
+export type ImportAnalysisWorkflowLayer = AppLayer<ImportAnalysisWorkflowServicesId>;
+
+export const ImportAnalysisWorkflowServicesTag = makeWorkflowServiceTag<
+	ImportAnalysisWorkflowServicesId,
+	ImportAnalysisWorkflowServices
+>('FileImport/ImportAnalysisWorkflowServices');
+
+export function makeImportAnalysisWorkflowServicesLayer(
+	services: ImportAnalysisWorkflowServices,
+): ImportAnalysisWorkflowLayer {
+	return makeWorkflowLayer(ImportAnalysisWorkflowServicesTag, services);
+}
+
+export const liveImportAnalysisWorkflowServices = {
+	isOrderLocked,
+	getSupportedAudioImportMetadata: tauriClient.getSupportedAudioImportMetadata,
+	openFiles: tauriClient.openFiles,
+	openDirectory: tauriClient.openDirectory,
+	discoverAudioImportPaths: tauriClient.discoverAudioImportPaths,
+	analyzeAudioFiles: tauriClient.analyzeAudioFiles,
+	persistPendingMetadataDraftsForCurrentSelection,
+	appendFileList,
+	pushStatusPanelTransientStatus,
+	setFileImportError,
+	clearFileImportError,
+	console,
+} satisfies ImportAnalysisWorkflowServices;
+
+export const ImportAnalysisWorkflowLive = makeImportAnalysisWorkflowServicesLayer(
+	liveImportAnalysisWorkflowServices,
+);
 
 export { importOrderLockedMessage } from './importAnalysisWorkflowFeedback';
-
-export {
-	ImportAnalysisWorkflowServicesTag,
-	makeImportAnalysisWorkflowServicesLayer,
-	type ImportAnalysisWorkflowAction,
-	type ImportAnalysisWorkflowLayer,
-	type ImportAnalysisWorkflowServices,
-	type ImportAnalysisWorkflowServicesId,
-} from './importAnalysisWorkflowServices';
 
 export class ImportAnalysisWorkflowFailed extends Data.TaggedError('ImportAnalysisWorkflowFailed')<{
 	readonly message: string;

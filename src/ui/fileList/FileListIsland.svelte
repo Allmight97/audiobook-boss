@@ -1,23 +1,27 @@
 <script lang="ts">
+	import { pathBasename } from '../../lib/path/basename';
 	import { formatDuration, formatFileSize } from '../../types/audio';
 	import { clearAllFiles, toggleFileSort } from './actions';
 	import {
+		createFileListDragHandlers,
 		onFileListClick,
-		onFileListDragEnd,
-		onFileListDragOver,
-		onFileListDragStart,
-		onFileListDrop,
 		onFileListKeyDown,
 		onFileListMoveDown,
 		onFileListMoveUp,
 		onFileListRemove,
 	} from './events';
-	import { fileListViewState } from './viewState.svelte';
-	import { hasSupplementalAssetsForInputId } from '../remoteSource/sessionAssets.svelte';
+	import { getCurrentFileList } from './state.svelte';
+	import {
+		readFileListControlsSnapshot,
+		readFileListOrderLockVisible,
+		readFileListSelectedIndices,
+		readFileListSortLabel,
+		readFileListViewFiles,
+	} from './viewState.svelte';
+	import { hasSupplementalAssetsForInputId } from '../remoteSource';
 
 	interface Props {
 		isDragOver?: boolean;
-		hasFiles?: boolean;
 		supportText?: string;
 		onHeaderClick?: () => void;
 		onHeaderKeydown?: (event: KeyboardEvent) => void;
@@ -26,7 +30,6 @@
 
 	let {
 		isDragOver = false,
-		hasFiles = false,
 		supportText = '',
 		onHeaderClick,
 		onHeaderKeydown,
@@ -34,6 +37,20 @@
 	}: Props = $props();
 
 	let fileListContent: HTMLDivElement | null = null;
+	let draggedIndex = $state<number | null>(null);
+	let hoveredIndex = $state<number | null>(null);
+
+	const files = $derived(readFileListViewFiles());
+	const selectedIndices = $derived(readFileListSelectedIndices());
+	const sortLabel = $derived(readFileListSortLabel());
+	const controls = $derived(readFileListControlsSnapshot());
+	const orderLockVisible = $derived(readFileListOrderLockVisible());
+	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
+
+	const dragHandlers = createFileListDragHandlers((state) => {
+		draggedIndex = state.draggedIndex;
+		hoveredIndex = state.hoveredIndex;
+	});
 
 	function focusFileListContent(): void {
 		fileListContent?.focus({ preventScroll: true });
@@ -53,10 +70,10 @@
 	}
 
 	function getFileName(path: string): string {
-		return path.split(/[\\/]/).pop() || path;
+		return pathBasename(path);
 	}
 
-	function formatFileDetails(file: (typeof fileListViewState.files)[number]): string {
+	function formatFileDetails(file: (typeof files)[number]): string {
 		if (file.isValid && file.duration && file.size) {
 			return `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}`;
 		}
@@ -73,7 +90,6 @@
 	}
 
 	$effect(() => {
-		const selectedIndices = fileListViewState.selectedIndices;
 		const selectedIndex = selectedIndices[selectedIndices.length - 1];
 		if (typeof selectedIndex !== 'number') return;
 
@@ -85,13 +101,13 @@
 	<div class="flex items-center justify-end gap-2">
 		<div class="flex items-center gap-2 mr-auto self-center pl-1">
 			<span class="text-xs muted-text italic" id="file-count-display">
-				{fileListViewState.files.length}
-				{fileListViewState.files.length === 1 ? 'file' : 'files'}
+				{files.length}
+				{files.length === 1 ? 'file' : 'files'}
 			</span>
 			<span
 				class="text-xs muted-text italic"
 				id="file-order-lock"
-				style:display={fileListViewState.orderLockVisible ? 'inline' : 'none'}
+				style:display={orderLockVisible ? 'inline' : 'none'}
 				data-testid="file-order-lock"
 			>
 				Order locked while processing
@@ -100,17 +116,17 @@
 		<button
 			id="sort-toggle-btn"
 			class="btn-pill btn-pill-secondary"
-			style:display={fileListViewState.showSortButton ? 'block' : 'none'}
-			disabled={fileListViewState.sortDisabled}
+			style:display={controls.showSortButton ? 'block' : 'none'}
+			disabled={controls.sortDisabled}
 			onclick={handleSortClick}
 		>
-			{fileListViewState.sortLabel}
+			{sortLabel}
 		</button>
 		<button
 			id="clear-files-btn"
 			class="btn-pill btn-pill-secondary"
-			style:display={fileListViewState.showClearButton ? 'block' : 'none'}
-			disabled={fileListViewState.clearDisabled}
+			style:display={controls.showClearButton ? 'block' : 'none'}
+			disabled={controls.clearDisabled}
 			onclick={handleClearClick}
 		>
 			Clear
@@ -385,23 +401,23 @@
 		tabindex="0"
 		onkeydown={onFileListKeyDown}
 	>
-		{#each fileListViewState.files as file, index (file.inputId ?? file.path)}
+		{#each files as file, index (file.inputId ?? file.path)}
 			<div
 				data-file-index={index}
 				class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
-				class:selected={fileListViewState.selectedIndices.includes(index)}
-				class:dragging={fileListViewState.draggedIndex === index}
-				class:drag-over={fileListViewState.hoveredIndex === index}
-				draggable={fileListViewState.orderLockVisible ? 'false' : 'true'}
+				class:selected={selectedIndices.includes(index)}
+				class:dragging={draggedIndex === index}
+				class:drag-over={hoveredIndex === index}
+				draggable={orderLockVisible ? 'false' : 'true'}
 				role="option"
-				aria-selected={fileListViewState.selectedIndices.includes(index)}
+				aria-selected={selectedIndices.includes(index)}
 				aria-label={getFileName(file.path)}
 				tabindex="-1"
 				onclick={(event) => handleFileListClick(index, event)}
-				ondragstart={(event) => onFileListDragStart(index, event)}
-				ondragover={(event) => onFileListDragOver(index, event)}
-				ondrop={(event) => onFileListDrop(index, event)}
-				ondragend={onFileListDragEnd}
+				ondragstart={(event) => dragHandlers.onDragStart(index, event)}
+				ondragover={(event) => dragHandlers.onDragOver(index, event)}
+				ondrop={(event) => dragHandlers.onDrop(index, event)}
+				ondragend={dragHandlers.onDragEnd}
 			>
 				<div class="file-item-content">
 					<div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
@@ -422,7 +438,7 @@
 							event.stopPropagation();
 							onFileListMoveUp(index, event);
 						}}
-						disabled={index === 0 || fileListViewState.orderLockVisible}
+						disabled={index === 0 || orderLockVisible}
 					>
 						▲
 					</button>
@@ -432,13 +448,13 @@
 							event.stopPropagation();
 							onFileListMoveDown(index, event);
 						}}
-						disabled={index === fileListViewState.files.length - 1 || fileListViewState.orderLockVisible}
+						disabled={index === files.length - 1 || orderLockVisible}
 					>
 						▼
 					</button>
 					<button
 						class="remove-file-btn"
-						disabled={fileListViewState.orderLockVisible}
+						disabled={orderLockVisible}
 						onclick={(event) => {
 							event.stopPropagation();
 							onFileListRemove(index, event);

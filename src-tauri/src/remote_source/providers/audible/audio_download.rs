@@ -4,9 +4,8 @@ use std::path::Path;
 use abb_audible_core::{classify_download_response_for_mode, title_ref, DownloadResponseError};
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
-use tokio::io::AsyncWriteExt;
-
 use super::acquisition::{ensure_not_cancelled, with_title_progress, TitleAcquisitionCtx};
+use super::http::{audio_download_client, stream_response_chunks};
 use super::{
     provider_private_failure, AUDIBLE_DOWNLOAD_USER_AGENT, MAX_DOWNLOAD_ATTEMPTS,
     MAX_DOWNLOAD_REDIRECTS,
@@ -151,7 +150,8 @@ async fn download_to_partial_path(
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<u64> {
     ensure_not_cancelled(is_cancelled)?;
-    let client = remote_download_client()?;
+    let client = audio_download_client(MAX_DOWNLOAD_REDIRECTS)
+        .map_err(|_| provider_private_failure("download client"))?;
     let mut state = DownloadProgress::default();
     let can_resume = log_context.is_some();
 
@@ -322,16 +322,7 @@ async fn stream_download_chunks(
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<bool> {
-    loop {
-        let chunk = match response.chunk().await {
-            Ok(Some(chunk)) => chunk,
-            Ok(None) => break,
-            Err(_) => return Ok(true),
-        };
-        ensure_not_cancelled(is_cancelled)?;
-        if chunk.is_empty() {
-            continue;
-        }
+    stream_response_chunks(response, file, is_cancelled, |chunk| {
         state.bytes_downloaded += chunk.len() as u64;
         if !state.first_bytes_logged {
             state.first_bytes_logged = true;
@@ -341,7 +332,6 @@ async fn stream_download_chunks(
                 state.bytes_total,
             );
         }
-        file.write_all(&chunk).await?;
         let fraction = state
             .bytes_total
             .filter(|total| *total > 0)
@@ -353,8 +343,9 @@ async fn stream_download_chunks(
             Some(state.bytes_downloaded),
             state.bytes_total,
         ));
-    }
-    Ok(false)
+        Ok(())
+    })
+    .await
 }
 
 pub(super) fn build_download_request(
@@ -439,22 +430,6 @@ fn log_download_failed(
         bytes_downloaded,
         bytes_total.unwrap_or(0)
     );
-}
-
-fn remote_download_client() -> Result<reqwest::Client> {
-    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-        if attempt.previous().len() >= MAX_DOWNLOAD_REDIRECTS {
-            return attempt.error("remote source download exceeded redirect limit");
-        }
-        if attempt.url().scheme() != "https" {
-            return attempt.error("remote source download redirect must use https");
-        }
-        attempt.follow()
-    });
-    reqwest::Client::builder()
-        .redirect(redirect_policy)
-        .build()
-        .map_err(|_| provider_private_failure("download client"))
 }
 
 pub(super) fn partial_download_path(path: &Path) -> std::path::PathBuf {

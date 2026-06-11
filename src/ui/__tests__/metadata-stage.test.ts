@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	persistPendingMetadataDraftsForCurrentSelection,
-	setCurrentFileList,
-	setSelectedFileIndices,
-	stageMetadataToSelection,
-} from '../fileList';
+import { persistPendingMetadataDraftsForCurrentSelection, stageMetadataToSelection } from '../fileList/metadataStaging';
+import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state.svelte';
 import {
 	clearMetadataState,
 	getMetadataForFile,

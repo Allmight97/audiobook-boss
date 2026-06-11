@@ -11,7 +11,11 @@ import {
 	getCurrentCoverArt,
 	isCoverArtRemovalRequested,
 } from '../coverArt';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList';
+import {
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../fileList/state.svelte';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 
 const { openFileMock, loadCoverArtFileMock, loadCoverArtFromUrlMock } = vi.hoisted(() => ({

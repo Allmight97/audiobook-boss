@@ -7,7 +7,7 @@
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   `plan_metadata_write`.
-- Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`, `ChapterSpec`,
+- Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`,
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`
   at call sites; metadata must not import `crate::audio::AudioFile`.

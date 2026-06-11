@@ -11,22 +11,20 @@
 ## Public API Strip
 
 - Import file list runtime symbols from `src/ui/fileList`.
-- Exports: `FileListIsland`, list mutation actions (`displayFileList`,
-  `appendFileList`, `selectFile`, `clearAllFiles`, `toggleFileSort`,
-  `setFileOrderLocked`, reorder/remove helpers), session accessors
-  (`getCurrentFileList`, `getSelectedFiles`, `getSelectedFileIndices`,
-  `isOrderLocked`, `onOrderLockChange`, setters used by workflows), metadata
-  staging/presentation entrypoints (`stageMetadataToSelection`,
-  `persistPendingMetadataDraftsForCurrentSelection`, `showSingleSelection`,
-  `clearSelectionPanels`), append helpers/types for import workflows, and
-  `readCombinedSizeText()`.
-- Do **not** export `fileListViewState`, `fileListSessionState`, DOM helpers,
-  selection internals, or event handlers from the index.
+- Exports: `FileListIsland`, `appendFileList`, `selectFile`,
+  `setFileOrderLocked`, session accessors (`getCurrentFileList`,
+  `getSelectedFiles`, `getSelectedFileIndex`, `getSelectedFileIndices`,
+  `isOrderLocked`, `onOrderLockChange`), metadata staging
+  (`stageMetadataToSelection`, `persistPendingMetadataDraftsForCurrentSelection`),
+  and `readCombinedSizeText()`.
+- Do **not** export `fileListSessionState`, selection internals, or event
+  handlers from the index. Cross-module reads use `readX()` accessors from
+  `viewState.svelte.ts` inside component `$derived(...)`.
 
 ## Private Cluster
 
 - Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
-  `viewState.svelte.ts`, `events.ts`, `dom.ts`, `selection.ts`,
+  `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
   `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
 

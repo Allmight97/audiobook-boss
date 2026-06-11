@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../../types/audio';
-import { setCurrentFileList, setSelectedIndex } from '../index';
+import { setCurrentFileList, setSelectedIndex } from '../state.svelte';
 
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
@@ -43,16 +43,6 @@ vi.mock('../../outputPanel', () => ({
 vi.mock('../../metadataValidation', () => ({
 	firstMetadataIntentValidationError: context.validationErrorMock,
 	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
-}));
-
-vi.mock('../dom', () => ({
-	updateFileListDOM: vi.fn(),
-	updateTotalStats: vi.fn(),
-	updateSelection: vi.fn(),
-	updateSortButtonText: vi.fn(),
-	updateButtonVisibility: vi.fn(),
-	showEmptyState: vi.fn(),
-	setOrderLockNotice: vi.fn(),
 }));
 
 vi.mock('../events', () => ({
@@ -144,7 +134,7 @@ describe('selectFile transition options', () => {
 	});
 
 	it('skips previous-file autosave for queue-managed transitions', async () => {
-		const { selectFile } = await import('../index');
+		const { selectFile } = await import('../actions');
 		await selectFile(1, { multi: false, range: false }, { skipPersistPrevious: true });
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
@@ -152,7 +142,7 @@ describe('selectFile transition options', () => {
 	});
 
 	it('preserves default autosave behavior when transition option is omitted', async () => {
-		const { selectFile } = await import('../index');
+		const { selectFile } = await import('../actions');
 		await selectFile(1, { multi: false, range: false });
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
@@ -165,7 +155,7 @@ describe('selectFile transition options', () => {
 
 	it('keeps the current selection when staging validation fails', async () => {
 		context.validationErrorMock.mockReturnValue('Series part must be a number');
-		const { selectFile } = await import('../index');
+		const { selectFile } = await import('../actions');
 
 		await selectFile(1, { multi: false, range: false });
 
@@ -183,7 +173,7 @@ describe('selectFile transition options', () => {
 			{ path: '/books/alpha.m4b', isValid: true },
 			{ path: '/books/beta.m4b', isValid: true },
 		]);
-		const { clearSelectionAction } = await import('../index');
+		const { clearSelectionAction } = await import('../actions');
 
 		await clearSelectionAction();
 
@@ -200,7 +190,7 @@ describe('selectFile transition options', () => {
 			{ path: '/books/alpha.m4b', isValid: true },
 			{ path: '/books/beta.m4b', isValid: true },
 		]);
-		const { selectAll } = await import('../index');
+		const { selectAll } = await import('../actions');
 
 		await selectAll();
 

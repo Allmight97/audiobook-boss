@@ -17,6 +17,12 @@ or infer provider-private Audible internals.
 ## Private Cluster
 
 - `providers/audible/` owns Audible-specific protocol behavior and diagnostics.
+- `providers/audible/http/` owns shared HTTP client, redirect policy, streaming,
+  and cancellation checks for audio and supplemental PDF downloads.
+- `providers/audible/acquisition/{mod,paths,progress,validation}.rs` owns title
+  acquisition orchestration; production validation stays in `validation.rs`.
+- `providers/audible/library_probe.rs` owns library probe test harness helpers.
+- `cancellation.rs` owns shared acquisition cancellation checks.
 - `vault.rs` owns backend secret-vault adapters.
 - `staging.rs` owns ABB-managed staging/session roots and cleanup rules.
 - `providers/audible/library.rs` owns Audible library response shaping.

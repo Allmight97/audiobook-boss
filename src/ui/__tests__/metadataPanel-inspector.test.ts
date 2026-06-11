@@ -2,11 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import {
 	clearSelectionPanels,
-	setCurrentFileList,
-	setSelectedIndex,
 	showMultiSelection,
 	showSingleSelection,
-} from '../fileList';
+} from '../fileList/metadataPanel';
+import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 
 const context = vi.hoisted(() => ({
@@ -31,10 +30,14 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../metadataState', () => ({
-	getMetadataForFile: context.getMetadataForFileMock,
-	setMetadataForFile: context.setMetadataForFileMock,
-}));
+vi.mock('../metadataState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../metadataState')>();
+	return {
+		...actual,
+		getMetadataForFile: context.getMetadataForFileMock,
+		setMetadataForFile: context.setMetadataForFileMock,
+	};
+});
 
 vi.mock('../metadataForm', () => ({
 	populateMetadataFormSingle: context.populateMetadataFormSingleMock,

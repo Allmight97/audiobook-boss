@@ -8,6 +8,7 @@
  */
 
 import '@testing-library/jest-dom/vitest';
+import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 import type {
@@ -76,7 +77,7 @@ function mockOperationSnapshot(
 		children: inputFiles.map((path, index) => ({
 			childJobId: `input-${index}`,
 			operationId,
-			label: path.split(/[\\/]/).pop() || path,
+			label: pathBasename(path),
 			status: 'queued' as const,
 			lane: 'encodeCpu' as const,
 			progress: {

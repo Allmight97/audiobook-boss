@@ -2,7 +2,7 @@ import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
 import { getCurrentFileList } from '../../fileList';
 import * as feedback from '../feedback';
-import { convertBytesToDataUrl } from '../formatting';
+import { coverArtBytesToDataUrl } from '../../../lib/media/coverArtDataUrl';
 
 export interface CoverArtTracker {
 	syncForCurrentList(): Promise<void>;
@@ -34,7 +34,7 @@ async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
 		return null;
 	}
 
-	return convertBytesToDataUrl(metadata.cover_art);
+	return coverArtBytesToDataUrl(metadata.cover_art);
 }
 
 export function createCoverArtTracker(deps: CoverArtTrackerDeps = {}): CoverArtTracker {

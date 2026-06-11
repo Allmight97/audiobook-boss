@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import fileListIslandSource from '../fileList/FileListIsland.svelte?raw';
 import importIslandSource from '../fileImport/FileImportIsland.svelte?raw';
 import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
 
@@ -36,12 +37,12 @@ describe('file import layout', () => {
 		expect(inputWorkflowRule).toContain('flex: 1 1 auto;');
 		expect(inputWorkflowRule).toContain('min-height: 0;');
 		expect(inputWorkflowRule).toContain('overflow: hidden;');
-		expect(cssRule(importIslandSource, '.file-list-content')).toContain('overflow-y: auto;');
+		expect(cssRule(fileListIslandSource, '.file-list-content')).toContain('overflow-y: auto;');
 	});
 
 	it('keeps file-list keyboard handling local to the file-management region', () => {
 		expect(importIslandSource).not.toContain('<svelte:window onkeydown={onFileListKeyDown}');
-		expect(importIslandSource).toContain('tabindex="0"');
-		expect(importIslandSource).toContain('onkeydown={onFileListKeyDown}');
+		expect(fileListIslandSource).toContain('tabindex="0"');
+		expect(fileListIslandSource).toContain('onkeydown={onFileListKeyDown}');
 	});
 });

@@ -28,6 +28,7 @@ use std::time::Duration;
 mod adapter;
 mod encoder;
 mod engine;
+mod engine_orchestrator;
 mod execute;
 mod external_fdk;
 mod finalize;

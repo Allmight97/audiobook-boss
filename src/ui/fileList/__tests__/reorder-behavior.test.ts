@@ -5,10 +5,10 @@ import {
 	displayFileList,
 	moveFileDown,
 	moveFileUp,
-	persistPendingMetadataDraftsForCurrentSelection,
 	reorderFiles,
 	toggleFileSort,
-} from '../index';
+} from '../actions';
+import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
 import { inspectorState } from '../inspectorState.svelte';
 import { showSingleSelection } from '../metadataPanel';
 import {
@@ -19,8 +19,6 @@ import {
 	setSelectedIndex,
 	setSortAscending,
 } from '../state.svelte';
-import { resetFileListViewState } from '../viewState.svelte';
-
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
 	getMetadataForFileMock: vi.fn(),
@@ -58,13 +56,17 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../metadataState', () => ({
-	clearMetadataState: context.clearMetadataStateMock,
-	getMetadataForFile: context.getMetadataForFileMock,
-	metadataEqualsNullish: context.metadataEqualsNullishMock,
-	removeMetadataForFile: context.removeMetadataForFileMock,
-	setMetadataForFile: context.setMetadataForFileMock,
-}));
+vi.mock('../../metadataState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../metadataState')>();
+	return {
+		...actual,
+		clearMetadataState: context.clearMetadataStateMock,
+		getMetadataForFile: context.getMetadataForFileMock,
+		metadataEqualsNullish: context.metadataEqualsNullishMock,
+		removeMetadataForFile: context.removeMetadataForFileMock,
+		setMetadataForFile: context.setMetadataForFileMock,
+	};
+});
 
 vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
@@ -97,16 +99,6 @@ vi.mock('../../statusPanel', () => ({
 vi.mock('../../metadataValidation', () => ({
 	firstMetadataIntentValidationError: context.validationErrorMock,
 	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
-}));
-
-vi.mock('../dom', () => ({
-	updateFileListDOM: vi.fn(),
-	updateTotalStats: vi.fn(),
-	updateSelection: vi.fn(),
-	updateSortButtonText: vi.fn(),
-	updateButtonVisibility: vi.fn(),
-	showEmptyState: vi.fn(),
-	setOrderLockNotice: vi.fn(),
 }));
 
 vi.mock('../../encoderPanel/autoResolutionHints', () => ({
@@ -170,7 +162,6 @@ describe('file list reorder behavior', () => {
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
 		setSortAscending(true);
-		resetFileListViewState();
 	});
 
 	it('keeps the same file selected and updates inspector position after moving it up', async () => {

@@ -7,7 +7,10 @@ import {
 	setCurrentFileList,
 	setOrderLocked,
 } from '../state.svelte';
-import { fileListViewState } from '../viewState.svelte';
+import {
+	readFileListControlsSnapshot,
+	readFileListOrderLockVisible,
+} from '../viewState.svelte';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior
 vi.mock('../../metadataForm', () => ({
@@ -98,14 +101,14 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('locks when setFileOrderLocked(true) is called', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
 		});
 
 		it('unlocks when setFileOrderLocked(false) is called', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
@@ -114,7 +117,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('is idempotent — double lock/unlock does not break state', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			setFileOrderLocked(true);
@@ -142,7 +145,7 @@ describe('order lock lifecycle', () => {
 
 	describe('guard behavior — locked prevents mutations', () => {
 		it('clearAllFiles() no-ops when locked', async () => {
-			const { clearAllFiles, setFileOrderLocked } = await import('../index');
+			const { clearAllFiles, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -154,7 +157,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('removeFile() no-ops when locked', async () => {
-			const { removeFile, setFileOrderLocked } = await import('../index');
+			const { removeFile, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -166,7 +169,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileUp() no-ops when locked', async () => {
-			const { moveFileUp, setFileOrderLocked } = await import('../index');
+			const { moveFileUp, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -179,7 +182,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileDown() no-ops when locked', async () => {
-			const { moveFileDown, setFileOrderLocked } = await import('../index');
+			const { moveFileDown, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -192,7 +195,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('toggleFileSort() no-ops when locked', async () => {
-			const { toggleFileSort, setFileOrderLocked } = await import('../index');
+			const { toggleFileSort, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -205,7 +208,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('reorderFiles() no-ops when locked', async () => {
-			const { reorderFiles, setFileOrderLocked } = await import('../index');
+			const { reorderFiles, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -219,49 +222,39 @@ describe('order lock lifecycle', () => {
 	});
 
 	describe('view state reflects lock', () => {
-		it('disables sort and clear controls when locked', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('disables sort and clear controls when locked', () => {
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(true);
 
-			updateButtonVisibility();
-
-			expect(fileListViewState.sortDisabled).toBe(true);
-			expect(fileListViewState.clearDisabled).toBe(true);
+			const controls = readFileListControlsSnapshot();
+			expect(controls.sortDisabled).toBe(true);
+			expect(controls.clearDisabled).toBe(true);
 		});
 
-		it('enables sort and clear controls when unlocked', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('enables sort and clear controls when unlocked', () => {
 			setCurrentFileList(makeFileList(3));
 			setOrderLocked(false);
 
-			updateButtonVisibility();
-
-			expect(fileListViewState.sortDisabled).toBe(false);
-			expect(fileListViewState.clearDisabled).toBe(false);
+			const controls = readFileListControlsSnapshot();
+			expect(controls.sortDisabled).toBe(false);
+			expect(controls.clearDisabled).toBe(false);
 		});
 
-		it('shows lock notice when locked', async () => {
-			const { setOrderLockNotice } = await import('../dom');
-
-			setOrderLockNotice(true);
-
-			expect(fileListViewState.orderLockVisible).toBe(true);
+		it('shows lock notice when locked', () => {
+			setOrderLocked(true);
+			expect(readFileListOrderLockVisible()).toBe(true);
 		});
 
-		it('hides lock notice when unlocked', async () => {
-			const { setOrderLockNotice } = await import('../dom');
-			setOrderLockNotice(true);
-
-			setOrderLockNotice(false);
-
-			expect(fileListViewState.orderLockVisible).toBe(false);
+		it('hides lock notice when unlocked', () => {
+			setOrderLocked(true);
+			setOrderLocked(false);
+			expect(readFileListOrderLockVisible()).toBe(false);
 		});
 	});
 
 	describe('round-trip: lock → unlock restores full interactivity', () => {
 		it('mutations work after lock/unlock cycle', async () => {
-			const { setFileOrderLocked, clearAllFiles } = await import('../index');
+			const { setFileOrderLocked, clearAllFiles } = await import('../actions');
 			setCurrentFileList(makeFileList(3));
 
 			// Lock then unlock
@@ -275,19 +268,14 @@ describe('order lock lifecycle', () => {
 			expect(current?.files.length).toBe(0);
 		});
 
-		it('view controls re-enabled after lock/unlock cycle', async () => {
-			const { updateButtonVisibility } = await import('../dom');
+		it('view controls re-enabled after lock/unlock cycle', () => {
 			setCurrentFileList(makeFileList(3));
 
-			// Lock
 			setOrderLocked(true);
-			updateButtonVisibility();
-			expect(fileListViewState.clearDisabled).toBe(true);
+			expect(readFileListControlsSnapshot().clearDisabled).toBe(true);
 
-			// Unlock
 			setOrderLocked(false);
-			updateButtonVisibility();
-			expect(fileListViewState.clearDisabled).toBe(false);
+			expect(readFileListControlsSnapshot().clearDisabled).toBe(false);
 		});
 	});
 });

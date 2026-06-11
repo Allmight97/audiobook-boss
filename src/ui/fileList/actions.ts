@@ -1,8 +1,10 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { clearMetadataState, removeMetadataForFile } from '../metadataState';
 import {
+	fileListSessionState,
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
@@ -14,15 +16,6 @@ import {
 	isOrderLocked,
 	setOrderLocked,
 } from './state.svelte';
-import {
-	updateFileListDOM,
-	updateTotalStats,
-	updateSelection,
-	updateSortButtonText,
-	updateButtonVisibility,
-	showEmptyState,
-	setOrderLockNotice,
-} from './dom';
 import {
 	clearSelection,
 	handleSelection,
@@ -45,7 +38,7 @@ import {
 	type FileListAppendResult,
 } from './appendResult';
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
-import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource/sessionAssets.svelte';
+import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -55,13 +48,28 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
 
+function replaceCurrentFileListFiles(nextFiles: AudioFile[]): void {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return;
+	}
+
+	const validCount = nextFiles.filter((file) => file.isValid).length;
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: nextFiles,
+		validCount,
+		invalidCount: nextFiles.length - validCount,
+	};
+	recalculateTotals();
+}
+
 function selectSoleImportedFile(fileList: FileListInfo): void {
 	if (fileList.files.length !== 1) return;
 	if (!fileList.files[0]?.isValid) return;
 
 	setSelectedIndex(0);
 	setSelectedFileIndices([0]);
-	updateSelection();
 	void showSingleSelection(fileList.files[0]);
 }
 
@@ -72,12 +80,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataState();
 	setCurrentFileList(normalizedFileListInfo);
 	clearSelectionPanels();
-
-	updateFileListDOM();
-
-	updateTotalStats();
-	updateButtonVisibility();
-	updateSortButtonText(getSortAscending());
 
 	refreshOutputForFileListChange();
 
@@ -111,11 +113,6 @@ export function appendFileList(
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
-	updateFileListDOM();
-	updateTotalStats();
-	updateButtonVisibility();
-	updateSortButtonText(getSortAscending());
-
 	refreshOutputForFileListChange();
 	return appendResult;
 }
@@ -141,8 +138,6 @@ export async function selectFile(
 
 	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
 	if (!selectionResult.changed) return;
-
-	updateSelection();
 
 	const selectedFiles = getSelectedFiles();
 	const count = selectedFiles.length;
@@ -176,7 +171,6 @@ export async function selectAll(): Promise<void> {
 	const changed = selectAllFiles();
 	if (!changed) return;
 
-	updateSelection();
 	const selectedFiles = getSelectedFiles();
 	if (selectedFiles.length > 1) {
 		void showMultiSelection(selectedFiles);
@@ -197,7 +191,6 @@ export async function clearSelectionAction(): Promise<void> {
 	const changed = clearSelection();
 	if (!changed) return;
 
-	updateSelection();
 	clearSelectionPanels();
 }
 
@@ -212,15 +205,11 @@ export async function removeFile(index: number): Promise<void> {
 	removeMetadataForFile(removedFile.path);
 	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
-	fileList.files.splice(index, 1);
-	fileList.validCount = fileList.files.filter((f) => f.isValid).length;
-	fileList.invalidCount = fileList.files.length - fileList.validCount;
-
-	recalculateTotals();
-	updateFileListDOM();
+	const nextFiles = [...fileList.files];
+	nextFiles.splice(index, 1);
+	replaceCurrentFileListFiles(nextFiles);
 
 	reindexSelectionAfterRemoval(index);
-	updateSelection();
 
 	const remainingSelection = getSelectedFiles();
 	if (remainingSelection.length === 0) {
@@ -238,9 +227,14 @@ export function recalculateTotals(): void {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
 
-	const validFiles = fileList.files.filter((f) => f.isValid && f.duration && f.size);
-	fileList.totalDuration = validFiles.reduce((sum, f) => sum + (f.duration || 0), 0);
-	fileList.totalSize = validFiles.reduce((sum, f) => sum + (f.size || 0), 0);
+	const validFiles = fileList.files.filter((file) => file.isValid && file.duration && file.size);
+	const totalDuration = validFiles.reduce((sum, file) => sum + (file.duration || 0), 0);
+	const totalSize = validFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+	fileListSessionState.currentFileList = {
+		...fileList,
+		totalDuration,
+		totalSize,
+	};
 }
 
 export function moveFileUp(index: number): void {
@@ -250,13 +244,14 @@ export function moveFileUp(index: number): void {
 		return;
 	}
 
-	const temp = fileList.files[index];
-	fileList.files[index] = fileList.files[index - 1];
-	fileList.files[index - 1] = temp;
+	const nextFiles = [...fileList.files];
+	const temp = nextFiles[index];
+	nextFiles[index] = nextFiles[index - 1];
+	nextFiles[index - 1] = temp;
+	replaceCurrentFileListFiles(nextFiles);
 
 	swapSelectionIndices(index, index - 1);
 
-	updateFileListDOM();
 	refreshOutputForFileListChange();
 
 	refreshSelectionPresentation(getSelectedFiles());
@@ -269,13 +264,14 @@ export function moveFileDown(index: number): void {
 		return;
 	}
 
-	const temp = fileList.files[index];
-	fileList.files[index] = fileList.files[index + 1];
-	fileList.files[index + 1] = temp;
+	const nextFiles = [...fileList.files];
+	const temp = nextFiles[index];
+	nextFiles[index] = nextFiles[index + 1];
+	nextFiles[index + 1] = temp;
+	replaceCurrentFileListFiles(nextFiles);
 
 	swapSelectionIndices(index, index + 1);
 
-	updateFileListDOM();
 	refreshOutputForFileListChange();
 
 	refreshSelectionPresentation(getSelectedFiles());
@@ -296,24 +292,22 @@ export async function toggleFileSort(): Promise<void> {
 
 	setSortAscending(!getSortAscending());
 
-	fileList.files.sort((a, b) => {
-		const nameA = a.path.split(/[\\/]/).pop() || a.path;
-		const nameB = b.path.split(/[\\/]/).pop() || b.path;
+	const nextFiles = [...fileList.files];
+	nextFiles.sort((a, b) => {
+		const nameA = pathBasename(a.path);
+		const nameB = pathBasename(b.path);
 
 		if (getSortAscending()) {
 			return nameA.localeCompare(nameB);
 		}
 		return nameB.localeCompare(nameA);
 	});
+	replaceCurrentFileListFiles(nextFiles);
 
 	clearSelection();
 	setSelectedIndex(-1);
 	clearSelectionPanels();
 
-	updateSortButtonText(getSortAscending());
-	updateButtonVisibility();
-
-	updateFileListDOM();
 	refreshOutputForFileListChange();
 }
 
@@ -324,28 +318,24 @@ export function clearAllFiles(): void {
 	const inputIds = fileList.files.map((file) => file.inputId);
 
 	clearMetadataState();
-	fileList.files = [];
-	fileList.validCount = 0;
-	fileList.invalidCount = 0;
-	fileList.totalDuration = 0;
-	fileList.totalSize = 0;
-
-	showEmptyState();
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: [],
+		validCount: 0,
+		invalidCount: 0,
+		totalDuration: 0,
+		totalSize: 0,
+	};
 
 	clearSelection();
 	setSelectedIndex(-1);
 	clearSelectionPanels();
-	updateTotalStats();
-	updateButtonVisibility();
 	refreshOutputForFileListChange();
 	void purgeRemoteSourceSessionsForInputIds(inputIds);
 }
 
 export function setFileOrderLocked(locked: boolean): void {
 	setOrderLocked(locked);
-	setOrderLockNotice(locked);
-	updateButtonVisibility();
-	updateFileListDOM();
 }
 
 export function reorderFiles(fromIndex: number, toIndex: number): void {
@@ -353,13 +343,13 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
 
-	const files = fileList.files;
-	const [moved] = files.splice(fromIndex, 1);
-	files.splice(toIndex, 0, moved);
+	const nextFiles = [...fileList.files];
+	const [moved] = nextFiles.splice(fromIndex, 1);
+	nextFiles.splice(toIndex, 0, moved);
+	replaceCurrentFileListFiles(nextFiles);
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
-	updateFileListDOM();
 	refreshOutputForFileListChange();
 
 	refreshSelectionPresentation(getSelectedFiles());

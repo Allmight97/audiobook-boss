@@ -67,6 +67,23 @@ export function getMetadataForFile(filePath: string): Partial<AudiobookMetadata>
 	return metadataByFile.get(filePath);
 }
 
+export function isUsableMetadataCache(
+	metadata: Partial<AudiobookMetadata> | undefined,
+): metadata is Partial<AudiobookMetadata> {
+	if (!metadata) return false;
+
+	const populatedKeys = Object.entries(metadata).filter(([, value]) => value !== undefined);
+	if (populatedKeys.length === 0) return false;
+
+	// Cover-only cache entries come from autoUpdateCoverArtFromFirstValidFile and must not
+	// short-circuit full metadata reads on selection or batch hydration.
+	if (populatedKeys.length === 1 && populatedKeys[0]?.[0] === 'cover_art') {
+		return false;
+	}
+
+	return true;
+}
+
 export function getAllMetadata(): Record<string, Partial<AudiobookMetadata>> {
 	return Object.fromEntries(metadataByFile.entries());
 }

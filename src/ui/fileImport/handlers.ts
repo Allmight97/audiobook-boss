@@ -10,14 +10,12 @@ import {
 } from './state.svelte';
 import {
 	enterImportAnalysisWorkflow,
+	ImportAnalysisWorkflowLive,
 	importOrderLockedMessage,
+	liveImportAnalysisWorkflowServices,
 	runImportAnalysisWorkflow,
 	type ImportAnalysisWorkflowResult,
 } from './importAnalysisWorkflow';
-import {
-	ImportAnalysisWorkflowLive,
-	liveImportAnalysisWorkflowServices,
-} from './importAnalysisWorkflowLive';
 
 export interface DragDropContext {
 	getCoverArtArea: () => HTMLElement | null;

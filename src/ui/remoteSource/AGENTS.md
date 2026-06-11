@@ -1,5 +1,23 @@
 # Remote Source UI
 
+## Public API Strip
+
+- Import session-asset coordination from `src/ui/remoteSource`.
+- Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
+  `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
+  `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
+  `CompanionAssetSummary` (type).
+- Do not re-export acquisition workflow symbols, islands, or private
+  `sessionAssets.svelte` helpers such as `supplementalAssetsForInputIds` from
+  the index.
+
+## Private Cluster
+
+- Files: `sessionAssets.svelte.ts`, `acquisitionWorkflow.ts`,
+  `RemoteSourceAcquireIsland.svelte`, `RemoteSourceAcquireDialog.svelte`,
+  `acquisitionState.svelte.ts`, `acquisitionAccount.ts`, `remoteSourceSelection.ts`,
+  `state.svelte.ts`, `__tests__/`.
+
 `src/ui/remoteSource` owns frontend coordination for remote-source acquisition
 surfaces.
 

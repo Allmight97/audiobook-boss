@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../../types/audio';
-import type { FileListAppendResult } from '../../fileList';
+import type { FileListAppendResult } from '../../fileList/appendResult';
 import {
 	importAnalysisWorkflowExecution,
 	makeImportAnalysisWorkflowServicesLayer,

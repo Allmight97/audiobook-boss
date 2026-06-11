@@ -3,12 +3,14 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import {
 	autoUpdateCoverArtFromFirstValidFile,
+	showMultiSelection,
+	showSingleSelection,
+} from '../fileList/metadataPanel';
+import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-	showMultiSelection,
-	showSingleSelection,
-} from '../fileList';
+} from '../fileList/state.svelte';
 import { jobControlsState } from '../jobControls/state.svelte';
 
 type Deferred<T> = {
@@ -42,11 +44,15 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../metadataState', () => ({
-	getMetadataForFile: context.getMetadataForFileMock,
-	setMetadataForFile: context.setMetadataForFileMock,
-	getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
-}));
+vi.mock('../metadataState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../metadataState')>();
+	return {
+		...actual,
+		getMetadataForFile: context.getMetadataForFileMock,
+		setMetadataForFile: context.setMetadataForFileMock,
+		getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
+	};
+});
 
 vi.mock('../metadataForm', () => ({
 	populateMetadataFormSingle: context.populateMetadataFormSingleMock,
@@ -254,5 +260,41 @@ describe('metadata panel race guards', () => {
 		expect(context.setMetadataForFileMock).toHaveBeenCalledWith('/books/beta.m4b', {
 			cover_art: [4, 5, 6],
 		});
+	});
+
+	it('loads full metadata when cache only contains cover art from auto-cover priming', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const alphaMetadata: Partial<AudiobookMetadata> = {
+			title: 'Alpha Title',
+			artist: 'Alpha Artist',
+			cover_art: [1, 2, 3],
+		};
+
+		context.getMetadataForFileMock.mockReturnValue({ cover_art: [1, 2, 3] });
+		context.readAudioMetadataMock.mockResolvedValue(alphaMetadata);
+		setCurrentFileList(makeFileList(alpha));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+
+		await showSingleSelection(alpha);
+
+		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(context.populateMetadataFormSingleMock).toHaveBeenCalledWith(alphaMetadata);
+	});
+
+	it('loads full metadata when cache contains an empty object from auto-cover priming', async () => {
+		const alpha = makeFile('/books/alpha.m4b');
+		const alphaMetadata: Partial<AudiobookMetadata> = { title: 'Alpha Title' };
+
+		context.getMetadataForFileMock.mockReturnValue({});
+		context.readAudioMetadataMock.mockResolvedValue(alphaMetadata);
+		setCurrentFileList(makeFileList(alpha));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+
+		await showSingleSelection(alpha);
+
+		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(context.populateMetadataFormSingleMock).toHaveBeenCalledWith(alphaMetadata);
 	});
 });

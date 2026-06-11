@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { StatusPanelCompletionFeedback } from './domain/stateMachine';
 
@@ -35,5 +36,5 @@ export function buildMetadataSaveCompletionFeedback(
 }
 
 function filenameFromPath(filePath: string): string {
-	return filePath.split(/[\\/]/).pop() || filePath;
+	return pathBasename(filePath);
 }

@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { moveFileDown, moveFileUp, reorderFiles } from '../fileList/actions';
 import {
 	getSelectedFileIndices,
-	moveFileDown,
-	moveFileUp,
-	reorderFiles,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList';
+} from '../fileList/state.svelte';
 
 vi.mock('../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),
@@ -40,16 +38,6 @@ vi.mock('../metadataValidation', () => ({
 vi.mock('../fileList/events', () => ({
 	initFileListEvents: vi.fn(),
 	setupDragStartHandlers: vi.fn(),
-}));
-
-vi.mock('../fileList/dom', () => ({
-	updateFileListDOM: vi.fn(),
-	updateTotalStats: vi.fn(),
-	updateSelection: vi.fn(),
-	updateSortButtonText: vi.fn(),
-	updateButtonVisibility: vi.fn(),
-	showEmptyState: vi.fn(),
-	setOrderLockNotice: vi.fn(),
 }));
 
 vi.mock('../statusPanel', () => ({

@@ -11,6 +11,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 use crate::errors::{AppError, Result};
+use crate::remote_source::cancellation::ensure_not_cancelled;
 use crate::remote_source::scoped_output::StagedTempFile;
 
 const HELPER_NAME: &str = "abb-aaxclean-helper";
@@ -548,15 +549,6 @@ fn ensure_helper_available(path: &Path) -> Result<()> {
     Err(AppError::General(
         "AAXClean helper is unavailable in this build. Rebuild the app to refresh bundled helper binaries.".to_string(),
     ))
-}
-
-fn ensure_not_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<()> {
-    if is_cancelled() {
-        return Err(AppError::Cancellation(
-            "Remote source acquisition was cancelled.".to_string(),
-        ));
-    }
-    Ok(())
 }
 
 fn cleanup_materializer_outputs(output_temp_path: &Path, output_path: &Path) -> Result<()> {

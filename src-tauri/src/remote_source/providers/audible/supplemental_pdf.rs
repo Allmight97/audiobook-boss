@@ -9,6 +9,7 @@ use abb_media_core::{
 };
 
 use super::acquisition::generated_staging_path;
+use super::http::no_redirect_client;
 use super::{AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS};
 use crate::remote_source::scoped_output::StagedTempFile;
 use crate::remote_source::SupplementalAsset;
@@ -106,14 +107,6 @@ fn supplemental_pdf_redirect_target(
     Ok(next)
 }
 
-fn supplemental_pdf_download_client() -> std::result::Result<reqwest::Client, SupplementalPdfFailure>
-{
-    reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| SupplementalPdfFailure::new("request", None))
-}
-
 pub(super) struct SupplementalPdfRequest<'a> {
     pub auth: &'a Auth,
     pub title_id: &'a str,
@@ -134,7 +127,8 @@ pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalAsset, SupplementalPdfFailure> {
-    let client = supplemental_pdf_download_client()?;
+    let client =
+        no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
     let url = companion_file_url(request.title_id)?;
     download_supplemental_pdf_with_client(&client, request, url, false, is_cancelled).await
 }

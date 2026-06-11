@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { buildFileListAppendResult, collectUniqueFiles, normalizeFileListInfo } from '../fileList';
+import {
+	buildFileListAppendResult,
+	collectUniqueFiles,
+	normalizeFileListInfo,
+} from '../fileList/appendResult';
 
 function file(path: string, options: Partial<AudioFile> = {}): AudioFile {
 	return {
