@@ -4,6 +4,23 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-06-11
+
+### Changed
+
+- Tightened file-list, status-panel, metadata-lookup, and remote-source UI
+  boundaries so panels consume owner-specific surfaces instead of reaching
+  through removed shared helpers.
+
+### Fixed
+
+- Multi-file import no longer skips full metadata for the first selected file
+  when a cover-only cache entry was written during import.
+- Status step color returns to neutral after informational messages that follow
+  an error or success state.
+- External OS file drags no longer show false reorder highlights in the file
+  list.
+
 ## [1.1.2] - 2026-06-10
 
 ### Changed
