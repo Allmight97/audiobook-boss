@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
+mod cancellation;
 mod materializer;
 mod providers;
 mod scoped_output;

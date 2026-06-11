@@ -163,16 +163,9 @@ pub(super) async fn acquire(
     Ok(job)
 }
 
-pub(super) fn remote_acquisition_cancelled() -> AppError {
-    AppError::Cancellation("Remote source acquisition was cancelled.".to_string())
-}
-
-pub(super) fn ensure_not_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<()> {
-    if is_cancelled() {
-        return Err(remote_acquisition_cancelled());
-    }
-    Ok(())
-}
+pub(super) use crate::remote_source::cancellation::{
+    ensure_not_cancelled, remote_acquisition_cancelled,
+};
 
 pub(super) fn title_progress(
     context: TitleProgressContext<'_>,
