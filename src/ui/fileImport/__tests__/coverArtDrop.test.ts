@@ -4,7 +4,8 @@ import type { TauriFileDropEvents } from '../../../types/events';
 import type { AcquisitionJob } from '../../../types/remoteSource';
 import FileImportIsland from '../FileImportIsland.svelte';
 import { clearFileImportError } from '../state.svelte';
-import { displayFileList, getCurrentFileList } from '../../fileList';
+import { displayFileList } from '../../fileList/actions';
+import { getCurrentFileList } from '../../fileList';
 import { clearMetadataState } from '../../metadataState';
 import {
 	registerRemoteSourceSupplementalAssets,

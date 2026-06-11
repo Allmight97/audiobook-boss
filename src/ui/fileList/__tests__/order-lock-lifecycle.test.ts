@@ -101,14 +101,14 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('locks when setFileOrderLocked(true) is called', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
 		});
 
 		it('unlocks when setFileOrderLocked(false) is called', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			expect(isOrderLocked()).toBe(true);
@@ -117,7 +117,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('is idempotent — double lock/unlock does not break state', async () => {
-			const { setFileOrderLocked } = await import('../index');
+			const { setFileOrderLocked } = await import('../actions');
 			setCurrentFileList(makeFileList(2));
 			setFileOrderLocked(true);
 			setFileOrderLocked(true);
@@ -145,7 +145,7 @@ describe('order lock lifecycle', () => {
 
 	describe('guard behavior — locked prevents mutations', () => {
 		it('clearAllFiles() no-ops when locked', async () => {
-			const { clearAllFiles, setFileOrderLocked } = await import('../index');
+			const { clearAllFiles, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -157,7 +157,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('removeFile() no-ops when locked', async () => {
-			const { removeFile, setFileOrderLocked } = await import('../index');
+			const { removeFile, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			setFileOrderLocked(true);
@@ -169,7 +169,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileUp() no-ops when locked', async () => {
-			const { moveFileUp, setFileOrderLocked } = await import('../index');
+			const { moveFileUp, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -182,7 +182,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('moveFileDown() no-ops when locked', async () => {
-			const { moveFileDown, setFileOrderLocked } = await import('../index');
+			const { moveFileDown, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -195,7 +195,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('toggleFileSort() no-ops when locked', async () => {
-			const { toggleFileSort, setFileOrderLocked } = await import('../index');
+			const { toggleFileSort, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -208,7 +208,7 @@ describe('order lock lifecycle', () => {
 		});
 
 		it('reorderFiles() no-ops when locked', async () => {
-			const { reorderFiles, setFileOrderLocked } = await import('../index');
+			const { reorderFiles, setFileOrderLocked } = await import('../actions');
 			const fileList = makeFileList(3);
 			setCurrentFileList(fileList);
 			const originalOrder = fileList.files.map((f) => f.path);
@@ -254,7 +254,7 @@ describe('order lock lifecycle', () => {
 
 	describe('round-trip: lock → unlock restores full interactivity', () => {
 		it('mutations work after lock/unlock cycle', async () => {
-			const { setFileOrderLocked, clearAllFiles } = await import('../index');
+			const { setFileOrderLocked, clearAllFiles } = await import('../actions');
 			setCurrentFileList(makeFileList(3));
 
 			// Lock then unlock

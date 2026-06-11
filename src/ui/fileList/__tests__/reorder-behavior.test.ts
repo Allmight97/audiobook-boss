@@ -5,10 +5,10 @@ import {
 	displayFileList,
 	moveFileDown,
 	moveFileUp,
-	persistPendingMetadataDraftsForCurrentSelection,
 	reorderFiles,
 	toggleFileSort,
-} from '../index';
+} from '../actions';
+import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
 import { inspectorState } from '../inspectorState.svelte';
 import { showSingleSelection } from '../metadataPanel';
 import {

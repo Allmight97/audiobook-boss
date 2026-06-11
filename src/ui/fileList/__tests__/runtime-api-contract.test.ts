@@ -1,56 +1,27 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import * as fileList from '..';
+import { setCurrentFileList } from '../state.svelte';
 
 const EXPECTED_FILE_LIST_EXPORTS = [
 	'FileListIsland',
 	'appendFileList',
-	'autoUpdateCoverArtFromFirstValidFile',
-	'buildFileListAppendResult',
-	'buildFileListInfoFromFiles',
-	'buildSelectedDecoderByPath',
-	'clearAllFiles',
-	'clearSelectionAction',
-	'clearSelectionPanels',
-	'collectUniqueFiles',
-	'displayFileList',
-	'ensureMetadataForFiles',
 	'getCurrentFileList',
 	'getSelectedFileIndex',
 	'getSelectedFileIndices',
 	'getSelectedFiles',
-	'getSortAscending',
 	'isOrderLocked',
-	'moveFileDown',
-	'moveFileUp',
-	'normalizeFileListInfo',
 	'onOrderLockChange',
 	'persistPendingMetadataDraftsForCurrentSelection',
-	'persistSingleSelectionMetadata',
-	'preserveMetadataDraftsBeforeSelectionChange',
 	'readCombinedSizeText',
-	'recalculateTotals',
-	'refreshSelectionPresentation',
-	'removeFile',
-	'reorderFiles',
-	'selectAll',
 	'selectFile',
-	'setCurrentFileList',
 	'setFileOrderLocked',
-	'setOrderLocked',
-	'setSelectedFileIndices',
-	'setSelectedIndex',
-	'setSortAscending',
-	'showMultiSelection',
-	'showSingleSelection',
 	'stageMetadataToSelection',
-	'toggleFileSort',
-	'updateFileProperties',
 ] as const;
 
 describe('File List Runtime public API contract', () => {
 	beforeEach(() => {
-		fileList.setCurrentFileList(null);
+		setCurrentFileList(null);
 	});
 
 	it('pins the file list public export strip', () => {

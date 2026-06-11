@@ -8,12 +8,10 @@ const EXPECTED_OUTPUT_PANEL_EXPORTS = [
 	'initOutputPanel',
 	'readEstimatedSizeText',
 	'readOutputDefaultsFromState',
-	'readOutputDisplaySnapshot',
 	'readOutputRequestConfig',
 	'runOutputPlanReviewWorkflow',
 	'updateEstimatedSize',
 	'updateOutputPath',
-	'getCurrentMetadata',
 ] as const;
 
 describe('Output Panel Runtime public API contract', () => {
@@ -28,8 +26,5 @@ describe('Output Panel Runtime public API contract', () => {
 	it('reads estimated size through the public accessor after refresh', () => {
 		outputPanel.updateEstimatedSize();
 		expect(outputPanel.readEstimatedSizeText()).toMatch(/^~/);
-		expect(outputPanel.readOutputDisplaySnapshot().estimatedSizeText).toBe(
-			outputPanel.readEstimatedSizeText(),
-		);
 	});
 });

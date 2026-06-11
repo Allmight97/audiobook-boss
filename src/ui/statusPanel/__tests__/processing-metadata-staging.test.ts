@@ -57,6 +57,7 @@ vi.mock('../processingConfig', () => ({
 
 vi.mock('../../outputPanel', () => ({
 	updateOutputPath: context.updateOutputPathMock,
+	runOutputPlanReviewWorkflow: vi.fn(async () => ({ action: 'continue' })),
 }));
 
 vi.mock('../../jobControls', () => ({

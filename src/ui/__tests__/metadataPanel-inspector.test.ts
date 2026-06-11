@@ -2,11 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import {
 	clearSelectionPanels,
-	setCurrentFileList,
-	setSelectedIndex,
 	showMultiSelection,
 	showSingleSelection,
-} from '../fileList';
+} from '../fileList/metadataPanel';
+import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 
 const context = vi.hoisted(() => ({

@@ -83,6 +83,8 @@ vi.mock('../metadataForm', () => ({
 
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
+	getSelectedFileIndices: vi.fn(() => new Set<number>()),
+	getSortAscending: vi.fn(() => true),
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));
