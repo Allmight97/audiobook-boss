@@ -1,3 +1,4 @@
+import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
@@ -5,9 +6,21 @@ import tailwindcss from '@tailwindcss/vite';
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+// tauri://localhost serves assets without CORS headers; crossorigin module tags break WebKit.
+function removeCrossoriginPlugin(): Plugin {
+	return {
+		name: 'remove-crossorigin',
+		transformIndexHtml(html) {
+			return html
+				.replace(/<script([^>]*?)\scrossorigin(?:="[^"]*")?([^>]*)>/gi, '<script$1$2>')
+				.replace(/<link([^>]*?)\scrossorigin(?:="[^"]*")?([^>]*)>/gi, '<link$1$2>');
+		},
+	};
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-	plugins: [tailwindcss(), svelte()],
+	plugins: [tailwindcss(), svelte(), removeCrossoriginPlugin()],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//
@@ -28,6 +41,16 @@ export default defineConfig(async () => ({
 		watch: {
 			// 3. tell vite to ignore app-external Rust and reference trees
 			ignored: ['**/src-tauri/**', '**/repos/**'],
+		},
+	},
+	build: {
+		// Split chunks created a logic <-> outputPanel import cycle; WebKit rejects it under
+		// tauri://localhost. Dev mode serves source modules over http://localhost instead.
+		modulePreload: false,
+		rolldownOptions: {
+			output: {
+				inlineDynamicImports: true,
+			},
 		},
 	},
 }));

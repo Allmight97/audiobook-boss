@@ -4,6 +4,12 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Packaged macOS builds no longer open to a blank window: production frontend
+  bundling avoids split-chunk cycles and tauri:// asset loading issues that
+  dev mode does not exercise.
+
 ## [1.1.3] - 2026-06-11
 
 ### Changed
