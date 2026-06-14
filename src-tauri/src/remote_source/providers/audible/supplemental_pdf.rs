@@ -127,8 +127,7 @@ pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalAsset, SupplementalPdfFailure> {
-    let client =
-        no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
+    let client = no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
     let url = companion_file_url(request.title_id)?;
     download_supplemental_pdf_with_client(&client, request, url, false, is_cancelled).await
 }

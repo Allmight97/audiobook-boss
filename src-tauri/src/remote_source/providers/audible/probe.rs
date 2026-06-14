@@ -2,6 +2,7 @@
 // All tests are `#[ignore]` and must never be used as backend proof.
 // Only run manually with explicit environment configuration.
 
+use super::library_probe::{first_array_len_for_keys, library_probe_params, library_probe_summary};
 use super::*;
 use crate::remote_source::vault::KeyringSecretVault;
 use abb_audible_core::supplemental_pdf_display_file_name;

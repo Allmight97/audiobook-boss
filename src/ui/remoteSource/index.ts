@@ -6,4 +6,5 @@ export {
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
+	supplementalAssetsByInputIdForProcessing,
 } from './sessionAssets.svelte';

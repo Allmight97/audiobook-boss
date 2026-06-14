@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { FileListInfo, ProcessCommandResult } from '../../types/audio';
+import type { FileListInfo } from '../../types/audio';
 
 const purgeRemoteSourceSessionMock = vi.hoisted(() => vi.fn());
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
@@ -191,26 +191,11 @@ describe('remote source session assets', () => {
 		expect(summary.fileCountWithCompanions).toBe(2);
 	});
 
-	it('purges acquired session roots after matching final batch success', async () => {
+	it('purges acquired session roots for explicit input ids', async () => {
 		const module = await import('./sessionAssets.svelte');
 		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-		const result: ProcessCommandResult = {
-			jobType: 'batch',
-			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
-			results: [
-				{
-					inputIndex: 0,
-					status: 'success',
-					message: 'ok',
-					error: undefined,
-					previewFilePath: undefined,
-					previewActualSeconds: undefined,
-					jobId: 'processing-job-1',
-				},
-			],
-		};
 
-		await module.purgeSuccessfulRemoteSourceSessions(result, ['current-input-1']);
+		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
 
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
 		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
@@ -256,39 +241,8 @@ describe('remote source session assets', () => {
 	it('waits to purge shared acquisition sessions until every registered input is removable', async () => {
 		const module = await import('./sessionAssets.svelte');
 		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
-		const partialResult: ProcessCommandResult = {
-			jobType: 'batch',
-			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 0, failed: 1 },
-			results: [
-				{
-					inputIndex: 0,
-					status: 'success',
-					message: 'ok',
-					error: undefined,
-					previewFilePath: undefined,
-					previewActualSeconds: undefined,
-					jobId: 'processing-job-1',
-				},
-				{
-					inputIndex: 1,
-					status: 'failed',
-					message: 'failed',
-					error: {
-						code: 'processing_failed',
-						category: 'processing',
-						message: 'failed',
-					},
-					previewFilePath: undefined,
-					previewActualSeconds: undefined,
-					jobId: 'processing-job-2',
-				},
-			],
-		};
 
-		await module.purgeSuccessfulRemoteSourceSessions(partialResult, [
-			'current-input-1',
-			'current-input-2',
-		]);
+		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
 
 		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
 		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
@@ -306,23 +260,7 @@ describe('remote source session assets', () => {
 			],
 		});
 
-		const retryResult: ProcessCommandResult = {
-			jobType: 'batch',
-			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
-			results: [
-				{
-					inputIndex: 0,
-					status: 'success',
-					message: 'ok',
-					error: undefined,
-					previewFilePath: undefined,
-					previewActualSeconds: undefined,
-					jobId: 'processing-job-3',
-				},
-			],
-		};
-
-		await module.purgeSuccessfulRemoteSourceSessions(retryResult, ['current-input-2']);
+		await module.purgeRemoteSourceSessionsForInputIds(['current-input-2']);
 
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledTimes(1);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');

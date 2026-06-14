@@ -9,8 +9,8 @@ use serde_json::{json, Value};
 
 pub(super) mod acquisition;
 mod audio_download;
-mod http;
 mod diagnostics;
+mod http;
 mod library;
 mod license;
 mod materialization;
@@ -304,17 +304,12 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 mod library_probe;
 
 #[cfg(test)]
-pub(in crate::remote_source::providers::audible) use library_probe::{
-    first_array_len_for_keys, first_string_for_keys, first_u64_for_keys, library_probe_params,
-    library_probe_summary, LibraryProbeSummary,
-};
-
-#[cfg(test)]
 mod probe;
 
 #[cfg(test)]
 mod tests {
     use super::audio_download::{build_download_request, download_to_path, partial_download_path};
+    use super::library_probe::library_probe_summary;
     use super::license::{license_request_payload, license_request_spec};
     use super::*;
     use abb_remote_source_core::AcquisitionProgress;

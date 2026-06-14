@@ -1,9 +1,6 @@
 use std::fs;
 use std::path::Path;
 
-use abb_audible_core::{classify_download_response_for_mode, title_ref, DownloadResponseError};
-use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
-use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use super::acquisition::{ensure_not_cancelled, with_title_progress, TitleAcquisitionCtx};
 use super::http::{audio_download_client, stream_response_chunks};
 use super::{
@@ -12,6 +9,9 @@ use super::{
 };
 use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::StagedTempFile;
+use abb_audible_core::{classify_download_response_for_mode, title_ref, DownloadResponseError};
+use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
+use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 
 #[derive(Clone, Copy)]
 pub(super) struct DownloadLogContext<'a> {

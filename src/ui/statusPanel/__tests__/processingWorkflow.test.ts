@@ -22,9 +22,9 @@ import type { OutputPlanReviewResult } from '../../outputPanel';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
-	removeRemoteSourceSupplementalAssets,
-	supplementalAssetsForInputIds,
-} from '../../remoteSource/sessionAssets.svelte';
+	supplementalAssetsByInputIdForProcessing,
+} from '../../remoteSource';
+import { removeRemoteSourceSupplementalAssets } from '../../remoteSource/sessionAssets.svelte';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
@@ -390,6 +390,38 @@ describe('ProcessingWorkflow', () => {
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
+	it('keeps retained remote-source sessions when submission fails without a pending purge', async () => {
+		const currentFileList: FileListInfo = {
+			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
+			selectedDecoders: [null],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		};
+		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
+		const purgeSpy = vi.spyOn(tauriClient, 'purgeRemoteSourceSession').mockResolvedValue(undefined);
+		const ctx = workflowContext();
+		const { services, feedback } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+			getJobType: vi.fn((): JobType => 'batch'),
+			submitProcessingOperation: vi.fn(async () => {
+				throw {
+					code: 'decoder_unavailable',
+					category: 'toolchain',
+					message: 'Decoder unavailable.',
+					detail: null,
+				};
+			}),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+		expect(purgeSpy).not.toHaveBeenCalled();
+		expect(supplementalAssetsByInputIdForProcessing(['current-input-1'])).toBeDefined();
+	});
+
 	it('purges retained remote-source sessions that were pending purge when submission fails', async () => {
 		const currentFileList: FileListInfo = {
 			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
@@ -420,6 +452,6 @@ describe('ProcessingWorkflow', () => {
 
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(purgeSpy).toHaveBeenCalledWith('remote-job-1');
-		expect(supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+		expect(supplementalAssetsByInputIdForProcessing(['current-input-1'])).toBeUndefined();
 	});
 });

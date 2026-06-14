@@ -183,19 +183,6 @@ pub fn choose_acquisition_strategy(facts: &LicenseFacts) -> AcquisitionStrategy 
     }
 }
 
-pub fn strategy_allows_import_handoff(
-    strategy: AcquisitionStrategy,
-    source_kind: MaterializedSourceKind,
-) -> bool {
-    matches!(
-        (strategy, source_kind),
-        (
-            AcquisitionStrategy::DownloadImportReady,
-            MaterializedSourceKind::ImportReadyM4b
-        )
-    )
-}
-
 pub fn acquisition_progress(
     stage: AcquisitionStage,
     fraction: Option<f32>,
@@ -382,16 +369,22 @@ mod tests {
     }
 
     #[test]
-    fn only_m4b_family_is_import_ready() {
-        assert!(materialized_source_is_import_ready(
-            MaterializedSourceKind::ImportReadyM4b
-        ));
-        assert!(!materialized_source_is_import_ready(
-            MaterializedSourceKind::EncryptedAax
-        ));
-        assert!(!materialized_source_is_import_ready(
-            MaterializedSourceKind::EncryptedAaxc
-        ));
+    fn only_m4b_family_is_import_ready_for_materialized_handoff() {
+        let cases = [
+            (MaterializedSourceKind::ImportReadyM4b, true),
+            (MaterializedSourceKind::EncryptedAax, false),
+            (MaterializedSourceKind::EncryptedAaxc, false),
+            (MaterializedSourceKind::SupplementalPdf, false),
+            (MaterializedSourceKind::Unsupported, false),
+        ];
+
+        for (kind, expected) in cases {
+            assert_eq!(
+                materialized_source_is_import_ready(kind),
+                expected,
+                "{kind:?}"
+            );
+        }
     }
 
     #[cfg(unix)]
@@ -511,22 +504,6 @@ mod tests {
             choose_acquisition_strategy(&facts),
             AcquisitionStrategy::DownloadThenDecryptDash
         );
-    }
-
-    #[test]
-    fn encrypted_sources_are_not_import_ready_before_decryption() {
-        assert!(!strategy_allows_import_handoff(
-            AcquisitionStrategy::DownloadThenDecryptAax,
-            MaterializedSourceKind::EncryptedAax
-        ));
-        assert!(!strategy_allows_import_handoff(
-            AcquisitionStrategy::DownloadThenDecryptAaxc,
-            MaterializedSourceKind::EncryptedAaxc
-        ));
-        assert!(strategy_allows_import_handoff(
-            AcquisitionStrategy::DownloadImportReady,
-            MaterializedSourceKind::ImportReadyM4b
-        ));
     }
 
     #[test]

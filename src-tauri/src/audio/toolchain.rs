@@ -137,7 +137,7 @@ fn validate_candidates(
             Err(error) => {
                 log::info!(
                     "external ffmpeg candidate failed: path={} reason={}",
-                    candidate.display(),
+                    sanitize_path_for_display(candidate),
                     error
                 );
                 if preferred_error.is_none() && !error.starts_with("FFmpeg executable not found at")
@@ -376,9 +376,7 @@ pub fn validate_external_input_decoders(
 }
 
 fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
-    let lipo = Command::new("lipo")
-        .args(["-archs", &candidate.to_string_lossy()])
-        .output();
+    let lipo = Command::new("lipo").arg("-archs").arg(candidate).output();
     if let Ok(output) = lipo {
         if output.status.success() {
             let arches = String::from_utf8_lossy(&output.stdout);
@@ -388,9 +386,7 @@ fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
         }
     }
 
-    let file = Command::new("file")
-        .args(["-b", &candidate.to_string_lossy()])
-        .output();
+    let file = Command::new("file").arg("-b").arg(candidate).output();
     if let Ok(output) = file {
         if output.status.success() {
             let description = String::from_utf8_lossy(&output.stdout);

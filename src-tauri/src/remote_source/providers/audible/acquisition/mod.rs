@@ -4,14 +4,6 @@ mod paths;
 mod progress;
 mod validation;
 
-use abb_audible_core::{
-    supplemental_pdf_display_file_name, title_ref, AudibleLicenseDecryptContext,
-};
-use abb_remote_source_core::{
-    acquisition_progress, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
-};
-use audible_api::api::Client as AudibleClient;
-use audible_api::auth::Auth;
 use super::audio_download::{cleanup_download_artifacts, download_audio};
 use super::diagnostics::AudibleAcquisitionError;
 use super::license::{
@@ -33,6 +25,14 @@ use crate::remote_source::{
     RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteSourceDiagnostic,
     SupplementalAsset,
 };
+use abb_audible_core::{
+    supplemental_pdf_display_file_name, title_ref, AudibleLicenseDecryptContext,
+};
+use abb_remote_source_core::{
+    acquisition_progress, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
+};
+use audible_api::api::Client as AudibleClient;
+use audible_api::auth::Auth;
 
 pub(super) struct AcquiredTitle {
     pub(super) file: Option<MaterializedSourceFile>,
@@ -391,7 +391,7 @@ pub(super) async fn download_supplemental_pdf_if_requested(
         Err(failure) if failure.category == "cancelled" => {
             return Err(AudibleAcquisitionError::cancellation(
                 remote_acquisition_cancelled(),
-            ))
+            ));
         }
         Err(failure) => {
             log_supplemental_pdf_failed(job_id, title_id, failure);
@@ -417,8 +417,6 @@ pub(super) fn required_supplemental_pdf_failure_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use abb_remote_source_core::MaterializedSourceKind;
-    use std::path::Path;
     use crate::remote_source::providers::audible::audio_download::{
         cleanup_download_artifacts, download_status_failure, partial_download_path,
     };
@@ -428,6 +426,7 @@ mod tests {
     use secrecy::ExposeSecret;
     use serde_json::json;
     use std::collections::HashMap;
+    use std::path::Path;
 
     fn fixture_auth_without_pdf_cookies() -> Auth {
         Auth {
@@ -562,32 +561,6 @@ mod tests {
             Some(expected.as_str())
         );
         assert!(!materialized_path.to_string_lossy().contains(title_id));
-    }
-
-    fn materialized_source_kind_label(kind: MaterializedSourceKind) -> &'static str {
-        match kind {
-            MaterializedSourceKind::ImportReadyM4b => "M4B",
-            MaterializedSourceKind::EncryptedAax => "AAX",
-            MaterializedSourceKind::EncryptedAaxc => "AAXC",
-            MaterializedSourceKind::SupplementalPdf => "PDF",
-            MaterializedSourceKind::Unsupported => "file",
-        }
-    }
-
-    fn materialized_file_from_downloaded_path(
-        title_id: &str,
-        path: &Path,
-        strategy: AcquisitionStrategy,
-    ) -> Result<MaterializedSourceFile> {
-        let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-        if !abb_remote_source_core::strategy_allows_import_handoff(strategy, source_kind) {
-            return Err(AppError::FileValidation(format!(
-                "Downloaded Audible {} requires Audible decryption before ABB import handoff.",
-                materialized_source_kind_label(source_kind)
-            )));
-        }
-
-        validation::materialized_file_from_path(title_id, path)
     }
 
     #[test]
@@ -740,11 +713,7 @@ mod tests {
         let encrypted = root.path().join("book.aax");
         std::fs::write(&encrypted, b"encrypted").expect("write encrypted fixture");
 
-        let result = materialized_file_from_downloaded_path(
-            "B000000001",
-            &encrypted,
-            abb_remote_source_core::AcquisitionStrategy::DownloadThenDecryptAax,
-        );
+        let result = validation::materialized_file_from_path("B000000001", &encrypted);
 
         let error = result.expect_err("encrypted download must not be import-ready");
         assert!(error.to_string().contains("requires Audible decryption"));
