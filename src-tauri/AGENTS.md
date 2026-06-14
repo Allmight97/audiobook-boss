@@ -44,7 +44,7 @@
 
 ### Backend Shape Triggers
 
-- Route Rust shape questions through root Refactor Shape.
+- Route Rust shape questions through root Execution, Scope, And Refactor Discipline.
 - Treat Clippy `too_many_lines` and `too_many_arguments` as prompts to re-check
   cohesion, not as automatic split commands.
 - Keep clippy allowances local and justified; avoid broad crate-level suppressions for maintainability lints.

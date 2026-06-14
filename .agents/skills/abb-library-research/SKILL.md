@@ -105,6 +105,10 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 
 - Prefer exported installed dependency types over copying conditional types or
   local mirrors from reference repos.
+- For third-party implementations, distinguish dependency use, source copying,
+  close ports, linking/bundling, binary distribution, and paid binaries. Record
+  intended ownership, license posture, and distribution implications before
+  absorbing implementation code.
 - Use this skill's route references to find the right subtree paths, then use
   `repos/*` as read-only source material; do not import from it.
 - Keep `src/lib/tauri/*` as ABB's runtime boundary for Tauri IPC/plugin access.

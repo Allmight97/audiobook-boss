@@ -11,14 +11,15 @@
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
 - Canonical metadata lookup provider-degradation behavior is documented in
   `src-tauri/src/commands/metadata_lookup/service.rs`.
+- Guidance ownership: root owns repo-wide posture, proof, skill routing, and cross-cutting invariants; local `AGENTS.md` files own path-specific surfaces, commands, traps, and done criteria; skills own reusable procedures.
 
 ## Testing And Proof Infrastructure
 
 - Verification cost and signal are first-order product concerns. Treat slow,
   opaque, false-green, or target-bloated proof routes as `fix` candidates when
   measured evidence shows they waste agent or human attention.
-- Tests and proof routes are not sacred. Delete, consolidate, or redesign them
-  when that improves signal, wall-clock, or failure clarity.
+- Treat tests and proof routes as product surfaces. Delete, consolidate, or
+  redesign them when that improves signal, wall-clock, or failure clarity.
 - Add tests only when they reduce false confidence or protect a concrete
   user-visible handoff, runtime contract, cleanup path, or regression.
   Prefer deterministic focused checks over coverage-count expansion.
@@ -26,48 +27,33 @@
   latency when useful, child process or lock state when relevant, and whether
   the cost was expected stack work or infrastructure friction.
 
-## Operating Posture
+## Execution, Scope, And Refactor Discipline
 
 - Complete tasks by proving the requested outcome, not by accumulating process.
+- For non-trivial work, name the requested outcome, owning boundary, proof route, and assumptions that affect safety, ownership, contracts, behavior, or verification.
+- Ask only when the answer changes implementation shape, safety, ownership, contract semantics, or verification. Otherwise proceed with a stated assumption and verify.
 - Prefer the smallest coherent solution, not automatically the smallest diff.
 - Minimal churn means fewer correction loops and break/fix cycles; it does not mean preserving bad seams.
+- Every changed line should trace to the active outcome, an owning invariant, or cleanup made necessary by the change.
 - Keep architecture changes localized to the subsystem that owns the invariant.
-- Align with the repo owner before materially widening scope beyond the active outcome.
-- Surface malformed seams, cross-layer contract drift, brittle logic, and bad solution shape when encountered.
-- Refactor when the connection to active work is concrete enough to improve durability, ownership clarity, or contract correctness.
-- Use plain implementation language over process theater. Avoid words like
-  "blocker," "phase," "sprint," "stakeholder," and "clean room" unless the user
-  asks for that framing or the repo surface specifically requires it.
-- When stating a constraint, say exactly what is allowed, what is not allowed,
-  and why. Third-party implementations may be used, wrapped, studied, ported,
-  or replaced only through an explicit design/licensing decision. Do not
-  accidentally absorb implementation code or close ports without recording
-  intended ownership, license posture, and distribution implications.
-- Treat licensing as a design dimension, not an early architecture filter.
-  Distinguish dependency use, source copying, close source porting,
-  linking/bundling, binary distribution, and charging for binaries. Do not
-  collapse those into vague allow/ban guidance around a named license or
-  dependency.
-- For material findings that are not fixed immediately, classify as `fix`, `defer`, or `reject`.
-  - State the impact of fixing versus leaving it alone.
-  - Avoid vague labels like "probably," "soon," or "watchlist."
-  - Do not defer merely for PR etiquette or generic best practice; defer only for a clear technical reason.
-  - Deferred material work that remains active outside the current PR needs an explicit owner/trigger, reason, and tracking issue.
-  - Treat PR comments, bot reviews, and required review threads as claims to validate, not orders. Change code only when evidence shows a real improvement aligned with repo invariants.
-
-## Refactor Shape
-
-- Start refactors by naming the owned invariant and owner. Move truth to the
-  owning layer before extracting helpers or reshaping files.
+  Start refactors by naming the owned invariant and owner, then move truth to
+  the owning layer before extracting helpers or reshaping files.
+- Surface malformed seams, cross-layer contract drift, brittle logic, and bad
+  solution shape when encountered. Refactor when the connection to active work
+  improves durability, ownership clarity, contract correctness, scan cost, or
+  test signal.
+- Use plain implementation language. Reserve process labels such as "blocker,"
+  "phase," "sprint," "stakeholder," and "clean room" for user requests or repo
+  surfaces that already use that framing.
+- Treat third-party implementation source as a design/licensing decision before
+  use, copying, porting, linking, bundling, replacement, or binary distribution.
 - Use helpers for deterministic local policy that remains in orchestration or
   rendering code: filters, labels, summaries, formatting, and predicates. Keep
   lifecycle, IPC, artifact, and contract truth in their owning boundaries.
 - Prefer modules and functions with one clear responsibility or one orchestration
-  pipeline. Large orchestrators are fine when one invariant owns the file and
-  stage boundaries stay explicit.
-- Before extending a large module, check whether it still has one owner and one
-  invariant, and whether policy can move to a helper with a focused behavior test
-  without smearing lifecycle or contract truth.
+  pipeline. Before extending a large module, check whether it still has one
+  owner and one invariant, and whether policy can move to a helper with a
+  focused behavior test.
 - Split when scan cost, test cost, or ownership blur rises — at semantic
   boundaries, not to satisfy a line count.
 - Prefer typed config objects over long parameter lists unless an external
@@ -77,6 +63,19 @@
 - Public API Strip tests must stay independent of implementation registries.
   Do not derive expected public surfaces from the command, event, or generated
   source they are meant to guard.
+- Remove imports, variables, functions, docs, tests, aliases, exports, and
+  generated references made unused or stale by the current change.
+- Treat pre-existing dead code, stale patterns, duplicate rules, fallback
+  behavior, and suspicious seams as findings. Report them with evidence; fix
+  them in the same change only when they are inside the active owner boundary
+  and affect the invariant or proof.
+- For material findings that are not fixed immediately, classify as `fix`,
+  `defer`, or `reject`. State the impact, owner/trigger when work remains
+  active outside the current change, and why that route is better than fixing
+  now.
+- Treat PR comments, bot reviews, and required review threads as claims to
+  validate. Change code when evidence shows a real improvement aligned with
+  repo invariants.
 
 ## Hard Invariants
 

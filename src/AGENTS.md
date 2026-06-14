@@ -40,7 +40,7 @@
 
 ### Frontend Shape Triggers
 
-- Route shape questions through root Refactor Shape.
+- Route shape questions through root Execution, Scope, And Refactor Discipline.
 - Split when scan cost, test cost, or ownership blur rises — at user-facing
   behavior boundaries.
 - For linting upgrades, prioritize type-aware `typescript-eslint` rules that catch unsafe `any` propagation.
