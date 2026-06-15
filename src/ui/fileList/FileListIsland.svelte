@@ -70,7 +70,7 @@
 	}
 
 	function getFileName(path: string): string {
-		return pathBasename(path);
+		return pathBasename(path, { fallback: 'path' });
 	}
 
 	function formatFileDetails(file: (typeof files)[number]): string {

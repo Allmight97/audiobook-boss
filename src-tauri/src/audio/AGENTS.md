@@ -65,6 +65,12 @@
 - Keep small tests inline when they clarify the nearby code; move bulky private
   test blocks to sibling test files when readability is the real issue.
 
+## Path Display Policy
+
+- Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
+- Diagnostics and logs use sanitized display strings.
+- Lossy strings are allowed only for display ordering, never identity or command argv.
+
 ## Allowed Agent Edits Without Escalation
 
 - Change private implementation files when focused audio/processing tests stay

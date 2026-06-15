@@ -36,5 +36,5 @@ export function buildMetadataSaveCompletionFeedback(
 }
 
 function filenameFromPath(filePath: string): string {
-	return pathBasename(filePath);
+	return pathBasename(filePath, { fallback: 'path' });
 }

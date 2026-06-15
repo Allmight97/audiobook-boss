@@ -42,8 +42,8 @@ pub(crate) fn create_processing_workspace_dir(
 
     log::info!(
         "processing_workspace kind=app-cache status=created root={} session_dir={}",
-        workspace_root.display(),
-        staging_dir.display()
+        sanitize_path_for_display(workspace_root),
+        sanitize_path_for_display(&staging_dir)
     );
 
     Ok(staging_dir)

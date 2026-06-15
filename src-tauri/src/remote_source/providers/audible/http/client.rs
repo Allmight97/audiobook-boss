@@ -20,7 +20,8 @@ pub(in crate::remote_source::providers::audible) fn audio_download_client(
 }
 
 /// Build a client that does not follow redirects; callers handle redirect loops manually.
-pub(in crate::remote_source::providers::audible) fn no_redirect_client() -> Result<reqwest::Client, ()> {
+pub(in crate::remote_source::providers::audible) fn no_redirect_client(
+) -> Result<reqwest::Client, ()> {
     reqwest::Client::builder()
         .redirect(Policy::none())
         .build()

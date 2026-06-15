@@ -1,7 +1,7 @@
 use tokio::io::AsyncWriteExt;
 
-use crate::remote_source::cancellation::ensure_not_cancelled;
 use crate::errors::Result;
+use crate::remote_source::cancellation::ensure_not_cancelled;
 
 /// Stream one HTTP response body into append-mode `file`, invoking `on_chunk` for each
 /// non-empty chunk after a cancellation check. Returns `true` if the body read failed

@@ -73,7 +73,10 @@ pub(super) async fn validate_materialized_audio(
     Ok(file)
 }
 
-pub(super) fn materialized_file_from_path(title_id: &str, path: &Path) -> Result<MaterializedSourceFile> {
+pub(super) fn materialized_file_from_path(
+    title_id: &str,
+    path: &Path,
+) -> Result<MaterializedSourceFile> {
     let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
     if !abb_remote_source_core::materialized_source_is_import_ready(source_kind) {
         return Err(AppError::FileValidation(format!(

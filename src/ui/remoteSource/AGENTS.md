@@ -6,7 +6,7 @@
 - Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
   `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
   `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
-  `CompanionAssetSummary` (type).
+  `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
 - Do not re-export acquisition workflow symbols, islands, or private
   `sessionAssets.svelte` helpers such as `supplementalAssetsForInputIds` from
   the index.

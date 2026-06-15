@@ -1,5 +1,4 @@
 import type { AudioFile, FileListInfo, SupplementalProcessingAsset } from '../../types/audio';
-import type { ProcessCommandResult } from '../../types/audio';
 import { normalizeAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource';
@@ -69,6 +68,12 @@ export function supplementalAssetsForInputIds(
 			}),
 	);
 	return Object.keys(selected).length > 0 ? selected : undefined;
+}
+
+export function supplementalAssetsByInputIdForProcessing(
+	inputIds: readonly (string | undefined)[],
+): Record<string, SupplementalProcessingAsset[]> | undefined {
+	return supplementalAssetsForInputIds(inputIds);
 }
 
 export function supplementalAssetsForInputId(
@@ -222,17 +227,4 @@ export async function purgeRemoteSourceSessionsForInputIds(
 		}
 	}
 	removeRemoteSourceSupplementalAssets(purgeableIds);
-}
-
-export async function purgeSuccessfulRemoteSourceSessions(
-	result: ProcessCommandResult,
-	inputIds: readonly (string | undefined)[],
-): Promise<void> {
-	if (result.jobType !== 'batch') return;
-
-	const successfulInputIds = result.results
-		.filter((entry) => entry.status === 'success' && typeof entry.inputIndex === 'number')
-		.map((entry) => inputIds[entry.inputIndex as number])
-		.filter((inputId): inputId is string => Boolean(inputId));
-	await purgeRemoteSourceSessionsForInputIds(successfulInputIds);
 }

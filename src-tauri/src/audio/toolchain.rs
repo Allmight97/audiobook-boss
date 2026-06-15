@@ -137,7 +137,7 @@ fn validate_candidates(
             Err(error) => {
                 log::info!(
                     "external ffmpeg candidate failed: path={} reason={}",
-                    candidate.display(),
+                    sanitize_path_for_display(candidate),
                     error
                 );
                 if preferred_error.is_none() && !error.starts_with("FFmpeg executable not found at")
@@ -155,7 +155,7 @@ fn validate_candidates(
 }
 
 fn path_to_string(path: &Path) -> Option<String> {
-    Some(path.to_string_lossy().to_string())
+    path.to_str().map(str::to_owned)
 }
 
 fn auto_candidates() -> Vec<PathBuf> {
@@ -376,9 +376,7 @@ pub fn validate_external_input_decoders(
 }
 
 fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
-    let lipo = Command::new("lipo")
-        .args(["-archs", &candidate.to_string_lossy()])
-        .output();
+    let lipo = Command::new("lipo").arg("-archs").arg(candidate).output();
     if let Ok(output) = lipo {
         if output.status.success() {
             let arches = String::from_utf8_lossy(&output.stdout);
@@ -388,9 +386,7 @@ fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
         }
     }
 
-    let file = Command::new("file")
-        .args(["-b", &candidate.to_string_lossy()])
-        .output();
+    let file = Command::new("file").arg("-b").arg(candidate).output();
     if let Ok(output) = file {
         if output.status.success() {
             let description = String::from_utf8_lossy(&output.stdout);
@@ -492,6 +488,17 @@ mod tests {
             resolution.detected_toolchain_path.as_deref(),
             Some(validated.ffmpeg_path.to_string_lossy().as_ref())
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detected_toolchain_path_omits_non_utf8_display_value() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from("/tmp").join(OsString::from_vec(b"ffmpeg-\xFF".to_vec()));
+
+        assert_eq!(path_to_string(&path), None);
     }
 
     #[test]

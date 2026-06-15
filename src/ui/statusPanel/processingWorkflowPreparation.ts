@@ -15,7 +15,7 @@ import { isUsableMetadataCache } from '../metadataState';
 import type { OutputPlanReviewResult } from '../outputPanel';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
 import type { ProcessingWorkflowServices } from './processingWorkflow';
-import { supplementalAssetsForInputIds } from '../remoteSource/sessionAssets.svelte';
+import { supplementalAssetsByInputIdForProcessing } from '../remoteSource';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 
@@ -50,7 +50,7 @@ export function buildProcessPayload(
 		sampleRate: processingRequestConfig.sampleRate,
 		jobType,
 		outputNaming: processingRequestConfig.outputNaming,
-		supplementalAssetsByInputId: supplementalAssetsForInputIds(inputIds),
+		supplementalAssetsByInputId: supplementalAssetsByInputIdForProcessing(inputIds),
 	};
 }
 

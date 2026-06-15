@@ -9,7 +9,7 @@ use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
 use crate::audio::SampleRateConfig;
-use crate::errors::Result;
+use crate::errors::{sanitize_path_for_display, Result};
 use crate::processing::ProcessingContext;
 
 /// ffmpeg-next based processor
@@ -28,39 +28,30 @@ impl FfmpegNextProcessor {
     ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
-        log::info!(
-            "🎵 Starting to process input file: {}",
-            input_path.display()
-        );
+        let input_label = sanitize_path_for_display(input_path);
+        log::info!("🎵 Starting to process input file: {}", input_label);
 
         if ctx.context.is_cancelled() {
             log::warn!(
                 "Processing was cancelled before processing file: {}",
-                input_path.display()
+                input_label
             );
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
 
         // Initialize per-file preview state if adaptive preview is active
-        let file_name = input_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
         if let Some(ref mut ps) = ctx.preview_state {
             ps.start_new_file(file_index);
             log::info!(
                 "Adaptive preview: starting file {} '{}' at pts={}",
                 file_index + 1,
-                file_name,
+                input_label,
                 *ctx.running_pts
             );
         }
 
-        log::info!(
-            "Setting up decoder and resampler for: {}",
-            input_path.display()
-        );
+        log::info!("Setting up decoder and resampler for: {}", input_label);
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
         log::info!(
@@ -77,7 +68,7 @@ impl FfmpegNextProcessor {
             stream_index
         );
 
-        log::info!("Processing input packets from: {}", input_path.display());
+        log::info!("Processing input packets from: {}", input_label);
         let action = crate::audio::processor::frame_pipeline::process_input_packets(
             &mut ictx,
             &mut decoder,
@@ -92,7 +83,7 @@ impl FfmpegNextProcessor {
             action
         );
 
-        log::info!("✅ Completed processing file: {}", input_path.display());
+        log::info!("✅ Completed processing file: {}", input_label);
         Ok(action)
     }
 }
@@ -229,7 +220,7 @@ pub(crate) fn probe_first_input(plan: &MediaProcessingPlan) -> Result<(u32, i32)
     let inspection = crate::audio::processor::streams::inspect_audio_decoder(first)?;
     log::info!(
         "probe_first_input path={} selected_decoder={} rate={} channels={}",
-        first.display(),
+        sanitize_path_for_display(first),
         inspection.selected_decoder,
         inspection.sample_rate,
         inspection.channels

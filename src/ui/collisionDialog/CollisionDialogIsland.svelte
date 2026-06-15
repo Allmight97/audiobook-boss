@@ -34,7 +34,7 @@
 	}
 
 	function getBasename(path: string): string {
-		return pathBasename(path, { trimTrailingSeparators: true });
+		return pathBasename(path, { fallback: 'path' });
 	}
 
 	function getParentPath(path: string): string {

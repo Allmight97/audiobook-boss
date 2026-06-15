@@ -155,7 +155,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 					if (typeof entry.inputIndex === 'number') {
 						const path = filePaths[entry.inputIndex];
 						if (path) {
-							return pathBasename(path);
+								return pathBasename(path, { fallback: 'path' });
 						}
 					}
 					if (entry.error != null) {
