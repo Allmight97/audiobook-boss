@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-06-15
+
+### Changed
+
+- Tightened path, remote-source, and audio contract hygiene so basename fallback
+  behavior is explicit, Status Panel consumes remote-source processing helpers
+  through the public UI surface, and external audio tooling preserves OS-native
+  path arguments.
+
 ### Fixed
 
 - Packaged macOS builds no longer open to a blank window: production frontend
