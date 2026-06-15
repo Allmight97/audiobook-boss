@@ -1,11 +1,11 @@
 export type PathBasenameFallback = 'path' | 'empty';
 
 type PathBasenameOptions = {
-	fallback?: PathBasenameFallback;
+	fallback: PathBasenameFallback;
 };
 
-export function pathBasename(path: string, options: PathBasenameOptions = {}): string {
-	const { fallback = 'path' } = options;
+export function pathBasename(path: string, options: PathBasenameOptions): string {
+	const { fallback } = options;
 	const segments = path.split(/[\\/]/).filter((segment) => segment !== '');
 	const last = segments[segments.length - 1];
 	if (last) {

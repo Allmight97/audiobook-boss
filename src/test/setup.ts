@@ -77,7 +77,7 @@ function mockOperationSnapshot(
 		children: inputFiles.map((path, index) => ({
 			childJobId: `input-${index}`,
 			operationId,
-			label: pathBasename(path),
+			label: pathBasename(path, { fallback: 'path' }),
 			status: 'queued' as const,
 			lane: 'encodeCpu' as const,
 			progress: {

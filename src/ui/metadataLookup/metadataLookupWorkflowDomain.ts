@@ -15,7 +15,7 @@ export type QueueItemState = {
 };
 
 function formatFileName(path: string): string {
-	return pathBasename(path);
+	return pathBasename(path, { fallback: 'path' });
 }
 
 function isTrackLikeTitle(value: string): boolean {

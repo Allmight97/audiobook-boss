@@ -53,7 +53,7 @@ function updatePropertiesContextSingle(file: AudioFile, index: number): void {
 		return;
 	}
 
-	const fileName = pathBasename(file.path);
+	const fileName = pathBasename(file.path, { fallback: 'path' });
 	setInspectorContext({
 		text: fileName,
 		variant: 'single',

@@ -155,7 +155,7 @@ fn validate_candidates(
 }
 
 fn path_to_string(path: &Path) -> Option<String> {
-    Some(path.to_string_lossy().to_string())
+    path.to_str().map(str::to_owned)
 }
 
 fn auto_candidates() -> Vec<PathBuf> {
@@ -488,6 +488,17 @@ mod tests {
             resolution.detected_toolchain_path.as_deref(),
             Some(validated.ffmpeg_path.to_string_lossy().as_ref())
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detected_toolchain_path_omits_non_utf8_display_value() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from("/tmp").join(OsString::from_vec(b"ffmpeg-\xFF".to_vec()));
+
+        assert_eq!(path_to_string(&path), None);
     }
 
     #[test]

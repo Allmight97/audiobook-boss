@@ -28,22 +28,19 @@ impl FfmpegNextProcessor {
     ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
-        log::info!(
-            "🎵 Starting to process input file: {}",
-            sanitize_path_for_display(input_path)
-        );
+        let input_label = sanitize_path_for_display(input_path);
+        log::info!("🎵 Starting to process input file: {}", input_label);
 
         if ctx.context.is_cancelled() {
             log::warn!(
                 "Processing was cancelled before processing file: {}",
-                sanitize_path_for_display(input_path)
+                input_label
             );
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
 
         // Initialize per-file preview state if adaptive preview is active
-        let input_label = sanitize_path_for_display(input_path);
         if let Some(ref mut ps) = ctx.preview_state {
             ps.start_new_file(file_index);
             log::info!(
@@ -54,10 +51,7 @@ impl FfmpegNextProcessor {
             );
         }
 
-        log::info!(
-            "Setting up decoder and resampler for: {}",
-            sanitize_path_for_display(input_path)
-        );
+        log::info!("Setting up decoder and resampler for: {}", input_label);
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
         log::info!(
@@ -74,10 +68,7 @@ impl FfmpegNextProcessor {
             stream_index
         );
 
-        log::info!(
-            "Processing input packets from: {}",
-            sanitize_path_for_display(input_path)
-        );
+        log::info!("Processing input packets from: {}", input_label);
         let action = crate::audio::processor::frame_pipeline::process_input_packets(
             &mut ictx,
             &mut decoder,
@@ -92,10 +83,7 @@ impl FfmpegNextProcessor {
             action
         );
 
-        log::info!(
-            "✅ Completed processing file: {}",
-            sanitize_path_for_display(input_path)
-        );
+        log::info!("✅ Completed processing file: {}", input_label);
         Ok(action)
     }
 }

@@ -294,8 +294,8 @@ export async function toggleFileSort(): Promise<void> {
 
 	const nextFiles = [...fileList.files];
 	nextFiles.sort((a, b) => {
-		const nameA = pathBasename(a.path);
-		const nameB = pathBasename(b.path);
+		const nameA = pathBasename(a.path, { fallback: 'path' });
+		const nameB = pathBasename(b.path, { fallback: 'path' });
 
 		if (getSortAscending()) {
 			return nameA.localeCompare(nameB);
