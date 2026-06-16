@@ -1,0 +1,7 @@
+# Codebase Memory MCP indexes ABB-owned code.
+# Vendored reference repositories stay available for targeted research, but
+# should not pollute ABB structural graphs or architecture summaries.
+repos/
+
+# Generated graph artifacts are local unless intentionally shared.
+.codebase-memory/

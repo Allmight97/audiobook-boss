@@ -17,6 +17,7 @@ dist-ssr
 # Local Codex/agent state
 .agents/settings.local.json
 .agents/environments/environment.toml
+.codebase-memory/
 
 # Editor directories and files
 .vscode/*
