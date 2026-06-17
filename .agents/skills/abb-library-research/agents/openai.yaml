@@ -1,4 +1,4 @@
 interface:
   display_name: "ABB Library Research"
-  short_description: "Route ABB library docs and reference subtrees"
-  default_prompt: "Use $abb-library-research to validate external library behavior, route vendored reference subtrees, or refresh ABB library route cards."
+  short_description: "Route ABB Context7 docs and subtrees"
+  default_prompt: "Use $abb-library-research to choose the ABB Context7 CLI/MCP route, validate external library behavior, or route vendored reference subtrees."

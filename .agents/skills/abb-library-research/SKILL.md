@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: ABB reference-library control plane for external library/API research, vendored repos/* subtrees, route cards, subtree refreshes, and pattern files. Use during ABB planning, implementation, review, audits, or maintenance involving Context7/current docs, installed dependency truth, or Effect/Svelte/Tauri/Specta/tauri-specta behavior.
+description: ABB reference-library control plane for external library/API research, Context7 CLI/MCP routing, vendored repos/* subtrees, route cards, subtree refreshes, and pattern files. Use during ABB planning, implementation, review, audits, or maintenance involving current docs, installed dependency truth, or Effect/Svelte/Tauri/Specta/tauri-specta behavior.
 ---
 
 # ABB Library Research
@@ -12,9 +12,8 @@ broad research.
 ## Posture
 
 Use ABB to locate boundaries, constraints, tests, and product intent. Use
-well-regarded libraries, current docs, this skill's route references, `repos/*`
-reference source, and installed dependency truth to challenge, improve, or
-validate the plan.
+current docs, this skill's route references, `repos/*` reference source, and
+installed dependency truth to challenge, improve, or validate the plan.
 
 This skill is the control plane for ABB reference libraries: source routing,
 subtree refresh guidance, route-card maintenance, and task-specific pattern-file
@@ -59,9 +58,9 @@ mutation, or for broad surveys unless the user explicitly asks for one.
 
 1. Locate ABB ownership first: nearest `AGENTS.md`, relevant docs/source/tests,
    dependency manifests, lockfiles, generated bindings, and active config.
-2. Use Context7/ctx7 MCP only when external library/API behavior is uncertain
-   or version-sensitive. Use known library IDs when possible, ask one precise
-   question, and skip library resolution when the ID is already known.
+2. Use Context7 only when external library/API behavior is uncertain or
+   version-sensitive. Use exactly one delivery path for the lookup: CLI or MCP,
+   not both.
 3. Read the relevant `references/<library>.md` route card to choose focused
    source, test, example, and docs paths.
 4. Confirm with `repos/*` for source-level patterns, tests, examples,
@@ -70,15 +69,45 @@ mutation, or for broad surveys unless the user explicitly asks for one.
    `package.json`, `bun.lock`, `node_modules` declarations, Cargo lockfiles,
    generated schemas, and generated bindings.
 
-## Context7 Discipline
+## Context7 Route
 
-- Known library ID plus one precise query is the default.
+- Context7 CLI and Context7 MCP are two access paths to the same docs product.
+  Do not treat them as independent evidence.
+- Prefer the CLI when the agent has the `find-docs` skill or reliable shell
+  access. Use `npx ctx7@latest ...` unless a local `ctx7` executable is already
+  known to be on `PATH`.
+- Use MCP when the harness exposes Context7 natively and CLI is unavailable,
+  blocked, or less ergonomic.
+- Never use both CLI and MCP for the same doc lookup unless the task is
+  explicitly diagnosing Context7 tooling.
+- Known library ID plus one precise docs query is the default. Skip resolution
+  when the ID is known.
+- Run resolution only when the library ID is unknown, stale, or disputed.
 - Do not run broad surveys or repeated resolve/query loops unless the user asks.
 - Avoid deep/research mode unless ordinary docs plus `repos/*` are insufficient.
-- Use `ctx7` CLI only when the user explicitly asks to diagnose Context7 tooling
-  or compare MCP behavior. Do not use CLI for ordinary ABB library research.
 - If Context7 is degraded, keep moving with official docs, `repos/*`, installed
   declarations, generated bindings, and `rg`.
+
+Command shapes:
+
+```bash
+npx ctx7@latest docs /websites/v2_tauri_app "Tauri 2 invoke command registration and capabilities"
+npx ctx7@latest library Tauri "Tauri 2 invoke command registration and capabilities"
+```
+
+MCP equivalent: call `query-docs` directly with a known `libraryId`; call
+`resolve-library-id` only when the ID is unknown or stale.
+
+ABB library IDs:
+
+| Need | Prefer |
+| --- | --- |
+| Svelte 5 source/API snippets | `/sveltejs/svelte` |
+| Svelte site/tutorial/migration docs | `/websites/svelte_dev` |
+| Tauri 2 app docs | `/websites/v2_tauri_app` |
+| Tauri shell plugin | `/tauri-apps/tauri-plugin-shell` |
+| Effect usage docs | `/llmstxt/effect_website_llms_txt` |
+| Effect API/source examples | `/effect-ts/effect` |
 
 ## Pattern Files
 
@@ -122,18 +151,18 @@ Do not produce broad library surveys unless the user explicitly asks for one.
 ## Route Map
 
 - Effect workflow, typed errors, services, layers, scopes, streams, schedules,
-  tests: Context7/ctx7 MCP Effect docs such as
-  `/llmstxt/effect_website_llms_txt` for usage guidance or `/effect-ts/effect`
-  for API/source examples, then `references/effect.md`, then listed
-  `repos/effect` paths, then ABB dependency state.
+  tests: Context7 Effect docs such as `/llmstxt/effect_website_llms_txt` for
+  usage guidance or `/effect-ts/effect` for API/source examples, then
+  `references/effect.md`, then listed `repos/effect` paths, then ABB
+  dependency state.
 - Svelte 5 components, runes, events, stores, compiler/runtime behavior:
-  Context7/ctx7 MCP Svelte docs, then `references/svelte.md`, then listed
+  Context7 Svelte docs, then `references/svelte.md`, then listed
   `repos/svelte` paths and targeted tests, then installed `svelte`
   declarations/version.
 - Tauri core JS/Rust APIs, commands, events, runtime behavior:
-  Context7/ctx7 MCP Tauri docs, then `references/tauri.md`, then listed
+  Context7 Tauri docs, then `references/tauri.md`, then listed
   `repos/tauri` paths, then installed `@tauri-apps/*` or Cargo surfaces.
-- Tauri plugins: Context7/ctx7 MCP Tauri plugins docs, then
+- Tauri plugins: Context7 Tauri plugins docs, then
   `references/tauri-plugins.md`, then listed
   `repos/tauri-plugins/plugins/<plugin-name>` paths and examples, then
   installed plugin declarations and `src-tauri/capabilities`.
