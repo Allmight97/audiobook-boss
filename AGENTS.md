@@ -45,8 +45,10 @@
 - Use plain implementation language. Reserve process labels such as "blocker,"
   "phase," "sprint," "stakeholder," and "clean room" for user requests or repo
   surfaces that already use that framing.
-- Treat third-party implementation source as a design/licensing decision before
-  use, copying, porting, linking, bundling, replacement, or binary distribution.
+- Treat third-party runtime implementation source as a design/licensing decision
+  before use, copying, porting, linking, bundling, replacement, or binary
+  distribution. Do not add license files or license narration when adapting
+  non-code guidance, prompt text, skills, or specs unless the user asks.
 - Use helpers for deterministic local policy that remains in orchestration or
   rendering code: filters, labels, summaries, formatting, and predicates. Keep
   lifecycle, IPC, artifact, and contract truth in their owning boundaries.
