@@ -40,6 +40,11 @@ interface BundlePaths {
 type ApplicationsLinkOutcome = 'created' | 'updated' | 'skipped';
 type RequestedBundle = 'app' | 'dmg';
 
+interface BuildArgPlan {
+	shouldExitAfterTauri: boolean;
+	tauriArgs: string[];
+}
+
 interface BuildTauriAppOptions {
 	commandRunner?: typeof spawnSync;
 	nonInteractiveDmg?: boolean;
@@ -124,6 +129,27 @@ function splitArgsAtBoundary(args: string[]): [string[], string[]] {
 	return [args.slice(0, boundaryIndex), args.slice(boundaryIndex)];
 }
 
+export function normalizeBuildArgs(args: string[]): BuildArgPlan {
+	const [tauriArgs, trailingArgs] = splitArgsAtBoundary(args);
+	const normalizedTauriArgs: string[] = [];
+	let shouldExitAfterTauri = false;
+
+	for (const token of tauriArgs) {
+		if (token === '--local') {
+			continue;
+		}
+		if (token === '--help' || token === '-h' || token === '--version' || token === '-V') {
+			shouldExitAfterTauri = true;
+		}
+		normalizedTauriArgs.push(token);
+	}
+
+	return {
+		shouldExitAfterTauri,
+		tauriArgs: [...normalizedTauriArgs, ...trailingArgs],
+	};
+}
+
 export function assertSupportedMacOsHost(platform = process.platform, arch = process.arch): void {
 	if (platform !== 'darwin') {
 		return;
@@ -199,12 +225,35 @@ export function buildTauriApp(
 	repoRoot: string,
 	buildArgs: string[],
 	options: BuildTauriAppOptions = {},
-): void {
+): BuildArgPlan {
+	const buildArgPlan = normalizeBuildArgs(buildArgs);
+	if (buildArgPlan.shouldExitAfterTauri) {
+		const result = (options.commandRunner ?? spawnSync)(
+			'bun',
+			['run', 'tauri', 'build', ...buildArgPlan.tauriArgs],
+			{
+				cwd: repoRoot,
+				env: process.env,
+				stdio: 'inherit',
+			},
+		);
+
+		if (typeof result.status === 'number' && result.status !== 0) {
+			process.exit(result.status);
+		}
+
+		if (result.error) {
+			throw result.error;
+		}
+
+		return buildArgPlan;
+	}
+
 	publishAaxcleanHelper(repoRoot, options.commandRunner);
 	verifyAaxcleanHelperSidecar(repoRoot);
 
 	const tauriArgs = addAaxcleanHelperConfigArg(
-		ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg'),
+		ensureFeatureArg(buildArgPlan.tauriArgs, '--features', 'bundled-ffmpeg'),
 	);
 	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
 	if (options.nonInteractiveDmg) {
@@ -228,6 +277,8 @@ export function buildTauriApp(
 	if (result.error) {
 		throw result.error;
 	}
+
+	return buildArgPlan;
 }
 
 export function addAaxcleanHelperConfigArg(args: string[]): string[] {
@@ -478,10 +529,16 @@ function isPermissionDeniedError(error: unknown): boolean {
 function main(): void {
 	const repoRoot = path.resolve(import.meta.dir, '..');
 	const buildArgs = process.argv.slice(2);
-	const requestedBundles = resolveRequestedBundles(buildArgs);
+	const initialBuildArgPlan = normalizeBuildArgs(buildArgs);
+	const requestedBundles = resolveRequestedBundles(initialBuildArgPlan.tauriArgs);
 
 	assertSupportedMacOsHost();
-	buildTauriApp(repoRoot, buildArgs, { nonInteractiveDmg: requestedBundles.has('dmg') });
+	const buildArgPlan = buildTauriApp(repoRoot, buildArgs, {
+		nonInteractiveDmg: requestedBundles.has('dmg'),
+	});
+	if (buildArgPlan.shouldExitAfterTauri) {
+		return;
+	}
 
 	if (process.platform !== 'darwin') {
 		return;
