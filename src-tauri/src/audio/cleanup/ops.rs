@@ -1,4 +1,4 @@
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use log::debug;
 use std::path::{Path, PathBuf};
 
@@ -14,7 +14,7 @@ impl CleanupGuard {
                 log::error!(
                     "Session {}: Failed to cleanup {}: {}",
                     self.raw_session_id(),
-                    path.display(),
+                    sanitize_path_for_display(path),
                     e
                 );
 
@@ -42,7 +42,7 @@ impl CleanupGuard {
             debug!(
                 "Session {}: Path already removed: {}",
                 self.raw_session_id(),
-                path.display()
+                sanitize_path_for_display(path)
             );
             return Ok(());
         }
@@ -51,14 +51,14 @@ impl CleanupGuard {
             debug!(
                 "Session {}: Removing directory: {}",
                 self.raw_session_id(),
-                path.display()
+                sanitize_path_for_display(path)
             );
             std::fs::remove_dir_all(path).map_err(AppError::Io)?;
         } else {
             debug!(
                 "Session {}: Removing file: {}",
                 self.raw_session_id(),
-                path.display()
+                sanitize_path_for_display(path)
             );
             std::fs::remove_file(path).map_err(AppError::Io)?;
         }

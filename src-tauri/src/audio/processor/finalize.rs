@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::audio::CleanupGuard;
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest,
@@ -47,7 +47,7 @@ pub(crate) fn write_metadata_stage(
     log::info!(
         "finalized_metadata_write status=ok elapsed_ms={} path={}",
         started.elapsed().as_millis(),
-        merged_output.display()
+        sanitize_path_for_display(merged_output)
     );
     ui.emit_finalizing("Finalizing...");
     Ok(())
@@ -71,10 +71,13 @@ pub(super) fn complete_staged_output(
     reporter: Option<&mut ProgressReporter>,
 ) -> Result<String> {
     log::info!("🚀 Starting staged output completion");
-    log::info!("Temporary file: {}", staged_output.display());
+    log::info!(
+        "Temporary file: {}",
+        sanitize_path_for_display(&staged_output)
+    );
     log::info!(
         "Final output path: {}",
-        context.output.artifact_path().display()
+        sanitize_path_for_display(context.output.artifact_path())
     );
 
     ensure_not_cancelled_before_commit(context)?;
@@ -91,7 +94,7 @@ pub(super) fn complete_staged_output(
     })?;
     log::info!(
         "✓ File moved successfully to: {}",
-        outcome.final_output.display()
+        sanitize_path_for_display(&outcome.final_output)
     );
     if let Some(reporter) = reporter {
         reporter.complete();

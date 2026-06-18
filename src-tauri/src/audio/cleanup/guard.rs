@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::errors::{sanitize_path_for_display, Result};
 use log::{debug, error};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ impl CleanupGuard {
         debug!(
             "Session {}: Adding path to cleanup: {}",
             self.session_id,
-            path_buf.display()
+            sanitize_path_for_display(&path_buf)
         );
         self.paths.insert(path_buf);
     }
@@ -49,7 +49,7 @@ impl CleanupGuard {
             debug!(
                 "Session {}: Removed path from cleanup: {}",
                 self.session_id,
-                path_buf.display()
+                sanitize_path_for_display(&path_buf)
             );
         }
         removed

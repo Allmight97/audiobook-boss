@@ -100,13 +100,31 @@ fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
 
 /// Validates path doesn't contain invalid characters (CR/LF/NUL)
 fn validate_path_characters(path: &Path) -> Result<()> {
-    let path_str = path.to_string_lossy();
-    if path_str.contains('\n') || path_str.contains('\r') || path_str.contains('\0') {
+    if path_contains_invalid_character(path) {
         return Err(AppError::FileValidation(
             "Path contains invalid characters (CR/LF/NUL)".to_string(),
         ));
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn path_contains_invalid_character(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+
+    path.as_os_str()
+        .as_bytes()
+        .iter()
+        .any(|byte| matches!(byte, b'\n' | b'\r' | b'\0'))
+}
+
+#[cfg(windows)]
+fn path_contains_invalid_character(path: &Path) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+
+    path.as_os_str()
+        .encode_wide()
+        .any(|unit| matches!(unit, 0x000A | 0x000D | 0x0000))
 }
 
 /// Validates file exists and is a regular file
@@ -150,4 +168,36 @@ fn validate_image_extension(path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_path_characters;
+    use crate::errors::AppError;
+    use std::path::PathBuf;
+
+    fn assert_invalid_path(path: PathBuf) {
+        let error = validate_path_characters(&path).expect_err("path should be rejected");
+        assert!(
+            matches!(error, AppError::FileValidation(ref message) if message.contains("CR/LF/NUL")),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn rejects_control_characters_without_filesystem_lookup() {
+        assert_invalid_path(PathBuf::from("book\none.m4b"));
+        assert_invalid_path(PathBuf::from("book\rone.m4b"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_control_characters_without_lossy_utf8_conversion() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        assert_invalid_path(PathBuf::from(OsString::from_vec(
+            b"book-\xFF\none.m4b".to_vec(),
+        )));
+    }
 }

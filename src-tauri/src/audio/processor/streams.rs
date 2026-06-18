@@ -530,7 +530,7 @@ pub(crate) fn setup_decoder_and_resampler(
 )> {
     log::info!(
         "🔧 Setting up decoder for input file: {}",
-        input_path.display()
+        sanitize_path_for_display(input_path)
     );
 
     if !input_path.exists() {
@@ -590,7 +590,7 @@ pub(crate) fn setup_decoder_and_resampler(
 
     log::info!(
         "🎉 Decoder and resampler setup completed for: {}",
-        input_path.display()
+        sanitize_path_for_display(input_path)
     );
     Ok((ictx, decoder, resampler, stream_index))
 }
