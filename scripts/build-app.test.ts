@@ -22,7 +22,6 @@ import {
 	findForbiddenLinkedLibraries,
 	findUnsupportedMacOsArchitectures,
 	installLocalApplicationBundle,
-	normalizeBuildArgs,
 	pruneLocalInstallArtifacts,
 	refreshApplicationsLink,
 	resolveRequestedBundles,
@@ -292,44 +291,6 @@ describe('addAaxcleanHelperConfigArg', () => {
 });
 
 describe('buildTauriApp', () => {
-	it('treats --local as an ABB wrapper option instead of forwarding it to Tauri', () => {
-		const { repoRoot } = createRepoFixture();
-		const calls: Array<{ args: string[]; command: string }> = [];
-		const commandRunner = ((command: string, args: string[]) => {
-			calls.push({ command, args });
-			if (args[0] === 'publish') {
-				const outputDir = args[args.indexOf('-o') + 1] as string;
-				mkdirSync(outputDir, { recursive: true });
-				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
-			}
-			return { status: 0 };
-		}) as typeof spawnSync;
-
-		buildTauriApp(repoRoot, ['--bundles', 'app', '--local'], { commandRunner });
-
-		expect(calls[1]?.args).toContain('app');
-		expect(calls[1]?.args).not.toContain('--local');
-	});
-
-	it('runs Tauri help without publishing or verifying build artifacts', () => {
-		const { repoRoot } = createRepoFixture();
-		const calls: Array<{ args: string[]; command: string }> = [];
-		const commandRunner = ((command: string, args: string[]) => {
-			calls.push({ command, args });
-			return { status: 0 };
-		}) as typeof spawnSync;
-
-		const plan = buildTauriApp(repoRoot, ['--bundles', 'app', '--help'], { commandRunner });
-
-		expect(plan.shouldExitAfterTauri).toBe(true);
-		expect(calls).toEqual([
-			{
-				command: 'bun',
-				args: ['run', 'tauri', 'build', '--bundles', 'app', '--help'],
-			},
-		]);
-	});
-
 	it('forces noninteractive Finder-free DMG packaging when requested', () => {
 		const { repoRoot } = createRepoFixture();
 		const calls: Array<{
@@ -401,22 +362,6 @@ describe('buildTauriApp', () => {
 
 		expect(calls[1]?.env?.CI).toBe(process.env.CI);
 		expect(calls[1]?.env).toBe(process.env);
-	});
-});
-
-describe('normalizeBuildArgs', () => {
-	it('removes --local before the Tauri argument boundary', () => {
-		expect(normalizeBuildArgs(['--bundles', 'app', '--local', '--', '--local'])).toEqual({
-			shouldExitAfterTauri: false,
-			tauriArgs: ['--bundles', 'app', '--', '--local'],
-		});
-	});
-
-	it('marks help and version requests as terminal wrapper commands', () => {
-		expect(normalizeBuildArgs(['--help']).shouldExitAfterTauri).toBe(true);
-		expect(normalizeBuildArgs(['-h']).shouldExitAfterTauri).toBe(true);
-		expect(normalizeBuildArgs(['--version']).shouldExitAfterTauri).toBe(true);
-		expect(normalizeBuildArgs(['-V']).shouldExitAfterTauri).toBe(true);
 	});
 });
 

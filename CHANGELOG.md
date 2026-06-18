@@ -12,9 +12,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
-- `bun run app:build --local` now builds the repo-local `.app` instead of
-  forwarding `--local` to the Tauri CLI, and build help exits without bundle
-  verification.
 - Cover-art compatibility warnings now distinguish supported JPEG/PNG, known
   unsupported formats, and unrecognized bytes without warning on arbitrary
   placeholder data.
