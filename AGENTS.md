@@ -11,7 +11,7 @@
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
 - Canonical metadata lookup provider-degradation behavior is documented in
   `src-tauri/src/commands/metadata_lookup/service.rs`.
-- Guidance ownership: root owns repo-wide posture, proof, skill routing, and cross-cutting invariants; local `AGENTS.md` files own path-specific surfaces, commands, traps, and done criteria; skills own reusable procedures.
+- Guidance ownership: root owns repo-wide posture, proof, and cross-cutting invariants; local `AGENTS.md` files own path-specific surfaces, commands, traps, and done criteria; skills own reusable procedures and conditional dispatch.
 
 ## Testing And Proof Infrastructure
 
@@ -100,31 +100,12 @@
 | Tooling/scripts local only | Targeted script/test for the touched surface first |
 | Runtime/IPC/contracts/build/deps | Owner-scoped command menu in `README.md`/`scripts/AGENTS.md`, plus focused contract/regression coverage |
 | UI behavior | Targeted deterministic tests plus visual/human review when static tests cannot prove UX |
-| Release/version/changelog/tag/DMG | Use `.agents/skills/release`; prove launcher-visible install/DMG/GitHub Release surface as applicable |
-
-## Skill Routing
-
-This table is dispatch only. Skill files own procedure, examples, and validation details.
-
-| Trigger | Load |
-| --- | --- |
-| Substantial ABB alignment, GitHub issue capture, or canon doc route | `.agents/skills/decision-alignment` |
-| User explicitly asks for architecture smell scan or refactor targets | Global `improve-codebase-architecture` (explicit dispatch only; not a sub-step of alignment) |
-| User explicitly asks to slice a plan into child issues | Global `to-issues` |
-| User explicitly asks to hand off to another agent/session | Global `handoff` |
-| Tauri commands/events/plugin adapters/`tauriClient`/generated bindings/TS↔Rust shapes | `.agents/skills/contract-guardrails` |
-| User paths, file inputs, file outputs, path validation, or write locations | `.agents/skills/path-security-validation` |
-| Queueing, jobs, progress, cancellation, status semantics | `.agents/skills/job-registry-and-progress` |
-| M4B/MP4 metadata, audiobook tags, external audiobook file compatibility | `.agents/skills/audiobook-metadata` |
-| External library/API behavior, vendored `repos/*`, route cards, subtree refreshes, reference patterns | `.agents/skills/abb-library-research` |
-| File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `.agents/skills/resource-lifetime-audit` |
-| Release, version, changelog, tag, DMG, install verification | `.agents/skills/release` |
+| Release/version/changelog/tag/DMG | Prove launcher-visible install/DMG/GitHub Release surface as applicable |
 
 ## Planning And Capture
 
-- Use `decision-alignment` for substantial ABB alignment and GitHub issue capture.
 - **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
-- Ephemeral planning: chat and OS-temp handoffs (`handoff` skill) — not repo files.
+- Ephemeral planning: chat and OS-temp handoffs — not repo files.
 - `docs/specs/<task>.md` only when the user explicitly wants a repo-local active spec instead of an issue.
 - When an active spec is used: temporary work state; delete or distill enduring rules into canon when done.
 - Keep chat logs, presentation HTML, and review artifacts outside repo canon.
