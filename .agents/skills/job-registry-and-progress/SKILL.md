@@ -5,8 +5,6 @@ description: Concurrency, cancellation, and progress patterns. Use when modifyin
 
 # Job Registry and Progress
 
-Use this skill for backend job lifecycle and UX-truthful processing state.
-
 ## Hard Invariants
 
 - Active job lifecycle flows through `JobRegistry`.
@@ -53,9 +51,3 @@ flat wire-shaped discriminator the UI consumes.
 - Cancellation is responsive in long-running loops.
 - Backend `EventStage` and frontend consumers stay in sync via specta-generated
   bindings (the `check-generated-bindings` gate enforces drift detection).
-
-## Alignment
-
-- Use root AGENTS precedence.
-- No implicit internal legacy assumptions.
-- Degradation and failure stay explicit in the owning boundary; follow root Hard Invariants.

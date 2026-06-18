@@ -5,8 +5,6 @@ description: Path validation guardrails for file inputs/outputs. Use when comman
 
 # Path Security Validation
 
-Use this skill whenever code accepts, transforms, or writes file paths.
-
 ## Required Workflow
 
 1. Validate input audio paths through:
@@ -49,9 +47,3 @@ pub fn command_with_path(file_path: String) -> Result<()> {
 
 - No unvalidated path reaches processing/writes.
 - Errors are actionable but do not expose unsafe path details.
-
-## Alignment
-
-- Use root AGENTS precedence.
-- No implicit internal legacy assumptions.
-- Degradation and failure stay explicit in the owning boundary; follow root Hard Invariants.

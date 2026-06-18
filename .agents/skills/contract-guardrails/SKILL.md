@@ -5,10 +5,6 @@ description: Tauri runtime boundary and TS/Rust IPC contract safety for Audioboo
 
 # Tauri Runtime Boundary / IPC Contract Guardrails
 
-Use this skill when touching Tauri commands/events, runtime plugin adapters, or
-the TS client boundary. It owns ABB's command conventions and generated-binding
-parity in one place.
-
 ## Boundary Path
 
 1. Define commands in `src-tauri/src/commands/*.rs` with `#[tauri::command]`.
@@ -75,10 +71,4 @@ bun run bindings:check
 - Verification follows root `AGENTS.md` risk-based scope: focused boundary
   checks for local adapter changes and owner-scoped escalation for contract,
   runtime, build/test, dependency, or release-critical risk.
-
-## Alignment
-
-- Use root AGENTS precedence.
-- No implicit internal legacy assumptions.
-- Degradation and failure stay explicit in the owning boundary; follow root Hard Invariants.
 - For external Tauri/API uncertainty, invoke `abb-library-research`.

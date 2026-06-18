@@ -5,25 +5,18 @@ description: Canonical metadata strategy for Audiobook Boss. Use when changing t
 
 # Audiobook Metadata
 
-Use this skill when changing metadata field semantics, tag mapping policy, interoperability behavior, or output naming that depends on metadata.
-
 ## Interop Invariant
 
-External compatibility with ABS/Plex/Apple Books is required, but compatibility
-claims must be backed by current code and current product decisions.
+External compatibility with ABS/Plex/Apple Books is required. Compatibility
+claims must match current code and product decisions.
 
-`ffprobe` does not expose Apple movement tags (`MVNM`/`MVIN`). ABB does not
-currently write or read movement tags as the canonical series mechanism.
+ABB does not read or write Apple movement tags (`MVNM`/`MVIN`). Series uses
+ffprobe-visible tags plus mirrored freeform atoms.
 
 ## Series Tag Strategy
 
 For series metadata, write both:
 - ffprobe-visible tags: `series`, `series-part`, plus mirrored freeform atoms `----:com.apple.iTunes:SERIES` and `----:com.apple.iTunes:SERIES-PART`
-
-This preserves ABS/Plex discoverability while keeping the code honest about the
-specific MP4 atoms ABB currently supports. Movement tags were removed as
-uncertain Apple-only compatibility support; reintroduce them only with manual
-player evidence and an explicit product decision.
 
 ## Metadata Intent Boundary
 

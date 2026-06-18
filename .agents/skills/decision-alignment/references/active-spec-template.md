@@ -4,84 +4,48 @@ Use only when the user explicitly wants a repo-local active spec instead of a Gi
 
 Default capture: `references/issue-template.md`.
 
-Active specs must be self-contained, current, outcome-verifiable, and temporary (stored in `docs/specs/<task>.md`).
-When work is done, delete the spec or distill enduring truths into canon.
+Active specs are temporary (`docs/specs/<task>.md`). Delete or distill into canon when done.
 
 ```md
-# <Task Or Feature> — Active Spec
+# <Short outcome title>
 
 Status: temporary active spec.
-Cleanup: delete or distill into canon after implementation, review, validation,
-docs alignment, and sync.
 
-## Purpose / Big Picture / North Star
+## Owning invariant
 
-Outcome:
-Acceptance signal:
+> One sentence: what truth this work enforces everywhere.
 
-## Progress
+## Current state
 
-- [ ] YYYY-MM-DD: ...
+- What is true in `main` today (file-path evidence when load-bearing)
+- Where the invariant currently fails, if it does
 
-## Surprises & Discoveries
+## Scope
 
-- Observation:
-  Evidence:
-
-## Decision Log
-
-- Decision:
-  Rationale:
-  Date:
-
-## Context And Orientation
-
-- Current repo state checked.
-- Owning boundaries and files.
-- Terms from `docs/ubiquitous-language.md` that matter.
-- Canon surfaces this spec must not redefine.
-
-## Scope And Constraints
-
-In scope (Attractors):
+In scope:
 
 - ...
 
-Out of scope (Repellors):
+Out of scope:
 
 - ...
 
-Constraints:
+## Plan
 
-- ...
+Numbered steps with dependency order when steps must serialize.
 
-## Plan Of Work
+## Verification
 
-- Edits:
-- Verification steps:
-- Expected repo-visible outcome:
+- Targeted commands and tests
+- Manual or visual checks when static tests are insufficient
 
-## Interfaces And Dependencies
+## Open forks
 
-- Modules/commands/types:
-- Libraries/external behavior:
-- Dependency constraints:
+- Fork A vs Fork B — default: <which one> (only when product choice remains)
 
-## Verification Path and Checks
+Or omit when the decision is locked.
 
-- Targeted checks:
-- Full review, if needed:
-- Manual or visual evidence, if needed:
+## Cleanup
 
-## Cleanup Trigger
-
-When this effort is implemented, rejected, or superseded:
-
-- Delete this spec, and consider distilling (if any) enduring high-ROI elements into existing (or new) canon:
-  - `AGENTS.md` / nearest nested `AGENTS.md`
-  - `docs/system-map.md`
-  - `docs/ubiquitous-language.md`
-  - `docs/api-map.md`
-  - README/changelog/release notes (using release skills)
-  - GitHub issue for deferred work (as aligned and agreed upon with repo admins/orchestrators)
+When implemented, rejected, or superseded: delete this spec or distill enduring rules into canon (`AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`, `docs/api-map.md`, `docs/DECISIONS.md`).
 ```
