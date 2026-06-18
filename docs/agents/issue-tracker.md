@@ -17,11 +17,11 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 **PRs as a request surface: no.**
 
-## When a skill says "publish to the issue tracker"
+## Publish durable work
 
 Create a GitHub issue. Read `docs/agents/triage-labels.md` for label strings.
 
-## When a skill says "fetch the relevant ticket"
+## Fetch a ticket
 
 Run `gh issue view <number> --comments`.
 

@@ -1,84 +1,71 @@
 ---
 name: decision-alignment
-description: ABB repo-grounded alignment when substantial Audiobook Boss work needs a locked decision, GitHub issue capture, or canon doc route. Inspect repo truth first; ask at most two action-changing questions. Default durable capture is GitHub issues, not docs/specs. Do not auto-run architecture scans or library research; do not chain other planning skills.
+description: ABB repo-grounded alignment when substantial work needs a locked decision or GitHub issue capture. Inspect repo truth first; at most two action-changing questions. Default capture is GitHub issues.
 ---
 
 # Decision Alignment
 
-Turn an ABB design, architecture, or product conversation into an aligned decision and the smallest durable capture.
+Turn an ABB conversation into an aligned decision and the smallest durable capture.
 
-Default to a proposed decision and verification route. Do not edit durable repo docs unless the user asks.
+Propose a decision and verification route. Edit durable repo docs only when the user asks.
 
 ## Boundary
 
-Use for ABB work that depends on current repo truth, domain language, code boundaries, or durable capture.
+ABB work that depends on repo truth, domain language, code boundaries, or durable capture.
 
-Do not use for generic pressure-testing without ABB routing — use global `grill-me`.
+Generic pressure-testing without ABB capture → `grill-me`.
 
-Do not invoke `improve-codebase-architecture`, `abb-library-research`, `handoff`, or `to-issues` automatically. The user starts those separately when needed.
+Other workflows (architecture scan, library lookup, handoff, issue slicing) start only when the user invokes them.
 
 ## Core Loop
 
-1. State the outcome in one sentence using `docs/ubiquitous-language.md` terms when they exist.
-2. Verify the affected layer in `docs/system-map.md`: Product intent, UI state, IPC contract, Backend lifecycle, or Artifact truth.
-3. Inspect before asking: `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`, owning code/tests for the touched boundary.
-4. Ask at most two action-changing questions with recommended answers. Lists of facts count as questions.
-5. Stop when the decision is locked, open forks are explicit with a default, or capture to a GitHub issue is ready.
+1. State the outcome in one sentence; use `docs/ubiquitous-language.md` when terms exist.
+2. Verify the affected layer in `docs/system-map.md`.
+3. Inspect before asking: `AGENTS.md`, `docs/system-map.md`, `docs/ubiquitous-language.md`, owning code/tests.
+4. At most two action-changing questions with recommended answers.
+5. Stop when the decision is locked, open forks have a default, or issue capture is ready.
 
 ## Challenge Rules
 
-- Replace fuzzy language with terms from `docs/ubiquitous-language.md`.
-- Name actor, input, boundary crossed, terminal outcome, and falsifying evidence for concrete scenarios.
-- Cross-check claims in owning code, tests, or canon docs.
-- Name contradictions between code, docs, tests, or conversation; ask which source should change.
+- Replace fuzzy language with `docs/ubiquitous-language.md` terms.
+- Name actor, input, boundary, terminal outcome, falsifying evidence.
+- Cross-check claims in code, tests, canon docs.
+- Name contradictions; ask which source should change.
 
 ## Capture
 
-**Default home for substantial work:** GitHub issue per `docs/agents/issue-tracker.md`.
+Default: GitHub issue per `docs/agents/issue-tracker.md`. Load `references/issue-template.md` when publishing.
 
-When publishing an issue, load `references/issue-template.md` and apply strip rules.
+Label `ready-for-agent` per `docs/agents/triage-labels.md` when complete without chat.
 
-Apply `ready-for-agent` from `docs/agents/triage-labels.md` when the issue is complete without chat context.
-
-For session handoff after alignment, point the user at global `handoff` and `references/handoff-template.md` — do not write handoff files into the repo.
-
-### Other homes
+Session handoff → `handoff` to OS temp; see `references/handoff-template.md`. Do not write handoff files in the repo.
 
 | Outcome | Home |
 | --- | --- |
-| Deferred or substantial engineering work | GitHub issue (default) |
-| Vertical slice breakdown of approved plan | User invokes global `to-issues` |
-| External provider degradation | Owning command module, `docs/api-map.md`, focused tests |
-| External file/tag compatibility | `.agents/skills/audiobook-metadata` |
-| Stable ownership shape | `docs/system-map.md` |
-| Canonical term fix | `docs/ubiquitous-language.md` |
-| Accepted rationale, no better home | `docs/DECISIONS.md` escape hatch |
+| Substantial engineering work | GitHub issue |
+| Vertical slice breakdown | `to-issues` (user invokes) |
+| Provider degradation | Owning command, `docs/api-map.md`, tests |
+| Tag compatibility | `audiobook-metadata` |
+| Ownership shape | `docs/system-map.md` |
+| Term fix | `docs/ubiquitous-language.md` |
+| Durable rationale, no better home | `docs/DECISIONS.md` |
 | Personal learning | Outside repo |
-| Transient reasoning | Nowhere durable |
 
-### Active spec (exception)
+`docs/specs/<task>.md` only when the user explicitly wants a repo-local spec. Load `references/active-spec-template.md`; delete or distill when done.
 
-Use `docs/specs/<task>.md` only when the user explicitly wants a repo-local spec instead of an issue. When used, load `references/active-spec-template.md`. Delete or distill when done.
-
-## Decision Note Escape Hatch
-
-Use `docs/DECISIONS.md` only for accepted rationale that should survive issue cleanup. Not a changelog, PR recap, or process log.
-
-Load `references/decision-note-template.md` when appending. Create or edit only when the user asks.
+`docs/DECISIONS.md`: accepted rationale only. Load `references/decision-note-template.md`; edit when the user asks.
 
 ## Output Shape
 
-**Short loop:** prose + next question.
+Short loop: prose + next question.
 
-**Substantial alignment:**
+Substantial alignment:
 
-- **Aligned Decision** (or recommendation with default)
+- **Aligned Decision**
 - **Why It Holds**
 - **Boundary / Layer**
 - **Verification Path**
-- **Capture:** proposed or published GitHub issue; or explicit no capture
+- **Capture**
 - **Next Question** (if any)
 
-## Narration ban
-
-Durable output must not document how it was produced. No skill names, scout framing, restructure dates, or superseded appendices in issues or specs.
+Issue and spec bodies follow `references/issue-template.md` strip rules.

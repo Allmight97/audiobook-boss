@@ -1,8 +1,6 @@
-# ABB Handoff Template
+# Handoff Template
 
-Use when the user asks for a session handoff after alignment. Prefer global `handoff` skill procedure; this template is the ABB-shaped body.
-
-Save to OS temp — not the repo. Link to GitHub issues; do not duplicate issue bodies.
+OS temp only. Link issues; do not duplicate bodies.
 
 ```md
 ## Handoff
@@ -12,18 +10,16 @@ Save to OS temp — not the repo. Link to GitHub issues; do not duplicate issue 
 **Accepted direction:**
 - <locked decisions>
 
-**Open forks:** <only if any, with default>
+**Open forks:** <if any, with default>
 
-**Issue(s):** #<n> — <title> (link)
+**Issue(s):** #<n> — <title>
 
 **Validate before editing:**
-- <assumptions that could falsify the plan>
+- <assumptions>
 
 **Verification:**
 - <commands/tests>
 
 **Stop if:**
 - <escalation triggers>
-
-**Suggested skills:** <names only, one line each — no auto-chain instructions>
 ```

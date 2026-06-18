@@ -47,4 +47,4 @@ Or omit this section when the decision is locked.
 
 Apply `ready-for-agent` when the issue is complete enough for an agent without chat context.
 
-For large work the user wants sliced, stop after the parent issue and let the user invoke global `to-issues`.
+For large work the user wants sliced, stop after the parent issue; user invokes `to-issues` separately.
