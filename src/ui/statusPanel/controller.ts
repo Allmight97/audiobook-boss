@@ -2,7 +2,6 @@ import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
-import * as feedback from './feedback';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './processing';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
@@ -41,6 +40,7 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
+import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './viewState.svelte';
 
 export class StatusPanelRuntime {
 	private readonly progressSubscription = createProgressSubscription({
@@ -186,7 +186,7 @@ export class StatusPanelRuntime {
 		}
 
 		if (this.model.jobProgress.size === 0) {
-			feedback.showInfo('Processing was cancelled.');
+			showInfo('Processing was cancelled.');
 			this.resetToIdle();
 			return;
 		}
@@ -392,11 +392,11 @@ export class StatusPanelRuntime {
 
 	private showCompletionFeedback(feedbackResult: StatusPanelCompletionFeedback): void {
 		if (feedbackResult.kind === 'success') {
-			feedback.showSuccess(feedbackResult.message);
+			showSuccess(feedbackResult.message);
 		} else if (feedbackResult.kind === 'error') {
-			feedback.showError(feedbackResult.message);
+			showError(feedbackResult.message);
 		} else {
-			feedback.showInfo(feedbackResult.message);
+			showInfo(feedbackResult.message);
 		}
 	}
 
@@ -479,5 +479,5 @@ export function pushStatusPanelTransientStatus(
 	message: string,
 	options?: { ttlMs?: number },
 ): void {
-	feedback.pushTransientStatusMessage(message, options?.ttlMs);
+	pushTransientStatusMessage(message, options?.ttlMs);
 }

@@ -48,12 +48,14 @@ import {
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
 } from '../remoteSource';
-import type * as feedback from './feedback';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { readProcessingRequestConfig } from './processingConfig';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
+type StatusPanelFeedbackService = {
+	showError: (message: string) => void;
+};
 
 export interface ProcessingWorkflowServices {
 	updateOutputPath: typeof updateOutputPath;
@@ -77,7 +79,7 @@ export interface ProcessingWorkflowServices {
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
 	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
-	feedback: Pick<typeof feedback, 'showError'>;
+	feedback: StatusPanelFeedbackService;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;
 }
 
@@ -155,7 +157,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 					if (typeof entry.inputIndex === 'number') {
 						const path = filePaths[entry.inputIndex];
 						if (path) {
-								return pathBasename(path, { fallback: 'path' });
+							return pathBasename(path, { fallback: 'path' });
 						}
 					}
 					if (entry.error != null) {

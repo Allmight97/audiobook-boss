@@ -10,8 +10,8 @@ import {
 	setJobControlsEnabled,
 	setJobTypeSelection,
 } from '../../jobControls';
-import * as feedback from '../feedback';
 import { StatusPanelRuntime } from '../controller';
+import * as viewState from '../viewState.svelte';
 import {
 	resetStatusPanelViewState,
 	showError,
@@ -224,9 +224,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
-		const showErrorSpy = vi.spyOn(feedback, 'showError');
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
@@ -293,7 +293,7 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
 		controller.reconcileProcessResult({
 			jobType: 'merge',
@@ -331,7 +331,7 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showErrorSpy = vi.spyOn(feedback, 'showError');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
 		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		controller.applyQueueSnapshot({
@@ -367,8 +367,8 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
@@ -444,8 +444,8 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
 		controller.setBatchCompletionMessage('No files were processed successfully. Skipped: 2.');
 
 		controller.applyQueueSnapshot({
@@ -506,9 +506,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
-		const showErrorSpy = vi.spyOn(feedback, 'showError');
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
 		controller.applyProgress({
 			operation_kind: 'processingBatch',
@@ -582,9 +582,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
-		const showErrorSpy = vi.spyOn(feedback, 'showError');
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
 
 		controller.applyQueueSnapshot({
@@ -644,9 +644,9 @@ describe('StatusPanel lifecycle', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(feedback, 'showSuccess');
-		const showErrorSpy = vi.spyOn(feedback, 'showError');
-		const showInfoSpy = vi.spyOn(feedback, 'showInfo');
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
@@ -700,7 +700,7 @@ describe('StatusPanel lifecycle', () => {
 
 		vi.advanceTimersByTime(2000);
 
-		// Regression guard: prior to fix, resetToIdle ran AFTER feedback.showSuccess
+		// Regression guard: prior to fix, resetToIdle ran AFTER showSuccess
 		// in the same tick, clobbering stepText back to the idle label. The user never
 		// saw the success message.
 		expect(getStepText()).toBe('Audiobook created successfully!');

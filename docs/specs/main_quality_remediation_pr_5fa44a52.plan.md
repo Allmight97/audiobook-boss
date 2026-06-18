@@ -91,7 +91,7 @@ Verify: vitest full run, `tsc --noEmit`, grep for residual private imports.
 
 ### Commit 8 — WB8: statusPanel projection + audio orchestrator
 
-Thin the statusPanel multi-hop view projection (after WB4 so workflow files are stable); merge `feedback.ts` policy into the projection owner where cohesion improves. Audio orchestrator extraction in `src-tauri/src/audio/` and drop now-unneeded clippy allows — justified by ownership clarity, not size. Scope here stays conservative: only changes whose invariant/owner is nameable; anything else is dropped rather than churned.
+Thin the statusPanel multi-hop view projection (after WB4 so workflow files are stable); keep status feedback policy in the view-state projection owner where cohesion improves. Audio orchestrator extraction in `src-tauri/src/audio/` and drop now-unneeded clippy allows — justified by ownership clarity, not size. Scope here stays conservative: only changes whose invariant/owner is nameable; anything else is dropped rather than churned.
 Verify: vitest statusPanel suites, `cargo nextest run -p audiobook-boss --lib`, clippy.
 
 ## Scout protocol per commit

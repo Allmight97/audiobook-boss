@@ -1,15 +1,23 @@
 import { getMaxConcurrentStatus } from '../jobControls';
-import * as feedback from './feedback';
 import { formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
+import {
+	setStatusPanelConcurrencyText,
+	setStatusPanelIsProcessing,
+	setStatusPanelJobItems,
+	setStatusPanelProgressPercentage,
+	setStatusPanelStatusText,
+	setStatusPanelStepColor,
+	setStatusPanelStepText,
+} from './viewState.svelte';
 import type { JobListItem } from './viewTypes';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
-	feedback.updateProgressBar(status.percentage);
-	feedback.updatePercentageText(status.percentage);
-	feedback.updateStatusText(formatStatusDisplayText(status.stage));
-	feedback.updateStepText(`Current Step: ${status.message}`);
-	feedback.updateProcessButton(isProcessing);
+	setStatusPanelProgressPercentage(status.percentage);
+	setStatusPanelStatusText(formatStatusDisplayText(status.stage));
+	setStatusPanelStepText(`Current Step: ${status.message}`);
+	setStatusPanelStepColor('var(--text-primary)');
+	setStatusPanelIsProcessing(isProcessing);
 }
 
 export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
@@ -17,7 +25,7 @@ export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
 	const suffix = selection === 'auto' ? ' (Auto)' : '';
 
 	if (effective === null) {
-		feedback.updateConcurrencyStatus('Max jobs: —');
+		setStatusPanelConcurrencyText('Max jobs: —');
 		return;
 	}
 
@@ -28,13 +36,13 @@ export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
 		const queuedSuffix = aggregate.queuedJobs > 0 ? ` • Queued ${aggregate.queuedJobs}` : '';
 		const completedSuffix =
 			aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : '';
-		feedback.updateConcurrencyStatus(
+		setStatusPanelConcurrencyText(
 			`Running ${aggregate.activeJobs} / Max ${effective}${suffix}${queuedSuffix}${completedSuffix}`,
 		);
 		return;
 	}
 
-	feedback.updateConcurrencyStatus(`Max jobs: ${effective}${suffix}`);
+	setStatusPanelConcurrencyText(`Max jobs: ${effective}${suffix}`);
 }
 
 function formatJobStatusText(
@@ -131,5 +139,5 @@ export function renderJobList(
 		return acc;
 	}, []);
 
-	feedback.renderJobList(jobs);
+	setStatusPanelJobItems(jobs);
 }

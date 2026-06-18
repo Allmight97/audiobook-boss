@@ -19,7 +19,7 @@ import {
 	makeProcessingWorkflowServicesLayer,
 	type ProcessingWorkflowServices,
 } from './processingWorkflow';
-import * as feedback from './feedback';
+import { showError } from './viewState.svelte';
 import { openGeneratedPreviewIfSingle } from './preview';
 import { readProcessingRequestConfig } from './processingConfig';
 
@@ -45,7 +45,7 @@ const liveProcessingWorkflowServices = {
 	submitProcessingOperation: tauriClient.submitProcessingOperation,
 	runOutputPlanReviewWorkflow,
 	openGeneratedPreviewIfSingle,
-	feedback,
+	feedback: { showError },
 	console,
 } satisfies ProcessingWorkflowServices;
 

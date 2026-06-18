@@ -1,8 +1,8 @@
 import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
 import { getCurrentFileList } from '../../fileList';
-import * as feedback from '../feedback';
 import { coverArtBytesToDataUrl } from '../../../lib/media/coverArtDataUrl';
+import { setStatusPanelCoverArtDataUrl } from '../viewState.svelte';
 
 export interface CoverArtTracker {
 	syncForCurrentList(): Promise<void>;
@@ -40,8 +40,8 @@ async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
 export function createCoverArtTracker(deps: CoverArtTrackerDeps = {}): CoverArtTracker {
 	const readCurrentFileList = deps.getCurrentFileList ?? getCurrentFileList;
 	const readCoverArt = deps.readCoverArtDataUrl ?? readCoverArtDataUrl;
-	const displayCoverArt = deps.displayCoverArt ?? feedback.displayCoverArt;
-	const resetArtThumbnail = deps.resetArtThumbnail ?? feedback.resetArtThumbnail;
+	const displayCoverArt = deps.displayCoverArt ?? setStatusPanelCoverArtDataUrl;
+	const resetArtThumbnail = deps.resetArtThumbnail ?? (() => setStatusPanelCoverArtDataUrl(null));
 	const warn =
 		deps.warn ??
 		((message: string, error: unknown) => {

@@ -1,5 +1,5 @@
-import * as feedback from './feedback';
+import { setStatusPanelConcurrencyText } from './viewState.svelte';
 
 export function updateStatusPanelConcurrencyStatus(message: string): void {
-	feedback.updateConcurrencyStatus(message);
+	setStatusPanelConcurrencyText(message);
 }

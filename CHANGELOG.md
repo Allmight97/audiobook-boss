@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Tightened metadata cover-art compatibility, Audible Supplemental PDF
+  acquisition, and Status Panel ownership so format detection, PDF
+  orchestration, and UI state updates live with their owning modules.
+
+### Fixed
+
+- Cover-art compatibility warnings now distinguish supported JPEG/PNG, known
+  unsupported formats, and unrecognized bytes without warning on arbitrary
+  placeholder data.
+
 ## [1.1.4] - 2026-06-15
 
 ### Changed

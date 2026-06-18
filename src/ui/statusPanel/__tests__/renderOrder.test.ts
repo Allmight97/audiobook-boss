@@ -1,16 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as feedback from '../feedback';
 import { renderJobList as renderJobListView } from '../render';
 import type { JobProgress } from '../state';
+import * as viewState from '../viewState.svelte';
 
-vi.mock('../feedback', () => ({
-	renderJobList: vi.fn(),
-	setCancelAllButtonPending: vi.fn(),
+vi.mock('../viewState.svelte', () => ({
+	pushTransientStatusMessage: vi.fn(),
+	setStatusPanelCancelAllPending: vi.fn(),
+	setStatusPanelConcurrencyText: vi.fn(),
+	setStatusPanelCoverArtDataUrl: vi.fn(),
+	setStatusPanelIsProcessing: vi.fn(),
+	setStatusPanelJobItems: vi.fn(),
+	setStatusPanelProgressPercentage: vi.fn(),
+	setStatusPanelStatusText: vi.fn(),
+	setStatusPanelStepColor: vi.fn(),
+	setStatusPanelStepText: vi.fn(),
 	showError: vi.fn(),
+	showInfo: vi.fn(),
+	showSuccess: vi.fn(),
 }));
 
 describe('renderJobList order and queue status text', () => {
-	const renderListMock = vi.mocked(feedback.renderJobList);
+	const renderListMock = vi.mocked(viewState.setStatusPanelJobItems);
 
 	beforeEach(() => {
 		renderListMock.mockClear();

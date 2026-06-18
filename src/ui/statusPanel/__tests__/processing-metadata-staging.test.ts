@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../../types/audio';
 import type { ProcessingStatus } from '../state';
 import { startProcessing } from '../processing';
-import * as feedback from '../feedback';
+import * as viewState from '../viewState.svelte';
 
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
@@ -105,7 +105,7 @@ vi.mock('../../metadataValidation', () => ({
 	})),
 }));
 
-vi.mock('../feedback', () => ({
+vi.mock('../viewState.svelte', () => ({
 	showError: vi.fn(),
 }));
 
@@ -299,7 +299,7 @@ describe('startProcessing metadata staging', () => {
 			showStatus: false,
 		});
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(feedback.showError).toHaveBeenCalledWith(
+		expect(viewState.showError).toHaveBeenCalledWith(
 			'Fix metadata validation errors before processing.',
 		);
 	});
@@ -316,7 +316,7 @@ describe('startProcessing metadata staging', () => {
 		);
 		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(feedback.showError).toHaveBeenCalledWith('Series part must be a number');
+		expect(viewState.showError).toHaveBeenCalledWith('Series part must be a number');
 	});
 
 	it('stages clear intent for dirty-but-empty metadata in merge payload', async () => {
@@ -520,11 +520,11 @@ describe('startProcessing metadata staging', () => {
 		});
 
 		const ctx = processingContext();
-		vi.mocked(feedback.showError).mockClear();
+		vi.mocked(viewState.showError).mockClear();
 
 		await startProcessing(ctx);
 
-		expect(feedback.showError).not.toHaveBeenCalled();
+		expect(viewState.showError).not.toHaveBeenCalled();
 		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(ctx.resetToIdle).not.toHaveBeenCalled();
 	});

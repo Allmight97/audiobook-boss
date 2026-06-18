@@ -9,13 +9,13 @@ import {
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
-import * as feedback from './feedback';
 import type { ProcessingStatus } from './state';
+import { setStatusPanelCancelAllPending, showError } from './viewState.svelte';
 
 export interface ProcessingCancellationWorkflowServices {
 	cancelProcessing: typeof tauriClient.cancelProcessing;
-	setCancelAllButtonPending: typeof feedback.setCancelAllButtonPending;
-	showError: typeof feedback.showError;
+	setCancelAllButtonPending: (isPending: boolean) => void;
+	showError: (message: string) => void;
 	console: Pick<Console, 'error'>;
 }
 
@@ -37,8 +37,8 @@ export function makeProcessingCancellationWorkflowServicesLayer(
 
 export const liveProcessingCancellationWorkflowServices = {
 	cancelProcessing: (jobId?: string | null) => tauriClient.cancelProcessing(jobId),
-	setCancelAllButtonPending: feedback.setCancelAllButtonPending,
-	showError: feedback.showError,
+	setCancelAllButtonPending: setStatusPanelCancelAllPending,
+	showError,
 	console,
 } satisfies ProcessingCancellationWorkflowServices;
 
