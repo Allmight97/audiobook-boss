@@ -108,7 +108,10 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 
 | Trigger | Load |
 | --- | --- |
-| Multi-session alignment, roadmap, architecture, substantial planning, issue/spec/doc route | `.agents/skills/decision-alignment` |
+| Substantial ABB alignment, GitHub issue capture, or canon doc route | `.agents/skills/decision-alignment` |
+| User explicitly asks for architecture smell scan or refactor targets | Global `improve-codebase-architecture` (explicit dispatch only; not a sub-step of alignment) |
+| User explicitly asks to slice a plan into child issues | Global `to-issues` |
+| User explicitly asks to hand off to another agent/session | Global `handoff` |
 | Tauri commands/events/plugin adapters/`tauriClient`/generated bindings/TS↔Rust shapes | `.agents/skills/contract-guardrails` |
 | User paths, file inputs, file outputs, path validation, or write locations | `.agents/skills/path-security-validation` |
 | Queueing, jobs, progress, cancellation, status semantics | `.agents/skills/job-registry-and-progress` |
@@ -117,15 +120,15 @@ This table is dispatch only. Skill files own procedure, examples, and validation
 | File handles, temp files, process lifetime, cancellation cleanup, reopen/replace hazards | `.agents/skills/resource-lifetime-audit` |
 | Release, version, changelog, tag, DMG, install verification | `.agents/skills/release` |
 
-## Planning And Specs
+## Planning And Capture
 
-- Use `decision-alignment` for substantial planning, roadmap, architecture, or implementation alignment.
-- Active specs live only at `docs/specs/<task>.md`.
-- Specs are temporary work state, not repo canon.
-- Keep active specs self-contained and current while they are active.
-- When work is implemented, rejected, or superseded, delete the spec or distill only enduring rules into the owning canon surfaces.
+- Use `decision-alignment` for substantial ABB alignment and GitHub issue capture.
+- **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
+- Ephemeral planning: chat and OS-temp handoffs (`handoff` skill) — not repo files.
+- `docs/specs/<task>.md` only when the user explicitly wants a repo-local active spec instead of an issue.
+- When an active spec is used: temporary work state; delete or distill enduring rules into canon when done.
 - Keep chat logs, presentation HTML, and review artifacts outside repo canon.
-- Do not add repo-local ticket ledgers or scratch task databases.
+- Issue bodies are resume-ready plans, not planning transcripts (no skill provenance, scout appendices, or restructure narration).
 
 ## Decisions
 

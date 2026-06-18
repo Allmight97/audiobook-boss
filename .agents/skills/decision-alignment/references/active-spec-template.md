@@ -1,6 +1,8 @@
 # Active Spec Template
 
-Use this template with `decision-alignment` to hand off roadmaps and decisions to engineering agents for more granular validation, planning, and/or implementation.
+Use this template with `decision-alignment` only when the user explicitly wants a repo-local active spec instead of a GitHub issue.
+
+Default durable capture for substantial ABB work is GitHub issues (`references/issue-template.md`).
 
 Active specs must be self-contained, current, outcome-verifiable, and temporary (stored in `docs/specs/<task>.md`).
 When work is done, delete the spec or distill enduring truths into canon.

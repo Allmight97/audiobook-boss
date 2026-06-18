@@ -1,4 +1,4 @@
 interface:
   display_name: "Decision Alignment"
-  short_description: "Align ABB decisions to repo truth and north star"
-  default_prompt: "Use $decision-alignment to align this ABB decision to current repo truth and the clean, agent-first repo north star before implementation."
+  short_description: "Align ABB decisions; default capture is GitHub issues"
+  default_prompt: "Use $decision-alignment to align this ABB decision to current repo truth and capture to a GitHub issue when substantial."

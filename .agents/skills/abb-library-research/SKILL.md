@@ -1,180 +1,65 @@
 ---
 name: abb-library-research
-description: ABB reference-library control plane for external library/API research, Context7 CLI/MCP routing, vendored repos/* subtrees, route cards, subtree refreshes, and pattern files. Use during ABB planning, implementation, review, audits, or maintenance involving current docs, installed dependency truth, or Effect/Svelte/Tauri/Specta/tauri-specta behavior.
+description: Resolve ABB-specific external library and API uncertainty for Effect, Svelte, Tauri, Specta, and tauri-specta using route cards, repos/* reference source, Context7, and installed dependency truth. Return facts for the active decision only. Do not publish issues, specs, or planning artifacts.
 ---
 
 # ABB Library Research
 
-Use for ABB work that depends on external library behavior, reference subtree
-source, or route-card maintenance. Produce implementation-ready answers, not
-broad research.
+Answer external-library questions that affect an ABB implementation or contract decision. Produce the smallest source-backed answer — not a survey.
 
-## Posture
+## Boundary
 
-Use ABB to locate boundaries, constraints, tests, and product intent. Use
-current docs, this skill's route references, `repos/*` reference source, and
-installed dependency truth to challenge, improve, or validate the plan.
+Use when ABB work depends on vendored `repos/*` behavior, route cards, version-sensitive API semantics, or installed import truth.
 
-This skill is the control plane for ABB reference libraries: source routing,
-subtree refresh guidance, route-card maintenance, and task-specific pattern-file
-policy. It does not absorb domain skills such as metadata, path safety, job
-lifecycle, release, dependency maintenance, or IPC guardrails.
+Do not absorb metadata, path safety, job lifecycle, IPC guardrails, or release workflows.
 
-## Scout Delegation
+Do not run during alignment unless library truth is the blocking unknown. Do not chain into issue capture or architecture scans.
 
-Use Scout without a separate user request for bounded ABB library/source
-research when the lane is separable from implementation or review judgment:
-Context7/current docs checks, route-card path scouting, `repos/*`
-source/test/example lookup, installed dependency confirmation, or focused
-web/source searches. The main agent owns the final decision, implementation,
-and verification claim.
+## Answer contract
 
-Scout prompting shape:
+Return only:
 
-- Question: exact library/API uncertainty to resolve.
-- Sources: source ladder segment, route card, library ID, repo path, or preferred
-  domain to start from.
-- Known context: ABB paths, package names, versions, or prior claims.
-- Stop when: evidence is found, absent after named checks, or sources conflict.
-- Return: answer, source paths/links, and residual uncertainty.
+- **Behavior** that matters for the active question
+- **ABB route** (which boundary owns the change)
+- **Constraints / gotchas** that change implementation
+- **Version or path evidence** when version-sensitive (package version, generated binding path, or `repos/*` path)
+- **Residual uncertainty** when evidence conflicts — name the mismatch; let installed deps decide importable truth
 
-For targeted web/source searches, include preferred sources and stop rules.
+Do not return "source ladder used", "verified via research", or methodology narration unless the user asked why evidence is uncertain.
 
-Do not use Scout for a one-line lookup the main agent can answer faster, for
-mutation, or for broad surveys unless the user explicitly asks for one.
+## Source order
 
-## References
+1. Nearest `AGENTS.md`, owning code/tests, manifests, lockfiles, generated bindings
+2. Relevant `references/<library>.md` route card
+3. Context7 (CLI or MCP — one path per lookup, not both)
+4. `repos/*` for source-level patterns and tests
+5. Reconcile with installed/importable truth in `package.json`, `bun.lock`, Cargo lockfiles
 
-- Read `references/subtree-management.md` when refreshing subtrees, adding or
-  removing reference libraries, updating route cards, or creating pattern files.
-- Read the relevant route card before searching raw source:
-  `references/effect.md`, `references/svelte.md`, `references/tauri.md`,
-  `references/tauri-plugins.md`, `references/specta.md`, or
-  `references/tauri-specta.md`.
-- Route cards are navigation only. They do not override upstream source,
-  current docs, ABB manifests, generated bindings, or installed dependencies.
-
-## Source Ladder
-
-1. Locate ABB ownership first: nearest `AGENTS.md`, relevant docs/source/tests,
-   dependency manifests, lockfiles, generated bindings, and active config.
-2. Use Context7 only when external library/API behavior is uncertain or
-   version-sensitive. Use exactly one delivery path for the lookup: CLI or MCP,
-   not both.
-3. Read the relevant `references/<library>.md` route card to choose focused
-   source, test, example, and docs paths.
-4. Confirm with `repos/*` for source-level patterns, tests, examples,
-   permission schemas, and implementation details.
-5. Reconcile with ABB's installed/importable truth before implementation:
-   `package.json`, `bun.lock`, `node_modules` declarations, Cargo lockfiles,
-   generated schemas, and generated bindings.
-
-## Context7 Route
-
-- Context7 CLI and Context7 MCP are two access paths to the same docs product.
-  Do not treat them as independent evidence.
-- Prefer the CLI when the agent has the `find-docs` skill or reliable shell
-  access. Use `npx ctx7@latest ...` unless a local `ctx7` executable is already
-  known to be on `PATH`.
-- Use MCP when the harness exposes Context7 natively and CLI is unavailable,
-  blocked, or less ergonomic.
-- Never use both CLI and MCP for the same doc lookup unless the task is
-  explicitly diagnosing Context7 tooling.
-- Known library ID plus one precise docs query is the default. Skip resolution
-  when the ID is known.
-- Run resolution only when the library ID is unknown, stale, or disputed.
-- Do not run broad surveys or repeated resolve/query loops unless the user asks.
-- Avoid deep/research mode unless ordinary docs plus `repos/*` are insufficient.
-- If Context7 is degraded, keep moving with official docs, `repos/*`, installed
-  declarations, generated bindings, and `rg`.
-
-Command shapes:
-
-```bash
-npx ctx7@latest docs /websites/v2_tauri_app "Tauri 2 invoke command registration and capabilities"
-npx ctx7@latest library Tauri "Tauri 2 invoke command registration and capabilities"
-```
-
-MCP equivalent: call `query-docs` directly with a known `libraryId`; call
-`resolve-library-id` only when the ID is unknown or stale.
+Context7: known library ID + one precise query. Skip resolve when ID is known. No broad surveys unless the user asks.
 
 ABB library IDs:
 
 | Need | Prefer |
 | --- | --- |
-| Svelte 5 source/API snippets | `/sveltejs/svelte` |
-| Svelte site/tutorial/migration docs | `/websites/svelte_dev` |
-| Tauri 2 app docs | `/websites/v2_tauri_app` |
+| Svelte 5 | `/sveltejs/svelte` or `/websites/svelte_dev` |
+| Tauri 2 | `/websites/v2_tauri_app` |
+| Effect | `/llmstxt/effect_website_llms_txt` or `/effect-ts/effect` |
 | Tauri shell plugin | `/tauri-apps/tauri-plugin-shell` |
-| Effect usage docs | `/llmstxt/effect_website_llms_txt` |
-| Effect API/source examples | `/effect-ts/effect` |
 
-## Pattern Files
+## References
 
-- Do not create pattern files speculatively.
-- Create `references/pattern-<library>-<topic>.md` only when a real ABB task
-  repeatedly needs the same external-library idiom.
-- Pattern files must cite concrete source/test/docs paths, stay practical for
-  ABB usage, include what to avoid when useful, and be refreshed or deleted when
-  stale.
+- `references/subtree-management.md` — subtree refresh only when requested
+- Route cards: `references/effect.md`, `references/svelte.md`, `references/tauri.md`, `references/tauri-plugins.md`, `references/specta.md`, `references/tauri-specta.md`
 
-## Planning Mode
+Route cards navigate; they do not override installed deps or generated bindings.
 
-For implementation planning, produce the smallest source-backed decision:
+## Pattern files
 
-- library/API behavior that matters
-- recommended ABB route
-- constraints or gotchas
-- source ladder used
-- targeted acceptance checks
+Create `references/pattern-<library>-<topic>.md` only after repeated need. Delete when stale.
 
-Do not produce broad library surveys unless the user explicitly asks for one.
+## Implementation guardrails
 
-## Implementation And Review Mode
-
-- Prefer exported installed dependency types over copying conditional types or
-  local mirrors from reference repos.
-- For third-party implementations, distinguish dependency use, source copying,
-  close ports, linking/bundling, binary distribution, and paid binaries. Record
-  intended ownership, license posture, and distribution implications before
-  absorbing implementation code.
-- Use this skill's route references to find the right subtree paths, then use
-  `repos/*` as read-only source material; do not import from it.
-- Keep `src/lib/tauri/*` as ABB's runtime boundary for Tauri IPC/plugin access.
-- For Effect pilots, keep Effect private to the owning workflow until the
-  boundary decision changes intentionally.
-- For stale or conflicting evidence, name the mismatch and let installed ABB
-  dependencies decide importable API truth.
-- Absence from ABB dependencies is an adoption/planning fact, not evidence that the
-  library is irrelevant.
-
-## Route Map
-
-- Effect workflow, typed errors, services, layers, scopes, streams, schedules,
-  tests: Context7 Effect docs such as `/llmstxt/effect_website_llms_txt` for
-  usage guidance or `/effect-ts/effect` for API/source examples, then
-  `references/effect.md`, then listed `repos/effect` paths, then ABB
-  dependency state.
-- Svelte 5 components, runes, events, stores, compiler/runtime behavior:
-  Context7 Svelte docs, then `references/svelte.md`, then listed
-  `repos/svelte` paths and targeted tests, then installed `svelte`
-  declarations/version.
-- Tauri core JS/Rust APIs, commands, events, runtime behavior:
-  Context7 Tauri docs, then `references/tauri.md`, then listed
-  `repos/tauri` paths, then installed `@tauri-apps/*` or Cargo surfaces.
-- Tauri plugins: Context7 Tauri plugins docs, then
-  `references/tauri-plugins.md`, then listed
-  `repos/tauri-plugins/plugins/<plugin-name>` paths and examples, then
-  installed plugin declarations and `src-tauri/capabilities`.
-- Specta type export behavior: Context7/current docs if available, then
-  `references/specta.md`, then listed `repos/specta` paths, tests/examples,
-  and generated ABB bindings.
-- Tauri/Specta integration: Context7/current docs if available, then
-  `references/tauri-specta.md`, then listed `repos/tauri-specta`
-  source/tests/examples, then ABB generated binding checks.
-
-## Subtree Refreshes (only when requested)
-
-Read `references/subtree-management.md`, use the recorded subtree command, then
-verify subtree metadata, expected source directories, and `git status`. Do not
-run broad review commands for pure reference-source refreshes.
+- Prefer installed exported types over copying from `repos/*`
+- Do not import from `repos/*` into app code
+- Keep `src/lib/tauri/*` as the Tauri IPC boundary
+- Keep Effect private to owning workflows until a boundary decision changes
