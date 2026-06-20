@@ -12,6 +12,9 @@
 - Canonical metadata lookup provider-degradation behavior is documented in
   `src-tauri/src/commands/metadata_lookup/service.rs`.
 - Guidance ownership: root owns repo-wide posture, proof, and cross-cutting invariants; local `AGENTS.md` files own path-specific surfaces, commands, traps, and done criteria; skills own reusable procedures and conditional dispatch.
+- `CLAUDE.md` files are Claude Code import stubs only. Keep `AGENTS.md`
+  canonical; update the matching `AGENTS.md`, not the sibling `CLAUDE.md`,
+  unless the user explicitly asks for Claude-specific behavior.
 
 ## Testing And Proof Infrastructure
 
