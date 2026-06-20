@@ -75,7 +75,6 @@ __pycache__/
 /docs/**/*.html
 
 # Local AI/editor settings
-.claude/
 .cursor/
 opencode.json
 .btca/
