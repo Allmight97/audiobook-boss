@@ -1,0 +1,4 @@
+interface:
+  display_name: "Testing Strategy"
+  short_description: "Decide what to test, which tier, and where it lives"
+  default_prompt: "Use $testing-strategy to decide what to test for this ABB change, at which tier (core crate / runtime / contract / Vitest), and where each test should live."

@@ -26,6 +26,12 @@
 - For suspicious verification, capture the command, elapsed time, first-output
   latency when useful, child process or lock state when relevant, and whether
   the cost was expected stack work or infrastructure friction.
+- Test tier selection and placement reasoning (which tier a behavior belongs in,
+  where its test lives) is owned by the `testing-strategy` skill
+  (`.agents/skills/testing-strategy`). It routes to the authoritative sources;
+  it does not restate them: `crates/AGENTS.md` and `scripts/AGENTS.md` own
+  commands and the #341 media-execution-test freeze, and each surface
+  `AGENTS.md` owns its local placement rules.
 
 ## Execution, Scope, And Refactor Discipline
 
