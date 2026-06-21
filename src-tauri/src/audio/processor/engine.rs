@@ -7,7 +7,7 @@ use ffmpeg_next as ff;
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::frame_pipeline::PreviewAction;
-use crate::audio::processor::plan::{MediaProcessingPlan, MediaProcessor};
+use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, Result};
 use crate::processing::ProcessingContext;
@@ -88,80 +88,78 @@ impl FfmpegNextProcessor {
     }
 }
 
-impl MediaProcessor for FfmpegNextProcessor {
-    fn execute<'a>(
-        &'a self,
-        plan: &'a MediaProcessingPlan,
-        context: &'a ProcessingContext,
-        metadata: Option<&'a crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&'a crate::metadata::PassthroughMetadata>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+impl FfmpegNextProcessor {
+    /// Executes a media processing plan through the native ffmpeg-next pipeline.
+    pub(crate) async fn execute(
+        plan: &MediaProcessingPlan,
+        context: &ProcessingContext,
+        metadata: Option<&crate::metadata::AudiobookMetadata>,
+        passthrough: Option<&crate::metadata::PassthroughMetadata>,
+    ) -> Result<()> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
         INIT.call_once(|| {
             let _ = ff::init();
         });
 
-        Box::pin(async move {
-            // Setup encoder and output context with metadata
-            // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
-            let skip_chapter_passthrough = context.preview.is_some();
-            let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate, frame_plan) =
-                crate::audio::processor::encoder::setup_encoder(
-                    plan,
-                    metadata,
-                    skip_chapter_passthrough,
-                    passthrough,
-                )?;
-
-            // Validate metadata compatibility if provided
-            if let Some(md) = metadata {
-                let warnings = crate::metadata::validate_metadata_compatibility(md);
-                for warning in warnings {
-                    log::warn!("Metadata compatibility: {}", warning);
-                }
-            }
-
-            // Ensure partial outputs are removed on failure or cancellation
-            let mut cleanup_guard = CleanupGuard::new(context.session.id());
-            cleanup_guard.add_path(&plan.output_path);
-
-            let emitter = context.new_emitter();
-            if super::engine_orchestrator::process_input_files(
+        // Setup encoder and output context with metadata
+        // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
+        let skip_chapter_passthrough = context.preview.is_some();
+        let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate, frame_plan) =
+            crate::audio::processor::encoder::setup_encoder(
                 plan,
-                context,
-                &mut enc_ctx,
-                &mut octx,
-                ost_index,
-                ost_time_base,
-                target_sample_rate,
-                frame_plan.samples_per_frame(),
-                &emitter,
-            )? {
-                log::info!("✓ Flushed final accumulator tail frame");
-            }
-
-            // Finalize encoding (same path for full encode or preview early-stop)
-            log::info!("🏁 Starting encoding finalization...");
-            crate::audio::processor::encoder::finalize_encoding_after_preview(
-                &mut enc_ctx,
-                &mut octx,
-                ost_index,
-                ost_time_base,
+                metadata,
+                skip_chapter_passthrough,
+                passthrough,
             )?;
-            log::info!("✓ Encoding finalization completed successfully");
 
-            // Preserve output on success
-            let _ = cleanup_guard.remove_path(&plan.output_path);
-
-            if metadata.is_some() {
-                log::info!("Audio processing completed with metadata integration");
-            } else {
-                log::info!("Audio processing completed without metadata");
+        // Validate metadata compatibility if provided
+        if let Some(md) = metadata {
+            let warnings = crate::metadata::validate_metadata_compatibility(md);
+            for warning in warnings {
+                log::warn!("Metadata compatibility: {}", warning);
             }
+        }
 
-            Ok(())
-        })
+        // Ensure partial outputs are removed on failure or cancellation
+        let mut cleanup_guard = CleanupGuard::new(context.session.id());
+        cleanup_guard.add_path(&plan.output_path);
+
+        let emitter = context.new_emitter();
+        if super::engine_orchestrator::process_input_files(
+            plan,
+            context,
+            &mut enc_ctx,
+            &mut octx,
+            ost_index,
+            ost_time_base,
+            target_sample_rate,
+            frame_plan.samples_per_frame(),
+            &emitter,
+        )? {
+            log::info!("✓ Flushed final accumulator tail frame");
+        }
+
+        // Finalize encoding (same path for full encode or preview early-stop)
+        log::info!("🏁 Starting encoding finalization...");
+        crate::audio::processor::encoder::finalize_encoding_after_preview(
+            &mut enc_ctx,
+            &mut octx,
+            ost_index,
+            ost_time_base,
+        )?;
+        log::info!("✓ Encoding finalization completed successfully");
+
+        // Preserve output on success
+        let _ = cleanup_guard.remove_path(&plan.output_path);
+
+        if metadata.is_some() {
+            log::info!("Audio processing completed with metadata integration");
+        } else {
+            log::info!("Audio processing completed without metadata");
+        }
+
+        Ok(())
     }
 }
 
