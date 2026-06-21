@@ -154,7 +154,7 @@ impl ProcessingWorkflow {
 /// 1. Validate & Prepare
 /// 2. Execute Processing
 /// 3. Finalize Processing
-async fn process_audiobook_with_context(
+fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
@@ -196,8 +196,7 @@ async fn process_audiobook_with_context(
         effective_metadata.as_ref(),
         passthrough_metadata.as_ref(),
         &mut reporter,
-    )
-    .await?;
+    )?;
 
     // Stage 3: Finalize
     let result = finalize::finalize_processing(
@@ -207,8 +206,7 @@ async fn process_audiobook_with_context(
         effective_metadata,
         passthrough_metadata,
         &mut reporter,
-    )
-    .await?;
+    )?;
     let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead

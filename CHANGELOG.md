@@ -9,6 +9,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Tightened metadata cover-art compatibility, Audible Supplemental PDF
   acquisition, and Status Panel ownership so format detection, PDF
   orchestration, and UI state updates live with their owning modules.
+- Moved native audio processing onto a blocking worker so long encodes do not
+  occupy async runtime workers and cancellation stays responsive during
+  concurrent processing.
 
 ### Fixed
 

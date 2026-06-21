@@ -90,7 +90,10 @@ impl FfmpegNextProcessor {
 
 impl FfmpegNextProcessor {
     /// Executes a media processing plan through the native ffmpeg-next pipeline.
-    pub(crate) async fn execute(
+    ///
+    /// Synchronous and CPU-bound; the caller offloads this onto a blocking
+    /// thread via `spawn_blocking` so it never occupies an async worker.
+    pub(crate) fn execute(
         plan: &MediaProcessingPlan,
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,

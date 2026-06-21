@@ -124,7 +124,7 @@ pub(crate) fn complete_processing(
 }
 
 /// Finalize pipeline: metadata + completion
-pub(crate) async fn finalize_processing(
+pub(crate) fn finalize_processing(
     context: &ProcessingContext,
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
