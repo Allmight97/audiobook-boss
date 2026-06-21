@@ -124,7 +124,6 @@ export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplement
 
 // Default encoder settings with runtime auto resolution.
 // Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.
-// Default encoder settings
 export const defaultEncoderSettings = (): EncoderSettings => ({
 	encoderType: 'auto',
 	bitrateKbps: 64,
