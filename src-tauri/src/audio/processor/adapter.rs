@@ -54,13 +54,23 @@ impl ResolvedProcessorAdapter {
     ) -> Result<String> {
         match self {
             Self::NativeFfmpegNext => {
-                super::process_audiobook_with_context(
-                    context,
-                    files,
-                    metadata,
-                    cover_art_passthrough,
-                )
+                // The native pipeline (prepare -> encode -> finalize) is fully
+                // synchronous, CPU-bound work. Offload it onto a blocking thread
+                // so it never occupies an async runtime worker. Progress emission
+                // (`window.emit`) and cooperative cancellation (atomic flag) both
+                // operate correctly off the runtime.
+                tokio::task::spawn_blocking(move || {
+                    super::process_audiobook_with_context(
+                        context,
+                        files,
+                        metadata,
+                        cover_art_passthrough,
+                    )
+                })
                 .await
+                .map_err(|join_error| {
+                    AppError::General(format!("audio processing task failed: {join_error}"))
+                })?
             }
             Self::ExternalFdk { toolchain } => {
                 super::external_fdk::process_audiobook_with_external_fdk(

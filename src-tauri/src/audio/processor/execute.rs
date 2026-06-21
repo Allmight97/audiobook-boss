@@ -19,7 +19,7 @@ use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
 /// Executes core audio processing operations (merge / convert).
-pub(crate) async fn execute_processing(
+pub(crate) fn execute_processing(
     context: &ProcessingContext,
     workflow: &ProcessingWorkflow,
     files: &[AudioFile],
@@ -45,8 +45,7 @@ pub(crate) async fn execute_processing(
         files,
         metadata,
         passthrough,
-    )
-    .await?;
+    )?;
 
     if context.is_cancelled() {
         return Err(AppError::cancelled());
@@ -56,7 +55,7 @@ pub(crate) async fn execute_processing(
 }
 
 /// Merges audio files with context-based progress tracking.
-pub(crate) async fn merge_audio_files_with_context(
+pub(crate) fn merge_audio_files_with_context(
     temp_dir: &Path,
     context: &ProcessingContext,
     _reporter: &mut ProgressReporter,
@@ -76,7 +75,7 @@ pub(crate) async fn merge_audio_files_with_context(
         total_duration,
     );
 
-    FfmpegNextProcessor::execute(&plan, context, metadata, passthrough).await?;
+    FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)?;
 
     Ok(temp_output)
 }
