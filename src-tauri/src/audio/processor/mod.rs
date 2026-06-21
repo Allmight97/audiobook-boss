@@ -36,7 +36,6 @@ mod frame_pipeline;
 mod plan;
 mod prepare;
 mod preview_state;
-mod selection;
 mod staging;
 mod streams;
 

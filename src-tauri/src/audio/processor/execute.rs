@@ -14,8 +14,8 @@ use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
 use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
 
-use super::plan::{MediaProcessingPlan, MediaProcessor};
-use super::selection::{create_default_processor, get_engine_description};
+use super::engine::FfmpegNextProcessor;
+use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
 /// Executes core audio processing operations (merge / convert).
@@ -76,12 +76,7 @@ pub(crate) async fn merge_audio_files_with_context(
         total_duration,
     );
 
-    // Centralized processor selection keeps execution flow decoupled from engine wiring.
-    log::debug!("Using media processor: {}", get_engine_description());
-    let processor = create_default_processor();
-    processor
-        .execute(&plan, context, metadata, passthrough)
-        .await?;
+    FfmpegNextProcessor::execute(&plan, context, metadata, passthrough).await?;
 
     Ok(temp_output)
 }
