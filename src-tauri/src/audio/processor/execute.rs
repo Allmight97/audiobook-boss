@@ -27,9 +27,7 @@ pub(crate) fn execute_processing(
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
-    let mut emitter = ProgressReporter::new(1); // Single logical processing unit
     reporter.set_stage(ProcessingStage::Converting);
-    emitter.set_stage(ProcessingStage::Converting);
 
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
