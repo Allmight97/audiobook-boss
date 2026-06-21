@@ -11,12 +11,6 @@ use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProcessorAdapterKind {
-    NativeFfmpegNext,
-    ExternalFdk,
-}
-
 #[derive(Debug, Clone)]
 pub enum ResolvedProcessorAdapter {
     NativeFfmpegNext,
@@ -26,13 +20,6 @@ pub enum ResolvedProcessorAdapter {
 }
 
 impl ResolvedProcessorAdapter {
-    pub fn kind(&self) -> ProcessorAdapterKind {
-        match self {
-            Self::NativeFfmpegNext => ProcessorAdapterKind::NativeFfmpegNext,
-            Self::ExternalFdk { .. } => ProcessorAdapterKind::ExternalFdk,
-        }
-    }
-
     pub fn validate_inputs(&self, file_info: &FileListInfo) -> Result<()> {
         match self {
             Self::NativeFfmpegNext => Ok(()),
@@ -133,7 +120,7 @@ mod tests {
         )
         .expect("native adapter should resolve");
 
-        assert_eq!(adapter.kind(), ProcessorAdapterKind::NativeFfmpegNext);
+        assert!(matches!(adapter, ResolvedProcessorAdapter::NativeFfmpegNext));
     }
 
     #[test]
@@ -148,7 +135,10 @@ mod tests {
         )
         .expect("external adapter should resolve");
 
-        assert_eq!(adapter.kind(), ProcessorAdapterKind::ExternalFdk);
+        assert!(matches!(
+            adapter,
+            ResolvedProcessorAdapter::ExternalFdk { .. }
+        ));
     }
 
     #[test]

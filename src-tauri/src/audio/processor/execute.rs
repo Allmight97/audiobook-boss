@@ -40,7 +40,6 @@ pub(crate) fn execute_processing(
     let merged_output = merge_audio_files_with_context(
         &workflow.temp_dir,
         context,
-        reporter,
         workflow.total_duration(),
         files,
         metadata,
@@ -58,7 +57,6 @@ pub(crate) fn execute_processing(
 pub(crate) fn merge_audio_files_with_context(
     temp_dir: &Path,
     context: &ProcessingContext,
-    _reporter: &mut ProgressReporter,
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
