@@ -78,7 +78,14 @@ impl StagedTempFile {
             return Err(AppError::cancelled());
         }
         ensure_same_parent(&self.partial_path, &self.final_path)?;
-        if !self.partial_path.exists() {
+        if !tokio::fs::try_exists(&self.partial_path)
+            .await
+            .map_err(|error| {
+                AppError::General(format!(
+                    "Staged partial output check failed before commit: {error}"
+                ))
+            })?
+        {
             return Err(AppError::General(
                 "Staged partial output is missing before commit.".to_string(),
             ));
