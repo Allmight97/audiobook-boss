@@ -13,8 +13,6 @@ mod run_validation;
 pub(crate) use run_options::ProcessingRunOptions;
 use run_validation::{log_encoder_summary, validate_external_processing_contract};
 
-pub(crate) struct ProcessingRun;
-
 pub(crate) async fn process_payload(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
@@ -44,7 +42,7 @@ pub(crate) async fn process_payload_with_options(
     preview_seconds: Option<f64>,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
-    ProcessingRun::execute(
+    run_execute(
         window,
         registry,
         workspace_root,
@@ -61,62 +59,60 @@ pub(crate) fn preflight_payload(
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessingPreflightPlan> {
-    ProcessingRun::preflight(payload, metadata, preview_seconds)
+    run_preflight(payload, metadata, preview_seconds)
 }
 
-impl ProcessingRun {
-    pub(crate) async fn execute(
-        window: tauri::Window,
-        registry: crate::ManagedJobRegistry,
-        workspace_root: PathBuf,
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-        options: ProcessingRunOptions,
-    ) -> Result<ProcessCommandResult> {
-        validate_encoder_settings(&payload.settings)?;
-        validate_external_processing_contract(&payload)?;
-        log_encoder_summary(&payload);
+async fn run_execute(
+    window: tauri::Window,
+    registry: crate::ManagedJobRegistry,
+    workspace_root: PathBuf,
+    payload: ProcessPayload,
+    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+    options: ProcessingRunOptions,
+) -> Result<ProcessCommandResult> {
+    validate_encoder_settings(&payload.settings)?;
+    validate_external_processing_contract(&payload)?;
+    log_encoder_summary(&payload);
 
-        let execution_plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
-        let job_type = execution_plan.plan.job_type;
+    let execution_plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
+    let job_type = execution_plan.plan.job_type;
 
-        match job_type {
-            JobType::Merge => {
-                run_dispatch::dispatch_merge_job(
-                    window,
-                    registry,
-                    workspace_root,
-                    &payload,
-                    execution_plan,
-                    options,
-                )
-                .await
-            }
-            JobType::Batch => {
-                run_dispatch::dispatch_batch_jobs(
-                    window,
-                    registry,
-                    workspace_root,
-                    &payload,
-                    execution_plan,
-                    options,
-                )
-                .await
-            }
+    match job_type {
+        JobType::Merge => {
+            run_dispatch::dispatch_merge_job(
+                window,
+                registry,
+                workspace_root,
+                &payload,
+                execution_plan,
+                options,
+            )
+            .await
+        }
+        JobType::Batch => {
+            run_dispatch::dispatch_batch_jobs(
+                window,
+                registry,
+                workspace_root,
+                &payload,
+                execution_plan,
+                options,
+            )
+            .await
         }
     }
+}
 
-    pub(crate) fn preflight(
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-    ) -> Result<ProcessingPreflightPlan> {
-        validate_encoder_settings(&payload.settings)?;
-        validate_external_processing_contract(&payload)?;
+fn run_preflight(
+    payload: ProcessPayload,
+    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> Result<ProcessingPreflightPlan> {
+    validate_encoder_settings(&payload.settings)?;
+    validate_external_processing_contract(&payload)?;
 
-        resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds)
-    }
+    resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds)
 }
 
 #[cfg(test)]

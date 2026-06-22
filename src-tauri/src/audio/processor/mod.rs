@@ -105,9 +105,12 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Stri
         ..
     } = request.file_info;
     let adapter = adapter::resolve_processor_adapter(&request.encoder_settings)?;
+    let adapter_label = match &adapter {
+        adapter::ResolvedProcessorAdapter::NativeFfmpegNext => "native_ffmpeg_next",
+        adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
+    };
     log::info!(
-        "audio engine adapter: kind={:?} requested_encoder={:?}",
-        adapter.kind(),
+        "audio engine adapter: kind={adapter_label} requested_encoder={:?}",
         request.encoder_settings.encoder_type,
     );
     adapter
@@ -204,7 +207,6 @@ fn process_audiobook_with_context(
         workflow,
         merged_output,
         effective_metadata,
-        passthrough_metadata,
         &mut reporter,
     )?;
     let _ = workflow_cleanup.remove_path(&workflow_temp_dir);

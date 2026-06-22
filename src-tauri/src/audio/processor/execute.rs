@@ -27,9 +27,7 @@ pub(crate) fn execute_processing(
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
     reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
-    let mut emitter = ProgressReporter::new(1); // Single logical processing unit
     reporter.set_stage(ProcessingStage::Converting);
-    emitter.set_stage(ProcessingStage::Converting);
 
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
@@ -40,7 +38,6 @@ pub(crate) fn execute_processing(
     let merged_output = merge_audio_files_with_context(
         &workflow.temp_dir,
         context,
-        reporter,
         workflow.total_duration(),
         files,
         metadata,
@@ -58,7 +55,6 @@ pub(crate) fn execute_processing(
 pub(crate) fn merge_audio_files_with_context(
     temp_dir: &Path,
     context: &ProcessingContext,
-    _reporter: &mut ProgressReporter,
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
