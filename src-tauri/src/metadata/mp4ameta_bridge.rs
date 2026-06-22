@@ -1,11 +1,13 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::cover_art::detect_cover_art_format;
+use crate::metadata::metadata_ops::plan_metadata_field_ops;
+use crate::metadata::metadata_sinks::{apply_metadata_ops, MetadataFieldSink, Mp4ametaSink};
 use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{
-    build_series_list, normalize_publication_date, split_series_list, AlbumSortWriteAction,
-    AudiobookMetadata, MetadataWritePlan,
+    normalize_publication_date, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
+    MetadataWritePlan,
 };
-use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, MediaType, Tag, WriteConfig};
+use mp4ameta::{FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
 use std::path::Path;
 
 pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
@@ -74,47 +76,14 @@ fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
     let (effective_title, effective_series, effective_series_part) =
         resolve_effective_metadata(tag, metadata);
 
-    if let Some(ref title) = metadata.title {
-        tag.set_title(title);
+    let ops = plan_metadata_field_ops(metadata);
+    {
+        let mut sink = Mp4ametaSink::new(tag);
+        apply_metadata_ops(&mut sink, &ops);
+        sink.set_media_type_audiobook();
     }
 
-    if let Some(ref artist) = metadata.artist {
-        tag.set_artist(artist);
-        tag.set_album_artist(artist);
-    }
-
-    if let Some(ref album) = metadata.album {
-        tag.set_album(album);
-    }
-
-    if let Some(ref composer) = metadata.composer {
-        tag.set_composer(composer);
-    }
-
-    if let Some(ref genre) = metadata.genre {
-        tag.set_genre(genre);
-    }
-
-    if let Some(ref date) = metadata.date {
-        let trimmed = date.trim();
-        if trimmed.is_empty() {
-            tag.remove_year();
-        } else {
-            tag.set_year(trimmed.to_string());
-        }
-    }
-
-    if let Some(ref comment) = metadata.comment {
-        tag.set_comment(comment);
-    }
-
-    if let Some(ref description) = metadata.description {
-        if description.trim().is_empty() {
-            tag.remove_descriptions();
-        } else {
-            tag.set_description(description);
-        }
-    }
+    clear_series_movement_fields_if_needed(tag, metadata);
 
     apply_album_sort(
         tag,
@@ -124,46 +93,12 @@ fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
         effective_series_part.as_deref(),
     );
 
-    tag.set_media_type(MediaType::AudioBook);
-
-    apply_series_metadata(tag, metadata);
     apply_cover_art(tag, metadata)?;
 
     Ok(())
 }
 
-fn apply_series_metadata(tag: &mut Tag, metadata: &AudiobookMetadata) {
-    let (series_value, series_part_value) = build_series_list(
-        metadata.series.as_deref(),
-        metadata.series_part.as_deref(),
-        metadata.subseries.as_deref(),
-        metadata.subseries_part.as_deref(),
-    );
-
-    if metadata.series.is_some() {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
-        // Always remove existing atoms first to prevent duplication
-        tag.remove_data_of(&ident);
-        tag.remove_tv_show_name();
-        tag.remove_tv_show_name_sort_order();
-
-        if let Some(series_value) = series_value.as_deref() {
-            tag.set_data(ident, Data::Utf8(series_value.to_string()));
-        }
-    }
-
-    if metadata.series_part.is_some() {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
-        // Always remove existing atoms first to prevent duplication
-        tag.remove_data_of(&ident);
-        tag.remove_tv_episode();
-        tag.remove_tv_episode_name();
-
-        if let Some(series_part_value) = series_part_value.as_deref() {
-            tag.set_data(ident, Data::Utf8(series_part_value.to_string()));
-        }
-    }
-
+fn clear_series_movement_fields_if_needed(tag: &mut Tag, metadata: &AudiobookMetadata) {
     let should_clear_series = metadata.series.is_some()
         || metadata.series_part.is_some()
         || metadata.subseries.is_some()

@@ -10,6 +10,9 @@ use crate::errors::{AppError, Result};
 pub mod reader;
 pub(crate) mod tag_registry;
 
+mod field_schema;
+mod metadata_ops;
+mod metadata_sinks;
 mod container;
 #[cfg(test)]
 mod contract_tests;
