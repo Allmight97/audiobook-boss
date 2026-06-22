@@ -17,8 +17,20 @@
   runtime file behavior.
 
 ## Private Cluster
-- Files: `intent_plan.rs`, `contract_tests.rs`; `mod.rs` owns the public re-export strip.
-- The broader metadata boundary owns reader/writer interoperability, tag registry behavior, passthrough, cover-art handling, remux helpers, and container routing.
+- Files: `intent_plan.rs`, `contract_tests.rs`, `field_schema.rs`, `metadata_ops.rs`,
+  `metadata_sinks.rs`; `mod.rs` owns the public re-export strip.
+- `field_schema` + `metadata_ops` own container-neutral tag mapping, read aliases,
+  clear groups, and field op planning (fan-outs, track/disk tuples). Container
+  adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops only.
+- `cover_art` and `media_type` stay sink-owned outside the neutral field-op loop
+  (encode-path embed vs mp4 artwork; unconditional audiobook media type).
+- `AlbumSortWriteAction` stays on `MetadataWritePlan`; do not fold album_sort into
+  generic field set/clear ops.
+- Track/disk are read-compatible passthrough fields: excluded from
+  `MetadataIntentPatch`, but written when present on full `AudiobookMetadata`.
+- The broader metadata boundary owns passthrough, cover-art handling, remux helpers,
+  and container routing. `tag_registry.rs` retains series constants folded by
+  `field_schema`.
 
 ## Allowed Agent Edits Without Escalation
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
