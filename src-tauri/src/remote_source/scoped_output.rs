@@ -57,10 +57,6 @@ impl StagedTempFile {
         }
     }
 
-    pub(crate) fn final_path(&self) -> &Path {
-        &self.final_path
-    }
-
     pub(crate) fn partial_path(&self) -> &Path {
         &self.partial_path
     }
@@ -77,10 +73,7 @@ impl StagedTempFile {
 
     /// Cancel check → same-directory rename partial→final → commit. Consumes the guard
     /// lifecycle: after success the final path survives drop.
-    pub(crate) async fn rename_and_commit(
-        mut self,
-        is_cancelled: impl Fn() -> bool,
-    ) -> Result<()> {
+    pub(crate) async fn rename_and_commit(mut self, is_cancelled: impl Fn() -> bool) -> Result<()> {
         if is_cancelled() {
             return Err(AppError::cancelled());
         }
@@ -210,7 +203,7 @@ mod tests {
             let staged = StagedTempFile::new(&final_path);
             partial_path = staged.partial_path().to_path_buf();
             std::fs::write(staged.partial_path(), b"partial").expect("write partial");
-            std::fs::write(staged.final_path(), b"final").expect("write final");
+            std::fs::write(&final_path, b"final").expect("write final");
             staged.commit();
         }
         assert!(final_path.exists());

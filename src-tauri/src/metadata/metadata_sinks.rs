@@ -9,12 +9,14 @@ use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(test)]
 pub enum MetadataDialect {
     Ffmpeg,
     Mp4ameta,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg(test)]
 pub enum RecordedOp {
     SetKey {
         key: String,
@@ -49,11 +51,13 @@ pub trait MetadataFieldSink {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg(test)]
 pub struct RecordingSink {
     pub ops: Vec<RecordedOp>,
     dialect: MetadataDialect,
 }
 
+#[cfg(test)]
 impl RecordingSink {
     pub fn new(dialect: MetadataDialect) -> Self {
         Self {
@@ -63,6 +67,7 @@ impl RecordingSink {
     }
 }
 
+#[cfg(test)]
 impl MetadataFieldSink for RecordingSink {
     fn set_string(&mut self, field: TagField, value: &str) {
         match self.dialect {
@@ -229,8 +234,7 @@ impl MetadataFieldSink for Mp4ametaSink<'_> {
     fn set_track(&mut self, number: u32, total: Option<u32>) {
         let total = total.unwrap_or(0);
         if number <= u16::MAX as u32 && total <= u16::MAX as u32 {
-            self.tag
-                .set_track(number as u16, total as u16);
+            self.tag.set_track(number as u16, total as u16);
         }
     }
 
@@ -316,6 +320,7 @@ fn format_position_field(number: u32, total: Option<u32>) -> String {
     }
 }
 
+#[cfg(test)]
 fn mp4_string_field_key(field: TagField) -> Option<&'static str> {
     match field {
         TagField::Title => Some("title"),
@@ -325,17 +330,21 @@ fn mp4_string_field_key(field: TagField) -> Option<&'static str> {
         TagField::Genre => Some("genre"),
         TagField::Comment => Some("comment"),
         TagField::Description => Some("description"),
-        TagField::Date | TagField::Series | TagField::SeriesPart | TagField::Track | TagField::Disk => {
-            None
-        }
+        TagField::Date
+        | TagField::Series
+        | TagField::SeriesPart
+        | TagField::Track
+        | TagField::Disk => None,
     }
 }
 
+#[cfg(test)]
 pub fn normalize_recorded_ops(ops: &[RecordedOp]) -> Vec<NormalizedRecordedOp> {
     ops.iter().map(NormalizedRecordedOp::from).collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(test)]
 pub enum NormalizedRecordedOp {
     Title(String),
     Artist(String),
@@ -352,6 +361,7 @@ pub enum NormalizedRecordedOp {
     MediaTypeAudiobook,
 }
 
+#[cfg(test)]
 impl From<&RecordedOp> for NormalizedRecordedOp {
     fn from(op: &RecordedOp) -> Self {
         match op {
@@ -361,12 +371,14 @@ impl From<&RecordedOp> for NormalizedRecordedOp {
                 SERIES_PART_FREEFORM_NAME => NormalizedRecordedOp::SeriesPart(value.clone()),
                 _ => NormalizedRecordedOp::Comment(value.clone()),
             },
-            RecordedOp::SetTrack { number, total } => {
-                NormalizedRecordedOp::Track { number: *number, total: *total }
-            }
-            RecordedOp::SetDisk { number, total } => {
-                NormalizedRecordedOp::Disk { number: *number, total: *total }
-            }
+            RecordedOp::SetTrack { number, total } => NormalizedRecordedOp::Track {
+                number: *number,
+                total: *total,
+            },
+            RecordedOp::SetDisk { number, total } => NormalizedRecordedOp::Disk {
+                number: *number,
+                total: *total,
+            },
             RecordedOp::SetMediaTypeAudiobook => NormalizedRecordedOp::MediaTypeAudiobook,
             RecordedOp::ClearKey { .. } | RecordedOp::Mp4RemoveSeriesCompat => {
                 NormalizedRecordedOp::Comment(String::new())
@@ -375,6 +387,7 @@ impl From<&RecordedOp> for NormalizedRecordedOp {
     }
 }
 
+#[cfg(test)]
 fn normalized_from_key(key: &str, value: &str) -> NormalizedRecordedOp {
     match key {
         "title" => NormalizedRecordedOp::Title(value.to_string()),
@@ -398,12 +411,10 @@ fn normalized_from_key(key: &str, value: &str) -> NormalizedRecordedOp {
     }
 }
 
+#[cfg(test)]
 fn parse_track_disk_normalized(value: &str, is_track: bool) -> NormalizedRecordedOp {
     let (number, total) = if let Some((number, total)) = value.split_once('/') {
-        (
-            number.trim().parse().ok(),
-            total.trim().parse().ok(),
-        )
+        (number.trim().parse().ok(), total.trim().parse().ok())
     } else {
         (value.trim().parse().ok(), None)
     };
@@ -425,7 +436,10 @@ mod tests {
     use crate::metadata::AudiobookMetadata;
     use mp4ameta::Tag;
 
-    fn normalized_semantic_ops(metadata: &AudiobookMetadata, dialect: MetadataDialect) -> Vec<NormalizedRecordedOp> {
+    fn normalized_semantic_ops(
+        metadata: &AudiobookMetadata,
+        dialect: MetadataDialect,
+    ) -> Vec<NormalizedRecordedOp> {
         let ops = plan_metadata_field_ops(metadata);
         let mut sink = RecordingSink::new(dialect);
         apply_metadata_ops(&mut sink, &ops);
