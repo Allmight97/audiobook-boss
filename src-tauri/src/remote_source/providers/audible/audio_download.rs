@@ -416,5 +416,3 @@ fn log_download_failed(
         bytes_total.unwrap_or(0)
     );
 }
-
-
