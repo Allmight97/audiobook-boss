@@ -147,8 +147,10 @@ async fn download_supplemental_pdf_with_client(
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     let path = generated_staging_path(request.job_dir, "pdf");
     // Guard cleans the partial + (uncommitted) final on every early return / `?`.
-    let staged = StagedTempFile::new(&path);
-    let _ = tokio::fs::remove_file(staged.partial_path()).await;
+    let mut staged = StagedTempFile::new(&path);
+    staged
+        .prepare()
+        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     log_supplemental_pdf_download_start(
         request.job_id,
         request.title_id,
@@ -177,11 +179,11 @@ async fn download_supplemental_pdf_with_client(
     if !identity.has_pdf_magic {
         return Err(SupplementalPdfFailure::new("pdf_magic", None));
     }
-    tokio::fs::rename(staged.partial_path(), staged.final_path())
+    staged
+        .rename_and_commit(is_cancelled)
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let canonical = canonicalize_staged_pdf(staged.final_path())?;
-    staged.commit();
+    let canonical = canonicalize_staged_pdf(&path)?;
     log_supplemental_pdf_download_complete(request.job_id, request.title_id, identity.size_bytes);
     Ok(SupplementalAsset {
         asset_id: uuid::Uuid::new_v4().to_string(),

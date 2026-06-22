@@ -15,6 +15,7 @@ use super::materialization::materialize_protected_download;
 use super::{auth_from_vault, client_from_auth};
 use crate::errors::Result;
 use crate::remote_source::materializer::AaxcleanMaterializer;
+use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
 use crate::remote_source::vault::SecretVault;
 use crate::remote_source::{
@@ -248,7 +249,8 @@ async fn acquire_one(
         .await
         .map_err(AudibleAcquisitionError::materialization)?
     };
-    let file = validation::validate_materialized_audio(&materialized_path, ctx, progress)
+    let committed_audio = ProvisionalCommittedFile::new(materialized_path.clone());
+    let file = validation::validate_materialized_audio(committed_audio.path(), ctx, progress)
         .await
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
@@ -265,6 +267,7 @@ async fn acquire_one(
         is_cancelled,
     )
     .await?;
+    committed_audio.permanent();
     Ok(AcquiredTitle {
         file: Some(file),
         assets,
@@ -330,9 +333,8 @@ pub(super) fn unsupported_result_for_unmaterializable_lane(
 mod tests {
     use super::*;
     use crate::errors::AppError;
-    use crate::remote_source::providers::audible::audio_download::{
-        cleanup_download_artifacts, download_status_failure, partial_download_path,
-    };
+    use crate::remote_source::providers::audible::audio_download::download_status_failure;
+    use crate::remote_source::scoped_output::{partial_sibling, rollback_committed_file};
     use secrecy::ExposeSecret;
     use serde_json::json;
     use std::path::Path;
@@ -483,17 +485,15 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_download_artifacts_removes_partial_and_intermediate_files() {
+    fn rollback_committed_file_removes_committed_staged_output() {
         let root = tempfile::TempDir::new().expect("temp root");
         let final_path = root.path().join("book.aax");
-        let partial_path = partial_download_path(&final_path);
         std::fs::write(&final_path, b"encrypted").expect("write final");
-        std::fs::write(&partial_path, b"partial").expect("write partial");
 
-        cleanup_download_artifacts(&final_path).expect("cleanup artifacts");
+        rollback_committed_file(&final_path).expect("rollback committed file");
 
         assert!(!final_path.exists());
-        assert!(!partial_path.exists());
+        assert!(!partial_sibling(&final_path).exists());
     }
 
     #[test]

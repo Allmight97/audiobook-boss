@@ -109,13 +109,11 @@ impl AaxcleanMaterializer {
     ) -> Result<PathBuf> {
         ensure_not_cancelled(&is_cancelled)?;
         ensure_helper_available(&self.helper_path)?;
-        cleanup_materializer_outputs(&request.output_temp_path, &request.output_path)?;
-        // From here on, any early return / `?` drops `outputs`, which removes the
-        // temp + (uncommitted) final path. Replaces the per-branch cleanup calls.
-        let outputs = StagedTempFile::with_partial(
+        let mut outputs = StagedTempFile::with_partial(
             request.output_path.clone(),
             request.output_temp_path.clone(),
         );
+        outputs.prepare()?;
         log::info!(
             "remote_source materializer stage=materializer_start job_id={} operation_id={} lane={}",
             request.job_id,
@@ -184,17 +182,14 @@ impl AaxcleanMaterializer {
             return Err(materializer_failure("helper result"));
         }
 
-        tokio::fs::rename(&request.output_temp_path, &request.output_path)
-            .await
-            .map_err(|_| {
-                log::warn!(
-                    "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=output_commit_failed",
-                    request.job_id,
-                    request.operation_id
-                );
-                materializer_failure("helper output commit")
-            })?;
-        outputs.commit();
+        outputs.rename_and_commit(&is_cancelled).await.map_err(|_| {
+            log::warn!(
+                "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=output_commit_failed",
+                request.job_id,
+                request.operation_id
+            );
+            materializer_failure("helper output commit")
+        })?;
         Ok(request.output_path)
     }
 }
@@ -549,17 +544,6 @@ fn ensure_helper_available(path: &Path) -> Result<()> {
     Err(AppError::General(
         "AAXClean helper is unavailable in this build. Rebuild the app to refresh bundled helper binaries.".to_string(),
     ))
-}
-
-fn cleanup_materializer_outputs(output_temp_path: &Path, output_path: &Path) -> Result<()> {
-    for candidate in [output_temp_path, output_path] {
-        match std::fs::remove_file(candidate) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Ok(())
 }
 
 fn materializer_failure(stage: &str) -> AppError {

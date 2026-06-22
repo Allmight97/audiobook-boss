@@ -6,13 +6,13 @@ use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use super::acquisition::{
     staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
 };
-use super::audio_download::cleanup_download_artifacts;
 use super::license::{strategy_label, LicenseLane};
 use super::provider_private_failure;
 use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
 };
+use crate::remote_source::scoped_output::{partial_sibling, remove_if_present};
 
 pub(super) async fn materialize_protected_download(
     materializer: &AaxcleanMaterializer,
@@ -37,7 +37,7 @@ pub(super) async fn materialize_protected_download(
             title_ref(title_id),
             item_id
         );
-        cleanup_download_artifacts(downloaded_path)?;
+        remove_if_present(downloaded_path)?;
         return Err(provider_private_failure("AAXClean decryption material"));
     };
     progress(title_progress(
@@ -48,7 +48,8 @@ pub(super) async fn materialize_protected_download(
         None,
     ));
     let output_path = staged_materialized_path(item_dir, title_name, title_id);
-    let output_temp_path = materializer_output_temp_path(&output_path);
+    let output_temp_path = partial_sibling(&output_path);
+
     let mut materializer_progress = |progress_event: AcquisitionProgress| {
         progress(with_title_progress(progress_event, progress_context));
     };
@@ -59,7 +60,7 @@ pub(super) async fn materialize_protected_download(
                 operation_id: item_id.to_string(),
                 lane: helper_lane,
                 input_path: downloaded_path.to_path_buf(),
-                output_temp_path,
+                output_temp_path: output_temp_path.clone(),
                 output_path: output_path.clone(),
                 secret,
             },
@@ -67,18 +68,18 @@ pub(super) async fn materialize_protected_download(
             is_cancelled,
         )
         .await;
-    let protected_cleanup = cleanup_download_artifacts(downloaded_path);
+
     match result {
         Ok(path) => {
-            if protected_cleanup.is_err() {
-                let _ = cleanup_download_artifacts(&output_path);
-                return Err(provider_private_failure("staged protected cleanup"));
+            if let Err(error) = remove_if_present(downloaded_path) {
+                return Err(provider_private_failure(&format!(
+                    "staged protected cleanup: {error}"
+                )));
             }
             Ok(path)
         }
         Err(error) => {
-            let _ = protected_cleanup;
-            let _ = cleanup_download_artifacts(&output_path);
+            let _ = remove_if_present(downloaded_path);
             if matches!(error, AppError::Cancellation(_)) {
                 return Err(error);
             }
@@ -91,10 +92,6 @@ pub(super) async fn materialize_protected_download(
             Err(error)
         }
     }
-}
-
-fn materializer_output_temp_path(path: &Path) -> PathBuf {
-    path.with_extension("m4b.partial")
 }
 
 pub(super) fn helper_material_from_audible_material(

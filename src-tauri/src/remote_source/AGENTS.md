@@ -26,6 +26,12 @@ or infer provider-private Audible internals.
 - `cancellation.rs` owns shared acquisition cancellation checks.
 - `vault.rs` owns backend secret-vault adapters.
 - `staging.rs` owns ABB-managed staging/session roots and cleanup rules.
+- `scoped_output.rs` owns staged remote writes: `prepare` (stale-partial pre-clean)
+  → partial write → cancel check → same-directory `rename_and_commit`. Drop cleans
+  uncommitted paths. `ProvisionalCommittedFile` holds committed audiobook output
+  until validation and supplemental steps succeed.
+- Post-download cancel uses `rollback_committed_file`; do not revive generic
+  `cleanup_download_artifacts` helpers. No cross-device rename fallback here.
 - `providers/audible/library.rs` owns Audible library response shaping.
 
 No provider secrets, license blobs, raw provider responses, or protected

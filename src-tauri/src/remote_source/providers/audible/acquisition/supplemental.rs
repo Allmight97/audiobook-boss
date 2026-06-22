@@ -1,7 +1,6 @@
 use super::TitleAcquisitionCtx;
 use super::{ensure_not_cancelled, remote_acquisition_cancelled, AudibleAcquisitionResult};
 use crate::errors::AppError;
-use crate::remote_source::providers::audible::audio_download::cleanup_download_artifacts;
 use crate::remote_source::providers::audible::diagnostics::AudibleAcquisitionError;
 use crate::remote_source::providers::audible::license::{AudibleTitleDetails, LicenseLane};
 use crate::remote_source::providers::audible::supplemental_pdf::{
@@ -87,7 +86,6 @@ pub(super) async fn download_if_requested(
         }
         Err(failure) => {
             log_supplemental_pdf_failed(job_id, title_id, failure);
-            let _ = cleanup_download_artifacts(&file.path);
             return Err(AudibleAcquisitionError::supplemental_pdf(
                 AppError::General(required_failure_message(failure)),
             ));
@@ -191,26 +189,30 @@ mod tests {
 
     #[tokio::test]
     async fn requested_advertised_supplemental_pdf_failure_blocks_audio_handoff() {
+        use crate::remote_source::scoped_output::ProvisionalCommittedFile;
+
         let root = tempfile::TempDir::new().expect("temp root");
         let auth = fixture_auth_without_pdf_cookies();
         let audio_path = root.path().join("Book.m4b");
         std::fs::write(&audio_path, b"audio-bytes").expect("write audio");
-        let file = materialized_source_file(audio_path.clone());
         let ctx = test_title_ctx(root.path(), test_progress_context());
-
-        let error = download_if_requested(
-            SupplementalPdfAcquisitionRequest {
-                auth: &auth,
-                file: &file,
-                title_name: Some("Book"),
-                include_pdf: true,
-                api_pdf_hint_present: true,
-                ctx,
-            },
-            &|| false,
-        )
-        .await
-        .expect_err("advertised requested Supplemental PDF failure should fail title");
+        let error = {
+            let committed_audio = ProvisionalCommittedFile::new(audio_path.clone());
+            let file = materialized_source_file(committed_audio.path().to_path_buf());
+            download_if_requested(
+                SupplementalPdfAcquisitionRequest {
+                    auth: &auth,
+                    file: &file,
+                    title_name: Some("Book"),
+                    include_pdf: true,
+                    api_pdf_hint_present: true,
+                    ctx,
+                },
+                &|| false,
+            )
+            .await
+            .expect_err("advertised requested Supplemental PDF failure should fail title")
+        };
 
         assert_eq!(
             error.kind(),
@@ -228,7 +230,7 @@ mod tests {
         assert!(!diagnostic.message.contains("B000000001"));
         assert!(
             !audio_path.exists(),
-            "audio handoff file should be cleaned when required PDF fails"
+            "provisional audio guard should clean committed audio when required PDF fails"
         );
     }
 
