@@ -12,6 +12,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Moved native audio processing onto a blocking worker so long encodes do not
   occupy async runtime workers and cancellation stays responsive during
   concurrent processing.
+- Removed dead internal seams from the audio processing pipeline — the
+  `ProcessorAdapterKind` mirror enum, unused finalize reporter/passthrough
+  parameters, the `ProcessingRun` namespace struct, and a stray progress
+  reporter — leaving the encode path with less unused indirection. No behavior
+  change.
 
 ### Fixed
 
