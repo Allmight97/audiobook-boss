@@ -54,7 +54,11 @@ fn push_string_op(ops: &mut Vec<MetadataOp>, value: Option<&String>, field: TagF
     } else {
         ops.push(MetadataOp::SetString {
             field,
-            value: value.to_string(),
+            value: if field == TagField::Date {
+                value.trim().to_string()
+            } else {
+                value.to_string()
+            },
         });
     }
 }

@@ -182,9 +182,9 @@ impl AaxcleanMaterializer {
             return Err(materializer_failure("helper result"));
         }
 
-        outputs.rename_and_commit(&is_cancelled).await.map_err(|_| {
+        outputs.rename_and_commit(&is_cancelled).await.map_err(|error| {
             log::warn!(
-                "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=output_commit_failed",
+                "remote_source materializer stage=materializer_failed job_id={} operation_id={} category=output_commit_failed error={error}",
                 request.job_id,
                 request.operation_id
             );

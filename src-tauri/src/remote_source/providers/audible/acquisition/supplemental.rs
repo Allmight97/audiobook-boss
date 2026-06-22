@@ -64,7 +64,7 @@ pub(super) async fn download_if_requested(
     }
 
     let supplemental_file_name = supplemental_pdf_display_file_name(title_name, title_id);
-    match download_supplemental_pdf(
+    let committed_pdf = match download_supplemental_pdf(
         SupplementalPdfRequest {
             auth,
             title_id,
@@ -78,7 +78,10 @@ pub(super) async fn download_if_requested(
     )
     .await
     {
-        Ok(asset) => assets.push(asset),
+        Ok((asset, committed)) => {
+            assets.push(asset);
+            Some(committed)
+        }
         Err(failure) if failure.category == "cancelled" => {
             return Err(AudibleAcquisitionError::cancellation(
                 remote_acquisition_cancelled(),
@@ -90,8 +93,11 @@ pub(super) async fn download_if_requested(
                 AppError::General(required_failure_message(failure)),
             ));
         }
-    }
+    };
     ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    if let Some(committed) = committed_pdf {
+        committed.permanent();
+    }
     Ok((assets, diagnostics))
 }
 

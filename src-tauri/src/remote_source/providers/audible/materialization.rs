@@ -72,9 +72,11 @@ pub(super) async fn materialize_protected_download(
     match result {
         Ok(path) => {
             if let Err(error) = remove_if_present(downloaded_path) {
-                return Err(provider_private_failure(&format!(
-                    "staged protected cleanup: {error}"
-                )));
+                log::warn!(
+                    "remote_source audible stage=materialization_staged_cleanup_failed job_id={} title_ref={} error={error}",
+                    job_id,
+                    title_ref(title_id),
+                );
             }
             Ok(path)
         }
