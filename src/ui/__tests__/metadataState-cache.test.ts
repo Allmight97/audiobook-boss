@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-	clearMetadataState,
-	isUsableMetadataCache,
-	setMetadataForFile,
-} from '../metadataState';
+import { clearMetadataState, isUsableMetadataCache, setMetadataForFile } from '../metadataState';
 
 describe('metadataState cache usability', () => {
 	beforeEach(() => {

@@ -38,5 +38,17 @@ ignore = [
   "RUSTSEC-2025-0081",
   "RUSTSEC-2025-0098",
   "RUSTSEC-2025-0100",
+
+  # rsa via audible_api (AAX license/decrypt material for protected remote source).
+  # Acceptance: "No fixed upgrade is available" per RUSTSEC-2023-0071 (Marvin timing attack).
+  # Used only for Audible AAX protected flows (not core local processing). Theoretical
+  # side-channel on old crypto dep; no active exploitation path in ABB's usage.
+  "RUSTSEC-2023-0071",
+
+  # memmap2 unsound via keyring -> db-keystore / turso / tantivy (optional sync keystore backends).
+  # Acceptance: RUSTSEC-2026-0186 (unchecked pointer). Transitive in keyring 4.x for certain
+  # platform keystore impls. On macOS primary path is native keychain (apple-native-keyring-store);
+  # turso path is for sync features not required for basic ABB secret storage.
+  "RUSTSEC-2026-0186",
 ]
 informational_warnings = ["unmaintained", "unsound"]

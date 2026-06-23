@@ -52,9 +52,7 @@ describe('metadata lookup cover preview scheduler', () => {
 		await flushAsync();
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(2);
-		expect(getMetadataLookupCoverPreviewState('https://example.com/3.jpg').status).toBe(
-			'queued',
-		);
+		expect(getMetadataLookupCoverPreviewState('https://example.com/3.jpg').status).toBe('queued');
 
 		requests[0].resolve([1]);
 		await flushAsync();
@@ -95,9 +93,7 @@ describe('metadata lookup cover preview scheduler', () => {
 		first.resolve([1]);
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState('https://example.com/first.jpg').status).toBe(
-			'idle',
-		);
+		expect(getMetadataLookupCoverPreviewState('https://example.com/first.jpg').status).toBe('idle');
 
 		second.resolve([2]);
 		await flushAsync();
@@ -169,9 +165,7 @@ describe('metadata lookup cover preview scheduler', () => {
 		request.resolve([9]);
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState('https://example.com/clear.jpg').status).toBe(
-			'idle',
-		);
+		expect(getMetadataLookupCoverPreviewState('https://example.com/clear.jpg').status).toBe('idle');
 	});
 
 	it('caps cached previews by pruning the oldest ready entries', async () => {

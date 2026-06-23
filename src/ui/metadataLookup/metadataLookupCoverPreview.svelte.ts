@@ -245,10 +245,7 @@ function touchCacheEntry(coverUrl: string): void {
 
 function prunePreviewCache(): void {
 	let remainingCandidates = cacheOrder.length;
-	while (
-		cacheOrder.length > MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES &&
-		remainingCandidates > 0
-	) {
+	while (cacheOrder.length > MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES && remainingCandidates > 0) {
 		const coverUrl = cacheOrder.shift();
 		remainingCandidates -= 1;
 		if (!coverUrl) {
