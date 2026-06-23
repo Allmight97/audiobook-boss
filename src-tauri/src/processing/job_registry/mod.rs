@@ -156,9 +156,9 @@ impl JobRegistry {
         }
     }
 
-    /// Creates a JobRegistry with auto-detected concurrency (num_cpus / 2)
+    /// Creates a JobRegistry with auto-detected concurrency (detected cores / 2)
     pub fn auto() -> Self {
-        let cores = num_cpus::get();
+        let cores = Self::detected_cores();
         let max_concurrent = Self::normalize_max(cores / 2);
         log::info!(
             "JobRegistry auto-configured: {} cores detected, max_concurrent = {}",
@@ -172,8 +172,16 @@ impl JobRegistry {
         max.clamp(MIN_CONCURRENT_JOBS, MAX_CONCURRENT_JOBS)
     }
 
+    /// Logical cores the process may use; respects cgroup/affinity limits and
+    /// falls back to 1 on platforms that can't report it.
+    fn detected_cores() -> usize {
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+    }
+
     pub fn default_max() -> usize {
-        let cores = num_cpus::get();
+        let cores = Self::detected_cores();
         Self::normalize_max(cores / 2)
     }
 
