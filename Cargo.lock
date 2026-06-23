@@ -470,16 +470,13 @@ dependencies = [
  "abb-output-artifact-core",
  "abb-processing-core",
  "abb-remote-source-core",
- "anyhow",
  "audible_api",
  "base64 0.22.1",
  "bogon",
  "chrono",
- "clap",
  "env_logger",
  "ffmpeg-next",
  "ffmpeg-sys-next",
- "futures",
  "image",
  "keyring",
  "keyring-core",
@@ -504,7 +501,6 @@ dependencies = [
  "tokio",
  "urlencoding",
  "uuid",
- "zeroize",
 ]
 
 [[package]]
