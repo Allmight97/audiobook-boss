@@ -120,7 +120,7 @@ pub fn run() {
 
     log::info!("Starting AudioBook Boss application");
 
-    // Initialize job registry with auto-detected concurrency (num_cpus / 2)
+    // Initialize job registry with auto-detected concurrency (detected cores / 2)
     let job_registry: ManagedJobRegistry = Arc::new(processing::JobRegistry::auto());
     let work_runtime = work_runtime::WorkRuntime::default();
     log::info!(

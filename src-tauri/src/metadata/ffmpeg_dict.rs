@@ -1,14 +1,15 @@
 //! FFmpeg metadata dictionary helpers for AudiobookMetadata.
 
 use super::{
-    build_series_list, compute_album_sort, publication_year_from_date, split_series_list,
-    AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan,
+    compute_album_sort, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
+    MetadataWritePlan,
 };
 use crate::errors::Result;
-use crate::metadata::tag_registry::{
-    ITUNES_SERIES, ITUNES_SERIES_PART, SERIES, SERIES_CLEAR_KEYS, SERIES_PART,
-    SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
+use crate::metadata::field_schema::TagField;
+use crate::metadata::metadata_sinks::{
+    apply_metadata_field_ops_to_ffmpeg_dict, should_remove_key_for_metadata,
 };
+
 use ffmpeg_next as ff;
 
 use super::cover_art::format::{
@@ -17,92 +18,15 @@ use super::cover_art::format::{
 
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
     let mut dict = ff::Dictionary::new();
+    apply_metadata_field_ops_to_ffmpeg_dict(&mut dict, metadata)?;
+    dict.set("media_type", "2");
 
-    // Standard audiobook metadata fields
-    if let Some(ref title) = metadata.title {
-        if !title.trim().is_empty() {
-            dict.set("title", title);
-        }
-    }
-
-    // Author → artist + album_artist
-    if let Some(ref artist) = metadata.artist {
-        if !artist.trim().is_empty() {
-            dict.set("artist", artist);
-            dict.set("album_artist", artist); // For audiobooks, artist = album_artist
-        }
-    }
-
-    if let Some(ref album) = metadata.album {
-        if !album.trim().is_empty() {
-            dict.set("album", album);
-        }
-    }
-
-    // Narrator → composer
-    if let Some(ref composer) = metadata.composer {
-        if !composer.trim().is_empty() {
-            dict.set("composer", composer);
-        }
-    }
-
-    if let Some(ref genre) = metadata.genre {
-        if !genre.trim().is_empty() {
-            dict.set("genre", genre);
-        }
-    }
-
-    if let Some(ref date) = metadata.date {
-        let trimmed = date.trim();
-        if !trimmed.is_empty() {
-            dict.set("date", trimmed);
-            if let Some(year) = publication_year_from_date(Some(trimmed)) {
-                dict.set("year", &year.to_string()); // Some containers prefer year-only.
-            }
-        }
-    }
-
-    if let Some(ref comment) = metadata.comment {
-        if !comment.trim().is_empty() {
-            dict.set("comment", comment);
-        }
-    }
-
-    if let Some(ref description) = metadata.description {
-        if !description.trim().is_empty() {
-            dict.set("description", description);
-        }
-    }
-
-    // Series metadata: canonical tag plus iTunes freeform mirror for scanners that
-    // depend on either ffprobe-visible names or Apple-style freeform atoms.
-    let (series_value, series_part_value) = build_series_list(
-        metadata.series.as_deref(),
-        metadata.series_part.as_deref(),
-        metadata.subseries.as_deref(),
-        metadata.subseries_part.as_deref(),
-    );
-
-    if let Some(series) = series_value.as_deref() {
-        dict.set(SERIES, series);
-        dict.set(ITUNES_SERIES, series);
-    }
-
-    // Book # metadata: canonical tag plus iTunes freeform mirror.
-    if let Some(series_part) = series_part_value.as_deref() {
-        dict.set(SERIES_PART, series_part);
-        dict.set(ITUNES_SERIES_PART, series_part);
-    }
-
-    // TSOA → sort_album for library sorting
+    // Album sort is intentionally excluded from field ops and handled by write plans.
     if let Some(ref album_sort) = metadata.album_sort {
         if !album_sort.trim().is_empty() {
             dict.set("sort_album", album_sort);
         }
     }
-
-    // M4B-specific audiobook metadata
-    dict.set("media_type", "2"); // Audiobook media type for iTunes (stik=2)
 
     Ok(dict)
 }
@@ -156,58 +80,12 @@ fn should_remove_key(
         return true;
     }
 
-    let series_clear = metadata
-        .series
-        .as_deref()
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(false);
-    if series_clear && SERIES_CLEAR_KEYS.contains(&key) {
-        return true;
-    }
-
-    let series_part_clear = metadata
-        .series_part
-        .as_deref()
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(false);
-    if series_part_clear && SERIES_PART_CLEAR_KEYS.contains(&key) {
-        return true;
-    }
-
-    let comment_clear = metadata
-        .comment
-        .as_deref()
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(false);
-    if comment_clear && key == "comment" {
-        return true;
-    }
-
-    let description_clear = metadata
-        .description
-        .as_deref()
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(false);
-    if description_clear && key == "description" {
-        return true;
-    }
-
-    if metadata
-        .date
-        .as_deref()
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(false)
-        && matches!(key, "date" | "year")
-    {
-        return true;
-    }
-
-    false
+    should_remove_key_for_metadata(metadata, key)
 }
 
 fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
-    let series = first_tag(dict, &SERIES_READ_KEYS);
-    let series_part = first_tag(dict, &SERIES_PART_READ_KEYS);
+    let series = first_tag(dict, TagField::Series);
+    let series_part = first_tag(dict, TagField::SeriesPart);
     let title = dict.get("title").map(str::to_string);
 
     let (primary_series, _) = split_series_list(series.as_deref());
@@ -219,8 +97,10 @@ fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
     }
 }
 
-fn first_tag(dict: &ff::Dictionary<'_>, keys: &[&str]) -> Option<String> {
-    keys.iter()
+fn first_tag(dict: &ff::Dictionary<'_>, field: TagField) -> Option<String> {
+    field
+        .read_keys()
+        .iter()
         .find_map(|key| dict.get(key).map(str::to_string))
 }
 
@@ -241,15 +121,6 @@ pub fn set_container_metadata(
 /// Returns warnings for unsupported fields
 pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<String> {
     let mut warnings = Vec::new();
-
-    // Check for fields that might not be well-supported by ffmpeg-next
-    if metadata.track.is_some() {
-        warnings.push("Track number metadata may not be preserved in M4B format".to_string());
-    }
-
-    if metadata.disk.is_some() {
-        warnings.push("Disk number metadata may not be preserved in M4B format".to_string());
-    }
 
     // Validate cover art comprehensively
     if let Some(ref cover_data) = metadata.cover_art {

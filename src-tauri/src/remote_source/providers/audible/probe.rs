@@ -19,7 +19,7 @@ async fn audible_pdf_live_probe() {
     let root = tempfile::TempDir::new().expect("temp root");
     let file_name = supplemental_pdf_display_file_name(None, &title_id);
 
-    let asset = super::supplemental_pdf::download_supplemental_pdf(
+    let (asset, committed) = super::supplemental_pdf::download_supplemental_pdf(
         super::supplemental_pdf::SupplementalPdfRequest {
             auth: &auth,
             title_id: &title_id,
@@ -33,6 +33,7 @@ async fn audible_pdf_live_probe() {
     )
     .await
     .expect("download supplemental PDF");
+    committed.permanent();
     assert!(std::fs::read(&asset.path)
         .expect("read staged PDF")
         .starts_with(b"%PDF-"));

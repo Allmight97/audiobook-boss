@@ -38,12 +38,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 tokio = { version = "1.52.1", features = ["full"] }
-anyhow = "1.0.102"
-clap = { version = "4.6.1", features = ["derive"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 log = "0.4.29"
 env_logger = "0.11.10"
-num_cpus = "1.17.0"
 ffmpeg-next = "8.1.0"
 ffmpeg-sys-next = { version = "8.1.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
@@ -51,7 +48,6 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls", 
 # audible_api currently accepts reqwest 0.12 request values. Keep this renamed
 # dependency private to the Audible provider until that upstream surface changes.
 audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
-chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
 specta = "=2.0.0-rc.24"
@@ -62,7 +58,6 @@ keyring = "4.0.1"
 keyring-core = "1.0.0"
 secrecy = "0.10.3"
 sha2 = "0.10.9"
-zeroize = "1.8.2"
 audible_api = "0.1.0"
 
 [features]
@@ -77,5 +72,4 @@ bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
 [dev-dependencies]
 tempfile = "3.27.0"
 tauri = { version = "2.11.2", features = ["test"] }
-futures = "0.3.32"
 base64 = "0.22.1"

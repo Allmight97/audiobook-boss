@@ -308,7 +308,8 @@ mod probe;
 
 #[cfg(test)]
 mod tests {
-    use super::audio_download::{build_download_request, download_to_path, partial_download_path};
+    use super::audio_download::{build_download_request, download_to_path};
+    use crate::remote_source::scoped_output::partial_sibling;
     use super::library_probe::library_probe_summary;
     use super::license::{license_request_payload, license_request_spec};
     use super::*;
@@ -457,18 +458,15 @@ mod tests {
     }
 
     #[test]
-    fn partial_download_path_keeps_final_extension_visible() {
+    fn partial_sibling_keeps_final_extension_visible() {
         let path = Path::new("/tmp/book.m4b");
 
-        assert_eq!(
-            partial_download_path(path),
-            Path::new("/tmp/book.m4b.partial")
-        );
+        assert_eq!(partial_sibling(path), Path::new("/tmp/book.m4b.partial"));
     }
 
     #[cfg(unix)]
     #[test]
-    fn partial_download_path_handles_non_utf8_extension_lossily() {
+    fn partial_sibling_handles_non_utf8_extension_lossily() {
         use std::ffi::OsString;
         use std::os::unix::ffi::OsStringExt;
 
@@ -477,7 +475,7 @@ mod tests {
             .path()
             .join(OsString::from_vec(b"book.\xFFm4b".to_vec()));
 
-        assert!(partial_download_path(&path)
+        assert!(partial_sibling(&path)
             .to_string_lossy()
             .ends_with(".partial"));
     }
@@ -501,7 +499,7 @@ mod tests {
         assert!(error.to_string().contains("must use https"));
         assert!(!error.to_string().contains("fake-secret"));
         assert!(!target.exists());
-        assert!(!partial_download_path(&target).exists());
+        assert!(!partial_sibling(&target).exists());
     }
 
     #[test]

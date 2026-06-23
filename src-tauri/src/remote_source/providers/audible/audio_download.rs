@@ -8,7 +8,7 @@ use super::{
     MAX_DOWNLOAD_REDIRECTS,
 };
 use crate::errors::{AppError, Result};
-use crate::remote_source::scoped_output::StagedTempFile;
+use crate::remote_source::scoped_output::{rollback_committed_file, StagedTempFile};
 use abb_audible_core::{classify_download_response_for_mode, title_ref, DownloadResponseError};
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
@@ -85,7 +85,7 @@ pub(super) async fn download_audio(
     )
     .await?;
     if let Err(error @ AppError::Cancellation(_)) = ensure_not_cancelled(is_cancelled) {
-        cleanup_download_artifacts(path)?;
+        rollback_committed_file(path)?;
         return Err(error);
     }
     log::info!(
@@ -95,16 +95,6 @@ pub(super) async fn download_audio(
         extension,
         bytes
     );
-    Ok(())
-}
-
-pub(super) fn cleanup_download_artifacts(path: &Path) -> Result<()> {
-    let partial_path = partial_download_path(path);
-    for candidate in [partial_path.as_path(), path] {
-        if candidate.exists() {
-            fs::remove_file(candidate)?;
-        }
-    }
     Ok(())
 }
 
@@ -123,11 +113,8 @@ pub(super) async fn download_to_path(
         ));
     }
 
-    // Guard removes the partial on any early return; the final path only exists
-    // after the rename below, immediately before `commit`, so it is never left
-    // behind on error.
-    let staged = StagedTempFile::new(path);
-    let _ = tokio::fs::remove_file(staged.partial_path()).await;
+    let mut staged = StagedTempFile::new(path);
+    staged.prepare()?;
     let bytes = download_to_partial_path(
         parsed,
         staged.partial_path(),
@@ -136,9 +123,7 @@ pub(super) async fn download_to_path(
         is_cancelled,
     )
     .await?;
-    ensure_not_cancelled(is_cancelled)?;
-    tokio::fs::rename(staged.partial_path(), path).await?;
-    staged.commit();
+    staged.rename_and_commit(is_cancelled).await?;
     Ok(bytes)
 }
 
@@ -430,13 +415,4 @@ fn log_download_failed(
         bytes_downloaded,
         bytes_total.unwrap_or(0)
     );
-}
-
-pub(super) fn partial_download_path(path: &Path) -> std::path::PathBuf {
-    let extension = path
-        .extension()
-        .map(|value| value.to_string_lossy())
-        .map(|extension| format!("{extension}.partial"))
-        .unwrap_or_else(|| "partial".to_string());
-    path.with_extension(extension)
 }

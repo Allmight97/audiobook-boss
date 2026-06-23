@@ -1,6 +1,6 @@
 use audible_api::auth::Auth;
 use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
 use abb_audible_core::title_ref;
@@ -11,7 +11,7 @@ use abb_media_core::{
 use super::acquisition::generated_staging_path;
 use super::http::no_redirect_client;
 use super::{AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS};
-use crate::remote_source::scoped_output::StagedTempFile;
+use crate::remote_source::scoped_output::{ProvisionalCommittedFile, StagedTempFile};
 use crate::remote_source::SupplementalAsset;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,7 +126,7 @@ struct SupplementalPdfLog<'a> {
 pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<SupplementalAsset, SupplementalPdfFailure> {
+) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
     let client = no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
     let url = companion_file_url(request.title_id)?;
     download_supplemental_pdf_with_client(&client, request, url, false, is_cancelled).await
@@ -138,7 +138,7 @@ async fn download_supplemental_pdf_with_client(
     start_url: reqwest::Url,
     allow_insecure_for_test: bool,
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<SupplementalAsset, SupplementalPdfFailure> {
+) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
     if is_cancelled() {
         return Err(SupplementalPdfFailure::new("cancelled", None));
     }
@@ -147,8 +147,15 @@ async fn download_supplemental_pdf_with_client(
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     let path = generated_staging_path(request.job_dir, "pdf");
     // Guard cleans the partial + (uncommitted) final on every early return / `?`.
-    let staged = StagedTempFile::new(&path);
-    let _ = tokio::fs::remove_file(staged.partial_path()).await;
+    let mut staged = StagedTempFile::new(&path);
+    staged.prepare().map_err(|error| {
+        log::warn!(
+            "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=prepare error={error}",
+            request.job_id,
+            title_ref(request.title_id),
+        );
+        SupplementalPdfFailure::new("file", None)
+    })?;
     log_supplemental_pdf_download_start(
         request.job_id,
         request.title_id,
@@ -177,21 +184,39 @@ async fn download_supplemental_pdf_with_client(
     if !identity.has_pdf_magic {
         return Err(SupplementalPdfFailure::new("pdf_magic", None));
     }
-    tokio::fs::rename(staged.partial_path(), staged.final_path())
-        .await
-        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
-    let canonical = canonicalize_staged_pdf(staged.final_path())?;
-    staged.commit();
+    staged.rename_and_commit(is_cancelled).await.map_err(|error| {
+        log::warn!(
+            "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=output_commit error={error}",
+            request.job_id,
+            title_ref(request.title_id),
+        );
+        SupplementalPdfFailure::new("file", None)
+    })?;
+    let committed = ProvisionalCommittedFile::new(path.clone());
+    let canonical = match path.canonicalize() {
+        Ok(canonical) => canonical,
+        Err(error) => {
+            log::warn!(
+                "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=canonicalize error={error}",
+                request.job_id,
+                title_ref(request.title_id),
+            );
+            return Err(SupplementalPdfFailure::new("canonicalize", None));
+        }
+    };
     log_supplemental_pdf_download_complete(request.job_id, request.title_id, identity.size_bytes);
-    Ok(SupplementalAsset {
-        asset_id: uuid::Uuid::new_v4().to_string(),
-        input_id: request.input_id.to_string(),
-        title_id: request.title_id.to_string(),
-        path: canonical,
-        file_name: request.file_name.to_string(),
-        size_bytes: identity.size_bytes,
-        sha256: identity.sha256,
-    })
+    Ok((
+        SupplementalAsset {
+            asset_id: uuid::Uuid::new_v4().to_string(),
+            input_id: request.input_id.to_string(),
+            title_id: request.title_id.to_string(),
+            path: canonical,
+            file_name: request.file_name.to_string(),
+            size_bytes: identity.size_bytes,
+            sha256: identity.sha256,
+        },
+        committed,
+    ))
 }
 
 /// Follow redirects and stream the companion-file PDF into `partial_path`,
@@ -334,11 +359,6 @@ async fn stream_pdf_body(
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     Ok(identity.finalize())
-}
-
-fn canonicalize_staged_pdf(path: &Path) -> std::result::Result<PathBuf, SupplementalPdfFailure> {
-    path.canonicalize()
-        .map_err(|_| SupplementalPdfFailure::new("canonicalize", None))
 }
 
 fn url_is_allowed(url: &reqwest::Url, allow_insecure_for_test: bool) -> bool {
@@ -586,7 +606,7 @@ mod tests {
         ))
         .expect("url");
 
-        let asset = download_supplemental_pdf_with_client(
+        let (asset, committed) = download_supplemental_pdf_with_client(
             &client,
             SupplementalPdfRequest {
                 auth: &auth,
@@ -603,6 +623,7 @@ mod tests {
         )
         .await
         .expect("download pdf");
+        committed.permanent();
         let request = server.await.expect("server task");
 
         assert!(
@@ -714,6 +735,9 @@ mod tests {
         let (first, second) = server.await.expect("server task");
 
         assert!(asset.is_ok(), "redirected PDF should download: {asset:?}");
+        if let Ok((_, committed)) = asset {
+            committed.permanent();
+        }
         assert!(first
             .to_ascii_lowercase()
             .contains("cookie: at-main=cookie-a"));
