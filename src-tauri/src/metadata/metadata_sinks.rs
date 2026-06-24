@@ -279,7 +279,7 @@ pub fn apply_ops_to_ffmpeg_dict(
         match op {
             MetadataOp::SetString { field, value } => {
                 for key in field.ffmpeg_write_keys() {
-                    dict.set(*key, value);
+                    dict.set(key, value);
                 }
                 if *field == TagField::Date {
                     if let Some(year) = publication_year_from_date(Some(value)) {

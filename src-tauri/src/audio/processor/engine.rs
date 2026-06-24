@@ -129,17 +129,16 @@ impl FfmpegNextProcessor {
         cleanup_guard.add_path(&plan.output_path);
 
         let emitter = context.new_emitter();
-        if super::engine_orchestrator::process_input_files(
-            plan,
-            context,
-            &mut enc_ctx,
-            &mut octx,
+        let mut io = super::engine_orchestrator::InputProcessingContext {
+            enc_ctx: &mut enc_ctx,
+            octx: &mut octx,
             ost_index,
             ost_time_base,
             target_sample_rate,
-            frame_plan.samples_per_frame(),
-            &emitter,
-        )? {
+            samples_per_frame: frame_plan.samples_per_frame(),
+            emitter: &emitter,
+        };
+        if super::engine_orchestrator::process_input_files(plan, context, &mut io)? {
             log::info!("✓ Flushed final accumulator tail frame");
         }
 

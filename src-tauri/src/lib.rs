@@ -17,9 +17,7 @@ pub mod work_runtime;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::{
     add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
-    detect_cover_art_format as ffmpeg_detect_cover_art_format,
     set_container_metadata as ffmpeg_set_container_metadata,
-    validate_metadata_compatibility as ffmpeg_validate_metadata_compatibility,
     write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
     CoverFormat as FfmpegCoverFormat,
 };

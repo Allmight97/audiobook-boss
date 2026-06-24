@@ -26,10 +26,7 @@ pub(super) async fn validate_materialized_audio(
     let materialized_path = materialized_path.to_path_buf();
     let validation_result =
         tokio::task::spawn_blocking(move || {
-            match materialized_file_from_path(&title_id, &materialized_path) {
-                Ok(file) => Ok(file),
-                Err(error) => Err(error),
-            }
+            materialized_file_from_path(&title_id, &materialized_path)
         })
         .await
         .map_err(|error| {

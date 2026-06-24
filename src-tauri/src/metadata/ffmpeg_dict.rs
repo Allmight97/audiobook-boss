@@ -117,8 +117,8 @@ pub fn set_container_metadata(
     Ok(())
 }
 
-/// Validates that ffmpeg-next can handle the provided metadata
-/// Returns warnings for unsupported fields
+/// Returns pre-encode warnings for cover-art compatibility (size, format, dimensions).
+/// Track/disk preservation is validated via metadata sink proofs, not here.
 pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<String> {
     let mut warnings = Vec::new();
 
@@ -382,5 +382,44 @@ mod tests {
         assert!(warnings
             .iter()
             .any(|warning| warning == "Could not detect PNG dimensions - file may be corrupted"));
+    }
+
+    #[test]
+    fn validate_metadata_compatibility_warns_when_cover_art_exceeds_10mb() {
+        let metadata = metadata_with_cover_art(vec![0u8; 15 * 1024 * 1024]);
+
+        let warnings = validate_metadata_compatibility(&metadata);
+
+        assert!(warnings.iter().any(|warning| {
+            warning == "Cover art exceeds recommended size limit (10MB)"
+        }));
+    }
+
+    #[test]
+    fn validate_metadata_compatibility_is_silent_at_10mb_boundary() {
+        let metadata = metadata_with_cover_art(vec![0u8; 10 * 1024 * 1024]);
+
+        let warnings = validate_metadata_compatibility(&metadata);
+
+        assert!(
+            warnings.is_empty(),
+            "10MB cover art should not generate size warnings: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn validate_metadata_compatibility_ignores_track_and_disk() {
+        let metadata = AudiobookMetadata {
+            track: Some((1, Some(12))),
+            disk: Some((1, Some(3))),
+            ..Default::default()
+        };
+
+        let warnings = validate_metadata_compatibility(&metadata);
+
+        assert!(
+            warnings.is_empty(),
+            "track/disk preservation is proven in metadata_sinks, not here: {warnings:?}"
+        );
     }
 }

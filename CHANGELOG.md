@@ -24,12 +24,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   parameters, the `ProcessingRun` namespace struct, and a stray progress
   reporter — leaving the encode path with less unused indirection. No behavior
   change.
+- Consolidated metadata compatibility proof at owning modules and tightened
+  encode/acquisition orchestration seams for workspace lint compliance.
 
 ### Fixed
 
 - Cover-art compatibility warnings now distinguish supported JPEG/PNG, known
   unsupported formats, and unrecognized bytes without warning on arbitrary
   placeholder data.
+- Restored a green runtime test suite by replacing stale cover-art integration
+  tests with owner-boundary proofs in the metadata layer and clearing the
+  workspace clippy gate introduced in 1.2.0 prep.
 
 ### Security
 

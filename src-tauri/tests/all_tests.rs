@@ -8,8 +8,7 @@ mod unit_audio_context_tests;
 mod unit_audio_job_registry_tests;
 #[path = "cases/unit_audio_progress_tests.rs"]
 mod unit_audio_progress_tests;
-#[path = "cases/unit_cover_art_format_tests.rs"]
-mod unit_cover_art_format_tests;
+
 #[path = "cases/unit_error_envelope_tests.rs"]
 mod unit_error_envelope_tests;
 #[path = "cases/unit_error_path_sanitization_tests.rs"]

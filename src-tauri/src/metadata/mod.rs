@@ -47,8 +47,7 @@ impl From<MetadataCoreError> for AppError {
 pub use reader::read_metadata;
 
 pub use cover_art::{
-    add_cover_art_stream_pre_header, detect_cover_art_format, write_cover_art_packet_post_header,
-    CoverFormat,
+    add_cover_art_stream_pre_header, write_cover_art_packet_post_header, CoverFormat,
 };
 pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
 pub(crate) use passthrough::merge_passthrough_cover_art;

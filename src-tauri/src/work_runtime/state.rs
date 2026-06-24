@@ -279,12 +279,11 @@ fn aggregate_child_progress(children: &[super::types::ChildJobSnapshot]) -> f32 
     let total = children
         .iter()
         .map(|child| {
-            let percentage = if TERMINAL_CHILD_STATUSES.contains(&child.status) {
+            if TERMINAL_CHILD_STATUSES.contains(&child.status) {
                 100.0
             } else {
                 child.progress.percentage.clamp(0.0, 100.0)
-            };
-            percentage
+            }
         })
         .sum::<f32>();
 

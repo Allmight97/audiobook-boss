@@ -9,7 +9,7 @@ use super::audio_download::download_audio;
 use super::diagnostics::AudibleAcquisitionError;
 use super::license::{
     license_decrypt_context_from_auth, lookup_title_details, provider_protocol_lane_message,
-    request_license_lane, strategy_label, LicenseLane,
+    request_license_lane, strategy_label, AudibleTitleDetails, LicenseLane,
 };
 use super::materialization::materialize_protected_download;
 use super::{auth_from_vault, client_from_auth};
@@ -52,6 +52,15 @@ struct TitleAcquisitionRequest<'a> {
     job_dir: &'a Path,
     license_decrypt_context: Option<&'a AudibleLicenseDecryptContext>,
     progress_context: TitleProgressContext<'a>,
+}
+
+struct FinalizeAcquisitionRequest<'a> {
+    auth: &'a Auth,
+    materialized_path: std::path::PathBuf,
+    include_pdf: bool,
+    title_details: &'a AudibleTitleDetails,
+    lane: &'a LicenseLane,
+    ctx: TitleAcquisitionCtx<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -249,12 +258,41 @@ async fn acquire_one(
         .await
         .map_err(AudibleAcquisitionError::materialization)?
     };
-    let committed_audio = ProvisionalCommittedFile::new(materialized_path.clone());
+    finalize_acquired_title(
+        FinalizeAcquisitionRequest {
+            auth,
+            materialized_path,
+            include_pdf,
+            title_details: &title_details,
+            lane: &lane,
+            ctx,
+        },
+        progress,
+        is_cancelled,
+    )
+    .await
+}
+
+async fn finalize_acquired_title(
+    request: FinalizeAcquisitionRequest<'_>,
+    progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
+) -> AudibleAcquisitionResult<AcquiredTitle> {
+    let FinalizeAcquisitionRequest {
+        auth,
+        materialized_path,
+        include_pdf,
+        title_details,
+        lane,
+        ctx,
+    } = request;
+    let title_name = title_details.title.as_deref();
+    let committed_audio = ProvisionalCommittedFile::new(materialized_path);
     let file = validation::validate_materialized_audio(committed_audio.path(), ctx, progress)
         .await
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
-        supplemental::hint_present_for_acquisition(include_pdf, &title_details, &lane);
+        supplemental::hint_present_for_acquisition(include_pdf, title_details, lane);
     let (assets, diagnostics) = supplemental::download_if_requested(
         supplemental::SupplementalPdfAcquisitionRequest {
             auth,
