@@ -5,9 +5,9 @@ description: Audit and fix Audiobook Boss resource-lifetime foot-guns with high 
 
 # Resource Lifetime Audit
 
-## Goal
+## Scan Scope
 
-Find small, high-impact lifecycle hazards before they become user-visible bugs. Focus on important boundaries first: audio processing, metadata read/write/remux, output artifact commit, path validation, cleanup, cancellation, and external process handling.
+Scan the highest-risk boundaries first: audio processing, metadata read/write/remux, output artifact commit, path validation, cleanup, cancellation, and external process handling.
 
 ## Hunt Pattern
 
