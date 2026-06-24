@@ -41,7 +41,7 @@
 
 - Focused Rust tests target boundary-aligned workspace packages before the Tauri/media crate.
 - `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
-- Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
+- Core crates must not depend on Tauri, FFmpeg, keyring/credential-store crates, or Tauri plugins.
 - Use one package/target-selected Nextest command at a time for broad Rust
   review: each core crate, `audiobook-boss --lib`, and
   `audiobook-boss --test all_tests`.

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { tauriClient } from '../../lib/tauri/client';
 	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
 
 	// provider-neutral state shape (owned by acquisitionState.svelte.ts)
@@ -25,6 +27,11 @@
 		toggledSupplementalPdfPreference,
 		visibleRemoteTitles,
 	} from './remoteSourceSelection';
+	import {
+		cancelRemoteSourceCoverPreviewSchedule,
+		getRemoteSourceCoverPreviewState,
+		scheduleRemoteSourceCoverPreviews,
+	} from './remoteSourceCoverPreview.svelte';
 
 	// -- per-instance reactive state --
 
@@ -83,6 +90,22 @@
 		if (!remoteSourceAcquireState.isOpen) {
 			acquisition.didHydrateOpenDialog = false;
 		}
+	});
+
+	$effect(() => {
+		if (!remoteSourceAcquireState.isOpen || acquisition.accountState?.status !== 'connected') {
+			untrack(cancelRemoteSourceCoverPreviewSchedule);
+			return;
+		}
+
+		const coverUrls = visibleTitles().map((title) => title.coverUrl);
+		untrack(() => {
+			scheduleRemoteSourceCoverPreviews(coverUrls, tauriClient.loadCoverArtFromUrl);
+		});
+
+		return () => {
+			untrack(cancelRemoteSourceCoverPreviewSchedule);
+		};
 	});
 </script>
 
@@ -254,6 +277,30 @@
 							aria-selected={acquisition.selectedTitleIds.has(title.titleId)}
 							aria-disabled={!isTitleAcquirable(title)}
 						>
+							<div
+								class="remote-title-cover"
+								role="presentation"
+								data-testid="remote-title-cover"
+							>
+								{#if title.coverUrl}
+									{@const preview = getRemoteSourceCoverPreviewState(title.coverUrl)}
+									{#if preview.status === 'ready'}
+										<img
+											src={preview.dataUrl}
+											alt={`${title.title} cover art`}
+											data-testid="remote-title-cover-image"
+										/>
+									{:else if preview.status === 'loading' || preview.status === 'queued'}
+										<span data-testid="remote-title-cover-loading">Loading…</span>
+									{:else if preview.status === 'error'}
+										<span data-testid="remote-title-cover-error">Preview failed</span>
+									{:else}
+										<span data-testid="remote-title-cover-available">Art Available</span>
+									{/if}
+								{:else}
+									<span data-testid="remote-title-cover-missing">No Art</span>
+								{/if}
+							</div>
 							<button
 								type="button"
 								class="remote-title-button"
@@ -381,7 +428,7 @@
 	.remote-title-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.75rem;
 		border-bottom: 1px solid var(--border-primary);
 	}
 
@@ -397,13 +444,36 @@
 		opacity: 0.7;
 	}
 
+	.remote-title-cover {
+		display: flex;
+		width: 4rem;
+		height: 4rem;
+		flex: 0 0 4rem;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		margin-left: 0.75rem;
+		border: 1px solid var(--border-secondary);
+		border-radius: 0.375rem;
+		background: var(--bg-drag-area);
+		color: var(--text-muted);
+		font-size: 0.7rem;
+		text-align: center;
+	}
+
+	.remote-title-cover img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
 	.remote-title-button {
 		display: flex;
 		min-width: 0;
 		flex: 1;
 		flex-direction: column;
 		gap: 0.125rem;
-		padding: 0.65rem 0.75rem;
+		padding: 0.65rem 0.75rem 0.65rem 0;
 		border: 0;
 		background: transparent;
 		color: inherit;

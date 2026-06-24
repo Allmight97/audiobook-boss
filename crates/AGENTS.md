@@ -15,7 +15,7 @@ Core crates must not depend on:
 - `tauri-specta`
 - `ffmpeg-next`
 - `ffmpeg-sys-next`
-- `keyring`
+- `keyring-core`, `keyring`, or any platform-native keyring/credential-store crate
 - Tauri plugins
 
 ## Direct Tests
