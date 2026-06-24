@@ -2,17 +2,6 @@
 
 ABS and Plex folder naming patterns for automatic metadata parsing.
 
-## Table of Contents
-
-1. [Recommended Structure](#recommended-structure)
-2. [ABS Title Folder Patterns](#abs-title-folder-patterns)
-3. [ABS Author Folder Patterns](#abs-author-folder-patterns)
-4. [Plex Considerations](#plex-considerations)
-5. [Filename Sanitization](#filename-sanitization)
-6. [audiobook-boss Implementation](#audiobook-boss-implementation)
-
----
-
 ## Recommended Structure
 
 Universal structure that works for ABS, Plex, and general file organization:

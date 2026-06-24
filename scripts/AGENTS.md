@@ -30,8 +30,19 @@ commands over invoking internals directly.
 
 - Docs/guidance only: `git diff --check` plus stale-reference searches for the
   edited terms.
-- Formatting/linting when formatting or TypeScript style is in scope:
-  `bun run fmt:check`, `bun run lint:check`, or `cargo fmt --all -- --check`.
+- Formatting/linting when formatting or style is in scope:
+  `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome),
+  `bun run check:svelte` (Svelte type/diagnostic check — Biome's linter is off for
+  `.svelte`), or `cargo fmt --all -- --check`.
+- Rust lint: for a touched core owner, package-select with
+  `cargo clippy -p abb-<owner>-core --all-targets` — this avoids pulling
+  `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
+  absent in common agent/CI sandboxes. Use the full `cargo clippy --workspace
+  --all-targets` only when the change actually spans owners or includes
+  `src-tauri` (GUI libs must be present); the CI gate is `cargo clippy
+  --workspace --all-targets -- -D warnings`. Workspace lint posture is
+  centralized in root `Cargo.toml` `[workspace.lints]` (members opt in with
+  `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Runtime shell or Rust integration:
   `cargo nextest run -p audiobook-boss --lib` or
@@ -42,11 +53,15 @@ commands over invoking internals directly.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.
 - IPC/generated binding changes:
-  `bash scripts/check-generated-bindings.sh --mode local` and targeted
-  `tauriClient`/contract Vitest files.
-- Runtime boundary changes: run the generated binding check, the generated
-  Tauri runtime-boundary check, or targeted contract tests for the owning public
-  surface.
+  `bash scripts/check-generated-bindings.sh --mode local`, then the contract
+  Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts
+  src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts`.
+  For release-critical drift confidence: `bun run bindings:check`.
+- Runtime boundary changes: run the generated binding check
+  (`bash scripts/check-generated-bindings.sh --mode local`), the generated Tauri
+  runtime-boundary check (`bun scripts/check-tauri-runtime-boundary.ts`), or
+  targeted contract tests for the owning public surface. Boundary rules:
+  `src-tauri/src/commands/AGENTS.md` + `src/lib/tauri/AGENTS.md`.
 - Build/release artifact changes: use the release skill's lane commands.
   Developer install replaces `/Applications/AudioBook Boss.app`; public release
   builds a verified noninteractive DMG. Do not convert release work into a broad

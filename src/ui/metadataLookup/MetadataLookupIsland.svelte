@@ -252,8 +252,8 @@
 							</div>
 							<div class="metadata-lookup-meta">{formatSeriesSummary(result)}</div>
 							<div class="metadata-lookup-meta">
-								Publication {formatPublicationDate(result.publishedDate)} • Length: {formatDurationHours(
-									result.durationSeconds,
+								Publication {formatPublicationDate(result.publishedDate ?? null)} • Length: {formatDurationHours(
+									result.durationSeconds ?? null,
 								)}
 							</div>
 						<span

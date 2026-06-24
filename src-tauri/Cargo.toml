@@ -86,3 +86,6 @@ bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
 tempfile = "3.27.0"
 tauri = { version = "2.11.2", features = ["test"] }
 base64 = "0.22.1"
+
+[lints]
+workspace = true

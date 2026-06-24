@@ -25,6 +25,17 @@
   vocabulary, job lifecycle, queue/progress event types, terminal result
   normalization, and their behavior tests.
 
+## Progress / Stage Evolution
+
+- Wire-stage authority is the Rust `EventStage` enum in `progress/mod.rs` (specta-generated into
+  `src/lib/generated/tauri.ts`); event payload is `ProgressEvent` (same file). Emitters:
+  `progress/emitter.rs` (`emit_event`, `emit_cancelled`) and `run.rs` (`emit_terminal_failed_event`).
+  Frontend re-exports `EventStage` and the `STAGES` helper from `src/types/events.ts`.
+- To evolve stages: update the Rust `EventStage` enum + its `From<&ProcessingStage>` impl, run
+  `bun run bindings:generate`, then adjust frontend consumers. `EventStage` is the flat wire-shaped
+  discriminator the UI consumes; the internal `ProcessingStage` carries data (e.g. `Failed(String)`)
+  and drives orchestration — keep them distinct.
+
 ## Allowed Agent Edits Without Escalation
 - Change pure processing classification/summarization when
   `cargo nextest run -p abb-processing-core` stays green.

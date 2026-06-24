@@ -27,7 +27,7 @@
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
 - Use `process_audiobook_files` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
-- Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion.
+- Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion. Run command and workspace lint posture: `scripts/AGENTS.md` and root `Cargo.toml` `[workspace.lints]`.
 - Consult `docs/unsafe-code-register.md` before changing production Rust `unsafe`
   and update it when unsafe scope, purpose, or blast radius changes.
 
@@ -44,7 +44,7 @@
 
 ### Backend Shape Triggers
 
-- Route Rust shape questions through root Execution, Scope, And Refactor Discipline.
+- Route Rust shape questions through root Refactor Discipline.
 - Treat Clippy `too_many_lines` and `too_many_arguments` as prompts to re-check
   cohesion, not as automatic split commands.
 - Keep clippy allowances local and justified; avoid broad crate-level suppressions for maintainability lints.

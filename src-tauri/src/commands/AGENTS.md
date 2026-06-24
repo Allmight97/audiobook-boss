@@ -25,7 +25,11 @@
 ## Hard Invariants
 
 - Validate user-supplied paths at this boundary before domain modules receive
-  them.
+  them: input audio paths through `crate::audio::validate_input_audio_path()`
+  (extension allowlist + traversal/canonicalization); execution-time path
+  planning is owned by `processing::plan`, and requested/resolved artifact paths,
+  collision, and parent-dir creation by `crate::output_artifact`. Map path
+  errors to `AppError` without leaking sensitive absolute paths to the UI.
 - Return `AppError`/`AppErrorEnvelope` through `CommandResult<T>`; do not expose
   ad hoc string error contracts to the frontend.
 - Do not bypass `JobRegistry` for long-running processing lifecycle or

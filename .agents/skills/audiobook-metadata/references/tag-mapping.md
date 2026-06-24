@@ -2,16 +2,6 @@
 
 Current mapping of ABB-written MP4 metadata to Audiobookshelf, Plex, and Apple Books fields.
 
-## Table of Contents
-
-1. [Standard Tags](#standard-tags)
-2. [Series Tags (Critical)](#series-tags-critical)
-3. [iTunes Custom Atoms](#itunes-custom-atoms)
-4. [Writing with ffmpeg](#writing-with-ffmpeg)
-5. [Writing with ffmpeg-next (Rust)](#writing-with-ffmpeg-next-rust)
-
----
-
 ## Standard Tags
 
 | MP4 Atom | ffmetadata key | ABS Field | Plex Field | Notes |

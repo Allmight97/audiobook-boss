@@ -10,13 +10,10 @@
 
 ## Public API Strip
 
-- Import file list runtime symbols from `src/ui/fileList`.
-- Exports: `FileListIsland`, `appendFileList`, `selectFile`,
-  `setFileOrderLocked`, session accessors (`getCurrentFileList`,
-  `getSelectedFiles`, `getSelectedFileIndex`, `getSelectedFileIndices`,
-  `isOrderLocked`, `onOrderLockChange`), metadata staging
-  (`stageMetadataToSelection`, `persistPendingMetadataDraftsForCurrentSelection`),
-  and `readCombinedSizeText()`.
+- Import file list runtime symbols from `src/ui/fileList`; do not reach into private files.
+- Authoritative runtime export surface = `index.ts`, pinned by
+  `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
+  truth instead of a hand-listed export set here.
 - Do **not** export `fileListSessionState`, selection internals, or event
   handlers from the index. Cross-module reads use `readX()` accessors from
   `viewState.svelte.ts` inside component `$derived(...)`.
