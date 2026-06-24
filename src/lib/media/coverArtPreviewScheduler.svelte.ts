@@ -271,7 +271,7 @@ export function createCoverArtPreviewScheduler(
 			if (!coverUrl) {
 				continue;
 			}
-			if (inflightByUrl.has(coverUrl)) {
+			if (inflightByUrl.has(coverUrl) || visibleCoverUrls.has(coverUrl)) {
 				cacheOrder.push(coverUrl);
 				continue;
 			}

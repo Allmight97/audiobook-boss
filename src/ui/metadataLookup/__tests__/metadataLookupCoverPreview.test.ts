@@ -184,6 +184,23 @@ describe('metadata lookup cover preview scheduler', () => {
 		expect(getMetadataLookupCoverPreviewState(urls[urls.length - 1]).status).toBe('ready');
 	});
 
+	it('keeps scheduled visible previews ready when the visible list exceeds the cache cap', async () => {
+		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
+		const urls = Array.from(
+			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
+			(_, index) => `https://example.com/visible-${index}.jpg`,
+		);
+
+		scheduleMetadataLookupCoverPreviews(urls, loadCoverArtFromUrl);
+		for (let index = 0; index < urls.length; index += 1) {
+			await flushAsync();
+		}
+
+		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(urls.length);
+		expect(getMetadataLookupCoverPreviewState(urls[0]).status).toBe('ready');
+		expect(getMetadataLookupCoverPreviewState(urls[urls.length - 1]).status).toBe('ready');
+	});
+
 	it('lets apply join an in-flight preview request', async () => {
 		const request = createDeferred<number[]>();
 		const loadCoverArtFromUrl = vi.fn(() => request.promise);
