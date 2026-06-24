@@ -77,9 +77,13 @@
 - Remove imports, variables, functions, docs, tests, aliases, exports, and
   generated references made unused or stale by the current change.
 - Treat pre-existing dead code, stale patterns, duplicate rules, fallback
-  behavior, and suspicious seams as findings. Report them with evidence; fix
-  them in the same change only when they are inside the active owner boundary
-  and affect the invariant or proof.
+  behavior, and suspicious seams as findings. Report them with evidence. Fix
+  semantic findings in the same change only when they are inside the active
+  owner boundary and affect the invariant or proof. Trivial mechanical debt
+  (formatting, import ordering, EOF newlines, lint whitespace) is exempt: fix
+  it and name it in the report (in-flow for files already touched, or a
+  dedicated sweep otherwise) instead of contorting new code to coexist with
+  the drift.
 - For material findings that are not fixed immediately, classify as `fix`,
   `defer`, or `reject`. State the impact, owner/trigger when work remains
   active outside the current change, and why that route is better than fixing
