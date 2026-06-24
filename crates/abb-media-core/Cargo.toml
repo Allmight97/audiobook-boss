@@ -10,3 +10,6 @@ doctest = false
 serde = { version = "1.0.228", features = ["derive"] }
 specta = { version = "=2.0.0-rc.24", features = ["derive"] }
 sha2 = "0.10.9"
+
+[lints]
+workspace = true

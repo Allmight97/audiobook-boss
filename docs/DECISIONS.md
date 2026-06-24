@@ -1,5 +1,35 @@
 # Decisions
 
+## 2026-06-24 - AGENTS Public-Surface List Policy
+
+- Nested `AGENTS.md` files keep an enumerated Public API Strip export list only
+  where no test guards the surface. Where a contract test pins the runtime exports
+  (`src/lib/tauri`, and `src/ui/{fileList,outputPanel,statusPanel}` via
+  `__tests__/runtime-api-contract.test.ts`), the doc points at `index.ts` + that
+  test instead of restating symbols.
+- Alternatives worth revisiting later: pointerize every surface once each owner has
+  a guarding contract test; or generate the lists from `index.ts`/bindings so docs
+  cannot drift at all.
+- Guardrail: a hand-listed surface that disagrees with `index.ts` or its contract
+  test is worse than no list — prefer the test as the source of truth.
+
+## 2026-06-24 - AGENTS Always-Loaded Prune And Lint Enforcement
+
+- Style and stale-cleanup guidance (unused symbols, formatting, `any`) moved out of
+  always-loaded `AGENTS.md` prose to deterministic tools the docs point at: Biome
+  (`lint:check`), `tsc` (`typecheck`), `cargo clippy`, and new `svelte-check`
+  (`check:svelte`) for the previously unlinted `.svelte` surface.
+- Rust lint posture is centralized in root `Cargo.toml` `[workspace.lints]` at
+  warn-level (members opt in with `[lints] workspace = true`); the CI gate is
+  `cargo clippy --workspace --all-targets -- -D warnings`. Warn-level avoids gating
+  on `src-tauri`'s GUI-toolkit build, which not every environment can compile.
+- Root `AGENTS.md` keeps only architectural, operational, or protective lines;
+  agent-temperament and operator-preference prose was removed. Three composition-only
+  UI shells merged into `src/ui/AGENTS.md`; the Effect service-catalog table became a
+  search instruction.
+- Guardrail: do not reintroduce linter-replaceable cleanup prose into the
+  always-loaded chain; point at the deterministic tool instead.
+
 ## 2026-06-23 - Remote-Source Secret Vault Stays On The Legacy File Keychain
 
 - ABB persists remote-source secrets via `keyring-core` + `apple-native-keyring-store`'s default `keychain::Store` (legacy file keychain, `SecKeychainFindGenericPassword`), service `audiobook-boss.remote-source`, because the Data Protection Keychain (`protected` module) requires Developer ID code signing and a `keychain-access-groups` entitlement the unsigned build does not carry.

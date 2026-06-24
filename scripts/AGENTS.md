@@ -30,8 +30,15 @@ commands over invoking internals directly.
 
 - Docs/guidance only: `git diff --check` plus stale-reference searches for the
   edited terms.
-- Formatting/linting when formatting or TypeScript style is in scope:
-  `bun run fmt:check`, `bun run lint:check`, or `cargo fmt --all -- --check`.
+- Formatting/linting when formatting or style is in scope:
+  `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome),
+  `bun run check:svelte` (Svelte type/diagnostic check — Biome's linter is off for
+  `.svelte`), or `cargo fmt --all -- --check`.
+- Rust lint: `cargo clippy --workspace --all-targets` for the touched owner; the
+  CI gate is `cargo clippy --workspace --all-targets -- -D warnings`. Workspace
+  lint posture is centralized in root `Cargo.toml` `[workspace.lints]` (members
+  opt in with `[lints] workspace = true`). `src-tauri` clippy needs the GUI
+  system libs (gdk/gtk) present; core crates clippy without them.
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Runtime shell or Rust integration:
   `cargo nextest run -p audiobook-boss --lib` or

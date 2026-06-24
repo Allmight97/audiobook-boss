@@ -10,5 +10,17 @@ members = [
 ]
 resolver = "2"
 
+# Deterministic lint posture shared by every workspace member (members opt in with
+# `[lints] workspace = true`). Warn-level keeps the surface explicit without gating
+# on src-tauri's GUI-toolkit build, which not every environment can compile; CI
+# turns these into a hard gate with `cargo clippy --workspace --all-targets -- -D warnings`.
+[workspace.lints.rust]
+unused_imports = "warn"
+unused_variables = "warn"
+dead_code = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
 [patch.crates-io]
 ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-8.1.0" }

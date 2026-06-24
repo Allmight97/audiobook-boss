@@ -1,12 +1,10 @@
 # Output Panel
 
 ## Public API Strip
-- Import output panel runtime symbols from `src/ui/outputPanel`.
-- Exports: `initOutputPanel`, `applyOutputDefaultsFromSettings`,
-  `readEstimatedSizeText`, `readOutputDefaultsFromState`,
-  `readOutputRequestConfig`, `updateOutputPath`, `updateEstimatedSize`,
-  `runOutputPlanReviewWorkflow`, `OutputPanelIsland`, `OutputPlanReviewResult`
-  (type).
+- Import output panel runtime symbols from `src/ui/outputPanel`; do not reach into private files.
+- Authoritative runtime export surface = `index.ts`, pinned by
+  `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
+  truth instead of a hand-listed export set here.
 - External Svelte consumers read estimated size through `readEstimatedSizeText()`
   inside reactive markup (`$derived(...)`).
 

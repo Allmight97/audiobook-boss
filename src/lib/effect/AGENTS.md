@@ -56,20 +56,14 @@ Workflow tests should run the Effect program directly with fake services:
 - Use live layers only from UI/runtime entrypoints; tests for owners should
   import the service layer helper and call the program or Promise bridge.
 
-## Workflow Service Catalog
+## Finding Workflow Owners
 
-Current owners and focused test examples. Use `bun run test -- <files>` for
-frontend focus when proving touched workflow behavior; the table names focused
-Vitest selections for local diagnosis.
-
-| Owner | Coordinates | Service families | Public entrypoints | Terminal outcomes and focused tests |
-| --- | --- | --- | --- | --- |
-| `ProcessingWorkflow` | Processing request composition, output-plan review, metadata staging, listener startup, process IPC, cancellation, terminal status. | File list, metadata form/state, encoder/output panel Public API Strips, job controls, status feedback, `tauriClient`. | `startProcessing(...)` via status-panel runtime. | Approved processing, blocked review, cancellation, failed command. `bun run test -- src/ui/statusPanel/__tests__/processingWorkflow.test.ts` |
-| `MetadataSaveWorkflow` | File availability, save lifecycle, draft persistence, pending intent filtering, batch save, cleanup. | File list, metadata form/state, status panel Public API Strip, `tauriClient`. | `saveMetadataFromUI()` through `src/ui/core/actions.ts`. | No files, processing active, save busy, validation failure, no-op, partial/failed batch, typed failure. `bun run test -- src/ui/core/__tests__/metadataSaveWorkflow.test.ts` |
-| `MetadataLookupWorkflow` | Lookup queue, search, result apply, queue advancement, lookup-result cover-art replacement. | Metadata lookup state, file selection/list, metadata form/state, output/tag preview, cover art, `tauriClient`. | `runMetadataLookupWorkflow(...)` behind metadata lookup UI actions. | Open/search/apply/skip, queue completion, cover-art success/failure, typed failure. `bun run test -- src/ui/metadataLookup/__tests__/metadataLookupWorkflow.test.ts` |
-| `OutputPlanWorkflow` | Output preview, stale preview handling, preflight, collision review. | Output panel state, metadata, collision dialog, `tauriClient`. | `runOutputPathPreviewWorkflow(...)`, `runOutputPlanReviewWorkflow(...)`. | Preview success/missing dir/stale/failure, approved/block/cancel/reviewed preflight. `bun run test -- src/ui/outputPanel/__tests__/outputPlanWorkflow.test.ts` |
-| `ImportAnalysisWorkflow` | Picker/drop import, supported-path filtering, order-lock checks, analysis, metadata draft staging, append/error cleanup. | File import state, file list, status panel Public API Strip, `tauriClient`. | `runImportAnalysisWorkflow(...)` from import handlers. | Locked, picker cancel/failure, unsupported drop, analysis/staging failure, append success, duplicate-only. `bun run test -- src/ui/fileImport/__tests__/importAnalysisWorkflow.test.ts` |
-| `ProcessingCancellationWorkflow` | Cancel-all pending lifecycle and per-job cancellation failure reporting. | Status feedback and `tauriClient.cancelProcessing`. | `runProcessingCancellationWorkflow(...)` through status-panel controller. | Cancel-all success/failure, per-job cancel success/failure. `bun run test -- src/ui/statusPanel/__tests__/processingCancellationWorkflow.test.ts` |
+Workflow owners live in `*Workflow*.ts` files beside their `__tests__/`; find the
+current set by searching the tree (e.g. `rg -l "Workflow" src/ui --glob '*Workflow*.ts'`)
+rather than from a hand-maintained list that rots as owners move. Each owner
+co-locates its service interface, service tag, live layer (`satisfies`), program,
+and Promise bridge, and is exercised by a focused Vitest file next to it
+(`bun run test -- <owner test file>`).
 
 Public API Strip impact for these owners is intentionally narrow: callers keep
 existing UI/runtime Promise or synchronous wrapper shapes unless a milestone

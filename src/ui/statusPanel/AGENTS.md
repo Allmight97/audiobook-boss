@@ -22,7 +22,9 @@ foreground/direct-scoped events (`operation_id: None`).
 
 ## Public API Strip
 - Import status runtime symbols from `src/ui/statusPanel` unless a local exception is documented.
-- Exports: `beginMetadataSaveInStatusPanel`, `completeMetadataSaveInStatusPanel`, `failMetadataSaveInStatusPanel`, `initStatusPanel`, `isStatusPanelProcessing`, `pushStatusPanelTransientStatus`, `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`, `updateStatusPanelConcurrencyStatus`, `StatusPanelIsland`.
+- Authoritative runtime export surface = `index.ts`, pinned by
+  `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
+  truth instead of a hand-listed export set here.
 
 ## Private Cluster
 - Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `metadataSaveFeedback.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `processingCancellationWorkflow.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
