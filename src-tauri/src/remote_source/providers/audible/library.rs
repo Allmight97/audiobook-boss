@@ -36,14 +36,19 @@ fn parse_title(value: &Value) -> Option<RemoteTitle> {
         duration_seconds: find_first_u64_for_key(value, "runtime_length_min")
             .map(|minutes| minutes.saturating_mul(60) as u32)
             .or_else(|| find_first_u64_for_key(value, "duration").map(|duration| duration as u32)),
-        cover_url: find_first_string_for_key(value, "image_url")
-            .or_else(|| find_first_string_for_key(value, "cover_url")),
+        cover_url: title_cover_url(value),
         supplemental_pdf_available: find_first_string_for_key(value, "pdf_url").is_some()
             || find_first_string_for_key(value, "pdfUrl").is_some(),
         acquired: false,
         unsupported_reasons: unsupported_reasons_for_availability(&availability),
         availability,
     })
+}
+
+fn title_cover_url(value: &Value) -> Option<String> {
+    find_first_string_for_key(value, "image_url")
+        .or_else(|| find_first_string_for_key(value, "cover_url"))
+        .or_else(|| find_first_product_image_url(value))
 }
 
 fn title_availability(value: &Value) -> RemoteTitleAvailability {
@@ -149,6 +154,41 @@ fn find_first_string_for_key(value: &Value, key: &str) -> Option<String> {
     }
 }
 
+fn find_first_product_image_url(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(map) => {
+            if let Some(found) = map
+                .get("product_images")
+                .or_else(|| map.get("productImages"))
+                .and_then(product_image_url_from_value)
+            {
+                return Some(found);
+            }
+            map.values().find_map(find_first_product_image_url)
+        }
+        Value::Array(values) => values.iter().find_map(find_first_product_image_url),
+        _ => None,
+    }
+}
+
+fn product_image_url_from_value(value: &Value) -> Option<String> {
+    const PREFERRED_IMAGE_KEYS: &[&str] = &[
+        "500", "568", "1000", "1215", "882", "764", "732", "558", "536", "480", "348", "340",
+        "252", "240", "120",
+    ];
+
+    match value {
+        Value::String(url) => Some(url.clone()),
+        Value::Object(map) => PREFERRED_IMAGE_KEYS
+            .iter()
+            .find_map(|key| map.get(*key).and_then(Value::as_str))
+            .map(str::to_string)
+            .or_else(|| map.values().find_map(product_image_url_from_value)),
+        Value::Array(values) => values.iter().find_map(product_image_url_from_value),
+        _ => None,
+    }
+}
+
 fn find_first_u64_for_key(value: &Value, key: &str) -> Option<u64> {
     match value {
         Value::Object(map) => {
@@ -211,6 +251,10 @@ mod tests {
         assert_eq!(title.authors, vec!["Author One"]);
         assert_eq!(title.narrators, vec!["Narrator One"]);
         assert_eq!(title.duration_seconds, Some(5_400));
+        assert_eq!(
+            title.cover_url.as_deref(),
+            Some("https://example.test/cover.jpg")
+        );
         assert!(title.supplemental_pdf_available);
         assert_eq!(
             title.availability.status,
