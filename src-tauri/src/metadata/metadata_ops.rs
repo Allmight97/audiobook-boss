@@ -5,18 +5,9 @@ use crate::metadata::{build_series_list, AudiobookMetadata};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataOp {
-    SetString {
-        field: TagField,
-        value: String,
-    },
-    SetTrack {
-        number: u32,
-        total: Option<u32>,
-    },
-    SetDisk {
-        number: u32,
-        total: Option<u32>,
-    },
+    SetString { field: TagField, value: String },
+    SetTrack { number: u32, total: Option<u32> },
+    SetDisk { number: u32, total: Option<u32> },
     Clear(TagField),
     SetMediaTypeAudiobook,
 }
@@ -31,7 +22,11 @@ pub fn plan_metadata_field_ops(metadata: &AudiobookMetadata) -> Vec<MetadataOp> 
     push_string_op(&mut ops, metadata.genre.as_ref(), TagField::Genre);
     push_string_op(&mut ops, metadata.date.as_ref(), TagField::Date);
     push_string_op(&mut ops, metadata.comment.as_ref(), TagField::Comment);
-    push_string_op(&mut ops, metadata.description.as_ref(), TagField::Description);
+    push_string_op(
+        &mut ops,
+        metadata.description.as_ref(),
+        TagField::Description,
+    );
 
     push_series_ops(metadata, &mut ops);
     push_position_op(&mut ops, metadata.track, TagField::Track);
@@ -63,11 +58,7 @@ fn push_string_op(ops: &mut Vec<MetadataOp>, value: Option<&String>, field: TagF
     }
 }
 
-fn push_position_op(
-    ops: &mut Vec<MetadataOp>,
-    value: Option<(u32, Option<u32>)>,
-    field: TagField,
-) {
+fn push_position_op(ops: &mut Vec<MetadataOp>, value: Option<(u32, Option<u32>)>, field: TagField) {
     let Some((number, total)) = value else {
         return;
     };
@@ -121,16 +112,29 @@ fn push_built_series_op(ops: &mut Vec<MetadataOp>, value: Option<String>, field:
 pub(crate) fn field_has_clear_intent(metadata: &AudiobookMetadata, field: TagField) -> bool {
     match field {
         TagField::Title => metadata.title.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Artist => metadata.artist.as_ref().is_some_and(|v| v.trim().is_empty()),
+        TagField::Artist => metadata
+            .artist
+            .as_ref()
+            .is_some_and(|v| v.trim().is_empty()),
         TagField::Album => metadata.album.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Composer => metadata.composer.as_ref().is_some_and(|v| v.trim().is_empty()),
+        TagField::Composer => metadata
+            .composer
+            .as_ref()
+            .is_some_and(|v| v.trim().is_empty()),
         TagField::Genre => metadata.genre.as_ref().is_some_and(|v| v.trim().is_empty()),
         TagField::Date => metadata.date.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Comment => metadata.comment.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Description => {
-            metadata.description.as_ref().is_some_and(|v| v.trim().is_empty())
-        }
-        TagField::Series => metadata.series.as_ref().is_some_and(|v| v.trim().is_empty()),
+        TagField::Comment => metadata
+            .comment
+            .as_ref()
+            .is_some_and(|v| v.trim().is_empty()),
+        TagField::Description => metadata
+            .description
+            .as_ref()
+            .is_some_and(|v| v.trim().is_empty()),
+        TagField::Series => metadata
+            .series
+            .as_ref()
+            .is_some_and(|v| v.trim().is_empty()),
         TagField::SeriesPart => metadata
             .series_part
             .as_ref()
@@ -187,7 +191,9 @@ mod tests {
             number: 2,
             total: Some(5),
         }));
-        assert!(ops.iter().any(|op| matches!(op, MetadataOp::SetMediaTypeAudiobook)));
+        assert!(ops
+            .iter()
+            .any(|op| matches!(op, MetadataOp::SetMediaTypeAudiobook)));
     }
 
     #[test]

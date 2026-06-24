@@ -45,13 +45,19 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
     metadata.track = parse_position_field(
         first_tag(&dict, TagField::Track).as_deref(),
-        first_tag_keys(&dict, TagField::Track.read_total_keys().expect("track totals"))
-            .as_deref(),
+        first_tag_keys(
+            &dict,
+            TagField::Track.read_total_keys().expect("track totals"),
+        )
+        .as_deref(),
     );
     metadata.disk = parse_position_field(
         first_tag(&dict, TagField::Disk).as_deref(),
-        first_tag_keys(&dict, TagField::Disk.read_total_keys().expect("disk totals"))
-            .as_deref(),
+        first_tag_keys(
+            &dict,
+            TagField::Disk.read_total_keys().expect("disk totals"),
+        )
+        .as_deref(),
     );
 
     // Series metadata: prefer canonical tags, then supported legacy aliases.
@@ -154,8 +160,9 @@ mod tests {
             ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
             ("episode_sort", "3".to_string()),
         ]);
-        let selected =
-            first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+            tags.get(key).cloned()
+        });
         assert_eq!(selected.as_deref(), Some("1"));
     }
 
@@ -165,24 +172,27 @@ mod tests {
             ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
             ("episode_sort", "3".to_string()),
         ]);
-        let selected =
-            first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+            tags.get(key).cloned()
+        });
         assert_eq!(selected.as_deref(), Some("2"));
     }
 
     #[test]
     fn falls_back_to_episode_sort_for_series_part() {
         let tags = BTreeMap::from([("episode_sort", "3".to_string())]);
-        let selected =
-            first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+            tags.get(key).cloned()
+        });
         assert_eq!(selected.as_deref(), Some("3"));
     }
 
     #[test]
     fn does_not_treat_part_as_series_part_key() {
         let tags = BTreeMap::from([("part", "9".to_string())]);
-        let selected =
-            first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| tags.get(key).cloned());
+        let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+            tags.get(key).cloned()
+        });
         assert!(selected.is_none());
     }
 

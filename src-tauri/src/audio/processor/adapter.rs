@@ -120,7 +120,10 @@ mod tests {
         )
         .expect("native adapter should resolve");
 
-        assert!(matches!(adapter, ResolvedProcessorAdapter::NativeFfmpegNext));
+        assert!(matches!(
+            adapter,
+            ResolvedProcessorAdapter::NativeFfmpegNext
+        ));
     }
 
     #[test]

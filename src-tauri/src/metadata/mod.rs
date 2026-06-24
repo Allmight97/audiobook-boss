@@ -10,16 +10,16 @@ use crate::errors::{AppError, Result};
 pub mod reader;
 pub(crate) mod tag_registry;
 
-mod field_schema;
-mod metadata_ops;
-mod metadata_sinks;
 mod container;
 #[cfg(test)]
 mod contract_tests;
 mod cover_art;
 mod ffi;
 mod ffmpeg_dict;
+mod field_schema;
 mod intent_plan;
+mod metadata_ops;
+mod metadata_sinks;
 mod mp4ameta_bridge;
 mod passthrough;
 mod remux;

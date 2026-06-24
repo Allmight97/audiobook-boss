@@ -320,10 +320,10 @@ mod probe;
 #[cfg(test)]
 mod tests {
     use super::audio_download::{build_download_request, download_to_path};
-    use crate::remote_source::scoped_output::partial_sibling;
     use super::library_probe::library_probe_summary;
     use super::license::{license_request_payload, license_request_spec};
     use super::*;
+    use crate::remote_source::scoped_output::partial_sibling;
     use abb_remote_source_core::AcquisitionProgress;
     use reqwest::header::{RANGE, USER_AGENT};
     use std::path::Path;
