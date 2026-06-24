@@ -47,6 +47,9 @@
 - Keep architecture changes localized to the subsystem that owns the invariant.
   Start refactors by naming the owned invariant and owner, then move truth to
   the owning layer before extracting helpers or reshaping files.
+- Before creating a new module, skill, CI step, abstraction, or canon rule,
+  name the invariant it owns and the recurring upkeep cost it adds; if an
+  existing owner can carry it, extend that instead.
 - Surface malformed seams, cross-layer contract drift, brittle logic, and bad
   solution shape when encountered. Refactor when the connection to active work
   improves durability, ownership clarity, contract correctness, scan cost, or
