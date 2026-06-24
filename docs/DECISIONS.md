@@ -1,5 +1,18 @@
 # Decisions
 
+## 2026-06-24 - Skills vs AGENTS: Location-Bound Knowledge Consolidated
+
+- Discriminator: location-bound knowledge (needed whenever editing a directory) belongs in that
+  directory's `AGENTS.md`, which auto-loads by location and cannot miss-trigger; task-bound
+  procedures (occasional, cross-cutting) stay skills, which load by intent/invocation.
+- Purged four skills whose content duplicated the owning `AGENTS.md`: `job-registry-and-progress`,
+  `path-security-validation`, `contract-guardrails` (unique bits relocated to
+  `processing/AGENTS.md`, `commands/AGENTS.md`, `scripts/AGENTS.md`), and `testing-strategy` (tier
+  tree inlined into root `AGENTS.md`). Kept `release`, `decision-alignment`,
+  `resource-lifetime-audit`, `abb-library-research`, and a thinned `audiobook-metadata`. 9 → 5.
+- Guardrail: a skill that duplicates a directory's `AGENTS.md` is dead weight that rarely fires —
+  prefer the nested `AGENTS.md` for location-bound truth.
+
 ## 2026-06-24 - AGENTS Public-Surface List Policy
 
 - Nested `AGENTS.md` files keep an enumerated Public API Strip export list only

@@ -47,5 +47,5 @@ git subtree pull --prefix=repos/tauri https://github.com/tauri-apps/tauri.git de
   for installed Tauri versions.
 - Validate TS/Rust contract changes against `src/lib/generated/tauri.ts` and
   `src-tauri/src/ipc_contract.rs`.
-- Use `contract-guardrails` for command, event, binding, or runtime-boundary
-  edits.
+- For command, event, binding, or runtime-boundary edits, see
+  `src-tauri/src/commands/AGENTS.md` and `src/lib/tauri/AGENTS.md`.

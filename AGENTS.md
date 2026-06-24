@@ -42,7 +42,13 @@
 
 - Verification cost and signal are first-order product concerns. Treat slow, opaque, false-green, or target-bloated proof routes as `fix` candidates when measured evidence shows they waste agent or human attention.
 - Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression. Prefer deterministic focused checks over coverage-count expansion.
-- Test tier selection and placement is owned by the `testing-strategy` skill (`.agents/skills/testing-strategy`); it routes to `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` for commands and local placement rules.
+- For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
+- Test tier: pick the lowest tier that proves the behavior deterministically, owned by the surface that owns the logic; push a test down a tier whenever the same guarantee proves more cheaply there.
+  1. Pure domain logic → its owning `abb-*-core` crate.
+  2. Runtime, command ingress, job/progress lifecycle, error/settings envelope → the `audiobook-boss` runtime crate.
+  3. TS↔Rust contract shape/parity → the contract/binding tier (commands boundary + contract tests).
+  4. DOM, Svelte island, or UI-state behavior → Vitest + jsdom under `src/`.
+- Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
 - Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
 
 ## Verification

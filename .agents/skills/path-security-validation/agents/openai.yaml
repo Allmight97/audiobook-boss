@@ -1,4 +1,0 @@
-interface:
-  display_name: "Path Security Validation"
-  short_description: "Enforce secure file path handling rules"
-  default_prompt: "Use $path-security-validation to enforce path validation and safe error boundaries for file operations."

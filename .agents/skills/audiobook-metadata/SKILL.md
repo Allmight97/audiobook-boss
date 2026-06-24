@@ -18,15 +18,8 @@ ffprobe-visible tags plus mirrored freeform atoms.
 For series metadata, write both:
 - ffprobe-visible tags: `series`, `series-part`, plus mirrored freeform atoms `----:com.apple.iTunes:SERIES` and `----:com.apple.iTunes:SERIES-PART`
 
-## Metadata Intent Boundary
-
-Honor explicit `set | clear | noop` intent semantics end-to-end.
-- Empty sentinels (`''`, `0`, `[]`) are explicit clear commands.
-- Do not collapse clear to noop via emptiness heuristics.
-- Metadata Outcome Plan lives under `src-tauri/src/metadata/` and is governed
-  by `src-tauri/src/metadata/AGENTS.md`.
-- Output naming receives `NamingMetadata` from the metadata boundary, then path
-  rendering and collision handling flow through the Output Artifact boundary.
+Intent semantics (`set | clear | noop`), the Outcome Plan, and naming-to-artifact
+flow are owned by `src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
 
 ## Verification
 

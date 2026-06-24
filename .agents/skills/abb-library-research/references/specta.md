@@ -42,4 +42,4 @@ git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git m
   `specta-typescript` versions.
 - Verify generated output through `bun run bindings:check` or the relevant
   focused binding command before changing IPC contracts.
-- Use `contract-guardrails` when Specta output affects TS/Rust parity.
+- When Specta output affects TS/Rust parity, see `src-tauri/src/commands/AGENTS.md` and `src/lib/tauri/AGENTS.md`.

@@ -1,5 +1,7 @@
 # Metadata Boundary
 
+For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use the `audiobook-metadata` skill.
+
 ## Public API Strip
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,

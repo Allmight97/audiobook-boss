@@ -1,4 +1,0 @@
-interface:
-  display_name: "Job Registry and Progress"
-  short_description: "Maintain truthful long-running job lifecycle"
-  default_prompt: "Use $job-registry-and-progress to implement cancellation-safe job lifecycle and progress emission."

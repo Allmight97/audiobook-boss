@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tauri Runtime Boundary"
-  short_description: "Protect Tauri IPC and plugin boundary parity"
-  default_prompt: "Use $contract-guardrails to add or refactor ABB Tauri commands, events, plugin adapters, tauriClient calls, and generated binding contracts safely."
