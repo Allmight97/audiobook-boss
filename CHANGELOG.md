@@ -4,6 +4,13 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-24
+
+### Added
+
+- Remote acquisition now shows cover thumbnails for matched audiobooks, with
+  Audible product-image covers mapped into the acquire-dialog preview.
+
 ### Changed
 
 - Tightened metadata cover-art compatibility, Audible Supplemental PDF
@@ -23,6 +30,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Cover-art compatibility warnings now distinguish supported JPEG/PNG, known
   unsupported formats, and unrecognized bytes without warning on arbitrary
   placeholder data.
+
+### Security
+
+- Updated quinn-proto to 0.11.15, fixing RUSTSEC-2026-0185 (memory exhaustion
+  via unbounded out-of-order QUIC stream reassembly) on remote acquisition
+  paths.
+- Dropped the keyring umbrella crate in favor of registering the native OS
+  keychain directly via `keyring-core`, removing the memmap2 advisory
+  (RUSTSEC-2026-0186) and its unused database keystore backends. Keychain
+  behavior is unchanged.
+- Pinned undici to >=7.28.0 to clear transitive jsdom dev-only advisories and
+  updated Vite to 8.0.16 plus other build/test dependencies.
 
 ## [1.1.4] - 2026-06-15
 
