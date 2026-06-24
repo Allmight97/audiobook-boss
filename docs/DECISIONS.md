@@ -1,5 +1,12 @@
 # Decisions
 
+## 2026-06-23 - Remote-Source Secret Vault Stays On The Legacy File Keychain
+
+- ABB persists remote-source secrets via `keyring-core` + `apple-native-keyring-store`'s default `keychain::Store` (legacy file keychain, `SecKeychainFindGenericPassword`), service `audiobook-boss.remote-source`, because the Data Protection Keychain (`protected` module) requires Developer ID code signing and a `keychain-access-groups` entitlement the unsigned build does not carry.
+- The auth persistence write path is a vault seam in `providers/audible/mod.rs` (`complete_auth` -> `persist_auth`), mock-tested via `MockSecretVault` without a live `register()` exchange.
+- Migration to the Data Protection Keychain is deferred to #396, gated on signing/entitlement readiness.
+- Guardrail: do not switch `vault.rs` to the `protected` store or add a silent legacy fallback before #396; a vault `Err` propagates as a typed error, never `NeedsAuth` or an empty result.
+
 ## 2026-06-11 - Metadata Lookup Provider Degradation Is Canonical
 
 - Audnexus ASIN detail failure continuing to text search, partial multi-provider
