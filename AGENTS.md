@@ -2,7 +2,7 @@
 
 ## Start Here
 
-- Treat this doc (and nested `AGENTS.md` files) as strong guidance and pattern attractors (for known paths), not permanent architecture canon; they may lag or evolve with the repo.
+- Treat this doc (and nested `AGENTS.md` files) as current routing and owner guidance for known paths, not permanent architecture canon; they may lag or evolve with the repo.
 - Cargo commands run from the repository root workspace.
 - Script and verification command map: `scripts/AGENTS.md`. ABB currently uses direct native commands, not a custom verification runner.
 - Runtime command/event index only: `docs/api-map.md`.

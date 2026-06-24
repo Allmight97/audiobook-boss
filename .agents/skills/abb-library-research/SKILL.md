@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: Resolve ABB external library/API uncertainty for Effect, Svelte, Tauri, Specta, and tauri-specta via route cards, repos/*, Context7, and installed deps. Facts for the active question only.
+description: Resolve ABB external-library/API uncertainty for Effect, Svelte, Tauri, Specta, or tauri-specta when implementation, IPC contract, codegen, installed-version, or upstream-source behavior affects the work. Use route cards, Context7, lockfiles, and repos/* for the active question only.
 ---
 
 # ABB Library Research
@@ -13,7 +13,9 @@ Vendored `repos/*`, route cards, version-sensitive API semantics, installed impo
 
 Does not own metadata, path safety, job lifecycle, IPC guardrails, or release.
 
-User invokes when library truth blocks the answer. No durable artifacts.
+Skip ABB-owned domains such as metadata, processing, output artifacts, audio
+engine behavior, path safety, job lifecycle, IPC guardrails, or release unless
+external-library truth is the active blocker. No durable artifacts.
 
 ## Answer
 
@@ -23,13 +25,16 @@ User invokes when library truth blocks the answer. No durable artifacts.
 - **Version or path** when version-sensitive
 - **Residual uncertainty** when evidence conflicts
 
+Version-sensitive answers must cite ABB's installed version or say the version
+could not be proven.
+
 ## Lookup order
 
-1. Nearest `AGENTS.md`, code/tests, manifests, lockfiles, generated bindings
+1. Nearest `AGENTS.md`, code/tests, manifests, lockfiles, generated bindings, installed dependencies
 2. `references/<library>.md` route card
 3. Context7 (one path: CLI or MCP)
-4. `repos/*`
-5. Installed truth in `package.json`, `bun.lock`, Cargo lockfiles
+4. `repos/*` only when the answer needs implementation source, upstream tests,
+   codegen behavior, runtime internals, or Context7/doc version mismatch checks
 
 Context7: known library ID + one query. No broad surveys unless asked.
 
