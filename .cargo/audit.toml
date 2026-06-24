@@ -38,5 +38,11 @@ ignore = [
   "RUSTSEC-2025-0081",
   "RUSTSEC-2025-0098",
   "RUSTSEC-2025-0100",
+
+  # rsa via audible_api (AAX license/decrypt material for protected remote source).
+  # Acceptance: "No fixed upgrade is available" per RUSTSEC-2023-0071 (Marvin timing attack).
+  # Used only for Audible AAX protected flows (not core local processing). Theoretical
+  # side-channel on old crypto dep; no active exploitation path in ABB's usage.
+  "RUSTSEC-2023-0071",
 ]
 informational_warnings = ["unmaintained", "unsound"]

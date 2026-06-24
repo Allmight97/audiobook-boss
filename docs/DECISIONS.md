@@ -1,5 +1,12 @@
 # Decisions
 
+## 2026-06-23 - Remote-Source Secret Vault Stays On The Legacy File Keychain
+
+- ABB persists remote-source secrets via `keyring-core` + `apple-native-keyring-store`'s default `keychain::Store` (legacy file keychain, `SecKeychainFindGenericPassword`), service `audiobook-boss.remote-source`, because the Data Protection Keychain (`protected` module) requires Developer ID code signing and a `keychain-access-groups` entitlement the unsigned build does not carry.
+- The auth persistence write path is a vault seam in `providers/audible/mod.rs` (`complete_auth` -> `persist_auth`), mock-tested via `MockSecretVault` without a live `register()` exchange.
+- Migration to the Data Protection Keychain is deferred to #396, gated on signing/entitlement readiness.
+- Guardrail: do not switch `vault.rs` to the `protected` store or add a silent legacy fallback before #396; a vault `Err` propagates as a typed error, never `NeedsAuth` or an empty result.
+
 ## 2026-06-11 - Metadata Lookup Provider Degradation Is Canonical
 
 - Audnexus ASIN detail failure continuing to text search, partial multi-provider
@@ -41,7 +48,7 @@
 
 - Focused Rust tests target boundary-aligned workspace packages before the Tauri/media crate.
 - `src-tauri` is the runtime, IPC, filesystem, keychain, FFmpeg/audio, and integration shell.
-- Core crates must not depend on Tauri, FFmpeg, keyring, or Tauri plugins.
+- Core crates must not depend on Tauri, FFmpeg, keyring/credential-store crates, or Tauri plugins.
 - Use one package/target-selected Nextest command at a time for broad Rust
   review: each core crate, `audiobook-boss --lib`, and
   `audiobook-boss --test all_tests`.

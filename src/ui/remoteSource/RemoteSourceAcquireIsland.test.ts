@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob, RemoteSourceAccountState } from '../../types/remoteSource';
 import RemoteSourceAcquireDialog from './RemoteSourceAcquireDialog.svelte';
 import RemoteSourceAcquireIsland from './RemoteSourceAcquireIsland.svelte';
+import { clearRemoteSourceCoverPreviewCache } from './remoteSourceCoverPreview.svelte';
 import { remoteSourceAcquireState } from './state.svelte';
 
 const context = vi.hoisted(() => ({
 	getRemoteSourceAccountStateMock: vi.fn(),
+	loadCoverArtFromUrlMock: vi.fn(),
 	loadRemoteSourceLibraryMock: vi.fn(),
 	startRemoteSourceAcquisitionMock: vi.fn(),
 	getRemoteSourceAcquisitionStatusMock: vi.fn(),
@@ -23,6 +25,7 @@ const context = vi.hoisted(() => ({
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		getRemoteSourceAccountState: context.getRemoteSourceAccountStateMock,
+		loadCoverArtFromUrl: context.loadCoverArtFromUrlMock,
 		loadRemoteSourceLibrary: context.loadRemoteSourceLibraryMock,
 		startRemoteSourceAcquisition: context.startRemoteSourceAcquisitionMock,
 		getRemoteSourceAcquisitionStatus: context.getRemoteSourceAcquisitionStatusMock,
@@ -83,8 +86,11 @@ function acquisitionJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob
 describe('RemoteSourceAcquireIsland progress', () => {
 	beforeEach(() => {
 		remoteSourceAcquireState.isOpen = false;
+		clearRemoteSourceCoverPreviewCache();
 		context.getRemoteSourceAccountStateMock.mockReset();
 		context.getRemoteSourceAccountStateMock.mockResolvedValue(connectedAccount());
+		context.loadCoverArtFromUrlMock.mockReset();
+		context.loadCoverArtFromUrlMock.mockResolvedValue([0xff, 0xd8, 0xff]);
 		context.loadRemoteSourceLibraryMock.mockReset();
 		context.loadRemoteSourceLibraryMock.mockResolvedValue({
 			providerId: 'audible',
@@ -170,6 +176,61 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		await user.click(screen.getByRole('button', { name: 'Import from Library' }));
 
 		expect(remoteSourceAcquireState.isOpen).toBe(true);
+	});
+
+	it('eagerly loads title cover previews through the backend without exposing provider URLs', async () => {
+		context.loadRemoteSourceLibraryMock.mockResolvedValueOnce({
+			providerId: 'audible',
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Private Cover Book',
+					authors: ['Cover Author'],
+					narrators: [],
+					durationSeconds: 3600,
+					coverUrl: 'https://covers.example.com/private-cover.jpg',
+					supplementalPdfAvailable: false,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+				{
+					providerId: 'audible',
+					titleId: 'B000000002',
+					title: 'Missing Cover Book',
+					authors: ['Plain Author'],
+					narrators: [],
+					durationSeconds: 4200,
+					coverUrl: undefined,
+					supplementalPdfAvailable: false,
+					acquired: false,
+					unsupportedReasons: [],
+				},
+			],
+			diagnostics: [],
+		});
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Private Cover Book');
+		expect(screen.getAllByTestId('remote-title-cover')).toHaveLength(2);
+		expect(screen.getByTestId('remote-title-cover-missing').textContent).toBe('No Art');
+
+		await waitFor(() => {
+			expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith(
+				'https://covers.example.com/private-cover.jpg',
+			);
+		});
+
+		await waitFor(() => {
+			const image = screen.getByTestId('remote-title-cover-image') as HTMLImageElement;
+			expect(image.src.startsWith('data:image/jpeg;base64,')).toBe(true);
+			expect(image.src).not.toContain('covers.example.com');
+		});
+
+		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
+		expect(document.querySelector('[src*="covers.example.com"]')).toBeNull();
+		expect(document.body.textContent).not.toContain('covers.example.com');
 	});
 
 	it('polls acquisition status and renders active download/decrypt progress in the app modal', async () => {

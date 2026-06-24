@@ -35,6 +35,9 @@ Cross-cutting defaults (surface-specific rules in the owning `AGENTS.md` win on 
 - Prefer deterministic fixtures and fakes at the seam; use real-media probes only when the audio owner or #341 explicitly calls for them.
 - Assert through existing `AppError` variants, not on string messages.
 - One behavior per case.
+- For a bug fix or a new assertion on existing behavior, prefer a failing-first
+  test that pins it before the fix (watch it fail, then fix); it is a tool, not
+  a ceremony, so skip it for trivial or greenfield-adjacent work.
 - Prefer a focused case at the owning tier over a wide integration test that re-proves lower-tier logic.
 
 ## Report Shape
