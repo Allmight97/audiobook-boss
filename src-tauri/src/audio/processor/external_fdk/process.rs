@@ -1,4 +1,4 @@
-use crate::audio::toolchain::ValidatedExternalToolchain;
+use crate::audio::toolchain::{last_nonempty_stderr_line, ValidatedExternalToolchain};
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::{ProcessingContext, ProgressEmitter};
@@ -263,14 +263,6 @@ fn ensure_external_success(status: std::process::ExitStatus, stderr_output: &str
     let details =
         last_nonempty_stderr_line(stderr_output).unwrap_or("External ffmpeg process failed.");
     Err(AppError::ProcessTermination(details.to_string()))
-}
-
-fn last_nonempty_stderr_line(stderr_output: &str) -> Option<&str> {
-    stderr_output
-        .lines()
-        .rev()
-        .map(str::trim)
-        .find(|value| !value.is_empty())
 }
 
 #[derive(Default)]
